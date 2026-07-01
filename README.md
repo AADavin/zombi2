@@ -35,8 +35,22 @@ genomes = z.simulate_genomes(tree, z.FamilySampledRates(
     loss=z.Gamma(2, 0.07), origination=0.5), initial_size=40, seed=42)
 
 print(tree.to_newick())
-print(genomes.profiles.matrix)         # families x extant-species copy numbers
-genomes.write("out/")
+print(genomes.profiles.matrix)          # families x extant-species copy numbers
+complete, extant = genomes.gene_trees()["1"]   # per-family reconstructed gene trees
+genomes.write("out/")                   # trees, event tables, transfers, profiles
+```
+
+`genomes.write("out/")` produces ZOMBI-1-style output: `species_tree.nwk`,
+per-family event tables (`gene_family_events/`), reconstructed **complete** and
+**extant** gene trees (`gene_trees/`), `Transfers.tsv`, `Gene_family_summary.tsv`, and
+the presence/copy-number matrices (`Profiles.tsv` / `Presence.tsv`).
+
+**Bounding gene-family growth.** With duplication > loss a family's size grows like
+`e^{(d−l)t}`. Pass `carrying_capacity=K` (logistic density dependence — family size
+settles around `K`) and/or `max_copies=N` (a hard cap) to any rate model:
+
+```python
+z.UniformRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 Rate models are the flexible knob. `z.UniformRates(...)` and `z.FamilySampledRates(...)`

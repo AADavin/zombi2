@@ -121,13 +121,16 @@ class InsertionPoint(Enum):
 class TransferSegment:
     """A portable, self-contained copy of the genes moved by a transfer.
 
-    Carries freshly minted gene ids so the recipient can adopt them directly. ``genes``
-    is the copy that lands in the recipient; the donor keeps its own copy when
-    ``extract_segment`` is called with ``keep_copy=True``.
+    ``genes`` are the freshly minted copies that land in the recipient. The donor keeps
+    a copy too, but as a *new* lineage segment (the transfer is a bifurcation of the
+    donor lineage): ``donor_old_gids`` are the pre-transfer ids and ``donor_cont_gids``
+    the donor's continuing ids, aligned element-wise with ``genes``.
     """
 
     family: str
     genes: tuple["Gene", ...]
+    donor_old_gids: list[str] = field(default_factory=list)
+    donor_cont_gids: list[str] = field(default_factory=list)
     replacement: bool = False
 
 

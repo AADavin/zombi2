@@ -3,25 +3,13 @@
 The simulator programs against the abstract :class:`Genome` interface; v1 ships one
 trivial implementation, :class:`UnorderedGenome` (a multiset of gene families with copy
 numbers). Future representations (ordered chromosomes, length-aware genomes) are new
-subclasses that implement the same interface — the simulator, rate model, event log and
-profile matrix never change.
+subclasses implementing the same interface.
 
-Design notes tying back to the spec's "six load-bearing signatures":
-
-* ``draw_target`` returns a :class:`~zombi2.events.Selection` (segment-shaped even in
-  v1, where it holds a single gene) and accepts a ``params`` object it currently ignores.
-* Transfer is a three-method handoff (``extract_segment`` / ``choose_insertion_point`` /
-  ``insert_segment``) so a copy can move between two genomes and land at a
-  representation-appropriate position.
-* ``total_length`` lives on the base interface (v1 returns ``size``) so length-dependent
-  rate models type-check against ``Genome``.
-* ``supported_events`` gates the simulator loop, so adding inversion/transposition later
-  needs no loop change.
-
-Gene identity: speciation does **not** mint new gene ids (a gene lineage keeps its id
-across the species tree; a copy is distinguished by the branch it lives on). New ids are
-minted only when a gene is *created* — origination, duplication, or the recipient copy
-of a transfer — via a shared :class:`IdManager`.
+Gene-lineage identity (for gene-tree reconstruction): a gene copy's ``gid`` is the id of
+its **current lineage segment**. Every event that changes a lineage — duplication,
+transfer, speciation — *terminates* the incoming segment(s) and *opens* fresh ones with
+new ids, so each ``gid`` is born once and dies once. The event log therefore records a
+full genealogy (from-id → to-ids) that :mod:`zombi2.reconciliation` turns into gene trees.
 """
 
 from __future__ import annotations
@@ -43,11 +31,7 @@ from .events import (
 
 
 class IdManager:
-    """Mints globally unique gene ids and family ids for one simulation.
-
-    Shared across every genome in a run (propagated through :meth:`Genome.clone`), so
-    ids are unique and reproducible for a given seed and call order.
-    """
+    """Mints globally unique gene-lineage ids and family ids for one simulation."""
 
     def __init__(self) -> None:
         self._gene = 0
@@ -64,10 +48,10 @@ class IdManager:
 
 @dataclass
 class Gene:
-    """A single gene copy. v1 carries only ``gid`` and ``family``.
+    """A single gene copy. v1 carries only ``gid`` (current lineage segment) and ``family``.
 
     The ordered-genome extension adds ``orientation``; the length extension adds
-    ``length`` — additive fields on a subclass, not a type change.
+    ``length`` — additive fields on a subclass.
     """
 
     gid: str
@@ -81,58 +65,40 @@ class Genome(ABC):
 
     # --- queries -----------------------------------------------------------
     @abstractmethod
-    def families(self) -> list[str]:
-        """Families with at least one copy present."""
-
+    def families(self) -> list[str]: ...
     @abstractmethod
-    def copy_number(self, family: str) -> int:
-        ...
-
+    def copy_number(self, family: str) -> int: ...
     @abstractmethod
-    def size(self) -> int:
-        """Total number of gene copies."""
-
+    def size(self) -> int: ...
     @abstractmethod
-    def total_length(self) -> float:
-        """Total length (v1: equals :meth:`size`, every gene of length 1)."""
-
+    def total_length(self) -> float: ...
     @abstractmethod
-    def genes(self) -> list[Gene]:
-        ...
-
+    def genes(self) -> list[Gene]: ...
     @abstractmethod
-    def presence_vector(self, family_order) -> np.ndarray:
-        """Binary presence vector ``σ`` over ``family_order`` (the future Potts state)."""
-
+    def presence_vector(self, family_order) -> np.ndarray: ...
     @abstractmethod
-    def supported_events(self) -> frozenset[EventType]:
-        """The stochastic events this representation can undergo."""
+    def supported_events(self) -> frozenset[EventType]: ...
 
     # --- mutation ----------------------------------------------------------
     @abstractmethod
     def draw_target(self, event: EventType, rng, params: TargetParams, family: str | None = None) -> Selection:
-        """Choose what a D / L / T event acts on.
-
-        ``family`` restricts the choice to one family's copies (per-family rates); when
-        ``None`` a copy is chosen uniformly across the whole genome.
-        """
+        """Choose what a D / L / T event acts on (optionally restricted to one family)."""
 
     @abstractmethod
     def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[GeneOp]:
-        """Apply a D or L event in place; return the affected gene rows."""
+        """Apply a D or L event in place; return the affected gene rows (from, to...)."""
 
     @abstractmethod
     def originate(self, rng, params: TargetParams) -> list[GeneOp]:
-        """Create a brand-new family (one copy) in place; return its gene row."""
+        """Create a brand-new family (one copy) in place; return its origin row."""
 
-    # --- transfer handoff (three methods) ---------------------------------
+    # --- transfer handoff --------------------------------------------------
     @abstractmethod
-    def extract_segment(self, selection: Selection, rng, *, keep_copy: bool = True) -> TransferSegment:
-        """Build a portable copy of the selected genes (fresh ids) for a transfer."""
+    def extract_segment(self, selection: Selection, rng) -> TransferSegment:
+        """Bifurcate the donor lineage: re-mint its continuation and build the copy to send."""
 
     @abstractmethod
-    def choose_insertion_point(self, segment: TransferSegment, rng) -> InsertionPoint:
-        """Where an incoming transferred segment should land in this (recipient) genome."""
+    def choose_insertion_point(self, segment: TransferSegment, rng) -> InsertionPoint: ...
 
     @abstractmethod
     def insert_segment(self, segment: TransferSegment, at, rng) -> list[GeneOp]:
@@ -140,8 +106,12 @@ class Genome(ABC):
 
     # --- speciation --------------------------------------------------------
     @abstractmethod
-    def clone(self) -> "Genome":
-        """A deep copy for a child branch at a speciation node (ids preserved)."""
+    def clone_reminting(self) -> tuple["Genome", list[tuple[str, str, str]]]:
+        """A child copy for a speciation, with re-minted ids.
+
+        Returns the child genome and a list of ``(old_gid, new_gid, family)`` so the
+        driver can log the speciation as a lineage bifurcation.
+        """
 
 
 class UnorderedGenome(Genome):
@@ -180,8 +150,7 @@ class UnorderedGenome(Genome):
     def presence_vector(self, family_order) -> np.ndarray:
         return np.fromiter(
             (1 if self.copy_number(f) > 0 else 0 for f in family_order),
-            dtype=np.int8,
-            count=len(family_order),
+            dtype=np.int8, count=len(family_order),
         )
 
     def supported_events(self) -> frozenset[EventType]:
@@ -196,11 +165,16 @@ class UnorderedGenome(Genome):
     def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[GeneOp]:
         if event is EventType.DUPLICATION:
             parent = selection.genes[0]
-            copy = Gene(self.ids.new_gene(), parent.family)
-            self._add(copy)
+            fam = parent.family
+            self._remove(parent)  # the ancestral lineage terminates here
+            left = Gene(self.ids.new_gene(), fam)   # continuation
+            right = Gene(self.ids.new_gene(), fam)  # new copy
+            self._add(left)
+            self._add(right)
             return [
-                GeneOp(parent.gid, parent.family, "parent"),
-                GeneOp(copy.gid, copy.family, "copy"),
+                GeneOp(parent.gid, fam, "parent"),
+                GeneOp(left.gid, fam, "left"),
+                GeneOp(right.gid, fam, "right"),
             ]
         if event is EventType.LOSS:
             ops = []
@@ -217,12 +191,20 @@ class UnorderedGenome(Genome):
         return [GeneOp(gene.gid, family, "origin")]
 
     # --- transfer handoff --------------------------------------------------
-    def extract_segment(self, selection: Selection, rng, *, keep_copy: bool = True) -> TransferSegment:
-        new_genes = tuple(Gene(self.ids.new_gene(), g.family) for g in selection.genes)
-        if not keep_copy:  # replacement transfer (not used in v1)
-            for g in selection.genes:
-                self._remove(g)
-        return TransferSegment(family=selection.family, genes=new_genes)
+    def extract_segment(self, selection: Selection, rng) -> TransferSegment:
+        old_gids, cont_gids, transferred = [], [], []
+        for g in selection.genes:
+            fam = g.family
+            old_gids.append(g.gid)
+            self._remove(g)
+            cont = Gene(self.ids.new_gene(), fam)  # donor lineage continues (new segment)
+            self._add(cont)
+            cont_gids.append(cont.gid)
+            transferred.append(Gene(self.ids.new_gene(), fam))
+        return TransferSegment(
+            family=selection.family, genes=tuple(transferred),
+            donor_old_gids=old_gids, donor_cont_gids=cont_gids,
+        )
 
     def choose_insertion_point(self, segment: TransferSegment, rng) -> InsertionPoint:
         return InsertionPoint.ANYWHERE  # a multiset has no meaningful position
@@ -231,12 +213,16 @@ class UnorderedGenome(Genome):
         ops = []
         for g in segment.genes:
             self._add(g)
-            ops.append(GeneOp(g.gid, g.family, "transferred"))
+            ops.append(GeneOp(g.gid, g.family, "transfer_copy"))
         return ops
 
     # --- speciation --------------------------------------------------------
-    def clone(self) -> "UnorderedGenome":
-        new = UnorderedGenome(self.ids)
+    def clone_reminting(self) -> tuple["UnorderedGenome", list[tuple[str, str, str]]]:
+        new = type(self)(self.ids)  # same representation (works for subclasses)
+        mapping = []
         for family, lst in self._genes.items():
-            new._genes[family] = [Gene(g.gid, g.family) for g in lst]
-        return new
+            for g in lst:
+                ng = Gene(self.ids.new_gene(), family)
+                new._add(ng)
+                mapping.append((g.gid, ng.gid, family))
+        return new, mapping

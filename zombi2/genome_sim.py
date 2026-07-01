@@ -71,8 +71,7 @@ class GenomeSimulator:
 
         # --- root speciation: seed the child branches ----------------------
         alive: dict[TreeNode, Genome] = {}
-        for child in root.children:
-            alive[child] = root_genome.clone()
+        self._speciate(root_genome, root, alive, log)
 
         leaf_genomes: dict[TreeNode, Genome] = {}
 
@@ -89,11 +88,25 @@ class GenomeSimulator:
             if node.is_leaf():
                 if node.is_extant:
                     leaf_genomes[node] = genome
-            else:  # speciation: clone into children
-                for child in node.children:
-                    alive[child] = genome.clone()
+            else:  # speciation: re-mint lineage ids into each child and log it
+                self._speciate(genome, node, alive, log)
 
         return GenomeResult(event_log=log, leaf_genomes=leaf_genomes, ids=ids)
+
+    # --- speciation: re-mint lineage ids into both children, log it --------
+    @staticmethod
+    def _speciate(genome, node, alive, log):
+        child1, child2 = node.children
+        g1, map1 = genome.clone_reminting()
+        g2, map2 = genome.clone_reminting()
+        for (old, new1, fam), (_o2, new2, _f2) in zip(map1, map2):
+            log.add(EventRecord(
+                EventType.SPECIATION, node.name, node.time,
+                [GeneOp(old, fam, "parent"), GeneOp(new1, fam, "child"),
+                 GeneOp(new2, fam, "child")],
+            ))
+        alive[child1] = g1
+        alive[child2] = g2
 
     # --- Gillespie over a constant-membership interval ---------------------
     def _evolve_interval(
@@ -129,7 +142,8 @@ class GenomeSimulator:
             self._fire(ew, b, alive, t, rate_model, log, rng)
         raise RuntimeError(
             f"exceeded max_events_per_interval={self.max_events_per_interval}; "
-            "check that loss/duplication rates are not diverging."
+            "gene families are likely growing without bound (duplication > loss). "
+            "Set carrying_capacity= or max_copies= on the rate model to regulate growth."
         )
 
     # --- apply a single event ---------------------------------------------
@@ -157,21 +171,18 @@ class GenomeSimulator:
             if not recipients:  # no co-existing lineage (should not happen for N>=2)
                 return
             selection = genome.draw_target(EventType.TRANSFER, rng, params, family=family)
-            segment = genome.extract_segment(selection, rng, keep_copy=True)
+            segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
             recipient = recipients[int(rng.integers(len(recipients)))]
             at = alive[recipient].choose_insertion_point(segment, rng)
-            received = alive[recipient].insert_segment(segment, at, rng)
-            donor_ops = [GeneOp(g.gid, g.family, "donor_kept") for g in selection.genes]
-            log.add(
-                EventRecord(
-                    EventType.TRANSFER,
-                    branch.name,
-                    t,
-                    donor_ops + received,
-                    donor=branch.name,
-                    recipient=recipient.name,
-                )
-            )
+            alive[recipient].insert_segment(segment, at, rng)
+            fam = segment.family
+            for old, cont, g in zip(segment.donor_old_gids, segment.donor_cont_gids, segment.genes):
+                log.add(EventRecord(
+                    EventType.TRANSFER, branch.name, t,
+                    [GeneOp(old, fam, "parent"), GeneOp(cont, fam, "donor_copy"),
+                     GeneOp(g.gid, fam, "transfer_copy")],
+                    donor=branch.name, recipient=recipient.name,
+                ))
             return
 
         # duplication or loss

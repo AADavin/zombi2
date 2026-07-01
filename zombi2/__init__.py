@@ -41,6 +41,7 @@ from .distributions import (
 )
 from .genome_sim import GenomeSimulator, GenomeResult
 from .profiles import ProfileMatrix
+from .reconciliation import build_gene_trees
 from .simulation import simulate_genomes, Genomes
 
 __all__ = [
@@ -59,4 +60,5 @@ __all__ = [
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
+    "build_gene_trees",
 ]

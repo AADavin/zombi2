@@ -8,9 +8,11 @@ from pathlib import Path
 import numpy as np
 
 from ._sampling import EventSampler
+from .events import EventType
 from .genome import UnorderedGenome
 from .genome_sim import GenomeSimulator
 from .profiles import ProfileMatrix
+from .reconciliation import build_gene_trees
 from .rates import RateModel, UniformRates
 from .tree import Tree
 
@@ -29,6 +31,26 @@ class Genomes:
         """Per-family event lists (family id -> list[EventRecord])."""
         return self.event_log.by_family()
 
+    def _gid_to_species(self) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for leaf, genome in self.leaf_genomes.items():
+            for g in genome.genes():
+                out[g.gid] = leaf.name
+        return out
+
+    def gene_trees(self) -> dict[str, tuple[str, str | None]]:
+        """Reconstruct ``{family: (complete_newick, extant_newick)}`` from the event log.
+
+        ``extant_newick`` is ``None`` for families with no surviving copies.
+        """
+        gid2species = self._gid_to_species()
+        total_age = self.species_tree.total_age
+        return {
+            fam: build_gene_trees(records, gid2species, total_age)
+            for fam, records in self.gene_families.items()
+        }
+
+    # --- output ------------------------------------------------------------
     def write(self, outdir: str | Path) -> None:
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
@@ -40,17 +62,60 @@ class Genomes:
             node_lines.append(f"{n.name}\t{n.time:.10g}\t{int(n.is_leaf())}\t{int(n.is_extant)}")
         (out / "species_nodes.tsv").write_text("\n".join(node_lines) + "\n")
 
+        families = self.gene_families
+
+        # per-family event tables (O/D/T/S/L with from -> to lineage ids)
         gdir = out / "gene_family_events"
         gdir.mkdir(exist_ok=True)
-        for family, records in self.gene_families.items():
-            lines = ["time\tevent\tbranch\tdonor\trecipient\tgenes"]
+        for family, records in families.items():
+            lines = ["time\tevent\tbranch\tdonor\trecipient\tnodes"]
             for r in records:
-                genes = ";".join(f"{op.role}:{op.gid}" for op in r.genes)
+                nodes = ";".join(f"{op.role}={op.gid}" for op in r.genes)
                 lines.append(
                     f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t"
-                    f"{r.donor or ''}\t{r.recipient or ''}\t{genes}"
+                    f"{r.donor or ''}\t{r.recipient or ''}\t{nodes}"
                 )
             (gdir / f"{family}_events.tsv").write_text("\n".join(lines) + "\n")
+
+        # gene trees (complete + extant)
+        tdir = out / "gene_trees"
+        tdir.mkdir(exist_ok=True)
+        for family, (complete, extant) in self.gene_trees().items():
+            if complete:
+                (tdir / f"{family}_complete.nwk").write_text(complete + "\n")
+            if extant:
+                (tdir / f"{family}_extant.nwk").write_text(extant + "\n")
+
+        # all transfers, one row each
+        tr_lines = ["time\tfamily\tdonor_branch\trecipient_branch\tparent_id\tdonor_copy_id\ttransfer_id"]
+        for r in self.event_log:
+            if r.event is EventType.TRANSFER:
+                p, dc, tc = (op.gid for op in r.genes)
+                tr_lines.append(f"{r.time:.10g}\t{r.family}\t{r.donor}\t{r.recipient}\t{p}\t{dc}\t{tc}")
+        (out / "Transfers.tsv").write_text("\n".join(tr_lines) + "\n")
+
+        # per-family summary
+        counts_of = lambda recs, ev: sum(1 for r in recs if r.event is ev)
+        sum_lines = ["family\torigin_time\torigin_branch\tn_dup\tn_transfer\tn_loss"
+                     "\tn_speciation\textant_copies\tspecies_present"]
+        pmat = self.profiles
+        fam_row = {f: i for i, f in enumerate(pmat.families)}
+        for family, records in families.items():
+            origin = next((r for r in records if r.event is EventType.ORIGINATION), None)
+            ot = f"{origin.time:.10g}" if origin else ""
+            ob = origin.branch if origin else ""
+            if family in fam_row:
+                row = pmat.matrix[fam_row[family]]
+                extant_copies = int(row.sum())
+                species_present = int((row > 0).sum())
+            else:
+                extant_copies = species_present = 0
+            sum_lines.append(
+                f"{family}\t{ot}\t{ob}\t{counts_of(records, EventType.DUPLICATION)}\t"
+                f"{counts_of(records, EventType.TRANSFER)}\t{counts_of(records, EventType.LOSS)}\t"
+                f"{counts_of(records, EventType.SPECIATION)}\t{extant_copies}\t{species_present}"
+            )
+        (out / "Gene_family_summary.tsv").write_text("\n".join(sum_lines) + "\n")
 
         (out / "Profiles.tsv").write_text(self.profiles.to_tsv())
         (out / "Presence.tsv").write_text(self.profiles.to_tsv(presence=True))

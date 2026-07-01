@@ -20,7 +20,6 @@ from zombi2 import (
     simulate_species_tree,
 )
 from zombi2.events import EventType
-from zombi2.genome import Gene
 
 
 # --- axis 1: a new RateModel (genome-wise, size-independent totals) ----------
@@ -78,7 +77,12 @@ def test_family_sampled_full_run_reproducible():
 
 # --- axis 2: a new Genome representation with extra state --------------------
 class OrderedListGenome(UnorderedGenome):
-    """A different representation that also tracks an explicit gene order."""
+    """A different representation that also tracks an explicit gene order.
+
+    It only overrides the low-level add/remove hooks; every operation (including the
+    inherited ``clone_reminting`` used at speciation) then maintains the extra state, so
+    the simulator never needs to know about it.
+    """
 
     def __init__(self, ids):
         super().__init__(ids)
@@ -91,13 +95,6 @@ class OrderedListGenome(UnorderedGenome):
     def _remove(self, gene):
         super()._remove(gene)
         self.order.remove(gene.gid)
-
-    def clone(self):
-        new = OrderedListGenome(self.ids)
-        for lst in self._genes.values():
-            for g in lst:
-                new._add(Gene(g.gid, g.family))
-        return new
 
 
 def test_alternative_genome_representation_swap():
