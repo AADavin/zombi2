@@ -54,12 +54,11 @@ def test_carrying_capacity_bounds_family_size():
     assert g.profiles.matrix.max() <= 5
 
 
-def test_max_copies_caps_family_size():
+def test_max_family_size_caps_family_size():
     tree = simulate_species_tree(Yule(1.0), n_tips=8, age=3.0, seed=1)
     g = simulate_genomes(
-        tree,
-        UniformRates(duplication=3.0, transfer=0.0, loss=0.05, origination=0.0, max_copies=4),
-        initial_size=3, seed=1,
+        tree, UniformRates(duplication=3.0, transfer=0.0, loss=0.05, origination=0.0),
+        initial_size=3, max_family_size=4, seed=1,
     )
     assert g.profiles.matrix.max() <= 4
 

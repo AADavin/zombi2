@@ -6,10 +6,9 @@ only to the :class:`~zombi2.genome.Genome`, :class:`~zombi2.rates.RateModel` and
 :class:`~zombi2.events.EventSampler` interfaces, so it never changes when a new genome
 representation, rate model or event type is added.
 
-Speciation is *implicit*: at a species-tree node the parent branch's genome is cloned
-into each child branch. No speciation event is written to the log — a gene lineage's
-splits are recovered later from the species tree itself (this is what keeps v1 minimal
-while leaving gene-tree reconstruction possible in v1.1).
+Transfer mechanics (recipient choice by phylogenetic distance, replacement vs additive,
+self-transfer) live in a :class:`~zombi2.transfers.TransferModel`; a hard family-size cap
+(``max_family_size``) bounds growth across duplication and transfer alike.
 """
 
 from __future__ import annotations
@@ -23,6 +22,7 @@ from ._sampling import EventSampler, NumpyEventSampler
 from .events import EventLog, EventRecord, EventType, GeneOp
 from .genome import Genome, IdManager, UnorderedGenome
 from .rates import RateModel
+from .transfers import TransferModel
 from .tree import Tree, TreeNode
 
 
@@ -35,12 +35,25 @@ class GenomeResult:
     ids: IdManager
 
 
+def resolve_max_family_size(max_family_size, n_species: int) -> int | None:
+    """Resolve the cap: ``int`` -> absolute; ``float`` -> multiple of the species count."""
+    if max_family_size is None:
+        return None
+    if isinstance(max_family_size, bool):  # guard: bool is an int subclass
+        raise TypeError("max_family_size must be an int or float, not bool")
+    if isinstance(max_family_size, float):
+        return max(1, round(max_family_size * n_species))
+    return max(1, int(max_family_size))
+
+
 class GenomeSimulator:
-    """Forward D/T/L/O simulation along a fixed species tree."""
+    """Forward gene-family simulation along a fixed species tree."""
 
     def __init__(self, sampler: EventSampler | None = None, *, max_events_per_interval: int = 1_000_000):
         self.sampler = sampler or NumpyEventSampler()
         self.max_events_per_interval = max_events_per_interval
+        self._transfers = TransferModel()
+        self._cap: int | None = None
 
     def simulate(
         self,
@@ -49,18 +62,25 @@ class GenomeSimulator:
         rng: np.random.Generator,
         *,
         initial_size: int = 20,
+        transfers: TransferModel | None = None,
+        max_family_size=None,
         genome_factory=UnorderedGenome,
     ) -> GenomeResult:
         """Simulate gene families on ``tree``.
 
-        ``genome_factory(ids)`` builds the root genome; every other genome is produced
-        by :meth:`Genome.clone`, so a different representation is a one-argument swap
-        with no change to this loop.
+        ``genome_factory(ids)`` builds the root genome; every other genome is produced by
+        :meth:`Genome.clone_reminting`. ``transfers`` sets transfer mechanics;
+        ``max_family_size`` (int absolute, or float as a multiple of the species count)
+        bounds family growth.
         """
+        self._transfers = transfers or TransferModel()
+        n_species = len(tree.extant_leaves())
+        self._cap = resolve_max_family_size(max_family_size, n_species)
+
         ids = IdManager()
         log = EventLog()
         root = tree.root
-        rate_model.bind_rng(rng)  # lets stateful rate models seed / reset per run
+        rate_model.bind(rng, max_family_size=self._cap)
 
         # --- seed the root genome ------------------------------------------
         root_genome = genome_factory(ids)
@@ -109,15 +129,7 @@ class GenomeSimulator:
         alive[child2] = g2
 
     # --- Gillespie over a constant-membership interval ---------------------
-    def _evolve_interval(
-        self,
-        alive: dict[TreeNode, Genome],
-        t0: float,
-        t1: float,
-        rate_model: RateModel,
-        log: EventLog,
-        rng: np.random.Generator,
-    ) -> None:
+    def _evolve_interval(self, alive, t0, t1, rate_model, log, rng):
         t = t0
         branches = list(alive.keys())  # membership is constant across (t0, t1)
         for _ in range(self.max_events_per_interval):
@@ -142,21 +154,43 @@ class GenomeSimulator:
             self._fire(ew, b, alive, t, rate_model, log, rng)
         raise RuntimeError(
             f"exceeded max_events_per_interval={self.max_events_per_interval}; "
-            "gene families are likely growing without bound (duplication > loss). "
-            "Set carrying_capacity= or max_copies= on the rate model to regulate growth."
+            "gene families are likely growing without bound (duplication/transfer > loss). "
+            "Set max_family_size= (or carrying_capacity= on the rate model) to regulate growth."
         )
 
+    # --- recipient choice (uniform, or phylogenetic-distance weighted) -----
+    def _choose_recipient(self, donor, alive, t, rng):
+        candidates = list(alive) if self._transfers.allow_self else [x for x in alive if x is not donor]
+        if not candidates:
+            return None
+        decay = self._transfers.distance_decay
+        if decay is None:
+            return candidates[int(rng.integers(len(candidates)))]
+
+        # patristic distance at time t between two co-existing lineages is 2*(t - t_MRCA);
+        # we only need t_MRCA. Mark the donor's ancestor chain once, then walk each
+        # candidate up to the first marked node. O(alive * depth) — the optimisable hotspot.
+        ancestors = set()
+        node = donor
+        while node is not None:
+            ancestors.add(node)
+            node = node.parent
+
+        def mrca_time(r):
+            if r is donor:
+                return t  # self-transfer: distance 0
+            node = r
+            while node not in ancestors:
+                node = node.parent
+            return node.time
+
+        distances = [2.0 * (t - mrca_time(r)) for r in candidates]
+        dmin = min(distances)
+        weights = [math.exp(-decay * (d - dmin)) for d in distances]  # softmax-stable
+        return candidates[self.sampler.choose_index(weights, rng)]
+
     # --- apply a single event ---------------------------------------------
-    def _fire(
-        self,
-        ew,  # EventWeight(event, family, rate)
-        branch: TreeNode,
-        alive: dict[TreeNode, Genome],
-        t: float,
-        rate_model: RateModel,
-        log: EventLog,
-        rng: np.random.Generator,
-    ) -> None:
+    def _fire(self, ew, branch, alive, t, rate_model, log, rng):
         genome = alive[branch]
         event, family = ew.event, ew.family
         params = rate_model.target_params(event, genome, branch.name, t)
@@ -167,14 +201,14 @@ class GenomeSimulator:
             return
 
         if event is EventType.TRANSFER:
-            recipients = [x for x in alive if x is not branch]
-            if not recipients:  # no co-existing lineage (should not happen for N>=2)
+            recipient = self._choose_recipient(branch, alive, t, rng)
+            if recipient is None:
                 return
             selection = genome.draw_target(EventType.TRANSFER, rng, params, family=family)
             segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
-            recipient = recipients[int(rng.integers(len(recipients)))]
-            at = alive[recipient].choose_insertion_point(segment, rng)
-            alive[recipient].insert_segment(segment, at, rng)
+            rec_genome = alive[recipient]
+            at = rec_genome.choose_insertion_point(segment, rng)
+            rec_genome.insert_segment(segment, at, rng)
             fam = segment.family
             for old, cont, g in zip(segment.donor_old_gids, segment.donor_cont_gids, segment.genes):
                 log.add(EventRecord(
@@ -183,9 +217,28 @@ class GenomeSimulator:
                      GeneOp(g.gid, fam, "transfer_copy")],
                     donor=branch.name, recipient=recipient.name,
                 ))
+            # replacement (by chance, or forced when the recipient is over the cap)
+            inserted = len(segment.genes)
+            existing_before = rec_genome.copy_number(fam) - inserted
+            if existing_before >= 1:
+                do_replace = self._cap is not None and existing_before >= self._cap  # forced
+                if not do_replace and self._transfers.replacement > 0:
+                    do_replace = rng.random() < self._transfers.replacement
+                if do_replace:
+                    self._replace_one(rec_genome, fam, {g.gid for g in segment.genes},
+                                      recipient, t, params, log, rng)
             return
 
         # duplication or loss
         selection = genome.draw_target(event, rng, params, family=family)
         ops = genome.apply(event, selection, rng, params)
         log.add(EventRecord(event, branch.name, t, ops))
+
+    def _replace_one(self, genome, family, protected_gids, branch, t, params, log, rng):
+        """Remove one pre-existing copy of ``family`` (not the just-transferred one)."""
+        while True:  # family has >= 2 copies here, so a non-protected pick exists
+            selection = genome.draw_target(EventType.LOSS, rng, params, family=family)
+            if selection.genes[0].gid not in protected_gids:
+                break
+        ops = genome.apply(EventType.LOSS, selection, rng, params)
+        log.add(EventRecord(EventType.LOSS, branch.name, t, ops))

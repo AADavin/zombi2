@@ -130,6 +130,8 @@ def simulate_genomes(
     loss: float = 0.0,
     origination: float = 0.0,
     initial_size: int = 20,
+    transfers=None,
+    max_family_size=None,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
@@ -140,7 +142,9 @@ def simulate_genomes(
     Provide either a rate model (``rates=z.UniformRates(...)`` /
     ``z.FamilySampledRates(...)``) or the convenience shorthand
     (``duplication=..., transfer=..., loss=..., origination=...``), which builds a
-    :class:`~zombi2.UniformRates`.
+    :class:`~zombi2.UniformRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
+    transfer mechanics; ``max_family_size`` (int absolute, or float as a multiple of the
+    number of species) bounds family growth across duplication and transfer.
     """
     shorthand = any((duplication, transfer, loss, origination))
     if rates is None:
@@ -154,7 +158,8 @@ def simulate_genomes(
         rng = np.random.default_rng(seed)
 
     result = GenomeSimulator(sampler).simulate(
-        species_tree, rates, rng, initial_size=initial_size, genome_factory=genome_factory
+        species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
+        max_family_size=max_family_size, genome_factory=genome_factory,
     )
     profiles = ProfileMatrix.from_leaf_genomes(result.leaf_genomes)
     return Genomes(

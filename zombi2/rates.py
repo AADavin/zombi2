@@ -1,4 +1,4 @@
-"""Rate models — the coupling seam, plus growth regulation.
+"""Rate models — the coupling seam, plus duplication growth control.
 
 A rate model consumes the **whole genome** and emits a list of weighted candidate
 events, each tagged with the family it acts on (or ``None`` to act on a uniformly chosen
@@ -11,16 +11,19 @@ copy). This one interface handles every planned variation as a subclass:
 * genome-wise (future) — size-independent totals; emit ``family=None`` constant entries.
 * Potts / coupled (future) — read ``genome.presence_vector(order)``.
 
-**Growth regulation.** A family's copy number is a birth-death process; with duplication
-> loss it grows like ``e^{(d-l)t}`` without bound. Both rate models accept:
+**Growth control.** A family's copy number is a birth-death process; with duplication >
+loss it grows like ``e^{(d-l)t}``. Two mechanisms:
 
-* ``carrying_capacity`` (K) — logistic density dependence: the per-copy duplication rate
-  is scaled by ``max(0, 1 - n/K)``, so family size settles around K (a proper stationary
-  distribution). This is the recommended, mechanistic fix.
-* ``max_copies`` — a hard cap: duplication stops at that copy number. A blunt safety net.
+* ``carrying_capacity`` (K, per rate model, optional) — logistic density dependence: the
+  per-copy duplication rate is scaled by ``max(0, 1 - n/K)`` (a soft, mechanistic model).
+* ``max_family_size`` (a *simulation* parameter, delivered here via :meth:`bind`) — a hard
+  ceiling on family size. It suppresses duplication at the ceiling; transfers are capped
+  separately by the simulator (an over-cap transfer becomes a replacement). The hard cap
+  is the one that can be set as a fraction of the number of species (see the driver).
 
-Regulation is per-family, so it flips the duplication term to per-family entries; loss,
-transfer and origination are unaffected.
+Any growth control makes duplication per-family (its rate depends on that family's size),
+so the duplication term flips to one entry per family; loss/transfer/origination are
+unaffected.
 """
 
 from __future__ import annotations
@@ -48,27 +51,29 @@ def duplication_factor(n: int, carrying_capacity: float | None, max_copies: int 
 class RateModel(ABC):
     """Abstract rate model: turns a genome into weighted candidate events."""
 
+    _rng = None
+    _max_family_size: int | None = None
+
     @abstractmethod
     def event_weights(self, genome, branch: str, time: float) -> list[EventWeight]:
         ...
 
     def target_params(self, event: EventType, genome, branch: str, time: float) -> TargetParams:
-        """Parameters handed to :meth:`Genome.draw_target`. v1: the trivial default."""
         return TargetParams()
 
-    def bind_rng(self, rng) -> None:
-        """Called once at the start of a simulation. Default: no-op."""
+    def bind(self, rng, max_family_size: int | None = None) -> None:
+        """Called once at the start of a simulation with the RNG and the resolved
+        hard family-size cap (or ``None``). Subclasses may extend; call ``super().bind``."""
+        self._rng = rng
+        self._max_family_size = max_family_size
 
 
 class UniformRates(RateModel):
-    """Every gene family shares the same per-copy D/T/L rates (v1 default).
-
-    ``carrying_capacity`` / ``max_copies`` bound family growth (see module docstring).
-    """
+    """Every gene family shares the same per-copy D/T/L rates (v1 default)."""
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
-                 *, carrying_capacity: float | None = None, max_copies: int | None = None):
+                 *, carrying_capacity: float | None = None):
         for name, value in (("duplication", duplication), ("transfer", transfer),
                             ("loss", loss), ("origination", origination)):
             if value < 0:
@@ -78,21 +83,19 @@ class UniformRates(RateModel):
         self.loss = float(loss)
         self.origination = float(origination)
         self.carrying_capacity = carrying_capacity
-        self.max_copies = max_copies
 
-    @property
     def _regulated(self) -> bool:
-        return self.carrying_capacity is not None or self.max_copies is not None
+        return self.carrying_capacity is not None or self._max_family_size is not None
 
     def event_weights(self, genome, branch, time):
         n = genome.size()
         out: list[EventWeight] = []
 
         if self.duplication > 0 and n > 0:
-            if self._regulated:  # per-family duplication (rate depends on family size)
+            if self._regulated():  # per-family duplication (rate depends on family size)
                 for family in genome.families():
                     cn = genome.copy_number(family)
-                    f = duplication_factor(cn, self.carrying_capacity, self.max_copies)
+                    f = duplication_factor(cn, self.carrying_capacity, self._max_family_size)
                     if f > 0:
                         out.append(EventWeight(EventType.DUPLICATION, family, self.duplication * cn * f))
             else:  # aggregate fast path
@@ -109,17 +112,10 @@ class UniformRates(RateModel):
 
 
 class FamilySampledRates(RateModel):
-    """Each gene family draws its OWN D/T/L rates from distributions (ZOMBI-1 style).
-
-    A family's rates are sampled once, the first time it is seen, and kept for the life
-    of the family. ``duplication``/``transfer``/``loss`` accept a built-in
-    :class:`~zombi2.distributions.Distribution`, a float, a scipy.stats frozen
-    distribution, or a callable ``rng -> float``. ``origination`` is a per-branch rate.
-    ``carrying_capacity`` / ``max_copies`` bound family growth.
-    """
+    """Each gene family draws its OWN D/T/L rates from distributions (ZOMBI-1 style)."""
 
     def __init__(self, duplication=0.0, transfer=0.0, loss=0.0, origination: float = 0.0,
-                 *, carrying_capacity: float | None = None, max_copies: int | None = None):
+                 *, carrying_capacity: float | None = None):
         self._dup = as_distribution(duplication)
         self._trans = as_distribution(transfer)
         self._loss = as_distribution(loss)
@@ -127,12 +123,10 @@ class FamilySampledRates(RateModel):
             raise ValueError(f"origination rate must be >= 0, got {origination}")
         self.origination = float(origination)
         self.carrying_capacity = carrying_capacity
-        self.max_copies = max_copies
-        self._rng = None
         self._family_rates: dict[str, tuple[float, float, float]] = {}
 
-    def bind_rng(self, rng) -> None:
-        self._rng = rng
+    def bind(self, rng, max_family_size: int | None = None) -> None:
+        super().bind(rng, max_family_size)
         self._family_rates = {}
 
     def rates_for(self, family: str) -> tuple[float, float, float]:
@@ -156,7 +150,7 @@ class FamilySampledRates(RateModel):
                 continue
             d, t, l = self.rates_for(family)
             if d > 0:
-                f = duplication_factor(cn, self.carrying_capacity, self.max_copies)
+                f = duplication_factor(cn, self.carrying_capacity, self._max_family_size)
                 if f > 0:
                     out.append(EventWeight(EventType.DUPLICATION, family, d * cn * f))
             if t > 0:

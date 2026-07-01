@@ -30,6 +30,7 @@ from .species_model import BirthDeath, Yule
 from .species_sim import simulate_species_tree
 from .genome import Gene, Genome, UnorderedGenome
 from .rates import RateModel, UniformRates, FamilySampledRates, EventWeight
+from .transfers import TransferModel
 from .distributions import (
     Distribution,
     Fixed,
@@ -54,8 +55,8 @@ __all__ = [
     "BirthDeath", "Yule", "simulate_species_tree",
     # genome
     "Gene", "Genome", "UnorderedGenome",
-    # rates
-    "RateModel", "UniformRates", "FamilySampledRates", "EventWeight",
+    # rates & transfers
+    "RateModel", "UniformRates", "FamilySampledRates", "EventWeight", "TransferModel",
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
     # simulation

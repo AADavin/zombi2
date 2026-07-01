@@ -45,13 +45,29 @@ per-family event tables (`gene_family_events/`), reconstructed **complete** and
 **extant** gene trees (`gene_trees/`), `Transfers.tsv`, `Gene_family_summary.tsv`, and
 the presence/copy-number matrices (`Profiles.tsv` / `Presence.tsv`).
 
-**Bounding gene-family growth.** With duplication > loss a family's size grows like
-`e^{(d−l)t}`. Pass `carrying_capacity=K` (logistic density dependence — family size
-settles around `K`) and/or `max_copies=N` (a hard cap) to any rate model:
+**Transfer mechanics.** Pass a `TransferModel` to control how a transfer resolves:
 
 ```python
-z.UniformRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+z.simulate_genomes(tree, transfer=0.3, ..., transfers=z.TransferModel(
+    replacement=0.2,        # 0 = additive (adds a copy); 1 = replacement (adds + removes one, net 0)
+    distance_decay=2.0,     # None = uniform recipient; larger = more phylogenetically local transfers
+    allow_self=True,        # a self-transfer = a duplication (lets you run transfer/loss only)
+))
 ```
+
+**Bounding gene-family growth.** Both duplication *and* transfer create copies, so a family
+can grow like `e^{(d−l)t}` without bound. The principled control is `max_family_size` — a
+hard ceiling across all events, given either as an absolute integer or (recommended) a
+**fraction of the number of species**; an over-cap additive transfer is turned into a
+replacement:
+
+```python
+z.simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.3,
+                   max_family_size=0.5)   # cap = round(0.5 * N_species)
+```
+
+A softer, duplication-only alternative is `carrying_capacity=K` on the rate model (logistic
+density dependence — family size settles around `K`).
 
 Rate models are the flexible knob. `z.UniformRates(...)` and `z.FamilySampledRates(...)`
 ship today; new models (genome-wise rates, gene-family coupling / Potts) are subclasses

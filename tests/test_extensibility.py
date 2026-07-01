@@ -51,7 +51,7 @@ def test_genome_wise_rate_model_swap():
 def test_family_sampled_rates_differ_and_cache():
     fs = FamilySampledRates(duplication=Exponential(0.5), transfer=0.0,
                             loss=Exponential(0.3), origination=0.0)
-    fs.bind_rng(np.random.default_rng(0))
+    fs.bind(np.random.default_rng(0))
     r1, r2 = fs.rates_for("1"), fs.rates_for("2")
     assert r1 != r2                      # different families -> different rates
     assert fs.rates_for("1") == r1       # cached and stable for the life of a family
@@ -60,7 +60,7 @@ def test_family_sampled_rates_differ_and_cache():
 def test_family_sampled_accepts_float_callable_and_dist():
     fs = FamilySampledRates(duplication=lambda rng: 0.1, transfer=0.05,
                             loss=Gamma(2, 0.1), origination=0.3)
-    fs.bind_rng(np.random.default_rng(0))
+    fs.bind(np.random.default_rng(0))
     d, t, l = fs.rates_for("x")
     assert d == 0.1 and t == 0.05 and l > 0
 
