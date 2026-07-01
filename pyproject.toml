@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zombi2"
+version = "0.1.0.dev0"
+description = "A phylogenetic simulator of species trees and gene families"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Adrian A. Davin" }]
+keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "scipy>=1.10"]
+
+[project.scripts]
+zombi2 = "zombi2.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["zombi2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
