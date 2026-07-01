@@ -110,8 +110,12 @@ class Genome(ABC):
 
     # --- mutation ----------------------------------------------------------
     @abstractmethod
-    def draw_target(self, event: EventType, rng, params: TargetParams) -> Selection:
-        """Choose what a D / L / T event acts on."""
+    def draw_target(self, event: EventType, rng, params: TargetParams, family: str | None = None) -> Selection:
+        """Choose what a D / L / T event acts on.
+
+        ``family`` restricts the choice to one family's copies (per-family rates); when
+        ``None`` a copy is chosen uniformly across the whole genome.
+        """
 
     @abstractmethod
     def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[GeneOp]:
@@ -184,10 +188,10 @@ class UnorderedGenome(Genome):
         return frozenset(STOCHASTIC_EVENTS)
 
     # --- mutation ----------------------------------------------------------
-    def draw_target(self, event: EventType, rng, params: TargetParams) -> Selection:
-        all_genes = self.genes()  # deterministic order (dict insertion order)
-        idx = int(rng.integers(len(all_genes)))
-        return Selection(genes=(all_genes[idx],))
+    def draw_target(self, event: EventType, rng, params: TargetParams, family: str | None = None) -> Selection:
+        pool = self.genes() if family is None else self._genes[family]
+        idx = int(rng.integers(len(pool)))
+        return Selection(genes=(pool[idx],))
 
     def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[GeneOp]:
         if event is EventType.DUPLICATION:

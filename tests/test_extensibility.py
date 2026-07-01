@@ -1,53 +1,84 @@
 """Executable proof that the v1 seams hold.
 
 A new *rate model* and a new *genome representation* both run through the **unchanged**
-simulator, rate interface, sampler and profile matrix. This is the compile-time
-guarantee behind the spec's extensibility claim.
+simulator, rate interface, sampler and profile matrix.
 """
 
 import numpy as np
 
 from zombi2 import (
-    EventRates,
+    BirthDeath,
+    EventWeight,
+    Exponential,
+    FamilySampledRates,
+    Gamma,
     GenomeSimulator,
     RateModel,
-    Simulation,
-    SpeciesTreeModel,
-    SpeciesTreeSimulator,
+    UniformRates,
     UnorderedGenome,
+    simulate_genomes,
+    simulate_species_tree,
 )
 from zombi2.events import EventType
 from zombi2.genome import Gene
 
 
-# --- axis 1: a new RateModel (genome-wise, size-independent) ----------------
+# --- axis 1: a new RateModel (genome-wise, size-independent totals) ----------
 class GenomeWiseRates(RateModel):
-    def propensities(self, genome, branch, time):
-        n = genome.size()
-        r = self.rates
-        return {
-            EventType.DUPLICATION: r.duplication if n > 0 else 0.0,
-            EventType.TRANSFER: r.transfer if n > 0 else 0.0,
-            EventType.LOSS: r.loss if n > 0 else 0.0,
-            EventType.ORIGINATION: r.origination,  # size-independent
-        }
+    def __init__(self, duplication, transfer, loss, origination):
+        self.d, self.t, self.l, self.o = duplication, transfer, loss, origination
+
+    def event_weights(self, genome, branch, time):
+        out = []
+        if genome.size() > 0:
+            out += [
+                EventWeight(EventType.DUPLICATION, None, self.d),
+                EventWeight(EventType.TRANSFER, None, self.t),
+                EventWeight(EventType.LOSS, None, self.l),
+            ]
+        out.append(EventWeight(EventType.ORIGINATION, None, self.o))
+        return out
 
 
 def test_genome_wise_rate_model_swap():
-    sp = SpeciesTreeModel(1.0, 0.2, 10, age=3.0)
-    rates = GenomeWiseRates(EventRates(0.5, 0.2, 0.5, 0.4))
-    res = Simulation(sp, rates, seed=4, initial_size=10).run()
-    assert res.profiles.matrix.shape[1] == 10
-    assert len(res.event_log) > 0
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=4)
+    genomes = simulate_genomes(tree, GenomeWiseRates(0.5, 0.2, 0.5, 0.4),
+                               initial_size=10, seed=4)
+    assert genomes.profiles.matrix.shape[1] == 10
+    assert len(genomes.event_log) > 0
+
+
+# --- per-family sampled rates (a stateful rate model) -----------------------
+def test_family_sampled_rates_differ_and_cache():
+    fs = FamilySampledRates(duplication=Exponential(0.5), transfer=0.0,
+                            loss=Exponential(0.3), origination=0.0)
+    fs.bind_rng(np.random.default_rng(0))
+    r1, r2 = fs.rates_for("1"), fs.rates_for("2")
+    assert r1 != r2                      # different families -> different rates
+    assert fs.rates_for("1") == r1       # cached and stable for the life of a family
+
+
+def test_family_sampled_accepts_float_callable_and_dist():
+    fs = FamilySampledRates(duplication=lambda rng: 0.1, transfer=0.05,
+                            loss=Gamma(2, 0.1), origination=0.3)
+    fs.bind_rng(np.random.default_rng(0))
+    d, t, l = fs.rates_for("x")
+    assert d == 0.1 and t == 0.05 and l > 0
+
+
+def test_family_sampled_full_run_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=1)
+    make = lambda: FamilySampledRates(duplication=Exponential(0.2), transfer=Exponential(0.1),
+                                      loss=Exponential(0.25), origination=0.5)
+    a = simulate_genomes(tree, make(), initial_size=15, seed=2)
+    b = simulate_genomes(tree, make(), initial_size=15, seed=2)
+    assert np.array_equal(a.profiles.matrix, b.profiles.matrix)
+    assert a.profiles.matrix.shape[1] == 10
 
 
 # --- axis 2: a new Genome representation with extra state --------------------
 class OrderedListGenome(UnorderedGenome):
-    """A different representation that also tracks an explicit gene order.
-
-    A naive design would forget the extra state on clone(); doing it correctly proves
-    the simulator (which only calls the interface) never needs to know.
-    """
+    """A different representation that also tracks an explicit gene order."""
 
     def __init__(self, ids):
         super().__init__(ids)
@@ -70,15 +101,13 @@ class OrderedListGenome(UnorderedGenome):
 
 
 def test_alternative_genome_representation_swap():
-    sp = SpeciesTreeModel(1.0, 0.2, 8, age=3.0)
-    rates = RateModel(EventRates(0.15, 0.1, 0.2, 0.4))
-    tree = SpeciesTreeSimulator().simulate(sp, np.random.default_rng(0))
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=0)
     gr = GenomeSimulator().simulate(
-        tree, rates, np.random.default_rng(1), initial_size=8, genome_factory=OrderedListGenome
+        tree, UniformRates(0.15, 0.1, 0.2, 0.4),
+        np.random.default_rng(1), initial_size=8, genome_factory=OrderedListGenome,
     )
-    assert gr.leaf_genomes  # produced extant genomes
+    assert gr.leaf_genomes
     for genome in gr.leaf_genomes.values():
         assert isinstance(genome, OrderedListGenome)
-        # the extra state stayed consistent with gene content through the whole run
         assert len(genome.order) == genome.size()
         assert sorted(genome.order) == sorted(g.gid for g in genome.genes())

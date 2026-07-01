@@ -1,52 +1,51 @@
-"""Parameters for the backward species-tree simulation.
+"""Species-tree models.
 
-Follows the msprime idiom: an immutable, validated model object handed to a stateless
-simulator.
+A model carries the process parameters (rates) and knows how to sample an internal-node
+age under that process. Conditioning (number of tips, tree age) is supplied separately
+to :func:`zombi2.simulate_species_tree`, keeping "what process" and "how many tips"
+cleanly apart.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
 
 
-@dataclass(frozen=True)
-class SpeciesTreeModel:
-    """Constant-rate birth-death parameters, conditioned on the number of extant tips.
+class BirthDeath:
+    """Constant-rate birth-death process (speciation ``birth``, extinction ``death``)."""
 
-    Parameters
-    ----------
-    birth, death:
-        Speciation rate ``λ`` (> 0) and extinction rate ``μ`` (>= 0).
-    n_tips:
-        Number of extant species ``N`` to condition on (>= 2).
-    age:
-        Tree age. Interpreted per ``age_type``. v1 requires an explicit age
-        (conditioning on ``N`` alone, sampling the age, is a future addition).
-    age_type:
-        ``"crown"`` (default) — ``age`` is the age of the root/MRCA; the reconstructed
-        tree's root sits at time 0 and extant leaves at ``age``.
-        ``"stem"`` — ``age`` is the time of origin (a stem lineage precedes the crown).
-    """
-
-    birth: float
-    death: float
-    n_tips: int
-    age: float | None = None
-    age_type: str = "crown"
+    def __init__(self, birth: float, death: float = 0.0):
+        self.birth = float(birth)
+        self.death = float(death)
 
     def validate(self) -> None:
         if self.birth <= 0:
             raise ValueError(f"birth rate must be > 0, got {self.birth}")
         if self.death < 0:
             raise ValueError(f"death rate must be >= 0, got {self.death}")
-        if self.n_tips < 2:
-            raise ValueError(f"n_tips must be >= 2, got {self.n_tips}")
-        if self.age_type not in ("crown", "stem"):
-            raise ValueError(f"age_type must be 'crown' or 'stem', got {self.age_type!r}")
-        if self.age is None:
-            raise NotImplementedError(
-                "v1 requires an explicit `age`; conditioning on n_tips alone "
-                "(sampling the age) is not yet implemented."
-            )
-        if self.age <= 0:
-            raise ValueError(f"age must be > 0, got {self.age}")
+
+    def sample_internal_age(self, u: float, A: float, tol: float = 1e-12) -> float:
+        """Draw one internal-node age in (0, A) from the reconstructed-process CDF.
+
+        With ``r = birth - death`` and ``F(a) = g(a)/g(A)``,
+        ``g(a) = (1 - e^{-r a}) / (birth - death e^{-r a})``; inverting ``F(a) = u``
+        gives the closed forms below (Yule / critical / general).
+        """
+        lam, mu = self.birth, self.death
+        r = lam - mu
+        if mu < tol:  # Yule (pure birth)
+            return -math.log1p(-u * (1.0 - math.exp(-lam * A))) / lam
+        if abs(r) < tol * max(1.0, lam):  # critical, birth ≈ death
+            kp = u * (lam * A) / (1.0 + lam * A)
+            return kp / (lam * (1.0 - kp))
+        e_a = math.exp(-r * A)
+        g_a = (1.0 - e_a) / (lam - mu * e_a)
+        k = u * g_a
+        return -math.log((1.0 - lam * k) / (1.0 - mu * k)) / r
+
+
+class Yule(BirthDeath):
+    """Pure-birth (Yule) process — a birth-death with no extinction."""
+
+    def __init__(self, birth: float):
+        super().__init__(birth, 0.0)

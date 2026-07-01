@@ -60,6 +60,7 @@ class GenomeSimulator:
         ids = IdManager()
         log = EventLog()
         root = tree.root
+        rate_model.bind_rng(rng)  # lets stateful rate models seed / reset per run
 
         # --- seed the root genome ------------------------------------------
         root_genome = genome_factory(ids)
@@ -107,25 +108,25 @@ class GenomeSimulator:
         t = t0
         branches = list(alive.keys())  # membership is constant across (t0, t1)
         for _ in range(self.max_events_per_interval):
-            entries: list[tuple[TreeNode, EventType]] = []
+            entries = []  # (branch, EventWeight)
             weights: list[float] = []
             total = 0.0
             for b in branches:
                 genome = alive[b]
                 supported = genome.supported_events()
-                for et, rate in rate_model.propensities(genome, b.name, t).items():
-                    if rate > 0.0 and et in supported:
-                        entries.append((b, et))
-                        weights.append(rate)
-                        total += rate
+                for ew in rate_model.event_weights(genome, b.name, t):
+                    if ew.rate > 0.0 and ew.event in supported:
+                        entries.append((b, ew))
+                        weights.append(ew.rate)
+                        total += ew.rate
             if total <= 0.0:
                 return
             dt = self.sampler.next_waiting_time(total, rng)
             if not math.isfinite(dt) or t + dt >= t1:
                 return
             t += dt
-            b, et = entries[self.sampler.choose_index(weights, rng)]
-            self._fire(et, b, alive, t, rate_model, log, rng)
+            b, ew = entries[self.sampler.choose_index(weights, rng)]
+            self._fire(ew, b, alive, t, rate_model, log, rng)
         raise RuntimeError(
             f"exceeded max_events_per_interval={self.max_events_per_interval}; "
             "check that loss/duplication rates are not diverging."
@@ -134,7 +135,7 @@ class GenomeSimulator:
     # --- apply a single event ---------------------------------------------
     def _fire(
         self,
-        event: EventType,
+        ew,  # EventWeight(event, family, rate)
         branch: TreeNode,
         alive: dict[TreeNode, Genome],
         t: float,
@@ -143,6 +144,7 @@ class GenomeSimulator:
         rng: np.random.Generator,
     ) -> None:
         genome = alive[branch]
+        event, family = ew.event, ew.family
         params = rate_model.target_params(event, genome, branch.name, t)
 
         if event is EventType.ORIGINATION:
@@ -154,7 +156,7 @@ class GenomeSimulator:
             recipients = [x for x in alive if x is not branch]
             if not recipients:  # no co-existing lineage (should not happen for N>=2)
                 return
-            selection = genome.draw_target(EventType.TRANSFER, rng, params)
+            selection = genome.draw_target(EventType.TRANSFER, rng, params, family=family)
             segment = genome.extract_segment(selection, rng, keep_copy=True)
             recipient = recipients[int(rng.integers(len(recipients)))]
             at = alive[recipient].choose_insertion_point(segment, rng)
@@ -173,6 +175,6 @@ class GenomeSimulator:
             return
 
         # duplication or loss
-        selection = genome.draw_target(event, rng, params)
+        selection = genome.draw_target(event, rng, params, family=family)
         ops = genome.apply(event, selection, rng, params)
         log.add(EventRecord(event, branch.name, t, ops))

@@ -1,4 +1,4 @@
-"""Top-level driver that ties the species tree, gene families and profiles together."""
+"""High-level gene-family simulation on a fixed species tree."""
 
 from __future__ import annotations
 
@@ -8,30 +8,26 @@ from pathlib import Path
 import numpy as np
 
 from ._sampling import EventSampler
-from .genome_sim import GenomeResult, GenomeSimulator
+from .genome import UnorderedGenome
+from .genome_sim import GenomeSimulator
 from .profiles import ProfileMatrix
-from .rates import RateModel
-from .species_model import SpeciesTreeModel
-from .species_sim import SpeciesTreeSimulator
+from .rates import RateModel, UniformRates
 from .tree import Tree
 
 
 @dataclass
-class SimulationResult:
-    """Everything a run produces."""
+class Genomes:
+    """Result of :func:`simulate_genomes`."""
 
     species_tree: Tree
-    genomes: GenomeResult
+    leaf_genomes: dict  # extant leaf TreeNode -> its final genome
+    event_log: object   # EventLog
     profiles: ProfileMatrix
-
-    @property
-    def event_log(self):
-        return self.genomes.event_log
 
     @property
     def gene_families(self):
         """Per-family event lists (family id -> list[EventRecord])."""
-        return self.genomes.event_log.by_family()
+        return self.event_log.by_family()
 
     def write(self, outdir: str | Path) -> None:
         out = Path(outdir)
@@ -60,32 +56,45 @@ class SimulationResult:
         (out / "Presence.tsv").write_text(self.profiles.to_tsv(presence=True))
 
 
-class Simulation:
-    """Run a full ZOMBI2 v1 simulation: backward species tree, then forward genomes."""
+def simulate_genomes(
+    species_tree: Tree,
+    rates: RateModel | None = None,
+    *,
+    duplication: float = 0.0,
+    transfer: float = 0.0,
+    loss: float = 0.0,
+    origination: float = 0.0,
+    initial_size: int = 20,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+    sampler: EventSampler | None = None,
+    genome_factory=UnorderedGenome,
+) -> Genomes:
+    """Simulate gene families forward along ``species_tree``.
 
-    def __init__(
-        self,
-        species_model: SpeciesTreeModel,
-        rate_model: RateModel,
-        *,
-        seed: int | None = None,
-        initial_size: int = 20,
-        sampler: EventSampler | None = None,
-        genome_factory=None,
-    ):
-        self.species_model = species_model
-        self.rate_model = rate_model
-        self.seed = seed
-        self.initial_size = initial_size
-        self.sampler = sampler
-        self.genome_factory = genome_factory
+    Provide either a rate model (``rates=z.UniformRates(...)`` /
+    ``z.FamilySampledRates(...)``) or the convenience shorthand
+    (``duplication=..., transfer=..., loss=..., origination=...``), which builds a
+    :class:`~zombi2.UniformRates`.
+    """
+    shorthand = any((duplication, transfer, loss, origination))
+    if rates is None:
+        rates = UniformRates(duplication, transfer, loss, origination)
+    elif shorthand:
+        raise ValueError(
+            "pass a rate model OR the duplication/transfer/loss/origination shorthand, not both"
+        )
 
-    def run(self) -> SimulationResult:
-        rng = np.random.default_rng(self.seed)
-        tree = SpeciesTreeSimulator().simulate(self.species_model, rng)
-        kwargs = {"initial_size": self.initial_size}
-        if self.genome_factory is not None:
-            kwargs["genome_factory"] = self.genome_factory
-        genomes = GenomeSimulator(self.sampler).simulate(tree, self.rate_model, rng, **kwargs)
-        profiles = ProfileMatrix.from_leaf_genomes(genomes.leaf_genomes)
-        return SimulationResult(species_tree=tree, genomes=genomes, profiles=profiles)
+    if rng is None:
+        rng = np.random.default_rng(seed)
+
+    result = GenomeSimulator(sampler).simulate(
+        species_tree, rates, rng, initial_size=initial_size, genome_factory=genome_factory
+    )
+    profiles = ProfileMatrix.from_leaf_genomes(result.leaf_genomes)
+    return Genomes(
+        species_tree=species_tree,
+        leaf_genomes=result.leaf_genomes,
+        event_log=result.event_log,
+        profiles=profiles,
+    )
