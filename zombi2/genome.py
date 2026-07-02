@@ -126,14 +126,17 @@ class UnorderedGenome(Genome):
     def __init__(self, ids: IdManager):
         self.ids = ids
         self._genes: dict[str, list[Gene]] = {}
+        self._size = 0  # cached total copy count (kept O(1) by _add/_remove)
 
     # --- internal helpers --------------------------------------------------
     def _add(self, gene: Gene) -> None:
         self._genes.setdefault(gene.family, []).append(gene)
+        self._size += 1
 
     def _remove(self, gene: Gene) -> None:
         lst = self._genes[gene.family]
         lst.remove(gene)
+        self._size -= 1
         if not lst:
             del self._genes[gene.family]
 
@@ -145,7 +148,7 @@ class UnorderedGenome(Genome):
         return len(self._genes.get(family, ()))
 
     def size(self) -> int:
-        return sum(len(lst) for lst in self._genes.values())
+        return self._size
 
     def total_length(self) -> float:
         return float(self.size())
@@ -164,9 +167,16 @@ class UnorderedGenome(Genome):
 
     # --- mutation ----------------------------------------------------------
     def draw_target(self, event: EventType, rng, params: TargetParams, family: str | None = None) -> Selection:
-        pool = self.genes() if family is None else self._genes[family]
-        idx = int(rng.integers(len(pool)))
-        return Selection(genes=(pool[idx],))
+        if family is not None:
+            pool = self._genes[family]
+            return Selection(genes=(pool[int(rng.integers(len(pool)))],))
+        # uniform over all copies, without materialising the full gene list
+        r = int(rng.integers(self._size))
+        for lst in self._genes.values():
+            if r < len(lst):
+                return Selection(genes=(lst[r],))
+            r -= len(lst)
+        raise RuntimeError("draw_target on an empty genome")  # guarded by the rate model
 
     def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[list[GeneOp]]:
         if event is EventType.DUPLICATION:
