@@ -1192,6 +1192,466 @@ fn simulate_and_write(
     Ok((n_families, rec.ev.len(), n_species))
 }
 
+// ============ nucleotide genome (structural events at nucleotide resolution) ============
+// Increment 1: forward sim emitting the extant leaf segments. Atoms, the phylogenetic
+// profile, per-leaf mosaics and the position trace-back are all derivable from those, so
+// this needs no event log, seg-ids or provenance. Container is a Vec (O(S) per op, but in
+// Rust); an order-statistics rope (O(log S)) is a later increment.
+
+#[derive(Clone)]
+struct NSeg {
+    source: u32,
+    start: i64,
+    end: i64,
+    strand: i8,
+}
+impl NSeg {
+    #[inline]
+    fn len(&self) -> i64 {
+        self.end - self.start
+    }
+}
+
+#[derive(Clone)]
+struct NGenome {
+    segs: Vec<NSeg>,
+    length: i64,
+}
+impl NGenome {
+    fn new() -> Self {
+        NGenome { segs: Vec::new(), length: 0 }
+    }
+
+    /// Ensure a segment boundary at physical coordinate `c` (0 is always a boundary).
+    fn split_at(&mut self, c: i64) {
+        if c <= 0 {
+            return;
+        }
+        let mut pos = 0i64;
+        for i in 0..self.segs.len() {
+            if pos == c {
+                return;
+            }
+            let sl = self.segs[i].len();
+            if pos < c && c < pos + sl {
+                let o = c - pos;
+                let s = self.segs[i].clone();
+                let (l, r) = if s.strand == 1 {
+                    (NSeg { source: s.source, start: s.start, end: s.start + o, strand: 1 },
+                     NSeg { source: s.source, start: s.start + o, end: s.end, strand: 1 })
+                } else {
+                    (NSeg { source: s.source, start: s.end - o, end: s.end, strand: -1 },
+                     NSeg { source: s.source, start: s.start, end: s.end - o, strand: -1 })
+                };
+                self.segs[i] = l;
+                self.segs.insert(i + 1, r);
+                return;
+            }
+            pos += sl;
+        }
+    }
+
+    fn index_at(&self, phys: i64) -> usize {
+        let mut pos = 0i64;
+        for i in 0..self.segs.len() {
+            if pos == phys {
+                return i;
+            }
+            pos += self.segs[i].len();
+        }
+        self.segs.len()
+    }
+
+    /// Split both ends of arc `[s, s+ell)` and return its `[i_s, i_e)` segment range,
+    /// rotating a wrapping arc to the front (the origin drifts to a real breakpoint).
+    fn arc_range(&mut self, s: i64, ell: i64) -> (usize, usize) {
+        let l = self.length;
+        let e = (s + ell) % l;
+        self.split_at(s);
+        self.split_at(e);
+        if s + ell <= l {
+            let i_s = self.index_at(s);
+            let i_e = if s + ell < l { self.index_at(s + ell) } else { self.segs.len() };
+            (i_s, i_e)
+        } else {
+            let i_s = self.index_at(s);
+            self.segs.rotate_left(i_s);
+            let mut i_e = 0usize;
+            let mut acc = 0i64;
+            while acc < ell {
+                acc += self.segs[i_e].len();
+                i_e += 1;
+            }
+            (0, i_e)
+        }
+    }
+
+    fn inversion(&mut self, s: i64, ell: i64) {
+        let l = self.length;
+        if l == 0 {
+            return;
+        }
+        let ell = ell.clamp(1, l);
+        let s = s.rem_euclid(l);
+        let (i_s, i_e) = self.arc_range(s, ell);
+        self.segs[i_s..i_e].reverse();
+        for seg in &mut self.segs[i_s..i_e] {
+            seg.strand = -seg.strand;
+        }
+    }
+
+    fn loss(&mut self, s: i64, ell: i64) {
+        let l = self.length;
+        if l == 0 {
+            return;
+        }
+        let ell = ell.min(l);
+        let s = s.rem_euclid(l);
+        if ell == l {
+            self.segs.clear();
+            self.length = 0;
+            return;
+        }
+        let e = (s + ell) % l;
+        self.split_at(s);
+        self.split_at(e);
+        let wrapping = s + ell > l;
+        let mut pos = 0i64;
+        let mut keep = Vec::with_capacity(self.segs.len());
+        for seg in std::mem::take(&mut self.segs) {
+            let start = pos;
+            pos += seg.len();
+            let in_arc = if wrapping { start >= s || pos <= e } else { start >= s && pos <= s + ell };
+            if !in_arc {
+                keep.push(seg);
+            }
+        }
+        self.segs = keep;
+        self.length -= ell;
+    }
+
+    fn duplication(&mut self, s: i64, ell: i64) {
+        let l = self.length;
+        if l == 0 {
+            return;
+        }
+        let ell = ell.clamp(1, l);
+        let s = s.rem_euclid(l);
+        let (_i_s, i_e) = self.arc_range(s, ell);
+        let copies: Vec<NSeg> = self.segs[_i_s..i_e].to_vec();
+        self.segs.splice(i_e..i_e, copies); // tandem copy right after the arc
+        self.length += ell;
+    }
+
+    fn transposition(&mut self, s: i64, ell: i64, dest: i64) {
+        let l = self.length;
+        if l <= 1 {
+            return;
+        }
+        let ell = ell.clamp(1, l - 1);
+        let s = s.rem_euclid(l);
+        let (i_s, i_e) = self.arc_range(s, ell);
+        let arc: Vec<NSeg> = self.segs.splice(i_s..i_e, std::iter::empty()).collect();
+        let rem = l - ell;
+        let dest = dest.rem_euclid(rem + 1);
+        let idx = if dest >= rem {
+            self.segs.len()
+        } else {
+            self.split_at(dest);
+            self.index_at(dest)
+        };
+        self.segs.splice(idx..idx, arc);
+    }
+
+    /// Donor side of a transfer: split the arc, return a copy of it (donor keeps content).
+    fn extract(&mut self, s: i64, ell: i64) -> Vec<NSeg> {
+        let l = self.length;
+        if l == 0 {
+            return Vec::new();
+        }
+        let ell = ell.clamp(1, l);
+        let s = s.rem_euclid(l);
+        let (i_s, i_e) = self.arc_range(s, ell);
+        self.segs[i_s..i_e].to_vec()
+    }
+
+    /// Recipient side of a transfer: splice the copy in at physical `at`.
+    fn insert(&mut self, copies: Vec<NSeg>, at: i64) {
+        let clen: i64 = copies.iter().map(|s| s.len()).sum();
+        let idx = if at >= self.length {
+            self.segs.len()
+        } else {
+            self.split_at(at);
+            self.index_at(at)
+        };
+        self.segs.splice(idx..idx, copies);
+        self.length += clen;
+    }
+}
+
+struct NEngine {
+    children: Vec<Vec<usize>>,
+    extant_leaf: Vec<bool>,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    tr: Transfers,
+    inv: f64,
+    los: f64,
+    dup: f64,
+    tra: f64,
+    trp: f64,
+    ori: f64,
+    ext: f64,
+    root_length: i64,
+    next_source: u32,
+    rng: Rng,
+    genomes: Vec<Option<NGenome>>,
+    alive_list: Vec<usize>,
+    alive_pos: Vec<i64>,
+    fenwick: Fenwick,
+    events: u64,
+    max_events: u64,
+}
+
+impl NEngine {
+    #[inline]
+    fn subtotal(&self, g: &NGenome) -> f64 {
+        (g.length as f64) * (self.inv + self.los + self.dup + self.tra + self.trp) + self.ori
+    }
+    fn activate(&mut self, node: usize, genome: NGenome) {
+        let sub = self.subtotal(&genome);
+        self.genomes[node] = Some(genome);
+        self.alive_pos[node] = self.alive_list.len() as i64;
+        self.alive_list.push(node);
+        self.fenwick.set(node, sub);
+    }
+    fn refresh(&mut self, node: usize) {
+        let sub = self.subtotal(self.genomes[node].as_ref().unwrap());
+        self.fenwick.set(node, sub);
+    }
+    fn deactivate(&mut self, node: usize) -> NGenome {
+        self.fenwick.set(node, 0.0);
+        let pos = self.alive_pos[node] as usize;
+        let last = *self.alive_list.last().unwrap();
+        self.alive_list.swap_remove(pos);
+        if last != node {
+            self.alive_pos[last] = pos as i64;
+        }
+        self.alive_pos[node] = -1;
+        self.genomes[node].take().unwrap()
+    }
+    fn speciate(&mut self, node: usize, genome: NGenome) {
+        for child in self.children[node].clone() {
+            self.activate(child, genome.clone());
+        }
+    }
+
+    fn draw_length(&mut self, length: i64) -> i64 {
+        if length <= 1 {
+            return 1;
+        }
+        if self.ext >= 1.0 {
+            return length;
+        }
+        let p = 1.0 - self.ext; // truncated geometric, mean 1/(1-ext)
+        let u = self.rng.next_f64().max(1e-300);
+        let k = (u.ln() / (1.0 - p).ln()).ceil() as i64;
+        k.max(1).min(length)
+    }
+
+    fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
+        loop {
+            let total = self.fenwick.total;
+            if total <= 0.0 {
+                return Ok(());
+            }
+            let dt = self.rng.exponential(total);
+            if !dt.is_finite() || t + dt >= t1 {
+                return Ok(());
+            }
+            t += dt;
+            self.events += 1;
+            if self.events > self.max_events {
+                return Err(PyRuntimeError::new_err(
+                    "exceeded max_events; genome growing without bound — lower duplication/transfer or raise loss",
+                ));
+            }
+            let branch = self.fenwick.find((1.0 - self.rng.next_f64()) * total);
+            self.fire(branch, t);
+        }
+    }
+
+    fn fire(&mut self, branch: usize, t: f64) {
+        let length = self.genomes[branch].as_ref().unwrap().length;
+        let li = length as f64;
+        let w = [li * self.inv, li * self.los, li * self.dup, li * self.tra, li * self.trp, self.ori];
+        let total: f64 = w.iter().sum();
+        if total <= 0.0 {
+            return;
+        }
+        let r = self.rng.next_f64() * total;
+        let mut ev = 5usize;
+        let mut acc = 0.0;
+        for (k, &wk) in w.iter().enumerate() {
+            acc += wk;
+            if r < acc {
+                ev = k;
+                break;
+            }
+        }
+        match ev {
+            0 => {
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                self.genomes[branch].as_mut().unwrap().inversion(s, ell);
+                self.refresh(branch);
+            }
+            1 => {
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                self.genomes[branch].as_mut().unwrap().loss(s, ell);
+                self.refresh(branch);
+            }
+            2 => {
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                self.genomes[branch].as_mut().unwrap().duplication(s, ell);
+                self.refresh(branch);
+            }
+            3 => {
+                let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
+                    &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
+                    Some(x) => x,
+                    None => return,
+                };
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                let copies = self.genomes[branch].as_mut().unwrap().extract(s, ell);
+                if copies.is_empty() {
+                    return;
+                }
+                let rl = self.genomes[recipient].as_ref().unwrap().length;
+                let at = self.rng.uniform((rl + 1) as u64) as i64;
+                self.genomes[recipient].as_mut().unwrap().insert(copies, at);
+                self.refresh(branch);
+                self.refresh(recipient);
+            }
+            4 => {
+                if length <= 1 {
+                    return;
+                }
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                let dest = self.rng.uniform(length as u64) as i64;
+                self.genomes[branch].as_mut().unwrap().transposition(s, ell, dest);
+                self.refresh(branch);
+            }
+            _ => {
+                // origination: brand-new sequence under a fresh source
+                let src = self.next_source;
+                self.next_source += 1;
+                let glen0 = length;
+                if glen0 == 0 {
+                    let g = self.genomes[branch].as_mut().unwrap();
+                    g.segs.push(NSeg { source: src, start: 0, end: self.root_length, strand: 1 });
+                    g.length = self.root_length;
+                } else {
+                    let glen = self.draw_length(glen0);
+                    let at = self.rng.uniform((glen0 + 1) as u64) as i64;
+                    let g = self.genomes[branch].as_mut().unwrap();
+                    let idx = if at >= glen0 { g.segs.len() } else { g.split_at(at); g.index_at(at) };
+                    g.segs.insert(idx, NSeg { source: src, start: 0, end: glen, strand: 1 });
+                    g.length += glen;
+                }
+                self.refresh(branch);
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_nucleotide(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    inversion: f64,
+    loss: f64,
+    duplication: f64,
+    transfer: f64,
+    transposition: f64,
+    origination: f64,
+    root_length: i64,
+    extension: f64,
+    initial_size: usize,
+    seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
+) -> PyResult<Vec<(usize, Vec<(u32, i64, i64, i8)>)>> {
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
+    for (node, &p) in parent.iter().enumerate() {
+        if p >= 0 {
+            children[p as usize].push(node);
+        }
+    }
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let mut eng = NEngine {
+        children,
+        extant_leaf,
+        parent,
+        time,
+        tr,
+        inv: inversion,
+        los: loss,
+        dup: duplication,
+        tra: transfer,
+        trp: transposition,
+        ori: origination,
+        ext: extension,
+        root_length,
+        next_source: 0,
+        rng: Rng::new(seed),
+        genomes: (0..n_nodes).map(|_| None).collect(),
+        alive_list: Vec::new(),
+        alive_pos: vec![-1; n_nodes],
+        fenwick: Fenwick::new(n_nodes),
+        events: 0,
+        max_events: 2_000_000_000,
+    };
+
+    // seed the root genome: `initial_size` full-length chromosomes (each its own source)
+    let root_t = eng.time[root];
+    let mut root_genome = NGenome::new();
+    for _ in 0..initial_size {
+        let src = eng.next_source;
+        eng.next_source += 1;
+        root_genome.segs.push(NSeg { source: src, start: 0, end: root_length, strand: 1 });
+        root_genome.length += root_length;
+    }
+    eng.speciate(root, root_genome);
+
+    let mut order: Vec<usize> = (0..n_nodes).filter(|&i| eng.parent[i] >= 0).collect();
+    order.sort_by(|&a, &b| eng.time[a].partial_cmp(&eng.time[b]).unwrap());
+
+    let mut leaves: Vec<(usize, Vec<(u32, i64, i64, i8)>)> = Vec::new();
+    let mut t = root_t;
+    for node in order {
+        eng.evolve_interval(t, eng.time[node])?;
+        t = eng.time[node];
+        let genome = eng.deactivate(node);
+        if eng.extant_leaf[node] {
+            let cols = genome.segs.iter().map(|s| (s.source, s.start, s.end, s.strand)).collect();
+            leaves.push((node, cols));
+        } else if !eng.children[node].is_empty() {
+            eng.speciate(node, genome);
+        }
+    }
+    Ok(leaves)
+}
+
 #[pyfunction]
 fn available() -> bool {
     true
@@ -1203,5 +1663,6 @@ fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(simulate_profiles, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_log, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_and_write, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_nucleotide, m)?)?;
     Ok(())
 }

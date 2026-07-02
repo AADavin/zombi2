@@ -25,6 +25,7 @@ from pathlib import Path
 
 from .events import EventLog, EventRecord, EventType, GeneOp
 from .genome_sim import resolve_max_family_size
+from .nucleotide_sim import NucleotideResult
 from .profiles import ProfileMatrix
 from .rates import UniformRates
 from .simulation import Genomes
@@ -33,6 +34,22 @@ try:  # optional native extension
     import zombi2_core as _core
 except ImportError:  # pragma: no cover - depends on whether the wheel is built
     _core = None
+
+
+class _FastNucleotideResult(NucleotideResult):
+    """A NucleotideResult from the Rust profile fast path (no event log → no gene trees)."""
+
+    def atom_gene_trees(self):
+        raise NotImplementedError(
+            "the Rust nucleotide fast path emits only leaf segments (profile / mosaic / "
+            "trace-back); per-atom gene trees need the event log — use "
+            "simulate_nucleotide_genomes(...) for those."
+        )
+
+    def atom_histories(self):
+        raise NotImplementedError(
+            "atom_histories needs the event log; use simulate_nucleotide_genomes(...)."
+        )
 
 
 def rust_available() -> bool:
@@ -342,3 +359,92 @@ def simulate_and_write_fast(
 
     return {"path": str(out), "n_families": n_families,
             "n_events": n_events, "n_species": n_species}
+
+
+# --- nucleotide-genome fast path (increment 1: leaf segments -> atoms/profile/mosaics) ---
+
+class _FastNucGenome:
+    """Minimal leaf genome exposing just what NucleotideResult reads (segments + to_cells)."""
+    __slots__ = ("_segments", "_length")
+
+    def __init__(self, segments):
+        self._segments = segments
+        self._length = sum(s.length for s in segments)
+
+    def n_segments(self):
+        return len(self._segments)
+
+    def size(self):
+        return self._length
+
+    def to_cells(self):
+        out = []
+        for seg in self._segments:
+            if seg.strand == 1:
+                out.extend((seg.source, p, 1) for p in range(seg.src_start, seg.src_end))
+            else:
+                out.extend((seg.source, p, -1) for p in range(seg.src_end - 1, seg.src_start - 1, -1))
+        return out
+
+
+def simulate_nucleotide_genomes_fast(
+    species_tree,
+    *,
+    inversion: float = 0.001,
+    loss: float = 0.0,
+    duplication: float = 0.0,
+    transfer: float = 0.0,
+    transposition: float = 0.0,
+    origination: float = 0.0,
+    root_length: int = 1000,
+    extension: float = 0.99,
+    initial_size: int = 1,
+    transfers=None,
+    seed=None,
+):
+    """Simulate the nucleotide structural model in Rust; return a :class:`NucleotideResult`.
+
+    Drop-in for :func:`~zombi2.simulate_nucleotide_genomes` for the **profile / mosaic /
+    trace-back** workflow: the Rust engine runs the forward Gillespie (inversion, loss,
+    duplication, transfer, transposition, origination) and returns the extant leaf segments,
+    from which atoms, ``profile_matrix()``, ``leaf_mosaic()`` and ``trace_back()`` are built.
+    Because the RNG differs from the Python engine, results are **statistically** equivalent,
+    not bit-identical; a given ``seed`` is reproducible within this engine.
+
+    Per-atom gene trees (``atom_gene_trees()``) and ``atom_histories()`` need the event log,
+    which this fast path does not emit yet — use :func:`~zombi2.simulate_nucleotide_genomes`
+    for those.
+    """
+    if _core is None:
+        raise RuntimeError(
+            "zombi2_core (the Rust extension) is not built. Build it with:\n"
+            "  pip install maturin\n"
+            "  cd rust && maturin build --release -i python3\n"
+            "  pip install --force-reinstall rust/target/wheels/*.whl"
+        )
+    from .events import EventLog
+    from .nucleotide_genome import Segment, SegmentRegistry
+    from .nucleotide_sim import _build_atoms
+
+    nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
+    _, seed_val = _cap_and_seed(None, sum(extant_leaf), seed)
+    rep, dec, aself = _transfer_params(transfers)
+
+    leaves = _core.simulate_nucleotide(
+        len(nodes), parent, times, extant_leaf, root,
+        float(inversion), float(loss), float(duplication), float(transfer),
+        float(transposition), float(origination), int(root_length), float(extension),
+        int(initial_size), seed_val, rep, dec, aself,
+    )
+
+    leaf_genomes = {}
+    for leaf_idx, segs in leaves:
+        objs = [Segment("", str(src + 1), start, end, strand)  # 1-based source labels
+                for (src, start, end, strand) in segs]
+        leaf_genomes[nodes[leaf_idx]] = _FastNucGenome(objs)
+
+    atoms = _build_atoms(leaf_genomes, root_length)
+    return _FastNucleotideResult(
+        species_tree=species_tree, leaf_genomes=leaf_genomes,
+        event_log=EventLog(), registry=SegmentRegistry(), atoms=atoms, root_length=root_length,
+    )
