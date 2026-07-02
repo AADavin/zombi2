@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ._sampling import EventSampler, NumpyEventSampler
+from ._sampling import EventSampler, Fenwick, NumpyEventSampler
 from .events import EventLog, EventRecord, EventType, GeneOp, Selection
 from .genome import Genome, IdManager, UnorderedGenome
 from .rates import RateModel
@@ -92,13 +92,23 @@ class GenomeSimulator:
 
         # --- root speciation: seed the child branches ----------------------
         alive: dict[TreeNode, Genome] = {}
-        # persistent per-branch rate cache: node -> (candidate events, subtotal). It is
-        # updated only where the genome changes (events) or membership changes
-        # (speciations), so it is never rebuilt wholesale — the key to O(N) scaling.
+        # persistent per-branch rate cache: node -> (candidate events, subtotal), updated
+        # only where a genome changes (events) or membership changes (speciations).
         cache: dict[TreeNode, tuple] = {}
+        # a persistent Fenwick tree over every node's subtotal (0 when not alive) gives
+        # O(log branches) event-branch selection and O(log) updates — no per-event scan.
+        nodes_by_index = list(tree.nodes_preorder())
+        index = {node: i for i, node in enumerate(nodes_by_index)}
+        fenwick = Fenwick(len(nodes_by_index))
+
+        def activate(branch):
+            cache[branch] = self._branch_weights(alive[branch], branch, rate_model, t)
+            fenwick.set(index[branch], cache[branch][1])
+
+        t = root.time
         self._speciate(root_genome, root, alive, log)
         for child in root.children:
-            cache[child] = self._branch_weights(alive[child], child, rate_model, root.time)
+            activate(child)
 
         leaf_genomes: dict[TreeNode, Genome] = {}
 
@@ -107,19 +117,20 @@ class GenomeSimulator:
             (n for n in tree.nodes_preorder() if n.parent is not None),
             key=lambda n: n.time,
         )
-        t = root.time
         for node in node_events:
-            self._evolve_interval(alive, cache, t, node.time, rate_model, log, rng)
+            self._evolve_interval(alive, cache, fenwick, index, nodes_by_index,
+                                  t, node.time, rate_model, log, rng)
             t = node.time
             genome = alive.pop(node)
             cache.pop(node, None)
+            fenwick.set(index[node], 0.0)  # this branch ends here
             if node.is_leaf():
                 if node.is_extant:
                     leaf_genomes[node] = genome
             else:  # speciation: re-mint lineage ids into each child and log it
                 self._speciate(genome, node, alive, log)
                 for child in node.children:
-                    cache[child] = self._branch_weights(alive[child], child, rate_model, t)
+                    activate(child)
 
         return GenomeResult(event_log=log, leaf_genomes=leaf_genomes, ids=ids)
 
@@ -139,27 +150,25 @@ class GenomeSimulator:
         alive[child2] = g2
 
     # --- Gillespie over a constant-membership interval ---------------------
-    def _evolve_interval(self, alive, cache, t0, t1, rate_model, log, rng):
-        """Gillespie loop over one inter-speciation interval, using the persistent cache.
+    def _evolve_interval(self, alive, cache, fenwick, index, nodes_by_index,
+                         t0, t1, rate_model, log, rng):
+        """Gillespie loop over one inter-speciation interval.
 
-        Branch membership is constant across ``(t0, t1)``, and for the shipped rate models
-        a branch's weights depend only on its genome (not on ``t``). We assemble a subtotal
-        array from the cache (O(branches) cheap reads — no rate recomputation), then after
-        each event recompute only the branch(es) whose genome changed. A rate model that
-        varies continuously with time can set ``time_dependent = True`` to force a full
-        refresh each step (correctness over speed).
+        Membership is constant across ``(t0, t1)``; the persistent Fenwick already holds
+        every alive branch's subtotal, so selecting the next event's branch is O(log) and
+        needs no per-interval setup. After each event only the changed branch(es) are
+        refreshed (cache + Fenwick). A rate model whose weights vary continuously with time
+        can set ``time_dependent = True`` to force a full refresh each step.
         """
         refresh_all = getattr(rate_model, "time_dependent", False)
-        branches = list(alive.keys())
-        index = {b: i for i, b in enumerate(branches)}
         t = t0
         if refresh_all:
-            for b in branches:
+            for b in list(alive):
                 cache[b] = self._branch_weights(alive[b], b, rate_model, t)
-        sub = np.array([cache[b][1] for b in branches], dtype=float)
-        total = float(sub.sum())
+                fenwick.set(index[b], cache[b][1])
 
         for _ in range(self.max_events_per_interval):
+            total = fenwick.total
             if total <= 0.0:
                 return
             dt = self.sampler.next_waiting_time(total, rng)
@@ -167,20 +176,14 @@ class GenomeSimulator:
                 return
             t += dt
 
-            bi = int(np.searchsorted(np.cumsum(sub), rng.random() * total, side="right"))
-            bi = min(bi, len(branches) - 1)
-            branch = branches[bi]
-            ew = self._pick_entry(cache[branch][0], float(sub[bi]), rng)
+            # (1 - U) keeps the draw in (0, total], so we always land on a live branch
+            branch = nodes_by_index[fenwick.find((1.0 - rng.random()) * total)]
+            ew = self._pick_entry(cache[branch][0], cache[branch][1], rng)
             changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
 
-            to_refresh = branches if refresh_all else changed
-            for cb in to_refresh:
-                i = index.get(cb)
-                if i is None:
-                    continue
+            for cb in (list(alive) if refresh_all else changed):
                 cache[cb] = self._branch_weights(alive[cb], cb, rate_model, t)
-                total += cache[cb][1] - sub[i]
-                sub[i] = cache[cb][1]
+                fenwick.set(index[cb], cache[cb][1])
         raise RuntimeError(
             f"exceeded max_events_per_interval={self.max_events_per_interval}; "
             "gene families are likely growing without bound (duplication/transfer > loss). "
