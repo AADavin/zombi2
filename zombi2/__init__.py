@@ -60,6 +60,8 @@ from .matching import (
     match_profiles,
     ABCFit,
     default_summary,
+    default_gene_tree_summary,
+    event_count_summary,
     frequency_spectrum,
     genome_sizes,
     copy_number_spectrum,
@@ -95,8 +97,8 @@ __all__ = [
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
     "build_gene_trees",
     # profile matching (rejection ABC)
-    "match_profiles", "ABCFit", "default_summary",
-    "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
+    "match_profiles", "ABCFit", "default_summary", "default_gene_tree_summary",
+    "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
     # parallelism

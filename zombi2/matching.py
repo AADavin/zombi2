@@ -45,6 +45,7 @@ from typing import Callable
 import numpy as np
 
 from .distributions import Distribution, Fixed, Gamma, Uniform, as_distribution
+from .events import EventType
 from .profiles import ProfileMatrix
 from .rates import FamilySampledRates
 from .tree import Tree
@@ -121,6 +122,54 @@ def default_summary(species_order: list[str], max_copies: int = 4) -> _DefaultSu
     empirical one.
     """
     return _DefaultSummary(species_order, max_copies)
+
+
+def event_count_summary(genomes) -> np.ndarray:
+    """Total number of duplication, transfer, and loss events in a :class:`~zombi2.Genomes`.
+
+    Gene-tree-derived counts: they carry information the copy-number profile alone cannot,
+    and pin the *gain*-side rates (duplication/transfer/origination) sharply. (Loss stays
+    the hardest rate to identify — a fully lost lineage leaves little observable trace.)
+    """
+    dup = tr = ls = 0
+    for r in genomes.event_log:
+        if r.event is EventType.DUPLICATION:
+            dup += 1
+        elif r.event is EventType.TRANSFER:
+            tr += 1
+        elif r.event is EventType.LOSS:
+            ls += 1
+    return np.array([dup, tr, ls], dtype=float)
+
+
+class _GeneTreeSummary:
+    """Default summary when gene trees are available: the profile summary followed by the
+    three event counts, with per-feature weights that give the (tiny) event block the same
+    total weight as the (much larger) profile block — otherwise the counts are drowned out.
+
+    Consumes a :class:`~zombi2.Genomes` (needs the event log). Picklable. The frequency
+    spectrum still leads the vector, so the spectrum diagnostics keep working.
+    """
+
+    def __init__(self, species_order: list[str], max_copies: int = 4, event_weight=None):
+        self.profile = _DefaultSummary(species_order, max_copies)
+        self._pw = 2 * self.profile.n_species + max_copies      # profile-summary length
+        # balance the two blocks: 3 * w^2 == profile length  ->  each block contributes equally
+        w = (self._pw / 3.0) ** 0.5 if event_weight is None else float(event_weight)
+        self.event_weight = w
+        self.feature_weights = np.concatenate([np.ones(self._pw), np.full(3, w)])
+
+    def __call__(self, genomes) -> np.ndarray:
+        return np.concatenate([self.profile(genomes.profiles), event_count_summary(genomes)])
+
+
+def default_gene_tree_summary(species_order: list[str], max_copies: int = 4, event_weight=None):
+    """Picklable summary combining the profile summary with weighted event counts.
+
+    ``event_weight`` defaults to a value that balances the event block against the profile
+    block; pass a float to override (larger = more weight on the gene-tree counts).
+    """
+    return _GeneTreeSummary(species_order, max_copies, event_weight)
 
 
 # --- rate models to fit ----------------------------------------------------------
@@ -356,25 +405,26 @@ def _resolve_engine(engine: str, fast_ok: bool) -> str:
     return engine
 
 
-def _simulate(tree, vals, *, engine, builder, initial_size, max_family_size, transfers, seed):
+def _simulate(tree, vals, *, engine, builder, initial_size, max_family_size, transfers,
+              seed, return_genomes=False):
     kw = dict(initial_size=initial_size, max_family_size=max_family_size,
               transfers=transfers, seed=seed)
-    if builder is None:                       # uniform scalar model
-        if engine == "fast":
-            from .fast import simulate_profiles_fast
-            return simulate_profiles_fast(tree, **vals, **kw)
-        from .simulation import simulate_genomes
-        return simulate_genomes(tree, **vals, **kw).profiles
-    from .simulation import simulate_genomes  # general model -> Python engine
-    return simulate_genomes(tree, builder(vals), **kw).profiles
+    if builder is None and engine == "fast":   # uniform scalar model, Rust fast path
+        from .fast import simulate_profiles_fast
+        return simulate_profiles_fast(tree, **vals, **kw)
+    from .simulation import simulate_genomes
+    genomes = (simulate_genomes(tree, **vals, **kw) if builder is None
+               else simulate_genomes(tree, builder(vals), **kw))
+    return genomes if return_genomes else genomes.profiles
 
 
 def _simulate_and_summarize(draw, tree, engine, builder, initial_size,
-                            max_family_size, transfers, summarize):
+                            max_family_size, transfers, summarize, return_genomes):
     vals, seed = draw
-    pm = _simulate(tree, vals, engine=engine, builder=builder, initial_size=initial_size,
-                   max_family_size=max_family_size, transfers=transfers, seed=seed)
-    return summarize(pm)
+    out = _simulate(tree, vals, engine=engine, builder=builder, initial_size=initial_size,
+                    max_family_size=max_family_size, transfers=transfers, seed=seed,
+                    return_genomes=return_genomes)
+    return summarize(out)
 
 
 # Per-worker cache of the fixed simulation config (set once per process via the pool
@@ -399,6 +449,8 @@ def match_profiles(
     model=None,
     family_shape: float = 2.0,
     statistics: Callable[[ProfileMatrix], np.ndarray] | None = None,
+    gene_trees: bool = False,
+    feature_weights=None,
     n_sims: int = 1000,
     accept=0.05,
     initial_size: int = 20,
@@ -431,7 +483,18 @@ def match_profiles(
         ``family_shape``; Python engine). Or pass a callable ``params -> RateModel``.
     statistics:
         A summary function ``pm -> 1-D array``; defaults to :func:`default_summary` over the
-        empirical species. Must be picklable if ``processes`` is used.
+        empirical species. Must be picklable if ``processes`` is used. May expose a
+        ``feature_weights`` attribute to weight its components in the distance.
+    gene_trees:
+        If True, use gene-tree information: ``empirical`` must be a :class:`~zombi2.Genomes`
+        (not just a profile), the default summary becomes :func:`default_gene_tree_summary`
+        (profile + weighted duplication/transfer/loss counts), and the Python engine is used
+        (the Rust fast path yields no gene trees). Sharpens the gain-side rates; loss stays
+        the hardest to identify.
+    feature_weights:
+        Optional per-summary-component weights applied to the (scaled) distance, so a small
+        informative block of statistics is not drowned by a large one. Overrides any
+        ``feature_weights`` attribute on the summary.
     n_sims:
         Number of prior draws to simulate.
     accept:
@@ -456,17 +519,32 @@ def match_profiles(
         closest draw (``.best``), per-draw distances, and the spectrum diagnostic
         (``.plot_spectra()``).
     """
-    empirical = (empirical if isinstance(empirical, ProfileMatrix)
-                 else ProfileMatrix.from_tsv(empirical))
-    species_order = list(empirical.species)
-    summarize = statistics or default_summary(species_order)
+    if gene_trees:
+        if not (hasattr(empirical, "profiles") and hasattr(empirical, "event_log")):
+            raise TypeError("gene_trees=True requires an empirical Genomes (with gene trees), "
+                            "not a bare profile matrix")
+        if engine == "fast":
+            raise ValueError("gene_trees=True requires the Python engine (the Rust fast path "
+                             "produces no gene trees); use engine='auto' or 'python'")
+        profile_mat = empirical.profiles
+        species_order = list(profile_mat.species)
+        summarize = statistics or default_gene_tree_summary(species_order)
+    else:
+        profile_mat = (empirical if isinstance(empirical, ProfileMatrix)
+                       else ProfileMatrix.from_tsv(empirical))
+        empirical = profile_mat
+        species_order = list(profile_mat.species)
+        summarize = statistics or default_summary(species_order)
     uses_default = statistics is None
     target = summarize(empirical)
 
     builder, fast_ok = _resolve_model(model, family_shape)
+    if gene_trees:
+        fast_ok = False                     # gene trees need the full (Python) engine
     priors = _normalize_priors(priors, restrict=builder is None or isinstance(builder, _FamilyModel))
     names = list(priors.keys())
     engine = _resolve_engine(engine, fast_ok)
+    weights = feature_weights if feature_weights is not None else getattr(summarize, "feature_weights", None)
     rng = np.random.default_rng(seed)
 
     # Pre-draw every (parameters, sim-seed) up front, so the result is identical whether we
@@ -479,7 +557,7 @@ def match_profiles(
         draws.append((vals, sim_seed))
         samples[i] = [vals[n] for n in names]
 
-    cfg = (tree, engine, builder, initial_size, max_family_size, transfers, summarize)
+    cfg = (tree, engine, builder, initial_size, max_family_size, transfers, summarize, gene_trees)
     if processes is None or processes == 1:
         summaries = np.array([_simulate_and_summarize(d, *cfg) for d in draws])
     else:
@@ -488,10 +566,14 @@ def match_profiles(
                                  initargs=cfg) as ex:
             summaries = np.array(list(ex.map(_worker_run, draws, chunksize=chunk)))
 
-    # scale-free distance: normalise each summary component by its across-batch spread
+    # scale-free distance: normalise each summary component by its across-batch spread, then
+    # apply optional per-feature weights (so a small informative block is not drowned out).
     sd = summaries.std(axis=0)
     sd[sd == 0] = 1.0
-    distances = np.sqrt((((summaries - target) / sd) ** 2).sum(axis=1))
+    resid = (summaries - target) / sd
+    if weights is not None:
+        resid = resid * np.asarray(weights)
+    distances = np.sqrt((resid ** 2).sum(axis=1))
 
     order = np.argsort(distances, kind="stable")
     if isinstance(accept, float):
@@ -513,6 +595,6 @@ def match_profiles(
         accepted_summaries=summaries[accepted],
         summary_sd=sd,
         n_species=len(species_order),
-        empirical=empirical,
+        empirical=profile_mat,
         uses_default_summary=uses_default,
     )

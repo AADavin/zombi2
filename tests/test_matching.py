@@ -266,6 +266,73 @@ def test_spectra_data_shapes_and_custom_guard():
         fit2.spectra_data()
 
 
+def _small_genomes(seed=3):
+    tree = _small_tree()
+    g = z.simulate_genomes(tree, duplication=0.12, transfer=0.05, loss=0.18, origination=0.7,
+                           initial_size=10, seed=seed)
+    return tree, g
+
+
+def test_event_count_summary_matches_log():
+    from collections import Counter
+    _, g = _small_genomes()
+    ev = z.event_count_summary(g)
+    c = Counter(r.event for r in g.event_log)
+    assert ev.shape == (3,)
+    assert ev[0] == c[z.EventType.DUPLICATION]
+    assert ev[1] == c[z.EventType.TRANSFER]
+    assert ev[2] == c[z.EventType.LOSS]
+
+
+def test_gene_tree_summary_layout_and_weights():
+    tree, g = _small_genomes()
+    species = [n.name for n in tree.extant_leaves()]
+    s = len(species)
+    summ = z.default_gene_tree_summary(species)
+    vec = summ(g)
+    assert vec.shape == (2 * s + 4 + 3,)
+    # the frequency spectrum still leads the vector (so the spectrum diagnostic keeps working)
+    assert np.array_equal(vec[:s], z.frequency_spectrum(g.profiles, s))
+    # weights: 1 for the profile block, one equal value > 1 for the three event counts
+    w = summ.feature_weights
+    assert (w[:2 * s + 4] == 1).all()
+    assert w[-1] > 1 and len(set(np.round(w[-3:], 6))) == 1
+
+
+def test_gene_trees_path_runs_with_diagnostics():
+    tree, g = _small_genomes()
+    fit = z.match_profiles(tree, g, priors={"duplication": (0, 0.4), "loss": (0, 0.5),
+                                            "origination": (0, 1.5)},
+                           gene_trees=True, n_sims=40, accept=0.25, initial_size=10, seed=1)
+    assert set(fit.posterior) == {"duplication", "loss", "origination"}
+    assert fit.spectra_data()["accepted"].shape[1] == fit.n_species
+
+
+def test_gene_trees_requires_genomes_and_python():
+    tree, g = _small_genomes()
+    pm = g.profiles
+    with pytest.raises(TypeError):        # a bare profile lacks gene trees
+        z.match_profiles(tree, pm, priors={"origination": (0, 1)}, gene_trees=True, n_sims=4)
+    with pytest.raises(ValueError):       # fast path yields no gene trees
+        z.match_profiles(tree, g, priors={"origination": (0, 1)}, gene_trees=True,
+                         engine="fast", n_sims=4)
+
+
+def test_feature_weights_change_acceptance():
+    tree = _small_tree()
+    emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
+                             initial_size=10, seed=3).profiles
+    kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
+              n_sims=60, accept=0.25, initial_size=10, engine="python", seed=1)
+    base = z.match_profiles(tree, emp, **kw)
+    s = len(emp.species)
+    w = np.ones(2 * s + 4)
+    w[:s] = 5.0                            # up-weight the frequency spectrum
+    weighted = z.match_profiles(tree, emp, feature_weights=w, **kw)
+    # same draws, different distance -> generally a different accepted set
+    assert not np.array_equal(base.accepted, weighted.accepted)
+
+
 def _adjust_fit():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.12, loss=0.18, origination=0.7,
