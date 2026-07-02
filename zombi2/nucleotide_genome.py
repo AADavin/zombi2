@@ -26,7 +26,7 @@ clones produced at speciation share the one registry (and the one :class:`IdMana
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -66,10 +66,10 @@ class Segment:
     src_start: int
     src_end: int
     strand: int = 1
+    length: int = field(init=False)  # cached (src coords never change after construction)
 
-    @property
-    def length(self) -> int:
-        return self.src_end - self.src_start
+    def __post_init__(self):
+        self.length = self.src_end - self.src_start
 
     # A Segment also plays the driver's "gene" role during a transfer handoff
     # (TransferSegment.genes), where the loop reads ``.gid`` / ``.family``.
