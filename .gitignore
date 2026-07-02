@@ -17,6 +17,9 @@ venv/
 out/
 /tmp/
 
+# Built docs site
+site/
+
 # LaTeX build artifacts
 *.aux
 *.log

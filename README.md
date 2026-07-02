@@ -8,10 +8,14 @@ phylogenetics. A ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi)
 - **Gene families** are simulated *forward* in time along that fixed species tree, with
   duplication, transfer, loss and origination events.
 
-This is **v1**: an order-free, family-level model with independent gene families. The
-architecture is deliberately interface-first so that later additions — gene order and
-rearrangements, gene length, genome-wise rates, gene-family coupling (Potts model),
-ghost lineages — arrive as new subclasses rather than a rewrite.
+The architecture is deliberately interface-first so that additions — genome
+representations (an ordered-chromosome model with inversions/transpositions ships today),
+rate models, gene-family coupling (a Potts model), ghost lineages — arrive as new
+subclasses rather than a rewrite.
+
+**Documentation:** full guides and API reference live in `docs/` (build with
+`pip install -e ".[docs]" && mkdocs serve`). Start with `docs/index.md`,
+`docs/quickstart.md`, and the user guide under `docs/guide/`.
 
 ## Quick start
 
