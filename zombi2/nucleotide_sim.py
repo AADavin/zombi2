@@ -229,6 +229,8 @@ def simulate_nucleotide_genomes(
     loss: float = 0.0,
     duplication: float = 0.0,
     transfer: float = 0.0,
+    transposition: float = 0.0,
+    origination: float = 0.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_size: int = 1,
@@ -239,13 +241,14 @@ def simulate_nucleotide_genomes(
 ) -> NucleotideResult:
     """Simulate variable-length structural events forward along ``species_tree``.
 
-    ``inversion``, ``loss``, ``duplication`` and ``transfer`` are **per-nucleotide** rates:
-    the total genome rate of each is ``rate * current_length``. ``extension`` sets the
-    geometric event-length model (mean ``1/(1-extension)`` nucleotides). ``transfers`` is an
-    optional :class:`~zombi2.TransferModel` (default: additive, uniform recipient, no
-    self-transfer). Returns a :class:`NucleotideResult` carrying the extant leaf genomes,
-    the event log, the segment registry, and the atom partition (over the surviving
-    ancestral material).
+    ``inversion``, ``loss``, ``duplication``, ``transfer`` and ``transposition`` are
+    **per-nucleotide** rates (total genome rate = ``rate * current_length``);
+    ``origination`` is a **per-branch** rate that inserts a novel gene under a fresh source.
+    ``extension`` sets the geometric event-length model (mean ``1/(1-extension)``
+    nucleotides). ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
+    additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
+    carrying the extant leaf genomes, the event log, the segment registry, and the atom
+    partition (over the surviving ancestral material).
 
     Duplication and additive transfer grow the genome with no cap, so keep them at or below
     ``loss`` over long ages to avoid runaway growth.
@@ -253,7 +256,8 @@ def simulate_nucleotide_genomes(
     if rng is None:
         rng = np.random.default_rng(seed)
     rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication,
-                         transfer=transfer)
+                         transfer=transfer, transposition=transposition,
+                         origination=origination)
     registry = SegmentRegistry()
 
     def factory(ids):

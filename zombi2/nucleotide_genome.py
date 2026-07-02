@@ -131,8 +131,8 @@ class NucleotideGenome(Genome):
                            dtype=np.int8, count=len(family_order))
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset((EventType.INVERSION, EventType.LOSS,
-                          EventType.DUPLICATION, EventType.TRANSFER))
+        return frozenset((EventType.ORIGINATION, EventType.INVERSION, EventType.LOSS,
+                          EventType.DUPLICATION, EventType.TRANSFER, EventType.TRANSPOSITION))
 
     # --- trace-back view: one cell per nucleotide, in physical order --------
     def to_cells(self) -> list[tuple[str, int, int]]:
@@ -152,14 +152,26 @@ class NucleotideGenome(Genome):
 
     # --- seeding / origination ---------------------------------------------
     def originate(self, rng, params) -> list[GeneOp]:
-        """Seed one full-length circular chromosome (M1 uses ``initial_size=1``).
+        """Create brand-new sequence under a fresh ``source`` namespace.
 
-        Gives the reconstruction an ``ORIGINATION`` root for this source. (Origination
-        of *novel* short sequence — a fresh source namespace — arrives with full DTL.)
+        The first call (empty genome, the seed) lays down the full-length root chromosome.
+        Later calls insert a *novel* gene of geometric length at a random position — it
+        descends from no ancestral position, so it opens its own source and its own atoms,
+        with the gene tree rooted at this origination time.
         """
         source = self.ids.new_family()
-        seg = self._new_segment(source, 0, self.root_length, 1)
-        self._segments.append(seg)
+        if not self._segments:                      # seed: the root chromosome
+            seg = self._new_segment(source, 0, self.root_length, 1)
+            self._segments.append(seg)
+        else:                                       # novel gene inserted somewhere
+            length = self._draw_length(rng, params)
+            seg = self._new_segment(source, 0, length, 1)
+            at = int(rng.integers(self._length + 1))
+            if at >= self._length:
+                self._segments.append(seg)
+            else:
+                self._split_at(at)
+                self._segments.insert(self._index_at(at), seg)
         self._length += seg.length
         return [GeneOp(seg.seg_id, source, "origin")]
 
@@ -323,6 +335,30 @@ class NucleotideGenome(Genome):
         self._length += ell
         return groups
 
+    # --- transposition (cut a segment, paste it elsewhere) -----------------
+    def _apply_transposition(self, s: int, ell: int, dest: int) -> list[Segment]:
+        """Cut the arc ``[s, s+ell)`` and splice it back in at physical ``dest``.
+
+        Content- and length-preserving and genealogically neutral (segments keep their
+        ids), so it only permutes the mosaic — like inversion, no lineage re-mint.
+        """
+        L = self._length
+        if L <= 1:
+            return []
+        ell = max(1, min(ell, L - 1))
+        i_s, i_e = self._arc_range(s, ell)
+        arc = self._segments[i_s:i_e]
+        del self._segments[i_s:i_e]
+        rem = L - ell
+        dest %= rem + 1
+        if dest >= rem:
+            self._segments.extend(arc)
+        else:
+            self._split_at(dest)
+            idx = self._index_at(dest)
+            self._segments[idx:idx] = arc
+        return arc
+
     def _draw_length(self, rng, params) -> int:
         ext = params.extension if params.extension is not None else self.extension
         n = self._length
@@ -333,8 +369,8 @@ class NucleotideGenome(Genome):
             length += 1
         return length
 
-    _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS,
-                             EventType.DUPLICATION, EventType.TRANSFER))
+    _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION,
+                             EventType.TRANSFER, EventType.TRANSPOSITION))
 
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if event not in self._TARGETABLE:
@@ -354,6 +390,12 @@ class NucleotideGenome(Genome):
             return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in removed]
         if event is EventType.DUPLICATION:
             return self._apply_duplication(region.start, region.length)
+        if event is EventType.TRANSPOSITION:
+            if self._length <= 1:
+                return []
+            dest = int(rng.integers(self._length))
+            arc = self._apply_transposition(region.start, region.length, dest)
+            return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
         raise ValueError(f"NucleotideGenome does not handle {event!r}")
 
     # --- transfer handoff ---------------------------------------------------

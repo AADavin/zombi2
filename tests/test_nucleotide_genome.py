@@ -57,6 +57,19 @@ class ArrayGenome:
             s = 0
         self.cells[s + ell:s + ell] = self.cells[s:s + ell]  # tandem copy right after
 
+    def transpose(self, s, ell, dest):
+        L = len(self.cells)
+        if L <= 1:
+            return
+        ell = max(1, min(ell, L - 1))
+        s %= L
+        if s + ell > L:                         # wrapping: rotate origin to s (as the genome)
+            self.cells = self.cells[s:] + self.cells[:s]
+            s = 0
+        block = self.cells[s:s + ell]
+        del self.cells[s:s + ell]
+        self.cells[dest % (len(self.cells) + 1):dest % (len(self.cells) + 1)] = block
+
 
 def _fresh(length, ext=0.99):
     g = NucleotideGenome(IdManager(), root_length=length, extension=ext)
@@ -482,3 +495,64 @@ def test_transfer_reproducible():
     assert a.atom_gene_trees() == b.atom_gene_trees()
     for leaf, ga in a.leaf_genomes.items():
         assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
+
+
+# --------------------------------------------------------------------------- #
+# Transposition — cut-and-paste, content-preserving; vs the oracle
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("seed", range(20))
+def test_transposition_matches_oracle(seed):
+    rng = np.random.default_rng(seed)
+    L = int(rng.integers(20, 120))
+    g = _fresh(L, ext=0.9)
+    o = ArrayGenome("1", L)
+    for _ in range(80):
+        s = int(rng.integers(L))
+        ell = int(rng.integers(1, L))
+        dest = int(rng.integers(L))
+        g._apply_transposition(s, ell, dest)
+        o.transpose(s, ell, dest)
+        assert g.to_cells() == o.cells
+        assert g.size() == L                       # content- and length-preserving
+
+
+def test_transposition_conserves_content_at_leaves():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=6, age=2.0, seed=51)
+    res = simulate_nucleotide_genomes(tree, transposition=0.03, root_length=150,
+                                      extension=0.9, seed=51)
+    assert any(r.event is EventType.TRANSPOSITION for r in res.event_log)
+    root = {("1", i) for i in range(150)}
+    for genome in res.leaf_genomes.values():
+        origins = {(src, p) for src, p, _st in genome.to_cells()}
+        assert origins == root                     # pure permutation: nothing gained/lost
+
+
+# --------------------------------------------------------------------------- #
+# Origination — novel sequence under a fresh source namespace
+# --------------------------------------------------------------------------- #
+def test_origination_creates_new_sources_with_their_own_trees():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=61)
+    res = simulate_nucleotide_genomes(tree, origination=0.8, loss=0.001, root_length=200,
+                                      extension=0.95, seed=61)
+    assert sum(1 for r in res.event_log if r.event is EventType.ORIGINATION) > 1  # + the seed
+    sources = {a.source for a in res.atoms}
+    assert len(sources) > 1                         # novel sources beyond the root chromosome
+    # every source's atoms reconstruct correctly (reconciliation invariant across sources)
+    ids, _sp, M = res.profile_matrix()
+    rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
+    for aid, (_c, extant) in res.atom_gene_trees().items():
+        assert extant is not None and _n_leaves(extant) == rowsum[aid]
+
+
+def test_novel_gene_is_absent_from_lineages_that_predate_it():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=6, age=2.0, seed=62)
+    res = simulate_nucleotide_genomes(tree, origination=0.6, root_length=150, extension=0.95, seed=62)
+    ids, _species, M = res.profile_matrix()
+    # a source born mid-tree cannot be present in every species (unlike the root chromosome)
+    by_source = {}
+    for i, aid in enumerate(ids):
+        a = next(x for x in res.atoms if x.atom_id == aid)
+        by_source.setdefault(a.source, []).append(M[i])
+    non_root = [s for s in by_source if s != "1"]
+    assert non_root                                 # some novel sources exist
+    assert any(row.min() == 0 for s in non_root for row in by_source[s])  # patchy presence
