@@ -8,6 +8,7 @@ Auto-generated from the source docstrings.
 ::: zombi2.species_model.Yule
 ::: zombi2.species_model.EpisodicBirthDeath
 ::: zombi2.species_model.FossilizedBirthDeath
+::: zombi2.species_model.EpisodicFossilizedBirthDeath
 ::: zombi2.species_sim.simulate_species_tree
 ::: zombi2.species_forward.simulate_species_tree_forward
 ::: zombi2.ghosts.add_ghost_lineages

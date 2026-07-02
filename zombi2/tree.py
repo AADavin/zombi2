@@ -149,18 +149,25 @@ def prune_to_sampled(tree: Tree) -> Tree | None:
     :class:`~zombi2.FossilizedBirthDeath` model. Returns ``None`` if nothing is sampled.
     """
 
+    def leaf_copy(node: TreeNode) -> TreeNode:
+        return TreeNode(name=node.name, time=node.time, is_extant=node.is_extant, sampled=True)
+
     def rec(node: TreeNode) -> TreeNode | None:
         if node.is_leaf():
-            if node.sampled:
-                return TreeNode(name=node.name, time=node.time,
-                                is_extant=node.is_extant, sampled=True)
-            return None
+            return leaf_copy(node) if node.sampled else None
         kept = [k for k in (rec(c) for c in node.children) if k is not None]
         if not kept:
-            return None
+            # a sampled ancestor whose descendants are all unsampled becomes a terminal sample
+            return leaf_copy(node) if node.sampled else None
         if len(kept) == 1:
-            return kept[0]
-        new = TreeNode(name=node.name, time=node.time)
+            if node.sampled:  # sampled ancestor -> keep as a degree-two node
+                sa = TreeNode(name=node.name, time=node.time,
+                              is_extant=node.is_extant, sampled=True)
+                sa.add_child(kept[0])
+                return sa
+            return kept[0]  # suppress a plain degree-two node
+        new = TreeNode(name=node.name, time=node.time,
+                       is_extant=node.is_extant, sampled=node.sampled)
         for k in kept:
             new.add_child(k)
         return new

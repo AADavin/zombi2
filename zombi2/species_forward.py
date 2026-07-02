@@ -23,7 +23,12 @@ import bisect
 
 import numpy as np
 
-from .species_model import BirthDeath, EpisodicBirthDeath, FossilizedBirthDeath
+from .species_model import (
+    BirthDeath,
+    EpisodicBirthDeath,
+    EpisodicFossilizedBirthDeath,
+    FossilizedBirthDeath,
+)
 from .tree import Tree, TreeNode
 
 
@@ -31,17 +36,32 @@ class _ForwardRates:
     """Rates as functions of tree-time ``t`` (0 = crown, present at ``present``). Episodic
     rates map tree-time to age-before-present ``present - t`` (age mode, so ``present`` is
     fixed). Provides ``rates(t) -> (λ, μ, ψ)`` (ψ = serial/fossil sampling rate), a thinning
-    bound, and the extant sampling fraction ρ."""
+    bound, the extant sampling fraction ρ, and the removal probability ``r`` on sampling."""
 
-    __slots__ = ("rates", "rate_bound", "rho")
+    __slots__ = ("rates", "rate_bound", "rho", "removal")
 
     def __init__(self, model, present):
-        if isinstance(model, FossilizedBirthDeath):
+        self.removal = 1.0
+        if isinstance(model, EpisodicFossilizedBirthDeath):
+            model.validate()
+            shifts, births, deaths, foss = (model.shifts, model.birth, model.death,
+                                            model.fossilization)
+
+            def rates(t):
+                i = bisect.bisect_right(shifts, present - t)
+                return births[i], deaths[i], foss[i]
+
+            self.rates = rates
+            self.rate_bound = max(b + d + f for b, d, f in zip(births, deaths, foss))
+            self.rho = model.sampling
+            self.removal = model.removal
+        elif isinstance(model, FossilizedBirthDeath):
             model.validate()
             b, d, psi = model.birth, model.death, model.fossilization
             self.rates = lambda t: (b, d, psi)
             self.rate_bound = b + d + psi
             self.rho = model.sampling
+            self.removal = model.removal
         elif isinstance(model, EpisodicBirthDeath):
             model.validate()
             shifts, births, deaths = model.shifts, model.birth, model.death
@@ -60,8 +80,9 @@ class _ForwardRates:
             self.rho = 1.0
         else:
             raise NotImplementedError(
-                f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath and "
-                f"FossilizedBirthDeath, not {type(model).__name__}"
+                f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath, "
+                f"FossilizedBirthDeath and EpisodicFossilizedBirthDeath, not "
+                f"{type(model).__name__}"
             )
 
 
@@ -113,9 +134,14 @@ def _grow(view, age, n_tips, rng, max_lineages):
             live.append(b)
         elif r < lam + mu:  # extinction
             node.is_extant = False
-        else:  # serial (fossil) sampling — removes the lineage, leaving a dated fossil tip
+        else:  # serial (through-time) sampling
             node.is_extant = False
             node.sampled = True
+            if rng.random() >= view.removal:  # not removed -> sampled ancestor (lineage continues)
+                cont = TreeNode(name="", time=t)
+                node.add_child(cont)
+                live.append(cont)
+            # else: removed -> a dated fossil tip (node stays a leaf)
 
     n_sampled = 0
     for node in live:  # survivors reach the present; sample each with probability ρ
@@ -171,7 +197,7 @@ def simulate_species_tree_forward(
     """
     if (age is None) == (n_tips is None):
         raise ValueError("provide exactly one of `age` or `n_tips`")
-    if isinstance(model, EpisodicBirthDeath):
+    if isinstance(model, (EpisodicBirthDeath, EpisodicFossilizedBirthDeath)):
         if n_tips is not None:
             raise NotImplementedError(
                 "episodic forward simulation requires `age` (the present must be fixed to map "
@@ -179,8 +205,8 @@ def simulate_species_tree_forward(
             )
     elif not isinstance(model, (BirthDeath, FossilizedBirthDeath)):
         raise NotImplementedError(
-            f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath and "
-            f"FossilizedBirthDeath, not {type(model).__name__}"
+            f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath, "
+            f"FossilizedBirthDeath and EpisodicFossilizedBirthDeath, not {type(model).__name__}"
         )
     model.validate()
     if age is not None and age <= 0:

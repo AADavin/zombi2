@@ -73,19 +73,22 @@ class FossilizedBirthDeath:
 
     Beyond speciation ``birth`` (λ) and extinction ``death`` (μ), lineages are sampled
     *through time* at rate ``fossilization`` (ψ) — each such event is a dated fossil — and
-    extant lineages are sampled at the present with probability ``sampling`` (ρ). Sampling
-    removes the lineage (removal probability r = 1), so every sample is a terminal tip and the
-    tree stays binary. Use with :func:`~zombi2.simulate_species_tree_forward`; extract the tree
-    of dated samples with :func:`~zombi2.prune_to_sampled`. (This is a forward-only model; it
-    has no backward reconstructed-tree sampler.)
+    extant lineages are sampled at the present with probability ``sampling`` (ρ). On sampling,
+    the lineage is removed with probability ``removal`` (r): with ``r=1`` (default) every sample
+    is a terminal tip and the tree stays binary; with ``r<1`` the lineage may **continue** as a
+    *sampled ancestor* (a degree-two node — the SA-FBD model). Use with
+    :func:`~zombi2.simulate_species_tree_forward`; extract the tree of dated samples with
+    :func:`~zombi2.prune_to_sampled`. (This is a forward-only model; it has no backward
+    reconstructed-tree sampler.)
     """
 
-    def __init__(self, birth: float, death: float = 0.0,
-                 fossilization: float = 0.0, sampling: float = 1.0):
+    def __init__(self, birth: float, death: float = 0.0, fossilization: float = 0.0,
+                 sampling: float = 1.0, removal: float = 1.0):
         self.birth = float(birth)
         self.death = float(death)
         self.fossilization = float(fossilization)
         self.sampling = float(sampling)
+        self.removal = float(removal)
 
     def validate(self) -> None:
         if self.birth <= 0:
@@ -96,6 +99,50 @@ class FossilizedBirthDeath:
             raise ValueError(f"fossilization rate must be >= 0, got {self.fossilization}")
         if not (0.0 < self.sampling <= 1.0):
             raise ValueError(f"sampling must be in (0, 1], got {self.sampling}")
+        if not (0.0 <= self.removal <= 1.0):
+            raise ValueError(f"removal must be in [0, 1], got {self.removal}")
+
+
+class EpisodicFossilizedBirthDeath:
+    """Episodic (skyline) fossilized birth–death for **forward** simulation.
+
+    Piecewise-constant speciation ``birth`` (λ), extinction ``death`` (μ) and serial
+    ``fossilization`` (ψ) through time (each a length-``K`` list, present backward), with
+    ``K-1`` epoch boundaries ``shifts`` (strictly increasing ages before the present). Extant
+    lineages are sampled with probability ``sampling`` (ρ); on sampling the lineage is removed
+    with probability ``removal`` (r; ``r<1`` allows sampled ancestors). Use with
+    :func:`~zombi2.simulate_species_tree_forward` in **age mode** (the present must be fixed).
+    Forward-only.
+    """
+
+    def __init__(self, birth, death, fossilization, shifts, *,
+                 sampling: float = 1.0, removal: float = 1.0):
+        self.birth = [float(x) for x in birth]
+        self.death = [float(x) for x in death]
+        self.fossilization = [float(x) for x in fossilization]
+        self.shifts = [float(s) for s in shifts]
+        self.sampling = float(sampling)
+        self.removal = float(removal)
+
+    def validate(self) -> None:
+        k = len(self.birth)
+        if len(self.death) != k or len(self.fossilization) != k:
+            raise ValueError("birth, death and fossilization must have the same length")
+        if len(self.shifts) != k - 1:
+            raise ValueError(f"need len(shifts) == len(birth) - 1, got {len(self.shifts)} and {k}")
+        if k < 1:
+            raise ValueError("need at least one epoch")
+        if any(b < 0 for b in self.birth) or any(d < 0 for d in self.death) \
+                or any(f < 0 for f in self.fossilization):
+            raise ValueError("rates must be >= 0")
+        if not any(b > 0 for b in self.birth):
+            raise ValueError("at least one epoch must have birth > 0")
+        if any(s <= 0 for s in self.shifts) or list(self.shifts) != sorted(set(self.shifts)):
+            raise ValueError("shifts must be strictly increasing positive ages")
+        if not (0.0 < self.sampling <= 1.0):
+            raise ValueError(f"sampling must be in (0, 1], got {self.sampling}")
+        if not (0.0 <= self.removal <= 1.0):
+            raise ValueError(f"removal must be in [0, 1], got {self.removal}")
 
 
 class EpisodicBirthDeath:

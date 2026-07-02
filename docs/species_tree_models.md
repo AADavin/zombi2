@@ -132,8 +132,18 @@ Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times
 tips carry `sampled=True, is_extant=True`. `prune_to_sampled` extracts the FBD sampled tree
 (the dated-tip tree used in total-evidence dating); `prune_to_extant` still gives the extant-only
 reconstructed tree. Verified: fossil count scales with ψ (0 at ψ=0), fossils are dated before the
-present, and the sampled tree has one tip per sample. Removal probability r<1 (sampled ancestors)
-and episodic-FBD are natural extensions.
+present, and the sampled tree has one tip per sample.
+
+**Sampled ancestors.** With `removal=r<1`, a sampled lineage *continues* with probability `1−r`
+instead of being removed — a **sampled ancestor** (the SA-FBD model), represented as a degree-two
+node (`sampled=True`, one child). `prune_to_sampled` keeps these as degree-two nodes; the gene
+simulator passes genomes straight through them (they are not gene events), so DTL simulation runs
+unchanged on SA trees.
+
+**Episodic FBD.** `EpisodicFossilizedBirthDeath(birth[], death[], fossilization[], shifts[], *,
+sampling, removal)` composes time-varying λ/μ/ψ with fossil sampling (age mode, like the other
+episodic models). So a mass-extinction epoch and a changing fossilization rate can be combined in
+one forward run.
 
 ## Key references
 

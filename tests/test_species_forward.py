@@ -186,6 +186,76 @@ def test_fbd_reproducible():
     assert a == b
 
 
+# --- sampled ancestors (removal r < 1) ---------------------------------------
+
+def _sampled_ancestors(tree):
+    return [n for n in tree.nodes() if n.sampled and len(n.children) == 1]
+
+
+def test_sampled_ancestors_only_when_removal_below_one():
+    common = dict(fossilization=0.6, sampling=1.0)
+    t_removed = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.4, removal=1.0, **common), age=6.0, seed=1)
+    t_kept = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.4, removal=0.0, **common), age=6.0, seed=1)
+    assert _sampled_ancestors(t_removed) == []
+    assert len(_sampled_ancestors(t_kept)) > 0
+
+
+def test_gene_sim_passes_through_sampled_ancestors():
+    tree = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0), age=6.0, seed=1)
+    assert _sampled_ancestors(tree)  # the tree really has degree-two nodes
+    g = z.simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
+                           origination=0.5, initial_size=20, max_family_size=0.5, seed=42)
+    assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
+
+
+def test_prune_to_sampled_keeps_sampled_ancestors():
+    tree = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0, sampling=0.9),
+        age=6.0, seed=1)
+    samp = z.prune_to_sampled(tree)
+    n_leaf_samples = sum(1 for n in tree.leaves() if n.sampled)
+    assert len(samp.leaves()) >= n_leaf_samples          # fossil/extant leaf samples kept
+    assert any(len(n.children) == 1 and n.sampled for n in samp.nodes())  # SAs preserved
+    # the extant-only reconstructed tree suppresses sampled ancestors
+    recon = z.prune_to_extant(tree)
+    assert all(len(n.children) == 2 for n in recon.internal_nodes())
+
+
+def test_removal_validation():
+    with pytest.raises(ValueError):
+        z.simulate_species_tree_forward(
+            z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.5, removal=1.5), age=5.0)
+
+
+# --- episodic FBD ------------------------------------------------------------
+
+def test_episodic_fbd_produces_fossils():
+    m = z.EpisodicFossilizedBirthDeath(
+        birth=[1.0, 1.4], death=[0.3, 0.5], fossilization=[0.4, 0.4], shifts=[2.0],
+        sampling=0.9, removal=0.5)
+    t = z.simulate_species_tree_forward(m, age=6.0, seed=3)
+    assert len(_fossils(t)) > 0
+    assert len(t.extant_leaves()) >= 2
+
+
+def test_episodic_fbd_requires_age_mode():
+    m = z.EpisodicFossilizedBirthDeath([1.0], [0.3], [0.3], [])
+    with pytest.raises(NotImplementedError):
+        z.simulate_species_tree_forward(m, n_tips=10)
+
+
+def test_episodic_fbd_reproducible():
+    m = z.EpisodicFossilizedBirthDeath(
+        birth=[1.0, 1.4], death=[0.3, 0.5], fossilization=[0.3, 0.5], shifts=[2.0],
+        sampling=0.8, removal=0.5)
+    a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    assert a == b
+
+
 def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
     tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), n_tips=40, seed=8)
     dead = _dead_names(tree)

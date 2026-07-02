@@ -26,7 +26,13 @@ __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
 from .tree import Tree, TreeNode, read_newick, prune_to_extant, prune_to_sampled
-from .species_model import BirthDeath, Yule, EpisodicBirthDeath, FossilizedBirthDeath
+from .species_model import (
+    BirthDeath,
+    Yule,
+    EpisodicBirthDeath,
+    FossilizedBirthDeath,
+    EpisodicFossilizedBirthDeath,
+)
 from .species_sim import simulate_species_tree
 from .species_forward import simulate_species_tree_forward
 from .ghosts import add_ghost_lineages
@@ -58,6 +64,7 @@ from .rate_variation import RateVariation, RateScaledTree
 from .simulation import simulate_genomes, Genomes
 from .matching import (
     match_profiles,
+    match_profiles_smc,
     ABCFit,
     default_summary,
     default_gene_tree_summary,
@@ -83,6 +90,7 @@ __all__ = [
     "Tree", "TreeNode", "read_newick", "prune_to_extant", "prune_to_sampled",
     # species tree
     "BirthDeath", "Yule", "EpisodicBirthDeath", "FossilizedBirthDeath",
+    "EpisodicFossilizedBirthDeath",
     "simulate_species_tree", "simulate_species_tree_forward", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
@@ -96,8 +104,8 @@ __all__ = [
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
     "build_gene_trees",
-    # profile matching (rejection ABC)
-    "match_profiles", "ABCFit", "default_summary", "default_gene_tree_summary",
+    # profile matching (rejection ABC + SMC)
+    "match_profiles", "match_profiles_smc", "ABCFit", "default_summary", "default_gene_tree_summary",
     "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
