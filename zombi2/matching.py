@@ -53,6 +53,15 @@ from .tree import Tree
 RATE_PARAMS = ("duplication", "transfer", "loss", "origination")
 
 
+def _wquantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
+    """Weighted quantile of ``values`` (weights need not be normalised)."""
+    order = np.argsort(values)
+    v, w = values[order], weights[order]
+    cum = np.cumsum(w) - 0.5 * w
+    cum /= w.sum()
+    return float(np.interp(q, cum, v))
+
+
 # --- summary statistics ----------------------------------------------------------
 
 def frequency_spectrum(pm: ProfileMatrix, n_species: int) -> np.ndarray:
@@ -168,9 +177,14 @@ class ABCFit:
     empirical_summary: np.ndarray
     priors: dict[str, Distribution]
     accepted_summaries: np.ndarray  # (n_accept, summary_len) summaries of the kept draws
+    summary_sd: np.ndarray          # (summary_len,) across-batch std used to scale the distance
     n_species: int
     empirical: ProfileMatrix
     uses_default_summary: bool
+
+    def __post_init__(self):
+        self._adjusted = None          # cache for regression_adjust()
+        self._adjust_weights = None
 
     @property
     def posterior(self) -> dict[str, np.ndarray]:
@@ -183,8 +197,21 @@ class ABCFit:
         i = int(np.argmin(self.distances))
         return {n: float(self.samples[i, j]) for j, n in enumerate(self.param_names)}
 
-    def summary(self) -> dict[str, dict[str, float]]:
-        """Per-parameter posterior mean, median, and 95% credible interval."""
+    def summary(self, adjusted: bool = False) -> dict[str, dict[str, float]]:
+        """Per-parameter posterior mean, median, and 95% credible interval.
+
+        With ``adjusted=True`` the summary is computed from the regression-adjusted
+        posterior (:meth:`regression_adjust`), using its kernel weights.
+        """
+        if adjusted:
+            post = self.regression_adjust()
+            w = self._adjust_weights
+            return {name: {
+                "mean": float(np.average(v, weights=w)),
+                "median": _wquantile(v, w, 0.5),
+                "lo95": _wquantile(v, w, 0.025),
+                "hi95": _wquantile(v, w, 0.975),
+            } for name, v in post.items()}
         out: dict[str, dict[str, float]] = {}
         for name, vals in self.posterior.items():
             out[name] = {
@@ -194,6 +221,52 @@ class ABCFit:
                 "hi95": float(np.quantile(vals, 0.975)),
             }
         return out
+
+    def regression_adjust(self, ridge: float = 1.0) -> dict[str, np.ndarray]:
+        """Local-linear **regression adjustment** of the accepted posterior (Beaumont 2002).
+
+        Rejection ABC keeps draws whose summary is merely *close* to the empirical target;
+        any residual dependence of the parameters on that summary discrepancy biases the
+        posterior (this is what pulls loss up the ridge). This corrects it *post hoc, with
+        no new simulations*: it regresses the accepted parameters on their (scaled) summary
+        residuals ``s_i - s*`` — weighted by an Epanechnikov kernel of the distance — and
+        subtracts the fitted slope, i.e. projects every accepted draw to what it would have
+        been had its summary hit the target exactly. Returns ``{param: adjusted values}``
+        (clipped at 0, since rates are non-negative) and caches the result.
+
+        ``ridge`` regularises the regression: larger values shrink the correction toward
+        the raw posterior (safe but mild), smaller values correct more aggressively but can
+        overfit and narrow the intervals when the summary is high-dimensional relative to
+        the number of accepted draws. The correction can only exploit information the
+        summaries actually carry — it sharpens well-identified rates but cannot rescue one
+        that sits on a ridge.
+        """
+        if self._adjusted is not None:
+            return self._adjusted
+        res = (self.accepted_summaries - self.empirical_summary) / self.summary_sd  # (k, L)
+        # Drop summary columns that don't vary across the accepted set (e.g. the all-zero
+        # tail bins of the frequency spectrum): they carry no information and make the
+        # normal equations singular / invite overfitting.
+        keep = res.std(axis=0) > 1e-9
+        res = res[:, keep]
+        y = self.samples[self.accepted]                                             # (k, P)
+        d = self.distances[self.accepted]
+        dmax = d.max() if d.max() > 0 else 1.0
+        w = np.clip(1.0 - (d / dmax) ** 2, 1e-12, None)                             # Epanechnikov
+
+        x = np.hstack([np.ones((len(res), 1)), res])                               # intercept + residuals
+        sw = np.sqrt(w)[:, None]
+        xw, yw = x * sw, y * sw
+        if ridge > 0:
+            reg = ridge * np.eye(x.shape[1]); reg[0, 0] = 0.0                      # don't penalise intercept
+            beta = np.linalg.solve(xw.T @ xw + reg, xw.T @ yw)                     # (kept+1, P)
+        else:
+            beta = np.linalg.lstsq(xw, yw, rcond=None)[0]                          # min-norm (rank-safe)
+        adjusted = np.clip(y - res @ beta[1:], 0.0, None)                          # remove slope, keep intercept
+
+        self._adjust_weights = w
+        self._adjusted = {n: adjusted[:, j] for j, n in enumerate(self.param_names)}
+        return self._adjusted
 
     # --- diagnostics ---------------------------------------------------------
     def spectra_data(self) -> dict[str, np.ndarray]:
@@ -438,6 +511,7 @@ def match_profiles(
         empirical_summary=target,
         priors=priors,
         accepted_summaries=summaries[accepted],
+        summary_sd=sd,
         n_species=len(species_order),
         empirical=empirical,
         uses_default_summary=uses_default,

@@ -266,6 +266,40 @@ def test_spectra_data_shapes_and_custom_guard():
         fit2.spectra_data()
 
 
+def _adjust_fit():
+    tree = _small_tree()
+    emp = z.simulate_genomes(tree, duplication=0.12, loss=0.18, origination=0.7,
+                             initial_size=10, seed=3).profiles
+    return z.match_profiles(tree, emp,
+                            priors={"duplication": (0, 0.4), "loss": (0, 0.5), "origination": (0, 2)},
+                            n_sims=120, accept=0.25, initial_size=10, engine="python", seed=1)
+
+
+def test_regression_adjust_shapes_and_nonneg():
+    fit = _adjust_fit()
+    adj = fit.regression_adjust()
+    assert set(adj) == set(fit.param_names)
+    k = len(fit.accepted)
+    for v in adj.values():
+        assert v.shape == (k,) and (v >= 0).all()
+    assert fit.regression_adjust() is adj  # cached
+
+
+def test_adjusted_summary_is_ordered():
+    fit = _adjust_fit()
+    s = fit.summary(adjusted=True)
+    assert set(s) == set(fit.param_names)
+    for st in s.values():
+        assert set(st) == {"mean", "median", "lo95", "hi95"}
+        assert st["lo95"] <= st["median"] <= st["hi95"]
+
+
+def test_weighted_quantile_matches_numpy_when_uniform():
+    v = np.array([3.0, 1.0, 2.0, 5.0, 4.0])
+    w = np.ones_like(v)
+    assert z.matching._wquantile(v, w, 0.5) == pytest.approx(np.median(v))
+
+
 def test_plot_spectra_returns_axes():
     pytest.importorskip("matplotlib")
     import matplotlib
