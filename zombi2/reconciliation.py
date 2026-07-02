@@ -136,86 +136,72 @@ def _prune(node: _Node) -> _Node | None:
     return inner
 
 
-# ============ reconciliation: embed the extant gene tree in the species tree ============
+# ============ reconciliation: annotate the gene tree with its species mapping ============
 
 #: One row of the reconciliation events table. ``event`` in {"S","D","T","L"}; ``species`` is
-#: the species node/branch it maps to; ``recipient`` is the transfer recipient (else None);
-#: ``gene`` is the gene-lineage id for D/T (None for inferred S/L).
+#: the species branch/node the event maps to; ``recipient`` is the transfer recipient (else
+#: None); ``time`` is the event time; ``gene`` the gene-lineage id.
 ReconEvent = namedtuple("ReconEvent", ["event", "species", "recipient", "time", "gene"])
 
+#: A family's reconciliation. ``complete`` / ``extant`` are annotated Newick strings (or None);
+#: ``events`` is the list of :class:`ReconEvent` read off the complete tree.
+Reconciliation = namedtuple("Reconciliation", ["complete", "extant", "events"])
 
-class _RNode:
-    """A node of the reconciled tree: an event mapped to a species location."""
-    __slots__ = ("event", "species", "recipient", "gene", "children", "time")
-
-    def __init__(self, event, species, time, gene=None, recipient=None):
-        self.event = event          # "S" | "D" | "T" | "L" | "Leaf"
-        self.species = species
-        self.recipient = recipient
-        self.gene = gene
-        self.time = time
-        self.children: list["_RNode"] = []
+_EV_CHAR = {EventType.DUPLICATION: "D", EventType.TRANSFER: "T", EventType.SPECIATION: "S"}
 
 
-def _copy_internal(node: _Node) -> _Node:
-    new = _Node(node.gid, node.birth)
-    new.end, new.kind, new.branch, new.recipient = node.end, node.kind, node.branch, node.recipient
-    return new
-
-
-def _prune_for_recon(node: _Node) -> _Node | None:
-    """Prune to extant lineages, keeping **visible** transfers.
-
-    Speciations / duplications with one surviving child are suppressed (degree-2) — their
-    missing side is re-inferred as a loss during the species-tree walk. A transfer is kept
-    whenever its *transferred copy* survives (observable as a horizontal move), even if the
-    donor continuation dies; a transfer where only the donor continuation survives is
-    invisible and suppressed.
-    """
+def _prune_recon(node: "_Node"):
+    """Extant lineages only: drop losses, suppress degree-2 nodes, keep species branch/recipient."""
     if not node.children:
         if not node.is_extant:
             return None
         leaf = _Node(node.gid, node.birth)
         leaf.end, leaf.species, leaf.is_extant = node.end, node.species, True
         return leaf
-
-    kids = [_prune_for_recon(c) for c in node.children]
-    if node.kind is EventType.TRANSFER:  # children = [donor_continuation, transferred_copy]
-        donor_c, transf_c = kids[0], kids[1]
-        if transf_c is not None and donor_c is not None:
-            keep = _copy_internal(node)
-            keep.children = [donor_c, transf_c]
-            return keep
-        if transf_c is not None:                      # donor side died -> still a visible transfer
-            keep = _copy_internal(node)
-            keep.children = [transf_c]
-            keep.donor_lost = True
-            return keep
-        if donor_c is not None:                       # transferred copy died -> transfer invisible
-            donor_c.birth = node.birth
-            return donor_c
-        return None
-
-    kept = [k for k in kids if k is not None]
+    kept = [k for k in (_prune_recon(c) for c in node.children) if k is not None]
     if not kept:
         return None
-    if len(kept) == 1:                                # suppressed speciation/duplication
+    if len(kept) == 1:
         kept[0].birth = node.birth
         return kept[0]
-    keep = _copy_internal(node)
-    keep.children = kept
-    return keep
+    inner = _Node(node.gid, node.birth)
+    inner.end, inner.kind = node.end, node.kind
+    inner.branch, inner.recipient, inner.children = node.branch, node.recipient, kept
+    return inner
 
 
-def reconcile(records, gid2species, species_tree):
-    """Reconcile one family's extant gene tree against ``species_tree``.
+def _recon_newick(node: "_Node") -> str:
+    if not node.children:
+        if node.is_loss:
+            name = f"LOSS|{node.branch}"
+        elif node.is_extant:
+            name = f"{node.species}|{node.gid}"
+        else:  # non-extant dead-end (e.g. a ghost / extinct tip)
+            name = f"{node.branch}|{node.gid}"
+        return f"{name}:{_bl(node):.6g}"
+    inner = ",".join(_recon_newick(c) for c in node.children)
+    if node.kind is EventType.TRANSFER:
+        label = f"{node.branch}|T>{node.recipient}"
+    else:
+        label = f"{node.branch}|{_EV_CHAR.get(node.kind, '?')}"
+    return f"({inner}){label}:{_bl(node):.6g}"
 
-    Returns ``(reconciled_newick, events)``: the extant gene tree embedded in the species
-    tree, with a LOSS inferred at every species split the lineage skips, and ``events`` a
-    list of :class:`ReconEvent` (S/D/T/L). ``(None, [])`` if nothing survives.
 
-    Internal node labels are ``species|EVENT`` (transfers ``donor|T>recipient``), extant
-    tips ``species|gid``, inferred losses ``LOSS|species``.
+def reconcile(records, gid2species, total_age) -> "Reconciliation":
+    """Reconcile one family's gene tree against the species tree.
+
+    The simulator records the true species branch of every event, so reconciliation is exact
+    **annotation** — no LCA/parsimony inference. Returns a :class:`Reconciliation` with two
+    trees:
+
+    * ``complete`` — the **complete** gene tree reconciled: every event, including the real
+      ``LOSS|branch`` leaves (the ground-truth history);
+    * ``extant`` — the **extant** (pruned) gene tree reconciled: only the observable lineages
+      (the cherries), with no losses (degree-2 nodes suppressed);
+
+    plus ``events``, the list of :class:`ReconEvent` (S/D/T/L) read off the complete tree. Node
+    labels: ``branch|EVENT`` internal (``donor|T>recipient`` for transfers), ``species|gid``
+    extant tips, ``LOSS|branch`` losses. ``Reconciliation(None, None, [])`` if nothing originated.
     """
     records = sorted(records, key=lambda r: r.time)
     children: dict[str, list[str]] = {}
@@ -224,13 +210,12 @@ def reconcile(records, gid2species, species_tree):
     birth: dict[str, float] = {}
     branch: dict[str, str] = {}
     recipient: dict[str, str] = {}
-    root = origin_branch = None
-    origin_time = 0.0
+    root = None
 
     for r in records:
         ev = r.event
         if ev is EventType.ORIGINATION:
-            root, origin_branch, origin_time = r.genes[0].gid, r.branch, r.time
+            root = r.genes[0].gid
             birth.setdefault(root, r.time)
         elif ev in _INTERNAL:
             frm = r.genes[0].gid
@@ -242,12 +227,12 @@ def reconcile(records, gid2species, species_tree):
                 birth[c] = r.time
         elif ev is EventType.LOSS:
             frm = r.genes[0].gid
-            children[frm], end_time[frm], kind[frm] = [], r.time, ev
+            children[frm], end_time[frm], kind[frm], branch[frm] = [], r.time, ev, r.branch
 
     if root is None:
-        return None, []
+        return Reconciliation(None, None, [])
 
-    def build(gid: str) -> _Node:
+    def build(gid: str) -> "_Node":
         node = _Node(gid, birth.get(gid, 0.0))
         if gid in children:
             node.end, node.kind = end_time[gid], kind[gid]
@@ -257,86 +242,26 @@ def reconcile(records, gid2species, species_tree):
             else:
                 node.children = [build(c) for c in children[gid]]
         else:
+            node.end = total_age
             node.species = gid2species.get(gid)
             node.is_extant = node.species is not None
         return node
 
-    pruned = _prune_for_recon(build(root))
-    if pruned is None:
-        return None, []
-
-    sp = {n.name: n for n in species_tree.nodes_preorder()}
-
-    def other_child(parent, child):
-        a, b = parent.children
-        return b if a is child else a
-
-    def descend_losses(top_name, bottom_name):
-        """(speciation_node, lost_sibling) pairs passed descending species top -> bottom."""
-        top, node, out = sp[top_name], sp[bottom_name], []
-        while node is not top:
-            p = node.parent
-            out.append((p, other_child(p, node)))
-            node = p
-        return out  # bottom-up
-
-    def child_species(g):
-        return g.species if g.is_extant else g.branch
-
-    def species_child_toward(spec, target_name):
-        node = sp[target_name]
-        while node.parent is not spec:
-            node = node.parent
-        return node
-
-    def wrap(rnode, entry_name, target_name):
-        """Insert the speciation+loss nodes skipped descending species entry -> target."""
-        for spec, lost in descend_losses(entry_name, target_name):  # bottom-up
-            s = _RNode("S", spec.name, spec.time)
-            s.children = [rnode, _RNode("L", lost.name, spec.time)]
-            rnode = s
-        return rnode
-
-    def build_recon(g, entry_name):
-        if g.is_extant:
-            return wrap(_RNode("Leaf", g.species, species_tree.total_age, gene=g.gid),
-                        entry_name, g.species)
-        loc = g.branch
-        if g.kind is EventType.SPECIATION:
-            r = _RNode("S", loc, sp[loc].time, gene=g.gid)
-            r.children = [build_recon(c, species_child_toward(sp[loc], child_species(c)).name)
-                          for c in g.children]
-        elif g.kind is EventType.DUPLICATION:
-            r = _RNode("D", loc, g.end, gene=g.gid)
-            r.children = [build_recon(c, loc) for c in g.children]
-        else:  # TRANSFER
-            r = _RNode("T", loc, g.end, gene=g.gid, recipient=g.recipient)
-            if g.donor_lost:  # only the transferred copy survives; donor side is a loss
-                r.children = [build_recon(g.children[0], g.recipient), _RNode("L", loc, g.end)]
-            else:
-                r.children = [build_recon(g.children[0], loc),
-                              build_recon(g.children[1], g.recipient)]
-        return wrap(r, entry_name, loc)
-
-    rtree = build_recon(pruned, origin_branch)
-
+    full = build(root)
     events: list[ReconEvent] = []
 
-    def collect(n):
-        if n.event in ("S", "D", "T", "L"):
-            events.append(ReconEvent(n.event, n.species, n.recipient, n.time, n.gene))
+    def collect(n: "_Node") -> None:
+        if n.is_loss:
+            events.append(ReconEvent("L", n.branch, None, n.end, n.gid))
+        elif n.children:
+            events.append(ReconEvent(_EV_CHAR.get(n.kind, "?"), n.branch, n.recipient, n.end, n.gid))
         for c in n.children:
             collect(c)
-    collect(rtree)
+    collect(full)
 
-    return _recon_newick(rtree, origin_time) + ";", events
-
-
-def _recon_newick(node: _RNode, parent_time: float) -> str:
-    bl = max(0.0, node.time - parent_time)
-    if not node.children:
-        name = f"LOSS|{node.species}" if node.event == "L" else f"{node.species}|{node.gene}"
-        return f"{name}:{bl:.6g}"
-    inner = ",".join(_recon_newick(c, node.time) for c in node.children)
-    label = f"{node.species}|T>{node.recipient}" if node.event == "T" else f"{node.species}|{node.event}"
-    return f"({inner}){label}:{bl:.6g}"
+    pruned = _prune_recon(full)
+    return Reconciliation(
+        complete=_recon_newick(full) + ";",
+        extant=(_recon_newick(pruned) + ";") if pruned is not None else None,
+        events=events,
+    )

@@ -606,7 +606,7 @@ def _r(ev, branch, time, gids, donor=None, recipient=None):
                        donor=donor, recipient=recipient)
 
 
-def test_reconcile_infers_loss_present_in_A_and_C_not_B():
+def test_reconcile_complete_has_loss_extant_is_just_the_cherry():
     sp = read_newick("((A:1,B:1)AB:1,C:2)ROOT;")            # ultrametric, tips at t=2
     records = [
         _r(EventType.ORIGINATION, "ROOT", 0.0, ["g0"]),
@@ -614,24 +614,25 @@ def test_reconcile_infers_loss_present_in_A_and_C_not_B():
         _r(EventType.SPECIATION, "AB", 1.0, ["g1", "g3", "g4"]),
         _r(EventType.LOSS, "B", 1.5, ["g4"]),
     ]
-    nwk, events = reconcile(records, {"g3": "A", "g2": "C"}, sp)
-    assert sorted(e.event for e in events) == ["L", "S", "S"]   # 2 speciations + inferred loss
-    assert [e.species for e in events if e.event == "L"] == ["B"]
-    assert "LOSS|B" in nwk and "A|g3" in nwk and "C|g2" in nwk
+    rec = reconcile(records, {"g3": "A", "g2": "C"}, sp.total_age)
+    # complete: real loss in B present; extant: only the (A, C) cherry, no losses
+    assert "LOSS|B" in rec.complete and "A|g3" in rec.complete and "C|g2" in rec.complete
+    assert "LOSS" not in rec.extant
+    assert "A|g3" in rec.extant and "C|g2" in rec.extant
+    assert [e.event for e in rec.events].count("L") == 1        # one real loss recorded
 
 
-def test_reconcile_keeps_transfer_when_donor_side_dies():
+def test_reconcile_transfer_appears_in_complete():
     sp = read_newick("((A:1,B:1)AB:1,C:2)ROOT;")
     records = [
         _r(EventType.ORIGINATION, "ROOT", 0.0, ["g0"]),
         _r(EventType.SPECIATION, "ROOT", 0.0, ["g0", "g1", "g2"]),
         _r(EventType.TRANSFER, "AB", 0.7, ["g1", "g3", "g4"], donor="AB", recipient="C"),
-        _r(EventType.LOSS, "AB", 0.9, ["g3"]),                  # donor continuation dies
     ]
-    nwk, events = reconcile(records, {"g4": "C", "g2": "C"}, sp)
-    transfers = [e for e in events if e.event == "T"]
+    rec = reconcile(records, {"g3": "A", "g4": "C", "g2": "C"}, sp.total_age)
+    transfers = [e for e in rec.events if e.event == "T"]
     assert len(transfers) == 1 and transfers[0].species == "AB" and transfers[0].recipient == "C"
-    assert "AB|T>C" in nwk                                      # the transfer is still visible
+    assert "AB|T>C" in rec.complete
 
 
 def test_atom_reconciliation_extant_tips_match_copy_number():
@@ -640,25 +641,25 @@ def test_atom_reconciliation_extant_tips_match_copy_number():
                                       loss=0.004, root_length=200, extension=0.9, seed=51)
     ids, _sp, M = res.profile_matrix()
     row = {aid: i for i, aid in enumerate(ids)}
-    for aid, (nwk, _events) in res.atom_reconciliations().items():
-        assert nwk is not None
-        extant_tips = nwk.count(",") + 1 - nwk.count("LOSS|")   # tips minus inferred-loss tips
-        assert extant_tips == int(M[row[aid]].sum())            # observable copies preserved
+    for aid, rec in res.atom_reconciliations().items():
+        assert rec.extant is not None and "LOSS" not in rec.extant      # cherries, no losses
+        assert rec.extant.count(",") + 1 == int(M[row[aid]].sum())      # tips == copies
+        assert "LOSS|" in rec.complete or int(M[row[aid]].sum()) >= len(res.leaf_genomes)
 
 
-def test_reconciliation_events_reference_real_species_and_infer_losses():
+def test_reconciliation_events_reference_real_species_and_have_losses():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=52)
     res = simulate_nucleotide_genomes(tree, inversion=0.005, loss=0.02, root_length=200,
                                       extension=0.9, seed=52)
     names = {n.name for n in tree.nodes_preorder()}
     saw_loss = False
-    for _aid, (_nwk, events) in res.atom_reconciliations().items():
-        for e in events:
+    for _aid, rec in res.atom_reconciliations().items():
+        for e in rec.events:
             assert e.species in names
             if e.recipient is not None:
                 assert e.recipient in names
             saw_loss = saw_loss or e.event == "L"
-    assert saw_loss                                             # a loss-heavy run infers losses
+    assert saw_loss                                             # a loss-heavy run has real losses
 
 
 def test_reconciliation_reproducible():
@@ -675,7 +676,8 @@ def test_write_reconciliations(tmp_path):
     res = simulate_nucleotide_genomes(tree, inversion=0.004, duplication=0.004, transfer=0.004,
                                       loss=0.004, root_length=200, extension=0.9, seed=55)
     summary = res.write_reconciliations(tmp_path)
-    assert (tmp_path / "Reconciled_trees.nwk").exists()
+    assert (tmp_path / "Reconciled_complete.nwk").exists()
+    assert (tmp_path / "Reconciled_extant.nwk").exists()
     events_file = tmp_path / "Reconciliation_events.tsv"
     assert events_file.read_text().splitlines()[0] == "atom\tevent\tspecies\trecipient\ttime\tgene"
     assert summary["n_atoms"] > 0 and summary["n_events"] > 0

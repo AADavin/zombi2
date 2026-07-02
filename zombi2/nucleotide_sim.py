@@ -193,41 +193,46 @@ class NucleotideResult:
                                             species_by_atom[a.atom_id], total_age)
                 for a in self.atoms}
 
-    def atom_reconciliations(self) -> dict[int, tuple]:
-        """``atom_id -> (reconciled_newick, events)`` — each atom's extant gene tree
-        reconciled against the species tree.
+    def atom_reconciliations(self) -> dict:
+        """``atom_id -> Reconciliation(complete, extant, events)`` — each atom reconciled
+        against the species tree.
 
-        The theoretical reconciliation of the observable (extant) lineages: the extant gene
-        tree embedded in the species tree, with a LOSS inferred at every species split the
-        lineage skips. ``events`` is a list of :class:`~zombi2.reconciliation.ReconEvent`
-        (S/D/T/L). ``(None, [])`` for an atom with no surviving copy.
+        ``complete`` reconciles the complete gene tree (every event, including the real
+        losses); ``extant`` reconciles the observable (pruned) gene tree — the cherries, no
+        losses. See :func:`~zombi2.reconciliation.reconcile`.
         """
         records_by_atom, species_by_atom = self._atom_records()
+        total_age = self.species_tree.total_age
         return {a.atom_id: reconcile(records_by_atom[a.atom_id],
-                                     species_by_atom[a.atom_id], self.species_tree)
+                                     species_by_atom[a.atom_id], total_age)
                 for a in self.atoms}
 
     def write_reconciliations(self, outdir) -> dict:
         """Write the reconciled trees + the events table to ``outdir``.
 
-        ``Reconciled_trees.nwk`` — one ``atom_id<TAB>newick`` line per atom (scale-friendly);
-        ``Reconciliation_events.tsv`` — the observable events (S/D/T/L) with their species
-        location, transfer recipient, time and gene lineage. Returns a small summary dict.
+        ``Reconciled_complete.nwk`` / ``Reconciled_extant.nwk`` — one ``atom_id<TAB>newick``
+        line per atom (the complete history with losses, and the observable cherries);
+        ``Reconciliation_events.tsv`` — the events (S/D/T/L) with their species location,
+        transfer recipient, time and gene lineage. Returns a small summary dict.
         """
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
         recon = self.atom_reconciliations()
-        tree_lines, ev_lines, n_events = [], ["atom\tevent\tspecies\trecipient\ttime\tgene"], 0
-        for atom_id, (newick, events) in recon.items():
-            if newick:
-                tree_lines.append(f"{atom_id}\t{newick}")
-            for e in events:
+        complete_lines, extant_lines = [], []
+        ev_lines, n_events = ["atom\tevent\tspecies\trecipient\ttime\tgene"], 0
+        for atom_id, rec in recon.items():
+            if rec.complete:
+                complete_lines.append(f"{atom_id}\t{rec.complete}")
+            if rec.extant:
+                extant_lines.append(f"{atom_id}\t{rec.extant}")
+            for e in rec.events:
                 ev_lines.append(f"{atom_id}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
                                 f"{e.time:.10g}\t{e.gene or ''}")
                 n_events += 1
-        (out / "Reconciled_trees.nwk").write_text("\n".join(tree_lines) + "\n")
+        (out / "Reconciled_complete.nwk").write_text("\n".join(complete_lines) + "\n")
+        (out / "Reconciled_extant.nwk").write_text("\n".join(extant_lines) + "\n")
         (out / "Reconciliation_events.tsv").write_text("\n".join(ev_lines) + "\n")
-        return {"path": str(out), "n_atoms": len(tree_lines), "n_events": n_events}
+        return {"path": str(out), "n_atoms": len(complete_lines), "n_events": n_events}
 
     # --- per-atom history (step 7: the events that touched each segment) ---
     def atom_histories(self) -> dict[int, list[tuple[str, float]]]:
