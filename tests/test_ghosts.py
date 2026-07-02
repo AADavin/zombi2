@@ -143,6 +143,60 @@ def test_episodic_reproducible():
     assert run() == run()
 
 
+def _mean_dead(method, make_model, seeds):
+    counts = []
+    for s in seeds:
+        tree = z.simulate_species_tree(make_model(), n_tips=30, age=6.0, seed=s)
+        z.add_ghost_lineages(tree, make_model(), method=method, seed=1000 + s)
+        counts.append(len(_dead_leaves(tree)))
+    return np.mean(counts)
+
+
+def test_htransform_matches_rejection_constant():
+    make = lambda: z.BirthDeath(1.0, 0.7)
+    rej = _mean_dead("rejection", make, range(30))
+    ht = _mean_dead("htransform", make, range(30))
+    assert abs(rej - ht) / rej < 0.25   # statistically equivalent samplers
+
+
+def test_htransform_matches_rejection_episodic():
+    make = lambda: z.EpisodicBirthDeath([1.0, 1.6], [0.3, 0.8], [3.0], sampling_fraction=0.6)
+    rej = _mean_dead("rejection", make, range(30))
+    ht = _mean_dead("htransform", make, range(30))
+    assert abs(rej - ht) / rej < 0.25
+
+
+def test_htransform_pruning_invariant():
+    tree = _recon(1.0, 0.7, n=30, seed=5)
+    original = tree.to_newick()
+    z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.7), method="htransform", seed=11)
+    assert len(_dead_leaves(tree)) > 0
+    assert _extant_newick(tree) == original
+
+
+def test_htransform_reproducible():
+    def run():
+        tree = _recon(1.0, 0.6, n=25, seed=4)
+        z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.6), method="htransform", seed=42)
+        return tree.to_newick()
+    assert run() == run()
+
+
+def test_htransform_episodic_incomplete_sampling():
+    m = z.EpisodicBirthDeath([1.0, 1.6], [0.3, 0.8], [3.0], sampling_fraction=0.6)
+    tree = z.simulate_species_tree(m, n_tips=40, age=6.0, seed=3)
+    z.add_ghost_lineages(tree, m, method="htransform", seed=8)
+    dead = _dead_leaves(tree)
+    assert any(abs(g.time - tree.total_age) < 1e-9 for g in dead)   # unsampled-extant
+    assert any(g.time < tree.total_age - 1e-9 for g in dead)        # extinct
+
+
+def test_invalid_method_raises():
+    tree = _recon(1.0, 0.5, seed=1)
+    with pytest.raises(ValueError):
+        z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.5), method="nope", seed=1)
+
+
 def test_unsupported_model_raises():
     tree = _recon(1.0, 0.5, seed=1)
 

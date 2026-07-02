@@ -43,14 +43,18 @@ boundary condition.
 An attachment at time `t` roots a birth–death subtree grown forward to the present,
 **conditioned on leaving no sampled descendant** (the event of probability `E(t)`):
 
-* **Rejection** (implemented first — simple, provably correct): grow a normal BD subtree from
-  `t`; sample each present-day tip with prob `ρ`; reject and retry if any tip is sampled.
-  Ghosts are small (conditioned to die out), and the expected total work is `O(λ · tree
-  length)`, so it stays cheap. A size guard rejects runaway supercritical attempts early
+* **Rejection** (`method="rejection"`, default — simple, provably correct): grow a normal BD
+  subtree from `t`; sample each present-day tip with prob `ρ`; reject and retry if any tip is
+  sampled. Ghosts are small (conditioned to die out), and the expected total work is `O(λ ·
+  tree length)`, so it stays cheap. A size guard rejects runaway supercritical attempts early
   (negligible bias).
-* **Direct h-transform** (future optimisation): the conditioned process is itself a
-  birth–death with per-lineage birth `λ·E(τ)` and death `μ/E(τ)` — no rejection. More
-  numerically delicate near the present (`E→1−ρ`), so deferred.
+* **Direct h-transform** (`method="htransform"` — rejection-free): the conditioned process is
+  itself a birth–death with per-lineage birth `λ·E(τ)` and death `μ/E(τ)`, so each subtree is
+  drawn in one pass. The death rate diverges as `E→0` (i.e. `ρ=1`, `τ→0`), which is exactly
+  what forces extinction before the present; we sample the next-event age by inverting the
+  cumulative hazard `T(τ)=∫_τ^A g` tabulated on a grid, handling the log-singular first cell
+  analytically (`g ≈ 1/τ` there). Statistically equivalent to rejection (verified), and faster
+  when heavy extinction/incomplete sampling would make rejection retry a lot.
 
 ### Why it is exact
 
@@ -91,10 +95,9 @@ z.add_ghost_lineages(tree, m, seed=2)
 * **Supported:** constant-rate `BirthDeath`/`Yule`, and `EpisodicBirthDeath` with time-varying
   `λ(t)`/`μ(t)` (`E(t)` from the model's ODE grid) and incomplete sampling `ρ<1`. With `ρ=1`
   ghosts are extinct-before-present; with `ρ<1` they also include lineages alive today but
-  unsampled. Subtrees are grown by rejection (thinning handles the piecewise-constant rates),
-  exhaustively sanity-checked.
-* **Next:** the direct h-transform sampler (per-lineage birth `λE`, death `μ/E` — no rejection)
-  as a speed optimisation.
+  unsampled. Subtrees are grown by rejection (default) or the direct **h-transform**
+  (`method="htransform"`) — both statistically equivalent and exhaustively sanity-checked.
+* **Next:** none outstanding for ghosts.
 
 ## Sanity checks (tests)
 
