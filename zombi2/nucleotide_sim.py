@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -28,7 +29,7 @@ from .events import EventType, EventRecord, GeneOp
 from .genome_sim import GenomeSimulator
 from .nucleotide_genome import NucleotideGenome, SegmentRegistry
 from .rates import UniformRates
-from .reconciliation import build_gene_trees
+from .reconciliation import build_gene_trees, reconcile
 from .tree import Tree, TreeNode
 
 
@@ -124,26 +125,20 @@ class NucleotideResult:
         cache[sid] = sid
         return sid
 
-    def atom_gene_trees(self) -> dict[int, tuple]:
-        """``atom_id -> (complete_newick, extant_newick)`` — one gene tree per atom.
+    def _atom_records(self):
+        """Per-atom ``(records, gid2species)`` for gene-tree / reconciliation reconstruction.
 
-        Each atom (a never-cut ancestral block) is an emergent gene family. Its genealogy
-        is the segment lineage tree restricted to segments covering the atom: speciations,
-        duplications and transfers are bifurcations, losses terminate, and breakpoint
-        splits are contracted away (each split sends the atom to exactly one child). We
-        collapse the split-chains into single lineages and hand the real events to the
-        shared :func:`~zombi2.reconciliation.build_gene_trees`, so the reconstruction and
-        Newick output match the rest of ZOMBI2. ``extant_newick`` is ``None`` if nothing
-        survives.
-
-        The log is indexed **once**: every event's segment covers a contiguous run of
-        atoms (source coordinates are ordered), found by bisection, so each record is
-        appended straight to those atoms — no per-atom rescans of the whole log.
+        Each atom (a never-cut ancestral block) is an emergent gene family; its genealogy is
+        the segment lineage tree restricted to segments covering the atom, with breakpoint
+        splits contracted (each split sends the atom to exactly one child). The log is
+        indexed **once**: every event's segment covers a contiguous run of atoms (source
+        coordinates are ordered), found by bisection, so each record is appended straight to
+        those atoms — no per-atom rescan of the whole log. Records carry the species branch
+        and (for transfers) the recipient, so both ``build_gene_trees`` and ``reconcile``
+        can consume them.
         """
         prov = self.registry.provenance
         top_cache: dict[str, str] = {}
-        total_age = self.species_tree.total_age
-
         records_by_atom: dict[int, list] = {a.atom_id: [] for a in self.atoms}
         species_by_atom: dict[int, dict] = {a.atom_id: {} for a in self.atoms}
 
@@ -163,7 +158,8 @@ class NucleotideResult:
                 rep = self._top(g0, top_cache)
                 rec = EventRecord(ev, r.branch, r.time,
                                   [GeneOp(rep, source, "parent"),
-                                   *(GeneOp(op.gid, source, "child") for op in r.genes[1:])])
+                                   *(GeneOp(op.gid, source, "child") for op in r.genes[1:])],
+                                  donor=r.donor, recipient=r.recipient)
             elif ev is EventType.LOSS:
                 rec = EventRecord(ev, r.branch, r.time,
                                   [GeneOp(self._top(g0, top_cache), source, "lost")])
@@ -182,9 +178,56 @@ class NucleotideResult:
                 for a in atoms:
                     species_by_atom[a.atom_id][rep] = name
 
+        return records_by_atom, species_by_atom
+
+    def atom_gene_trees(self) -> dict[int, tuple]:
+        """``atom_id -> (complete_newick, extant_newick)`` — one gene tree per atom.
+
+        Speciations, duplications and transfers are bifurcations, losses terminate; built
+        with the shared :func:`~zombi2.reconciliation.build_gene_trees` so the Newick output
+        matches the rest of ZOMBI2. ``extant_newick`` is ``None`` if nothing survives.
+        """
+        records_by_atom, species_by_atom = self._atom_records()
+        total_age = self.species_tree.total_age
         return {a.atom_id: build_gene_trees(records_by_atom[a.atom_id],
                                             species_by_atom[a.atom_id], total_age)
                 for a in self.atoms}
+
+    def atom_reconciliations(self) -> dict[int, tuple]:
+        """``atom_id -> (reconciled_newick, events)`` — each atom's extant gene tree
+        reconciled against the species tree.
+
+        The theoretical reconciliation of the observable (extant) lineages: the extant gene
+        tree embedded in the species tree, with a LOSS inferred at every species split the
+        lineage skips. ``events`` is a list of :class:`~zombi2.reconciliation.ReconEvent`
+        (S/D/T/L). ``(None, [])`` for an atom with no surviving copy.
+        """
+        records_by_atom, species_by_atom = self._atom_records()
+        return {a.atom_id: reconcile(records_by_atom[a.atom_id],
+                                     species_by_atom[a.atom_id], self.species_tree)
+                for a in self.atoms}
+
+    def write_reconciliations(self, outdir) -> dict:
+        """Write the reconciled trees + the events table to ``outdir``.
+
+        ``Reconciled_trees.nwk`` — one ``atom_id<TAB>newick`` line per atom (scale-friendly);
+        ``Reconciliation_events.tsv`` — the observable events (S/D/T/L) with their species
+        location, transfer recipient, time and gene lineage. Returns a small summary dict.
+        """
+        out = Path(outdir)
+        out.mkdir(parents=True, exist_ok=True)
+        recon = self.atom_reconciliations()
+        tree_lines, ev_lines, n_events = [], ["atom\tevent\tspecies\trecipient\ttime\tgene"], 0
+        for atom_id, (newick, events) in recon.items():
+            if newick:
+                tree_lines.append(f"{atom_id}\t{newick}")
+            for e in events:
+                ev_lines.append(f"{atom_id}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
+                                f"{e.time:.10g}\t{e.gene or ''}")
+                n_events += 1
+        (out / "Reconciled_trees.nwk").write_text("\n".join(tree_lines) + "\n")
+        (out / "Reconciliation_events.tsv").write_text("\n".join(ev_lines) + "\n")
+        return {"path": str(out), "n_atoms": len(tree_lines), "n_events": n_events}
 
     # --- per-atom history (step 7: the events that touched each segment) ---
     def atom_histories(self) -> dict[int, list[tuple[str, float]]]:
