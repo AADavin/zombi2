@@ -20,6 +20,10 @@ out/
 # Built docs site
 site/
 
+# Private didactic material (kept locally, not published)
+docs/non_independence.pdf
+docs/non_independence.tex
+
 # LaTeX build artifacts
 *.aux
 *.log

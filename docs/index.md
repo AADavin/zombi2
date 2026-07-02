@@ -53,5 +53,6 @@ event types drop in as subclasses without touching the engine. See
 - New to ZOMBI2? Start with [Installation](installation.md) and the
   [Quickstart](quickstart.md).
 - Then work through the **User guide** in the navigation.
-- The headline scientific goal — the **non-independence of gene families** (a Potts-model
-  extension) — is written up in [this background note](background.md).
+- The [species-tree roadmap](species_tree_models.md) lists diversification models planned
+  next. The headline scientific goal — the **non-independence of gene families** (a
+  Potts-model extension) — is in design.

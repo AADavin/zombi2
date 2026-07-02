@@ -65,7 +65,7 @@ representations ignore it automatically.
 ## What's coming through these seams
 
 - **Non-independence (Potts model)** — a `RateModel` whose gain/loss rates read the genome's
-  presence vector (see the [background note](../background.md)).
+  presence vector, so functionally coupled families gain/lose together (in design).
 - **Ghost lineages** — a forward species-tree simulator retaining extinct lineages, which
   also unlocks fossilized birth–death (see the
   [species-tree roadmap](../species_tree_models.md)).
