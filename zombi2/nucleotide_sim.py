@@ -18,6 +18,7 @@ genuine per-atom gene trees arrive with duplication/loss/transfer in later miles
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -119,53 +120,73 @@ class NucleotideResult:
         """``atom_id -> (complete_newick, extant_newick)`` — one gene tree per atom.
 
         Each atom (a never-cut ancestral block) is an emergent gene family. Its genealogy
-        is the segment lineage tree restricted to segments covering the atom: speciations
-        and duplications are bifurcations, losses terminate, and breakpoint splits are
-        contracted away (each split sends the atom to exactly one child). We collapse the
-        split-chains into single lineages and hand the real events to the shared
-        :func:`~zombi2.reconciliation.build_gene_trees`, so the reconstruction and Newick
-        output match the rest of ZOMBI2. ``extant_newick`` is ``None`` if nothing survives.
+        is the segment lineage tree restricted to segments covering the atom: speciations,
+        duplications and transfers are bifurcations, losses terminate, and breakpoint
+        splits are contracted away (each split sends the atom to exactly one child). We
+        collapse the split-chains into single lineages and hand the real events to the
+        shared :func:`~zombi2.reconciliation.build_gene_trees`, so the reconstruction and
+        Newick output match the rest of ZOMBI2. ``extant_newick`` is ``None`` if nothing
+        survives.
+
+        The log is indexed **once**: every event's segment covers a contiguous run of
+        atoms (source coordinates are ordered), found by bisection, so each record is
+        appended straight to those atoms — no per-atom rescans of the whole log.
         """
         prov = self.registry.provenance
         top_cache: dict[str, str] = {}
         total_age = self.species_tree.total_age
 
-        def covers(sid: str, atom: Atom) -> bool:
-            src, a, b = prov[sid]
-            return src == atom.source and a <= atom.start and b >= atom.end
+        # per-source atom lists sorted by start, with parallel start arrays for bisection
+        starts = {src: [a.start for a in atoms] for src, atoms in self._by_source.items()}
 
-        # extant-leaf segments, so a surviving lineage rep can be tagged with its species
-        leaf_segs = [(seg.seg_id, leaf.name)
-                     for leaf, genome in self.leaf_genomes.items()
-                     for seg in genome._segments]
+        def covered(source: str, ss: int, se: int):
+            atoms = self._by_source.get(source)
+            if not atoms:
+                return ()
+            st = starts[source]
+            return atoms[bisect_left(st, ss):bisect_left(st, se)]  # start in [ss, se)
 
-        out: dict[int, tuple] = {}
-        for atom in self.atoms:
-            records: list[EventRecord] = []
-            for r in self.event_log:
-                ev = r.event
-                if ev is EventType.ORIGINATION:
-                    sid = r.genes[0].gid
-                    if covers(sid, atom):
-                        records.append(r)  # gid == root == its own lineage rep
-                elif ev in (EventType.SPECIATION, EventType.DUPLICATION, EventType.TRANSFER):
-                    frm = r.genes[0].gid
-                    if covers(frm, atom):  # both children copy the atom -> a bifurcation
-                        rep = self._top(frm, top_cache)
-                        tos = [op.gid for op in r.genes[1:]]
-                        records.append(EventRecord(ev, r.branch, r.time,
-                                                   [GeneOp(rep, atom.source, "parent"),
-                                                    *(GeneOp(t, atom.source, "child") for t in tos)]))
-                elif ev is EventType.LOSS:
-                    frm = r.genes[0].gid
-                    if covers(frm, atom):
-                        rep = self._top(frm, top_cache)
-                        records.append(EventRecord(ev, r.branch, r.time,
-                                                   [GeneOp(rep, atom.source, "lost")]))
-            gid2species = {self._top(sid, top_cache): name
-                           for sid, name in leaf_segs if covers(sid, atom)}
-            out[atom.atom_id] = build_gene_trees(records, gid2species, total_age)
-        return out
+        records_by_atom: dict[int, list] = {a.atom_id: [] for a in self.atoms}
+        species_by_atom: dict[int, dict] = {a.atom_id: {} for a in self.atoms}
+
+        for r in self.event_log:
+            ev = r.event
+            g0 = r.genes[0].gid
+            entry = prov.get(g0)
+            if entry is None:
+                continue
+            source, ss, se = entry
+            atoms = covered(source, ss, se)
+            if not atoms:
+                continue
+            if ev is EventType.ORIGINATION:
+                rec = r  # gid == root == its own lineage rep
+            elif ev in (EventType.SPECIATION, EventType.DUPLICATION, EventType.TRANSFER):
+                rep = self._top(g0, top_cache)
+                rec = EventRecord(ev, r.branch, r.time,
+                                  [GeneOp(rep, source, "parent"),
+                                   *(GeneOp(op.gid, source, "child") for op in r.genes[1:])])
+            elif ev is EventType.LOSS:
+                rec = EventRecord(ev, r.branch, r.time,
+                                  [GeneOp(self._top(g0, top_cache), source, "lost")])
+            else:
+                continue  # inversion / transposition never re-mint a lineage
+            for a in atoms:
+                records_by_atom[a.atom_id].append(rec)
+
+        for leaf, genome in self.leaf_genomes.items():
+            name = leaf.name
+            for seg in genome._segments:
+                atoms = covered(seg.source, seg.src_start, seg.src_end)
+                if not atoms:
+                    continue
+                rep = self._top(seg.seg_id, top_cache)
+                for a in atoms:
+                    species_by_atom[a.atom_id][rep] = name
+
+        return {a.atom_id: build_gene_trees(records_by_atom[a.atom_id],
+                                            species_by_atom[a.atom_id], total_age)
+                for a in self.atoms}
 
     # --- per-atom history (step 7: the events that touched each segment) ---
     def atom_histories(self) -> dict[int, list[tuple[str, float]]]:
