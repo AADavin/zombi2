@@ -82,8 +82,50 @@ def test_argument_validation():
         z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), n_tips=1)
     with pytest.raises(ValueError):  # bad age
         z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), age=0.0)
-    with pytest.raises(NotImplementedError):  # episodic not yet
-        z.simulate_species_tree_forward(z.EpisodicBirthDeath([1.0], [0.3], []), age=5.0)
+    with pytest.raises(NotImplementedError):  # episodic needs a fixed present -> age mode only
+        z.simulate_species_tree_forward(z.EpisodicBirthDeath([1.0], [0.3], []), n_tips=10)
+
+
+def test_episodic_single_epoch_matches_constant():
+    # a one-epoch episodic model == constant BirthDeath forward (same mean extant count)
+    def mean_extant(model):
+        return np.mean([len(z.simulate_species_tree_forward(model, age=4.0, seed=s).extant_leaves())
+                        for s in range(300)])
+    epi = z.EpisodicBirthDeath([1.0], [0.4], [])
+    const = z.BirthDeath(1.0, 0.4)
+    a, b = mean_extant(epi), mean_extant(const)
+    assert abs(a - b) / b < 0.12
+
+
+def test_episodic_recent_mass_extinction_reduces_tips():
+    # a high-extinction recent epoch (last 1.0 before present) should leave fewer extant tips
+    calm = z.EpisodicBirthDeath([1.0, 1.0], [0.2, 0.2], [1.0])
+    crash = z.EpisodicBirthDeath([1.0, 1.0], [2.5, 0.2], [1.0])  # μ=2.5 in the recent epoch
+    m_calm = np.mean([len(z.simulate_species_tree_forward(calm, age=5.0, seed=s).extant_leaves())
+                      for s in range(200)])
+    m_crash = np.mean([len(z.simulate_species_tree_forward(crash, age=5.0, seed=s).extant_leaves())
+                       for s in range(200)])
+    assert m_crash < m_calm
+
+
+def test_episodic_incomplete_sampling_marks_unsampled_extant():
+    m = z.EpisodicBirthDeath([1.0], [0.3], [], sampling_fraction=0.5)
+    # collect trees; with ρ=0.5 some present-day lineages should be unsampled (is_extant=False)
+    saw_unsampled = False
+    for s in range(30):
+        t = z.simulate_species_tree_forward(m, age=5.0, seed=s)
+        present = [n for n in t.leaves() if abs(n.time - t.total_age) < 1e-9]
+        if any(not n.is_extant for n in present):
+            saw_unsampled = True
+            break
+    assert saw_unsampled
+
+
+def test_episodic_reproducible():
+    m = z.EpisodicBirthDeath([1.0, 1.6], [0.3, 0.6], [2.0], sampling_fraction=0.8)
+    a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    assert a == b
 
 
 def test_forward_tree_feeds_gene_sim_with_ghost_transfers():

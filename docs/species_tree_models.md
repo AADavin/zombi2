@@ -104,11 +104,15 @@ recon = z.prune_to_extant(tree)   # the reconstructed (survivors-only) counterpa
 ```
 
 Conventions match the backward crown tree: rooted at the crown (`time == 0`), present at
-`total_age`, `age` = crown age; conditioned on the origin speciating and ≥2 extant survivors.
-Verified against theory (Yule: mean extant ≈ `2·e^{λ·age}`). v1 is constant-rate
-`BirthDeath`/`Yule`; forward under time-varying rates (which needs a forward-time rate
-convention, unlike the backward age-before-present one) and serial/through-time sampling (FBD)
-are natural next steps on the forward machinery.
+`total_age`, `age` = crown age; conditioned on ≥2 sampled survivors. Verified against theory
+(Yule: mean extant ≈ `2·e^{λ·age}`).
+
+`EpisodicBirthDeath` is supported in **age mode** (time-varying λ/μ and incomplete sampling
+`ρ<1`, which marks extant-but-unsampled tips `is_extant=False`). In age mode the present is
+fixed at `age`, so the model's ages-before-present map to tree-time `age − t`; a recent
+mass-extinction epoch sharply thins the extant tips (e.g. mean extant 100 → 12 when the last
+epoch's μ jumps). `n_tips` mode is constant-rate only (the present must be fixed for episodic
+rates). Serial/through-time sampling (FBD) is the next step on this machinery.
 
 ## Key references
 
