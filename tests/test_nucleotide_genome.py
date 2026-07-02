@@ -315,23 +315,28 @@ def test_loss_reproducible():
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("seed", range(25))
 def test_all_events_match_oracle(seed):
+    """Every single-genome geometry event (dup / inv / transpose / del), interleaved."""
     rng = np.random.default_rng(seed)
     L0 = int(rng.integers(30, 120))
     g = _fresh(L0, ext=0.9)
     o = ArrayGenome("1", L0)
-    for _ in range(150):
+    for _ in range(160):
         L = g.size()
         if L <= 1:
             break
         s = int(rng.integers(L))
         ell = int(rng.integers(1, L + 1))
         r = rng.random()
-        if r < 0.34 and L < 400:              # cap growth so the run stays bounded
+        if r < 0.25 and L < 400:              # cap growth so the run stays bounded
             g._apply_duplication(s, ell)
             o.duplicate(s, ell)
-        elif r < 0.67:
+        elif r < 0.50:
             g._apply_inversion(s, ell)
             o.invert(s, ell)
+        elif r < 0.75:
+            dest = int(rng.integers(L))
+            g._apply_transposition(s, ell, dest)
+            o.transpose(s, ell, dest)
         else:
             g._apply_loss(s, min(ell, L - 1))
             o.delete(s, min(ell, L - 1))
@@ -556,3 +561,36 @@ def test_novel_gene_is_absent_from_lineages_that_predate_it():
     non_root = [s for s in by_source if s != "1"]
     assert non_root                                 # some novel sources exist
     assert any(row.min() == 0 for s in non_root for row in by_source[s])  # patchy presence
+
+
+# --------------------------------------------------------------------------- #
+# All six event types together — the full model in one simulation
+# --------------------------------------------------------------------------- #
+_FULL = dict(inversion=0.004, duplication=0.004, loss=0.004, transfer=0.003,
+             transposition=0.004, origination=0.4, root_length=500, extension=0.97)
+
+
+def test_full_event_set_fires_and_reconstructs():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=71)
+    res = simulate_nucleotide_genomes(tree, **_FULL, seed=71)
+    kinds = {r.event for r in res.event_log}
+    for ev in (EventType.ORIGINATION, EventType.SPECIATION, EventType.INVERSION,
+               EventType.LOSS, EventType.DUPLICATION, EventType.TRANSFER,
+               EventType.TRANSPOSITION):
+        assert ev in kinds, f"{ev} never fired — the test isn't exercising it"
+    assert len({a.source for a in res.atoms}) > 1          # root chromosome + novel genes
+    # the reconciliation invariant must hold for EVERY atom with all events interacting
+    ids, _sp, M = res.profile_matrix()
+    rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
+    for aid, (_c, extant) in res.atom_gene_trees().items():
+        assert extant is not None and _n_leaves(extant) == rowsum[aid]
+
+
+def test_full_event_set_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=72)
+    a = simulate_nucleotide_genomes(tree, **_FULL, seed=73)
+    b = simulate_nucleotide_genomes(tree, **_FULL, seed=73)
+    assert len(a.event_log) == len(b.event_log)
+    assert a.atom_gene_trees() == b.atom_gene_trees()
+    for leaf, ga in a.leaf_genomes.items():
+        assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
