@@ -123,6 +123,58 @@ def test_full_log_family_counts_match_profiles_fast():
     assert abs(a - b) / b < 0.2
 
 
+def _read_profiles(path):
+    with open(path) as f:
+        rows = [line.rstrip("\n").split("\t") for line in f]
+    return rows[0][1:], {r[0]: list(map(int, r[1:])) for r in rows[1:]}
+
+
+def test_write_fast_produces_all_files(tmp_path):
+    tree = _tree()
+    s = z.simulate_and_write_fast(tree, tmp_path, seed=7, **FULL)
+    assert s["n_species"] == len(tree.extant_leaves())
+    for f in ["species_tree.nwk", "species_nodes.tsv", "Transfers.tsv",
+              "Gene_family_summary.tsv", "Profiles.tsv", "Presence.tsv"]:
+        assert (tmp_path / f).exists()
+    assert (tmp_path / "gene_trees").is_dir()
+    assert (tmp_path / "gene_family_events").is_dir()
+
+
+def test_write_fast_gene_tree_invariant(tmp_path):
+    tree = _tree(n=40, seed=3)
+    z.simulate_and_write_fast(tree, tmp_path, seed=5, **FULL)
+    _, prof = _read_profiles(tmp_path / "Profiles.tsv")
+    checked = 0
+    for fam, row in prof.items():
+        rowsum = sum(row)
+        ep = tmp_path / "gene_trees" / f"{fam}_extant.nwk"
+        n_leaves = (ep.read_text().count(",") + 1) if ep.exists() else 0
+        assert n_leaves == rowsum
+        checked += 1
+    assert checked > 0
+
+
+def test_write_fast_presence_matches_profiles(tmp_path):
+    z.simulate_and_write_fast(_tree(), tmp_path, seed=1, **FULL)
+    _, prof = _read_profiles(tmp_path / "Profiles.tsv")
+    _, pres = _read_profiles(tmp_path / "Presence.tsv")
+    for fam in prof:
+        assert pres[fam] == [1 if x > 0 else 0 for x in prof[fam]]
+
+
+def test_write_fast_reproducible(tmp_path):
+    tree = _tree()
+    z.simulate_and_write_fast(tree, tmp_path / "a", seed=9, **FULL)
+    z.simulate_and_write_fast(tree, tmp_path / "b", seed=9, **FULL)
+    assert (tmp_path / "a" / "Profiles.tsv").read_text() == (tmp_path / "b" / "Profiles.tsv").read_text()
+    assert (tmp_path / "a" / "Transfers.tsv").read_text() == (tmp_path / "b" / "Transfers.tsv").read_text()
+
+
+def test_write_fast_rejects_unsupported(tmp_path):
+    with pytest.raises(TypeError):
+        z.simulate_and_write_fast(_tree(), tmp_path, z.GenomeWiseRates(0.2, 0.1, 0.2, 0.5), seed=1)
+
+
 def test_statistically_matches_python_engine():
     # mean copy-number over the matrix should agree within Monte-Carlo error
     tree = _tree(n=60, seed=2)

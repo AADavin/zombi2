@@ -7,9 +7,13 @@
 //   Python engine) and emits the full event genealogy + leaf genomes, so Python can rebuild
 //   the same event log, gene trees and outputs.
 
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as _;
+use std::fs::{self, File};
+use std::io::{BufWriter, Write as _};
+use std::path::Path;
 
 /// xoshiro256** — small, fast, deterministic PRNG (seeded via splitmix64).
 struct Rng {
@@ -635,13 +639,13 @@ impl LogEngine {
 
 type LogColumns = (Vec<u8>, Vec<u32>, Vec<f64>, Vec<i64>, Vec<i64>, Vec<u64>, Vec<u64>, Vec<i64>, Vec<i64>);
 
+/// Run the full-log engine; return its records and extant leaf genomes.
 #[allow(clippy::too_many_arguments)]
-#[pyfunction]
-fn simulate_log(
+fn run_log(
     n_nodes: usize,
-    parent: Vec<i64>,
-    time: Vec<f64>,
-    extant_leaf: Vec<bool>,
+    parent: &[i64],
+    time: &[f64],
+    extant_leaf: &[bool],
     root: usize,
     duplication: f64,
     transfer: f64,
@@ -650,7 +654,7 @@ fn simulate_log(
     initial_size: usize,
     cap: i64,
     seed: u64,
-) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
+) -> PyResult<(Records, Vec<(usize, Vec<(u64, u64)>)>)> {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
     for (node, &p) in parent.iter().enumerate() {
         if p >= 0 {
@@ -660,7 +664,7 @@ fn simulate_log(
 
     let mut eng = LogEngine {
         children,
-        extant_leaf,
+        extant_leaf: extant_leaf.to_vec(),
         d: duplication,
         t: transfer,
         l: loss,
@@ -708,8 +712,376 @@ fn simulate_log(
         }
     }
 
-    let r = eng.rec;
+    Ok((eng.rec, leaves))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_log(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    duplication: f64,
+    transfer: f64,
+    loss: f64,
+    origination: f64,
+    initial_size: usize,
+    cap: i64,
+    seed: u64,
+) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
+    let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
+        duplication, transfer, loss, origination, initial_size, cap, seed)?;
     Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaves))
+}
+
+// ============ output writing in Rust (gene trees + tables) — no big return to Python ============
+
+/// %g-like formatting: `sig` significant figures with trailing zeros trimmed.
+fn fmt_g(x: f64, sig: i32) -> String {
+    if x == 0.0 || !x.is_finite() {
+        return "0".to_string();
+    }
+    let exp = x.abs().log10().floor() as i32;
+    let decimals = (sig - 1 - exp).clamp(0, 17) as usize;
+    let s = format!("{:.*}", decimals, x);
+    if s.contains('.') {
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    } else {
+        s
+    }
+}
+
+/// Natural-ish sort key matching Python's _natkey: (numeric run in the name, name).
+fn natkey(name: &str) -> (i128, &str) {
+    let digits: String = name.chars().filter(|c| c.is_ascii_digit()).collect();
+    (digits.parse::<i128>().unwrap_or(0), name)
+}
+
+const EV_CHAR: [&str; 5] = ["O", "D", "T", "L", "S"];
+const ROLES: [&[&str]; 5] = [
+    &["origin"],
+    &["parent", "left", "right"],
+    &["parent", "donor_copy", "transfer_copy"],
+    &["lost"],
+    &["parent", "child", "child"],
+];
+
+/// A reconstructed gene-tree node (species = leaf node index for extant tips).
+struct GNode {
+    gid: u64,
+    birth: f64,
+    end: f64,
+    children: Vec<GNode>,
+    is_loss: bool,
+    species: Option<usize>,
+}
+
+fn bl(n: &GNode) -> f64 {
+    (n.end - n.birth).max(0.0)
+}
+
+fn to_newick(n: &GNode, names: &[String], out: &mut String) {
+    if n.children.is_empty() {
+        if n.is_loss {
+            let _ = write!(out, "LOSS_{}:{}", n.gid, fmt_g(bl(n), 6));
+        } else if let Some(li) = n.species {
+            let _ = write!(out, "{}_{}:{}", names[li], n.gid, fmt_g(bl(n), 6));
+        } else {
+            let _ = write!(out, "{}:{}", n.gid, fmt_g(bl(n), 6));
+        }
+    } else {
+        out.push('(');
+        for (i, c) in n.children.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            to_newick(c, names, out);
+        }
+        let _ = write!(out, "){}:{}", n.gid, fmt_g(bl(n), 6));
+    }
+}
+
+/// Prune to lineages leading to an extant leaf; suppress degree-two nodes.
+fn prune(mut n: GNode) -> Option<GNode> {
+    if n.children.is_empty() {
+        return if n.species.is_some() { Some(n) } else { None };
+    }
+    let mut kept: Vec<GNode> = n.children.into_iter().filter_map(prune).collect();
+    match kept.len() {
+        0 => None,
+        1 => {
+            let mut survivor = kept.pop().unwrap();
+            survivor.birth = n.birth;
+            Some(survivor)
+        }
+        _ => {
+            n.children = kept;
+            Some(n)
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_gnode(
+    gid: u64,
+    children: &HashMap<u64, (u64, u64)>,
+    losses: &std::collections::HashSet<u64>,
+    end_time: &HashMap<u64, f64>,
+    birth: &HashMap<u64, f64>,
+    gid2leaf: &HashMap<u64, usize>,
+    total_age: f64,
+) -> GNode {
+    let b = *birth.get(&gid).unwrap_or(&0.0);
+    if let Some(&(c1, c2)) = children.get(&gid) {
+        GNode {
+            gid, birth: b, end: end_time[&gid], is_loss: false, species: None,
+            children: vec![
+                build_gnode(c1, children, losses, end_time, birth, gid2leaf, total_age),
+                build_gnode(c2, children, losses, end_time, birth, gid2leaf, total_age),
+            ],
+        }
+    } else if losses.contains(&gid) {
+        GNode { gid, birth: b, end: end_time[&gid], children: vec![], is_loss: true, species: None }
+    } else {
+        GNode { gid, birth: b, end: total_age, children: vec![], is_loss: false, species: gid2leaf.get(&gid).copied() }
+    }
+}
+
+/// Reconstruct (complete, extant) Newick for one family from its time-ordered records.
+fn reconstruct(
+    idxs: &[usize],
+    rec: &Records,
+    gid2leaf: &HashMap<u64, usize>,
+    names: &[String],
+    total_age: f64,
+) -> (Option<String>, Option<String>) {
+    let mut children: HashMap<u64, (u64, u64)> = HashMap::new();
+    let mut losses: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    let mut end_time: HashMap<u64, f64> = HashMap::new();
+    let mut birth: HashMap<u64, f64> = HashMap::new();
+    let mut root: Option<u64> = None;
+
+    for &ri in idxs {
+        let ev = rec.ev[ri];
+        let tm = rec.tm[ri];
+        match ev {
+            EV_O => {
+                root = Some(rec.g0[ri]);
+                birth.entry(rec.g0[ri]).or_insert(tm);
+            }
+            EV_D | EV_T | EV_S => {
+                let frm = rec.g0[ri];
+                let c1 = rec.g1[ri] as u64;
+                let c2 = rec.g2[ri] as u64;
+                children.insert(frm, (c1, c2));
+                end_time.insert(frm, tm);
+                birth.insert(c1, tm);
+                birth.insert(c2, tm);
+            }
+            EV_L => {
+                losses.insert(rec.g0[ri]);
+                end_time.insert(rec.g0[ri], tm);
+            }
+            _ => {}
+        }
+    }
+
+    let root = match root {
+        Some(r) => r,
+        None => return (None, None),
+    };
+    let node = build_gnode(root, &children, &losses, &end_time, &birth, gid2leaf, total_age);
+    let mut complete = String::new();
+    to_newick(&node, names, &mut complete);
+    complete.push(';');
+    let extant = prune(node).map(|n| {
+        let mut s = String::new();
+        to_newick(&n, names, &mut s);
+        s.push(';');
+        s
+    });
+    (Some(complete), extant)
+}
+
+/// Write all gene-family outputs; return (n_families, n_species).
+fn write_outputs(
+    rec: &Records,
+    leaves: &[(usize, Vec<(u64, u64)>)],
+    names: &[String],
+    total_age: f64,
+    outdir: &str,
+) -> std::io::Result<(usize, usize)> {
+    let base = Path::new(outdir);
+    fs::create_dir_all(base.join("gene_family_events"))?;
+    fs::create_dir_all(base.join("gene_trees"))?;
+    let n_events = rec.ev.len();
+
+    // gid -> leaf index, and per-leaf family counts
+    let mut gid2leaf: HashMap<u64, usize> = HashMap::new();
+    let mut leaf_counts: HashMap<usize, HashMap<u64, u32>> = HashMap::new();
+    for (li, pairs) in leaves {
+        let cmap = leaf_counts.entry(*li).or_default();
+        for &(gid, fam) in pairs {
+            gid2leaf.insert(gid, *li);
+            *cmap.entry(fam).or_insert(0) += 1;
+        }
+    }
+
+    // species columns in natural-name order
+    let mut species_cols: Vec<usize> = leaves.iter().map(|(li, _)| *li).collect();
+    species_cols.sort_by(|&a, &b| natkey(&names[a]).cmp(&natkey(&names[b])));
+    let n_species = species_cols.len();
+
+    // group record indices by family (records already time-ordered)
+    let mut fam_records: HashMap<u64, Vec<usize>> = HashMap::new();
+    for i in 0..n_events {
+        fam_records.entry(rec.fm[i]).or_default().push(i);
+    }
+    let mut families: Vec<u64> = fam_records.keys().copied().collect();
+    families.sort_unstable();
+    let n_families = families.len();
+
+    // per-family extant copy totals (family -> (total copies, #species))
+    let mut fam_copies: HashMap<u64, (u64, u64)> = HashMap::new();
+    for m in leaf_counts.values() {
+        for (&fam, &c) in m {
+            let e = fam_copies.entry(fam).or_insert((0, 0));
+            e.0 += c as u64;
+            e.1 += 1;
+        }
+    }
+
+    // per-family: event table + gene trees
+    for &fam in &families {
+        let idxs = &fam_records[&fam];
+        let label = fam + 1;
+
+        let mut ev_s = String::from("time\tevent\tbranch\tdonor\trecipient\tnodes\n");
+        for &ri in idxs {
+            let code = rec.ev[ri] as usize;
+            let roles = ROLES[code];
+            let mut nodes = format!("{}={}", roles[0], rec.g0[ri]);
+            if roles.len() == 3 {
+                let _ = write!(nodes, ";{}={};{}={}", roles[1], rec.g1[ri], roles[2], rec.g2[ri]);
+            }
+            let donor = if rec.dn[ri] >= 0 { names[rec.dn[ri] as usize].as_str() } else { "" };
+            let recip = if rec.rc[ri] >= 0 { names[rec.rc[ri] as usize].as_str() } else { "" };
+            let _ = writeln!(ev_s, "{}\t{}\t{}\t{}\t{}\t{}",
+                fmt_g(rec.tm[ri], 10), EV_CHAR[code], names[rec.br[ri] as usize], donor, recip, nodes);
+        }
+        fs::write(base.join("gene_family_events").join(format!("{}_events.tsv", label)), ev_s)?;
+
+        let (complete, extant) = reconstruct(idxs, rec, &gid2leaf, names, total_age);
+        if let Some(c) = complete {
+            fs::write(base.join("gene_trees").join(format!("{}_complete.nwk", label)), c + "\n")?;
+        }
+        if let Some(e) = extant {
+            fs::write(base.join("gene_trees").join(format!("{}_extant.nwk", label)), e + "\n")?;
+        }
+    }
+
+    // Transfers.tsv
+    let mut tr = String::from("time\tfamily\tdonor_branch\trecipient_branch\tparent_id\tdonor_copy_id\ttransfer_id\n");
+    for i in 0..n_events {
+        if rec.ev[i] == EV_T {
+            let _ = writeln!(tr, "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                fmt_g(rec.tm[i], 10), rec.fm[i] + 1,
+                names[rec.dn[i] as usize], names[rec.rc[i] as usize],
+                rec.g0[i], rec.g1[i], rec.g2[i]);
+        }
+    }
+    fs::write(base.join("Transfers.tsv"), tr)?;
+
+    // Gene_family_summary.tsv
+    let mut sm = String::from("family\torigin_time\torigin_branch\tn_dup\tn_transfer\tn_loss\tn_speciation\textant_copies\tspecies_present\n");
+    for &fam in &families {
+        let (mut nd, mut nt, mut nl, mut ns) = (0u64, 0u64, 0u64, 0u64);
+        let mut ot = String::new();
+        let mut ob = String::new();
+        for &ri in &fam_records[&fam] {
+            match rec.ev[ri] {
+                EV_D => nd += 1,
+                EV_T => nt += 1,
+                EV_L => nl += 1,
+                EV_S => ns += 1,
+                EV_O => {
+                    ot = fmt_g(rec.tm[ri], 10);
+                    ob = names[rec.br[ri] as usize].clone();
+                }
+                _ => {}
+            }
+        }
+        let (copies, sp) = fam_copies.get(&fam).copied().unwrap_or((0, 0));
+        let _ = writeln!(sm, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            fam + 1, ot, ob, nd, nt, nl, ns, copies, sp);
+    }
+    fs::write(base.join("Gene_family_summary.tsv"), sm)?;
+
+    // Profiles.tsv + Presence.tsv (families x species), streamed (large at scale)
+    let mut ext_fams: Vec<u64> = fam_copies.keys().copied().collect();
+    ext_fams.sort_unstable();
+    let col_maps: Vec<&HashMap<u64, u32>> = species_cols.iter().map(|li| &leaf_counts[li]).collect();
+
+    let mut header = String::from("family");
+    for &li in &species_cols {
+        header.push('\t');
+        header.push_str(&names[li]);
+    }
+    header.push('\n');
+
+    let mut pf = BufWriter::new(File::create(base.join("Profiles.tsv"))?);
+    let mut pr = BufWriter::new(File::create(base.join("Presence.tsv"))?);
+    pf.write_all(header.as_bytes())?;
+    pr.write_all(header.as_bytes())?;
+    let (mut prow, mut rrow) = (String::new(), String::new());
+    for &fam in &ext_fams {
+        prow.clear();
+        rrow.clear();
+        let _ = write!(prow, "{}", fam + 1);
+        let _ = write!(rrow, "{}", fam + 1);
+        for m in &col_maps {
+            let c = *m.get(&fam).unwrap_or(&0);
+            let _ = write!(prow, "\t{}", c);
+            rrow.push('\t');
+            rrow.push(if c > 0 { '1' } else { '0' });
+        }
+        prow.push('\n');
+        rrow.push('\n');
+        pf.write_all(prow.as_bytes())?;
+        pr.write_all(rrow.as_bytes())?;
+    }
+    pf.flush()?;
+    pr.flush()?;
+
+    Ok((n_families, n_species))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_and_write(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    names: Vec<String>,
+    duplication: f64,
+    transfer: f64,
+    loss: f64,
+    origination: f64,
+    initial_size: usize,
+    cap: i64,
+    seed: u64,
+    total_age: f64,
+    outdir: String,
+) -> PyResult<(usize, usize, usize)> {
+    let (rec, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
+        duplication, transfer, loss, origination, initial_size, cap, seed)?;
+    let (n_families, n_species) = write_outputs(&rec, &leaves, &names, total_age, &outdir)
+        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    Ok((n_families, rec.ev.len(), n_species))
 }
 
 #[pyfunction]
@@ -722,5 +1094,6 @@ fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(available, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_profiles, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_log, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_and_write, m)?)?;
     Ok(())
 }

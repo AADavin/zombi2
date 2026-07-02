@@ -21,6 +21,7 @@ from __future__ import annotations
 import numpy as np
 
 from collections import Counter
+from pathlib import Path
 
 from .events import EventLog, EventRecord, EventType, GeneOp
 from .genome_sim import resolve_max_family_size
@@ -264,3 +265,64 @@ def simulate_genomes_fast(
     profiles = ProfileMatrix.from_leaf_genomes(leaf_genomes)
     return Genomes(species_tree=species_tree, leaf_genomes=leaf_genomes,
                    event_log=event_log, profiles=profiles)
+
+
+def simulate_and_write_fast(
+    species_tree,
+    outdir,
+    rates=None,
+    *,
+    duplication: float = 0.0,
+    transfer: float = 0.0,
+    loss: float = 0.0,
+    origination: float = 0.0,
+    initial_size: int = 20,
+    max_family_size=None,
+    seed=None,
+) -> dict:
+    """Simulate gene families and write the full ZOMBI-1 output entirely in Rust.
+
+    The Rust engine simulates the genealogy, reconstructs the gene trees, and writes every
+    gene-family file (``gene_family_events/``, ``gene_trees/``, ``Transfers.tsv``,
+    ``Gene_family_summary.tsv``, ``Profiles.tsv``, ``Presence.tsv``) directly to ``outdir`` —
+    nothing large crosses back into Python. Python writes only the two tiny tree-only files
+    (``species_tree.nwk``, ``species_nodes.tsv``). This is the scale path for
+    "simulate-and-write-everything"; it returns a small summary dict rather than a
+    :class:`~zombi2.Genomes`.
+
+    Same model and limits as :func:`simulate_genomes_fast` (built-in
+    ``UnorderedGenome`` + ``UniformRates`` + default ``TransferModel``). The output format
+    matches :meth:`~zombi2.Genomes.write` (gene ids are integers; float formatting may differ
+    slightly).
+    """
+    if _core is None:
+        raise RuntimeError(
+            "zombi2_core (the Rust extension) is not built. Build it with:\n"
+            "  pip install maturin\n"
+            "  cd rust && maturin build --release -i python3\n"
+            "  pip install --force-reinstall rust/target/wheels/*.whl"
+        )
+
+    d, t, l, o = _resolve_rates(rates, duplication, transfer, loss, origination)
+    nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
+    cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
+    names = [n.name for n in nodes]
+
+    out = Path(outdir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    n_families, n_events, n_species = _core.simulate_and_write(
+        len(nodes), parent, times, extant_leaf, root, names,
+        d, t, l, o, int(initial_size), cap, seed_val,
+        float(species_tree.total_age), str(out),
+    )
+
+    # the two tiny, tree-only files stay in Python
+    (out / "species_tree.nwk").write_text(species_tree.to_newick() + "\n")
+    node_lines = ["name\ttime\tis_leaf\tis_extant"]
+    for n in nodes:
+        node_lines.append(f"{n.name}\t{n.time:.10g}\t{int(n.is_leaf())}\t{int(n.is_extant)}")
+    (out / "species_nodes.tsv").write_text("\n".join(node_lines) + "\n")
+
+    return {"path": str(out), "n_families": n_families,
+            "n_events": n_events, "n_species": n_species}

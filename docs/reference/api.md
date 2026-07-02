@@ -65,6 +65,7 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.fast.simulate_profiles_fast
 ::: zombi2.fast.simulate_genomes_fast
+::: zombi2.fast.simulate_and_write_fast
 ::: zombi2.fast.rust_available
 
 ## Gene-tree reconstruction
