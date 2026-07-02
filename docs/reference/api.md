@@ -13,6 +13,12 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.tree.Tree
 ::: zombi2.tree.TreeNode
+::: zombi2.tree.read_newick
+
+## Rate variation
+
+::: zombi2.rate_variation.RateVariation
+::: zombi2.rate_variation.RateScaledTree
 
 ## Rate models
 

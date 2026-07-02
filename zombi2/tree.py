@@ -110,3 +110,63 @@ class Tree:
 
     def __repr__(self) -> str:
         return f"Tree(root={self.root.name!r}, n_leaves={len(self.leaves())}, total_age={self.total_age:.6g})"
+
+
+def read_newick(newick: str) -> Tree:
+    """Parse a Newick string into a :class:`Tree`.
+
+    Branch lengths are read as **durations**: each node's absolute ``time`` is set to
+    ``parent.time + length`` (root at 0), so ``branch_length()`` returns the parsed length.
+    Unnamed leaves/internal nodes are given names. Useful for loading an externally
+    supplied species tree, or a reconstructed gene tree, into the ``Tree`` interface.
+    """
+    s = newick.strip().rstrip(";")
+    i = 0
+
+    def parse() -> TreeNode:
+        nonlocal i
+        children = []
+        if i < len(s) and s[i] == "(":
+            i += 1
+            while True:
+                children.append(parse())
+                if s[i] == ",":
+                    i += 1
+                elif s[i] == ")":
+                    i += 1
+                    break
+        start = i
+        while i < len(s) and s[i] not in ",():;":
+            i += 1
+        name = s[start:i]
+        length = 0.0
+        if i < len(s) and s[i] == ":":
+            i += 1
+            start = i
+            while i < len(s) and s[i] not in ",():;":
+                i += 1
+            length = float(s[start:i])
+        node = TreeNode(name=name, time=0.0)
+        node._parsed_length = length  # scratch, consumed below
+        for c in children:
+            node.add_child(c)
+        return node
+
+    root = parse()
+    tree = Tree(root, 0.0)
+    for node in tree.nodes_preorder():
+        if node.parent is not None:
+            node.time = node.parent.time + node._parsed_length
+        del node._parsed_length
+
+    leaf_counter = internal_counter = 1
+    for node in tree.nodes_preorder():
+        if node.is_leaf() and not node.name:
+            node.name = f"n{leaf_counter}"
+            leaf_counter += 1
+        elif not node.is_leaf() and not node.name:
+            node.name = f"i{internal_counter}"
+            internal_counter += 1
+
+    tree.total_age = max((leaf.time for leaf in tree.leaves()), default=0.0)
+    return tree

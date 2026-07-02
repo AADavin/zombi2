@@ -25,7 +25,7 @@ from __future__ import annotations
 __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
-from .tree import Tree, TreeNode
+from .tree import Tree, TreeNode, read_newick
 from .species_model import BirthDeath, Yule, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
@@ -50,6 +50,7 @@ from .distributions import (
 from .genome_sim import GenomeSimulator, GenomeResult
 from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
+from .rate_variation import RateVariation, RateScaledTree
 from .simulation import simulate_genomes, Genomes
 
 __all__ = [
@@ -57,7 +58,7 @@ __all__ = [
     # events
     "EventType", "GeneOp", "EventRecord", "Selection", "Region", "TargetParams",
     # tree
-    "Tree", "TreeNode",
+    "Tree", "TreeNode", "read_newick",
     # species tree
     "BirthDeath", "Yule", "EpisodicBirthDeath", "simulate_species_tree",
     # genome
@@ -70,4 +71,6 @@ __all__ = [
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
     "build_gene_trees",
+    # rate variation (relaxed clock)
+    "RateVariation", "RateScaledTree",
 ]

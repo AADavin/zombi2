@@ -56,6 +56,7 @@ nav:
       - Bounding growth: guide/growth.md
       - Gene trees & output: guide/gene-trees-and-output.md
       - Ordered genomes: guide/ordered-genomes.md
+      - Rate variation: guide/rate-variation.md
       - Extending ZOMBI2: guide/extending.md
   - API reference: reference/api.md
   - Roadmap:
