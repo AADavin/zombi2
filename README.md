@@ -98,9 +98,11 @@ if z.rust_available():
                                         max_family_size=0.3, seed=42)  # -> ProfileMatrix
 ```
 
-It covers the built-in `UnorderedGenome` + `UniformRates` model; the pure-Python
-`simulate_genomes` stays the default and the only path with the full event log and gene
-trees. See `docs/guide/rust-fast-path.md`.
+Need the full event log and gene trees, just faster? `z.simulate_genomes_fast(...)` tracks gene
+lineages in Rust and returns a complete `Genomes` (with `.event_log`, `.gene_trees()`,
+`.write()`) — a drop-in for `simulate_genomes` (~3× on the simulation at 10k tips). Both fast
+paths cover the built-in `UnorderedGenome` + `UniformRates` model; the pure-Python
+`simulate_genomes` stays the default. See `docs/guide/rust-fast-path.md`.
 
 ### CLI
 

@@ -1,16 +1,19 @@
 # The Rust fast path (optional)
 
-For large-scale studies where you only need the **presence/copy-number profile matrix**
-(the σ dataset) — not the full event log or gene trees — ZOMBI2 ships an optional native
-engine that runs the forward Gillespie in Rust over per-family *counts*. On a 10 000-tip
-tree it produces the profile matrix in **~0.4 s vs ~21 s** for the pure-Python full
-simulation (≈50× faster).
+ZOMBI2 ships an optional native engine that runs the forward Gillespie in Rust, in two
+flavours:
 
-The pure-Python [`simulate_genomes`](gene-families.md) remains the default and the **only**
-path that produces the event log, transfers, and reconstructed gene trees. The Rust engine
-covers exactly the built-in `UnorderedGenome` + `UniformRates` model (per-copy
+* **`simulate_profiles_fast`** — genomes are per-family *counts* only; returns just the
+  presence/copy-number **profile matrix** (the σ dataset). Fastest: the 10 000-tip matrix in
+  **~0.4 s vs ~21 s** for the pure-Python sim (≈50×).
+* **`simulate_genomes_fast`** — tracks individual gene lineages and emits the **full event
+  genealogy**, returning a complete [`Genomes`](gene-families.md) with `.event_log`,
+  `.gene_trees()` and `.write()` — a drop-in for `simulate_genomes` at large scale.
+
+The pure-Python [`simulate_genomes`](gene-families.md) remains the default. Both Rust engines
+cover exactly the built-in `UnorderedGenome` + `UniformRates` model (per-copy
 duplication / transfer / loss, per-branch origination, additive uniform-recipient
-transfers, optional hard `max_family_size`).
+transfers, optional hard `max_family_size`) and the default `TransferModel`.
 
 ## Building the extension
 
@@ -47,6 +50,25 @@ It accepts the keyword shorthand or a `UniformRates` object; other rate models
 (`GenomeWiseRates`, `FamilySampledRates`, `BranchRates`), soft `carrying_capacity`, and
 rearrangements raise a clear error — use `simulate_genomes` for those.
 
+## Full event log + gene trees
+
+`simulate_genomes_fast` returns a full `Genomes`, so everything the Python engine offers
+downstream works unchanged:
+
+```python
+g = z.simulate_genomes_fast(tree, duplication=0.1, transfer=0.05, loss=0.15,
+                            origination=0.5, initial_size=100, max_family_size=0.5, seed=1)
+
+len(g.event_log)                 # every O/D/T/L/S record, as EventRecord objects
+complete, extant = g.gene_trees()["1"]   # reconstructed per-family gene trees
+g.write("out/")                  # full ZOMBI-1 output (event tables, trees, transfers, ...)
+```
+
+The Rust engine generates the genealogy; Python materialises the `EventLog` and runs the
+existing reconciliation/writers. Gene ids are integers (not `g`-prefixed) and the RNG differs
+from the Python engine, so results are statistically — not bit — identical. The reconciliation
+invariant holds: each family's extant gene-tree leaf count equals its extant copy number.
+
 ## Reproducibility & correctness
 
 The Rust engine uses its own PRNG, so results are **statistically** equivalent to the
@@ -54,9 +76,17 @@ Python engine, not bit-identical. A given `seed` is reproducible *within* this e
 test suite checks that mean copy number and family counts agree with the Python engine
 within Monte-Carlo error.
 
+## Performance notes
+
+At 10 000 tips (~2.1M events): `simulate_genomes_fast` builds the full `Genomes` in **~5.5 s
+vs ~17 s** for `simulate_genomes` (≈3×). The Rust side generates the genealogy; the ~3× (not
+50×) is because Python still materialises ~2M `EventRecord` objects. And the *downstream*
+`gene_trees()` (~18 s) and `write()` (~33 s) are still pure Python — so for the
+"simulate-and-write-everything at scale" workflow, those now dominate.
+
 ## What's next
 
-This is the first increment of the Rust core. It's profiles-only by design; porting the
-full event log / gene-tree genealogy and the richer transfer mechanics
-(`TransferModel`) to Rust — which also opens the door to within-simulation per-family
-threading — is planned follow-up work.
+The genealogy is in Rust; the remaining large wins are to move **gene-tree reconstruction and
+the output writers into Rust** (so nothing large crosses back into Python), and to add the
+richer `TransferModel` mechanics (replacement / distance / self) — which also opens the door
+to within-simulation per-family threading.
