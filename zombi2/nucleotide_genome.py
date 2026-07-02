@@ -364,10 +364,10 @@ class NucleotideGenome(Genome):
         n = self._length
         if ext is None or n <= 1:
             return 1
-        length = 1
-        while length < n and rng.random() < ext:  # truncated geometric, mean 1/(1-ext)
-            length += 1
-        return length
+        if ext >= 1.0:
+            return n
+        # truncated geometric (mean 1/(1-ext)); drawn in one shot instead of a Python loop
+        return min(int(rng.geometric(1.0 - ext)), n)
 
     _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION,
                              EventType.TRANSFER, EventType.TRANSPOSITION))
