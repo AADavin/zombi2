@@ -92,7 +92,13 @@ class GenomeSimulator:
 
         # --- root speciation: seed the child branches ----------------------
         alive: dict[TreeNode, Genome] = {}
+        # persistent per-branch rate cache: node -> (candidate events, subtotal). It is
+        # updated only where the genome changes (events) or membership changes
+        # (speciations), so it is never rebuilt wholesale — the key to O(N) scaling.
+        cache: dict[TreeNode, tuple] = {}
         self._speciate(root_genome, root, alive, log)
+        for child in root.children:
+            cache[child] = self._branch_weights(alive[child], child, rate_model, root.time)
 
         leaf_genomes: dict[TreeNode, Genome] = {}
 
@@ -103,14 +109,17 @@ class GenomeSimulator:
         )
         t = root.time
         for node in node_events:
-            self._evolve_interval(alive, t, node.time, rate_model, log, rng)
+            self._evolve_interval(alive, cache, t, node.time, rate_model, log, rng)
             t = node.time
             genome = alive.pop(node)
+            cache.pop(node, None)
             if node.is_leaf():
                 if node.is_extant:
                     leaf_genomes[node] = genome
             else:  # speciation: re-mint lineage ids into each child and log it
                 self._speciate(genome, node, alive, log)
+                for child in node.children:
+                    cache[child] = self._branch_weights(alive[child], child, rate_model, t)
 
         return GenomeResult(event_log=log, leaf_genomes=leaf_genomes, ids=ids)
 
@@ -130,26 +139,25 @@ class GenomeSimulator:
         alive[child2] = g2
 
     # --- Gillespie over a constant-membership interval ---------------------
-    def _evolve_interval(self, alive, t0, t1, rate_model, log, rng):
-        """Gillespie loop with incremental per-branch rate caching.
+    def _evolve_interval(self, alive, cache, t0, t1, rate_model, log, rng):
+        """Gillespie loop over one inter-speciation interval, using the persistent cache.
 
-        Branch membership is constant across ``(t0, t1)`` and, for the shipped rate
-        models, a branch's weights depend only on its genome (not on ``t`` within the
-        interval). So we cache each branch's candidate events and subtotal and, after each
-        event, recompute only the branch(es) whose genome actually changed — turning the
-        per-event cost from O(branches x families) into O(branches) selection plus an
-        O(1) recompute. A rate model that varies continuously with time can opt out by
-        setting ``time_dependent = True`` (then every branch is refreshed each step).
+        Branch membership is constant across ``(t0, t1)``, and for the shipped rate models
+        a branch's weights depend only on its genome (not on ``t``). We assemble a subtotal
+        array from the cache (O(branches) cheap reads — no rate recomputation), then after
+        each event recompute only the branch(es) whose genome changed. A rate model that
+        varies continuously with time can set ``time_dependent = True`` to force a full
+        refresh each step (correctness over speed).
         """
-        t = t0
+        refresh_all = getattr(rate_model, "time_dependent", False)
         branches = list(alive.keys())
         index = {b: i for i, b in enumerate(branches)}
-        entries = [None] * len(branches)
-        sub = np.zeros(len(branches))
-        for i, b in enumerate(branches):
-            entries[i], sub[i] = self._branch_weights(alive[b], b, rate_model, t)
+        t = t0
+        if refresh_all:
+            for b in branches:
+                cache[b] = self._branch_weights(alive[b], b, rate_model, t)
+        sub = np.array([cache[b][1] for b in branches], dtype=float)
         total = float(sub.sum())
-        refresh_all = getattr(rate_model, "time_dependent", False)
 
         for _ in range(self.max_events_per_interval):
             if total <= 0.0:
@@ -162,7 +170,7 @@ class GenomeSimulator:
             bi = int(np.searchsorted(np.cumsum(sub), rng.random() * total, side="right"))
             bi = min(bi, len(branches) - 1)
             branch = branches[bi]
-            ew = self._pick_entry(entries[bi], float(sub[bi]), rng)
+            ew = self._pick_entry(cache[branch][0], float(sub[bi]), rng)
             changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
 
             to_refresh = branches if refresh_all else changed
@@ -170,9 +178,9 @@ class GenomeSimulator:
                 i = index.get(cb)
                 if i is None:
                     continue
-                entries[i], new_sub = self._branch_weights(alive[cb], cb, rate_model, t)
-                total += new_sub - sub[i]
-                sub[i] = new_sub
+                cache[cb] = self._branch_weights(alive[cb], cb, rate_model, t)
+                total += cache[cb][1] - sub[i]
+                sub[i] = cache[cb][1]
         raise RuntimeError(
             f"exceeded max_events_per_interval={self.max_events_per_interval}; "
             "gene families are likely growing without bound (duplication/transfer > loss). "

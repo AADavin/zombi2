@@ -99,7 +99,10 @@ class UniformRates(RateModel):
         self.carrying_capacity = carrying_capacity
 
     def _regulated(self) -> bool:
-        return self.carrying_capacity is not None or self._max_family_size is not None
+        # Only the *soft* carrying capacity needs per-family duplication weights. A hard
+        # max_family_size is enforced cheaply by the simulator (it skips an over-cap
+        # duplication), so we keep the O(1) aggregate duplication term.
+        return self.carrying_capacity is not None
 
     def event_weights(self, genome, branch, time):
         n = genome.size()
