@@ -112,7 +112,28 @@ Conventions match the backward crown tree: rooted at the crown (`time == 0`), pr
 fixed at `age`, so the model's ages-before-present map to tree-time `age − t`; a recent
 mass-extinction epoch sharply thins the extant tips (e.g. mean extant 100 → 12 when the last
 epoch's μ jumps). `n_tips` mode is constant-rate only (the present must be fixed for episodic
-rates). Serial/through-time sampling (FBD) is the next step on this machinery.
+rates).
+
+### Fossilized birth–death (serial / through-time sampling)
+
+`FossilizedBirthDeath(birth, death, fossilization, sampling)` adds serial sampling: beyond
+speciation (λ) and extinction (μ), lineages are sampled *through time* at rate ψ
+(`fossilization`) — each a **dated fossil tip** — and extant lineages are sampled at the present
+with probability ρ (`sampling`). Sampling removes the lineage (removal probability 1), so every
+sample is a terminal tip and the tree stays binary (the gene-family machinery is unaffected).
+
+```python
+m = z.FossilizedBirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling=0.9)
+tree = z.simulate_species_tree_forward(m, age=6.0, seed=1)   # complete tree + fossils
+fbd = z.prune_to_sampled(tree)   # the sampled tree: dated fossil tips + sampled extant tips
+```
+
+Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times; sampled extant
+tips carry `sampled=True, is_extant=True`. `prune_to_sampled` extracts the FBD sampled tree
+(the dated-tip tree used in total-evidence dating); `prune_to_extant` still gives the extant-only
+reconstructed tree. Verified: fossil count scales with ψ (0 at ψ=0), fossils are dated before the
+present, and the sampled tree has one tip per sample. Removal probability r<1 (sampled ancestors)
+and episodic-FBD are natural extensions.
 
 ## Key references
 

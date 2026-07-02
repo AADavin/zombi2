@@ -30,6 +30,9 @@ class TreeNode:
     parent: "TreeNode | None" = field(default=None, repr=False)
     children: list["TreeNode"] = field(default_factory=list, repr=False)
     is_extant: bool = True
+    #: True if this node is an observation — an extant *sampled* tip or a serially-sampled
+    #: fossil (see fossilized birth–death in ``simulate_species_tree_forward``). Default False.
+    sampled: bool = False
 
     def add_child(self, child: "TreeNode") -> None:
         child.parent = self
@@ -128,6 +131,34 @@ def prune_to_extant(tree: Tree) -> Tree | None:
         if not kept:
             return None
         if len(kept) == 1:  # suppress this degree-two node
+            return kept[0]
+        new = TreeNode(name=node.name, time=node.time)
+        for k in kept:
+            new.add_child(k)
+        return new
+
+    root = rec(tree.root)
+    return Tree(root, tree.total_age) if root is not None else None
+
+
+def prune_to_sampled(tree: Tree) -> Tree | None:
+    """Return the **sampled** tree: prune to nodes with ``sampled=True`` (serially-sampled
+    fossils plus sampled extant tips), suppressing degree-two nodes and preserving times.
+    This is the fossilized-birth–death "reconstructed" tree of dated tips; use it on a tree
+    from :func:`~zombi2.simulate_species_tree_forward` with a
+    :class:`~zombi2.FossilizedBirthDeath` model. Returns ``None`` if nothing is sampled.
+    """
+
+    def rec(node: TreeNode) -> TreeNode | None:
+        if node.is_leaf():
+            if node.sampled:
+                return TreeNode(name=node.name, time=node.time,
+                                is_extant=node.is_extant, sampled=True)
+            return None
+        kept = [k for k in (rec(c) for c in node.children) if k is not None]
+        if not kept:
+            return None
+        if len(kept) == 1:
             return kept[0]
         new = TreeNode(name=node.name, time=node.time)
         for k in kept:

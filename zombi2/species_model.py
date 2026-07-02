@@ -68,6 +68,36 @@ class Yule(BirthDeath):
         super().__init__(birth, 0.0)
 
 
+class FossilizedBirthDeath:
+    """Constant-rate fossilized birth–death (FBD) for **forward** simulation.
+
+    Beyond speciation ``birth`` (λ) and extinction ``death`` (μ), lineages are sampled
+    *through time* at rate ``fossilization`` (ψ) — each such event is a dated fossil — and
+    extant lineages are sampled at the present with probability ``sampling`` (ρ). Sampling
+    removes the lineage (removal probability r = 1), so every sample is a terminal tip and the
+    tree stays binary. Use with :func:`~zombi2.simulate_species_tree_forward`; extract the tree
+    of dated samples with :func:`~zombi2.prune_to_sampled`. (This is a forward-only model; it
+    has no backward reconstructed-tree sampler.)
+    """
+
+    def __init__(self, birth: float, death: float = 0.0,
+                 fossilization: float = 0.0, sampling: float = 1.0):
+        self.birth = float(birth)
+        self.death = float(death)
+        self.fossilization = float(fossilization)
+        self.sampling = float(sampling)
+
+    def validate(self) -> None:
+        if self.birth <= 0:
+            raise ValueError(f"birth rate must be > 0, got {self.birth}")
+        if self.death < 0:
+            raise ValueError(f"death rate must be >= 0, got {self.death}")
+        if self.fossilization < 0:
+            raise ValueError(f"fossilization rate must be >= 0, got {self.fossilization}")
+        if not (0.0 < self.sampling <= 1.0):
+            raise ValueError(f"sampling must be in (0, 1], got {self.sampling}")
+
+
 class EpisodicBirthDeath:
     """Episodic (skyline) birth-death: piecewise-constant rates through time.
 

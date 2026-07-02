@@ -128,6 +128,64 @@ def test_episodic_reproducible():
     assert a == b
 
 
+# --- FBD / serial (through-time) sampling ------------------------------------
+
+def _fossils(tree):
+    return [n for n in tree.leaves() if n.sampled and not n.is_extant]
+
+
+def test_fbd_no_fossils_when_psi_zero():
+    t = z.simulate_species_tree_forward(z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.0),
+                                        age=5.0, seed=1)
+    assert _fossils(t) == []
+    assert all(len(n.children) == 2 for n in t.internal_nodes())  # still binary
+
+
+def test_fbd_fossils_scale_with_psi():
+    def mean_fossils(psi):
+        return np.mean([len(_fossils(z.simulate_species_tree_forward(
+            z.FossilizedBirthDeath(1.0, 0.4, fossilization=psi), age=5.0, seed=s)))
+            for s in range(40)])
+    assert mean_fossils(0.0) == 0
+    assert mean_fossils(0.2) < mean_fossils(0.6)
+
+
+def test_fbd_fossils_are_dated_and_sampled():
+    t = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.5, fossilization=0.6), age=6.0, seed=2)
+    fossils = _fossils(t)
+    assert fossils
+    for f in fossils:
+        assert f.sampled and not f.is_extant
+        assert f.time < t.total_age - 1e-9  # a past sample, before the present
+
+
+def test_fbd_sampled_tree_extraction():
+    t = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.5, fossilization=0.5, sampling=0.9), age=6.0, seed=1)
+    n_sampled = sum(1 for n in t.leaves() if n.sampled)
+    samp = z.prune_to_sampled(t)
+    assert len(samp.leaves()) == n_sampled           # fossils + extant samples
+    assert all(len(nd.children) == 2 for nd in samp.internal_nodes())
+    # prune_to_extant keeps only extant sampled tips (no fossils)
+    recon = z.prune_to_extant(t)
+    assert len(recon.leaves()) == len(t.extant_leaves())
+    assert len(recon.leaves()) <= len(samp.leaves())
+
+
+def test_fbd_n_tips_mode_allowed():
+    t = z.simulate_species_tree_forward(
+        z.FossilizedBirthDeath(1.0, 0.3, fossilization=0.3), n_tips=15, seed=3)
+    assert len(t.extant_leaves()) == 15  # constant-rate FBD supports n_tips
+
+
+def test_fbd_reproducible():
+    m = z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.4, sampling=0.9)
+    a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    assert a == b
+
+
 def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
     tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), n_tips=40, seed=8)
     dead = _dead_names(tree)
