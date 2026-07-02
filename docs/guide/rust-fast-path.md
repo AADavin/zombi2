@@ -16,9 +16,11 @@ flavours:
   (**~10× vs Python simulate + write** at 10k tips: ~6.5 s vs ~66 s).
 
 The pure-Python [`simulate_genomes`](gene-families.md) remains the default. All three Rust
-engines cover exactly the built-in `UnorderedGenome` + `UniformRates` model (per-copy
-duplication / transfer / loss, per-branch origination, additive uniform-recipient
-transfers, optional hard `max_family_size`) and the default `TransferModel`.
+engines cover the built-in `UnorderedGenome` + `UniformRates` model (per-copy
+duplication / transfer / loss, per-branch origination, optional hard `max_family_size`) and
+the **full `TransferModel`** — pass `transfers=z.TransferModel(replacement=…,
+distance_decay=…, allow_self=…)` for replacement transfers, phylogenetic-distance-weighted
+recipients, or self-transfers, exactly as with `simulate_genomes`.
 
 ## Building the extension
 

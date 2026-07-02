@@ -175,6 +175,78 @@ def test_write_fast_rejects_unsupported(tmp_path):
         z.simulate_and_write_fast(_tree(), tmp_path, z.GenomeWiseRates(0.2, 0.1, 0.2, 0.5), seed=1)
 
 
+def _self_transfer_rows(path):
+    with open(path) as f:
+        next(f)
+        return sum(1 for line in f if (lambda c: c[2] == c[3])(line.split("\t")))
+
+
+def test_transfer_self(tmp_path):
+    tree = _tree(n=30, seed=2)
+    base = dict(duplication=0.0, transfer=0.4, loss=0.1, origination=0.4,
+                initial_size=25, max_family_size=0.9, seed=5)
+    z.simulate_and_write_fast(tree, tmp_path / "no", transfers=z.TransferModel(allow_self=False), **base)
+    z.simulate_and_write_fast(tree, tmp_path / "yes", transfers=z.TransferModel(allow_self=True), **base)
+    assert _self_transfer_rows(tmp_path / "no" / "Transfers.tsv") == 0
+    assert _self_transfer_rows(tmp_path / "yes" / "Transfers.tsv") > 0
+
+
+def test_transfer_replacement_reduces_growth():
+    tree = _tree(n=30, seed=2)
+    base = dict(transfer=0.4, loss=0.02, origination=0.4, initial_size=25, max_family_size=0.9)
+    add = np.mean([z.simulate_profiles_fast(tree, seed=200 + s,
+                   transfers=z.TransferModel(replacement=0.0), **base).matrix.sum() for s in range(4)])
+    rep = np.mean([z.simulate_profiles_fast(tree, seed=200 + s,
+                   transfers=z.TransferModel(replacement=1.0), **base).matrix.sum() for s in range(4)])
+    assert rep < add
+
+
+def test_transfer_distance_decay_prefers_close(tmp_path):
+    tree = _tree(n=40, seed=2)
+    nodes = list(tree.nodes_preorder())
+    name2i = {n.name: i for i, n in enumerate(nodes)}
+    par = [name2i[n.parent.name] if n.parent else -1 for n in nodes]
+    tm = [n.time for n in nodes]
+
+    def mean_dist(path):
+        ds = []
+        with open(path) as f:
+            next(f)
+            for line in f:
+                c = line.split("\t")
+                t, db, rb = float(c[0]), c[2], c[3]
+                if db == rb:
+                    ds.append(0.0)
+                    continue
+                anc, n = set(), name2i[db]
+                while n >= 0:
+                    anc.add(n)
+                    n = par[n]
+                n = name2i[rb]
+                while n not in anc:
+                    n = par[n]
+                ds.append(2 * (t - tm[n]))
+        return sum(ds) / len(ds) if ds else 0.0
+
+    base = dict(transfer=0.4, loss=0.1, origination=0.4, initial_size=40, max_family_size=0.9, seed=11)
+    z.simulate_and_write_fast(tree, tmp_path / "u", **base)
+    z.simulate_and_write_fast(tree, tmp_path / "d", transfers=z.TransferModel(distance_decay=5.0), **base)
+    assert mean_dist(tmp_path / "d" / "Transfers.tsv") < mean_dist(tmp_path / "u" / "Transfers.tsv")
+
+
+def test_transfer_mechanics_invariant():
+    # full-log invariant still holds with replacement + distance decay + self combined
+    tree = _tree(n=40, seed=3)
+    g = z.simulate_genomes_fast(tree, duplication=0.05, transfer=0.25, loss=0.15, origination=0.5,
+                                initial_size=30, max_family_size=0.5, seed=7,
+                                transfers=z.TransferModel(replacement=0.3, distance_decay=2.0, allow_self=True))
+    fr = {f: i for i, f in enumerate(g.profiles.families)}
+    for fam, (_c, e) in g.gene_trees().items():
+        leaves = 0 if e is None else e.count(",") + 1
+        copies = int(g.profiles.matrix[fr[fam]].sum()) if fam in fr else 0
+        assert leaves == copies
+
+
 def test_statistically_matches_python_engine():
     # mean copy-number over the matrix should agree within Monte-Carlo error
     tree = _tree(n=60, seed=2)

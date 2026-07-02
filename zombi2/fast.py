@@ -78,6 +78,7 @@ def simulate_profiles_fast(
     loss: float = 0.0,
     origination: float = 0.0,
     initial_size: int = 20,
+    transfers=None,
     max_family_size=None,
     seed=None,
 ) -> ProfileMatrix:
@@ -105,10 +106,11 @@ def simulate_profiles_fast(
 
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
+    rep, dec, aself = _transfer_params(transfers)
 
     result = _core.simulate_profiles(
         len(nodes), parent, times, extant_leaf, root,
-        d, t, l, o, int(initial_size), cap, seed_val,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
     )
     return _assemble(result, nodes)
 
@@ -154,6 +156,16 @@ def _cap_and_seed(max_family_size, n_extant, seed):
     seed_val = (int(np.random.SeedSequence(seed).generate_state(1)[0])
                 if seed is None else int(seed))
     return cap, seed_val
+
+
+def _transfer_params(transfers):
+    """(replacement, distance_decay, allow_self) for Rust; decay = -1.0 means uniform."""
+    if transfers is None:
+        return 0.0, -1.0, False
+    decay = transfers.distance_decay
+    return (float(transfers.replacement),
+            -1.0 if decay is None else float(decay),
+            bool(transfers.allow_self))
 
 
 # --- full-log fast path ----------------------------------------------------------
@@ -226,6 +238,7 @@ def simulate_genomes_fast(
     loss: float = 0.0,
     origination: float = 0.0,
     initial_size: int = 20,
+    transfers=None,
     max_family_size=None,
     seed=None,
 ) -> Genomes:
@@ -236,12 +249,12 @@ def simulate_genomes_fast(
     ``.gene_trees()`` and ``.write()`` exactly like :func:`~zombi2.simulate_genomes`.
 
     Same built-in model as :func:`~zombi2.simulate_genomes` with ``UnorderedGenome`` +
-    ``UniformRates`` and the **default** ``TransferModel`` (additive, uniform recipient, no
-    self-transfer); a hard ``max_family_size`` forces over-cap transfers to replacements.
+    ``UniformRates``. Pass ``transfers=z.TransferModel(replacement=, distance_decay=,
+    allow_self=)`` for replacement, phylogenetic-distance-weighted recipients, or
+    self-transfers; a hard ``max_family_size`` forces over-cap transfers to replacements.
     Because the RNG differs from the Python engine, results are statistically equivalent, not
-    bit-identical (gene ids are integers rather than ``g``-prefixed strings). For custom
-    transfer mechanics, other rate models, or ordered genomes, use
-    :func:`~zombi2.simulate_genomes`.
+    bit-identical (gene ids are integers rather than ``g``-prefixed strings). For other rate
+    models or ordered genomes, use :func:`~zombi2.simulate_genomes`.
     """
     if _core is None:
         raise RuntimeError(
@@ -254,10 +267,11 @@ def simulate_genomes_fast(
     d, t, l, o = _resolve_rates(rates, duplication, transfer, loss, origination)
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
+    rep, dec, aself = _transfer_params(transfers)
 
     cols, leaves = _core.simulate_log(
         len(nodes), parent, times, extant_leaf, root,
-        d, t, l, o, int(initial_size), cap, seed_val,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
     )
 
     leaf_genomes = {nodes[li]: _FastGenome(pairs) for li, pairs in leaves}
@@ -277,6 +291,7 @@ def simulate_and_write_fast(
     loss: float = 0.0,
     origination: float = 0.0,
     initial_size: int = 20,
+    transfers=None,
     max_family_size=None,
     seed=None,
 ) -> dict:
@@ -290,10 +305,10 @@ def simulate_and_write_fast(
     "simulate-and-write-everything"; it returns a small summary dict rather than a
     :class:`~zombi2.Genomes`.
 
-    Same model and limits as :func:`simulate_genomes_fast` (built-in
-    ``UnorderedGenome`` + ``UniformRates`` + default ``TransferModel``). The output format
-    matches :meth:`~zombi2.Genomes.write` (gene ids are integers; float formatting may differ
-    slightly).
+    Same model and options as :func:`simulate_genomes_fast` (built-in
+    ``UnorderedGenome`` + ``UniformRates``, plus an optional ``transfers`` ``TransferModel``).
+    The output format matches :meth:`~zombi2.Genomes.write` (gene ids are integers; float
+    formatting may differ slightly).
     """
     if _core is None:
         raise RuntimeError(
@@ -306,6 +321,7 @@ def simulate_and_write_fast(
     d, t, l, o = _resolve_rates(rates, duplication, transfer, loss, origination)
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
+    rep, dec, aself = _transfer_params(transfers)
     names = [n.name for n in nodes]
 
     out = Path(outdir)
@@ -313,7 +329,7 @@ def simulate_and_write_fast(
 
     n_families, n_events, n_species = _core.simulate_and_write(
         len(nodes), parent, times, extant_leaf, root, names,
-        d, t, l, o, int(initial_size), cap, seed_val,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
         float(species_tree.total_age), str(out),
     )
 

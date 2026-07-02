@@ -101,6 +101,89 @@ impl Fenwick {
     }
 }
 
+/// Transfer mechanics (mirrors Python's TransferModel). `decay < 0` means uniform recipient.
+#[derive(Clone, Copy)]
+struct Transfers {
+    replacement: f64,
+    decay: f64,
+    allow_self: bool,
+}
+
+/// Choose a transfer recipient among the alive branches: uniform, or weighted by
+/// exp(-decay * (d - dmin)) with patristic distance d = 2*(t - t_MRCA). Optionally allows
+/// the donor itself (a self-transfer = duplication). Returns None if no candidate exists.
+#[allow(clippy::too_many_arguments)]
+fn choose_recipient(
+    rng: &mut Rng,
+    alive_list: &[usize],
+    alive_pos: &[i64],
+    donor: usize,
+    parent: &[i64],
+    time: &[f64],
+    t: f64,
+    tr: &Transfers,
+) -> Option<usize> {
+    let k = alive_list.len();
+    if k == 0 || (!tr.allow_self && k < 2) {
+        return None;
+    }
+    if tr.decay < 0.0 {
+        // uniform recipient
+        if tr.allow_self {
+            return Some(alive_list[rng.uniform(k as u64) as usize]);
+        }
+        let donor_pos = alive_pos[donor] as usize;
+        let mut j = rng.uniform((k - 1) as u64) as usize;
+        if j >= donor_pos {
+            j += 1;
+        }
+        return Some(alive_list[j]);
+    }
+    // distance-weighted: mark the donor's ancestor chain, then walk each candidate up to it
+    let mut anc: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    let mut node = donor as i64;
+    while node >= 0 {
+        anc.insert(node as usize);
+        node = parent[node as usize];
+    }
+    let mut dists: Vec<f64> = Vec::with_capacity(k);
+    for &r in alive_list {
+        if r == donor {
+            dists.push(if tr.allow_self { 0.0 } else { f64::INFINITY });
+            continue;
+        }
+        let mut n = r;
+        while !anc.contains(&n) {
+            n = parent[n] as usize;
+        }
+        dists.push(2.0 * (t - time[n]));
+    }
+    let dmin = dists.iter().cloned().fold(f64::INFINITY, f64::min);
+    if !dmin.is_finite() {
+        return None;
+    }
+    let mut total = 0.0;
+    let weights: Vec<f64> = dists
+        .iter()
+        .map(|&d| {
+            let w = if d.is_finite() { (-tr.decay * (d - dmin)).exp() } else { 0.0 };
+            total += w;
+            w
+        })
+        .collect();
+    if total <= 0.0 {
+        return None;
+    }
+    let mut rr = rng.next_f64() * total;
+    for (idx, &w) in weights.iter().enumerate() {
+        rr -= w;
+        if rr <= 0.0 {
+            return Some(alive_list[idx]);
+        }
+    }
+    Some(*alive_list.last().unwrap())
+}
+
 /// Order-free genome: family id -> copy count (BTreeMap for deterministic iteration).
 #[derive(Clone)]
 struct Genome {
@@ -143,6 +226,9 @@ impl Genome {
 struct Engine {
     children: Vec<Vec<usize>>,
     extant_leaf: Vec<bool>,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    tr: Transfers,
     d: f64,
     t: f64,
     l: f64,
@@ -188,20 +274,6 @@ impl Engine {
         self.fenwick.set(node, sub);
     }
 
-    /// Pick a uniform recipient among alive branches other than `donor` (None if <2 alive).
-    fn pick_recipient(&mut self, donor: usize) -> Option<usize> {
-        let k = self.alive_list.len();
-        if k < 2 {
-            return None;
-        }
-        let mut j = self.rng.uniform((k - 1) as u64) as usize;
-        let donor_pos = self.alive_pos[donor] as usize;
-        if j >= donor_pos {
-            j += 1;
-        }
-        Some(self.alive_list[j])
-    }
-
     fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
         loop {
             let total = self.fenwick.total;
@@ -220,11 +292,11 @@ impl Engine {
                 ));
             }
             let branch = self.fenwick.find((1.0 - self.rng.next_f64()) * total);
-            self.fire(branch);
+            self.fire(branch, t);
         }
     }
 
-    fn fire(&mut self, branch: usize) {
+    fn fire(&mut self, branch: usize, t: f64) {
         let (size, sd, sdt, sdtl) = {
             let g = self.genomes[branch].as_ref().unwrap();
             let size = g.size as f64;
@@ -243,19 +315,30 @@ impl Engine {
             }
             self.refresh(branch);
         } else if r < sdt {
-            // transfer (additive; over-cap recipient is a net-zero no-op)
+            // transfer: additive; recipient by TransferModel; then cap-forced or
+            // probabilistic replacement (drop a pre-existing copy). Self-transfer = duplication.
             let fam = {
                 let g = self.genomes[branch].as_ref().unwrap();
                 let idx = self.rng.uniform(size as u64);
                 g.family_at(idx)
             };
-            if let Some(recipient) = self.pick_recipient(branch) {
-                let rg = self.genomes[recipient].as_mut().unwrap();
-                if self.cap < 0 || (rg.copy_number(fam) as i64) < self.cap {
-                    rg.add(fam);
-                    self.refresh(recipient);
-                }
+            let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
+                &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
+                Some(x) => x,
+                None => return,
+            };
+            self.genomes[recipient].as_mut().unwrap().add(fam);
+            let total = self.genomes[recipient].as_ref().unwrap().copy_number(fam) as i64;
+            let mut removals = 0i64;
+            if self.cap >= 0 && total > self.cap {
+                removals = total - self.cap;
+            } else if total - 1 >= 1 && self.tr.replacement > 0.0 && self.rng.next_f64() < self.tr.replacement {
+                removals = 1;
             }
+            for _ in 0..removals {
+                self.genomes[recipient].as_mut().unwrap().remove_one(fam);
+            }
+            self.refresh(recipient);
         } else if r < sdtl {
             // loss
             let g = self.genomes[branch].as_mut().unwrap();
@@ -288,6 +371,9 @@ fn simulate_profiles(
     initial_size: usize,
     cap: i64,
     seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
 ) -> PyResult<Vec<(usize, Vec<(u64, u32)>)>> {
     // children adjacency from parent pointers
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
@@ -300,6 +386,9 @@ fn simulate_profiles(
     let mut engine = Engine {
         children,
         extant_leaf,
+        parent: parent.clone(),
+        time: time.clone(),
+        tr: Transfers { replacement, decay: distance_decay, allow_self },
         d: duplication,
         t: transfer,
         l: loss,
@@ -434,6 +523,9 @@ const EV_S: u8 = 4;
 struct LogEngine {
     children: Vec<Vec<usize>>,
     extant_leaf: Vec<bool>,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    tr: Transfers,
     d: f64,
     t: f64,
     l: f64,
@@ -477,19 +569,6 @@ impl LogEngine {
         self.alive_pos[node] = -1;
         self.genomes[node].take().unwrap()
     }
-    fn pick_recipient(&mut self, donor: usize) -> Option<usize> {
-        let k = self.alive_list.len();
-        if k < 2 {
-            return None;
-        }
-        let mut j = self.rng.uniform((k - 1) as u64) as usize;
-        let donor_pos = self.alive_pos[donor] as usize;
-        if j >= donor_pos {
-            j += 1;
-        }
-        Some(self.alive_list[j])
-    }
-
     fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
         loop {
             let total = self.fenwick.total;
@@ -542,8 +621,11 @@ impl LogEngine {
             self.rec.push(EV_D, branch as u32, t, -1, -1, fam, old, left as i64, right as i64);
             self.refresh(branch);
         } else if r < sdt {
-            // transfer (additive; uniform recipient != donor; over-cap forces replacement losses)
-            let recipient = match self.pick_recipient(branch) {
+            // transfer: recipient by TransferModel (uniform / distance-weighted / self);
+            // donor lineage bifurcates (old -> cont in donor, tc into recipient); then
+            // cap-forced or probabilistic replacement drops a pre-existing recipient copy.
+            let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
+                &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
                 Some(x) => x,
                 None => return,
             };
@@ -562,13 +644,15 @@ impl LogEngine {
             }
             self.genomes[recipient].as_mut().unwrap().add(tc, fam);
             self.rec.push(EV_T, branch as u32, t, branch as i64, recipient as i64, fam, old, cont as i64, tc as i64);
-            if self.cap >= 0 {
-                let total = self.genomes[recipient].as_ref().unwrap().copy_number(fam) as i64;
-                if total > self.cap {
-                    for _ in 0..(total - self.cap) {
-                        self.remove_one_family(recipient, fam, tc, t);
-                    }
-                }
+            let total = self.genomes[recipient].as_ref().unwrap().copy_number(fam) as i64;
+            let mut removals = 0i64;
+            if self.cap >= 0 && total > self.cap {
+                removals = total - self.cap;
+            } else if total - 1 >= 1 && self.tr.replacement > 0.0 && self.rng.next_f64() < self.tr.replacement {
+                removals = 1;
+            }
+            for _ in 0..removals {
+                self.remove_one_family(recipient, fam, tc, t);
             }
             self.refresh(branch);
             self.refresh(recipient);
@@ -654,6 +738,7 @@ fn run_log(
     initial_size: usize,
     cap: i64,
     seed: u64,
+    tr: Transfers,
 ) -> PyResult<(Records, Vec<(usize, Vec<(u64, u64)>)>)> {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
     for (node, &p) in parent.iter().enumerate() {
@@ -665,6 +750,9 @@ fn run_log(
     let mut eng = LogEngine {
         children,
         extant_leaf: extant_leaf.to_vec(),
+        parent: parent.to_vec(),
+        time: time.to_vec(),
+        tr,
         d: duplication,
         t: transfer,
         l: loss,
@@ -730,9 +818,13 @@ fn simulate_log(
     initial_size: usize,
     cap: i64,
     seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
 ) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
     let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
-        duplication, transfer, loss, origination, initial_size, cap, seed)?;
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr)?;
     Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaves))
 }
 
@@ -1074,11 +1166,15 @@ fn simulate_and_write(
     initial_size: usize,
     cap: i64,
     seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
     total_age: f64,
     outdir: String,
 ) -> PyResult<(usize, usize, usize)> {
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
     let (rec, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
-        duplication, transfer, loss, origination, initial_size, cap, seed)?;
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr)?;
     let (n_families, n_species) = write_outputs(&rec, &leaves, &names, total_age, &outdir)
         .map_err(|e| PyIOError::new_err(e.to_string()))?;
     Ok((n_families, rec.ev.len(), n_species))
