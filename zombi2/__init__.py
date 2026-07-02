@@ -55,6 +55,14 @@ from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
 from .simulation import simulate_genomes, Genomes
+from .matching import (
+    match_profiles,
+    ABCFit,
+    default_summary,
+    frequency_spectrum,
+    genome_sizes,
+    copy_number_spectrum,
+)
 from .parallel import run_replicates
 from .fast import (
     simulate_profiles_fast,
@@ -84,6 +92,9 @@ __all__ = [
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
     "build_gene_trees",
+    # profile matching (rejection ABC)
+    "match_profiles", "ABCFit", "default_summary",
+    "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
     # parallelism

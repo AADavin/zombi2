@@ -16,6 +16,11 @@ from .genome import Genome
 from .tree import TreeNode
 
 
+def _read_text(path: str) -> str:
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
 def _natkey(name: str) -> tuple[int, str]:
     """Natural-ish sort key: order by the numeric run in the name, then the string."""
     digits = re.sub(r"\D", "", name)
@@ -40,6 +45,31 @@ class ProfileMatrix:
         for i, family in enumerate(self.families):
             lines.append(family + "\t" + "\t".join(str(int(x)) for x in data[i]))
         return "\n".join(lines) + "\n"
+
+    @classmethod
+    def from_tsv(cls, source: str) -> "ProfileMatrix":
+        """Load a copy-number matrix written by :meth:`to_tsv`.
+
+        ``source`` is either a path to a TSV file or the raw TSV text (anything
+        containing a newline is treated as text). The header's first column label is
+        ignored; the remaining labels are species, and each subsequent row is a family.
+        """
+        text = source if "\n" in source else _read_text(source)
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        if not lines:
+            raise ValueError("empty profile table")
+        species = lines[0].split("\t")[1:]
+        families: list[str] = []
+        rows: list[list[int]] = []
+        for line in lines[1:]:
+            parts = line.split("\t")
+            families.append(parts[0])
+            rows.append([int(x) for x in parts[1:]])
+        matrix = (np.array(rows, dtype=int) if rows
+                  else np.zeros((0, len(species)), dtype=int))
+        if matrix.shape[1:] and matrix.shape[1] != len(species):
+            raise ValueError("row width does not match the number of species columns")
+        return cls(families=families, species=species, matrix=matrix)
 
     @classmethod
     def from_leaf_genomes(cls, leaf_genomes: dict[TreeNode, Genome]) -> "ProfileMatrix":
