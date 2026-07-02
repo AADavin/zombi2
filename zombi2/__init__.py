@@ -53,6 +53,7 @@ from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
 from .simulation import simulate_genomes, Genomes
 from .parallel import run_replicates
+from .fast import simulate_profiles_fast, rust_available
 
 __all__ = [
     "__version__",
@@ -76,4 +77,6 @@ __all__ = [
     "RateVariation", "RateScaledTree",
     # parallelism
     "run_replicates",
+    # optional Rust fast path
+    "simulate_profiles_fast", "rust_available",
 ]

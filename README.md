@@ -85,13 +85,61 @@ of `z.RateModel` that need no change to the simulator. Distribution arguments ac
 built-in (`z.Gamma`, `z.Exponential`, `z.LogNormal`, `z.Uniform`, `z.Fixed`), any
 `scipy.stats` frozen distribution, or a callable `rng -> float`.
 
+**Large-scale profiles (optional Rust engine).** When you only need the presence/copy-number
+matrix — not the event log or gene trees — an optional native engine runs the forward
+Gillespie in Rust over per-family counts (~50× faster; the 10 000-tip profile matrix in
+~0.4 s). Build it once (`pip install maturin && cd rust && maturin build --release -i python3
+&& pip install --force-reinstall rust/target/wheels/*.whl`), then:
+
+```python
+if z.rust_available():
+    profiles = z.simulate_profiles_fast(tree, duplication=0.05, transfer=0.03, loss=0.1,
+                                        origination=0.5, initial_size=200,
+                                        max_family_size=0.3, seed=42)  # -> ProfileMatrix
+```
+
+It covers the built-in `UnorderedGenome` + `UniformRates` model; the pure-Python
+`simulate_genomes` stays the default and the only path with the full event log and gene
+trees. See `docs/guide/rust-fast-path.md`.
+
 ### CLI
 
+A thin wrapper over the library with three subcommands, mirroring the two-step design —
+simulate a species tree, simulate gene families along one, or do both in one run:
+
 ```bash
-zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
+# species tree only (backward birth–death) -> out/species_tree.nwk
+zombi2 species --birth 1 --death 0.3 --tips 5000 --age 5 --seed 1 -o out/
+
+# gene families along a supplied Newick tree (your own, or one from `species`)
+zombi2 genomes --tree out/species_tree.nwk \
+    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --max-family-size 0.5 --seed 42 -o out/
+
+# species tree, then gene families along it, in one run
 zombi2 all --birth 1 --death 0.2 --tips 20 --age 5 \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 ```
+
+`species` and `all` build the tree; `genomes` reads one from `--tree` (any Newick file),
+so `zombi2 species … -o out/` then `zombi2 genomes --tree out/species_tree.nwk … -o out/`
+is the split form of `zombi2 all`. `species` writes `species_tree.nwk`; `genomes` and `all`
+write the full ZOMBI-1-style output described above.
+
+| Option | Commands | Meaning |
+| --- | --- | --- |
+| `--birth` / `--death` | `species`, `all` | speciation / extinction rate (`--death` defaults to 0 = Yule) |
+| `--tips` / `--age` | `species`, `all` | number of extant species N / tree age |
+| `--age-type {crown,stem}` | `species`, `all` | interpret `--age` as crown (default) or stem age |
+| `--tree` / `-t` | `genomes` | input species tree in Newick format |
+| `--dup` `--trans` `--loss` `--orig` | `genomes`, `all` | per-copy duplication / transfer / loss / origination rates |
+| `--initial-size` | `genomes`, `all` | number of gene families seeded at the root (default 20) |
+| `--max-family-size` | `genomes`, `all` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
+| `--seed` | all | RNG seed for reproducibility |
+| `-o` / `--out` | all | output directory |
+
+Run `zombi2 <command> --help` for the full list. The CLI covers the common uniform-rate
+case; for family-sampled or genome-wise rates, transfer mechanics, ordered genomes, or
+replicate parallelism, use the Python API above.
 
 ## Development
 

@@ -58,6 +58,7 @@ nav:
       - Ordered genomes: guide/ordered-genomes.md
       - Rate variation: guide/rate-variation.md
       - Running in parallel: guide/parallel.md
+      - Rust fast path: guide/rust-fast-path.md
       - Extending ZOMBI2: guide/extending.md
   - API reference: reference/api.md
   - Roadmap:

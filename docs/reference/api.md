@@ -61,6 +61,11 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.parallel.run_replicates
 
+## Rust fast path (optional)
+
+::: zombi2.fast.simulate_profiles_fast
+::: zombi2.fast.rust_available
+
 ## Gene-tree reconstruction
 
 ::: zombi2.reconciliation.build_gene_trees

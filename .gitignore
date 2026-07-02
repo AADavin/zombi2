@@ -7,6 +7,10 @@ build/
 dist/
 *.so
 
+# Rust extension build artifacts (source is committed; builds are not)
+rust/target/
+*.whl
+
 # Testing / envs
 .pytest_cache/
 .venv/
