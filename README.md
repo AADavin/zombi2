@@ -138,19 +138,22 @@ write the full ZOMBI-1-style output described above.
 | `--dup` `--trans` `--loss` `--orig` | `genomes`, `all` | per-copy duplication / transfer / loss / origination rates |
 | `--initial-size` | `genomes`, `all` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | `genomes`, `all` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
-| `--fast` | `genomes`, `all` | use the Rust profiles-only engine (see below) |
+| `--fast` | `genomes`, `all` | use the Rust engine (same full output, much faster; see below) |
+| `--profiles-only` | `genomes`, `all` | with `--fast`, write only the profile matrices |
 | `--seed` | all | RNG seed for reproducibility |
 | `-o` / `--out` | all | output directory |
 
 **`--fast` (Rust).** Routes `genomes`/`all` through the optional Rust engine
-(`simulate_profiles_fast`) instead of the pure-Python simulator. It writes **only**
-`species_tree.nwk`, `Profiles.tsv`, and `Presence.tsv` — no event log, gene trees,
-transfers, or summary, since the fast engine tracks per-family counts only. Requires the
-compiled `zombi2_core` extension (see the Rust section above); without it, `--fast` exits
-with a build hint. Use it when the copy-number/presence matrix is all you need, at scale.
+(`simulate_and_write_fast`): it simulates, reconstructs the gene trees, and writes the **full
+ZOMBI-1 output** — the same files as the default — entirely in Rust (~10× faster at scale).
+Add `--profiles-only` to write just `species_tree.nwk` + `Profiles.tsv`/`Presence.tsv` (the
+even-faster `simulate_profiles_fast`, no event log or gene trees). Requires the compiled
+`zombi2_core` extension (see the Rust section above); without it, `--fast` exits with a build
+hint.
 
 ```bash
-zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --fast -o out/
+zombi2 all --birth 1 --tips 5000 --age 5 --dup 0.2 --loss 0.25 --orig 0.5 --fast -o out/
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --fast --profiles-only -o out/
 ```
 
 Run `zombi2 <command> --help` for the full list. The CLI covers the common uniform-rate

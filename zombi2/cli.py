@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from .fast import rust_available, simulate_profiles_fast
+from .fast import rust_available, simulate_and_write_fast, simulate_profiles_fast
 from .simulation import simulate_genomes
 from .species_model import BirthDeath
 from .species_sim import simulate_species_tree
@@ -46,9 +46,12 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="bound family growth: integer = absolute cap, "
                         "decimal = fraction of the number of species (e.g. 0.5)")
     p.add_argument("--fast", action="store_true",
-                   help="use the Rust profiles-only engine (much faster; writes only "
-                        "species_tree.nwk + Profiles.tsv/Presence.tsv — no event log or "
-                        "gene trees). Requires the compiled zombi2_core extension.")
+                   help="use the Rust engine (much faster). Writes the same full ZOMBI-1 "
+                        "output as the default, but simulated, reconstructed and written "
+                        "entirely in Rust. Requires the compiled zombi2_core extension.")
+    p.add_argument("--profiles-only", action="store_true",
+                   help="with --fast, write only species_tree.nwk + Profiles.tsv/Presence.tsv "
+                        "(no event log or gene trees) — the fastest path.")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
@@ -71,15 +74,24 @@ def _run_genomes(tree: Tree, args) -> str:
                 "`cd rust && maturin build --release -i python3 && "
                 "pip install --force-reinstall target/wheels/*.whl`, or drop --fast."
             )
-        profiles = simulate_profiles_fast(
-            tree, duplication=args.dup, transfer=args.trans, loss=args.loss,
+        if args.profiles_only:
+            profiles = simulate_profiles_fast(
+                tree, duplication=args.dup, transfer=args.trans, loss=args.loss,
+                origination=args.orig, initial_size=args.initial_size,
+                max_family_size=args.max_family_size, seed=args.seed,
+            )
+            _write_profiles_only(args.out, tree, profiles)
+            return (f"wrote profiles to {args.out}/ (Rust fast path: "
+                    f"{len(tree.leaves())} tips, {len(profiles.families)} gene families, "
+                    f"profiles only)")
+        summary = simulate_and_write_fast(
+            tree, args.out, duplication=args.dup, transfer=args.trans, loss=args.loss,
             origination=args.orig, initial_size=args.initial_size,
             max_family_size=args.max_family_size, seed=args.seed,
         )
-        _write_profiles_only(args.out, tree, profiles)
-        return (f"wrote profiles to {args.out}/ (Rust fast path: "
-                f"{len(tree.leaves())} tips, {len(profiles.families)} gene families, "
-                f"profiles only)")
+        return (f"wrote simulation to {args.out}/ (Rust fast path: "
+                f"{summary['n_species']} tips, {summary['n_families']} gene families, "
+                f"{summary['n_events']} events)")
 
     genomes = simulate_genomes(
         tree, duplication=args.dup, transfer=args.trans, loss=args.loss,
