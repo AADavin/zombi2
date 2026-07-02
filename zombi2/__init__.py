@@ -28,6 +28,7 @@ from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetPar
 from .tree import Tree, TreeNode, read_newick
 from .species_model import BirthDeath, Yule, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
+from .ghosts import add_ghost_lineages
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from .nucleotide_genome import NucleotideGenome, Segment
 from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Atom
@@ -70,6 +71,7 @@ __all__ = [
     "Tree", "TreeNode", "read_newick",
     # species tree
     "BirthDeath", "Yule", "EpisodicBirthDeath", "simulate_species_tree",
+    "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)

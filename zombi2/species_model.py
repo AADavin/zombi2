@@ -45,6 +45,21 @@ class BirthDeath:
         k = u * g_a
         return -math.log((1.0 - lam * k) / (1.0 - mu * k)) / r
 
+    def extinction_prob(self, tau: float, tol: float = 1e-12) -> float:
+        """``E(τ)`` — probability a lineage present ``τ`` before the present leaves no sampled
+        descendant. Constant-rate, complete sampling (ρ=1), so this is the probability of
+        extinction by the present (used to place ghost lineages; see ``add_ghost_lineages``).
+        """
+        lam, mu = self.birth, self.death
+        if mu <= 0.0:  # Yule: no extinction, complete sampling -> no ghosts
+            return 0.0
+        r = lam - mu
+        if abs(r) < tol * max(1.0, lam):  # critical (birth ≈ death)
+            x = lam * tau
+            return x / (1.0 + x)
+        e = math.exp(r * tau)
+        return mu * (e - 1.0) / (lam * e - mu)
+
 
 class Yule(BirthDeath):
     """Pure-birth (Yule) process — a birth-death with no extinction."""
