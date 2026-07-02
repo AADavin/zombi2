@@ -68,6 +68,7 @@ from .fast import (
     simulate_profiles_fast,
     simulate_genomes_fast,
     simulate_and_write_fast,
+    simulate_nucleotide_genomes_fast,
     rust_available,
 )
 
@@ -101,5 +102,5 @@ __all__ = [
     "run_replicates",
     # optional Rust fast path
     "simulate_profiles_fast", "simulate_genomes_fast", "simulate_and_write_fast",
-    "rust_available",
+    "simulate_nucleotide_genomes_fast", "rust_available",
 ]

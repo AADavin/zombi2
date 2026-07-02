@@ -63,3 +63,4 @@ nav:
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
+      - Ghost lineages: ghost_lineages.md
