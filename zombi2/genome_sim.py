@@ -222,6 +222,9 @@ class GenomeSimulator:
 
         # duplication / loss / inversion / transposition (one log record per group)
         selection = genome.draw_target(event, rng, params, family=family)
+        if (event is EventType.DUPLICATION and self._cap is not None
+                and genome.copy_number(selection.genes[0].family) >= self._cap):
+            return  # family already at the cap — skip this duplication
         for group in genome.apply(event, selection, rng, params):
             log.add(EventRecord(event, branch.name, t, group))
 

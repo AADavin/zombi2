@@ -121,6 +121,42 @@ class UniformRates(RateModel):
         return out
 
 
+class GenomeWiseRates(RateModel):
+    """Genome-wise rates: each event type fires at a **constant per-genome rate**,
+    independent of how many gene copies the genome holds.
+
+    Contrast :class:`UniformRates`, where the total duplication/transfer/loss rate scales
+    with genome size (per-copy rates). Here the totals are fixed, so when an event fires a
+    target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
+    rather than exponentially, so genome-wise models are intrinsically far less prone to
+    runaway growth. Origination is per branch.
+    """
+
+    def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
+                 loss: float = 0.0, origination: float = 0.0):
+        for name, value in (("duplication", duplication), ("transfer", transfer),
+                            ("loss", loss), ("origination", origination)):
+            if value < 0:
+                raise ValueError(f"{name} rate must be >= 0, got {value}")
+        self.duplication = float(duplication)
+        self.transfer = float(transfer)
+        self.loss = float(loss)
+        self.origination = float(origination)
+
+    def event_weights(self, genome, branch, time):
+        out: list[EventWeight] = []
+        if genome.size() > 0:
+            if self.duplication > 0:
+                out.append(EventWeight(EventType.DUPLICATION, None, self.duplication))
+            if self.transfer > 0:
+                out.append(EventWeight(EventType.TRANSFER, None, self.transfer))
+            if self.loss > 0:
+                out.append(EventWeight(EventType.LOSS, None, self.loss))
+        if self.origination > 0:
+            out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
+        return out
+
+
 class FamilySampledRates(RateModel):
     """Each gene family draws its OWN D/T/L rates from distributions (ZOMBI-1 style)."""
 

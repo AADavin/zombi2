@@ -49,6 +49,12 @@ per-family event tables (`gene_family_events/`), reconstructed **complete** and
 **extant** gene trees (`gene_trees/`), `Transfers.tsv`, `Gene_family_summary.tsv`, and
 the presence/copy-number matrices (`Profiles.tsv` / `Presence.tsv`).
 
+**More models.** Species trees also support **episodic/skyline** rates and incomplete
+sampling (`z.EpisodicBirthDeath(birth=[...], death=[...], shifts=[...], sampling_fraction=ρ)`);
+gene families also support **genome-wise** rates (`z.GenomeWiseRates`, constant per-genome
+rather than per-copy) and an ordered-chromosome genome with inversions/transpositions
+(`z.OrderedGenome`). See the notebooks in `examples/` and the guides in `docs/`.
+
 **Transfer mechanics.** Pass a `TransferModel` to control how a transfer resolves:
 
 ```python

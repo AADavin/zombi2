@@ -26,10 +26,16 @@ __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
 from .tree import Tree, TreeNode
-from .species_model import BirthDeath, Yule
+from .species_model import BirthDeath, Yule, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
-from .rates import RateModel, UniformRates, FamilySampledRates, EventWeight
+from .rates import (
+    RateModel,
+    UniformRates,
+    GenomeWiseRates,
+    FamilySampledRates,
+    EventWeight,
+)
 from .transfers import TransferModel
 from .distributions import (
     Distribution,
@@ -52,11 +58,12 @@ __all__ = [
     # tree
     "Tree", "TreeNode",
     # species tree
-    "BirthDeath", "Yule", "simulate_species_tree",
+    "BirthDeath", "Yule", "EpisodicBirthDeath", "simulate_species_tree",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # rates & transfers
-    "RateModel", "UniformRates", "FamilySampledRates", "EventWeight", "TransferModel",
+    "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
+    "EventWeight", "TransferModel",
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
     # simulation

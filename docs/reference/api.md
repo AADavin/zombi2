@@ -6,6 +6,7 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.species_model.BirthDeath
 ::: zombi2.species_model.Yule
+::: zombi2.species_model.EpisodicBirthDeath
 ::: zombi2.species_sim.simulate_species_tree
 
 ## Tree
@@ -17,6 +18,7 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.rates.RateModel
 ::: zombi2.rates.UniformRates
+::: zombi2.rates.GenomeWiseRates
 ::: zombi2.rates.FamilySampledRates
 ::: zombi2.rates.EventWeight
 

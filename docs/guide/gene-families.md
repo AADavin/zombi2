@@ -58,6 +58,24 @@ Distribution arguments accept:
 
 Negative draws are clipped to 0.
 
+### Genome-wise rates
+
+`UniformRates` is *gene-wise*: the total duplication/transfer/loss rate scales with the
+number of gene copies, so a family's size follows an exponential birth–death. `GenomeWiseRates`
+instead fires each event at a **constant per-genome rate**, independent of genome size (a
+target copy is then chosen uniformly):
+
+```python
+genomes = z.simulate_genomes(tree, z.GenomeWiseRates(duplication=1.0, transfer=0.3,
+                                                     loss=0.5, origination=0.4),
+                             initial_size=20, seed=1)
+```
+
+A useful consequence: family sizes grow *linearly* rather than exponentially, so
+genome-wise models are far less prone to runaway growth. See the
+[`genome_wise_model.ipynb`](https://github.com/AADavin/zombi2/blob/main/examples/genome_wise_model.ipynb)
+notebook for a side-by-side comparison with the gene-wise model.
+
 ## Seeding the root genome
 
 `initial_size` sets how many gene families the root genome starts with (each originated at
