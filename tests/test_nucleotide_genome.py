@@ -12,9 +12,9 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2.events import EventType, TargetParams
+from zombi2.events import EventType, Region, Selection, TargetParams
 from zombi2.genome import IdManager
-from zombi2.nucleotide_genome import NucleotideGenome
+from zombi2.nucleotide_genome import NucleotideGenome, SegmentRegistry
 from zombi2.nucleotide_sim import simulate_nucleotide_genomes
 
 
@@ -427,3 +427,58 @@ def test_atom_gene_trees_are_reproducible():
     a = simulate_nucleotide_genomes(tree, **kw, seed=35).atom_gene_trees()
     b = simulate_nucleotide_genomes(tree, **kw, seed=35).atom_gene_trees()
     assert a == b
+
+
+# --------------------------------------------------------------------------- #
+# Transfer (HGT) — a copy travels to another lineage; discordant gene trees
+# --------------------------------------------------------------------------- #
+def test_transfer_extract_and_insert_mechanics():
+    rng = np.random.default_rng(0)
+    ids = IdManager()
+    reg = SegmentRegistry()
+    donor = NucleotideGenome(ids, root_length=20, extension=0.9, registry=reg)
+    donor.originate(rng, TargetParams())                 # source "1"
+    recipient = NucleotideGenome(ids, root_length=10, extension=0.9, registry=reg)
+    recipient.originate(rng, TargetParams())             # source "2"
+
+    seg = donor.extract_segment(Selection(genes=(), region=Region(0, 5, 4)), rng)
+    assert donor.size() == 20                            # donor keeps a continuation (net 0)
+    before = recipient.size()
+    at = recipient.choose_insertion_point(seg, rng)
+    recipient.insert_segment(seg, at, rng)
+    assert recipient.size() == before + 4                # additive gain
+    srcs = {src for src, _p, _st in recipient.to_cells()}
+    assert srcs == {"1", "2"}                            # acquired donor material (source 1)
+
+
+def test_transfer_fires_and_reconciliation_invariant_holds():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=41)
+    res = simulate_nucleotide_genomes(tree, inversion=0.003, transfer=0.006, loss=0.003,
+                                      root_length=300, extension=0.95, seed=41)
+    transfers = [r for r in res.event_log if r.event is EventType.TRANSFER]
+    assert transfers
+    for r in transfers:                                  # donor lineage forks; copy crosses over
+        assert [op.role for op in r.genes] == ["parent", "donor_copy", "transfer_copy"]
+        assert r.donor and r.recipient and r.donor != r.recipient
+    ids, _sp, M = res.profile_matrix()
+    rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
+    for aid, (_c, extant) in res.atom_gene_trees().items():
+        assert extant is not None and _n_leaves(extant) == rowsum[aid]  # xenologs counted
+
+
+def test_transfer_is_additive_growth():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=42)
+    res = simulate_nucleotide_genomes(tree, transfer=0.008, loss=0.001, root_length=300,
+                                      extension=0.95, seed=42)
+    assert any(g.size() > 300 for g in res.leaf_genomes.values())  # acquired extra material
+
+
+def test_transfer_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=43)
+    kw = dict(inversion=0.003, transfer=0.006, loss=0.003, root_length=250, extension=0.95)
+    a = simulate_nucleotide_genomes(tree, **kw, seed=44)
+    b = simulate_nucleotide_genomes(tree, **kw, seed=44)
+    assert len(a.event_log) == len(b.event_log)
+    assert a.atom_gene_trees() == b.atom_gene_trees()
+    for leaf, ga in a.leaf_genomes.items():
+        assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()

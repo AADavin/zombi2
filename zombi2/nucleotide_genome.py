@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .events import EventType, GeneOp, Region, Selection
+from .events import EventType, GeneOp, Region, Selection, TransferSegment
 from .genome import Gene, Genome, IdManager
 
 
@@ -70,6 +70,16 @@ class Segment:
     @property
     def length(self) -> int:
         return self.src_end - self.src_start
+
+    # A Segment also plays the driver's "gene" role during a transfer handoff
+    # (TransferSegment.genes), where the loop reads ``.gid`` / ``.family``.
+    @property
+    def gid(self) -> str:
+        return self.seg_id
+
+    @property
+    def family(self) -> str:
+        return self.source
 
 
 class NucleotideGenome(Genome):
@@ -121,7 +131,8 @@ class NucleotideGenome(Genome):
                            dtype=np.int8, count=len(family_order))
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION))
+        return frozenset((EventType.INVERSION, EventType.LOSS,
+                          EventType.DUPLICATION, EventType.TRANSFER))
 
     # --- trace-back view: one cell per nucleotide, in physical order --------
     def to_cells(self) -> list[tuple[str, int, int]]:
@@ -267,6 +278,8 @@ class NucleotideGenome(Genome):
         breakpoint), so the arc is always a contiguous slice ``self._segments[i_s:i_e]``.
         """
         L = self._length
+        ell = max(1, min(ell, L))
+        s %= L
         e = (s + ell) % L
         self._split_at(s)
         self._split_at(e)
@@ -320,7 +333,8 @@ class NucleotideGenome(Genome):
             length += 1
         return length
 
-    _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION))
+    _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS,
+                             EventType.DUPLICATION, EventType.TRANSFER))
 
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if event not in self._TARGETABLE:
@@ -342,15 +356,43 @@ class NucleotideGenome(Genome):
             return self._apply_duplication(region.start, region.length)
         raise ValueError(f"NucleotideGenome does not handle {event!r}")
 
-    # --- transfer handoff (arrives in M3) ----------------------------------
-    def extract_segment(self, selection, rng):
-        raise NotImplementedError("nucleotide transfer arrives in M3")
+    # --- transfer handoff ---------------------------------------------------
+    def extract_segment(self, selection, rng) -> TransferSegment:
+        """Donor side: fork the arc — re-mint a continuation in place, build a copy to send.
 
-    def choose_insertion_point(self, segment, rng):
-        raise NotImplementedError("nucleotide transfer arrives in M3")
+        Each arc segment ``g`` forks into a continuation (stays in the donor) and a copy
+        (travels to the recipient). The driver logs ``g -> [continuation, copy]`` as a
+        TRANSFER, a bifurcation the atom's gene tree reads as a transfer node. The copy
+        keeps the arc's ancestral coordinates, so it is a xenolog of the same atom.
+        """
+        region = selection.region
+        i_s, i_e = self._arc_range(region.start, region.length)
+        arc = self._segments[i_s:i_e]
+        old_gids, cont_gids, copies, conts = [], [], [], []
+        for a in arc:
+            old_gids.append(a.seg_id)
+            cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand)
+            conts.append(cont)
+            cont_gids.append(cont.seg_id)
+            copies.append(self._new_segment(a.source, a.src_start, a.src_end, a.strand))
+        self._segments[i_s:i_e] = conts          # donor length unchanged (arc -> continuations)
+        return TransferSegment(family=None, genes=tuple(copies),
+                               donor_old_gids=old_gids, donor_cont_gids=cont_gids)
 
-    def insert_segment(self, segment, at, rng):
-        raise NotImplementedError("nucleotide transfer arrives in M3")
+    def choose_insertion_point(self, segment, rng) -> int:
+        return int(rng.integers(self._length + 1))  # any physical position, 0..length
+
+    def insert_segment(self, segment, at, rng) -> list[GeneOp]:
+        """Recipient side: splice the transferred copy block in at physical position ``at``."""
+        copies = list(segment.genes)
+        if at is None or at >= self._length:
+            idx = len(self._segments)
+        else:
+            self._split_at(at)
+            idx = self._index_at(at)
+        self._segments[idx:idx] = copies
+        self._length += sum(seg.length for seg in copies)
+        return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]
 
     # --- speciation ---------------------------------------------------------
     def clone_reminting(self) -> tuple["NucleotideGenome", list[tuple[str, str, str]]]:

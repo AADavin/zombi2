@@ -148,7 +148,7 @@ class NucleotideResult:
                     sid = r.genes[0].gid
                     if covers(sid, atom):
                         records.append(r)  # gid == root == its own lineage rep
-                elif ev in (EventType.SPECIATION, EventType.DUPLICATION):
+                elif ev in (EventType.SPECIATION, EventType.DUPLICATION, EventType.TRANSFER):
                     frm = r.genes[0].gid
                     if covers(frm, atom):  # both children copy the atom -> a bifurcation
                         rep = self._top(frm, top_cache)
@@ -228,27 +228,32 @@ def simulate_nucleotide_genomes(
     inversion: float = 0.001,
     loss: float = 0.0,
     duplication: float = 0.0,
+    transfer: float = 0.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_size: int = 1,
+    transfers=None,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
 ) -> NucleotideResult:
     """Simulate variable-length structural events forward along ``species_tree``.
 
-    ``inversion``, ``loss`` and ``duplication`` are **per-nucleotide** rates: the total
-    genome rate of each is ``rate * current_length``. ``extension`` sets the geometric
-    event-length model (mean ``1/(1-extension)`` nucleotides). Returns a
-    :class:`NucleotideResult` carrying the extant leaf genomes, the event log, the segment
-    registry, and the atom partition (over the surviving ancestral material).
+    ``inversion``, ``loss``, ``duplication`` and ``transfer`` are **per-nucleotide** rates:
+    the total genome rate of each is ``rate * current_length``. ``extension`` sets the
+    geometric event-length model (mean ``1/(1-extension)`` nucleotides). ``transfers`` is an
+    optional :class:`~zombi2.TransferModel` (default: additive, uniform recipient, no
+    self-transfer). Returns a :class:`NucleotideResult` carrying the extant leaf genomes,
+    the event log, the segment registry, and the atom partition (over the surviving
+    ancestral material).
 
-    Duplication grows the genome (a copy is added in tandem) with no cap, so keep
-    ``duplication`` at or below ``loss`` over long ages to avoid runaway growth.
+    Duplication and additive transfer grow the genome with no cap, so keep them at or below
+    ``loss`` over long ages to avoid runaway growth.
     """
     if rng is None:
         rng = np.random.default_rng(seed)
-    rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication)
+    rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication,
+                         transfer=transfer)
     registry = SegmentRegistry()
 
     def factory(ids):
@@ -256,7 +261,8 @@ def simulate_nucleotide_genomes(
                                 registry=registry)
 
     result = GenomeSimulator(sampler).simulate(
-        species_tree, rates, rng, initial_size=initial_size, genome_factory=factory,
+        species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
+        genome_factory=factory,
     )
     atoms = _build_atoms(result.leaf_genomes, root_length)
     return NucleotideResult(
