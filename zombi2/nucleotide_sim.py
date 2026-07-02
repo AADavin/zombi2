@@ -23,10 +23,11 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ._sampling import EventSampler
-from .events import EventType
+from .events import EventType, EventRecord, GeneOp
 from .genome_sim import GenomeSimulator
 from .nucleotide_genome import NucleotideGenome, SegmentRegistry
 from .rates import UniformRates
+from .reconciliation import build_gene_trees
 from .tree import Tree, TreeNode
 
 
@@ -98,6 +99,73 @@ class NucleotideResult:
                     if a.start >= seg.src_start and a.end <= seg.src_end:
                         matrix[row[a.atom_id], j] += 1
         return atom_ids, [n.name for n in leaves], matrix
+
+    # --- per-atom gene trees (steps 6-7: reconstruct the gene of each segment) ---
+    def _top(self, sid: str, cache: dict) -> str:
+        """The real-born ancestor of ``sid`` — climb split parent-links (degree-2 nodes)."""
+        if sid in cache:
+            return cache[sid]
+        chain = []
+        split_parent = self.registry.split_parent
+        while sid in split_parent:
+            chain.append(sid)
+            sid = split_parent[sid]
+        for c in chain:
+            cache[c] = sid
+        cache[sid] = sid
+        return sid
+
+    def atom_gene_trees(self) -> dict[int, tuple]:
+        """``atom_id -> (complete_newick, extant_newick)`` — one gene tree per atom.
+
+        Each atom (a never-cut ancestral block) is an emergent gene family. Its genealogy
+        is the segment lineage tree restricted to segments covering the atom: speciations
+        and duplications are bifurcations, losses terminate, and breakpoint splits are
+        contracted away (each split sends the atom to exactly one child). We collapse the
+        split-chains into single lineages and hand the real events to the shared
+        :func:`~zombi2.reconciliation.build_gene_trees`, so the reconstruction and Newick
+        output match the rest of ZOMBI2. ``extant_newick`` is ``None`` if nothing survives.
+        """
+        prov = self.registry.provenance
+        top_cache: dict[str, str] = {}
+        total_age = self.species_tree.total_age
+
+        def covers(sid: str, atom: Atom) -> bool:
+            src, a, b = prov[sid]
+            return src == atom.source and a <= atom.start and b >= atom.end
+
+        # extant-leaf segments, so a surviving lineage rep can be tagged with its species
+        leaf_segs = [(seg.seg_id, leaf.name)
+                     for leaf, genome in self.leaf_genomes.items()
+                     for seg in genome._segments]
+
+        out: dict[int, tuple] = {}
+        for atom in self.atoms:
+            records: list[EventRecord] = []
+            for r in self.event_log:
+                ev = r.event
+                if ev is EventType.ORIGINATION:
+                    sid = r.genes[0].gid
+                    if covers(sid, atom):
+                        records.append(r)  # gid == root == its own lineage rep
+                elif ev in (EventType.SPECIATION, EventType.DUPLICATION):
+                    frm = r.genes[0].gid
+                    if covers(frm, atom):  # both children copy the atom -> a bifurcation
+                        rep = self._top(frm, top_cache)
+                        tos = [op.gid for op in r.genes[1:]]
+                        records.append(EventRecord(ev, r.branch, r.time,
+                                                   [GeneOp(rep, atom.source, "parent"),
+                                                    *(GeneOp(t, atom.source, "child") for t in tos)]))
+                elif ev is EventType.LOSS:
+                    frm = r.genes[0].gid
+                    if covers(frm, atom):
+                        rep = self._top(frm, top_cache)
+                        records.append(EventRecord(ev, r.branch, r.time,
+                                                   [GeneOp(rep, atom.source, "lost")]))
+            gid2species = {self._top(sid, top_cache): name
+                           for sid, name in leaf_segs if covers(sid, atom)}
+            out[atom.atom_id] = build_gene_trees(records, gid2species, total_age)
+        return out
 
     # --- per-atom history (step 7: the events that touched each segment) ---
     def atom_histories(self) -> dict[int, list[tuple[str, float]]]:

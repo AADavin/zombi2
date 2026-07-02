@@ -379,3 +379,51 @@ def test_all_events_reproducible():
     assert len(a.event_log) == len(b.event_log)
     for leaf, ga in a.leaf_genomes.items():
         assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
+
+
+# --------------------------------------------------------------------------- #
+# Per-atom gene trees — reconstruct the "gene" of each segment (steps 6-7)
+# --------------------------------------------------------------------------- #
+def _n_leaves(newick):
+    return newick.count(",") + 1
+
+
+def test_atom_gene_trees_match_profile_counts():
+    """The reconciliation invariant: an atom's extant tree has one leaf per surviving copy."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=31)
+    res = simulate_nucleotide_genomes(tree, inversion=0.004, duplication=0.005, loss=0.004,
+                                      root_length=300, extension=0.95, seed=31)
+    ids, _species, M = res.profile_matrix()
+    rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
+    trees = res.atom_gene_trees()
+    assert set(trees) == set(ids)
+    for aid, (_complete, extant) in trees.items():
+        assert extant is not None                 # atoms always survive in >= 1 leaf
+        assert _n_leaves(extant) == rowsum[aid]    # leaves == total copies across species
+
+
+def test_inversion_only_atom_trees_span_every_species():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=6, age=2.0, seed=32)  # Yule: all extant
+    res = simulate_nucleotide_genomes(tree, inversion=0.03, root_length=150, extension=0.9, seed=32)
+    n_species = len(res.leaf_genomes)
+    trees = res.atom_gene_trees()
+    assert trees                                   # some atoms exist
+    for _aid, (_complete, extant) in trees.items():
+        assert _n_leaves(extant) == n_species      # present exactly once per species
+
+
+def test_atom_gene_trees_record_losses_in_complete_tree():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=33)
+    res = simulate_nucleotide_genomes(tree, inversion=0.005, loss=0.02, root_length=300,
+                                      extension=0.95, seed=33)
+    assert any(r.event is EventType.LOSS for r in res.event_log)
+    completes = [c for c, _e in res.atom_gene_trees().values() if c]
+    assert any("LOSS" in c for c in completes)     # lost lineages appear in the complete tree
+
+
+def test_atom_gene_trees_are_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=34)
+    kw = dict(inversion=0.004, duplication=0.005, loss=0.004, root_length=250, extension=0.95)
+    a = simulate_nucleotide_genomes(tree, **kw, seed=35).atom_gene_trees()
+    b = simulate_nucleotide_genomes(tree, **kw, seed=35).atom_gene_trees()
+    assert a == b
