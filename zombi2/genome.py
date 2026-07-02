@@ -47,7 +47,7 @@ class IdManager:
         return str(self._family)
 
 
-@dataclass
+@dataclass(slots=True)
 class Gene:
     """A single gene copy. v1 carries only ``gid`` (current lineage segment) and ``family``.
 
@@ -244,7 +244,7 @@ class UnorderedGenome(Genome):
         return new, mapping
 
 
-@dataclass
+@dataclass(slots=True)
 class OrderedGene(Gene):
     """A gene copy on an ordered chromosome: adds strand ``orientation`` (+1 / -1)."""
 

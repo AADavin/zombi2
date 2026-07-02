@@ -68,11 +68,15 @@ def _assemble(n_tips: int, total_age: float, internal_times: list[float], rng) -
         TreeNode(name=f"n{i + 1}", time=total_age, is_extant=True) for i in range(n_tips)
     ]
     for ft in sorted(internal_times, reverse=True):
-        i, j = (int(x) for x in rng.choice(len(active), size=2, replace=False))
+        i, j = sorted(int(x) for x in rng.choice(len(active), size=2, replace=False))  # i < j
         parent = TreeNode(name="", time=ft)
         parent.add_child(active[i])
         parent.add_child(active[j])
-        active = [x for k, x in enumerate(active) if k not in (i, j)]
+        # remove the two coalesced lineages in O(1) each (swap-with-last, larger index first)
+        active[j] = active[-1]
+        active.pop()
+        active[i] = active[-1]
+        active.pop()
         active.append(parent)
 
     root = active[0]

@@ -48,7 +48,7 @@ STOCHASTIC_EVENTS: tuple[EventType, ...] = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Region:
     """Optional positional metadata for a :class:`Selection`.
 
@@ -62,7 +62,7 @@ class Region:
     strand: int = 1
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Selection:
     """What an event acts on.
 
@@ -80,7 +80,7 @@ class Selection:
         return self.genes[0].family
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TargetParams:
     """Parameters handed from the rate model to :meth:`Genome.draw_target`.
 
@@ -92,7 +92,7 @@ class TargetParams:
     extent_mode: str = "gene_count"
 
 
-@dataclass
+@dataclass(slots=True)
 class GeneOp:
     """One gene's involvement in an event — a single row of an :class:`EventRecord`.
 
@@ -119,7 +119,7 @@ class InsertionPoint(Enum):
     ANYWHERE = "anywhere"
 
 
-@dataclass
+@dataclass(slots=True)
 class TransferSegment:
     """A portable, self-contained copy of the genes moved by a transfer.
 
@@ -136,7 +136,7 @@ class TransferSegment:
     replacement: bool = False
 
 
-@dataclass
+@dataclass(slots=True)
 class EventRecord:
     """A single logged event.
 
