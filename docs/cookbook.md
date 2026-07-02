@@ -63,6 +63,23 @@ genomes = z.simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, s
 
 Branch lengths are read as durations. (This is what the CLI's `genomes` subcommand does.)
 
+### Add ghost (extinct) lineages
+
+Un-prune the reconstructed tree — graft back the lineages that went extinct (or were not
+sampled). Pass the **same model** you built the tree with; ghosts are added in place:
+
+```python
+model = z.BirthDeath(birth=1.0, death=0.5)
+tree = z.simulate_species_tree(model, n_tips=100, age=5.0, seed=1)
+
+z.add_ghost_lineages(tree, model, seed=7)   # method="htransform" for a rejection-free sampler
+
+ghosts = [n for n in tree.leaves() if not n.is_extant]   # ghost_* tips; extant tips untouched
+```
+
+Only birth–death with extinction (or `sampling_fraction < 1`) produces ghosts — a pure-birth
+tree has none. See [ghost lineages](guide/ghost-lineages.md).
+
 ## Gene families: rate models
 
 ### The same rates for every family (uniform)

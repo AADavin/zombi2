@@ -38,6 +38,9 @@ the output format — while rebuilding the internals around clean interfaces.
 - **Principled growth control.** A hard `max_family_size` cap (absolute or a fraction of
   the number of species) and a soft logistic `carrying_capacity`. See
   [bounding growth](guide/growth.md).
+- **Ghost lineages.** `z.add_ghost_lineages` un-prunes the reconstructed tree, grafting back
+  the extinct/unsampled lineages the backward process leaves out. See
+  [ghost lineages](guide/ghost-lineages.md).
 - **Scale.** A modern Gillespie core plus an optional **Rust** engine make large trees
   (thousands to tens of thousands of tips) practical; `z.run_replicates` parallelises
   independent replicates across cores. See [the Rust fast path](guide/rust-fast-path.md)

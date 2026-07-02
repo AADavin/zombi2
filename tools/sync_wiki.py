@@ -30,6 +30,7 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("quickstart.md",                   "Quickstart",                 "Quickstart",              None),
     ("cli.md",                          "Command-Line-Interface",     "Command-line interface",  None),
     ("guide/species-trees.md",          "Species-Trees",              "Species trees",           "User guide"),
+    ("guide/ghost-lineages.md",         "Ghost-Lineages",             "Ghost lineages",          "User guide"),
     ("guide/gene-families.md",          "Gene-Families-and-Rates",    "Gene families & rates",   "User guide"),
     ("guide/transfers.md",              "Transfers",                  "Transfers",               "User guide"),
     ("guide/growth.md",                 "Bounding-Growth",            "Bounding growth",         "User guide"),

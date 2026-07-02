@@ -52,6 +52,7 @@ nav:
   - Command-line interface: cli.md
   - User guide:
       - Species trees: guide/species-trees.md
+      - Ghost lineages: guide/ghost-lineages.md
       - Gene families & rates: guide/gene-families.md
       - Transfers: guide/transfers.md
       - Bounding growth: guide/growth.md
