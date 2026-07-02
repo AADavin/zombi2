@@ -131,33 +131,69 @@ class GenomeSimulator:
 
     # --- Gillespie over a constant-membership interval ---------------------
     def _evolve_interval(self, alive, t0, t1, rate_model, log, rng):
+        """Gillespie loop with incremental per-branch rate caching.
+
+        Branch membership is constant across ``(t0, t1)`` and, for the shipped rate
+        models, a branch's weights depend only on its genome (not on ``t`` within the
+        interval). So we cache each branch's candidate events and subtotal and, after each
+        event, recompute only the branch(es) whose genome actually changed — turning the
+        per-event cost from O(branches x families) into O(branches) selection plus an
+        O(1) recompute. A rate model that varies continuously with time can opt out by
+        setting ``time_dependent = True`` (then every branch is refreshed each step).
+        """
         t = t0
-        branches = list(alive.keys())  # membership is constant across (t0, t1)
+        branches = list(alive.keys())
+        index = {b: i for i, b in enumerate(branches)}
+        entries = [None] * len(branches)
+        sub = np.zeros(len(branches))
+        for i, b in enumerate(branches):
+            entries[i], sub[i] = self._branch_weights(alive[b], b, rate_model, t)
+        total = float(sub.sum())
+        refresh_all = getattr(rate_model, "time_dependent", False)
+
         for _ in range(self.max_events_per_interval):
-            entries = []  # (branch, EventWeight)
-            weights: list[float] = []
-            total = 0.0
-            for b in branches:
-                genome = alive[b]
-                supported = genome.supported_events()
-                for ew in rate_model.event_weights(genome, b.name, t):
-                    if ew.rate > 0.0 and ew.event in supported:
-                        entries.append((b, ew))
-                        weights.append(ew.rate)
-                        total += ew.rate
             if total <= 0.0:
                 return
             dt = self.sampler.next_waiting_time(total, rng)
             if not math.isfinite(dt) or t + dt >= t1:
                 return
             t += dt
-            b, ew = entries[self.sampler.choose_index(weights, rng)]
-            self._fire(ew, b, alive, t, rate_model, log, rng)
+
+            bi = int(np.searchsorted(np.cumsum(sub), rng.random() * total, side="right"))
+            bi = min(bi, len(branches) - 1)
+            branch = branches[bi]
+            ew = self._pick_entry(entries[bi], float(sub[bi]), rng)
+            changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
+
+            to_refresh = branches if refresh_all else changed
+            for cb in to_refresh:
+                i = index.get(cb)
+                if i is None:
+                    continue
+                entries[i], new_sub = self._branch_weights(alive[cb], cb, rate_model, t)
+                total += new_sub - sub[i]
+                sub[i] = new_sub
         raise RuntimeError(
             f"exceeded max_events_per_interval={self.max_events_per_interval}; "
             "gene families are likely growing without bound (duplication/transfer > loss). "
             "Set max_family_size= (or carrying_capacity= on the rate model) to regulate growth."
         )
+
+    @staticmethod
+    def _branch_weights(genome, branch, rate_model, t):
+        supported = genome.supported_events()
+        kept = [ew for ew in rate_model.event_weights(genome, branch.name, t)
+                if ew.rate > 0.0 and ew.event in supported]
+        return kept, math.fsum(ew.rate for ew in kept)
+
+    def _pick_entry(self, kept, subtotal, rng):
+        r = rng.random() * subtotal
+        acc = 0.0
+        for ew in kept:
+            acc += ew.rate
+            if acc >= r:
+                return ew
+        return kept[-1]
 
     # --- recipient choice (uniform, or phylogenetic-distance weighted) -----
     def _choose_recipient(self, donor, alive, t, rng):
@@ -190,7 +226,7 @@ class GenomeSimulator:
         weights = [math.exp(-decay * (d - dmin)) for d in distances]  # softmax-stable
         return candidates[self.sampler.choose_index(weights, rng)]
 
-    # --- apply a single event ---------------------------------------------
+    # --- apply a single event; return the set of branches whose genome changed ----
     def _fire(self, ew, branch, alive, t, rate_model, log, rng):
         genome = alive[branch]
         event, family = ew.event, ew.family
@@ -199,12 +235,12 @@ class GenomeSimulator:
         if event is EventType.ORIGINATION:
             ops = genome.originate(rng, params)
             log.add(EventRecord(EventType.ORIGINATION, branch.name, t, ops))
-            return
+            return (branch,)
 
         if event is EventType.TRANSFER:
             recipient = self._choose_recipient(branch, alive, t, rng)
             if recipient is None:
-                return
+                return ()
             selection = genome.draw_target(EventType.TRANSFER, rng, params, family=family)
             segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
             rec_genome = alive[recipient]
@@ -218,15 +254,16 @@ class GenomeSimulator:
                     donor=branch.name, recipient=recipient.name,
                 ))
             self._reconcile_recipient(rec_genome, segment, recipient, t, params, log, rng)
-            return
+            return (branch, recipient)
 
         # duplication / loss / inversion / transposition (one log record per group)
         selection = genome.draw_target(event, rng, params, family=family)
         if (event is EventType.DUPLICATION and self._cap is not None
                 and genome.copy_number(selection.genes[0].family) >= self._cap):
-            return  # family already at the cap — skip this duplication
+            return ()  # family already at the cap — skip this duplication
         for group in genome.apply(event, selection, rng, params):
             log.add(EventRecord(event, branch.name, t, group))
+        return (branch,)
 
     def _reconcile_recipient(self, genome, segment, branch, t, params, log, rng):
         """After a transfer: apply replacement (by chance) and enforce the family cap.

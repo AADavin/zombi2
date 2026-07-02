@@ -55,6 +55,11 @@ class RateModel(ABC):
     _rng = None
     _max_family_size: int | None = None
 
+    #: The simulator caches each branch's weights and refreshes only branches whose genome
+    #: changed. Set this True in a subclass whose weights vary *continuously* with ``time``
+    #: within a branch interval, to force a full refresh every event (correctness over speed).
+    time_dependent = False
+
     @abstractmethod
     def event_weights(self, genome, branch: str, time: float) -> list[EventWeight]:
         ...

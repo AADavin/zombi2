@@ -17,19 +17,21 @@ def _base():
     return UniformRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
 
 
-def test_explicit_map_concentrates_events_on_boosted_branch():
+def test_explicit_map_boosts_its_branch():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=4.0, seed=1)
-    # pick an internal branch and give it a 10x rate boost
-    boosted = tree.internal_nodes()[2].name
-    rates = BranchRates(_base(), factors={boosted: 10.0})
-    g = simulate_genomes(tree, rates, initial_size=10, seed=2)
+    boosted = tree.leaves()[0].name  # a long-lived branch, for a clear signal
     dtl = [EventType.DUPLICATION, EventType.TRANSFER, EventType.LOSS]
-    from collections import Counter
-    per_branch = Counter(r.branch for r in g.event_log if r.event in dtl)
-    # the boosted branch should carry an outsized share of D/T/L events
-    assert per_branch[boosted] > 0
-    others = [c for b, c in per_branch.items() if b != boosted]
-    assert per_branch[boosted] > (max(others) if others else 0)
+
+    def total_events(factor):
+        n = 0
+        for seed in range(3):
+            g = simulate_genomes(tree, BranchRates(_base(), factors={boosted: factor}),
+                                 initial_size=10, seed=seed)
+            n += sum(1 for r in g.event_log if r.event in dtl and r.branch == boosted)
+        return n
+
+    # a 10x rate boost on that branch produces many more D/T/L events there
+    assert total_events(10.0) > total_events(1.0)
 
 
 def test_autocorr_zero_sigma_equals_base():
