@@ -49,6 +49,7 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Quickstart: quickstart.md
+  - Command-line interface: cli.md
   - User guide:
       - Species trees: guide/species-trees.md
       - Gene families & rates: guide/gene-families.md
@@ -60,6 +61,9 @@ nav:
       - Running in parallel: guide/parallel.md
       - Rust fast path: guide/rust-fast-path.md
       - Extending ZOMBI2: guide/extending.md
+  - FAQ: faq.md
+  - Comparison with ZOMBI-1: comparison.md
+  - Contributing: contributing.md
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
