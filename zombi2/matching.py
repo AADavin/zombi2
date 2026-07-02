@@ -230,6 +230,7 @@ class ABCFit:
     n_species: int
     empirical: ProfileMatrix
     uses_default_summary: bool
+    sample_weights: np.ndarray | None = None  # per-sample importance weights (SMC); None = uniform
 
     def __post_init__(self):
         self._adjusted = None          # cache for regression_adjust()
@@ -261,14 +262,23 @@ class ABCFit:
                 "lo95": _wquantile(v, w, 0.025),
                 "hi95": _wquantile(v, w, 0.975),
             } for name, v in post.items()}
+        w = None if self.sample_weights is None else self.sample_weights[self.accepted]
         out: dict[str, dict[str, float]] = {}
         for name, vals in self.posterior.items():
-            out[name] = {
-                "mean": float(vals.mean()),
-                "median": float(np.median(vals)),
-                "lo95": float(np.quantile(vals, 0.025)),
-                "hi95": float(np.quantile(vals, 0.975)),
-            }
+            if w is None:
+                out[name] = {
+                    "mean": float(vals.mean()),
+                    "median": float(np.median(vals)),
+                    "lo95": float(np.quantile(vals, 0.025)),
+                    "hi95": float(np.quantile(vals, 0.975)),
+                }
+            else:
+                out[name] = {
+                    "mean": float(np.average(vals, weights=w)),
+                    "median": _wquantile(vals, w, 0.5),
+                    "lo95": _wquantile(vals, w, 0.025),
+                    "hi95": _wquantile(vals, w, 0.975),
+                }
         return out
 
     def regression_adjust(self, ridge: float = 1.0) -> dict[str, np.ndarray]:
@@ -598,3 +608,170 @@ def match_profiles(
         empirical=profile_mat,
         uses_default_summary=uses_default,
     )
+
+
+# --- ABC-SMC (sequential Monte Carlo) --------------------------------------------
+
+def _prepare(tree, empirical, statistics, gene_trees, engine, model, family_shape,
+             priors_spec, feature_weights):
+    """Shared setup: resolve the summary/target, model builder, engine, and priors."""
+    if gene_trees:
+        if not (hasattr(empirical, "profiles") and hasattr(empirical, "event_log")):
+            raise TypeError("gene_trees=True requires an empirical Genomes (with gene trees)")
+        if engine == "fast":
+            raise ValueError("gene_trees=True requires the Python engine")
+        profile_mat = empirical.profiles
+        species_order = list(profile_mat.species)
+        summarize = statistics or default_gene_tree_summary(species_order)
+        target = summarize(empirical)
+    else:
+        profile_mat = (empirical if isinstance(empirical, ProfileMatrix)
+                       else ProfileMatrix.from_tsv(empirical))
+        species_order = list(profile_mat.species)
+        summarize = statistics or default_summary(species_order)
+        target = summarize(profile_mat)
+    builder, fast_ok = _resolve_model(model, family_shape)
+    if gene_trees:
+        fast_ok = False
+    priors = _normalize_priors(priors_spec, restrict=builder is None or isinstance(builder, _FamilyModel))
+    names = list(priors.keys())
+    engine = _resolve_engine(engine, fast_ok)
+    weights = feature_weights if feature_weights is not None else getattr(summarize, "feature_weights", None)
+    weights = None if weights is None else np.asarray(weights, float)
+    return dict(summarize=summarize, target=target, weights=weights, profile_mat=profile_mat,
+                species_order=species_order, builder=builder, engine=engine,
+                return_genomes=gene_trees, uses_default=statistics is None,
+                priors=priors, names=names)
+
+
+def _uniform_bounds(priors, names):
+    lo, hi = [], []
+    for n in names:
+        d = priors[n]
+        if isinstance(d, Uniform):
+            lo.append(d.low); hi.append(d.high)
+        elif isinstance(d, Fixed):
+            lo.append(d.value); hi.append(d.value)
+        else:
+            raise ValueError(f"match_profiles_smc needs Uniform (low, high) or fixed priors; "
+                             f"{n!r} is {type(d).__name__}")
+    return np.array(lo, float), np.array(hi, float)
+
+
+def _smc_kernel(theta, parts, tau, active):
+    """Gaussian perturbation-kernel density K(theta | each particle), up to a shared constant."""
+    if not active.any():
+        return np.ones(len(parts))
+    d = (parts[:, active] - theta[active]) / tau[active]
+    return np.exp(-0.5 * (d ** 2).sum(1) - np.log(tau[active]).sum())
+
+
+def match_profiles_smc(
+    tree: Tree,
+    empirical,
+    priors: dict,
+    *,
+    rounds: int = 5,
+    n_particles: int = 200,
+    quantile: float = 0.5,
+    model=None,
+    family_shape: float = 2.0,
+    statistics=None,
+    gene_trees: bool = False,
+    feature_weights=None,
+    initial_size: int = 20,
+    max_family_size=None,
+    transfers=None,
+    engine: str = "auto",
+    seed: int | None = None,
+    max_attempts_factor: int = 200,
+) -> ABCFit:
+    """Fit gene-family rates by **sequential Monte Carlo** ABC (Toni et al. 2009).
+
+    Plain rejection wastes most simulations far from the data. SMC instead evolves a
+    population of ``n_particles`` over ``rounds`` with a shrinking tolerance: round 0 samples
+    the prior; each later round resamples good particles, perturbs them with a Gaussian
+    kernel (variance = twice the population variance), and keeps those under the new
+    tolerance (the ``quantile`` of the previous round's distances). Importance weights keep
+    the population an unbiased posterior sample. The result is a **sharper** posterior than
+    rejection for a similar simulation budget.
+
+    Takes the same model/summary/engine/gene_trees options as :func:`match_profiles`, but
+    **priors must be uniform** (``(low, high)`` / :class:`~zombi2.Uniform`) or fixed — the
+    perturbation and weighting need bounded support. Returns an :class:`ABCFit` whose final
+    population is weighted (``.summary()`` reports weighted credible intervals).
+    """
+    p = _prepare(tree, empirical, statistics, gene_trees, engine, model, family_shape,
+                 priors, feature_weights)
+    summarize, target, w_feat = p["summarize"], p["target"], p["weights"]
+    builder, engine, return_genomes = p["builder"], p["engine"], p["return_genomes"]
+    names, priors = p["names"], p["priors"]
+    lo, hi = _uniform_bounds(priors, names)
+    active = hi > lo
+    P, N = len(names), n_particles
+    rng = np.random.default_rng(seed)
+
+    def sim_summ(theta):
+        vals = {n: max(0.0, float(v)) for n, v in zip(names, theta)}
+        out = _simulate(tree, vals, engine=engine, builder=builder, initial_size=initial_size,
+                        max_family_size=max_family_size, transfers=transfers,
+                        seed=int(rng.integers(1, 2**63 - 1)), return_genomes=return_genomes)
+        return summarize(out)
+
+    total_sims = N
+    # round 0 — sample the prior; fix the distance scale from this batch
+    part = np.array([rng.uniform(lo, hi) for _ in range(N)])
+    summaries = np.array([sim_summ(th) for th in part])
+    sd = summaries.std(0); sd[sd == 0] = 1.0
+
+    def dist_of(s):
+        r = (s - target) / sd
+        return float(np.sqrt(((r * w_feat if w_feat is not None else r) ** 2).sum()))
+
+    distances = np.array([dist_of(s) for s in summaries])
+    W = np.full(N, 1.0 / N)
+
+    for _ in range(1, rounds):
+        eps = float(np.quantile(distances, quantile))
+        mean = np.average(part, axis=0, weights=W)
+        var = np.average((part - mean) ** 2, axis=0, weights=W)
+        tau = np.sqrt(2 * var)
+        tau[active] = np.maximum(tau[active], 1e-9)
+        new_part = np.empty((N, P)); new_s = []; new_d = np.empty(N); new_W = np.empty(N)
+        i = attempts = 0
+        cap = max_attempts_factor * N
+        while i < N and attempts < cap:
+            attempts += 1
+            theta = part[rng.choice(N, p=W)].copy()
+            theta[active] += tau[active] * rng.standard_normal(int(active.sum()))
+            if np.any(theta < lo) or np.any(theta > hi):
+                continue
+            s = sim_summ(theta); d = dist_of(s)
+            if d < eps:
+                new_part[i] = theta; new_s.append(s); new_d[i] = d
+                new_W[i] = 1.0 / np.sum(W * _smc_kernel(theta, part, tau, active))  # uniform prior
+                i += 1
+        total_sims += attempts
+        if i == 0:
+            break                       # tolerance too tight — keep the previous population
+        part, summaries, distances = new_part[:i], np.array(new_s), new_d[:i]
+        W = new_W[:i] / new_W[:i].sum()
+        N = i
+
+    fit = ABCFit(
+        param_names=names,
+        samples=part,
+        distances=distances,
+        accepted=np.arange(len(part)),
+        tolerance=float(distances.max()),
+        empirical_summary=target,
+        priors=priors,
+        accepted_summaries=summaries,
+        summary_sd=sd,
+        n_species=len(p["species_order"]),
+        empirical=p["profile_mat"],
+        uses_default_summary=p["uses_default"],
+        sample_weights=W,
+    )
+    fit.n_simulations = total_sims
+    return fit
