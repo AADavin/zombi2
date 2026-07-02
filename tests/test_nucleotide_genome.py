@@ -48,6 +48,15 @@ class ArrayGenome:
         else:                                   # non-wrapping: drop [s, s+ell)
             del self.cells[s:s + ell]
 
+    def duplicate(self, s, ell):
+        L = len(self.cells)
+        ell = max(1, min(ell, L))
+        s %= L
+        if s + ell > L:                         # wrapping: rotate origin to s (as the genome)
+            self.cells = self.cells[s:] + self.cells[:s]
+            s = 0
+        self.cells[s + ell:s + ell] = self.cells[s:s + ell]  # tandem copy right after
+
 
 def _fresh(length, ext=0.99):
     g = NucleotideGenome(IdManager(), root_length=length, extension=ext)
@@ -283,6 +292,90 @@ def test_loss_reproducible():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=14)
     a = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200, seed=15)
     b = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200, seed=15)
+    assert len(a.event_log) == len(b.event_log)
+    for leaf, ga in a.leaf_genomes.items():
+        assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
+
+
+# --------------------------------------------------------------------------- #
+# M3: duplication — paralogs (value-identical copies), content grows, vs oracle
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("seed", range(25))
+def test_all_events_match_oracle(seed):
+    rng = np.random.default_rng(seed)
+    L0 = int(rng.integers(30, 120))
+    g = _fresh(L0, ext=0.9)
+    o = ArrayGenome("1", L0)
+    for _ in range(150):
+        L = g.size()
+        if L <= 1:
+            break
+        s = int(rng.integers(L))
+        ell = int(rng.integers(1, L + 1))
+        r = rng.random()
+        if r < 0.34 and L < 400:              # cap growth so the run stays bounded
+            g._apply_duplication(s, ell)
+            o.duplicate(s, ell)
+        elif r < 0.67:
+            g._apply_inversion(s, ell)
+            o.invert(s, ell)
+        else:
+            g._apply_loss(s, min(ell, L - 1))
+            o.delete(s, min(ell, L - 1))
+        assert g.to_cells() == o.cells
+        assert g.size() == len(o.cells)
+
+
+def test_wrapping_duplication_matches_oracle():
+    g = _fresh(20, ext=0.7)
+    o = ArrayGenome("1", 20)
+    for s, ell in [(18, 5), (3, 4), (15, 8), (0, 6)]:  # includes origin-crossing copies
+        g._apply_duplication(s, ell)
+        o.duplicate(s, ell)
+        assert g.to_cells() == o.cells
+        assert g.size() == len(o.cells)
+
+
+def test_tandem_duplication_layout():
+    g = _fresh(10)
+    g._apply_duplication(2, 3)                 # copy of [2,3,4] lands right after
+    cells = g.to_cells()
+    assert [p for _s, p, _st in cells] == [0, 1, 2, 3, 4, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert g.size() == 13
+
+
+def test_duplication_creates_paralogs_and_coalescences():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=21)
+    res = simulate_nucleotide_genomes(tree, inversion=0.004, duplication=0.006, loss=0.002,
+                                      root_length=300, extension=0.95, seed=21)
+    dups = [r for r in res.event_log if r.event is EventType.DUPLICATION]
+    assert dups
+    for r in dups:                             # each duplication is a bifurcation
+        assert len(r.genes) == 3
+        assert [op.role for op in r.genes] == ["parent", "left", "right"]
+    _ids, _species, M = res.profile_matrix()
+    assert M.max() >= 2                        # a surviving paralog -> copy number > 1
+
+
+def test_duplication_grows_content_as_multiset():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=22)
+    res = simulate_nucleotide_genomes(tree, inversion=0.004, duplication=0.006, loss=0.001,
+                                      root_length=300, extension=0.95, seed=22)
+    root = set(range(300))
+    grew = False
+    for genome in res.leaf_genomes.values():
+        cells = genome.to_cells()
+        assert all(src == "1" and p in root for src, p, _st in cells)  # only ancestral nt
+        if len(cells) > 300:
+            grew = True                        # duplication lifted length above the root
+    assert grew
+
+
+def test_all_events_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=7, age=2.5, seed=23)
+    kw = dict(inversion=0.004, duplication=0.005, loss=0.004, root_length=250, extension=0.95)
+    a = simulate_nucleotide_genomes(tree, **kw, seed=24)
+    b = simulate_nucleotide_genomes(tree, **kw, seed=24)
     assert len(a.event_log) == len(b.event_log)
     for leaf, ga in a.leaf_genomes.items():
         assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()

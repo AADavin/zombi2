@@ -25,7 +25,7 @@ import numpy as np
 from ._sampling import EventSampler
 from .events import EventType
 from .genome_sim import GenomeSimulator
-from .nucleotide_genome import NucleotideGenome
+from .nucleotide_genome import NucleotideGenome, SegmentRegistry
 from .rates import UniformRates
 from .tree import Tree, TreeNode
 
@@ -51,7 +51,7 @@ class NucleotideResult:
     species_tree: Tree
     leaf_genomes: dict  # extant leaf TreeNode -> NucleotideGenome
     event_log: object   # EventLog
-    registry: dict      # seg_id -> (source, src_start, src_end)
+    registry: SegmentRegistry  # segment provenance + split parent-links
     atoms: list         # list[Atom], tiling every source's [0, len)
     root_length: int
     _by_source: dict = field(default_factory=dict, repr=False)
@@ -110,7 +110,7 @@ class NucleotideResult:
             if r.event is not EventType.INVERSION:
                 continue
             for op in r.genes:
-                source, ss, se = self.registry[op.gid]
+                source, ss, se = self.registry.provenance[op.gid]
                 for a in self._by_source.get(source, ()):
                     if a.start >= ss and a.end <= se:
                         out[a.atom_id].append((r.branch, r.time))
@@ -159,6 +159,7 @@ def simulate_nucleotide_genomes(
     *,
     inversion: float = 0.001,
     loss: float = 0.0,
+    duplication: float = 0.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_size: int = 1,
@@ -168,16 +169,19 @@ def simulate_nucleotide_genomes(
 ) -> NucleotideResult:
     """Simulate variable-length structural events forward along ``species_tree``.
 
-    ``inversion`` and ``loss`` are **per-nucleotide** rates: the total genome rate of
-    each is ``rate * current_length``. ``extension`` sets the geometric event-length
-    model (mean ``1/(1-extension)`` nucleotides). Returns a :class:`NucleotideResult`
-    carrying the extant leaf genomes, the event log, the segment registry, and the atom
-    partition (over the surviving ancestral material).
+    ``inversion``, ``loss`` and ``duplication`` are **per-nucleotide** rates: the total
+    genome rate of each is ``rate * current_length``. ``extension`` sets the geometric
+    event-length model (mean ``1/(1-extension)`` nucleotides). Returns a
+    :class:`NucleotideResult` carrying the extant leaf genomes, the event log, the segment
+    registry, and the atom partition (over the surviving ancestral material).
+
+    Duplication grows the genome (a copy is added in tandem) with no cap, so keep
+    ``duplication`` at or below ``loss`` over long ages to avoid runaway growth.
     """
     if rng is None:
         rng = np.random.default_rng(seed)
-    rates = UniformRates(inversion=inversion, loss=loss)
-    registry: dict[str, tuple[str, int, int]] = {}
+    rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication)
+    registry = SegmentRegistry()
 
     def factory(ids):
         return NucleotideGenome(ids, root_length=root_length, extension=extension,

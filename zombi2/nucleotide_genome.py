@@ -34,6 +34,24 @@ from .events import EventType, GeneOp, Region, Selection
 from .genome import Gene, Genome, IdManager
 
 
+class SegmentRegistry:
+    """Provenance shared across all genomes of one simulation (clones share one instance).
+
+    ``provenance`` maps every segment id ever minted to its ancestral interval
+    ``(source, src_start, src_end)`` — enough to attribute an event to atoms. ``split_parent``
+    maps a segment born from a :meth:`NucleotideGenome._split_segment` to the segment it was
+    cut from; those births are the only ones *not* in the event log (a split is a degree-2
+    node), so recording them here keeps the segment genealogy connected for gene-tree
+    reconstruction.
+    """
+
+    __slots__ = ("provenance", "split_parent")
+
+    def __init__(self) -> None:
+        self.provenance: dict[str, tuple[str, int, int]] = {}
+        self.split_parent: dict[str, str] = {}
+
+
 @dataclass(slots=True)
 class Segment:
     """A maximal run of sequence that is contiguous *and* has one shared history.
@@ -64,18 +82,18 @@ class NucleotideGenome(Genome):
     """
 
     def __init__(self, ids: IdManager, root_length: int = 1000,
-                 extension: float | None = 0.99, registry: dict | None = None):
+                 extension: float | None = 0.99, registry: SegmentRegistry | None = None):
         self.ids = ids
         self.root_length = int(root_length)
         self.extension = extension
-        self._registry: dict[str, tuple[str, int, int]] = registry if registry is not None else {}
+        self._registry: SegmentRegistry = registry if registry is not None else SegmentRegistry()
         self._segments: list[Segment] = []
-        self._length = 0  # total nucleotide length; O(1), constant under inversion
+        self._length = 0  # total nucleotide length; O(1), maintained on every event
 
     # --- minting ------------------------------------------------------------
     def _new_segment(self, source: str, a: int, b: int, strand: int) -> Segment:
         seg = Segment(self.ids.new_gene(), source, a, b, strand)
-        self._registry[seg.seg_id] = (source, a, b)
+        self._registry.provenance[seg.seg_id] = (source, a, b)
         return seg
 
     # --- queries ------------------------------------------------------------
@@ -103,7 +121,7 @@ class NucleotideGenome(Genome):
                            dtype=np.int8, count=len(family_order))
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset((EventType.INVERSION, EventType.LOSS))
+        return frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION))
 
     # --- trace-back view: one cell per nucleotide, in physical order --------
     def to_cells(self) -> list[tuple[str, int, int]]:
@@ -143,6 +161,9 @@ class NucleotideGenome(Genome):
         else:  # reversed: first o physical positions are the HIGH end of the source
             left = self._new_segment(seg.source, seg.src_end - o, seg.src_end, -1)
             right = self._new_segment(seg.source, seg.src_start, seg.src_end - o, -1)
+        # a split is a degree-2 birth (unlogged); record it so the genealogy stays connected
+        self._registry.split_parent[left.seg_id] = seg.seg_id
+        self._registry.split_parent[right.seg_id] = seg.seg_id
         return left, right
 
     def _split_at(self, c: int) -> None:
@@ -238,6 +259,57 @@ class NucleotideGenome(Genome):
         self._length -= ell
         return removed
 
+    # --- duplication --------------------------------------------------------
+    def _arc_range(self, s: int, ell: int) -> tuple[int, int]:
+        """Split the ends of arc ``[s, s+ell)`` and return its ``[i_s, i_e)`` segment range.
+
+        A wrapping arc is rotated to the front first (the origin drifts to a real
+        breakpoint), so the arc is always a contiguous slice ``self._segments[i_s:i_e]``.
+        """
+        L = self._length
+        e = (s + ell) % L
+        self._split_at(s)
+        self._split_at(e)
+        if s + ell <= L:
+            i_s = self._index_at(s)
+            i_e = self._index_at(s + ell) if s + ell < L else len(self._segments)
+            return i_s, i_e
+        i_s = self._index_at(s)
+        self._segments = self._segments[i_s:] + self._segments[:i_s]
+        i_e, acc = 0, 0
+        while acc < ell:
+            acc += self._segments[i_e].length
+            i_e += 1
+        return 0, i_e
+
+    def _apply_duplication(self, s: int, ell: int) -> list[list[GeneOp]]:
+        """Duplicate the arc ``[s, s+ell)`` in tandem; return one op-group per segment.
+
+        Each arc segment forks into a re-minted *continuation* (in place) and a *copy*
+        (the paralog, inserted immediately after the arc). Both carry the segment's source
+        interval, so the two are paralogs that coalesce at this duplication.
+        """
+        L = self._length
+        if L == 0:
+            return []
+        ell = max(1, min(ell, L))
+        s %= L
+        i_s, i_e = self._arc_range(s, ell)
+        arc = self._segments[i_s:i_e]
+        groups, conts, copies = [], [], []
+        for a in arc:
+            cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand)
+            copy = self._new_segment(a.source, a.src_start, a.src_end, a.strand)
+            conts.append(cont)
+            copies.append(copy)
+            groups.append([GeneOp(a.seg_id, a.source, "parent"),
+                           GeneOp(cont.seg_id, a.source, "left"),
+                           GeneOp(copy.seg_id, a.source, "right")])
+        self._segments[i_s:i_e] = conts          # continuations replace the originals...
+        self._segments[i_e:i_e] = copies          # ...and the copy block lands in tandem
+        self._length += ell
+        return groups
+
     def _draw_length(self, rng, params) -> int:
         ext = params.extension if params.extension is not None else self.extension
         n = self._length
@@ -248,8 +320,10 @@ class NucleotideGenome(Genome):
             length += 1
         return length
 
+    _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION))
+
     def draw_target(self, event, rng, params, family=None) -> Selection:
-        if event not in (EventType.INVERSION, EventType.LOSS):
+        if event not in self._TARGETABLE:
             raise ValueError(f"NucleotideGenome does not target {event!r}")
         s = int(rng.integers(self._length))
         ell = self._draw_length(rng, params)
@@ -264,6 +338,8 @@ class NucleotideGenome(Genome):
         if event is EventType.LOSS:
             removed = self._apply_loss(region.start, region.length)
             return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in removed]
+        if event is EventType.DUPLICATION:
+            return self._apply_duplication(region.start, region.length)
         raise ValueError(f"NucleotideGenome does not handle {event!r}")
 
     # --- transfer handoff (arrives in M3) ----------------------------------
