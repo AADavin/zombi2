@@ -9,6 +9,7 @@
 
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::fs::{self, File};
@@ -1045,8 +1046,9 @@ fn write_outputs(
         }
     }
 
-    // per-family: event table + gene trees
-    for &fam in &families {
+    // per-family: event table + gene trees. Families are independent, so reconstruct and
+    // write them in parallel (each thread writes its own files, reads shared data).
+    families.par_iter().try_for_each(|&fam| -> std::io::Result<()> {
         let idxs = &fam_records[&fam];
         let label = fam + 1;
 
@@ -1072,7 +1074,8 @@ fn write_outputs(
         if let Some(e) = extant {
             fs::write(base.join("gene_trees").join(format!("{}_extant.nwk", label)), e + "\n")?;
         }
-    }
+        Ok(())
+    })?;
 
     // Transfers.tsv
     let mut tr = String::from("time\tfamily\tdonor_branch\trecipient_branch\tparent_id\tdonor_copy_id\ttransfer_id\n");
@@ -1127,22 +1130,31 @@ fn write_outputs(
     let mut pr = BufWriter::new(File::create(base.join("Presence.tsv"))?);
     pf.write_all(header.as_bytes())?;
     pr.write_all(header.as_bytes())?;
-    let (mut prow, mut rrow) = (String::new(), String::new());
-    for &fam in &ext_fams {
-        prow.clear();
-        rrow.clear();
-        let _ = write!(prow, "{}", fam + 1);
-        let _ = write!(rrow, "{}", fam + 1);
-        for m in &col_maps {
-            let c = *m.get(&fam).unwrap_or(&0);
-            let _ = write!(prow, "\t{}", c);
-            rrow.push('\t');
-            rrow.push(if c > 0 { '1' } else { '0' });
+    // Format rows in parallel (each family is independent), in bounded batches to cap memory,
+    // then write each batch in order.
+    for batch in ext_fams.chunks(512) {
+        let rows: Vec<(String, String)> = batch
+            .par_iter()
+            .map(|&fam| {
+                let mut prow = String::new();
+                let mut rrow = String::new();
+                let _ = write!(prow, "{}", fam + 1);
+                let _ = write!(rrow, "{}", fam + 1);
+                for m in &col_maps {
+                    let c = *m.get(&fam).unwrap_or(&0);
+                    let _ = write!(prow, "\t{}", c);
+                    rrow.push('\t');
+                    rrow.push(if c > 0 { '1' } else { '0' });
+                }
+                prow.push('\n');
+                rrow.push('\n');
+                (prow, rrow)
+            })
+            .collect();
+        for (prow, rrow) in &rows {
+            pf.write_all(prow.as_bytes())?;
+            pr.write_all(rrow.as_bytes())?;
         }
-        prow.push('\n');
-        rrow.push('\n');
-        pf.write_all(prow.as_bytes())?;
-        pr.write_all(rrow.as_bytes())?;
     }
     pf.flush()?;
     pr.flush()?;

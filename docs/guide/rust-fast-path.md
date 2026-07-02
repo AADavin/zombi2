@@ -109,15 +109,19 @@ At 10 000 tips (~2.1M events):
 | --- | --- | --- |
 | `simulate_profiles_fast` (profiles only) | ~0.4 s | ~50× |
 | `simulate_genomes_fast` (full `Genomes`, materialised) | ~5.5 s | ~3× |
-| `simulate_and_write_fast` (simulate + trees + write) | ~6.5 s | ~10× |
+| `simulate_and_write_fast` (simulate + trees + write, threaded) | ~3 s | ~20× |
 | `simulate_genomes` + `.write()` (pure Python) | ~66 s | 1× |
 
 `simulate_genomes_fast` is "only" ~3× because Python still materialises ~2M `EventRecord`
 objects; `simulate_and_write_fast` avoids that entirely (everything stays in Rust) and is the
-right choice when you want files on disk at scale.
+right choice when you want files on disk at scale. Its per-family gene-tree reconstruction,
+event-table formatting and profile-matrix formatting run in parallel across cores (rayon), so
+the writing/reconstruction phase scales with your core count; output is byte-for-byte
+deterministic regardless of thread count.
 
 ## What's next
 
-Gene-tree reconstruction and the writers are now in Rust. The remaining items are the richer
-`TransferModel` mechanics (replacement / distance / self) in the Rust engines, and
-within-simulation per-family threading (rayon).
+The reconstruction and writers are multithreaded; the forward Gillespie itself is still
+sequential, so the remaining large win is a per-family decomposition of the *simulation*
+(families are independent given the tree). Other items: exposing the richer engines through
+more of the API surface.
