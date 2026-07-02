@@ -61,6 +61,7 @@ nav:
       - Running in parallel: guide/parallel.md
       - Rust fast path: guide/rust-fast-path.md
       - Extending ZOMBI2: guide/extending.md
+  - Cookbook: cookbook.md
   - FAQ: faq.md
   - Comparison with ZOMBI-1: comparison.md
   - Contributing: contributing.md

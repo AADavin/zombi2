@@ -39,6 +39,7 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("guide/parallel.md",               "Running-in-Parallel",        "Running in parallel",     "User guide"),
     ("guide/rust-fast-path.md",         "Rust-Fast-Path",             "Rust fast path",          "User guide"),
     ("guide/extending.md",              "Extending-ZOMBI2",           "Extending ZOMBI2",        "User guide"),
+    ("cookbook.md",                     "Cookbook",                   "Cookbook",                None),
     ("faq.md",                          "FAQ",                        "FAQ",                     None),
     ("comparison.md",                   "Comparison-with-ZOMBI-1",    "Comparison with ZOMBI-1", None),
     ("contributing.md",                 "Contributing",               "Contributing",            None),
