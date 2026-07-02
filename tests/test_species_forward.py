@@ -1,0 +1,103 @@
+"""Forward-in-time species-tree simulation (complete trees with extinct lineages)."""
+
+import numpy as np
+import pytest
+
+import zombi2 as z
+
+
+def _dead_names(tree):
+    """Names of branches with no extant descendant (the dead part of the tree)."""
+    dead = set()
+
+    def mark(node):
+        alive = node.is_extant if node.is_leaf() else any([mark(c) for c in node.children])
+        if not alive:
+            dead.add(node.name)
+        return alive
+
+    mark(tree.root)
+    return dead
+
+
+def test_age_mode_complete_tree():
+    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=1)
+    assert abs(tree.total_age - 5.0) < 1e-9
+    assert tree.root.time == 0.0
+    assert len(tree.extant_leaves()) >= 2
+    assert all(len(n.children) == 2 for n in tree.internal_nodes())  # binary
+    # extant leaves at the present; extinct leaves strictly before it
+    for leaf in tree.leaves():
+        if leaf.is_extant:
+            assert abs(leaf.time - tree.total_age) < 1e-9
+        else:
+            assert leaf.time < tree.total_age - 1e-12
+
+
+def test_n_tips_mode_hits_target():
+    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.5), n_tips=20, seed=2)
+    assert len(tree.extant_leaves()) == 20
+    assert tree.total_age > 0.0
+
+
+def test_extinction_produces_extinct_leaves():
+    n_dead = []
+    for s in range(15):
+        t = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), age=6.0, seed=s)
+        n_dead.append(sum(1 for leaf in t.leaves() if not leaf.is_extant))
+    assert np.mean(n_dead) > 0  # extinction leaves dead lineages
+
+
+def test_yule_has_no_extinction_and_matches_theory():
+    lam, age = 1.0, 2.0
+    counts = [len(z.simulate_species_tree_forward(z.Yule(lam), age=age, seed=s).extant_leaves())
+              for s in range(400)]
+    # Yule crown (2 lineages) grown for `age`: E[extant] = 2 e^{λ·age}
+    assert abs(np.mean(counts) - 2 * np.exp(lam * age)) / (2 * np.exp(lam * age)) < 0.15
+    # no extinction under Yule
+    t = z.simulate_species_tree_forward(z.Yule(lam), age=age, seed=1)
+    assert all(leaf.is_extant for leaf in t.leaves())
+
+
+def test_reproducible():
+    a = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=7).to_newick()
+    b = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=7).to_newick()
+    assert a == b
+
+
+def test_prune_to_extant_recovers_reconstructed():
+    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), n_tips=25, seed=3)
+    recon = z.prune_to_extant(tree)
+    assert len(recon.extant_leaves()) == len(tree.extant_leaves()) == 25
+    assert all(leaf.is_extant for leaf in recon.leaves())
+    assert all(len(n.children) == 2 for n in recon.internal_nodes())
+
+
+def test_argument_validation():
+    with pytest.raises(ValueError):  # neither
+        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3))
+    with pytest.raises(ValueError):  # both
+        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), age=5.0, n_tips=10)
+    with pytest.raises(ValueError):  # n_tips too small
+        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), n_tips=1)
+    with pytest.raises(ValueError):  # bad age
+        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), age=0.0)
+    with pytest.raises(NotImplementedError):  # episodic not yet
+        z.simulate_species_tree_forward(z.EpisodicBirthDeath([1.0], [0.3], []), age=5.0)
+
+
+def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
+    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), n_tips=40, seed=8)
+    dead = _dead_names(tree)
+    assert dead  # forward tree has a dead part
+    g = z.simulate_genomes(tree, duplication=0.1, transfer=0.4, loss=0.15,
+                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+    # profiles only over extant species
+    assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
+    # at least one transfer should involve a dead (extinct) branch — transfer from the dead,
+    # for free, with no ghost-grafting step
+    involved = any(
+        (r.donor in dead or r.recipient in dead or r.branch in dead)
+        for r in g.event_log if r.event is z.EventType.TRANSFER
+    )
+    assert involved

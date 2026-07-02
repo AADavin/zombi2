@@ -84,6 +84,32 @@ the ranked assembly, which is model-agnostic. So an episodic model is essentiall
 `sample_internal_age` that inverts a piecewise CDF numerically — the assembly, I/O and the
 whole downstream gene-family machinery are untouched.
 
+## Forward simulation (implemented)
+
+`simulate_species_tree` runs *backward* and returns the reconstructed tree (survivors only).
+`simulate_species_tree_forward` runs the birth–death process *forward* and returns the
+**complete** tree — extinct lineages included natively (`is_extant=False` leaves at their death
+times). It is the second route to a complete tree, alongside grafting ghosts onto a backward
+tree with [`add_ghost_lineages`](ghost_lineages.md); pass either to `simulate_genomes` and
+transfers use the dead lineages automatically.
+
+```python
+# grow for a fixed crown age (number of extant tips is random):
+tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=1)
+
+# ...or grow until N extant lineages coexist (age is random):
+tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.5), n_tips=50, seed=1)
+
+recon = z.prune_to_extant(tree)   # the reconstructed (survivors-only) counterpart
+```
+
+Conventions match the backward crown tree: rooted at the crown (`time == 0`), present at
+`total_age`, `age` = crown age; conditioned on the origin speciating and ≥2 extant survivors.
+Verified against theory (Yule: mean extant ≈ `2·e^{λ·age}`). v1 is constant-rate
+`BirthDeath`/`Yule`; forward under time-varying rates (which needs a forward-time rate
+convention, unlike the backward age-before-present one) and serial/through-time sampling (FBD)
+are natural next steps on the forward machinery.
+
 ## Key references
 
 - Stadler (2009), *J. Theor. Biol.* — reconstructed birth–death process.

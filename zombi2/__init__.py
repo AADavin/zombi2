@@ -25,9 +25,10 @@ from __future__ import annotations
 __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
-from .tree import Tree, TreeNode, read_newick
+from .tree import Tree, TreeNode, read_newick, prune_to_extant
 from .species_model import BirthDeath, Yule, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
+from .species_forward import simulate_species_tree_forward
 from .ghosts import add_ghost_lineages
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from .nucleotide_genome import NucleotideGenome, Segment
@@ -77,10 +78,10 @@ __all__ = [
     # events
     "EventType", "GeneOp", "EventRecord", "Selection", "Region", "TargetParams",
     # tree
-    "Tree", "TreeNode", "read_newick",
+    "Tree", "TreeNode", "read_newick", "prune_to_extant",
     # species tree
     "BirthDeath", "Yule", "EpisodicBirthDeath", "simulate_species_tree",
-    "add_ghost_lineages",
+    "simulate_species_tree_forward", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)

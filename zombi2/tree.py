@@ -112,6 +112,32 @@ class Tree:
         return f"Tree(root={self.root.name!r}, n_leaves={len(self.leaves())}, total_age={self.total_age:.6g})"
 
 
+def prune_to_extant(tree: Tree) -> Tree | None:
+    """Return the reconstructed tree: prune a complete tree to lineages ancestral to an extant
+    leaf, suppressing degree-two nodes and preserving node times. Returns ``None`` if no leaf is
+    extant. Inverse of the complete↔reconstructed relationship — pruning a forward complete tree
+    (or a ghost-augmented tree) yields its reconstructed counterpart.
+    """
+
+    def rec(node: TreeNode) -> TreeNode | None:
+        if node.is_leaf():
+            if node.is_extant:
+                return TreeNode(name=node.name, time=node.time, is_extant=True)
+            return None
+        kept = [k for k in (rec(c) for c in node.children) if k is not None]
+        if not kept:
+            return None
+        if len(kept) == 1:  # suppress this degree-two node
+            return kept[0]
+        new = TreeNode(name=node.name, time=node.time)
+        for k in kept:
+            new.add_child(k)
+        return new
+
+    root = rec(tree.root)
+    return Tree(root, tree.total_age) if root is not None else None
+
+
 def read_newick(newick: str) -> Tree:
     """Parse a Newick string into a :class:`Tree`.
 
