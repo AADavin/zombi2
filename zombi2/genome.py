@@ -23,6 +23,7 @@ from .events import (
     EventType,
     GeneOp,
     InsertionPoint,
+    Region,
     Selection,
     TargetParams,
     TransferSegment,
@@ -85,8 +86,13 @@ class Genome(ABC):
         """Choose what a D / L / T event acts on (optionally restricted to one family)."""
 
     @abstractmethod
-    def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[GeneOp]:
-        """Apply a D or L event in place; return the affected gene rows (from, to...)."""
+    def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[list[GeneOp]]:
+        """Apply a D/L/I/P event in place; return one gene-op *group* per event to log.
+
+        A single-gene event yields one group; a segment event (ordered genomes) yields one
+        group per gene it touches (each an independent genealogical edge). Each group's
+        first row is the ``from`` lineage, the rest its ``to`` lineages.
+        """
 
     @abstractmethod
     def originate(self, rng, params: TargetParams) -> list[GeneOp]:
@@ -162,7 +168,7 @@ class UnorderedGenome(Genome):
         idx = int(rng.integers(len(pool)))
         return Selection(genes=(pool[idx],))
 
-    def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[GeneOp]:
+    def apply(self, event: EventType, selection: Selection, rng, params: TargetParams) -> list[list[GeneOp]]:
         if event is EventType.DUPLICATION:
             parent = selection.genes[0]
             fam = parent.family
@@ -171,17 +177,17 @@ class UnorderedGenome(Genome):
             right = Gene(self.ids.new_gene(), fam)  # new copy
             self._add(left)
             self._add(right)
-            return [
+            return [[
                 GeneOp(parent.gid, fam, "parent"),
                 GeneOp(left.gid, fam, "left"),
                 GeneOp(right.gid, fam, "right"),
-            ]
+            ]]
         if event is EventType.LOSS:
-            ops = []
+            groups = []
             for g in selection.genes:
                 self._remove(g)
-                ops.append(GeneOp(g.gid, g.family, "lost"))
-            return ops
+                groups.append([GeneOp(g.gid, g.family, "lost")])
+            return groups
         raise ValueError(f"apply() does not handle {event!r}")
 
     def originate(self, rng, params: TargetParams) -> list[GeneOp]:
@@ -225,4 +231,166 @@ class UnorderedGenome(Genome):
                 ng = Gene(self.ids.new_gene(), family)
                 new._add(ng)
                 mapping.append((g.gid, ng.gid, family))
+        return new, mapping
+
+
+@dataclass
+class OrderedGene(Gene):
+    """A gene copy on an ordered chromosome: adds strand ``orientation`` (+1 / -1)."""
+
+    orientation: int = 1
+
+
+class OrderedGenome(Genome):
+    """ZOMBI-1-style ordered (circular) chromosome, genes carrying orientation, no
+    intergenes.
+
+    Events act on a **contiguous segment** whose length is drawn from ``extension``
+    (a per-step continuation probability; ``None`` -> single-gene events). Supported:
+    duplication (tandem), loss, transfer, **inversion** (reverse + flip strands), and
+    **transposition** (cut and paste elsewhere). The chromosome is circular, so a segment
+    may wrap; we handle that by rotating the ring to bring the segment to the front.
+
+    The ``extension`` can also be supplied per event via ``TargetParams.extension`` from a
+    rate model; the per-genome value is the fallback. Construct via a factory, e.g.
+    ``genome_factory=lambda ids: OrderedGenome(ids, extension=0.5)``.
+    """
+
+    def __init__(self, ids: IdManager, extension: float | None = None):
+        self.ids = ids
+        self.extension = extension
+        self.chromosome: list[OrderedGene] = []
+
+    # --- queries -----------------------------------------------------------
+    def families(self) -> list[str]:
+        return list(dict.fromkeys(g.family for g in self.chromosome))
+
+    def copy_number(self, family: str) -> int:
+        return sum(1 for g in self.chromosome if g.family == family)
+
+    def size(self) -> int:
+        return len(self.chromosome)
+
+    def total_length(self) -> float:
+        return float(len(self.chromosome))  # no intergenes: length == gene count
+
+    def genes(self) -> list[OrderedGene]:
+        return list(self.chromosome)
+
+    def presence_vector(self, family_order) -> np.ndarray:
+        present = {g.family for g in self.chromosome}
+        return np.fromiter((1 if f in present else 0 for f in family_order),
+                           dtype=np.int8, count=len(family_order))
+
+    def supported_events(self) -> frozenset[EventType]:
+        return frozenset(
+            STOCHASTIC_EVENTS + (EventType.INVERSION, EventType.TRANSPOSITION)
+        )
+
+    # --- helpers -----------------------------------------------------------
+    def _segment_length(self, rng, params: TargetParams) -> int:
+        ext = params.extension if params.extension is not None else self.extension
+        n = len(self.chromosome)
+        if ext is None or n <= 1:
+            return 1
+        length = 1
+        while length < n and rng.random() < ext:
+            length += 1
+        return length
+
+    def _rotate_to(self, start: int) -> None:
+        if start:
+            self.chromosome = self.chromosome[start:] + self.chromosome[:start]
+
+    # --- mutation ----------------------------------------------------------
+    def draw_target(self, event, rng, params, family=None) -> Selection:
+        n = len(self.chromosome)
+        if family is None:
+            start = int(rng.integers(n))
+        else:
+            positions = [i for i, g in enumerate(self.chromosome) if g.family == family]
+            start = positions[int(rng.integers(len(positions)))]
+        length = self._segment_length(rng, params)
+        genes = tuple(self.chromosome[(start + i) % n] for i in range(length))
+        return Selection(genes=genes, region=Region(chromosome=0, start=start, length=length))
+
+    def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
+        if event is EventType.LOSS:  # may be a non-contiguous single gene (replacement)
+            groups = []
+            for g in selection.genes:
+                self.chromosome.remove(g)
+                groups.append([GeneOp(g.gid, g.family, "lost")])
+            return groups
+
+        # contiguous segment operations: bring the segment to the front of the ring
+        length = selection.region.length
+        self._rotate_to(selection.region.start)
+        segment = self.chromosome[:length]
+
+        if event is EventType.DUPLICATION:
+            groups, copies = [], []
+            for i, g in enumerate(segment):
+                cont = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
+                self.chromosome[i] = cont  # ancestral lineage continues (re-minted)
+                copy = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
+                copies.append(copy)
+                groups.append([GeneOp(g.gid, g.family, "parent"),
+                               GeneOp(cont.gid, g.family, "left"),
+                               GeneOp(copy.gid, g.family, "right")])
+            self.chromosome[length:length] = copies  # tandem block after the segment
+            return groups
+
+        if event is EventType.INVERSION:
+            for g in segment:
+                g.orientation = -g.orientation
+            self.chromosome[:length] = list(reversed(segment))
+            return [[GeneOp(g.gid, g.family, "inverted") for g in segment]]
+
+        if event is EventType.TRANSPOSITION:
+            block = list(segment)
+            del self.chromosome[:length]
+            j = int(rng.integers(len(self.chromosome) + 1))
+            self.chromosome[j:j] = block
+            return [[GeneOp(g.gid, g.family, "transposed") for g in block]]
+
+        raise ValueError(f"apply() does not handle {event!r}")
+
+    def originate(self, rng, params) -> list[GeneOp]:
+        family = self.ids.new_family()
+        gene = OrderedGene(self.ids.new_gene(), family, 1 if rng.random() < 0.5 else -1)
+        j = int(rng.integers(len(self.chromosome) + 1))
+        self.chromosome[j:j] = [gene]
+        return [GeneOp(gene.gid, family, "origin")]
+
+    # --- transfer handoff --------------------------------------------------
+    def extract_segment(self, selection, rng) -> TransferSegment:
+        length = selection.region.length
+        self._rotate_to(selection.region.start)
+        segment = self.chromosome[:length]
+        old_gids, cont_gids, transferred = [], [], []
+        for i, g in enumerate(segment):
+            old_gids.append(g.gid)
+            cont = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
+            self.chromosome[i] = cont
+            cont_gids.append(cont.gid)
+            transferred.append(OrderedGene(self.ids.new_gene(), g.family, g.orientation))
+        return TransferSegment(family=selection.family, genes=tuple(transferred),
+                               donor_old_gids=old_gids, donor_cont_gids=cont_gids)
+
+    def choose_insertion_point(self, segment, rng) -> int:
+        return int(rng.integers(len(self.chromosome) + 1))
+
+    def insert_segment(self, segment, at, rng) -> list[GeneOp]:
+        j = at if isinstance(at, int) else int(rng.integers(len(self.chromosome) + 1))
+        self.chromosome[j:j] = list(segment.genes)
+        return [GeneOp(g.gid, g.family, "transfer_copy") for g in segment.genes]
+
+    # --- speciation --------------------------------------------------------
+    def clone_reminting(self) -> tuple["OrderedGenome", list[tuple[str, str, str]]]:
+        new = type(self)(self.ids, self.extension)
+        mapping = []
+        for g in self.chromosome:
+            ng = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
+            new.chromosome.append(ng)
+            mapping.append((g.gid, ng.gid, g.family))
         return new, mapping

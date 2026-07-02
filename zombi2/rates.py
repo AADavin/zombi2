@@ -73,15 +73,21 @@ class UniformRates(RateModel):
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
-                 *, carrying_capacity: float | None = None):
-        for name, value in (("duplication", duplication), ("transfer", transfer),
-                            ("loss", loss), ("origination", origination)):
+                 *, inversion: float = 0.0, transposition: float = 0.0,
+                 carrying_capacity: float | None = None):
+        rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
+                 ("origination", origination), ("inversion", inversion),
+                 ("transposition", transposition))
+        for name, value in rates:
             if value < 0:
                 raise ValueError(f"{name} rate must be >= 0, got {value}")
         self.duplication = float(duplication)
         self.transfer = float(transfer)
         self.loss = float(loss)
         self.origination = float(origination)
+        # rearrangements: only fired by genomes that support them (e.g. OrderedGenome)
+        self.inversion = float(inversion)
+        self.transposition = float(transposition)
         self.carrying_capacity = carrying_capacity
 
     def _regulated(self) -> bool:
@@ -106,6 +112,10 @@ class UniformRates(RateModel):
                 out.append(EventWeight(EventType.TRANSFER, None, self.transfer * n))
             if self.loss > 0:
                 out.append(EventWeight(EventType.LOSS, None, self.loss * n))
+            if self.inversion > 0:
+                out.append(EventWeight(EventType.INVERSION, None, self.inversion * n))
+            if self.transposition > 0:
+                out.append(EventWeight(EventType.TRANSPOSITION, None, self.transposition * n))
         if self.origination > 0:
             out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
         return out

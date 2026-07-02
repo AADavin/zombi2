@@ -28,7 +28,7 @@ from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetPar
 from .tree import Tree, TreeNode
 from .species_model import BirthDeath, Yule
 from .species_sim import simulate_species_tree
-from .genome import Gene, Genome, UnorderedGenome
+from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from .rates import RateModel, UniformRates, FamilySampledRates, EventWeight
 from .transfers import TransferModel
 from .distributions import (
@@ -54,7 +54,7 @@ __all__ = [
     # species tree
     "BirthDeath", "Yule", "simulate_species_tree",
     # genome
-    "Gene", "Genome", "UnorderedGenome",
+    "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # rates & transfers
     "RateModel", "UniformRates", "FamilySampledRates", "EventWeight", "TransferModel",
     # distributions

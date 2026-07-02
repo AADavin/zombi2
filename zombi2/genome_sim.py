@@ -14,12 +14,13 @@ self-transfer) live in a :class:`~zombi2.transfers.TransferModel`; a hard family
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass
 
 import numpy as np
 
 from ._sampling import EventSampler, NumpyEventSampler
-from .events import EventLog, EventRecord, EventType, GeneOp
+from .events import EventLog, EventRecord, EventType, GeneOp, Selection
 from .genome import Genome, IdManager, UnorderedGenome
 from .rates import RateModel
 from .transfers import TransferModel
@@ -209,36 +210,45 @@ class GenomeSimulator:
             rec_genome = alive[recipient]
             at = rec_genome.choose_insertion_point(segment, rng)
             rec_genome.insert_segment(segment, at, rng)
-            fam = segment.family
             for old, cont, g in zip(segment.donor_old_gids, segment.donor_cont_gids, segment.genes):
                 log.add(EventRecord(
                     EventType.TRANSFER, branch.name, t,
-                    [GeneOp(old, fam, "parent"), GeneOp(cont, fam, "donor_copy"),
-                     GeneOp(g.gid, fam, "transfer_copy")],
+                    [GeneOp(old, g.family, "parent"), GeneOp(cont, g.family, "donor_copy"),
+                     GeneOp(g.gid, g.family, "transfer_copy")],
                     donor=branch.name, recipient=recipient.name,
                 ))
-            # replacement (by chance, or forced when the recipient is over the cap)
-            inserted = len(segment.genes)
-            existing_before = rec_genome.copy_number(fam) - inserted
-            if existing_before >= 1:
-                do_replace = self._cap is not None and existing_before >= self._cap  # forced
-                if not do_replace and self._transfers.replacement > 0:
-                    do_replace = rng.random() < self._transfers.replacement
-                if do_replace:
-                    self._replace_one(rec_genome, fam, {g.gid for g in segment.genes},
-                                      recipient, t, params, log, rng)
+            self._reconcile_recipient(rec_genome, segment, recipient, t, params, log, rng)
             return
 
-        # duplication or loss
+        # duplication / loss / inversion / transposition (one log record per group)
         selection = genome.draw_target(event, rng, params, family=family)
-        ops = genome.apply(event, selection, rng, params)
-        log.add(EventRecord(event, branch.name, t, ops))
+        for group in genome.apply(event, selection, rng, params):
+            log.add(EventRecord(event, branch.name, t, group))
 
-    def _replace_one(self, genome, family, protected_gids, branch, t, params, log, rng):
-        """Remove one pre-existing copy of ``family`` (not the just-transferred one)."""
-        while True:  # family has >= 2 copies here, so a non-protected pick exists
-            selection = genome.draw_target(EventType.LOSS, rng, params, family=family)
-            if selection.genes[0].gid not in protected_gids:
-                break
-        ops = genome.apply(EventType.LOSS, selection, rng, params)
-        log.add(EventRecord(EventType.LOSS, branch.name, t, ops))
+    def _reconcile_recipient(self, genome, segment, branch, t, params, log, rng):
+        """After a transfer: apply replacement (by chance) and enforce the family cap.
+
+        Works per family in the transferred segment, so it is correct for single-gene and
+        multi-gene (ordered) transfers alike.
+        """
+        protected = {g.gid for g in segment.genes}
+        for family, n_inserted in Counter(g.family for g in segment.genes).items():
+            total = genome.copy_number(family)
+            pre_existing = total - n_inserted
+            removals = 0
+            if self._cap is not None and total > self._cap:  # forced down to the cap
+                removals = total - self._cap
+            elif pre_existing >= 1 and self._transfers.replacement > 0:
+                removals = sum(rng.random() < self._transfers.replacement for _ in range(n_inserted))
+            for _ in range(removals):
+                self._remove_one(genome, family, protected, branch, t, params, log, rng)
+
+    def _remove_one(self, genome, family, protected, branch, t, params, log, rng):
+        """Remove one copy of ``family``, preferring a pre-existing (non-transferred) one."""
+        candidates = [g for g in genome.genes() if g.family == family]
+        preferred = [g for g in candidates if g.gid not in protected] or candidates
+        if not preferred:
+            return
+        victim = preferred[int(rng.integers(len(preferred)))]
+        for group in genome.apply(EventType.LOSS, Selection(genes=(victim,)), rng, params):
+            log.add(EventRecord(EventType.LOSS, branch.name, t, group))

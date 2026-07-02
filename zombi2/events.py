@@ -31,10 +31,12 @@ class EventType(Enum):
     DUPLICATION = "D"
     TRANSFER = "T"
     LOSS = "L"
+    # --- gene-order rearrangements (ordered genomes only) ---
+    INVERSION = "I"
+    TRANSPOSITION = "P"
     # --- structural markers (logged, never sampled) ---
     SPECIATION = "S"
     LEAF = "F"
-    # --- future: INVERSION = "I", TRANSPOSITION = "P" ---
 
 
 #: The events a rate model may fire (order-free v1 set).
