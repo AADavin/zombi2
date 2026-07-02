@@ -34,6 +34,7 @@ from .rates import (
     UniformRates,
     GenomeWiseRates,
     FamilySampledRates,
+    BranchRates,
     EventWeight,
 )
 from .transfers import TransferModel
@@ -63,7 +64,7 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # rates & transfers
     "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
-    "EventWeight", "TransferModel",
+    "BranchRates", "EventWeight", "TransferModel",
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
     # simulation

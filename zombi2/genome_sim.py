@@ -81,7 +81,7 @@ class GenomeSimulator:
         ids = IdManager()
         log = EventLog()
         root = tree.root
-        rate_model.bind(rng, max_family_size=self._cap)
+        rate_model.bind(rng, max_family_size=self._cap, tree=tree)
 
         # --- seed the root genome ------------------------------------------
         root_genome = genome_factory(ids)

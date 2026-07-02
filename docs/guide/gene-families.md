@@ -76,6 +76,29 @@ genome-wise models are far less prone to runaway growth. See the
 [`genome_wise_model.ipynb`](https://github.com/AADavin/zombi2/blob/main/examples/genome_wise_model.ipynb)
 notebook for a side-by-side comparison with the gene-wise model.
 
+### Branch-wise rates
+
+`BranchRates` makes rates vary **per species-tree branch** by scaling any base rate model
+with a per-branch factor (one scalar per branch, scaling duplication/transfer/loss
+together; origination is left unscaled). It composes with the base model, so branch and
+family heterogeneity combine. Choose one factor source:
+
+```python
+base = z.UniformRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
+
+# 1. autocorrelated (relaxed clock): related lineages have similar rates
+z.simulate_genomes(tree, z.BranchRates(base, autocorr_sigma=0.5), seed=1)
+
+# 2. i.i.d. per branch, drawn from a distribution
+z.simulate_genomes(tree, z.BranchRates(base, per_branch=z.LogNormal(0.0, 0.5)), seed=1)
+
+# 3. an explicit {branch_name: factor} map (branches not listed keep root_rate)
+z.simulate_genomes(tree, z.BranchRates(base, factors={"i3": 10.0}), seed=1)
+```
+
+For the relaxed clock, `factor(child) = factor(parent) · exp(N(0, σ·√branch_length))`, so
+the drift accumulates with time and `σ = 0` recovers the base model.
+
 ## Seeding the root genome
 
 `initial_size` sets how many gene families the root genome starts with (each originated at

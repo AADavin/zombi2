@@ -20,6 +20,7 @@ Auto-generated from the source docstrings.
 ::: zombi2.rates.UniformRates
 ::: zombi2.rates.GenomeWiseRates
 ::: zombi2.rates.FamilySampledRates
+::: zombi2.rates.BranchRates
 ::: zombi2.rates.EventWeight
 
 ## Distributions
