@@ -65,6 +65,16 @@ class NucleotideResult:
         for atoms in by_source.values():
             atoms.sort(key=lambda a: a.start)
         self._by_source = by_source
+        # parallel start arrays so any [src_start, src_end) segment finds its atoms by bisection
+        self._starts = {src: [a.start for a in atoms] for src, atoms in by_source.items()}
+
+    def _covered(self, source: str, ss: int, se: int) -> list:
+        """Atoms of ``source`` lying in ``[ss, se)`` (segment boundaries are atom boundaries)."""
+        atoms = self._by_source.get(source)
+        if not atoms:
+            return []
+        st = self._starts[source]
+        return atoms[bisect_left(st, ss):bisect_left(st, se)]
 
     # --- per-leaf views ----------------------------------------------------
     def trace_back(self, leaf: TreeNode) -> list[tuple[str, int, int]]:
@@ -75,10 +85,9 @@ class NucleotideResult:
         """The leaf genome as an ordered, signed sequence of atoms: ``[(atom_id, strand)]``."""
         out: list[tuple[int, int]] = []
         for seg in self.leaf_genomes[leaf]._segments:
-            covered = [a for a in self._by_source[seg.source]
-                       if a.start >= seg.src_start and a.end <= seg.src_end]
+            covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
-                covered = list(reversed(covered))
+                covered = reversed(covered)
             out.extend((a.atom_id, seg.strand) for a in covered)
         return out
 
@@ -96,9 +105,8 @@ class NucleotideResult:
         matrix = np.zeros((len(self.atoms), len(leaves)), dtype=int)
         for j, leaf in enumerate(leaves):
             for seg in self.leaf_genomes[leaf]._segments:
-                for a in self._by_source.get(seg.source, ()):
-                    if a.start >= seg.src_start and a.end <= seg.src_end:
-                        matrix[row[a.atom_id], j] += 1
+                for a in self._covered(seg.source, seg.src_start, seg.src_end):
+                    matrix[row[a.atom_id], j] += 1
         return atom_ids, [n.name for n in leaves], matrix
 
     # --- per-atom gene trees (steps 6-7: reconstruct the gene of each segment) ---
@@ -136,16 +144,6 @@ class NucleotideResult:
         top_cache: dict[str, str] = {}
         total_age = self.species_tree.total_age
 
-        # per-source atom lists sorted by start, with parallel start arrays for bisection
-        starts = {src: [a.start for a in atoms] for src, atoms in self._by_source.items()}
-
-        def covered(source: str, ss: int, se: int):
-            atoms = self._by_source.get(source)
-            if not atoms:
-                return ()
-            st = starts[source]
-            return atoms[bisect_left(st, ss):bisect_left(st, se)]  # start in [ss, se)
-
         records_by_atom: dict[int, list] = {a.atom_id: [] for a in self.atoms}
         species_by_atom: dict[int, dict] = {a.atom_id: {} for a in self.atoms}
 
@@ -156,7 +154,7 @@ class NucleotideResult:
             if entry is None:
                 continue
             source, ss, se = entry
-            atoms = covered(source, ss, se)
+            atoms = self._covered(source, ss, se)
             if not atoms:
                 continue
             if ev is EventType.ORIGINATION:
@@ -177,7 +175,7 @@ class NucleotideResult:
         for leaf, genome in self.leaf_genomes.items():
             name = leaf.name
             for seg in genome._segments:
-                atoms = covered(seg.source, seg.src_start, seg.src_end)
+                atoms = self._covered(seg.source, seg.src_start, seg.src_end)
                 if not atoms:
                     continue
                 rep = self._top(seg.seg_id, top_cache)
@@ -200,9 +198,8 @@ class NucleotideResult:
                 continue
             for op in r.genes:
                 source, ss, se = self.registry.provenance[op.gid]
-                for a in self._by_source.get(source, ()):
-                    if a.start >= ss and a.end <= se:
-                        out[a.atom_id].append((r.branch, r.time))
+                for a in self._covered(source, ss, se):
+                    out[a.atom_id].append((r.branch, r.time))
         return out
 
 
