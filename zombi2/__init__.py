@@ -52,6 +52,7 @@ from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
 from .simulation import simulate_genomes, Genomes
+from .parallel import run_replicates
 
 __all__ = [
     "__version__",
@@ -73,4 +74,6 @@ __all__ = [
     "build_gene_trees",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
+    # parallelism
+    "run_replicates",
 ]

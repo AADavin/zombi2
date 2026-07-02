@@ -57,6 +57,10 @@ Auto-generated from the source docstrings.
 ::: zombi2.simulation.Genomes
 ::: zombi2.genome_sim.GenomeSimulator
 
+## Parallel replicates
+
+::: zombi2.parallel.run_replicates
+
 ## Gene-tree reconstruction
 
 ::: zombi2.reconciliation.build_gene_trees
