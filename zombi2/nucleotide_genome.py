@@ -103,7 +103,7 @@ class NucleotideGenome(Genome):
                            dtype=np.int8, count=len(family_order))
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset((EventType.INVERSION,))
+        return frozenset((EventType.INVERSION, EventType.LOSS))
 
     # --- trace-back view: one cell per nucleotide, in physical order --------
     def to_cells(self) -> list[tuple[str, int, int]]:
@@ -206,6 +206,38 @@ class NucleotideGenome(Genome):
         self._segments[i_s:i_e] = arc
         return arc
 
+    # --- deletion -----------------------------------------------------------
+    def _apply_loss(self, s: int, ell: int) -> list[Segment]:
+        """Delete the circular arc ``[s, s+ell)`` and return the removed segments.
+
+        Boundaries at ``s`` and the arc end are split first, so the arc is a whole
+        number of segments; the survivors keep their circular order (the physical origin
+        follows the surviving material when the deletion swallows position 0).
+        """
+        L = self._length
+        if L == 0:
+            return []
+        ell = min(ell, L)
+        s %= L
+        if ell == L:                       # deletes the whole genome
+            removed = self._segments
+            self._segments, self._length = [], 0
+            return removed
+        e = (s + ell) % L
+        self._split_at(s)
+        self._split_at(e)
+
+        wrapping = s + ell > L
+        removed, kept, pos = [], [], 0
+        for seg in self._segments:
+            start = pos
+            pos += seg.length
+            in_arc = (start >= s or pos <= e) if wrapping else (start >= s and pos <= s + ell)
+            (removed if in_arc else kept).append(seg)
+        self._segments = kept
+        self._length -= ell
+        return removed
+
     def _draw_length(self, rng, params) -> int:
         ext = params.extension if params.extension is not None else self.extension
         n = self._length
@@ -217,18 +249,22 @@ class NucleotideGenome(Genome):
         return length
 
     def draw_target(self, event, rng, params, family=None) -> Selection:
-        if event is not EventType.INVERSION:
-            raise ValueError(f"NucleotideGenome (M1) does not target {event!r}")
+        if event not in (EventType.INVERSION, EventType.LOSS):
+            raise ValueError(f"NucleotideGenome does not target {event!r}")
         s = int(rng.integers(self._length))
         ell = self._draw_length(rng, params)
         return Selection(genes=(), region=Region(chromosome=0, start=s, length=ell))
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
+        region = selection.region
         if event is EventType.INVERSION:
-            arc = self._apply_inversion(selection.region.start, selection.region.length)
+            arc = self._apply_inversion(region.start, region.length)
             return [[GeneOp(seg.seg_id, seg.source, "inverted", orientation=seg.strand)
                      for seg in arc]]
-        raise ValueError(f"NucleotideGenome (M1) does not handle {event!r}")
+        if event is EventType.LOSS:
+            removed = self._apply_loss(region.start, region.length)
+            return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in removed]
+        raise ValueError(f"NucleotideGenome does not handle {event!r}")
 
     # --- transfer handoff (arrives in M3) ----------------------------------
     def extract_segment(self, selection, rng):

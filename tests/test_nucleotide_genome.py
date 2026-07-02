@@ -37,6 +37,17 @@ class ArrayGenome:
         seg = [(src, p, -st) for (src, p, st) in self.cells[s:s + ell][::-1]]
         self.cells[s:s + ell] = seg
 
+    def delete(self, s, ell):
+        L = len(self.cells)
+        ell = min(ell, L)
+        s %= L
+        if ell == L:
+            self.cells = []
+        elif s + ell > L:                       # wrapping: keep the middle [e, s)
+            self.cells = self.cells[(s + ell) % L:s]
+        else:                                   # non-wrapping: drop [s, s+ell)
+            del self.cells[s:s + ell]
+
 
 def _fresh(length, ext=0.99):
     g = NucleotideGenome(IdManager(), root_length=length, extension=ext)
@@ -188,3 +199,90 @@ def test_atom_histories_track_inversions():
     for events in histories.values():
         for branch, _t in events:
             assert branch in branches           # every entry is a real branch
+
+
+# --------------------------------------------------------------------------- #
+# M2: deletion — content shrinks (subset, still bijective), vs the oracle
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("seed", range(25))
+def test_inversion_and_deletion_match_oracle(seed):
+    rng = np.random.default_rng(seed)
+    L0 = int(rng.integers(40, 200))
+    g = _fresh(L0, ext=0.9)
+    o = ArrayGenome("1", L0)
+    for _ in range(120):
+        L = g.size()
+        if L <= 1:
+            break
+        s = int(rng.integers(L))
+        ell = int(rng.integers(1, L + 1))
+        if rng.random() < 0.5:
+            g._apply_inversion(s, ell)
+            o.invert(s, ell)
+        else:
+            ell = min(ell, L - 1)              # keep >= 1 nt so the run continues
+            g._apply_loss(s, ell)
+            o.delete(s, ell)
+        assert g.to_cells() == o.cells
+        assert g.size() == len(o.cells)
+
+
+def test_wrapping_deletion_matches_oracle():
+    g = _fresh(20, ext=0.7)
+    o = ArrayGenome("1", 20)
+    for s, ell in [(18, 5), (0, 3), (10, 4), (6, 5)]:  # includes origin-crossing deletes
+        g._apply_loss(s, ell)
+        o.delete(s, ell)
+        assert g.to_cells() == o.cells
+        assert g.size() == len(o.cells)
+
+
+def test_deletion_removes_content_but_stays_bijective():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=11)
+    res = simulate_nucleotide_genomes(tree, inversion=0.01, loss=0.02, root_length=300,
+                                      extension=0.95, seed=11)
+    assert any(r.event is EventType.LOSS for r in res.event_log)
+    root = {("1", i) for i in range(300)}
+    total = 0
+    for genome in res.leaf_genomes.values():
+        origins = [(src, p) for (src, p, _st) in genome.to_cells()]
+        assert set(origins) <= root                 # only ancestral material, no novelty
+        assert len(origins) == len(set(origins))    # no duplication -> still bijective
+        total += len(origins)
+    # something was actually deleted somewhere (expected leaf shorter than the root)
+    assert any(g.size() < 300 for g in res.leaf_genomes.values())
+
+
+def test_atoms_cover_exactly_the_surviving_positions():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=12)
+    res = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200,
+                                      extension=0.95, seed=12)
+    atoms = sorted((a for a in res.atoms if a.source == "1"), key=lambda a: a.start)
+    for x, y in zip(atoms, atoms[1:]):
+        assert x.end <= y.start                       # disjoint (gaps allowed)
+    atom_positions = {p for a in atoms for p in range(a.start, a.end)}
+    surviving = set()
+    for genome in res.leaf_genomes.values():
+        surviving.update(p for (_src, p, _st) in genome.to_cells())
+    assert atom_positions == surviving                # atoms == union of survivors
+
+
+def test_profile_matrix_matches_leaf_coverage():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=7, age=3.0, seed=13)
+    res = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200,
+                                      extension=0.95, seed=13)
+    atom_ids, species, matrix = res.profile_matrix()
+    assert matrix.shape == (len(res.atoms), len(res.leaf_genomes))
+    assert set(matrix.flatten()) <= {0, 1}            # loss only -> presence/absence
+    # not every atom is universal, and none is everywhere-absent (that isn't an atom)
+    assert matrix.min() == 0 and matrix.max() == 1
+    assert matrix.sum(axis=1).min() >= 1              # each atom present in >= 1 leaf
+
+
+def test_loss_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=14)
+    a = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200, seed=15)
+    b = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200, seed=15)
+    assert len(a.event_log) == len(b.event_log)
+    for leaf, ga in a.leaf_genomes.items():
+        assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()

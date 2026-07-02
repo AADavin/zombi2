@@ -80,6 +80,25 @@ class NucleotideResult:
             out.extend((a.atom_id, seg.strand) for a in covered)
         return out
 
+    # --- emergent phylogenetic profile (atoms as gene families) ------------
+    def profile_matrix(self):
+        """``(atom_ids, species, matrix)`` — copy number of each atom per extant leaf.
+
+        Atoms are the emergent "gene families": a maximal block with one shared history.
+        With loss only, entries are 0/1 (presence); duplication will lift them above 1.
+        This is the phylogenetic-profile dataset the atom decomposition produces for free.
+        """
+        leaves = sorted(self.leaf_genomes, key=lambda n: n.name)
+        atom_ids = [a.atom_id for a in self.atoms]
+        row = {a.atom_id: i for i, a in enumerate(self.atoms)}
+        matrix = np.zeros((len(self.atoms), len(leaves)), dtype=int)
+        for j, leaf in enumerate(leaves):
+            for seg in self.leaf_genomes[leaf]._segments:
+                for a in self._by_source.get(seg.source, ()):
+                    if a.start >= seg.src_start and a.end <= seg.src_end:
+                        matrix[row[a.atom_id], j] += 1
+        return atom_ids, [n.name for n in leaves], matrix
+
     # --- per-atom history (step 7: the events that touched each segment) ---
     def atom_histories(self) -> dict[int, list[tuple[str, float]]]:
         """``atom_id -> [(branch, time), ...]`` inversions whose arc covered the atom.
@@ -98,21 +117,40 @@ class NucleotideResult:
         return out
 
 
+def _merge(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge a list of ``[start, end)`` intervals into disjoint covered spans."""
+    merged: list[list[int]] = []
+    for lo, hi in sorted(intervals):
+        if merged and lo <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], hi)
+        else:
+            merged.append([lo, hi])
+    return [(lo, hi) for lo, hi in merged]
+
+
 def _build_atoms(leaf_genomes: dict, root_length: int) -> list[Atom]:
-    """Partition each source into atoms at the union of all extant-leaf breakpoints."""
+    """Partition each source into atoms at the union of all extant-leaf breakpoints.
+
+    With deletion, some ancestral positions survive in no extant leaf; those gaps carry
+    no atom. So an interval between consecutive breakpoints becomes an atom only if some
+    leaf still covers it.
+    """
     bounds: dict[str, set[int]] = {}
+    spans: dict[str, list[tuple[int, int]]] = {}
     for genome in leaf_genomes.values():
         for seg in genome._segments:
-            b = bounds.setdefault(seg.source, {0})
-            b.add(seg.src_start)
-            b.add(seg.src_end)
+            bounds.setdefault(seg.source, {0}).add(seg.src_start)
+            bounds[seg.source].add(seg.src_end)
+            spans.setdefault(seg.source, []).append((seg.src_start, seg.src_end))
     atoms: list[Atom] = []
     aid = 0
     for source in sorted(bounds):
+        covered = _merge(spans[source])
         cuts = sorted(bounds[source])
         for a, b in zip(cuts, cuts[1:]):
-            atoms.append(Atom(aid, source, a, b))
-            aid += 1
+            if any(lo <= a and b <= hi for lo, hi in covered):  # surviving material only
+                atoms.append(Atom(aid, source, a, b))
+                aid += 1
     return atoms
 
 
@@ -120,6 +158,7 @@ def simulate_nucleotide_genomes(
     species_tree: Tree,
     *,
     inversion: float = 0.001,
+    loss: float = 0.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_size: int = 1,
@@ -127,16 +166,17 @@ def simulate_nucleotide_genomes(
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
 ) -> NucleotideResult:
-    """Simulate variable-length inversions forward along ``species_tree`` (M1).
+    """Simulate variable-length structural events forward along ``species_tree``.
 
-    ``inversion`` is a per-nucleotide rate: the total genome inversion rate is
-    ``inversion * root_length``. ``extension`` sets the geometric inversion-length model
-    (mean ``1/(1-extension)`` nucleotides). Returns a :class:`NucleotideResult` carrying
-    the extant leaf genomes, the event log, the segment registry, and the atom partition.
+    ``inversion`` and ``loss`` are **per-nucleotide** rates: the total genome rate of
+    each is ``rate * current_length``. ``extension`` sets the geometric event-length
+    model (mean ``1/(1-extension)`` nucleotides). Returns a :class:`NucleotideResult`
+    carrying the extant leaf genomes, the event log, the segment registry, and the atom
+    partition (over the surviving ancestral material).
     """
     if rng is None:
         rng = np.random.default_rng(seed)
-    rates = UniformRates(inversion=inversion)
+    rates = UniformRates(inversion=inversion, loss=loss)
     registry: dict[str, tuple[str, int, int]] = {}
 
     def factory(ids):
