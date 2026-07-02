@@ -164,6 +164,7 @@ class EpisodicBirthDeath:
         cdf = self._cumtrapz(density, ages)
         cdf /= cdf[-1]
         self._cache_A, self._ages, self._cdf = A, ages, cdf
+        self._E = E  # kept for ghost-lineage grafting (P[no sampled descendant] by age)
 
     def sample_internal_age(self, u: float, A: float) -> float:
         if self._cache_A != A:

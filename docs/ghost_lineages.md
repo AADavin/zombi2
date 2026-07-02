@@ -79,14 +79,22 @@ tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.5), n_tips=20, ag
 z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.5), seed=1)   # augments in place
 genomes = z.simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
                              origination=0.5, seed=42)        # transfers can use ghosts
+
+# episodic rates + incomplete sampling (adds unsampled-extant ghosts as well as extinct ones):
+m = z.EpisodicBirthDeath(birth=[1.0, 1.6], death=[0.3, 0.8], shifts=[3.0], sampling_fraction=0.6)
+tree = z.simulate_species_tree(m, n_tips=50, age=6.0, seed=1)
+z.add_ghost_lineages(tree, m, seed=2)
 ```
 
 ## Scope & roadmap
 
-* **v1 (this iteration):** constant-rate `BirthDeath`/`Yule` (`ρ=1`, so ghosts are
-  extinct-before-present), rejection-grown subtrees, exhaustively sanity-checked.
-* **Next:** `EpisodicBirthDeath` (time-varying `λ(t)`, `E(t)` from the grid) and incomplete
-  sampling `ρ<1` (adds unsampled-extant ghosts); then the direct h-transform sampler.
+* **Supported:** constant-rate `BirthDeath`/`Yule`, and `EpisodicBirthDeath` with time-varying
+  `λ(t)`/`μ(t)` (`E(t)` from the model's ODE grid) and incomplete sampling `ρ<1`. With `ρ=1`
+  ghosts are extinct-before-present; with `ρ<1` they also include lineages alive today but
+  unsampled. Subtrees are grown by rejection (thinning handles the piecewise-constant rates),
+  exhaustively sanity-checked.
+* **Next:** the direct h-transform sampler (per-lineage birth `λE`, death `μ/E` — no rejection)
+  as a speed optimisation.
 
 ## Sanity checks (tests)
 

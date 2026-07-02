@@ -112,10 +112,45 @@ def test_ghost_nodes_are_non_extant_and_bounded_in_time():
     assert all(leaf.time < tree.total_age for leaf in _dead_leaves(tree))
 
 
-def test_episodic_not_yet_supported():
+def _episodic():
+    return z.EpisodicBirthDeath(birth=[1.0, 1.6], death=[0.4, 0.7], shifts=[2.0],
+                                sampling_fraction=0.7)
+
+
+def test_episodic_pruning_invariant():
+    tree = z.simulate_species_tree(_episodic(), n_tips=30, age=6.0, seed=5)
+    original = tree.to_newick()
+    z.add_ghost_lineages(tree, _episodic(), seed=11)
+    assert len(_dead_leaves(tree)) > 0
+    assert _extant_newick(tree) == original
+
+
+def test_episodic_incomplete_sampling_adds_unsampled_extant_ghosts():
+    # with ρ<1 some ghosts survive to the present but are unsampled (dead leaf at total_age)
+    tree = z.simulate_species_tree(_episodic(), n_tips=40, age=6.0, seed=3)
+    z.add_ghost_lineages(tree, _episodic(), seed=8)
+    at_present = [g for g in _dead_leaves(tree) if abs(g.time - tree.total_age) < 1e-9]
+    before_present = [g for g in _dead_leaves(tree) if g.time < tree.total_age - 1e-9]
+    assert len(at_present) > 0        # unsampled-extant ghosts (from ρ<1)
+    assert len(before_present) > 0    # extinct-before-present ghosts (from μ>0)
+
+
+def test_episodic_reproducible():
+    def run():
+        tree = z.simulate_species_tree(_episodic(), n_tips=30, age=6.0, seed=4)
+        z.add_ghost_lineages(tree, _episodic(), seed=42)
+        return tree.to_newick()
+    assert run() == run()
+
+
+def test_unsupported_model_raises():
     tree = _recon(1.0, 0.5, seed=1)
+
+    class NotAModel:
+        pass
+
     with pytest.raises(NotImplementedError):
-        z.add_ghost_lineages(tree, z.EpisodicBirthDeath([1.0], [0.5], []), seed=1)
+        z.add_ghost_lineages(tree, NotAModel(), seed=1)
 
 
 # --- integration: the forward gene sim uses ghosts as transfer partners -----
