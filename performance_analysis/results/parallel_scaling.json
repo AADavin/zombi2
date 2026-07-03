@@ -1,0 +1,98 @@
+{
+  "name": "parallel_scaling",
+  "title": "Replicate-level parallelism (compute-bound)",
+  "x_label": "Worker processes",
+  "meta": {
+    "regime": "BirthDeath(\u03bb=1.0, \u03bc=0.3), age 2.0; D=0.2 T=0.1 L=0.25 O=0.5, initial_size=20",
+    "profile": "standard",
+    "cpu_count": 10,
+    "n_replicates": 20,
+    "n_tips": 10000
+  },
+  "env": {
+    "timestamp_utc": "2026-07-03T11:36:35+00:00",
+    "git_commit": "1d07a37",
+    "git_dirty": false,
+    "zombi2_version": "0.2.0.dev0",
+    "rust_available": true,
+    "python": "3.12.2",
+    "numpy": "2.4.0",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "run batch",
+      "x": 1,
+      "times": [
+        21.66665958300291,
+        21.37130108299607
+      ],
+      "work": {
+        "n_replicates": 20,
+        "n_tips": 10000
+      }
+    },
+    {
+      "series": "run batch",
+      "x": 2,
+      "times": [
+        11.69820174999768,
+        11.648771499996656
+      ],
+      "work": {
+        "n_replicates": 20,
+        "n_tips": 10000
+      }
+    },
+    {
+      "series": "run batch",
+      "x": 4,
+      "times": [
+        7.523197499991511,
+        7.4289457089907955
+      ],
+      "work": {
+        "n_replicates": 20,
+        "n_tips": 10000
+      }
+    },
+    {
+      "series": "run batch",
+      "x": 6,
+      "times": [
+        6.789073790991097,
+        6.672174166000332
+      ],
+      "work": {
+        "n_replicates": 20,
+        "n_tips": 10000
+      }
+    },
+    {
+      "series": "run batch",
+      "x": 8,
+      "times": [
+        6.135317916996428,
+        6.021992499998305
+      ],
+      "work": {
+        "n_replicates": 20,
+        "n_tips": 10000
+      }
+    },
+    {
+      "series": "run batch",
+      "x": 10,
+      "times": [
+        5.434100250000483,
+        5.460221958011971
+      ],
+      "work": {
+        "n_replicates": 20,
+        "n_tips": 10000
+      }
+    }
+  ]
+}

@@ -74,6 +74,13 @@ from .traits import (
 )
 from .biogeography import DEC, simulate_biogeography
 from .simulation import simulate_genomes, Genomes
+from .coupling import (
+    CouplingSpec,
+    PottsRates,
+    pathway_blocks,
+    simulate_coupled,
+    CoupledResult,
+)
 from .matching import (
     match_profiles,
     match_profiles_smc,
@@ -109,6 +116,8 @@ __all__ = [
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
     "build_gene_trees",
+    # gene-family coupling (Potts/Ising non-independence)
+    "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled", "CoupledResult",
     # profile matching (rejection ABC + SMC)
     "match_profiles", "match_profiles_smc", "ABCFit", "default_summary", "default_gene_tree_summary",
     "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
