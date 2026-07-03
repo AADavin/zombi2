@@ -38,3 +38,6 @@ docs/non_independence.tex
 
 # OS
 .DS_Store
+
+# Multi-agent coordination log (shared via the working tree, not committed)
+HANDOFF.md
