@@ -65,11 +65,9 @@ sampler. See [ghost lineages](guide/ghost-lineages.md):
 zombi2 species --tips 50 --death 0.6 --ghosts -o out/
 ```
 
-**Reproducible runs.** Every run **always** writes its parameters to `<out>/species_tree.log`
-(or `<out>/genomes.log`) — version, command line, seed, and the parameters used.
-`--log-level {low,medium,high}` sets the detail: `low` is the bare minimum to reproduce,
-`medium` (default) adds the core scientific parameters, `high` adds a timestamp and every
-argument.
+**Reproducible runs.** Every run **always** writes the full set of parameters to
+`<out>/species_tree.log` (or `<out>/genomes.log`) — version, timestamp, command line, seed, and
+every option used — so any run can be reproduced.
 
 ## Options
 
@@ -88,7 +86,6 @@ argument.
 | `--removal` | [forward] removal probability `r` on sampling (`r<1` → sampled ancestors; default `1.0`) |
 | `--ghosts` / `--ghost-method {rejection,htransform}` | [backward] un-prune extinct/unsampled ghost lineages |
 | `--max-attempts` / `--max-lineages` | [forward] extinction-retry cap / live-lineage cap |
-| `--log-level {low,medium,high}` | detail of the always-written `<out>/species_tree.log` (default medium) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 ### `genomes`
@@ -100,14 +97,14 @@ argument.
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates |
 | `--initial-size` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
-| `--profiles-only` | write only the profile matrices (skip event log / gene trees) — see below |
+| `--output {profiles,trees,events,transfers,summary,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the fast path — see below |
+| `--sparse` | write the profile as a sparse `Profiles_sparse.tsv` instead of the dense matrix (needs `profiles` in `--output`) |
 | `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
-| `--log-level {low,medium,high}` | detail of the always-written `<out>/genomes.log` (default medium) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 Run `zombi2 <command> -h` for the authoritative list.
 
-## The Rust engine and `--profiles-only`
+## Choosing the output, and the Rust engine
 
 The built-in model runs on the native **Rust** engine automatically — there is no flag to turn
 it on, and no pure-Python fallback for it (which keeps results reproducible against one engine).
@@ -115,13 +112,16 @@ The `genomes` command therefore needs the compiled `zombi2_core` extension; it i
 by `pip install`, so build it once (see [the Rust engine](guide/rust-engine.md)) or the command
 exits with a build hint.
 
-By default `genomes` writes the full output — event tables, complete and extant gene trees,
-transfers, summary, and the profile matrices. Add `--profiles-only` to skip the event log and
-gene trees and write just `species_tree.nwk` + `Profiles.tsv` / `Presence.tsv` — the fastest
-path, for when the copy-number/presence matrix is all you need:
+`--output` selects which files to write — any of `profiles`, `trees`, `events`, `transfers`,
+`summary`, or `all` (default: `profiles trees`); `species_tree.nwk` is always written, and a
+component you don't ask for does no work (e.g. omitting `trees` skips the gene-tree
+reconstruction). Asking for **only** `profiles` takes the Rust counts-only fast path (no
+genealogy); `--sparse` then writes the profile as a scalable `Profiles_sparse.tsv` long table
+instead of the dense matrix:
 
 ```bash
-zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --profiles-only -o out/
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --output all -o out/
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --output profiles --sparse -o out/
 ```
 
 ## Scope

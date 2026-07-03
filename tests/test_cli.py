@@ -60,14 +60,14 @@ def test_genomes_on_supplied_tree(tmp_path):
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
                "--max-family-size", "0.5", "--seed", "42", "-o", str(gen)])
     assert rc == 0
-    for f in ("species_tree.nwk", "Profiles.tsv", "Transfers.tsv"):
+    for f in ("species_tree.nwk", "Profiles.tsv"):     # default output = profiles + trees
         assert (gen / f).exists()
     assert os.listdir(gen / "gene_trees")
 
 
 @needs_rust
-def test_genomes_writes_full_output(tmp_path):
-    """The default `genomes` run writes the full ZOMBI-1 output (Rust engine)."""
+def test_genomes_output_all_writes_full(tmp_path):
+    """`--output all` writes the full ZOMBI-1 output (Rust engine)."""
     sp = tmp_path / "sp"
     main(["species", "--birth", "1", "--death", "0.3",
           "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
@@ -75,7 +75,7 @@ def test_genomes_writes_full_output(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "-o", str(gen)])
+               "--seed", "42", "--output", "all", "-o", str(gen)])
     assert rc == 0
     for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv", "Transfers.tsv",
               "Gene_family_summary.tsv"):
@@ -85,8 +85,8 @@ def test_genomes_writes_full_output(tmp_path):
 
 
 @needs_rust
-def test_genomes_profiles_only(tmp_path):
-    """`--profiles-only` writes just the profile matrices — no gene trees / event log."""
+def test_genomes_output_profiles(tmp_path):
+    """`--output profiles` writes just the profile matrices — no gene trees / event log."""
     sp = tmp_path / "sp"
     main(["species", "--birth", "1", "--death", "0.3",
           "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
@@ -94,12 +94,36 @@ def test_genomes_profiles_only(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "--profiles-only", "-o", str(gen)])
+               "--seed", "42", "--output", "profiles", "-o", str(gen)])
     assert rc == 0
     assert (gen / "Profiles.tsv").exists()
     assert (gen / "Presence.tsv").exists()
     assert not (gen / "gene_trees").exists()
     assert not (gen / "Transfers.tsv").exists()
+
+
+@needs_rust
+def test_genomes_output_selection(tmp_path):
+    """`--output` writes exactly the requested components and nothing else."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "30", "--seed", "1", "-o", str(sp)])
+    gen = tmp_path / "gen"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.2", "--trans", "0.2",
+               "--loss", "0.2", "--orig", "0.5", "--seed", "1",
+               "--output", "trees", "transfers", "-o", str(gen)])
+    assert rc == 0
+    assert (gen / "gene_trees").exists() and (gen / "Transfers.tsv").exists()
+    assert not (gen / "Profiles.tsv").exists()          # profiles not requested
+    assert not (gen / "gene_family_events").exists()    # events not requested
+
+
+def test_sparse_requires_profiles(tmp_path):
+    """--sparse without 'profiles' in --output is a clean error (exit 1)."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.2", "--loss", "0.2",
+               "--orig", "0.5", "--output", "trees", "--sparse", "-o", str(tmp_path / "g")])
+    assert rc == 1
 
 
 def test_forward_extinction_returns_clean_error(tmp_path, capsys):
@@ -153,19 +177,11 @@ def test_species_backward_fossils_is_error(tmp_path):
 
 
 def test_log_written_by_default(tmp_path):
-    """Every run writes species_tree.log (medium level lists the core parameters)."""
+    """Every run always writes species_tree.log with the full set of parameters."""
     out = tmp_path / "sp"
     main(["species", "--tips", "15", "--seed", "3", "-o", str(out)])
     log = (out / "species_tree.log").read_text()
     assert "zombi2_version" in log and "seed\t3" in log and "model\tbackward" in log
-
-
-def test_log_level_low_is_minimal(tmp_path):
-    """--log-level low records only version/command/seed/result (no model params)."""
-    out = tmp_path / "sp"
-    main(["species", "--tips", "15", "--seed", "3", "--log-level", "low", "-o", str(out)])
-    log = (out / "species_tree.log").read_text()
-    assert "seed\t3" in log and "model\tbackward" not in log
 
 
 @needs_rust

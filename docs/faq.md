@@ -9,7 +9,7 @@ as durations. See the [command-line interface](cli.md).
 ### Is the CLI using the Rust engine?
 
 Yes — the built-in model runs on Rust automatically, so `zombi2 genomes` uses it (there is no
-`--fast` flag any more). Add `--profiles-only` for the reduced, counts-only output. See the
+`--fast` flag any more). Use `--output profiles` for the reduced, counts-only output. See the
 [command-line interface](cli.md).
 
 ### How do I get just the profile matrix, fast?

@@ -9,7 +9,7 @@ import time
 
 from .ghosts import add_ghost_lineages
 from .rates import GenomeWiseRates
-from .simulation import simulate_genomes
+from .simulation import Genomes, simulate_genomes
 from .species_model import BirthDeath, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
 from .tree import Tree, read_newick
@@ -70,9 +70,6 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--max-lineages", type=int, default=1_000_000,
                    help="[forward] abort a run exceeding this many live lineages (default 1000000)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("--log-level", choices=("low", "medium", "high"), default="medium",
-                   help="detail of the parameters saved to <out>/species_tree.log "
-                        "(always written; default medium)")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
 
@@ -88,13 +85,16 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--max-family-size", type=_int_or_float, default=None,
                    help="bound family growth: integer = absolute cap, "
                         "decimal = fraction of the number of species (e.g. 0.5)")
-    p.add_argument("--profiles-only", action="store_true",
-                   help="write only species_tree.nwk + Profiles.tsv/Presence.tsv (no event "
-                        "log or gene trees) — the fastest path (Rust counts-only engine).")
+    p.add_argument("--output", nargs="+", metavar="PART",
+                   choices=(*Genomes.WRITE_PARTS, "all"), default=["profiles", "trees"],
+                   help="which output files to write — any of {profiles, trees, events, "
+                        "transfers, summary} or 'all' (default: profiles trees). "
+                        "species_tree.nwk is always written; 'profiles' alone takes the fast "
+                        "Rust counts-only path")
     p.add_argument("--sparse", action="store_true",
-                   help="with --profiles-only, write the profile as a sparse long table "
-                        "(Profiles_sparse.tsv: family/species/copies, present cells only) "
-                        "instead of the dense matrix — the scalable output for huge trees.")
+                   help="write the profile as a sparse long table (Profiles_sparse.tsv: "
+                        "family/species/copies, present cells only) instead of the dense "
+                        "matrix — the scalable output for huge trees (needs 'profiles' in --output)")
     p.add_argument("--annotate-species", action="store_true",
                    help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
 
@@ -118,29 +118,17 @@ def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentPars
                               sampling_fraction=args.sampling_fraction, removal=args.removal)
 
 
-def _write_params_log(path: str, args: argparse.Namespace, summary: str, level: str) -> None:
-    """Write the run's parameters to ``path`` at verbosity ``level`` (low/medium/high).
+def _write_params_log(path: str, args: argparse.Namespace, summary: str) -> None:
+    """Write the full set of run parameters to ``path`` — always, for reproducibility."""
+    import datetime
 
-    ``low`` = version + command line + seed + result (enough to reproduce); ``medium`` (the
-    default) adds the core scientific parameters; ``high`` adds a timestamp and every argument
-    (including engine internals).
-    """
     from . import __version__
-    d = vars(args)
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
-             f"command_line\t{' '.join(sys.argv)}",
-             f"seed\t{d.get('seed')}"]
-    if level == "high":
-        import datetime
-        lines.append(f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}")
-    if level in ("medium", "high"):
-        skip = {"log_level", "out", "command", "seed"}
-        if level == "medium":
-            skip |= {"max_attempts", "max_lineages"}   # engine internals -> high only
-        for key in sorted(d):
-            if key not in skip:
-                lines.append(f"{key}\t{d[key]}")
+             f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
+             f"command_line\t{' '.join(sys.argv)}"]
+    for key, value in sorted(vars(args).items()):
+        lines.append(f"{key}\t{value}")
     lines.append(f"result\t{summary}")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -172,6 +160,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
     The default ``uniform`` model runs on the Rust engine automatically (``simulate_genomes``
     raises a build hint if the extension is missing); ``genome-wise`` runs on Python.
     """
+    parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
+    if args.sparse and "profiles" not in parts:
+        raise ValueError("--sparse affects the profile output; add 'profiles' to --output")
+
     if args.rate_model == "genome-wise":
         model_kw = dict(rates=GenomeWiseRates(args.dup, args.trans, args.loss, args.orig))
     else:  # uniform
@@ -181,20 +173,20 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
                    max_family_size=args.max_family_size, seed=args.seed)
 
     t0 = time.perf_counter()
-    if args.profiles_only:
+    if parts == {"profiles"}:
+        # counts-only Rust fast path: no genealogy reconstructed
         profiles = simulate_genomes(tree, output="profiles", **rate_kw)
         dt = time.perf_counter() - t0
-        _write_profiles_only(args.out, tree, profiles)
-        return (f"wrote profiles to {args.out}/ "
-                f"({len(tree.leaves())} tips, {len(profiles.families)} gene families, "
-                f"profiles only) in {dt:.3g} s")
-
-    genomes = simulate_genomes(tree, **rate_kw)
-    dt = time.perf_counter() - t0
-    genomes.write(args.out, annotate_species=args.annotate_species)
-    return (f"wrote simulation to {args.out}/ "
-            f"({len(tree.leaves())} tips, {len(genomes.profiles.families)} gene families) "
-            f"in {dt:.3g} s")
+        _write_profiles_only(args.out, tree, profiles, sparse=args.sparse)
+        n_families = len(profiles.families)
+    else:
+        genomes = simulate_genomes(tree, **rate_kw)
+        dt = time.perf_counter() - t0
+        genomes.write(args.out, include=parts, sparse=args.sparse,
+                      annotate_species=args.annotate_species)
+        n_families = len(genomes.profiles.families)
+    return (f"wrote [{' '.join(sorted(parts))}] to {args.out}/ "
+            f"({len(tree.leaves())} tips, {n_families} gene families) in {dt:.3g} s")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -212,9 +204,6 @@ def main(argv: list[str] | None = None) -> int:
                     help="input species tree in Newick format (e.g. species_tree.nwk)")
     _add_rate_args(pg)
     pg.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    pg.add_argument("--log-level", choices=("low", "medium", "high"), default="medium",
-                    help="detail of the parameters saved to <out>/genomes.log "
-                         "(always written; default medium)")
     pg.add_argument("-o", "--out", required=True, help="output directory")
 
     args = parser.parse_args(argv)
@@ -267,8 +256,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         extra = f" + {dead} extinct" if dead else ""
         summary = f"{n_extant} extant{extra} tips"
         print(f"wrote {args.out}/species_tree.nwk ({summary}) in {dt:.3g} s")
-        _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary,
-                          args.log_level)
+        _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
         return 0
 
     if args.command == "genomes":
@@ -276,7 +264,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             tree = read_newick(f.read())
         summary = _run_genomes(tree, args)
         print(summary)
-        _write_params_log(os.path.join(args.out, "genomes.log"), args, summary, args.log_level)
+        _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)
         return 0
 
     return 1
