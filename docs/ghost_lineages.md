@@ -1,5 +1,8 @@
 # Ghost (dead) lineages — design
 
+*For how to use `add_ghost_lineages`, see the [Ghost lineages](guide/ghost-lineages.md) guide.
+This page is the derivation and design rationale behind it.*
+
 ZOMBI2 samples the species tree **backward** as a *reconstructed* birth–death tree: only
 lineages with sampled extant descendants survive. That is efficient and conditions cleanly
 on `N` tips, but it drops every **dead lineage** — species that went extinct, and (under

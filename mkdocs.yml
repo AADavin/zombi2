@@ -53,6 +53,7 @@ nav:
   - User guide:
       - Species trees: guide/species-trees.md
       - Ghost lineages: guide/ghost-lineages.md
+      - Ghost lineages — how it works: ghost_lineages.md
       - Gene families & rates: guide/gene-families.md
       - Transfers: guide/transfers.md
       - Bounding growth: guide/growth.md
@@ -70,4 +71,3 @@ nav:
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
-      - Ghost lineages: ghost_lineages.md

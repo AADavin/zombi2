@@ -10,6 +10,18 @@ for example, an extinct lineage could have been the donor of a horizontal transf
 `z.add_ghost_lineages` **un-prunes** the tree: it grafts those dead ("ghost") lineages back
 on, so the tree again reflects the full process rather than just the survivors.
 
+!!! note "Un-pruning vs. simulating forward"
+    Un-pruning is for when you *already have* (or want) a reconstructed tree conditioned on
+    `N` extant tips and need the dead lineages added back. If you instead want the complete
+    tree from the start, `simulate_species_tree(..., direction="forward")` grows it forward
+    with extinct lineages included natively — no un-pruning needed. See
+    [species trees](species-trees.md). The two are distributionally equivalent for the
+    reconstructed part; pick by which you have in hand.
+
+This page is the how-to. For the exact conditional law behind it — the `λ(t)·E(t)`
+attachment intensity, the h-transform sampler, and why un-pruning is exact — see
+[Ghost lineages — how it works](../ghost_lineages.md).
+
 ## Basic use
 
 Pass the **same model** you used to build the tree:

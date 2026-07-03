@@ -80,6 +80,27 @@ ghosts = [n for n in tree.leaves() if not n.is_extant]   # ghost_* tips; extant 
 Only birth–death with extinction (or `sampling_fraction < 1`) produces ghosts — a pure-birth
 tree has none. See [ghost lineages](guide/ghost-lineages.md).
 
+### A forward (complete) tree with extinct lineages
+
+By default `simulate_species_tree` samples the *reconstructed* tree (extant tips only). Pass
+`direction="forward"` to grow the *complete* tree forward in time instead, keeping extinct
+lineages. Give **exactly one** of `age` (grow for that long; survivor count is random) or
+`n_tips` (condition on that many extant tips):
+
+```python
+# grow forward for a fixed age -> complete tree, random number of survivors
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), age=5.0, direction="forward", seed=1)
+
+# ...or condition on N extant tips (extinct lineages still included)
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
+
+extinct = [n for n in tree.leaves() if not n.is_extant]
+```
+
+This is the native alternative to un-pruning a backward tree
+([ghost lineages](guide/ghost-lineages.md)), and it also supports fossilized birth–death
+(dated/fossil tips). See [species trees](guide/species-trees.md).
+
 ## Gene families: rate models
 
 ### The same rates for every family (uniform)
@@ -294,6 +315,30 @@ if z.rust_available():
     z.simulate_and_write_fast(tree, "out/", duplication=0.05, loss=0.1,
                               origination=0.5, seed=42)
 ```
+
+## Fitting rates to an empirical profile (ABC)
+
+Run the model backwards: given an observed copy-number profile and the tree it was seen on,
+infer the D/T/L/O rates that reproduce it, by Approximate Bayesian Computation. Priors are
+given per rate as `(low, high)` (uniform), a fixed float, or any distribution; omitted rates
+are held at 0.
+
+```python
+empirical = z.ProfileMatrix.from_tsv("profiles.tsv")   # or any ProfileMatrix
+
+fit = z.match_profiles(tree, empirical, priors={
+    "duplication": (0, 1.0), "transfer": (0, 0.5),
+    "loss": (0, 1.5), "origination": (0, 3.0)}, n_sims=4000, accept=0.02, seed=1)
+
+fit.summary()       # {rate: {mean, median, lo95, hi95}} — read the intervals, not just a point
+fit.best            # the single closest-matching draw
+```
+
+For a sharper posterior with fewer simulations, use sequential Monte Carlo (uniform priors
+only): `z.match_profiles_smc(tree, empirical, priors=..., rounds=5, n_particles=200)`. Note
+that from copy number alone the gain rates (duplication/transfer/origination) are well
+identified but **loss sits on a ridge** — expect a wide loss interval. See
+[matching empirical profiles](guide/matching.md).
 
 ## From the command line
 

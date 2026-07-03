@@ -22,10 +22,10 @@ the output format — while rebuilding the internals around clean interfaces.
   representations, and transfer mechanics are all pluggable interfaces. New behaviour
   arrives as a *subclass* the simulator already knows how to drive, rather than as edits to
   a monolithic script. See [extending ZOMBI2](guide/extending.md).
-- **Backward, conditioned species trees.** The species tree is a reconstructed birth–death
-  process **conditioned on the number of extant tips**, so you get exactly `N` species at a
-  chosen age — cheaply and exactly — instead of running a forward process until it happens
-  to land on `N`. See [species trees](guide/species-trees.md).
+- **Species trees, backward *or* forward.** Sample the *reconstructed* tree directly,
+  conditioned on exactly `N` extant tips (cheap and exact), **or** simulate the *complete*
+  tree **forward** in time — extinct lineages included — with fossilized birth–death
+  (dated/fossil tips) and incomplete sampling. See [species trees](guide/species-trees.md).
 - **More rate models out of the box.** Beyond uniform and family-sampled rates, there are
   genome-wise rates and rate variation across the branches of the tree. See
   [rate variation](guide/rate-variation.md).
@@ -41,6 +41,10 @@ the output format — while rebuilding the internals around clean interfaces.
 - **Ghost lineages.** `z.add_ghost_lineages` un-prunes the reconstructed tree, grafting back
   the extinct/unsampled lineages the backward process leaves out. See
   [ghost lineages](guide/ghost-lineages.md).
+- **Inference, not just simulation.** `z.match_profiles` / `z.match_profiles_smc` run the
+  model the other way round: given an empirical gene-family profile, they infer the
+  duplication/transfer/loss/origination rates that reproduce it, by Approximate Bayesian
+  Computation. See [matching empirical profiles](guide/matching.md).
 - **Scale.** A modern Gillespie core plus an optional **Rust** engine make large trees
   (thousands to tens of thousands of tips) practical; `z.run_replicates` parallelises
   independent replicates across cores. See [the Rust fast path](guide/rust-fast-path.md)
@@ -51,8 +55,8 @@ the output format — while rebuilding the internals around clean interfaces.
 
 ## On the roadmap
 
-The interface-first design is meant to make the next models drop-in rather than rewrites —
-for example further species-tree models (episodic/skyline is already here;
-diversity-dependent and fossilized birth–death are planned) and gene-family **coupling**
-(a Potts-style model of non-independence between families). See the
+The interface-first design is meant to make the next models drop-in rather than rewrites.
+Much of what was once roadmap has landed — episodic/skyline rates, forward complete trees,
+and fossilized birth–death all ship today. The headline item still ahead is gene-family
+**coupling** (a Potts-style model of non-independence between families). See the
 [species-tree models roadmap](species_tree_models.md).
