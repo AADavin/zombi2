@@ -62,7 +62,8 @@ def main():
     medians = {p: [] for p in TRUTH}
     covered = {p: 0 for p in TRUTH}
     for r in range(n_rep):
-        emp_r = z.simulate_profiles_fast(tree, **TRUTH, initial_size=INITIAL_SIZE, seed=100 + r)
+        emp_r = z.simulate_genomes(tree, **TRUTH, initial_size=INITIAL_SIZE, seed=100 + r,
+                                   output="profiles")
         fit_r = z.match_profiles(tree, emp_r, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
         sr = fit_r.summary()
         for p in TRUTH:

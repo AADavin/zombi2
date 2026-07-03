@@ -36,11 +36,18 @@ def test_explicit_map_boosts_its_branch():
 
 def test_autocorr_zero_sigma_equals_base():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=3)
-    plain = simulate_genomes(tree, _base(), initial_size=10, seed=4)
+    # A bare UniformRates is the built-in model (Rust engine); a BranchRates wrapper runs on
+    # Python. To check the sigma=0 identity byte-for-byte, both must run on the same engine, so
+    # run the base on the Python engine explicitly.
+    from zombi2 import GenomeSimulator, ProfileMatrix
+
+    rng = np.random.default_rng(4)
+    base = GenomeSimulator().simulate(tree, _base(), rng, initial_size=10)
+    base_matrix = ProfileMatrix.from_leaf_genomes(base.leaf_genomes).matrix
     flat = simulate_genomes(tree, BranchRates(_base(), autocorr_sigma=0.0), initial_size=10, seed=4)
     # sigma=0 -> every factor is 1 -> identical dynamics
-    assert np.array_equal(plain.profiles.matrix, flat.profiles.matrix)
-    assert len(plain.event_log) == len(flat.event_log)
+    assert np.array_equal(base_matrix, flat.profiles.matrix)
+    assert len(base.event_log) == len(flat.event_log)
 
 
 def test_autocorrelated_runs_and_correlates_relatives():

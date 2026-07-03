@@ -86,26 +86,29 @@ of `z.RateModel` that need no change to the simulator. Distribution arguments ac
 built-in (`z.Gamma`, `z.Exponential`, `z.LogNormal`, `z.Uniform`, `z.Fixed`), any
 `scipy.stats` frozen distribution, or a callable `rng -> float`.
 
-**Large-scale profiles (optional Rust engine).** When you only need the presence/copy-number
-matrix — not the event log or gene trees — an optional native engine runs the forward
-Gillespie in Rust over per-family counts (~50× faster; the 10 000-tip profile matrix in
-~0.4 s). Build it once (`pip install maturin && cd rust && maturin build --release -i python3
-&& pip install --force-reinstall rust/target/wheels/*.whl`), then:
+**Engine (Rust).** The built-in model — the default `UnorderedGenome` with a plain
+`z.UniformRates` — runs on a native Rust engine automatically; `simulate_genomes` picks the
+engine from the model (flexible models such as `FamilySampledRates` / `GenomeWiseRates` run on
+Python), so there is no engine switch and no separate "fast" function. The built-in model
+**requires** the compiled extension; build it once:
 
-```python
-if z.rust_available():
-    profiles = z.simulate_profiles_fast(tree, duplication=0.05, transfer=0.03, loss=0.1,
-                                        origination=0.5, initial_size=200,
-                                        max_family_size=0.3, seed=42)  # -> ProfileMatrix
+```bash
+pip install maturin && cd rust && maturin build --release -i python3 \
+    && pip install --force-reinstall rust/target/wheels/*.whl
 ```
 
-Need the full event log and gene trees, just faster? `z.simulate_genomes_fast(...)` tracks gene
-lineages in Rust and returns a complete `Genomes` (with `.event_log`, `.gene_trees()`,
-`.write()`) — a drop-in for `simulate_genomes` (~3× at 10k tips). And for large datasets on
-disk, `z.simulate_and_write_fast(tree, "out/", ...)` simulates, reconstructs gene trees, **and
-writes the whole ZOMBI-1 output in Rust** — ~10× vs Python simulate + write. All three fast
-paths cover the built-in `UnorderedGenome` + `UniformRates` model; the pure-Python
-`simulate_genomes` stays the default. See `docs/guide/rust-fast-path.md`.
+`simulate_genomes(...)` returns the full `Genomes` (event log, gene trees, `.write()`). When
+you only need the presence/copy-number matrix — not the event log or gene trees — pass
+`output="profiles"` for the counts-only path (~50× faster; the 10 000-tip profile matrix in
+~0.4 s):
+
+```python
+profiles = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
+                              origination=0.5, initial_size=200, max_family_size=0.3,
+                              seed=42, output="profiles")  # -> ProfileMatrix
+```
+
+See `docs/guide/rust-engine.md`.
 
 ### CLI
 
@@ -139,22 +142,18 @@ write the full ZOMBI-1-style output described above.
 | `--dup` `--trans` `--loss` `--orig` | `genomes`, `all` | per-copy duplication / transfer / loss / origination rates |
 | `--initial-size` | `genomes`, `all` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | `genomes`, `all` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
-| `--fast` | `genomes`, `all` | use the Rust engine (same full output, much faster; see below) |
-| `--profiles-only` | `genomes`, `all` | with `--fast`, write only the profile matrices |
+| `--profiles-only` | `genomes`, `all` | write only the profile matrices (fast counts-only path, no event log or gene trees) |
 | `--seed` | all | RNG seed for reproducibility |
 | `-o` / `--out` | all | output directory |
 
-**`--fast` (Rust).** Routes `genomes`/`all` through the optional Rust engine
-(`simulate_and_write_fast`): it simulates, reconstructs the gene trees, and writes the **full
-ZOMBI-1 output** — the same files as the default — entirely in Rust (~10× faster at scale).
-Add `--profiles-only` to write just `species_tree.nwk` + `Profiles.tsv`/`Presence.tsv` (the
-even-faster `simulate_profiles_fast`, no event log or gene trees). Requires the compiled
-`zombi2_core` extension (see the Rust section above); without it, `--fast` exits with a build
-hint.
+`genomes`/`all` run the built-in model on the Rust engine (required — the command exits with a
+build hint if the extension is missing; see the Rust section above) and write the full ZOMBI-1
+output. Add `--profiles-only` to write just `species_tree.nwk` + `Profiles.tsv`/`Presence.tsv`
+(the counts-only path, no event log or gene trees).
 
 ```bash
-zombi2 all --birth 1 --tips 5000 --age 5 --dup 0.2 --loss 0.25 --orig 0.5 --fast -o out/
-zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --fast --profiles-only -o out/
+zombi2 all --birth 1 --tips 5000 --age 5 --dup 0.2 --loss 0.25 --orig 0.5 -o out/
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --profiles-only -o out/
 ```
 
 Run `zombi2 <command> --help` for the full list. The CLI covers the common uniform-rate

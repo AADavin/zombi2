@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import os
 
-from .fast import rust_available, simulate_and_write_fast, simulate_profiles_fast
 from .simulation import simulate_genomes
 from .species_model import BirthDeath
 from .species_sim import simulate_species_tree
@@ -45,17 +44,13 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--max-family-size", type=_int_or_float, default=None,
                    help="bound family growth: integer = absolute cap, "
                         "decimal = fraction of the number of species (e.g. 0.5)")
-    p.add_argument("--fast", action="store_true",
-                   help="use the Rust engine (much faster). Writes the same full ZOMBI-1 "
-                        "output as the default, but simulated, reconstructed and written "
-                        "entirely in Rust. Requires the compiled zombi2_core extension.")
     p.add_argument("--profiles-only", action="store_true",
-                   help="with --fast, write only species_tree.nwk + Profiles.tsv/Presence.tsv "
-                        "(no event log or gene trees) — the fastest path.")
+                   help="write only species_tree.nwk + Profiles.tsv/Presence.tsv (no event "
+                        "log or gene trees) — the fastest path (Rust counts-only engine).")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
-    """Emit the reduced output of the Rust fast path: tree + copy-number/presence matrices."""
+    """Emit the reduced profiles-only output: tree + copy-number/presence matrices."""
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")
@@ -66,38 +61,23 @@ def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
 
 
 def _run_genomes(tree: Tree, args) -> str:
-    """Simulate gene families along ``tree`` and write output; return a one-line summary."""
-    if args.fast:
-        if not rust_available():
-            raise SystemExit(
-                "--fast needs the compiled zombi2_core extension; build it with "
-                "`cd rust && maturin build --release -i python3 && "
-                "pip install --force-reinstall target/wheels/*.whl`, or drop --fast."
-            )
-        if args.profiles_only:
-            profiles = simulate_profiles_fast(
-                tree, duplication=args.dup, transfer=args.trans, loss=args.loss,
-                origination=args.orig, initial_size=args.initial_size,
-                max_family_size=args.max_family_size, seed=args.seed,
-            )
-            _write_profiles_only(args.out, tree, profiles)
-            return (f"wrote profiles to {args.out}/ (Rust fast path: "
-                    f"{len(tree.leaves())} tips, {len(profiles.families)} gene families, "
-                    f"profiles only)")
-        summary = simulate_and_write_fast(
-            tree, args.out, duplication=args.dup, transfer=args.trans, loss=args.loss,
-            origination=args.orig, initial_size=args.initial_size,
-            max_family_size=args.max_family_size, seed=args.seed,
-        )
-        return (f"wrote simulation to {args.out}/ (Rust fast path: "
-                f"{summary['n_species']} tips, {summary['n_families']} gene families, "
-                f"{summary['n_events']} events)")
+    """Simulate gene families along ``tree`` and write output; return a one-line summary.
 
-    genomes = simulate_genomes(
-        tree, duplication=args.dup, transfer=args.trans, loss=args.loss,
-        origination=args.orig, initial_size=args.initial_size,
-        max_family_size=args.max_family_size, seed=args.seed,
-    )
+    The built-in model runs on the Rust engine automatically (``simulate_genomes`` raises a
+    build hint if the extension is missing).
+    """
+    rate_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
+                   origination=args.orig, initial_size=args.initial_size,
+                   max_family_size=args.max_family_size, seed=args.seed)
+
+    if args.profiles_only:
+        profiles = simulate_genomes(tree, output="profiles", **rate_kw)
+        _write_profiles_only(args.out, tree, profiles)
+        return (f"wrote profiles to {args.out}/ "
+                f"({len(tree.leaves())} tips, {len(profiles.families)} gene families, "
+                f"profiles only)")
+
+    genomes = simulate_genomes(tree, **rate_kw)
     genomes.write(args.out)
     return (f"wrote simulation to {args.out}/ "
             f"({len(tree.leaves())} tips, {len(genomes.profiles.families)} gene families)")

@@ -76,12 +76,13 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.parallel.run_replicates
 
-## Rust fast path (optional)
+## Rust engine
 
-::: zombi2.fast.simulate_profiles_fast
-::: zombi2.fast.simulate_genomes_fast
-::: zombi2.fast.simulate_and_write_fast
-::: zombi2.fast.rust_available
+The built-in model runs on the Rust engine automatically via `simulate_genomes` (see the
+[Rust engine](../guide/rust-engine.md) guide); `rust_available()` reports whether the compiled
+extension is installed.
+
+::: zombi2._rust.available
 
 ## Gene-tree reconstruction
 

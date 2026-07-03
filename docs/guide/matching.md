@@ -107,8 +107,8 @@ fit.summary(adjusted=True)         # summary of the adjusted posterior
 
 If you have gene trees, pass an empirical [`Genomes`](../reference/api.md#simulation-driver)
 and set `gene_trees=True`. The summary then also uses duplication/transfer/loss **event
-counts**, which pin the gain-side rates sharply. This uses the Python engine (the fast path
-produces no gene trees):
+counts**, which pin the gain-side rates sharply. Simulations then return the full genealogy
+(`output="genomes"`) rather than the counts-only path:
 
 ```python
 emp = z.simulate_genomes(tree, duplication=0.3, transfer=0.1, loss=0.5,
@@ -142,8 +142,8 @@ model is sharply identified.
 
 ## Choosing the model
 
-By default `match_profiles` fits the four scalar rates shared by every family (the fast
-Rust path when available). You can instead fit richer models:
+By default `match_profiles` fits the four scalar rates shared by every family (the built-in
+model, which runs on the Rust engine). You can instead fit richer models:
 
 ```python
 # per-family heterogeneous rates: fit the *means* of FamilySampledRates distributions
@@ -158,14 +158,14 @@ z.match_profiles(tree, emp, priors={"d": (0, 1), "l": (0, 1)},
 !!! tip "Cap growth on the Python engine"
     `model="family"` and custom models run on the Python engine, which builds an object per
     gene copy — a high-duplication draw can blow up. Pass `max_family_size=` to bound it.
-    The default uniform model on the Rust fast path is immune (it tracks integer counts).
+    The default uniform model on the Rust engine is immune (it tracks integer counts).
 
 ## Speed
 
-The inner loop is embarrassingly parallel and, for the default uniform model, rides the
-[Rust fast path](rust-fast-path.md) automatically. `engine` is `"auto"` (fast if built and
-the model allows, else Python), `"fast"`, or `"python"`. `processes > 1` distributes the
-simulations across worker processes — results are identical regardless of the count:
+The inner loop is embarrassingly parallel and, for the default uniform model, runs on the
+[Rust engine](rust-engine.md) automatically (the engine is chosen by the model — there is no
+`engine` argument). `processes > 1` distributes the simulations across worker processes —
+results are identical regardless of the count:
 
 ```python
 fit = z.match_profiles(tree, empirical, priors=priors, n_sims=20_000,

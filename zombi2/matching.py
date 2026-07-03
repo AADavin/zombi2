@@ -6,7 +6,7 @@ reproduces that profile. It is a plain **Approximate Bayesian Computation** (ABC
 sampler:
 
 1. draw a parameter set from the priors,
-2. simulate a profile matrix under it (the fast Rust path when available),
+2. simulate a profile matrix under it (the built-in model runs on the fast Rust engine),
 3. reduce both the simulated and the empirical matrix to a vector of **summary
    statistics**, and
 4. keep the draws whose summaries land closest to the empirical one.
@@ -25,10 +25,11 @@ Each summary component is scaled by its standard deviation across the simulated 
 the distance is scale-free without hand-tuned weights (Prangle 2015).
 
 **Models.** ``model="uniform"`` (default) fits the four scalar D/T/L/O rates shared by
-every family (Rust fast path). ``model="family"`` fits the same four values as the *means*
-of per-family rate distributions (:class:`~zombi2.FamilySampledRates`), so families are
-heterogeneous; this runs on the Python engine. You can also pass any callable
-``params_dict -> RateModel`` as ``model`` for full generality.
+every family (the built-in model — runs on the fast Rust engine). ``model="family"`` fits
+the same four values as the *means* of per-family rate distributions
+(:class:`~zombi2.FamilySampledRates`), so families are heterogeneous; this runs on the
+Python engine. You can also pass any callable ``params_dict -> RateModel`` as ``model`` for
+full generality.
 
 **On identifiability.** From presence/copy number alone the rates are only partly
 separable — gain routes (origination vs transfer) and the gain/loss balance trade off. So
@@ -201,14 +202,14 @@ class _FamilyModel:
 
 
 def _resolve_model(model, family_shape):
-    """Return ``(builder, fast_ok)``. ``builder`` is ``None`` for the uniform scalar model
-    (which uses the Rust fast path); otherwise a callable ``params -> RateModel``."""
+    """Return the ``builder``: ``None`` for the uniform scalar model (built-in, runs on Rust
+    via ``simulate_genomes``), otherwise a callable ``params -> RateModel`` (Python engine)."""
     if model is None or model == "uniform":
-        return None, True
+        return None
     if model == "family":
-        return _FamilyModel(family_shape), False
+        return _FamilyModel(family_shape)
     if callable(model):
-        return model, False
+        return model
     raise ValueError("model must be 'uniform', 'family', or a callable params -> RateModel")
 
 
@@ -399,39 +400,26 @@ def _normalize_priors(priors: dict, restrict: bool) -> dict[str, Distribution]:
     return out
 
 
-def _resolve_engine(engine: str, fast_ok: bool) -> str:
-    from .fast import rust_available
-    if engine == "auto":
-        return "fast" if (fast_ok and rust_available()) else "python"
-    if engine not in ("fast", "python"):
-        raise ValueError("engine must be 'auto', 'fast', or 'python'")
-    if engine == "fast":
-        if not fast_ok:
-            raise ValueError("engine='fast' only supports model='uniform'; "
-                             "use engine='python' for the family/custom models")
-        if not rust_available():
-            raise RuntimeError("engine='fast' requested but the zombi2_core Rust extension "
-                               "is not built; use engine='python' or 'auto'")
-    return engine
-
-
-def _simulate(tree, vals, *, engine, builder, initial_size, max_family_size, transfers,
+def _simulate(tree, vals, *, builder, initial_size, max_family_size, transfers,
               seed, return_genomes=False):
-    kw = dict(initial_size=initial_size, max_family_size=max_family_size,
-              transfers=transfers, seed=seed)
-    if builder is None and engine == "fast":   # uniform scalar model, Rust fast path
-        from .fast import simulate_profiles_fast
-        return simulate_profiles_fast(tree, **vals, **kw)
+    """One ABC simulation. ``simulate_genomes`` picks the engine automatically: the uniform
+    scalar model (``builder is None``) runs on Rust; family/custom builders run on Python.
+    ``output="profiles"`` takes the fast counts-only path; ``output="genomes"`` returns the
+    full result (needed for the gene-tree summary)."""
     from .simulation import simulate_genomes
-    genomes = (simulate_genomes(tree, **vals, **kw) if builder is None
-               else simulate_genomes(tree, builder(vals), **kw))
-    return genomes if return_genomes else genomes.profiles
+
+    kw = dict(initial_size=initial_size, max_family_size=max_family_size,
+              transfers=transfers, seed=seed,
+              output="genomes" if return_genomes else "profiles")
+    if builder is None:
+        return simulate_genomes(tree, **vals, **kw)
+    return simulate_genomes(tree, builder(vals), **kw)
 
 
-def _simulate_and_summarize(draw, tree, engine, builder, initial_size,
+def _simulate_and_summarize(draw, tree, builder, initial_size,
                             max_family_size, transfers, summarize, return_genomes):
     vals, seed = draw
-    out = _simulate(tree, vals, engine=engine, builder=builder, initial_size=initial_size,
+    out = _simulate(tree, vals, builder=builder, initial_size=initial_size,
                     max_family_size=max_family_size, transfers=transfers, seed=seed,
                     return_genomes=return_genomes)
     return summarize(out)
@@ -466,7 +454,6 @@ def match_profiles(
     initial_size: int = 20,
     max_family_size=None,
     transfers=None,
-    engine: str = "auto",
     processes: int | None = None,
     seed: int | None = None,
 ) -> ABCFit:
@@ -488,9 +475,10 @@ def match_profiles(
         here are held at 0.
     model:
         ``"uniform"`` / ``None`` (default) fits the four scalar rates shared by all families
-        (Rust fast path). ``"family"`` fits them as the *means* of per-family rate
-        distributions (:class:`~zombi2.FamilySampledRates`, dispersion set by
-        ``family_shape``; Python engine). Or pass a callable ``params -> RateModel``.
+        (the built-in model — runs on the Rust engine, so it is fast). ``"family"`` fits them
+        as the *means* of per-family rate distributions (:class:`~zombi2.FamilySampledRates`,
+        dispersion set by ``family_shape``; Python engine). Or pass a callable
+        ``params -> RateModel``.
     statistics:
         A summary function ``pm -> 1-D array``; defaults to :func:`default_summary` over the
         empirical species. Must be picklable if ``processes`` is used. May expose a
@@ -498,9 +486,9 @@ def match_profiles(
     gene_trees:
         If True, use gene-tree information: ``empirical`` must be a :class:`~zombi2.Genomes`
         (not just a profile), the default summary becomes :func:`default_gene_tree_summary`
-        (profile + weighted duplication/transfer/loss counts), and the Python engine is used
-        (the Rust fast path yields no gene trees). Sharpens the gain-side rates; loss stays
-        the hardest to identify.
+        (profile + weighted duplication/transfer/loss counts), and simulations return the full
+        genealogy (``output="genomes"``) rather than the counts-only path. Sharpens the
+        gain-side rates; loss stays the hardest to identify.
     feature_weights:
         Optional per-summary-component weights applied to the (scaled) distance, so a small
         informative block of statistics is not drowned by a large one. Overrides any
@@ -510,9 +498,6 @@ def match_profiles(
     accept:
         A float in ``(0, 1]`` keeps that fraction of the closest draws; an int keeps that
         many.
-    engine:
-        ``"auto"`` (Rust fast path if available and the model allows it, else Python),
-        ``"fast"``, or ``"python"``.
     processes:
         ``None`` (default) or ``1`` runs serially in-process. An int ``> 1`` distributes the
         simulations across that many worker processes (results are identical regardless of
@@ -533,9 +518,6 @@ def match_profiles(
         if not (hasattr(empirical, "profiles") and hasattr(empirical, "event_log")):
             raise TypeError("gene_trees=True requires an empirical Genomes (with gene trees), "
                             "not a bare profile matrix")
-        if engine == "fast":
-            raise ValueError("gene_trees=True requires the Python engine (the Rust fast path "
-                             "produces no gene trees); use engine='auto' or 'python'")
         profile_mat = empirical.profiles
         species_order = list(profile_mat.species)
         summarize = statistics or default_gene_tree_summary(species_order)
@@ -548,12 +530,9 @@ def match_profiles(
     uses_default = statistics is None
     target = summarize(empirical)
 
-    builder, fast_ok = _resolve_model(model, family_shape)
-    if gene_trees:
-        fast_ok = False                     # gene trees need the full (Python) engine
+    builder = _resolve_model(model, family_shape)
     priors = _normalize_priors(priors, restrict=builder is None or isinstance(builder, _FamilyModel))
     names = list(priors.keys())
-    engine = _resolve_engine(engine, fast_ok)
     weights = feature_weights if feature_weights is not None else getattr(summarize, "feature_weights", None)
     rng = np.random.default_rng(seed)
 
@@ -567,7 +546,7 @@ def match_profiles(
         draws.append((vals, sim_seed))
         samples[i] = [vals[n] for n in names]
 
-    cfg = (tree, engine, builder, initial_size, max_family_size, transfers, summarize, gene_trees)
+    cfg = (tree, builder, initial_size, max_family_size, transfers, summarize, gene_trees)
     if processes is None or processes == 1:
         summaries = np.array([_simulate_and_summarize(d, *cfg) for d in draws])
     else:
@@ -612,14 +591,12 @@ def match_profiles(
 
 # --- ABC-SMC (sequential Monte Carlo) --------------------------------------------
 
-def _prepare(tree, empirical, statistics, gene_trees, engine, model, family_shape,
+def _prepare(tree, empirical, statistics, gene_trees, model, family_shape,
              priors_spec, feature_weights):
-    """Shared setup: resolve the summary/target, model builder, engine, and priors."""
+    """Shared setup: resolve the summary/target, model builder, and priors."""
     if gene_trees:
         if not (hasattr(empirical, "profiles") and hasattr(empirical, "event_log")):
             raise TypeError("gene_trees=True requires an empirical Genomes (with gene trees)")
-        if engine == "fast":
-            raise ValueError("gene_trees=True requires the Python engine")
         profile_mat = empirical.profiles
         species_order = list(profile_mat.species)
         summarize = statistics or default_gene_tree_summary(species_order)
@@ -630,16 +607,13 @@ def _prepare(tree, empirical, statistics, gene_trees, engine, model, family_shap
         species_order = list(profile_mat.species)
         summarize = statistics or default_summary(species_order)
         target = summarize(profile_mat)
-    builder, fast_ok = _resolve_model(model, family_shape)
-    if gene_trees:
-        fast_ok = False
+    builder = _resolve_model(model, family_shape)
     priors = _normalize_priors(priors_spec, restrict=builder is None or isinstance(builder, _FamilyModel))
     names = list(priors.keys())
-    engine = _resolve_engine(engine, fast_ok)
     weights = feature_weights if feature_weights is not None else getattr(summarize, "feature_weights", None)
     weights = None if weights is None else np.asarray(weights, float)
     return dict(summarize=summarize, target=target, weights=weights, profile_mat=profile_mat,
-                species_order=species_order, builder=builder, engine=engine,
+                species_order=species_order, builder=builder,
                 return_genomes=gene_trees, uses_default=statistics is None,
                 priors=priors, names=names)
 
@@ -682,7 +656,6 @@ def match_profiles_smc(
     initial_size: int = 20,
     max_family_size=None,
     transfers=None,
-    engine: str = "auto",
     seed: int | None = None,
     max_attempts_factor: int = 100,
 ) -> ABCFit:
@@ -696,15 +669,15 @@ def match_profiles_smc(
     the population an unbiased posterior sample. The result is a **sharper** posterior than
     rejection for a similar simulation budget.
 
-    Takes the same model/summary/engine/gene_trees options as :func:`match_profiles`, but
+    Takes the same model/summary/gene_trees options as :func:`match_profiles`, but
     **priors must be uniform** (``(low, high)`` / :class:`~zombi2.Uniform`) or fixed — the
     perturbation and weighting need bounded support. Returns an :class:`ABCFit` whose final
     population is weighted (``.summary()`` reports weighted credible intervals).
     """
-    p = _prepare(tree, empirical, statistics, gene_trees, engine, model, family_shape,
+    p = _prepare(tree, empirical, statistics, gene_trees, model, family_shape,
                  priors, feature_weights)
     summarize, target, w_feat = p["summarize"], p["target"], p["weights"]
-    builder, engine, return_genomes = p["builder"], p["engine"], p["return_genomes"]
+    builder, return_genomes = p["builder"], p["return_genomes"]
     names, priors = p["names"], p["priors"]
     lo, hi = _uniform_bounds(priors, names)
     active = hi > lo
@@ -713,7 +686,7 @@ def match_profiles_smc(
 
     def sim_summ(theta):
         vals = {n: max(0.0, float(v)) for n, v in zip(names, theta)}
-        out = _simulate(tree, vals, engine=engine, builder=builder, initial_size=initial_size,
+        out = _simulate(tree, vals, builder=builder, initial_size=initial_size,
                         max_family_size=max_family_size, transfers=transfers,
                         seed=int(rng.integers(1, 2**63 - 1)), return_genomes=return_genomes)
         return summarize(out)

@@ -304,6 +304,7 @@ def simulate_nucleotide_genomes(
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
+    output: str = "genomes",
 ) -> NucleotideResult:
     """Simulate variable-length structural events forward along ``species_tree``.
 
@@ -318,7 +319,33 @@ def simulate_nucleotide_genomes(
 
     Duplication and additive transfer grow the genome with no cap, so keep them at or below
     ``loss`` over long ages to avoid runaway growth.
+
+    ``output``:
+        ``"genomes"`` (default) runs the pure-Python engine and returns the full result
+        (event log, per-atom gene trees and histories). ``"profiles"`` runs the compiled
+        ``zombi2_core`` Rust engine over leaf segments only — much faster, and enough for
+        ``profile_matrix()`` / ``leaf_mosaic()`` / ``trace_back()`` — but emits no event log,
+        so ``atom_gene_trees()`` / ``atom_histories()`` are unavailable and it **requires**
+        the extension.
     """
+    if output not in ("genomes", "profiles"):
+        raise ValueError(f"output must be 'genomes' or 'profiles', got {output!r}")
+    if output == "profiles":
+        if sampler is not None:
+            raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
+        if extension is None:
+            raise ValueError("output='profiles' requires a numeric `extension` (the geometric "
+                             "event-length parameter); the None mode is Python-engine only")
+        if seed is None and rng is not None:
+            seed = int(rng.integers(0, 2**63 - 1))
+        from . import _rust
+        return _rust.nucleotide(
+            species_tree, inversion=inversion, loss=loss, duplication=duplication,
+            transfer=transfer, transposition=transposition, origination=origination,
+            root_length=root_length, extension=extension, initial_size=initial_size,
+            transfers=transfers, seed=seed,
+        )
+
     if rng is None:
         rng = np.random.default_rng(seed)
     rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication,
