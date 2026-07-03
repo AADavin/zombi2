@@ -343,7 +343,6 @@ The same common cases are available without writing Python — see the
 [command-line interface](cli.md):
 
 ```bash
-zombi2 species --birth 1 --death 0.3 --tips 5000 --age 5 --seed 1 -o out/
+zombi2 species --tips 5000 --age 5 -o out/
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 -o out/
-zombi2 all --birth 1 --death 0.2 --tips 100 --age 5 --dup 0.2 --loss 0.25 --orig 0.5 --seed 42 -o out/
 ```

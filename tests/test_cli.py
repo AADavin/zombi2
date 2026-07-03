@@ -9,7 +9,7 @@ import pytest
 from zombi2 import rust_available
 from zombi2.cli import main
 
-# The `genomes` / `all` subcommands run the built-in model, which uses the Rust engine.
+# The `genomes` subcommand runs the built-in model, which uses the Rust engine.
 needs_rust = pytest.mark.skipif(not rust_available(),
                                 reason="zombi2_core (Rust extension) not built")
 
@@ -21,6 +21,31 @@ def test_species_writes_newick(tmp_path):
     assert rc == 0
     newick = (out / "species_tree.nwk").read_text().strip()
     assert newick.endswith(";")
+
+
+def test_species_bare_defaults(tmp_path):
+    """`zombi2 species -o out` runs with defaults — no required rate/size args."""
+    out = tmp_path / "sp"
+    rc = main(["species", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+
+
+def test_species_forward_keeps_extinct(tmp_path):
+    """Forward mode grows the complete tree, keeping extinct lineages (not in backward)."""
+    out = tmp_path / "fwd"
+    rc = main(["species", "--model", "forward", "--age", "6", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").exists()
+
+
+def test_species_forward_requires_exactly_one_of_tips_age(tmp_path):
+    """Forward needs exactly one of --tips/--age; neither or both is an error."""
+    with pytest.raises(SystemExit):
+        main(["species", "--model", "forward", "-o", str(tmp_path / "a")])
+    with pytest.raises(SystemExit):
+        main(["species", "--model", "forward", "--tips", "20", "--age", "5",
+              "-o", str(tmp_path / "b")])
 
 
 @needs_rust
@@ -75,16 +100,6 @@ def test_genomes_profiles_only(tmp_path):
     assert (gen / "Presence.tsv").exists()
     assert not (gen / "gene_trees").exists()
     assert not (gen / "Transfers.tsv").exists()
-
-
-@needs_rust
-def test_all_runs_end_to_end(tmp_path):
-    out = tmp_path / "all"
-    rc = main(["all", "--birth", "1", "--death", "0.2", "--tips", "15", "--age", "5",
-               "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "-o", str(out)])
-    assert rc == 0
-    assert (out / "Profiles.tsv").exists()
 
 
 def test_max_family_size_parses_int_and_fraction(tmp_path):

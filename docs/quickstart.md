@@ -41,10 +41,6 @@ zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
 
 # gene families along a supplied tree
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 -o out/
-
-# species tree + gene families in one run
-zombi2 all --birth 1 --death 0.2 --tips 20 --age 5 \
-    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 ```
 
 The built-in model runs on Rust automatically; add `--profiles-only` for the counts-only

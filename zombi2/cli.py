@@ -1,12 +1,4 @@
-"""A thin command-line wrapper over the library.
-
-The CLI only builds model objects and calls the simulate functions — no simulation
-logic lives here. Three subcommands:
-
-* ``species`` — simulate a species tree only (backward birth–death).
-* ``genomes`` — simulate gene families along an externally supplied Newick tree.
-* ``all``     — simulate a species tree, then gene families along it, in one run.
-"""
+"""Command-line interface for ZOMBI2 (``zombi2 species`` and ``zombi2 genomes``)."""
 
 from __future__ import annotations
 
@@ -18,6 +10,17 @@ from .species_model import BirthDeath
 from .species_sim import simulate_species_tree
 from .tree import Tree, read_newick
 
+_DESCRIPTION = """\
+ZOMBI2 — a phylogenetic simulator of species trees and gene families.
+
+Simulate in two steps: build a species tree, then evolve gene families along it.
+
+  zombi2 species   simulate a species tree
+  zombi2 genomes   evolve gene families along a species tree (Newick)
+
+Run 'zombi2 <command> -h' for a command's options.
+"""
+
 
 def _int_or_float(text: str) -> int | float:
     """Parse ``--max-family-size``: a plain integer is an absolute cap, a value with a
@@ -26,12 +29,21 @@ def _int_or_float(text: str) -> int | float:
 
 
 def _add_species_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--birth", type=float, required=True, help="speciation rate")
-    p.add_argument("--death", type=float, default=0.0, help="extinction rate")
-    p.add_argument("--tips", type=int, required=True, help="number of extant species N")
-    p.add_argument("--age", type=float, required=True, help="tree age (crown or stem)")
-    p.add_argument("--age-type", choices=("crown", "stem"), default="crown")
-    p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--model", choices=("backward", "forward"), default="backward",
+                   help="backward: reconstructed tree conditioned on --tips extant species "
+                        "(default); forward: complete tree grown in time, keeping extinct "
+                        "lineages")
+    p.add_argument("--birth", type=float, default=1.0, help="speciation rate (default: 1.0)")
+    p.add_argument("--death", type=float, default=0.3, help="extinction rate (default: 0.3)")
+    p.add_argument("--tips", type=int, default=None,
+                   help="number of extant species (backward default: 50; "
+                        "forward: give --tips OR --age)")
+    p.add_argument("--age", type=float, default=None,
+                   help="tree age / timescale, in the same time units as the rates "
+                        "(backward default: 1.0; forward: give --tips OR --age)")
+    p.add_argument("--age-type", choices=("crown", "stem"), default="crown",
+                   help="interpret --age as crown (default) or stem age [backward]")
+    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
 
@@ -84,47 +96,53 @@ def _run_genomes(tree: Tree, args) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="zombi2", description=__doc__)
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(
+        prog="zombi2", description=_DESCRIPTION,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
 
-    ps = sub.add_parser("species", help="simulate a species tree only")
+    ps = sub.add_parser("species", help="simulate a species tree")
     _add_species_args(ps)
 
-    pg = sub.add_parser("genomes", help="simulate gene families along a supplied Newick tree")
+    pg = sub.add_parser("genomes", help="evolve gene families along a species tree")
     pg.add_argument("-t", "--tree", required=True,
                     help="input species tree in Newick format (e.g. species_tree.nwk)")
     _add_rate_args(pg)
     pg.add_argument("--seed", type=int, default=None)
     pg.add_argument("-o", "--out", required=True, help="output directory")
 
-    pa = sub.add_parser("all", help="simulate species tree then gene families")
-    _add_species_args(pa)
-    _add_rate_args(pa)
-
     args = parser.parse_args(argv)
 
     if args.command == "species":
-        tree = simulate_species_tree(
-            BirthDeath(args.birth, args.death),
-            n_tips=args.tips, age=args.age, age_type=args.age_type, seed=args.seed,
-        )
+        model = BirthDeath(args.birth, args.death)
+        if args.model == "backward":
+            n_tips = args.tips if args.tips is not None else 50
+            age = args.age if args.age is not None else 1.0
+            tree = simulate_species_tree(model, n_tips=n_tips, age=age,
+                                         age_type=args.age_type, direction="backward",
+                                         seed=args.seed)
+        else:  # forward
+            if (args.tips is None) == (args.age is None):
+                parser.error("forward model needs exactly one of --tips or --age "
+                             "(--tips to stop at that many extant species; "
+                             "--age to grow for that long)")
+            tree = simulate_species_tree(model, n_tips=args.tips, age=args.age,
+                                         direction="forward", seed=args.seed)
+
         os.makedirs(args.out, exist_ok=True)
         with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
             f.write(tree.to_newick() + "\n")
-        print(f"wrote {args.out}/species_tree.nwk ({args.tips} tips)")
+        leaves = tree.leaves()
+        n_extant = sum(1 for n in leaves if n.is_extant)
+        extinct = len(leaves) - n_extant
+        extra = f" + {extinct} extinct" if extinct else ""
+        print(f"wrote {args.out}/species_tree.nwk ({n_extant} extant{extra} tips)")
         return 0
 
     if args.command == "genomes":
         with open(args.tree) as f:
             tree = read_newick(f.read())
-        print(_run_genomes(tree, args))
-        return 0
-
-    if args.command == "all":
-        tree = simulate_species_tree(
-            BirthDeath(args.birth, args.death),
-            n_tips=args.tips, age=args.age, age_type=args.age_type, seed=args.seed,
-        )
         print(_run_genomes(tree, args))
         return 0
 
