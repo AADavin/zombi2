@@ -389,3 +389,63 @@ def test_vector_trait_formatting():
     res = z.simulate_traits(tree, z.MultivariateBrownian([[1.0, 0.0], [0.0, 1.0]]), seed=1)
     assert "{" in res.to_tsv()
     assert "[&trait={" in res.to_newick()
+
+
+# --------------------------------------------------------------------------- correlated binary (Pagel 1994)
+def _pooled_corr(tree, model, reps, seed=0):
+    """corr(X, Y) over extant tips pooled across independent replicates on a fixed tree."""
+    rng = np.random.default_rng(seed)
+    xs, ys = [], []
+    for _ in range(reps):
+        res = z.simulate_traits(tree, model, rng=rng)
+        for v in res.values.values():
+            x, y = res.label(v)
+            xs.append(x)
+            ys.append(y)
+    return np.corrcoef(xs, ys)[0, 1]
+
+
+def test_correlated_binary_Q_structure():
+    m = z.CorrelatedBinary(x_gain_y0=1, x_gain_y1=2, x_loss_y0=3, x_loss_y1=4,
+                           y_gain_x0=5, y_gain_x1=6, y_loss_x0=7, y_loss_x1=8)
+    Q = m.Q
+    # no simultaneous double changes: (0,0)<->(1,1) and (0,1)<->(1,0)
+    assert Q[0, 3] == 0 and Q[3, 0] == 0 and Q[1, 2] == 0 and Q[2, 1] == 0
+    assert np.allclose(Q.sum(axis=1), 0.0)
+    assert Q[0, 1] == 5 and Q[0, 2] == 1        # y_gain_x0, x_gain_y0
+    assert Q[3, 1] == 4 and Q[3, 2] == 8        # x_loss_y1, y_loss_x1
+    assert m.states == [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+
+def test_correlated_binary_independent_factorizes():
+    m = z.CorrelatedBinary.independent(x_gain=0.7, x_loss=0.4, y_gain=0.9, y_loss=0.5)
+    assert m.Q[0, 2] == m.Q[1, 3]   # x_gain independent of Y
+    assert m.Q[2, 0] == m.Q[3, 1]   # x_loss independent of Y
+    assert m.Q[0, 1] == m.Q[2, 3]   # y_gain independent of X
+
+
+def test_correlated_binary_validation():
+    with pytest.raises(ValueError):
+        z.CorrelatedBinary(-1, 1, 1, 1, 1, 1, 1, 1)
+
+
+def test_correlated_binary_root_tuple_and_labels():
+    tree = _fixed_tree()
+    m = z.CorrelatedBinary.independent(0, 0, 0, 0, root=(1, 0))  # frozen at (1,0)
+    res = z.simulate_traits(tree, m, seed=1)
+    assert res.node_values[tree.root] == 2                       # index of (1,0)
+    assert all(lab == (1, 0) for lab in res.labeled_values().values())
+
+
+def test_correlated_binary_independent_has_no_tip_association():
+    tree = z.simulate_species_tree(z.Yule(1.0), n_tips=30, age=3.0, seed=7)
+    m = z.CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
+    assert abs(_pooled_corr(tree, m, reps=250, seed=1)) < 0.1
+
+
+def test_correlated_binary_dependent_induces_association():
+    """Y tracks X (gains fast when X=1, lost fast when X=0) -> positive tip association."""
+    tree = z.simulate_species_tree(z.Yule(1.0), n_tips=30, age=3.0, seed=7)
+    m = z.CorrelatedBinary(x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
+                           y_gain_x0=0.05, y_gain_x1=2.0, y_loss_x0=2.0, y_loss_x1=0.05)
+    assert _pooled_corr(tree, m, reps=250, seed=1) > 0.3

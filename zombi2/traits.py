@@ -261,6 +261,68 @@ class Mk:
         return f"Mk(k={self.k})"
 
 
+class CorrelatedBinary(Mk):
+    """Correlated evolution of two binary characters (Pagel 1994).
+
+    Two binary traits **X** and **Y** evolve jointly over the four states ``(X, Y)`` in
+    ``{0,1}²``, changing **one trait at a time** (simultaneous double changes have rate 0).
+    Each trait's gain/loss rate may depend on the *other* trait's current state — that
+    dependence is exactly *correlated evolution*. When X's rates do not depend on Y and vice
+    versa (see :meth:`independent`) the two traits evolve independently: Pagel's null model,
+    against which the dependent fit is tested.
+
+    It is a 4-state :class:`Mk` with the two double-transitions zeroed, so it simulates with
+    :func:`simulate_traits` like any discrete trait; each node's value is the ``(X, Y)`` pair,
+    read from ``result.values``. Decompose with ``x = state[0]``, ``y = state[1]``.
+
+    The eight rates name the changing trait, its direction, and the *other* trait's state:
+
+    Parameters
+    ----------
+    x_gain_y0, x_gain_y1:
+        Rate of ``X: 0 → 1`` while ``Y`` is 0 / 1.
+    x_loss_y0, x_loss_y1:
+        Rate of ``X: 1 → 0`` while ``Y`` is 0 / 1.
+    y_gain_x0, y_gain_x1:
+        Rate of ``Y: 0 → 1`` while ``X`` is 0 / 1.
+    y_loss_x0, y_loss_x1:
+        Rate of ``Y: 1 → 0`` while ``X`` is 0 / 1.
+    root:
+        Root policy as in :class:`Mk`, or an ``(X, Y)`` tuple pinning the root pair.
+    """
+
+    # state index = 2*X + Y  ->  0:(0,0)  1:(0,1)  2:(1,0)  3:(1,1)
+    STATES = [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+    def __init__(self, x_gain_y0, x_gain_y1, x_loss_y0, x_loss_y1,
+                 y_gain_x0, y_gain_x1, y_loss_x0, y_loss_x1, root="uniform"):
+        rates = [x_gain_y0, x_gain_y1, x_loss_y0, x_loss_y1,
+                 y_gain_x0, y_gain_x1, y_loss_x0, y_loss_x1]
+        if any(r < 0 for r in rates):
+            raise ValueError("all transition rates must be >= 0")
+        Q = np.zeros((4, 4))
+        Q[0, 1] = y_gain_x0   # (0,0) -> (0,1): Y gains, X=0
+        Q[0, 2] = x_gain_y0   # (0,0) -> (1,0): X gains, Y=0
+        Q[1, 0] = y_loss_x0   # (0,1) -> (0,0): Y loses, X=0
+        Q[1, 3] = x_gain_y1   # (0,1) -> (1,1): X gains, Y=1
+        Q[2, 0] = x_loss_y0   # (1,0) -> (0,0): X loses, Y=0
+        Q[2, 3] = y_gain_x1   # (1,0) -> (1,1): Y gains, X=1
+        Q[3, 1] = x_loss_y1   # (1,1) -> (0,1): X loses, Y=1
+        Q[3, 2] = y_loss_x1   # (1,1) -> (1,0): Y loses, X=1
+        if isinstance(root, tuple):
+            root = 2 * int(root[0]) + int(root[1])
+        super().__init__(Q, states=self.STATES, root=root)
+
+    @classmethod
+    def independent(cls, x_gain, x_loss, y_gain, y_loss, root="uniform"):
+        """Pagel's null model: X and Y evolve independently (each rate ignores the other trait)."""
+        return cls(x_gain, x_gain, x_loss, x_loss,
+                   y_gain, y_gain, y_loss, y_loss, root=root)
+
+    def __repr__(self) -> str:
+        return "CorrelatedBinary(Pagel 1994)"
+
+
 class OrnsteinUhlenbeck:
     """Ornstein–Uhlenbeck evolution of a continuous trait (Hansen 1997; Butler & King 2004).
 
@@ -464,8 +526,17 @@ class TraitResult:
     # --- observable / derived views ---------------------------------------
     @property
     def values(self) -> dict:
-        """Observable tip values — the **extant** leaves only (the comparative-data vector)."""
+        """Observable tip values — the **extant** leaves only (the comparative-data vector).
+
+        For discrete models these are raw state **indices**; call :meth:`labeled_values` (or
+        :meth:`label`) to decode them to the model's state labels.
+        """
         return {n: self.node_values[n] for n in self.tree.extant_leaves()}
+
+    def labeled_values(self) -> dict:
+        """Observable extant-tip values with discrete state indices decoded to their labels
+        (identical to :attr:`values` for continuous traits)."""
+        return {n: self.label(v) for n, v in self.values.items()}
 
     def leaf_values(self) -> dict:
         """Values at every leaf (including extinct/fossil tips)."""
