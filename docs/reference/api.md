@@ -22,6 +22,29 @@ Auto-generated from the source docstrings.
 ::: zombi2.rate_variation.RateVariation
 ::: zombi2.rate_variation.RateScaledTree
 
+## Trait evolution
+
+::: zombi2.traits.simulate_traits
+::: zombi2.traits.TraitResult
+::: zombi2.traits.BrownianMotion
+::: zombi2.traits.OrnsteinUhlenbeck
+::: zombi2.traits.EarlyBurst
+::: zombi2.traits.MultivariateBrownian
+::: zombi2.traits.MultivariateOU
+::: zombi2.traits.MultiOptimumOU
+::: zombi2.traits.Mk
+::: zombi2.traits.CorrelatedBinary
+::: zombi2.traits.ThresholdModel
+::: zombi2.traits.pagel_lambda
+::: zombi2.traits.pagel_delta
+::: zombi2.traits.pagel_kappa
+
+## Trait-dependent diversification
+
+::: zombi2.sse.simulate_sse
+::: zombi2.sse.BiSSE
+::: zombi2.sse.MuSSE
+
 ## Rate models
 
 ::: zombi2.rates.RateModel
