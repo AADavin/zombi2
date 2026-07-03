@@ -631,6 +631,56 @@ class ThresholdModel:
         return f"ThresholdModel(k={self.thresholds.size + 1})"
 
 
+class EarlyBurst:
+    """Early-burst / ACDC: Brownian motion whose rate changes exponentially through time
+    (Blomberg et al. 2003; Harmon et al. 2010).
+
+    The diffusion rate at absolute time ``t`` (root at 0) is ``σ²(t) = sigma2 · e^{rate·t}``.
+    With ``rate < 0`` the rate **decays** — most divergence happens early, the signature of an
+    adaptive radiation (an *early burst*); with ``rate > 0`` it **accelerates** (the AC of
+    ACDC); ``rate = 0`` is plain Brownian motion. The variance accrued over a branch spanning
+    ``[t1, t2]`` is the exact integral ``sigma2·(e^{rate·t2} − e^{rate·t1})/rate``, so the tips
+    stay multivariate-normal.
+
+    Parameters
+    ----------
+    sigma2:
+        Diffusion rate **at the root** (``>= 0``).
+    rate:
+        Exponential rate of change of ``σ²`` through time; ``< 0`` = early burst, ``> 0`` =
+        accelerating, ``0`` = Brownian motion.
+    x0:
+        Root value (default ``0.0``).
+    trend:
+        Optional directional drift per unit time (default ``0.0``).
+    """
+
+    kind = "continuous"
+
+    def __init__(self, sigma2: float, rate: float, x0: float = 0.0, trend: float = 0.0):
+        if sigma2 < 0:
+            raise ValueError(f"sigma2 must be >= 0, got {sigma2}")
+        self.sigma2 = float(sigma2)
+        self.rate = float(rate)
+        self.x0 = float(x0)
+        self.trend = float(trend)
+
+    def root_value(self, rng):
+        return self.x0
+
+    def evolve(self, x, dt, t0, rng):
+        t1, t2 = t0, t0 + dt
+        if self.rate == 0.0:
+            var = self.sigma2 * dt
+        else:
+            var = self.sigma2 * (np.exp(self.rate * t2) - np.exp(self.rate * t1)) / self.rate
+        end = x + self.trend * dt + (rng.normal(0.0, var ** 0.5) if var > 0.0 else 0.0)
+        return end, None
+
+    def __repr__(self) -> str:
+        return f"EarlyBurst(sigma2={self.sigma2:g}, rate={self.rate:g})"
+
+
 # --------------------------------------------------------------------------- result
 @dataclass
 class TraitResult:
@@ -808,3 +858,59 @@ def simulate_traits(
 
     return TraitResult(tree=tree, model=model, node_values=node_values,
                        history=history, kind=model.kind)
+
+
+# --------------------------------------------------------------------------- Pagel tree transforms
+def _rebuild(tree: Tree, time_fn) -> Tree:
+    """Copy ``tree`` with each non-root node's time set by ``time_fn(node, parent_new_time)``."""
+
+    def rec(node: TreeNode, parent_new_time) -> TreeNode:
+        nt = 0.0 if node.parent is None else time_fn(node, parent_new_time)
+        copy = TreeNode(name=node.name, time=nt,
+                        is_extant=node.is_extant, sampled=node.sampled)
+        for child in node.children:
+            copy.add_child(rec(child, nt))
+        return copy
+
+    new = Tree(rec(tree.root, None), tree.total_age)
+    new.total_age = max((leaf.time for leaf in new.leaves()), default=0.0)
+    return new
+
+
+def pagel_lambda(tree: Tree, lam: float) -> Tree:
+    """Pagel's **λ** (1999): scale phylogenetic signal, returning a new tree to evolve on.
+
+    Internal (shared) branch depths are multiplied by ``lam`` while tip depths are held fixed,
+    so a Brownian trait's between-species covariance is scaled by ``lam`` without changing its
+    per-species variance. ``lam = 1`` is the original tree (full signal); ``lam = 0`` collapses
+    every internal node to the root (a star tree — independent tips, no signal).
+    """
+    if not (0.0 <= lam <= 1.0):
+        raise ValueError(f"lambda must be in [0, 1], got {lam}")
+    return _rebuild(tree, lambda node, _pnt: (lam * node.time if node.children else node.time))
+
+
+def pagel_delta(tree: Tree, delta: float) -> Tree:
+    """Pagel's **δ** (1999): raise node depths to the power ``delta`` (root and tips fixed).
+
+    ``delta > 1`` pushes divergence toward the present (late, species-specific evolution);
+    ``delta < 1`` toward the root (early evolution); ``delta = 1`` is the original tree.
+    """
+    if delta <= 0:
+        raise ValueError(f"delta must be > 0, got {delta}")
+    T = tree.total_age
+    if T <= 0:
+        raise ValueError("tree has non-positive age")
+    return _rebuild(tree, lambda node, _pnt: T * (node.time / T) ** delta)
+
+
+def pagel_kappa(tree: Tree, kappa: float) -> Tree:
+    """Pagel's **κ** (1999): raise each branch length to the power ``kappa``.
+
+    ``kappa = 1`` is the original tree; ``kappa = 0`` sets every branch to length 1 (a
+    *speciational* / punctuational model — change accrues per speciation event, not per unit
+    time); intermediate values interpolate. Tip depths are not preserved.
+    """
+    if kappa < 0:
+        raise ValueError(f"kappa must be >= 0, got {kappa}")
+    return _rebuild(tree, lambda node, pnt: pnt + node.branch_length() ** kappa)

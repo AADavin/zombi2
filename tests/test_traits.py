@@ -563,3 +563,117 @@ def test_threshold_tsv_reports_discrete_state():
     res = z.simulate_traits(tree, z.ThresholdModel([0.0], states=["a", "b"]), seed=1)
     tsv = res.to_tsv()
     assert "'a'" in tsv or "'b'" in tsv           # discrete labels, not liabilities
+
+
+# --------------------------------------------------------------------------- early burst / ACDC
+def test_early_burst_reduces_to_bm_at_rate_zero():
+    tree, tip = _single_branch(1.0)
+    m = z.EarlyBurst(sigma2=0.7, rate=0.0)
+    rng = np.random.default_rng(0)
+    v = np.array([z.simulate_traits(tree, m, rng=rng).node_values[tip] for _ in range(20000)])
+    assert abs(v.var() - 0.7 * 1.0) < 0.03        # var = sigma2 * dt
+
+
+def test_early_burst_variance_matches_integral():
+    t = 2.0
+    tree, tip = _single_branch(t)
+    for rate in (-1.5, 0.8):
+        m = z.EarlyBurst(sigma2=0.5, rate=rate)
+        rng = np.random.default_rng(1)
+        v = np.array([z.simulate_traits(tree, m, rng=rng).node_values[tip] for _ in range(20000)])
+        exp_var = 0.5 * (np.exp(rate * t) - 1.0) / rate
+        assert abs(v.var() - exp_var) / exp_var < 0.06
+
+
+def test_early_burst_deceleration_accumulates_less():
+    """rate<0 accrues less total variance than BM (rate=0), rate>0 more (same root sigma2)."""
+    t = 2.0
+    tree, tip = _single_branch(t)
+
+    def tip_var(rate):
+        m = z.EarlyBurst(0.5, rate)
+        rng = np.random.default_rng(2)
+        return np.array([z.simulate_traits(tree, m, rng=rng).node_values[tip]
+                         for _ in range(15000)]).var()
+
+    assert tip_var(-2.0) < tip_var(0.0) < tip_var(2.0)
+
+
+def test_early_burst_validation():
+    with pytest.raises(ValueError):
+        z.EarlyBurst(-1.0, 0.0)
+    assert "EarlyBurst" in repr(z.EarlyBurst(1.0, -0.5))
+
+
+# --------------------------------------------------------------------------- Pagel tree transforms
+def _times_by_name(tree):
+    return {n.name: n.time for n in tree.nodes()}
+
+
+def _times_equal(a, b):
+    ta, tb = _times_by_name(a), _times_by_name(b)
+    return ta.keys() == tb.keys() and all(abs(ta[k] - tb[k]) < 1e-9 for k in ta)
+
+
+def test_pagel_lambda_identity_and_star():
+    tree = _fixed_tree(n_tips=6, seed=11)
+    assert _times_equal(z.pagel_lambda(tree, 1.0), tree)          # lam=1 -> unchanged
+    star = z.pagel_lambda(tree, 0.0)
+    for n in star.internal_nodes():
+        if n.parent is not None:
+            assert n.time == 0.0                                  # internals collapse -> star
+
+
+def test_pagel_lambda_scales_shared_paths():
+    tree = _fixed_tree(n_tips=6, seed=11)
+    lam = 0.4
+    t2 = z.pagel_lambda(tree, lam)
+    old = {n.name: n for n in tree.nodes()}
+    new = {n.name: n for n in t2.nodes()}
+    for name, o in old.items():
+        if o.is_leaf():
+            assert abs(new[name].time - o.time) < 1e-9            # tip depths preserved
+        elif o.parent is not None:
+            assert abs(new[name].time - lam * o.time) < 1e-9      # internal depths scaled
+    assert t2.root.time == 0.0
+
+
+def test_pagel_delta_preserves_root_and_tips():
+    tree = _fixed_tree(n_tips=6, seed=3)
+    T = tree.total_age
+    assert _times_equal(z.pagel_delta(tree, 1.0), tree)           # delta=1 -> unchanged
+    t2 = z.pagel_delta(tree, 2.0)
+    assert t2.root.time == 0.0
+    for leaf in t2.leaves():
+        assert abs(leaf.time - T) < 1e-9                          # tips preserved
+    old = {n.name: n for n in tree.nodes()}
+    for name, n in ((n.name, n) for n in t2.internal_nodes()):
+        o = old[name]
+        if o.parent is not None:
+            assert abs(n.time - T * (o.time / T) ** 2.0) < 1e-9
+
+
+def test_pagel_kappa_speciational_unit_branches():
+    tree = _fixed_tree(n_tips=6, seed=5)
+    assert _times_equal(z.pagel_kappa(tree, 1.0), tree)           # kappa=1 -> unchanged
+    t2 = z.pagel_kappa(tree, 0.0)
+    for n in t2.nodes():
+        if n.parent is not None:
+            assert abs(n.branch_length() - 1.0) < 1e-9            # every branch length 1
+
+
+def test_pagel_validation():
+    tree = _fixed_tree()
+    with pytest.raises(ValueError):
+        z.pagel_lambda(tree, 1.5)
+    with pytest.raises(ValueError):
+        z.pagel_delta(tree, 0.0)
+    with pytest.raises(ValueError):
+        z.pagel_kappa(tree, -1.0)
+
+
+def test_pagel_transform_feeds_simulation():
+    tree = _fixed_tree(n_tips=8, seed=7)
+    t2 = z.pagel_lambda(tree, 0.5)
+    res = z.simulate_traits(t2, z.BrownianMotion(0.5), seed=1)
+    assert set(res.values) == set(t2.extant_leaves())

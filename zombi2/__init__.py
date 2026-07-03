@@ -61,10 +61,14 @@ from .traits import (
     MultivariateOU,
     MultiOptimumOU,
     ThresholdModel,
+    EarlyBurst,
     Mk,
     CorrelatedBinary,
     simulate_traits,
     TraitResult,
+    pagel_lambda,
+    pagel_delta,
+    pagel_kappa,
 )
 from .sse import BiSSE, MuSSE, simulate_sse
 from .simulation import simulate_genomes, Genomes
@@ -110,8 +114,9 @@ __all__ = [
     "RateVariation", "RateScaledTree",
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
-    "MultiOptimumOU", "ThresholdModel", "Mk", "CorrelatedBinary",
+    "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",
     "simulate_traits", "TraitResult",
+    "pagel_lambda", "pagel_delta", "pagel_kappa",
     # trait-dependent diversification (state-dependent speciation/extinction)
     "BiSSE", "MuSSE", "simulate_sse",
     # parallelism
