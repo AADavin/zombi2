@@ -43,14 +43,19 @@ class _Node:
 _INTERNAL = (EventType.DUPLICATION, EventType.TRANSFER, EventType.SPECIATION)
 
 
-def build_gene_trees(records, gid2species, total_age):
-    """Return ``(complete_newick, extant_newick)`` for one family; extant may be ``None``."""
+def build_gene_trees(records, gid2species, total_age, annotate_species=False):
+    """Return ``(complete_newick, extant_newick)`` for one family; extant may be ``None``.
+
+    With ``annotate_species=True`` each internal gene node is labelled ``<gid>|<species-branch>``
+    (the species branch the event happened on) instead of just ``<gid>``.
+    """
     records = sorted(records, key=lambda r: r.time)
 
     children: dict[str, list[str]] = {}
     end_time: dict[str, float] = {}
     kind: dict[str, EventType] = {}
     birth: dict[str, float] = {}
+    branch: dict[str, str] = {}
     root = None
 
     for r in records:
@@ -64,6 +69,7 @@ def build_gene_trees(records, gid2species, total_age):
             children[frm] = tos
             end_time[frm] = r.time
             kind[frm] = ev
+            branch[frm] = r.branch
             for c in tos:
                 birth[c] = r.time
         elif ev is EventType.LOSS:
@@ -71,12 +77,14 @@ def build_gene_trees(records, gid2species, total_age):
             children[frm] = []
             end_time[frm] = r.time
             kind[frm] = ev
+            branch[frm] = r.branch
 
     if root is None:
         return None, None
 
     def build(gid: str) -> _Node:
         node = _Node(gid, birth.get(gid, 0.0))
+        node.branch = branch.get(gid)
         if gid in children:  # terminated by an event
             node.end = end_time[gid]
             node.kind = kind[gid]
@@ -91,9 +99,9 @@ def build_gene_trees(records, gid2species, total_age):
         return node
 
     root_node = build(root)
-    complete = _to_newick(root_node) + ";"
+    complete = _to_newick(root_node, annotate_species) + ";"
     pruned = _prune(root_node)
-    extant = (_to_newick(pruned) + ";") if pruned is not None else None
+    extant = (_to_newick(pruned, annotate_species) + ";") if pruned is not None else None
     return complete, extant
 
 
@@ -101,7 +109,7 @@ def _bl(node: _Node) -> float:
     return max(0.0, node.end - node.birth)
 
 
-def _to_newick(node: _Node) -> str:
+def _to_newick(node: _Node, annotate: bool = False) -> str:
     if not node.children:
         if node.is_loss:
             name = f"LOSS_{node.gid}"
@@ -110,8 +118,9 @@ def _to_newick(node: _Node) -> str:
         else:
             name = node.gid
         return f"{name}:{_bl(node):.6g}"
-    inner = ",".join(_to_newick(c) for c in node.children)
-    return f"({inner}){node.gid}:{_bl(node):.6g}"
+    inner = ",".join(_to_newick(c, annotate) for c in node.children)
+    label = f"{node.gid}|{node.branch}" if annotate and node.branch else node.gid
+    return f"({inner}){label}:{_bl(node):.6g}"
 
 
 def _prune(node: _Node) -> _Node | None:
@@ -132,7 +141,7 @@ def _prune(node: _Node) -> _Node | None:
         return survivor
 
     inner = _Node(node.gid, node.birth)
-    inner.end, inner.kind, inner.children = node.end, node.kind, kept
+    inner.end, inner.kind, inner.children, inner.branch = node.end, node.kind, kept, node.branch
     return inner
 
 

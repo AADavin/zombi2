@@ -38,15 +38,16 @@ class Genomes:
                 out[g.gid] = leaf.name
         return out
 
-    def gene_trees(self) -> dict[str, tuple[str, str | None]]:
+    def gene_trees(self, annotate_species: bool = False) -> dict[str, tuple[str, str | None]]:
         """Reconstruct ``{family: (complete_newick, extant_newick)}`` from the event log.
 
-        ``extant_newick`` is ``None`` for families with no surviving copies.
+        ``extant_newick`` is ``None`` for families with no surviving copies. With
+        ``annotate_species=True`` internal gene nodes are labelled ``<gid>|<species-branch>``.
         """
         gid2species = self._gid_to_species()
         total_age = self.species_tree.total_age
         return {
-            fam: build_gene_trees(records, gid2species, total_age)
+            fam: build_gene_trees(records, gid2species, total_age, annotate_species)
             for fam, records in self.gene_families.items()
         }
 
@@ -68,7 +69,7 @@ class Genomes:
         }
 
     # --- output ------------------------------------------------------------
-    def write(self, outdir: str | Path) -> None:
+    def write(self, outdir: str | Path, annotate_species: bool = False) -> None:
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
 
@@ -97,7 +98,7 @@ class Genomes:
         # gene trees (complete + extant)
         tdir = out / "gene_trees"
         tdir.mkdir(exist_ok=True)
-        for family, (complete, extant) in self.gene_trees().items():
+        for family, (complete, extant) in self.gene_trees(annotate_species).items():
             if complete:
                 (tdir / f"{family}_complete.nwk").write_text(complete + "\n")
             if extant:
@@ -117,14 +118,17 @@ class Genomes:
                      "\tn_speciation\textant_copies\tspecies_present"]
         pmat = self.profiles
         fam_row = {f: i for i, f in enumerate(pmat.families)}
+        # Per-family totals off the sparse profile, computed once (no dense N² array).
+        copies_by_row = pmat.copies_per_family()
+        present_by_row = pmat.presence_per_family()
         for family, records in families.items():
             origin = next((r for r in records if r.event is EventType.ORIGINATION), None)
             ot = f"{origin.time:.10g}" if origin else ""
             ob = origin.branch if origin else ""
             if family in fam_row:
-                row = pmat.matrix[fam_row[family]]
-                extant_copies = int(row.sum())
-                species_present = int((row > 0).sum())
+                i = fam_row[family]
+                extant_copies = int(copies_by_row[i])
+                species_present = int(present_by_row[i])
             else:
                 extant_copies = species_present = 0
             sum_lines.append(

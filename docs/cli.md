@@ -101,6 +101,7 @@ argument.
 | `--initial-size` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
 | `--profiles-only` | write only the profile matrices (skip event log / gene trees) — see below |
+| `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
 | `--log-level {low,medium,high}` | detail of the always-written `<out>/genomes.log` (default medium) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 

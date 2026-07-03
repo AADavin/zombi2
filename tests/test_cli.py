@@ -168,6 +168,26 @@ def test_log_level_low_is_minimal(tmp_path):
     assert "seed\t3" in log and "model\tbackward" not in log
 
 
+@needs_rust
+def test_genomes_annotate_species(tmp_path):
+    """--annotate-species labels internal gene nodes <gid>|<species-branch>."""
+    import re
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "15", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "g"
+    main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.3", "--loss", "0.3",
+          "--orig", "0.5", "--max-family-size", "0.5", "--annotate-species", "--seed", "1",
+          "-o", str(out)])
+    trees = "".join(p.read_text() for p in (out / "gene_trees").glob("*.nwk"))
+    assert re.search(r"g\d+\|", trees)                     # gid|branch labels present
+    # without the flag, internal nodes are bare gids
+    out2 = tmp_path / "g2"
+    main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.3", "--loss", "0.3",
+          "--orig", "0.5", "--max-family-size", "0.5", "--seed", "1", "-o", str(out2)])
+    trees2 = "".join(p.read_text() for p in (out2 / "gene_trees").glob("*.nwk"))
+    assert "|" not in trees2
+
+
 def test_genomes_genome_wise_rate_model(tmp_path):
     """--rate-model genome-wise runs (Python engine) and is recorded in the log."""
     sp = tmp_path / "sp"

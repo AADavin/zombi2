@@ -91,6 +91,12 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--profiles-only", action="store_true",
                    help="write only species_tree.nwk + Profiles.tsv/Presence.tsv (no event "
                         "log or gene trees) — the fastest path (Rust counts-only engine).")
+    p.add_argument("--sparse", action="store_true",
+                   help="with --profiles-only, write the profile as a sparse long table "
+                        "(Profiles_sparse.tsv: family/species/copies, present cells only) "
+                        "instead of the dense matrix — the scalable output for huge trees.")
+    p.add_argument("--annotate-species", action="store_true",
+                   help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
 
 
 def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -140,11 +146,20 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, level: 
         f.write("\n".join(lines) + "\n")
 
 
-def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
-    """Emit the reduced profiles-only output: tree + copy-number/presence matrices."""
+def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -> None:
+    """Emit the reduced profiles-only output: tree + copy-number/presence matrices.
+
+    With ``sparse=True`` the profile is written as a single COO long table
+    (``Profiles_sparse.tsv``) that is O(present cells), so the output scales to trees
+    where the dense families x species matrix would be astronomically large.
+    """
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")
+    if sparse:
+        with open(os.path.join(out, "Profiles_sparse.tsv"), "w") as f:
+            f.write(profiles.to_coo_tsv())
+        return
     with open(os.path.join(out, "Profiles.tsv"), "w") as f:
         f.write(profiles.to_tsv())
     with open(os.path.join(out, "Presence.tsv"), "w") as f:
@@ -176,7 +191,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
 
     genomes = simulate_genomes(tree, **rate_kw)
     dt = time.perf_counter() - t0
-    genomes.write(args.out)
+    genomes.write(args.out, annotate_species=args.annotate_species)
     return (f"wrote simulation to {args.out}/ "
             f"({len(tree.leaves())} tips, {len(genomes.profiles.families)} gene families) "
             f"in {dt:.3g} s")
