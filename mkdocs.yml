@@ -55,6 +55,7 @@ nav:
       - Transfers: guide/transfers.md
       - Bounding growth: guide/growth.md
       - Gene trees & output: guide/gene-trees-and-output.md
+      - Matching empirical profiles: guide/matching.md
       - Ordered genomes: guide/ordered-genomes.md
       - Rate variation: guide/rate-variation.md
       - Running in parallel: guide/parallel.md
