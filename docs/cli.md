@@ -65,8 +65,11 @@ sampler. See [ghost lineages](guide/ghost-lineages.md):
 zombi2 species --tips 50 --death 0.6 --ghosts -o out/
 ```
 
-**Reproducible runs.** Add `--log` to `species` or `genomes` to also write
-`<out>/parameters.log` — the exact parameters, seed, version, and command line used.
+**Reproducible runs.** Every run **always** writes its parameters to `<out>/species_tree.log`
+(or `<out>/genomes.log`) — version, command line, seed, and the parameters used.
+`--log-level {low,medium,high}` sets the detail: `low` is the bare minimum to reproduce,
+`medium` (default) adds the core scientific parameters, `high` adds a timestamp and every
+argument.
 
 ## Options
 
@@ -85,7 +88,7 @@ zombi2 species --tips 50 --death 0.6 --ghosts -o out/
 | `--removal` | [forward] removal probability `r` on sampling (`r<1` → sampled ancestors; default `1.0`) |
 | `--ghosts` / `--ghost-method {rejection,htransform}` | [backward] un-prune extinct/unsampled ghost lineages |
 | `--max-attempts` / `--max-lineages` | [forward] extinction-retry cap / live-lineage cap |
-| `--log` | also write the run's parameters to `<out>/parameters.log` |
+| `--log-level {low,medium,high}` | detail of the always-written `<out>/species_tree.log` (default medium) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 ### `genomes`
@@ -93,11 +96,12 @@ zombi2 species --tips 50 --death 0.6 --ghosts -o out/
 | Option | Meaning |
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
-| `--dup` `--trans` `--loss` `--orig` | per-copy duplication / transfer / loss / origination rates |
+| `--rate-model {uniform,genome-wise}` | `uniform` (default, Rust): same per-copy rates for all families; `genome-wise` (Python): constant per-genome rates, linear growth |
+| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates |
 | `--initial-size` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
 | `--profiles-only` | write only the profile matrices (skip event log / gene trees) — see below |
-| `--log` | also write the run's parameters to `<out>/parameters.log` |
+| `--log-level {low,medium,high}` | detail of the always-written `<out>/genomes.log` (default medium) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 Run `zombi2 <command> -h` for the authoritative list.

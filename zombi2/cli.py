@@ -8,6 +8,7 @@ import sys
 import time
 
 from .ghosts import add_ghost_lineages
+from .rates import GenomeWiseRates
 from .simulation import simulate_genomes
 from .species_model import BirthDeath, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
@@ -69,12 +70,16 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--max-lineages", type=int, default=1_000_000,
                    help="[forward] abort a run exceeding this many live lineages (default 1000000)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("--log", action="store_true",
-                   help="also write the exact run parameters to <out>/parameters.log")
+    p.add_argument("--log-level", choices=("low", "medium", "high"), default="medium",
+                   help="detail of the parameters saved to <out>/species_tree.log "
+                        "(always written; default medium)")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
 
 def _add_rate_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--rate-model", choices=("uniform", "genome-wise"), default="uniform",
+                   help="uniform: same per-copy rates for every family (Rust; default); "
+                        "genome-wise: constant per-genome rates, linear growth (Python)")
     p.add_argument("--dup", type=float, default=0.0, help="duplication rate")
     p.add_argument("--trans", type=float, default=0.0, help="transfer rate")
     p.add_argument("--loss", type=float, default=0.0, help="loss rate")
@@ -107,15 +112,29 @@ def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentPars
                               sampling_fraction=args.sampling_fraction, removal=args.removal)
 
 
-def _write_params_log(path: str, args: argparse.Namespace, summary: str) -> None:
-    """Write the exact parameters of a run to ``path`` (for reproducibility)."""
+def _write_params_log(path: str, args: argparse.Namespace, summary: str, level: str) -> None:
+    """Write the run's parameters to ``path`` at verbosity ``level`` (low/medium/high).
+
+    ``low`` = version + command line + seed + result (enough to reproduce); ``medium`` (the
+    default) adds the core scientific parameters; ``high`` adds a timestamp and every argument
+    (including engine internals).
+    """
     from . import __version__
+    d = vars(args)
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
-             f"command_line\t{' '.join(sys.argv)}"]
-    for key, value in sorted(vars(args).items()):
-        if key != "log":
-            lines.append(f"{key}\t{value}")
+             f"command_line\t{' '.join(sys.argv)}",
+             f"seed\t{d.get('seed')}"]
+    if level == "high":
+        import datetime
+        lines.append(f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}")
+    if level in ("medium", "high"):
+        skip = {"log_level", "out", "command", "seed"}
+        if level == "medium":
+            skip |= {"max_attempts", "max_lineages"}   # engine internals -> high only
+        for key in sorted(d):
+            if key not in skip:
+                lines.append(f"{key}\t{d[key]}")
     lines.append(f"result\t{summary}")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -135,11 +154,15 @@ def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
 def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
 
-    The built-in model runs on the Rust engine automatically (``simulate_genomes`` raises a
-    build hint if the extension is missing).
+    The default ``uniform`` model runs on the Rust engine automatically (``simulate_genomes``
+    raises a build hint if the extension is missing); ``genome-wise`` runs on Python.
     """
-    rate_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
-                   origination=args.orig, initial_size=args.initial_size,
+    if args.rate_model == "genome-wise":
+        model_kw = dict(rates=GenomeWiseRates(args.dup, args.trans, args.loss, args.orig))
+    else:  # uniform
+        model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
+                        origination=args.orig)
+    rate_kw = dict(**model_kw, initial_size=args.initial_size,
                    max_family_size=args.max_family_size, seed=args.seed)
 
     t0 = time.perf_counter()
@@ -174,8 +197,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="input species tree in Newick format (e.g. species_tree.nwk)")
     _add_rate_args(pg)
     pg.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    pg.add_argument("--log", action="store_true",
-                    help="also write the exact run parameters to <out>/parameters.log")
+    pg.add_argument("--log-level", choices=("low", "medium", "high"), default="medium",
+                    help="detail of the parameters saved to <out>/genomes.log "
+                         "(always written; default medium)")
     pg.add_argument("-o", "--out", required=True, help="output directory")
 
     args = parser.parse_args(argv)
@@ -228,8 +252,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         extra = f" + {dead} extinct" if dead else ""
         summary = f"{n_extant} extant{extra} tips"
         print(f"wrote {args.out}/species_tree.nwk ({summary}) in {dt:.3g} s")
-        if args.log:
-            _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary,
+                          args.log_level)
         return 0
 
     if args.command == "genomes":
@@ -237,8 +261,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             tree = read_newick(f.read())
         summary = _run_genomes(tree, args)
         print(summary)
-        if args.log:
-            _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "genomes.log"), args, summary, args.log_level)
         return 0
 
     return 1

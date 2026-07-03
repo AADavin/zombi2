@@ -152,12 +152,31 @@ def test_species_backward_fossils_is_error(tmp_path):
         main(["species", "--fossilization", "0.2", "-o", str(tmp_path / "x")])
 
 
-def test_log_writes_parameters(tmp_path):
-    """--log records the run's parameters to species_tree.log."""
+def test_log_written_by_default(tmp_path):
+    """Every run writes species_tree.log (medium level lists the core parameters)."""
     out = tmp_path / "sp"
-    main(["species", "--tips", "15", "--seed", "3", "--log", "-o", str(out)])
+    main(["species", "--tips", "15", "--seed", "3", "-o", str(out)])
     log = (out / "species_tree.log").read_text()
     assert "zombi2_version" in log and "seed\t3" in log and "model\tbackward" in log
+
+
+def test_log_level_low_is_minimal(tmp_path):
+    """--log-level low records only version/command/seed/result (no model params)."""
+    out = tmp_path / "sp"
+    main(["species", "--tips", "15", "--seed", "3", "--log-level", "low", "-o", str(out)])
+    log = (out / "species_tree.log").read_text()
+    assert "seed\t3" in log and "model\tbackward" not in log
+
+
+def test_genomes_genome_wise_rate_model(tmp_path):
+    """--rate-model genome-wise runs (Python engine) and is recorded in the log."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "gw"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--loss", "0.4",
+               "--orig", "0.5", "--rate-model", "genome-wise", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert "rate_model\tgenome-wise" in (out / "genomes.log").read_text()
 
 
 def test_max_family_size_parses_int_and_fraction(tmp_path):
