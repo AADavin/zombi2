@@ -3,10 +3,11 @@
 A Python library for simulating **species-tree** and **gene-family** evolution in
 phylogenetics. A ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi).
 
-- The **species tree** is simulated *backward* in time (reconstructed birth–death,
-  conditioned on the number of extant species).
-- **Gene families** are simulated *forward* in time along that fixed species tree, with
-  duplication, transfer, loss and origination events.
+- **Species trees** under a range of birth–death models — sampled either *backward*
+  (the reconstructed tree, conditioned on the number of extant species) or *forward* (the
+  complete tree, with extinct and fossil lineages included).
+- **Gene families** simulated *forward* along a fixed species tree, with duplication,
+  transfer, loss and origination events.
 
 The architecture is deliberately interface-first so that additions — genome
 representations (an ordered-chromosome model with inversions/transpositions ships today),
