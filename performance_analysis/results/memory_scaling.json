@@ -1,0 +1,159 @@
+{
+  "name": "memory_scaling",
+  "title": "Peak memory footprint vs run size",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "BirthDeath(\u03bb=1.0, \u03bc=0.3), age 2.0; D=0.2 T=0.1 L=0.25 O=0.5, initial_size=20",
+    "profile": "full",
+    "note": "peak RSS from resource.getrusage in an isolated subprocess"
+  },
+  "env": {
+    "timestamp_utc": "2026-07-03T12:06:18+00:00",
+    "git_commit": "1d07a37",
+    "git_dirty": false,
+    "zombi2_version": "0.2.0.dev0",
+    "rust_available": true,
+    "python": "3.12.2",
+    "numpy": "2.4.0",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "Species tree",
+      "x": 10000,
+      "times": [
+        0.0696
+      ],
+      "work": {
+        "rss_mb": 75.7,
+        "nodes": 10000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 100000,
+      "times": [
+        0.8938
+      ],
+      "work": {
+        "rss_mb": 131.5,
+        "nodes": 100000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 1000000,
+      "times": [
+        10.1475
+      ],
+      "work": {
+        "rss_mb": 716.1,
+        "nodes": 1000000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 3000000,
+      "times": [
+        32.7283
+      ],
+      "work": {
+        "rss_mb": 2011.0,
+        "nodes": 3000000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 10000000,
+      "times": [
+        135.7326
+      ],
+      "work": {
+        "rss_mb": 6353.4,
+        "nodes": 10000000
+      }
+    },
+    {
+      "series": "Gene families \u00b7 full",
+      "x": 10000,
+      "times": [
+        1.0608
+      ],
+      "work": {
+        "rss_mb": 402.8,
+        "families": 3230,
+        "events": 302768
+      }
+    },
+    {
+      "series": "Gene families \u00b7 full",
+      "x": 30000,
+      "times": [
+        3.487
+      ],
+      "work": {
+        "rss_mb": 1074.8,
+        "families": 9564,
+        "events": 914361
+      }
+    },
+    {
+      "series": "Gene families \u00b7 full",
+      "x": 100000,
+      "times": [
+        15.0875
+      ],
+      "work": {
+        "rss_mb": 3455.1,
+        "families": 31952,
+        "events": 3067493
+      }
+    },
+    {
+      "series": "Gene families \u00b7 profiles",
+      "x": 10000,
+      "times": [
+        0.1398
+      ],
+      "work": {
+        "rss_mb": 105.2,
+        "families": 3181
+      }
+    },
+    {
+      "series": "Gene families \u00b7 profiles",
+      "x": 100000,
+      "times": [
+        2.4614
+      ],
+      "work": {
+        "rss_mb": 421.9,
+        "families": 31732
+      }
+    },
+    {
+      "series": "Gene families \u00b7 profiles",
+      "x": 1000000,
+      "times": [
+        29.9919
+      ],
+      "work": {
+        "rss_mb": 3173.0,
+        "families": 318660
+      }
+    },
+    {
+      "series": "Gene families \u00b7 profiles",
+      "x": 3000000,
+      "times": [
+        104.6154
+      ],
+      "work": {
+        "rss_mb": 7361.0,
+        "families": 958351
+      }
+    }
+  ]
+}
