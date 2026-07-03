@@ -684,7 +684,7 @@ def match_profiles_smc(
     transfers=None,
     engine: str = "auto",
     seed: int | None = None,
-    max_attempts_factor: int = 200,
+    max_attempts_factor: int = 100,
 ) -> ABCFit:
     """Fit gene-family rates by **sequential Monte Carlo** ABC (Toni et al. 2009).
 
@@ -752,11 +752,12 @@ def match_profiles_smc(
                 new_W[i] = 1.0 / np.sum(W * _smc_kernel(theta, part, tau, active))  # uniform prior
                 i += 1
         total_sims += attempts
-        if i == 0:
-            break                       # tolerance too tight — keep the previous population
-        part, summaries, distances = new_part[:i], np.array(new_s), new_d[:i]
-        W = new_W[:i] / new_W[:i].sum()
-        N = i
+        # Stop (keep the previous population) if the tolerance has hit the noise floor:
+        # too few acceptances would just degenerate the population into a single point.
+        if i < N or attempts >= cap:
+            break
+        part, summaries, distances = new_part, np.array(new_s), new_d
+        W = new_W / new_W.sum()
 
     fit = ABCFit(
         param_names=names,

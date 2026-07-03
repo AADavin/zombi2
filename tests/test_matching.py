@@ -377,3 +377,42 @@ def test_plot_spectra_returns_axes():
     ax = fit.plot_spectra(draws=True)
     assert ax.get_ylabel() == "number of gene families"
     plt.close("all")
+
+
+# --- ABC-SMC ---------------------------------------------------------------------
+
+def _smc_setup():
+    tree = _small_tree()
+    emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
+                             initial_size=10, seed=3).profiles
+    return tree, emp
+
+
+def test_smc_runs_and_is_weighted():
+    tree, emp = _smc_setup()
+    fit = z.match_profiles_smc(
+        tree, emp, priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
+        rounds=2, n_particles=25, initial_size=10, engine="python", seed=1, max_attempts_factor=40)
+    assert fit.sample_weights is not None
+    assert len(fit.accepted) == 25                 # population size stays fixed
+    assert set(fit.posterior) == {"duplication", "loss", "origination"}
+    assert fit.n_simulations >= 25
+    o = fit.summary()["origination"]
+    assert o["lo95"] <= o["median"] <= o["hi95"]   # weighted quantiles ordered
+
+
+def test_smc_requires_uniform_priors():
+    tree, emp = _smc_setup()
+    with pytest.raises(ValueError):
+        z.match_profiles_smc(tree, emp, priors={"duplication": z.Gamma(2, 0.1)},
+                             rounds=2, n_particles=10, engine="python", seed=1)
+
+
+def test_smc_reproducible():
+    tree, emp = _smc_setup()
+    kw = dict(priors={"duplication": (0, 0.3), "origination": (0, 1.5)}, rounds=2,
+              n_particles=20, initial_size=10, engine="python", seed=1, max_attempts_factor=40)
+    a = z.match_profiles_smc(tree, emp, **kw)
+    b = z.match_profiles_smc(tree, emp, **kw)
+    assert np.array_equal(a.samples, b.samples)
+    assert np.allclose(a.sample_weights, b.sample_weights)
