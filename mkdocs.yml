@@ -57,6 +57,7 @@ nav:
       - Transfers: guide/transfers.md
       - Bounding growth: guide/growth.md
       - Gene trees & output: guide/gene-trees-and-output.md
+      - Matching empirical profiles: guide/matching.md
       - Ordered genomes: guide/ordered-genomes.md
       - Rate variation: guide/rate-variation.md
       - Running in parallel: guide/parallel.md
@@ -69,3 +70,4 @@ nav:
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
+      - Ghost lineages: ghost_lineages.md

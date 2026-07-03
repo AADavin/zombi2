@@ -14,17 +14,34 @@ import numpy as np
 
 
 class BirthDeath:
-    """Constant-rate birth-death process (speciation ``birth``, extinction ``death``)."""
+    """Constant-rate birth-death process (speciation ``birth`` λ, extinction ``death`` μ).
 
-    def __init__(self, birth: float, death: float = 0.0):
+    Optional (forward-simulation) extras: serial ``fossilization`` (ψ, dated fossils), extant
+    ``sampling_fraction`` (ρ), and ``removal`` (r) on sampling — see
+    :func:`~zombi2.simulate_species_tree` with ``direction="forward"``. ``fossilization`` and
+    ``removal != 1`` are forward-only; the backward reconstructed sampler assumes ρ=1.
+    """
+
+    def __init__(self, birth: float, death: float = 0.0, *,
+                 fossilization: float = 0.0, sampling_fraction: float = 1.0,
+                 removal: float = 1.0):
         self.birth = float(birth)
         self.death = float(death)
+        self.fossilization = float(fossilization)
+        self.sampling_fraction = float(sampling_fraction)
+        self.removal = float(removal)
 
     def validate(self) -> None:
         if self.birth <= 0:
             raise ValueError(f"birth rate must be > 0, got {self.birth}")
         if self.death < 0:
             raise ValueError(f"death rate must be >= 0, got {self.death}")
+        if self.fossilization < 0:
+            raise ValueError(f"fossilization rate must be >= 0, got {self.fossilization}")
+        if not (0.0 < self.sampling_fraction <= 1.0):
+            raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
+        if not (0.0 <= self.removal <= 1.0):
+            raise ValueError(f"removal must be in [0, 1], got {self.removal}")
 
     def sample_internal_age(self, u: float, A: float, tol: float = 1e-12) -> float:
         """Draw one internal-node age in (0, A) from the reconstructed-process CDF.
@@ -44,6 +61,20 @@ class BirthDeath:
         g_a = (1.0 - e_a) / (lam - mu * e_a)
         k = u * g_a
         return -math.log((1.0 - lam * k) / (1.0 - mu * k)) / r
+
+    def extinction_prob(self, tau: float, tol: float = 1e-12) -> float:
+        """``E(τ)`` — probability a lineage present ``τ`` before the present leaves no sampled
+        descendant, under sampling fraction ρ (``sampling_fraction``); ``E(0)=1-ρ``. Used to
+        place ghost lineages (see :func:`~zombi2.add_ghost_lineages`).
+        """
+        lam, mu, rho = self.birth, self.death, self.sampling_fraction
+        if mu <= 0.0 and rho >= 1.0:  # Yule + complete sampling -> no ghosts
+            return 0.0
+        r = lam - mu
+        if abs(r) < tol * max(1.0, lam):  # critical (birth ≈ death)
+            return 1.0 - rho / (1.0 + rho * lam * tau)
+        e = math.exp(-r * tau)
+        return 1.0 - r / (lam - (lam - r / rho) * e)
 
 
 class Yule(BirthDeath):
@@ -86,11 +117,16 @@ class EpisodicBirthDeath:
     separate, forward-simulation feature and is not modelled here.
     """
 
-    def __init__(self, birth, death, shifts, *, sampling_fraction: float = 1.0, grid: int = 8000):
+    def __init__(self, birth, death, shifts, *, fossilization=None,
+                 sampling_fraction: float = 1.0, removal: float = 1.0, grid: int = 8000):
         self.birth = [float(x) for x in birth]
         self.death = [float(x) for x in death]
         self.shifts = [float(x) for x in shifts]
+        # per-epoch serial fossilization ψ (forward-only; None -> no fossils)
+        self.fossilization = ([0.0] * len(self.birth) if fossilization is None
+                              else [float(x) for x in fossilization])
         self.rho = float(sampling_fraction)
+        self.removal = float(removal)
         self.grid = int(grid)
         self._cache_A = None
         self._ages = None
@@ -100,14 +136,19 @@ class EpisodicBirthDeath:
         k = len(self.birth)
         if len(self.death) != k:
             raise ValueError("birth and death must have the same length")
+        if len(self.fossilization) != k:
+            raise ValueError("fossilization must have the same length as birth")
         if len(self.shifts) != k - 1:
             raise ValueError(f"need len(shifts) == len(birth) - 1, got {len(self.shifts)} and {k}")
         if k < 1:
             raise ValueError("need at least one epoch")
-        if any(b < 0 for b in self.birth) or any(d < 0 for d in self.death):
+        if any(b < 0 for b in self.birth) or any(d < 0 for d in self.death) \
+                or any(f < 0 for f in self.fossilization):
             raise ValueError("rates must be >= 0")
         if not any(b > 0 for b in self.birth):
             raise ValueError("at least one epoch must have birth > 0")
+        if not (0.0 <= self.removal <= 1.0):
+            raise ValueError(f"removal must be in [0, 1], got {self.removal}")
         if any(s <= 0 for s in self.shifts) or list(self.shifts) != sorted(set(self.shifts)):
             raise ValueError("shifts must be strictly increasing positive ages")
         if not (0.0 < self.rho <= 1.0):
@@ -149,6 +190,7 @@ class EpisodicBirthDeath:
         cdf = self._cumtrapz(density, ages)
         cdf /= cdf[-1]
         self._cache_A, self._ages, self._cdf = A, ages, cdf
+        self._E = E  # kept for ghost-lineage grafting (P[no sampled descendant] by age)
 
     def sample_internal_age(self, u: float, A: float) -> float:
         if self._cache_A != A:

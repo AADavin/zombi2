@@ -34,6 +34,51 @@ def test_genomes_on_supplied_tree(tmp_path):
     assert os.listdir(gen / "gene_trees")
 
 
+def test_genomes_fast_writes_full_output(tmp_path):
+    """`--fast` routes through the Rust engine and writes the full ZOMBI-1 output."""
+    from zombi2 import rust_available
+
+    if not rust_available():
+        pytest.skip("zombi2_core (Rust) extension not built")
+
+    sp = tmp_path / "sp"
+    main(["species", "--birth", "1", "--death", "0.3",
+          "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
+
+    fast = tmp_path / "fast"
+    rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
+               "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
+               "--seed", "42", "--fast", "-o", str(fast)])
+    assert rc == 0
+    for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv", "Transfers.tsv",
+              "Gene_family_summary.tsv"):
+        assert (fast / f).exists()
+    assert os.listdir(fast / "gene_trees")
+    assert os.listdir(fast / "gene_family_events")
+
+
+def test_genomes_fast_profiles_only(tmp_path):
+    """`--fast --profiles-only` writes just the profile matrices — no gene trees/event log."""
+    from zombi2 import rust_available
+
+    if not rust_available():
+        pytest.skip("zombi2_core (Rust) extension not built")
+
+    sp = tmp_path / "sp"
+    main(["species", "--birth", "1", "--death", "0.3",
+          "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
+
+    fast = tmp_path / "fast"
+    rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
+               "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
+               "--seed", "42", "--fast", "--profiles-only", "-o", str(fast)])
+    assert rc == 0
+    assert (fast / "Profiles.tsv").exists()
+    assert (fast / "Presence.tsv").exists()
+    assert not (fast / "gene_trees").exists()
+    assert not (fast / "Transfers.tsv").exists()
+
+
 def test_all_runs_end_to_end(tmp_path):
     out = tmp_path / "all"
     rc = main(["all", "--birth", "1", "--death", "0.2", "--tips", "15", "--age", "5",

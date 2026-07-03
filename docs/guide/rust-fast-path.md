@@ -1,6 +1,6 @@
 # The Rust fast path (optional)
 
-ZOMBI2 ships an optional native engine that runs the forward Gillespie in Rust, in two
+ZOMBI2 ships an optional native engine that runs the forward Gillespie in Rust, in three
 flavours:
 
 * **`simulate_profiles_fast`** — genomes are per-family *counts* only; returns just the
@@ -8,12 +8,19 @@ flavours:
   **~0.4 s vs ~21 s** for the pure-Python sim (≈50×).
 * **`simulate_genomes_fast`** — tracks individual gene lineages and emits the **full event
   genealogy**, returning a complete [`Genomes`](gene-families.md) with `.event_log`,
-  `.gene_trees()` and `.write()` — a drop-in for `simulate_genomes` at large scale.
+  `.gene_trees()` and `.write()` — a drop-in for `simulate_genomes` (~3× at 10k tips; limited
+  by materialising ~2M Python objects).
+* **`simulate_and_write_fast`** — simulates, reconstructs the gene trees, **and writes the
+  full ZOMBI-1 output to disk entirely in Rust**, returning only a small summary. This is the
+  scale path for "simulate-and-write-everything" — nothing large crosses back into Python
+  (**~10× vs Python simulate + write** at 10k tips: ~6.5 s vs ~66 s).
 
-The pure-Python [`simulate_genomes`](gene-families.md) remains the default. Both Rust engines
-cover exactly the built-in `UnorderedGenome` + `UniformRates` model (per-copy
-duplication / transfer / loss, per-branch origination, additive uniform-recipient
-transfers, optional hard `max_family_size`) and the default `TransferModel`.
+The pure-Python [`simulate_genomes`](gene-families.md) remains the default. All three Rust
+engines cover the built-in `UnorderedGenome` + `UniformRates` model (per-copy
+duplication / transfer / loss, per-branch origination, optional hard `max_family_size`) and
+the **full `TransferModel`** — pass `transfers=z.TransferModel(replacement=…,
+distance_decay=…, allow_self=…)` for replacement transfers, phylogenetic-distance-weighted
+recipients, or self-transfers, exactly as with `simulate_genomes`.
 
 ## Building the extension
 
@@ -69,6 +76,24 @@ existing reconciliation/writers. Gene ids are integers (not `g`-prefixed) and th
 from the Python engine, so results are statistically — not bit — identical. The reconciliation
 invariant holds: each family's extant gene-tree leaf count equals its extant copy number.
 
+## Writing everything from Rust (scale path)
+
+To generate a large dataset and get files on disk, `simulate_and_write_fast` does the whole
+pipeline — simulate, reconstruct gene trees, write every output — in Rust:
+
+```python
+summary = z.simulate_and_write_fast(
+    tree, "out/", duplication=0.05, transfer=0.03, loss=0.1, origination=0.5,
+    initial_size=200, max_family_size=0.3, seed=42,
+)
+# {'path': 'out/', 'n_families': ..., 'n_events': ..., 'n_species': ...}
+```
+
+It writes the identical file set as `Genomes.write` (`gene_family_events/`, `gene_trees/`,
+`Transfers.tsv`, `Gene_family_summary.tsv`, `Profiles.tsv`, `Presence.tsv`; Python writes only
+the two tiny tree-only files). Because it never builds the multi-million-object Python log, it
+is far faster than `simulate_genomes(...).write(...)` at scale.
+
 ## Reproducibility & correctness
 
 The Rust engine uses its own PRNG, so results are **statistically** equivalent to the
@@ -78,15 +103,25 @@ within Monte-Carlo error.
 
 ## Performance notes
 
-At 10 000 tips (~2.1M events): `simulate_genomes_fast` builds the full `Genomes` in **~5.5 s
-vs ~17 s** for `simulate_genomes` (≈3×). The Rust side generates the genealogy; the ~3× (not
-50×) is because Python still materialises ~2M `EventRecord` objects. And the *downstream*
-`gene_trees()` (~18 s) and `write()` (~33 s) are still pure Python — so for the
-"simulate-and-write-everything at scale" workflow, those now dominate.
+At 10 000 tips (~2.1M events):
+
+| Path | Time | vs Python |
+| --- | --- | --- |
+| `simulate_profiles_fast` (profiles only) | ~0.4 s | ~50× |
+| `simulate_genomes_fast` (full `Genomes`, materialised) | ~5.5 s | ~3× |
+| `simulate_and_write_fast` (simulate + trees + write, threaded) | ~3 s | ~20× |
+| `simulate_genomes` + `.write()` (pure Python) | ~66 s | 1× |
+
+`simulate_genomes_fast` is "only" ~3× because Python still materialises ~2M `EventRecord`
+objects; `simulate_and_write_fast` avoids that entirely (everything stays in Rust) and is the
+right choice when you want files on disk at scale. Its per-family gene-tree reconstruction,
+event-table formatting and profile-matrix formatting run in parallel across cores (rayon), so
+the writing/reconstruction phase scales with your core count; output is byte-for-byte
+deterministic regardless of thread count.
 
 ## What's next
 
-The genealogy is in Rust; the remaining large wins are to move **gene-tree reconstruction and
-the output writers into Rust** (so nothing large crosses back into Python), and to add the
-richer `TransferModel` mechanics (replacement / distance / self) — which also opens the door
-to within-simulation per-family threading.
+The reconstruction and writers are multithreaded; the forward Gillespie itself is still
+sequential, so the remaining large win is a per-family decomposition of the *simulation*
+(families are independent given the tree). Other items: exposing the richer engines through
+more of the API surface.

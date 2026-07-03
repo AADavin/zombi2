@@ -84,6 +84,68 @@ the ranked assembly, which is model-agnostic. So an episodic model is essentiall
 `sample_internal_age` that inverts a piecewise CDF numerically — the assembly, I/O and the
 whole downstream gene-family machinery are untouched.
 
+## Forward simulation (implemented)
+
+`simulate_species_tree` runs *backward* and returns the reconstructed tree (survivors only).
+`simulate_species_tree(..., direction="forward")` runs the birth–death process *forward* and returns the
+**complete** tree — extinct lineages included natively (`is_extant=False` leaves at their death
+times). It is the second route to a complete tree, alongside grafting ghosts onto a backward
+tree with [`add_ghost_lineages`](ghost_lineages.md); pass either to `simulate_genomes` and
+transfers use the dead lineages automatically.
+
+```python
+# grow for a fixed crown age (number of extant tips is random):
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.4), age=5.0, direction="forward", seed=1)
+
+# ...or grow until N extant lineages coexist (age is random):
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
+
+recon = z.prune(tree)   # the reconstructed (survivors-only) counterpart
+```
+
+Conventions match the backward crown tree: rooted at the crown (`time == 0`), present at
+`total_age`, `age` = crown age; conditioned on ≥2 sampled survivors. Verified against theory
+(Yule: mean extant ≈ `2·e^{λ·age}`).
+
+`EpisodicBirthDeath` is supported in **age mode** (time-varying λ/μ and incomplete sampling
+`ρ<1`, which marks extant-but-unsampled tips `is_extant=False`). In age mode the present is
+fixed at `age`, so the model's ages-before-present map to tree-time `age − t`; a recent
+mass-extinction epoch sharply thins the extant tips (e.g. mean extant 100 → 12 when the last
+epoch's μ jumps). `n_tips` mode is constant-rate only (the present must be fixed for episodic
+rates).
+
+### Fossilized birth–death (serial / through-time sampling)
+
+The same `BirthDeath` (or `EpisodicBirthDeath`) model gains serial sampling through optional
+kwargs: beyond speciation (λ) and extinction (μ), lineages are sampled *through time* at rate ψ
+(`fossilization`) — each a **dated fossil tip** — and extant lineages are sampled at the present
+with probability ρ (`sampling_fraction`). Sampling removes the lineage by default (`removal=1`),
+so every sample is a terminal tip and the tree stays binary (the gene-family machinery is
+unaffected).
+
+```python
+m = z.BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
+tree = z.simulate_species_tree(m, age=6.0, direction="forward", seed=1)   # complete tree + fossils
+fbd = z.prune(tree, keep="sampled")   # the sampled tree: dated fossil tips + sampled extant tips
+```
+
+Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times; sampled extant
+tips carry `sampled=True, is_extant=True`. `prune(..., keep="sampled")` extracts the FBD sampled tree
+(the dated-tip tree used in total-evidence dating); `prune` still gives the extant-only
+reconstructed tree. Verified: fossil count scales with ψ (0 at ψ=0), fossils are dated before the
+present, and the sampled tree has one tip per sample.
+
+**Sampled ancestors.** With `removal=r<1`, a sampled lineage *continues* with probability `1−r`
+instead of being removed — a **sampled ancestor** (the SA-FBD model), represented as a degree-two
+node (`sampled=True`, one child). `prune(..., keep="sampled")` keeps these as degree-two nodes; the gene
+simulator passes genomes straight through them (they are not gene events), so DTL simulation runs
+unchanged on SA trees.
+
+**Episodic FBD.** `EpisodicBirthDeath(birth[], death[], shifts[], *, fossilization=[...],
+sampling_fraction=…, removal=…)` composes time-varying λ/μ/ψ with fossil sampling (age mode, like
+the other episodic models). So a mass-extinction epoch and a changing fossilization rate can be
+combined in one forward run.
+
 ## Key references
 
 - Stadler (2009), *J. Theor. Biol.* — reconstructed birth–death process.

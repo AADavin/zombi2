@@ -30,6 +30,10 @@ class TreeNode:
     parent: "TreeNode | None" = field(default=None, repr=False)
     children: list["TreeNode"] = field(default_factory=list, repr=False)
     is_extant: bool = True
+    #: True if this node is an observation — an extant *sampled* tip or a serially-sampled
+    #: fossil (see fossilized birth–death in ``simulate_species_tree(..., direction="forward")``).
+    #: Default False.
+    sampled: bool = False
 
     def add_child(self, child: "TreeNode") -> None:
         child.parent = self
@@ -110,6 +114,51 @@ class Tree:
 
     def __repr__(self) -> str:
         return f"Tree(root={self.root.name!r}, n_leaves={len(self.leaves())}, total_age={self.total_age:.6g})"
+
+
+def prune(tree: Tree, keep: str = "extant") -> Tree | None:
+    """Prune a complete tree to a reconstructed one, keeping only lineages leading to a kept
+    leaf, suppressing degree-two nodes and preserving node times.
+
+    ``keep="extant"`` (default) keeps sampled **extant** tips — the survivors-only reconstructed
+    tree (the inverse of forward simulation / ghost-grafting). ``keep="sampled"`` keeps every
+    **sample** (serially-sampled fossils *and* sampled extant tips), and preserves *sampled
+    ancestors* as degree-two nodes — the fossilized-birth–death sampled tree of dated tips.
+    Returns ``None`` if nothing is kept.
+    """
+    if keep == "extant":
+        predicate = lambda n: n.is_extant  # noqa: E731
+        keep_ancestors = False
+    elif keep == "sampled":
+        predicate = lambda n: n.sampled  # noqa: E731
+        keep_ancestors = True
+    else:
+        raise ValueError(f"keep must be 'extant' or 'sampled', got {keep!r}")
+
+    def copy(node: TreeNode) -> TreeNode:
+        return TreeNode(name=node.name, time=node.time,
+                        is_extant=node.is_extant, sampled=node.sampled)
+
+    def rec(node: TreeNode) -> TreeNode | None:
+        if node.is_leaf():
+            return copy(node) if predicate(node) else None
+        kept = [k for k in (rec(c) for c in node.children) if k is not None]
+        if not kept:
+            # a kept ancestor with no kept descendants becomes a terminal tip
+            return copy(node) if (keep_ancestors and predicate(node)) else None
+        if len(kept) == 1:
+            if keep_ancestors and predicate(node):  # sampled ancestor -> degree-two node
+                sa = copy(node)
+                sa.add_child(kept[0])
+                return sa
+            return kept[0]  # suppress a plain degree-two node
+        new = copy(node)
+        for k in kept:
+            new.add_child(k)
+        return new
+
+    root = rec(tree.root)
+    return Tree(root, tree.total_age) if root is not None else None
 
 
 def read_newick(newick: str) -> Tree:

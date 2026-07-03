@@ -50,6 +50,23 @@ class Genomes:
             for fam, records in self.gene_families.items()
         }
 
+    def reconciliations(self) -> dict:
+        """Reconcile each family against the species tree.
+
+        Returns ``{family: Reconciliation(complete, extant, events)}`` — the complete gene
+        tree annotated with its species mapping (real events + losses), the extant (pruned)
+        tree annotated (cherries, no losses), and the S/D/T/L event list. See
+        :func:`~zombi2.reconciliation.reconcile`.
+        """
+        from .reconciliation import reconcile
+
+        gid2species = self._gid_to_species()
+        total_age = self.species_tree.total_age
+        return {
+            fam: reconcile(records, gid2species, total_age)
+            for fam, records in self.gene_families.items()
+        }
+
     # --- output ------------------------------------------------------------
     def write(self, outdir: str | Path) -> None:
         out = Path(outdir)

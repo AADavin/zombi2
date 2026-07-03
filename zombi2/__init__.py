@@ -25,10 +25,13 @@ from __future__ import annotations
 __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
-from .tree import Tree, TreeNode, read_newick
+from .tree import Tree, TreeNode, read_newick, prune
 from .species_model import BirthDeath, Yule, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
+from .ghosts import add_ghost_lineages
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
+from .nucleotide_genome import NucleotideGenome, Segment
+from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Atom
 from .rates import (
     RateModel,
     UniformRates,
@@ -52,19 +55,39 @@ from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
 from .simulation import simulate_genomes, Genomes
+from .matching import (
+    match_profiles,
+    match_profiles_smc,
+    ABCFit,
+    default_summary,
+    default_gene_tree_summary,
+    event_count_summary,
+    frequency_spectrum,
+    genome_sizes,
+    copy_number_spectrum,
+)
 from .parallel import run_replicates
-from .fast import simulate_profiles_fast, simulate_genomes_fast, rust_available
+from .fast import (
+    simulate_profiles_fast,
+    simulate_genomes_fast,
+    simulate_and_write_fast,
+    simulate_nucleotide_genomes_fast,
+    rust_available,
+)
 
 __all__ = [
     "__version__",
     # events
     "EventType", "GeneOp", "EventRecord", "Selection", "Region", "TargetParams",
     # tree
-    "Tree", "TreeNode", "read_newick",
+    "Tree", "TreeNode", "read_newick", "prune",
     # species tree
-    "BirthDeath", "Yule", "EpisodicBirthDeath", "simulate_species_tree",
+    "BirthDeath", "Yule", "EpisodicBirthDeath",
+    "simulate_species_tree", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
+    # nucleotide genome (structural events at nucleotide resolution)
+    "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Atom",
     # rates & transfers
     "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
     "BranchRates", "EventWeight", "TransferModel",
@@ -73,10 +96,14 @@ __all__ = [
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
     "build_gene_trees",
+    # profile matching (rejection ABC + SMC)
+    "match_profiles", "match_profiles_smc", "ABCFit", "default_summary", "default_gene_tree_summary",
+    "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
     # parallelism
     "run_replicates",
     # optional Rust fast path
-    "simulate_profiles_fast", "simulate_genomes_fast", "rust_available",
+    "simulate_profiles_fast", "simulate_genomes_fast", "simulate_and_write_fast",
+    "simulate_nucleotide_genomes_fast", "rust_available",
 ]

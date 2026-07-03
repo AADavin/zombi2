@@ -8,6 +8,8 @@ Auto-generated from the source docstrings.
 ::: zombi2.species_model.Yule
 ::: zombi2.species_model.EpisodicBirthDeath
 ::: zombi2.species_sim.simulate_species_tree
+::: zombi2.ghosts.add_ghost_lineages
+::: zombi2.tree.prune
 
 ## Tree
 
@@ -57,6 +59,19 @@ Auto-generated from the source docstrings.
 ::: zombi2.simulation.Genomes
 ::: zombi2.genome_sim.GenomeSimulator
 
+## Profile matching (ABC)
+
+::: zombi2.matching.match_profiles
+::: zombi2.matching.match_profiles_smc
+::: zombi2.matching.ABCFit
+::: zombi2.matching.default_summary
+::: zombi2.matching.default_gene_tree_summary
+::: zombi2.matching.event_count_summary
+::: zombi2.matching.frequency_spectrum
+::: zombi2.matching.genome_sizes
+::: zombi2.matching.copy_number_spectrum
+::: zombi2.profiles.ProfileMatrix
+
 ## Parallel replicates
 
 ::: zombi2.parallel.run_replicates
@@ -65,6 +80,7 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.fast.simulate_profiles_fast
 ::: zombi2.fast.simulate_genomes_fast
+::: zombi2.fast.simulate_and_write_fast
 ::: zombi2.fast.rust_available
 
 ## Gene-tree reconstruction

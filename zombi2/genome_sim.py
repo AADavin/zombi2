@@ -127,6 +127,12 @@ class GenomeSimulator:
             if node.is_leaf():
                 if node.is_extant:
                     leaf_genomes[node] = genome
+            elif len(node.children) == 1:
+                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and
+                # its genome — simply continues, so pass the genome straight to the child
+                child = node.children[0]
+                alive[child] = genome
+                activate(child)
             else:  # speciation: re-mint lineage ids into each child and log it
                 self._speciate(genome, node, alive, log)
                 for child in node.children:

@@ -7,9 +7,14 @@
 //   Python engine) and emits the full event genealogy + leaf genomes, so Python can rebuild
 //   the same event log, gene trees and outputs.
 
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as _;
+use std::fs::{self, File};
+use std::io::{BufWriter, Write as _};
+use std::path::Path;
 
 /// xoshiro256** — small, fast, deterministic PRNG (seeded via splitmix64).
 struct Rng {
@@ -97,6 +102,89 @@ impl Fenwick {
     }
 }
 
+/// Transfer mechanics (mirrors Python's TransferModel). `decay < 0` means uniform recipient.
+#[derive(Clone, Copy)]
+struct Transfers {
+    replacement: f64,
+    decay: f64,
+    allow_self: bool,
+}
+
+/// Choose a transfer recipient among the alive branches: uniform, or weighted by
+/// exp(-decay * (d - dmin)) with patristic distance d = 2*(t - t_MRCA). Optionally allows
+/// the donor itself (a self-transfer = duplication). Returns None if no candidate exists.
+#[allow(clippy::too_many_arguments)]
+fn choose_recipient(
+    rng: &mut Rng,
+    alive_list: &[usize],
+    alive_pos: &[i64],
+    donor: usize,
+    parent: &[i64],
+    time: &[f64],
+    t: f64,
+    tr: &Transfers,
+) -> Option<usize> {
+    let k = alive_list.len();
+    if k == 0 || (!tr.allow_self && k < 2) {
+        return None;
+    }
+    if tr.decay < 0.0 {
+        // uniform recipient
+        if tr.allow_self {
+            return Some(alive_list[rng.uniform(k as u64) as usize]);
+        }
+        let donor_pos = alive_pos[donor] as usize;
+        let mut j = rng.uniform((k - 1) as u64) as usize;
+        if j >= donor_pos {
+            j += 1;
+        }
+        return Some(alive_list[j]);
+    }
+    // distance-weighted: mark the donor's ancestor chain, then walk each candidate up to it
+    let mut anc: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    let mut node = donor as i64;
+    while node >= 0 {
+        anc.insert(node as usize);
+        node = parent[node as usize];
+    }
+    let mut dists: Vec<f64> = Vec::with_capacity(k);
+    for &r in alive_list {
+        if r == donor {
+            dists.push(if tr.allow_self { 0.0 } else { f64::INFINITY });
+            continue;
+        }
+        let mut n = r;
+        while !anc.contains(&n) {
+            n = parent[n] as usize;
+        }
+        dists.push(2.0 * (t - time[n]));
+    }
+    let dmin = dists.iter().cloned().fold(f64::INFINITY, f64::min);
+    if !dmin.is_finite() {
+        return None;
+    }
+    let mut total = 0.0;
+    let weights: Vec<f64> = dists
+        .iter()
+        .map(|&d| {
+            let w = if d.is_finite() { (-tr.decay * (d - dmin)).exp() } else { 0.0 };
+            total += w;
+            w
+        })
+        .collect();
+    if total <= 0.0 {
+        return None;
+    }
+    let mut rr = rng.next_f64() * total;
+    for (idx, &w) in weights.iter().enumerate() {
+        rr -= w;
+        if rr <= 0.0 {
+            return Some(alive_list[idx]);
+        }
+    }
+    Some(*alive_list.last().unwrap())
+}
+
 /// Order-free genome: family id -> copy count (BTreeMap for deterministic iteration).
 #[derive(Clone)]
 struct Genome {
@@ -139,6 +227,9 @@ impl Genome {
 struct Engine {
     children: Vec<Vec<usize>>,
     extant_leaf: Vec<bool>,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    tr: Transfers,
     d: f64,
     t: f64,
     l: f64,
@@ -184,20 +275,6 @@ impl Engine {
         self.fenwick.set(node, sub);
     }
 
-    /// Pick a uniform recipient among alive branches other than `donor` (None if <2 alive).
-    fn pick_recipient(&mut self, donor: usize) -> Option<usize> {
-        let k = self.alive_list.len();
-        if k < 2 {
-            return None;
-        }
-        let mut j = self.rng.uniform((k - 1) as u64) as usize;
-        let donor_pos = self.alive_pos[donor] as usize;
-        if j >= donor_pos {
-            j += 1;
-        }
-        Some(self.alive_list[j])
-    }
-
     fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
         loop {
             let total = self.fenwick.total;
@@ -216,11 +293,11 @@ impl Engine {
                 ));
             }
             let branch = self.fenwick.find((1.0 - self.rng.next_f64()) * total);
-            self.fire(branch);
+            self.fire(branch, t);
         }
     }
 
-    fn fire(&mut self, branch: usize) {
+    fn fire(&mut self, branch: usize, t: f64) {
         let (size, sd, sdt, sdtl) = {
             let g = self.genomes[branch].as_ref().unwrap();
             let size = g.size as f64;
@@ -239,19 +316,30 @@ impl Engine {
             }
             self.refresh(branch);
         } else if r < sdt {
-            // transfer (additive; over-cap recipient is a net-zero no-op)
+            // transfer: additive; recipient by TransferModel; then cap-forced or
+            // probabilistic replacement (drop a pre-existing copy). Self-transfer = duplication.
             let fam = {
                 let g = self.genomes[branch].as_ref().unwrap();
                 let idx = self.rng.uniform(size as u64);
                 g.family_at(idx)
             };
-            if let Some(recipient) = self.pick_recipient(branch) {
-                let rg = self.genomes[recipient].as_mut().unwrap();
-                if self.cap < 0 || (rg.copy_number(fam) as i64) < self.cap {
-                    rg.add(fam);
-                    self.refresh(recipient);
-                }
+            let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
+                &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
+                Some(x) => x,
+                None => return,
+            };
+            self.genomes[recipient].as_mut().unwrap().add(fam);
+            let total = self.genomes[recipient].as_ref().unwrap().copy_number(fam) as i64;
+            let mut removals = 0i64;
+            if self.cap >= 0 && total > self.cap {
+                removals = total - self.cap;
+            } else if total - 1 >= 1 && self.tr.replacement > 0.0 && self.rng.next_f64() < self.tr.replacement {
+                removals = 1;
             }
+            for _ in 0..removals {
+                self.genomes[recipient].as_mut().unwrap().remove_one(fam);
+            }
+            self.refresh(recipient);
         } else if r < sdtl {
             // loss
             let g = self.genomes[branch].as_mut().unwrap();
@@ -284,6 +372,9 @@ fn simulate_profiles(
     initial_size: usize,
     cap: i64,
     seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
 ) -> PyResult<Vec<(usize, Vec<(u64, u32)>)>> {
     // children adjacency from parent pointers
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
@@ -296,6 +387,9 @@ fn simulate_profiles(
     let mut engine = Engine {
         children,
         extant_leaf,
+        parent: parent.clone(),
+        time: time.clone(),
+        tr: Transfers { replacement, decay: distance_decay, allow_self },
         d: duplication,
         t: transfer,
         l: loss,
@@ -430,6 +524,9 @@ const EV_S: u8 = 4;
 struct LogEngine {
     children: Vec<Vec<usize>>,
     extant_leaf: Vec<bool>,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    tr: Transfers,
     d: f64,
     t: f64,
     l: f64,
@@ -473,19 +570,6 @@ impl LogEngine {
         self.alive_pos[node] = -1;
         self.genomes[node].take().unwrap()
     }
-    fn pick_recipient(&mut self, donor: usize) -> Option<usize> {
-        let k = self.alive_list.len();
-        if k < 2 {
-            return None;
-        }
-        let mut j = self.rng.uniform((k - 1) as u64) as usize;
-        let donor_pos = self.alive_pos[donor] as usize;
-        if j >= donor_pos {
-            j += 1;
-        }
-        Some(self.alive_list[j])
-    }
-
     fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
         loop {
             let total = self.fenwick.total;
@@ -538,8 +622,11 @@ impl LogEngine {
             self.rec.push(EV_D, branch as u32, t, -1, -1, fam, old, left as i64, right as i64);
             self.refresh(branch);
         } else if r < sdt {
-            // transfer (additive; uniform recipient != donor; over-cap forces replacement losses)
-            let recipient = match self.pick_recipient(branch) {
+            // transfer: recipient by TransferModel (uniform / distance-weighted / self);
+            // donor lineage bifurcates (old -> cont in donor, tc into recipient); then
+            // cap-forced or probabilistic replacement drops a pre-existing recipient copy.
+            let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
+                &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
                 Some(x) => x,
                 None => return,
             };
@@ -558,13 +645,15 @@ impl LogEngine {
             }
             self.genomes[recipient].as_mut().unwrap().add(tc, fam);
             self.rec.push(EV_T, branch as u32, t, branch as i64, recipient as i64, fam, old, cont as i64, tc as i64);
-            if self.cap >= 0 {
-                let total = self.genomes[recipient].as_ref().unwrap().copy_number(fam) as i64;
-                if total > self.cap {
-                    for _ in 0..(total - self.cap) {
-                        self.remove_one_family(recipient, fam, tc, t);
-                    }
-                }
+            let total = self.genomes[recipient].as_ref().unwrap().copy_number(fam) as i64;
+            let mut removals = 0i64;
+            if self.cap >= 0 && total > self.cap {
+                removals = total - self.cap;
+            } else if total - 1 >= 1 && self.tr.replacement > 0.0 && self.rng.next_f64() < self.tr.replacement {
+                removals = 1;
+            }
+            for _ in 0..removals {
+                self.remove_one_family(recipient, fam, tc, t);
             }
             self.refresh(branch);
             self.refresh(recipient);
@@ -635,13 +724,13 @@ impl LogEngine {
 
 type LogColumns = (Vec<u8>, Vec<u32>, Vec<f64>, Vec<i64>, Vec<i64>, Vec<u64>, Vec<u64>, Vec<i64>, Vec<i64>);
 
+/// Run the full-log engine; return its records and extant leaf genomes.
 #[allow(clippy::too_many_arguments)]
-#[pyfunction]
-fn simulate_log(
+fn run_log(
     n_nodes: usize,
-    parent: Vec<i64>,
-    time: Vec<f64>,
-    extant_leaf: Vec<bool>,
+    parent: &[i64],
+    time: &[f64],
+    extant_leaf: &[bool],
     root: usize,
     duplication: f64,
     transfer: f64,
@@ -650,7 +739,8 @@ fn simulate_log(
     initial_size: usize,
     cap: i64,
     seed: u64,
-) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
+    tr: Transfers,
+) -> PyResult<(Records, Vec<(usize, Vec<(u64, u64)>)>)> {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
     for (node, &p) in parent.iter().enumerate() {
         if p >= 0 {
@@ -660,7 +750,10 @@ fn simulate_log(
 
     let mut eng = LogEngine {
         children,
-        extant_leaf,
+        extant_leaf: extant_leaf.to_vec(),
+        parent: parent.to_vec(),
+        time: time.to_vec(),
+        tr,
         d: duplication,
         t: transfer,
         l: loss,
@@ -708,8 +801,855 @@ fn simulate_log(
         }
     }
 
-    let r = eng.rec;
+    Ok((eng.rec, leaves))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_log(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    duplication: f64,
+    transfer: f64,
+    loss: f64,
+    origination: f64,
+    initial_size: usize,
+    cap: i64,
+    seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
+) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr)?;
     Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaves))
+}
+
+// ============ output writing in Rust (gene trees + tables) — no big return to Python ============
+
+/// %g-like formatting: `sig` significant figures with trailing zeros trimmed.
+fn fmt_g(x: f64, sig: i32) -> String {
+    if x == 0.0 || !x.is_finite() {
+        return "0".to_string();
+    }
+    let exp = x.abs().log10().floor() as i32;
+    let decimals = (sig - 1 - exp).clamp(0, 17) as usize;
+    let s = format!("{:.*}", decimals, x);
+    if s.contains('.') {
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    } else {
+        s
+    }
+}
+
+/// Natural-ish sort key matching Python's _natkey: (numeric run in the name, name).
+fn natkey(name: &str) -> (i128, &str) {
+    let digits: String = name.chars().filter(|c| c.is_ascii_digit()).collect();
+    (digits.parse::<i128>().unwrap_or(0), name)
+}
+
+const EV_CHAR: [&str; 5] = ["O", "D", "T", "L", "S"];
+const ROLES: [&[&str]; 5] = [
+    &["origin"],
+    &["parent", "left", "right"],
+    &["parent", "donor_copy", "transfer_copy"],
+    &["lost"],
+    &["parent", "child", "child"],
+];
+
+/// A reconstructed gene-tree node (species = leaf node index for extant tips).
+struct GNode {
+    gid: u64,
+    birth: f64,
+    end: f64,
+    children: Vec<GNode>,
+    is_loss: bool,
+    species: Option<usize>,
+}
+
+fn bl(n: &GNode) -> f64 {
+    (n.end - n.birth).max(0.0)
+}
+
+fn to_newick(n: &GNode, names: &[String], out: &mut String) {
+    if n.children.is_empty() {
+        if n.is_loss {
+            let _ = write!(out, "LOSS_{}:{}", n.gid, fmt_g(bl(n), 6));
+        } else if let Some(li) = n.species {
+            let _ = write!(out, "{}_{}:{}", names[li], n.gid, fmt_g(bl(n), 6));
+        } else {
+            let _ = write!(out, "{}:{}", n.gid, fmt_g(bl(n), 6));
+        }
+    } else {
+        out.push('(');
+        for (i, c) in n.children.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            to_newick(c, names, out);
+        }
+        let _ = write!(out, "){}:{}", n.gid, fmt_g(bl(n), 6));
+    }
+}
+
+/// Prune to lineages leading to an extant leaf; suppress degree-two nodes.
+fn prune(mut n: GNode) -> Option<GNode> {
+    if n.children.is_empty() {
+        return if n.species.is_some() { Some(n) } else { None };
+    }
+    let mut kept: Vec<GNode> = n.children.into_iter().filter_map(prune).collect();
+    match kept.len() {
+        0 => None,
+        1 => {
+            let mut survivor = kept.pop().unwrap();
+            survivor.birth = n.birth;
+            Some(survivor)
+        }
+        _ => {
+            n.children = kept;
+            Some(n)
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_gnode(
+    gid: u64,
+    children: &HashMap<u64, (u64, u64)>,
+    losses: &std::collections::HashSet<u64>,
+    end_time: &HashMap<u64, f64>,
+    birth: &HashMap<u64, f64>,
+    gid2leaf: &HashMap<u64, usize>,
+    total_age: f64,
+) -> GNode {
+    let b = *birth.get(&gid).unwrap_or(&0.0);
+    if let Some(&(c1, c2)) = children.get(&gid) {
+        GNode {
+            gid, birth: b, end: end_time[&gid], is_loss: false, species: None,
+            children: vec![
+                build_gnode(c1, children, losses, end_time, birth, gid2leaf, total_age),
+                build_gnode(c2, children, losses, end_time, birth, gid2leaf, total_age),
+            ],
+        }
+    } else if losses.contains(&gid) {
+        GNode { gid, birth: b, end: end_time[&gid], children: vec![], is_loss: true, species: None }
+    } else {
+        GNode { gid, birth: b, end: total_age, children: vec![], is_loss: false, species: gid2leaf.get(&gid).copied() }
+    }
+}
+
+/// Reconstruct (complete, extant) Newick for one family from its time-ordered records.
+fn reconstruct(
+    idxs: &[usize],
+    rec: &Records,
+    gid2leaf: &HashMap<u64, usize>,
+    names: &[String],
+    total_age: f64,
+) -> (Option<String>, Option<String>) {
+    let mut children: HashMap<u64, (u64, u64)> = HashMap::new();
+    let mut losses: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    let mut end_time: HashMap<u64, f64> = HashMap::new();
+    let mut birth: HashMap<u64, f64> = HashMap::new();
+    let mut root: Option<u64> = None;
+
+    for &ri in idxs {
+        let ev = rec.ev[ri];
+        let tm = rec.tm[ri];
+        match ev {
+            EV_O => {
+                root = Some(rec.g0[ri]);
+                birth.entry(rec.g0[ri]).or_insert(tm);
+            }
+            EV_D | EV_T | EV_S => {
+                let frm = rec.g0[ri];
+                let c1 = rec.g1[ri] as u64;
+                let c2 = rec.g2[ri] as u64;
+                children.insert(frm, (c1, c2));
+                end_time.insert(frm, tm);
+                birth.insert(c1, tm);
+                birth.insert(c2, tm);
+            }
+            EV_L => {
+                losses.insert(rec.g0[ri]);
+                end_time.insert(rec.g0[ri], tm);
+            }
+            _ => {}
+        }
+    }
+
+    let root = match root {
+        Some(r) => r,
+        None => return (None, None),
+    };
+    let node = build_gnode(root, &children, &losses, &end_time, &birth, gid2leaf, total_age);
+    let mut complete = String::new();
+    to_newick(&node, names, &mut complete);
+    complete.push(';');
+    let extant = prune(node).map(|n| {
+        let mut s = String::new();
+        to_newick(&n, names, &mut s);
+        s.push(';');
+        s
+    });
+    (Some(complete), extant)
+}
+
+/// Write all gene-family outputs; return (n_families, n_species).
+fn write_outputs(
+    rec: &Records,
+    leaves: &[(usize, Vec<(u64, u64)>)],
+    names: &[String],
+    total_age: f64,
+    outdir: &str,
+) -> std::io::Result<(usize, usize)> {
+    let base = Path::new(outdir);
+    fs::create_dir_all(base.join("gene_family_events"))?;
+    fs::create_dir_all(base.join("gene_trees"))?;
+    let n_events = rec.ev.len();
+
+    // gid -> leaf index, and per-leaf family counts
+    let mut gid2leaf: HashMap<u64, usize> = HashMap::new();
+    let mut leaf_counts: HashMap<usize, HashMap<u64, u32>> = HashMap::new();
+    for (li, pairs) in leaves {
+        let cmap = leaf_counts.entry(*li).or_default();
+        for &(gid, fam) in pairs {
+            gid2leaf.insert(gid, *li);
+            *cmap.entry(fam).or_insert(0) += 1;
+        }
+    }
+
+    // species columns in natural-name order
+    let mut species_cols: Vec<usize> = leaves.iter().map(|(li, _)| *li).collect();
+    species_cols.sort_by(|&a, &b| natkey(&names[a]).cmp(&natkey(&names[b])));
+    let n_species = species_cols.len();
+
+    // group record indices by family (records already time-ordered)
+    let mut fam_records: HashMap<u64, Vec<usize>> = HashMap::new();
+    for i in 0..n_events {
+        fam_records.entry(rec.fm[i]).or_default().push(i);
+    }
+    let mut families: Vec<u64> = fam_records.keys().copied().collect();
+    families.sort_unstable();
+    let n_families = families.len();
+
+    // per-family extant copy totals (family -> (total copies, #species))
+    let mut fam_copies: HashMap<u64, (u64, u64)> = HashMap::new();
+    for m in leaf_counts.values() {
+        for (&fam, &c) in m {
+            let e = fam_copies.entry(fam).or_insert((0, 0));
+            e.0 += c as u64;
+            e.1 += 1;
+        }
+    }
+
+    // per-family: event table + gene trees. Families are independent, so reconstruct and
+    // write them in parallel (each thread writes its own files, reads shared data).
+    families.par_iter().try_for_each(|&fam| -> std::io::Result<()> {
+        let idxs = &fam_records[&fam];
+        let label = fam + 1;
+
+        let mut ev_s = String::from("time\tevent\tbranch\tdonor\trecipient\tnodes\n");
+        for &ri in idxs {
+            let code = rec.ev[ri] as usize;
+            let roles = ROLES[code];
+            let mut nodes = format!("{}={}", roles[0], rec.g0[ri]);
+            if roles.len() == 3 {
+                let _ = write!(nodes, ";{}={};{}={}", roles[1], rec.g1[ri], roles[2], rec.g2[ri]);
+            }
+            let donor = if rec.dn[ri] >= 0 { names[rec.dn[ri] as usize].as_str() } else { "" };
+            let recip = if rec.rc[ri] >= 0 { names[rec.rc[ri] as usize].as_str() } else { "" };
+            let _ = writeln!(ev_s, "{}\t{}\t{}\t{}\t{}\t{}",
+                fmt_g(rec.tm[ri], 10), EV_CHAR[code], names[rec.br[ri] as usize], donor, recip, nodes);
+        }
+        fs::write(base.join("gene_family_events").join(format!("{}_events.tsv", label)), ev_s)?;
+
+        let (complete, extant) = reconstruct(idxs, rec, &gid2leaf, names, total_age);
+        if let Some(c) = complete {
+            fs::write(base.join("gene_trees").join(format!("{}_complete.nwk", label)), c + "\n")?;
+        }
+        if let Some(e) = extant {
+            fs::write(base.join("gene_trees").join(format!("{}_extant.nwk", label)), e + "\n")?;
+        }
+        Ok(())
+    })?;
+
+    // Transfers.tsv
+    let mut tr = String::from("time\tfamily\tdonor_branch\trecipient_branch\tparent_id\tdonor_copy_id\ttransfer_id\n");
+    for i in 0..n_events {
+        if rec.ev[i] == EV_T {
+            let _ = writeln!(tr, "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                fmt_g(rec.tm[i], 10), rec.fm[i] + 1,
+                names[rec.dn[i] as usize], names[rec.rc[i] as usize],
+                rec.g0[i], rec.g1[i], rec.g2[i]);
+        }
+    }
+    fs::write(base.join("Transfers.tsv"), tr)?;
+
+    // Gene_family_summary.tsv
+    let mut sm = String::from("family\torigin_time\torigin_branch\tn_dup\tn_transfer\tn_loss\tn_speciation\textant_copies\tspecies_present\n");
+    for &fam in &families {
+        let (mut nd, mut nt, mut nl, mut ns) = (0u64, 0u64, 0u64, 0u64);
+        let mut ot = String::new();
+        let mut ob = String::new();
+        for &ri in &fam_records[&fam] {
+            match rec.ev[ri] {
+                EV_D => nd += 1,
+                EV_T => nt += 1,
+                EV_L => nl += 1,
+                EV_S => ns += 1,
+                EV_O => {
+                    ot = fmt_g(rec.tm[ri], 10);
+                    ob = names[rec.br[ri] as usize].clone();
+                }
+                _ => {}
+            }
+        }
+        let (copies, sp) = fam_copies.get(&fam).copied().unwrap_or((0, 0));
+        let _ = writeln!(sm, "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            fam + 1, ot, ob, nd, nt, nl, ns, copies, sp);
+    }
+    fs::write(base.join("Gene_family_summary.tsv"), sm)?;
+
+    // Profiles.tsv + Presence.tsv (families x species), streamed (large at scale)
+    let mut ext_fams: Vec<u64> = fam_copies.keys().copied().collect();
+    ext_fams.sort_unstable();
+    let col_maps: Vec<&HashMap<u64, u32>> = species_cols.iter().map(|li| &leaf_counts[li]).collect();
+
+    let mut header = String::from("family");
+    for &li in &species_cols {
+        header.push('\t');
+        header.push_str(&names[li]);
+    }
+    header.push('\n');
+
+    let mut pf = BufWriter::new(File::create(base.join("Profiles.tsv"))?);
+    let mut pr = BufWriter::new(File::create(base.join("Presence.tsv"))?);
+    pf.write_all(header.as_bytes())?;
+    pr.write_all(header.as_bytes())?;
+    // Format rows in parallel (each family is independent), in bounded batches to cap memory,
+    // then write each batch in order.
+    for batch in ext_fams.chunks(512) {
+        let rows: Vec<(String, String)> = batch
+            .par_iter()
+            .map(|&fam| {
+                let mut prow = String::new();
+                let mut rrow = String::new();
+                let _ = write!(prow, "{}", fam + 1);
+                let _ = write!(rrow, "{}", fam + 1);
+                for m in &col_maps {
+                    let c = *m.get(&fam).unwrap_or(&0);
+                    let _ = write!(prow, "\t{}", c);
+                    rrow.push('\t');
+                    rrow.push(if c > 0 { '1' } else { '0' });
+                }
+                prow.push('\n');
+                rrow.push('\n');
+                (prow, rrow)
+            })
+            .collect();
+        for (prow, rrow) in &rows {
+            pf.write_all(prow.as_bytes())?;
+            pr.write_all(rrow.as_bytes())?;
+        }
+    }
+    pf.flush()?;
+    pr.flush()?;
+
+    Ok((n_families, n_species))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_and_write(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    names: Vec<String>,
+    duplication: f64,
+    transfer: f64,
+    loss: f64,
+    origination: f64,
+    initial_size: usize,
+    cap: i64,
+    seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
+    total_age: f64,
+    outdir: String,
+) -> PyResult<(usize, usize, usize)> {
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let (rec, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr)?;
+    let (n_families, n_species) = write_outputs(&rec, &leaves, &names, total_age, &outdir)
+        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    Ok((n_families, rec.ev.len(), n_species))
+}
+
+// ============ nucleotide genome (structural events at nucleotide resolution) ============
+// Increment 1: forward sim emitting the extant leaf segments. Atoms, the phylogenetic
+// profile, per-leaf mosaics and the position trace-back are all derivable from those, so
+// this needs no event log, seg-ids or provenance. Container is a Vec (O(S) per op, but in
+// Rust); an order-statistics rope (O(log S)) is a later increment.
+
+#[derive(Clone)]
+struct NSeg {
+    source: u32,
+    start: i64,
+    end: i64,
+    strand: i8,
+}
+impl NSeg {
+    #[inline]
+    fn len(&self) -> i64 {
+        self.end - self.start
+    }
+}
+
+#[derive(Clone)]
+struct NGenome {
+    segs: Vec<NSeg>,
+    length: i64,
+}
+impl NGenome {
+    fn new() -> Self {
+        NGenome { segs: Vec::new(), length: 0 }
+    }
+
+    /// Ensure a segment boundary at physical coordinate `c` (0 is always a boundary).
+    fn split_at(&mut self, c: i64) {
+        if c <= 0 {
+            return;
+        }
+        let mut pos = 0i64;
+        for i in 0..self.segs.len() {
+            if pos == c {
+                return;
+            }
+            let sl = self.segs[i].len();
+            if pos < c && c < pos + sl {
+                let o = c - pos;
+                let s = self.segs[i].clone();
+                let (l, r) = if s.strand == 1 {
+                    (NSeg { source: s.source, start: s.start, end: s.start + o, strand: 1 },
+                     NSeg { source: s.source, start: s.start + o, end: s.end, strand: 1 })
+                } else {
+                    (NSeg { source: s.source, start: s.end - o, end: s.end, strand: -1 },
+                     NSeg { source: s.source, start: s.start, end: s.end - o, strand: -1 })
+                };
+                self.segs[i] = l;
+                self.segs.insert(i + 1, r);
+                return;
+            }
+            pos += sl;
+        }
+    }
+
+    fn index_at(&self, phys: i64) -> usize {
+        let mut pos = 0i64;
+        for i in 0..self.segs.len() {
+            if pos == phys {
+                return i;
+            }
+            pos += self.segs[i].len();
+        }
+        self.segs.len()
+    }
+
+    /// Split both ends of arc `[s, s+ell)` and return its `[i_s, i_e)` segment range,
+    /// rotating a wrapping arc to the front (the origin drifts to a real breakpoint).
+    fn arc_range(&mut self, s: i64, ell: i64) -> (usize, usize) {
+        let l = self.length;
+        let e = (s + ell) % l;
+        self.split_at(s);
+        self.split_at(e);
+        if s + ell <= l {
+            let i_s = self.index_at(s);
+            let i_e = if s + ell < l { self.index_at(s + ell) } else { self.segs.len() };
+            (i_s, i_e)
+        } else {
+            let i_s = self.index_at(s);
+            self.segs.rotate_left(i_s);
+            let mut i_e = 0usize;
+            let mut acc = 0i64;
+            while acc < ell {
+                acc += self.segs[i_e].len();
+                i_e += 1;
+            }
+            (0, i_e)
+        }
+    }
+
+    fn inversion(&mut self, s: i64, ell: i64) {
+        let l = self.length;
+        if l == 0 {
+            return;
+        }
+        let ell = ell.clamp(1, l);
+        let s = s.rem_euclid(l);
+        let (i_s, i_e) = self.arc_range(s, ell);
+        self.segs[i_s..i_e].reverse();
+        for seg in &mut self.segs[i_s..i_e] {
+            seg.strand = -seg.strand;
+        }
+    }
+
+    fn loss(&mut self, s: i64, ell: i64) {
+        let l = self.length;
+        if l == 0 {
+            return;
+        }
+        let ell = ell.min(l);
+        let s = s.rem_euclid(l);
+        if ell == l {
+            self.segs.clear();
+            self.length = 0;
+            return;
+        }
+        let e = (s + ell) % l;
+        self.split_at(s);
+        self.split_at(e);
+        let wrapping = s + ell > l;
+        let mut pos = 0i64;
+        let mut keep = Vec::with_capacity(self.segs.len());
+        for seg in std::mem::take(&mut self.segs) {
+            let start = pos;
+            pos += seg.len();
+            let in_arc = if wrapping { start >= s || pos <= e } else { start >= s && pos <= s + ell };
+            if !in_arc {
+                keep.push(seg);
+            }
+        }
+        self.segs = keep;
+        self.length -= ell;
+    }
+
+    fn duplication(&mut self, s: i64, ell: i64) {
+        let l = self.length;
+        if l == 0 {
+            return;
+        }
+        let ell = ell.clamp(1, l);
+        let s = s.rem_euclid(l);
+        let (_i_s, i_e) = self.arc_range(s, ell);
+        let copies: Vec<NSeg> = self.segs[_i_s..i_e].to_vec();
+        self.segs.splice(i_e..i_e, copies); // tandem copy right after the arc
+        self.length += ell;
+    }
+
+    fn transposition(&mut self, s: i64, ell: i64, dest: i64) {
+        let l = self.length;
+        if l <= 1 {
+            return;
+        }
+        let ell = ell.clamp(1, l - 1);
+        let s = s.rem_euclid(l);
+        let (i_s, i_e) = self.arc_range(s, ell);
+        let arc: Vec<NSeg> = self.segs.splice(i_s..i_e, std::iter::empty()).collect();
+        let rem = l - ell;
+        let dest = dest.rem_euclid(rem + 1);
+        let idx = if dest >= rem {
+            self.segs.len()
+        } else {
+            self.split_at(dest);
+            self.index_at(dest)
+        };
+        self.segs.splice(idx..idx, arc);
+    }
+
+    /// Donor side of a transfer: split the arc, return a copy of it (donor keeps content).
+    fn extract(&mut self, s: i64, ell: i64) -> Vec<NSeg> {
+        let l = self.length;
+        if l == 0 {
+            return Vec::new();
+        }
+        let ell = ell.clamp(1, l);
+        let s = s.rem_euclid(l);
+        let (i_s, i_e) = self.arc_range(s, ell);
+        self.segs[i_s..i_e].to_vec()
+    }
+
+    /// Recipient side of a transfer: splice the copy in at physical `at`.
+    fn insert(&mut self, copies: Vec<NSeg>, at: i64) {
+        let clen: i64 = copies.iter().map(|s| s.len()).sum();
+        let idx = if at >= self.length {
+            self.segs.len()
+        } else {
+            self.split_at(at);
+            self.index_at(at)
+        };
+        self.segs.splice(idx..idx, copies);
+        self.length += clen;
+    }
+}
+
+struct NEngine {
+    children: Vec<Vec<usize>>,
+    extant_leaf: Vec<bool>,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    tr: Transfers,
+    inv: f64,
+    los: f64,
+    dup: f64,
+    tra: f64,
+    trp: f64,
+    ori: f64,
+    ext: f64,
+    root_length: i64,
+    next_source: u32,
+    rng: Rng,
+    genomes: Vec<Option<NGenome>>,
+    alive_list: Vec<usize>,
+    alive_pos: Vec<i64>,
+    fenwick: Fenwick,
+    events: u64,
+    max_events: u64,
+}
+
+impl NEngine {
+    #[inline]
+    fn subtotal(&self, g: &NGenome) -> f64 {
+        (g.length as f64) * (self.inv + self.los + self.dup + self.tra + self.trp) + self.ori
+    }
+    fn activate(&mut self, node: usize, genome: NGenome) {
+        let sub = self.subtotal(&genome);
+        self.genomes[node] = Some(genome);
+        self.alive_pos[node] = self.alive_list.len() as i64;
+        self.alive_list.push(node);
+        self.fenwick.set(node, sub);
+    }
+    fn refresh(&mut self, node: usize) {
+        let sub = self.subtotal(self.genomes[node].as_ref().unwrap());
+        self.fenwick.set(node, sub);
+    }
+    fn deactivate(&mut self, node: usize) -> NGenome {
+        self.fenwick.set(node, 0.0);
+        let pos = self.alive_pos[node] as usize;
+        let last = *self.alive_list.last().unwrap();
+        self.alive_list.swap_remove(pos);
+        if last != node {
+            self.alive_pos[last] = pos as i64;
+        }
+        self.alive_pos[node] = -1;
+        self.genomes[node].take().unwrap()
+    }
+    fn speciate(&mut self, node: usize, genome: NGenome) {
+        for child in self.children[node].clone() {
+            self.activate(child, genome.clone());
+        }
+    }
+
+    fn draw_length(&mut self, length: i64) -> i64 {
+        if length <= 1 {
+            return 1;
+        }
+        if self.ext >= 1.0 {
+            return length;
+        }
+        let p = 1.0 - self.ext; // truncated geometric, mean 1/(1-ext)
+        let u = self.rng.next_f64().max(1e-300);
+        let k = (u.ln() / (1.0 - p).ln()).ceil() as i64;
+        k.max(1).min(length)
+    }
+
+    fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
+        loop {
+            let total = self.fenwick.total;
+            if total <= 0.0 {
+                return Ok(());
+            }
+            let dt = self.rng.exponential(total);
+            if !dt.is_finite() || t + dt >= t1 {
+                return Ok(());
+            }
+            t += dt;
+            self.events += 1;
+            if self.events > self.max_events {
+                return Err(PyRuntimeError::new_err(
+                    "exceeded max_events; genome growing without bound — lower duplication/transfer or raise loss",
+                ));
+            }
+            let branch = self.fenwick.find((1.0 - self.rng.next_f64()) * total);
+            self.fire(branch, t);
+        }
+    }
+
+    fn fire(&mut self, branch: usize, t: f64) {
+        let length = self.genomes[branch].as_ref().unwrap().length;
+        let li = length as f64;
+        let w = [li * self.inv, li * self.los, li * self.dup, li * self.tra, li * self.trp, self.ori];
+        let total: f64 = w.iter().sum();
+        if total <= 0.0 {
+            return;
+        }
+        let r = self.rng.next_f64() * total;
+        let mut ev = 5usize;
+        let mut acc = 0.0;
+        for (k, &wk) in w.iter().enumerate() {
+            acc += wk;
+            if r < acc {
+                ev = k;
+                break;
+            }
+        }
+        match ev {
+            0 => {
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                self.genomes[branch].as_mut().unwrap().inversion(s, ell);
+                self.refresh(branch);
+            }
+            1 => {
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                self.genomes[branch].as_mut().unwrap().loss(s, ell);
+                self.refresh(branch);
+            }
+            2 => {
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                self.genomes[branch].as_mut().unwrap().duplication(s, ell);
+                self.refresh(branch);
+            }
+            3 => {
+                let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
+                    &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
+                    Some(x) => x,
+                    None => return,
+                };
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                let copies = self.genomes[branch].as_mut().unwrap().extract(s, ell);
+                if copies.is_empty() {
+                    return;
+                }
+                let rl = self.genomes[recipient].as_ref().unwrap().length;
+                let at = self.rng.uniform((rl + 1) as u64) as i64;
+                self.genomes[recipient].as_mut().unwrap().insert(copies, at);
+                self.refresh(branch);
+                self.refresh(recipient);
+            }
+            4 => {
+                if length <= 1 {
+                    return;
+                }
+                let s = self.rng.uniform(length as u64) as i64;
+                let ell = self.draw_length(length);
+                let dest = self.rng.uniform(length as u64) as i64;
+                self.genomes[branch].as_mut().unwrap().transposition(s, ell, dest);
+                self.refresh(branch);
+            }
+            _ => {
+                // origination: brand-new sequence under a fresh source
+                let src = self.next_source;
+                self.next_source += 1;
+                let glen0 = length;
+                if glen0 == 0 {
+                    let g = self.genomes[branch].as_mut().unwrap();
+                    g.segs.push(NSeg { source: src, start: 0, end: self.root_length, strand: 1 });
+                    g.length = self.root_length;
+                } else {
+                    let glen = self.draw_length(glen0);
+                    let at = self.rng.uniform((glen0 + 1) as u64) as i64;
+                    let g = self.genomes[branch].as_mut().unwrap();
+                    let idx = if at >= glen0 { g.segs.len() } else { g.split_at(at); g.index_at(at) };
+                    g.segs.insert(idx, NSeg { source: src, start: 0, end: glen, strand: 1 });
+                    g.length += glen;
+                }
+                self.refresh(branch);
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_nucleotide(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    inversion: f64,
+    loss: f64,
+    duplication: f64,
+    transfer: f64,
+    transposition: f64,
+    origination: f64,
+    root_length: i64,
+    extension: f64,
+    initial_size: usize,
+    seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
+) -> PyResult<Vec<(usize, Vec<(u32, i64, i64, i8)>)>> {
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
+    for (node, &p) in parent.iter().enumerate() {
+        if p >= 0 {
+            children[p as usize].push(node);
+        }
+    }
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let mut eng = NEngine {
+        children,
+        extant_leaf,
+        parent,
+        time,
+        tr,
+        inv: inversion,
+        los: loss,
+        dup: duplication,
+        tra: transfer,
+        trp: transposition,
+        ori: origination,
+        ext: extension,
+        root_length,
+        next_source: 0,
+        rng: Rng::new(seed),
+        genomes: (0..n_nodes).map(|_| None).collect(),
+        alive_list: Vec::new(),
+        alive_pos: vec![-1; n_nodes],
+        fenwick: Fenwick::new(n_nodes),
+        events: 0,
+        max_events: 2_000_000_000,
+    };
+
+    // seed the root genome: `initial_size` full-length chromosomes (each its own source)
+    let root_t = eng.time[root];
+    let mut root_genome = NGenome::new();
+    for _ in 0..initial_size {
+        let src = eng.next_source;
+        eng.next_source += 1;
+        root_genome.segs.push(NSeg { source: src, start: 0, end: root_length, strand: 1 });
+        root_genome.length += root_length;
+    }
+    eng.speciate(root, root_genome);
+
+    let mut order: Vec<usize> = (0..n_nodes).filter(|&i| eng.parent[i] >= 0).collect();
+    order.sort_by(|&a, &b| eng.time[a].partial_cmp(&eng.time[b]).unwrap());
+
+    let mut leaves: Vec<(usize, Vec<(u32, i64, i64, i8)>)> = Vec::new();
+    let mut t = root_t;
+    for node in order {
+        eng.evolve_interval(t, eng.time[node])?;
+        t = eng.time[node];
+        let genome = eng.deactivate(node);
+        if eng.extant_leaf[node] {
+            let cols = genome.segs.iter().map(|s| (s.source, s.start, s.end, s.strand)).collect();
+            leaves.push((node, cols));
+        } else if !eng.children[node].is_empty() {
+            eng.speciate(node, genome);
+        }
+    }
+    Ok(leaves)
 }
 
 #[pyfunction]
@@ -722,5 +1662,7 @@ fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(available, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_profiles, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_log, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_and_write, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_nucleotide, m)?)?;
     Ok(())
 }
