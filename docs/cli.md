@@ -49,6 +49,8 @@ zombi2 species --model forward --tips 50 -o out/                 # complete tree
 | `--tips` | number of extant species (backward default `50`; forward: `--tips` **or** `--age`) |
 | `--age` | tree age / timescale (backward default `1.0`; forward: `--tips` **or** `--age`) |
 | `--age-type {crown,stem}` | interpret `--age` as crown (default) or stem age [backward] |
+| `--max-attempts` | [forward] retries before giving up when the process goes extinct (default 10000) |
+| `--max-lineages` | [forward] abort a run exceeding this many live lineages (default 1000000) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 ### `genomes`

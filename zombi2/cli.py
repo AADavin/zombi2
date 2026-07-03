@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 
 from .simulation import simulate_genomes
 from .species_model import BirthDeath
@@ -43,6 +44,12 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                         "(backward default: 1.0; forward: give --tips OR --age)")
     p.add_argument("--age-type", choices=("crown", "stem"), default="crown",
                    help="interpret --age as crown (default) or stem age [backward]")
+    p.add_argument("--max-attempts", type=int, default=10000,
+                   help="[forward] retries before giving up when the process goes extinct "
+                        "(default: 10000)")
+    p.add_argument("--max-lineages", type=int, default=1_000_000,
+                   help="[forward] abort a run that exceeds this many live lineages "
+                        "(default: 1000000)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
@@ -113,22 +120,37 @@ def main(argv: list[str] | None = None) -> int:
     pg.add_argument("-o", "--out", required=True, help="output directory")
 
     args = parser.parse_args(argv)
+    try:
+        return _dispatch(args, parser)
+    except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
+        # Report expected failures as a clean one-line error, never a traceback.
+        print(f"zombi2: error: {e}", file=sys.stderr)
+        return 1
 
+
+def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "species":
         model = BirthDeath(args.birth, args.death)
+        common = dict(age_type=args.age_type, max_attempts=args.max_attempts,
+                      max_lineages=args.max_lineages, seed=args.seed)
         if args.model == "backward":
             n_tips = args.tips if args.tips is not None else 50
             age = args.age if args.age is not None else 1.0
             tree = simulate_species_tree(model, n_tips=n_tips, age=age,
-                                         age_type=args.age_type, direction="backward",
-                                         seed=args.seed)
+                                         direction="backward", **common)
         else:  # forward
             if (args.tips is None) == (args.age is None):
                 parser.error("forward model needs exactly one of --tips or --age "
                              "(--tips to stop at that many extant species; "
                              "--age to grow for that long)")
-            tree = simulate_species_tree(model, n_tips=args.tips, age=args.age,
-                                         direction="forward", seed=args.seed)
+            try:
+                tree = simulate_species_tree(model, n_tips=args.tips, age=args.age,
+                                             direction="forward", **common)
+            except RuntimeError:
+                raise RuntimeError(
+                    f"forward simulation kept going extinct in {args.max_attempts} attempts. "
+                    f"With --death {args.death} vs --birth {args.birth}, most runs die out — "
+                    f"lower --death, raise --max-attempts, or use --model backward.") from None
 
         os.makedirs(args.out, exist_ok=True)
         with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:

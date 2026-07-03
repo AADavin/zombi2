@@ -102,6 +102,23 @@ def test_genomes_profiles_only(tmp_path):
     assert not (gen / "Transfers.tsv").exists()
 
 
+def test_forward_extinction_returns_clean_error(tmp_path, capsys):
+    """A forward run that keeps going extinct exits 1 with a clean message (no traceback)."""
+    rc = main(["species", "--model", "forward", "--age", "8", "--birth", "1", "--death", "20",
+               "--max-attempts", "5", "-o", str(tmp_path / "x")])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert err.startswith("zombi2: error:") and "extinct" in err
+
+
+def test_genomes_missing_tree_file_returns_clean_error(tmp_path, capsys):
+    """A missing --tree file exits 1 with a clean message, not a traceback."""
+    rc = main(["genomes", "--tree", str(tmp_path / "nope.nwk"),
+               "--dup", "0.2", "-o", str(tmp_path / "g")])
+    assert rc == 1
+    assert "zombi2: error:" in capsys.readouterr().err
+
+
 def test_max_family_size_parses_int_and_fraction(tmp_path):
     """Integer -> absolute cap; a decimal -> fraction of the number of species."""
     from zombi2.cli import _int_or_float
