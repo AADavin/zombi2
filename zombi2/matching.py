@@ -176,6 +176,69 @@ def default_gene_tree_summary(species_order: list[str], max_copies: int = 4, eve
     return _GeneTreeSummary(species_order, max_copies, event_weight)
 
 
+def cooccurrence_features(pm: ProfileMatrix, *, threshold: float = 0.35) -> np.ndarray:
+    """Module structure of the gene-family co-occurrence graph — the Pellegrini signal.
+
+    Builds the family x family presence-correlation matrix (over species), thresholds it into
+    an undirected graph (an edge where two families co-occur with correlation above
+    ``threshold``), and returns three graph statistics that detect *clusters* of co-occurring
+    families (functional modules): ``[edge_count, triangle_count, transitivity]``.
+
+    Unlike the mean or the tail of the pairwise correlations, the triangle / transitivity
+    terms isolate *cliques* — coupling makes families that co-occur also co-occur with each
+    other (closing triangles), whereas the spurious pairwise correlations left by noise or
+    shared ancestry stay scattered and rarely close a triangle. Blind to family identity /
+    order (permutation-invariant) and fixed-length, so it plugs into ABC as a summary block.
+    Families present in every species or none (no variance) are dropped.
+    """
+    P = (pm.matrix > 0).astype(float)
+    keep = P.std(axis=1) > 0
+    if int(keep.sum()) < 3:
+        return np.zeros(3)
+    C = np.corrcoef(P[keep])
+    A = (C > threshold).astype(float)
+    np.fill_diagonal(A, 0.0)
+    edges = A.sum() / 2.0
+    triangles = float(np.trace(A @ A @ A)) / 6.0
+    deg = A.sum(axis=1)
+    triples = float(np.sum(deg * (deg - 1))) / 2.0
+    transitivity = (3.0 * triangles / triples) if triples > 0 else 0.0
+    return np.array([edges, triangles, transitivity])
+
+
+class _CooccurrenceSummary:
+    """The default marginal summary followed by the co-occurrence module features.
+
+    Concatenates :class:`_DefaultSummary` (frequency spectrum + genome sizes + copy spectrum)
+    with :func:`cooccurrence_features`, and carries ``feature_weights`` that give the small
+    (3-feature) co-occurrence block the same total weight as the large profile block —
+    otherwise it is drowned out in the distance. The frequency spectrum still leads the vector,
+    so ``ABCFit``'s spectrum diagnostics keep working. Picklable.
+    """
+
+    def __init__(self, species_order: list[str], max_copies: int = 4, threshold: float = 0.35):
+        self.profile = _DefaultSummary(species_order, max_copies)
+        self.threshold = threshold
+        self._pw = 2 * self.profile.n_species + max_copies      # profile-block length
+        w = (self._pw / 3.0) ** 0.5                             # balance vs the 3 co-occ features
+        self.feature_weights = np.concatenate([np.ones(self._pw), np.full(3, w)])
+
+    def __call__(self, pm: ProfileMatrix) -> np.ndarray:
+        return np.concatenate([self.profile(pm),
+                               cooccurrence_features(pm, threshold=self.threshold)])
+
+
+def cooccurrence_summary(species_order: list[str], max_copies: int = 4, threshold: float = 0.35):
+    """Picklable summary = the default marginal summary + co-occurrence module features.
+
+    Use with ``match_profiles(..., statistics=cooccurrence_summary(species_order))`` or
+    :func:`match_coupled` to make ABC see gene-family *co-occurrence* (module structure), not
+    just marginal prevalence — needed to fit coupling / non-independence, where the marginal
+    alone can be blind. See :func:`cooccurrence_features`.
+    """
+    return _CooccurrenceSummary(species_order, max_copies, threshold)
+
+
 # --- rate models to fit ----------------------------------------------------------
 
 class _FamilyModel:
@@ -565,6 +628,115 @@ def match_profiles(
     resid = (summaries - target) / sd
     if weights is not None:
         resid = resid * np.asarray(weights)
+    distances = np.sqrt((resid ** 2).sum(axis=1))
+
+    order = np.argsort(distances, kind="stable")
+    if isinstance(accept, float):
+        if not 0.0 < accept <= 1.0:
+            raise ValueError("float accept must be in (0, 1]")
+        k = max(1, round(accept * n_sims))
+    else:
+        k = min(int(accept), n_sims)
+    accepted = np.sort(order[:k])
+
+    return ABCFit(
+        param_names=names,
+        samples=samples,
+        distances=distances,
+        accepted=accepted,
+        tolerance=float(distances[order[k - 1]]),
+        empirical_summary=target,
+        priors=priors,
+        accepted_summaries=summaries[accepted],
+        summary_sd=sd,
+        n_species=len(species_order),
+        empirical=profile_mat,
+        uses_default_summary=uses_default,
+    )
+
+
+def match_coupled(
+    tree: Tree,
+    empirical,
+    spec_builder,
+    priors: dict,
+    *,
+    statistics: Callable[[ProfileMatrix], np.ndarray] | None = None,
+    feature_weights=None,
+    n_sims: int = 1000,
+    accept=0.05,
+    transfers=None,
+    initial_presence=None,
+    seed: int | None = None,
+) -> ABCFit:
+    """Fit parameters of a **coupled (Potts) gene-family model** to an empirical profile by ABC.
+
+    The likelihood-free counterpart of :func:`match_profiles` for the non-independence model
+    (see :func:`~zombi2.simulate_coupled`): the simulator is ``simulate_coupled`` over a
+    **fixed family panel**, so it can fit coupling parameters — e.g. the coupling strength
+    ``J`` — for which no likelihood exists.
+
+    Parameters
+    ----------
+    tree:
+        The species tree the profiles were observed on (fixed across simulations).
+    empirical:
+        Target :class:`~zombi2.ProfileMatrix` (or a path / TSV text). Its species set the axes
+        every simulation is summarised on and must match the tree's extant leaves.
+    spec_builder:
+        A callable ``params -> CouplingSpec`` that turns a drawn parameter dict into a coupling
+        specification. This is where you encode what is *fixed* (the coupling graph / pathway
+        blocks, the field ``h``, ``base_loss``, ``transfer`` ...) and what is *fitted* (the keys
+        of ``priors``). E.g. ``lambda p: pathway_blocks(sizes, within=p["within"], between=0,
+        h=-0.5, base_loss=1.0, transfer=0.4)`` fits the within-pathway coupling ``within``.
+    priors:
+        ``{param: prior}`` over the ``spec_builder`` parameters (any names). A prior is a
+        :class:`~zombi2.Distribution`, a bare float (fixed), a ``(low, high)`` uniform tuple,
+        or a scipy dist / ``rng -> float`` callable. Values are **not** clamped to be positive
+        (coupling parameters may be negative).
+    statistics:
+        Summary ``pm -> 1-D array``; defaults to :func:`cooccurrence_summary` (marginal + module
+        structure), which is what makes coupling visible — the marginal alone can be blind to it.
+    feature_weights, n_sims, accept, seed:
+        As in :func:`match_profiles`.
+    transfers, initial_presence:
+        Passed through to :func:`~zombi2.simulate_coupled`.
+
+    Returns
+    -------
+    ABCFit
+        Accepted posterior over the fitted coupling parameters, with the usual diagnostics.
+    """
+    from .coupling import simulate_coupled           # local import avoids any import cycle
+
+    profile_mat = (empirical if isinstance(empirical, ProfileMatrix)
+                   else ProfileMatrix.from_tsv(empirical))
+    species_order = list(profile_mat.species)
+    summarize = statistics or cooccurrence_summary(species_order)
+    uses_default = statistics is None
+    target = summarize(profile_mat)
+
+    priors = _normalize_priors(priors, restrict=False)     # arbitrary spec-builder param names
+    names = list(priors.keys())
+    weights = feature_weights if feature_weights is not None else getattr(summarize, "feature_weights", None)
+    weights = None if weights is None else np.asarray(weights, float)
+    rng = np.random.default_rng(seed)
+
+    samples = np.empty((n_sims, len(names)))
+    summaries = np.empty((n_sims, len(target)))
+    for i in range(n_sims):
+        vals = {n: priors[n].sample(rng) for n in names}   # no non-negativity clamp here
+        sim_seed = int(rng.integers(1, 2**63 - 1))
+        res = simulate_coupled(tree, spec_builder(vals), seed=sim_seed,
+                               transfers=transfers, initial_presence=initial_presence)
+        summaries[i] = summarize(res.profiles)
+        samples[i] = [vals[n] for n in names]
+
+    sd = summaries.std(axis=0)
+    sd[sd == 0] = 1.0
+    resid = (summaries - target) / sd
+    if weights is not None:
+        resid = resid * weights
     distances = np.sqrt((resid ** 2).sum(axis=1))
 
     order = np.argsort(distances, kind="stable")

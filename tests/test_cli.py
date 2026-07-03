@@ -333,3 +333,123 @@ def test_trait_dec_writes_ranges(tmp_path):
     assert vals["root"] == "{A}"                             # root range respected
     assert all(v.startswith("{") and v.endswith("}") for v in vals.values())   # ranges
     assert "[&trait={" in (dest / "trait_tree.nwk").read_text()
+
+
+def test_trait_writes_log(tmp_path):
+    """`trait` always writes trait.log with the command line and the full parameter set."""
+    tree = _tree_file(tmp_path, tips=10)
+    dest = tmp_path / "tr"
+    rc = main(["trait", "-t", tree, "--model", "bm", "--seed", "5", "-o", str(dest)])
+    assert rc == 0
+    log = (dest / "trait.log").read_text()
+    assert "zombi2_version" in log and "command_line\t" in log
+    assert "model\tbm" in log and "seed\t5" in log
+
+
+# --- nucleotide genome model (--rate-model nucleotide): structural events, atoms as genes --
+
+def test_genomes_nucleotide_model(tmp_path):
+    """`--rate-model nucleotide` evolves nucleotide genomes; profiles+trees writes the atom
+    table, the emergent profile, per-atom gene trees, and reconciliations (Python engine)."""
+    tree = _tree_file(tmp_path, tips=12)
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
+               "--dup", "0.0006", "--loss", "0.0006", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    for f in ("species_tree.nwk", "atoms.tsv", "Profiles.tsv", "Presence.tsv",
+              "Mosaics.tsv", "Reconciled_complete.nwk", "Reconciliation_events.tsv"):
+        assert (out / f).exists()
+    assert os.listdir(out / "gene_trees")                    # one gene tree per atom
+    assert "rate_model\tnucleotide" in (out / "genomes.log").read_text()
+    assert "initial_size\t1" in (out / "genomes.log").read_text()   # nucleotide default = 1
+
+
+def test_genomes_nucleotide_profiles_only(tmp_path):
+    """Nucleotide `--output profiles` writes only the emergent profile — no gene trees."""
+    tree = _tree_file(tmp_path, tips=12)
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
+               "--dup", "0.0006", "--loss", "0.0006", "--output", "profiles",
+               "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "Profiles.tsv").exists() and (out / "atoms.tsv").exists()
+    assert not (out / "gene_trees").exists()
+    assert not (out / "Reconciled_complete.nwk").exists()
+
+
+def test_genomes_nucleotide_sparse(tmp_path):
+    """Nucleotide profiles honour --sparse (single Profiles_sparse.tsv long table)."""
+    tree = _tree_file(tmp_path, tips=12)
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--loss", "0.0008",
+               "--output", "profiles", "--sparse", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "Profiles_sparse.tsv").exists()
+    assert not (out / "Profiles.tsv").exists()
+
+
+# --- abc: fit gene-family rates to an empirical profile by ABC inference --
+
+def _profile_file(tmp_path, tree, **rates):
+    """Simulate an empirical profile with known rates (uniform model) -> its Profiles.tsv."""
+    dest = tmp_path / "truth"
+    args = ["genomes", "-t", tree, "--output", "profiles", "--seed", "7", "-o", str(dest)]
+    for k, v in rates.items():
+        args += [f"--{k}", str(v)]
+    main(args)
+    return str(dest / "Profiles.tsv")
+
+
+@needs_rust
+def test_abc_fits_and_writes_posterior(tmp_path):
+    """`abc` fits the rates given as priors and writes posterior + summary + spectra + log."""
+    tree = _tree_file(tmp_path, tips=25)
+    prof = _profile_file(tmp_path, tree, dup=0.3, loss=0.6, orig=2.0)
+    out = tmp_path / "fit"
+    rc = main(["abc", "-t", tree, "--profiles", prof,
+               "--dup", "0", "1", "--loss", "0", "1.5", "--orig", "0", "4",
+               "--n-sims", "200", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    for f in ("posterior.tsv", "summary.tsv", "spectra.tsv", "abc.log"):
+        assert (out / f).exists()
+    summ = (out / "summary.tsv").read_text()
+    assert "duplication" in summ and "loss" in summ and "origination" in summ
+    assert "transfer" not in summ                          # not given a prior -> not fitted
+    header = (out / "posterior.tsv").read_text().splitlines()[0].split("\t")
+    assert header == ["duplication", "loss", "origination"]
+    assert len((out / "posterior.tsv").read_text().splitlines()) > 1     # >= 1 accepted draw
+
+
+def test_abc_requires_a_range_to_fit(tmp_path, capsys):
+    """All-fixed priors (no range) is a clean error, exit 1 — nothing to fit."""
+    tree = _tree_file(tmp_path, tips=15)
+    prof = tmp_path / "p.tsv"
+    prof.write_text("family\tn1\tn2\nf1\t1\t0\n")
+    rc = main(["abc", "-t", tree, "--profiles", str(prof), "--dup", "0.3",
+               "-o", str(tmp_path / "o")])
+    assert rc == 1
+    assert "range" in capsys.readouterr().err
+
+
+@needs_rust
+def test_abc_regression_adjust(tmp_path):
+    """--regression-adjust adds adjusted rows to summary.tsv."""
+    tree = _tree_file(tmp_path, tips=25)
+    prof = _profile_file(tmp_path, tree, dup=0.3, loss=0.6, orig=2.0)
+    out = tmp_path / "ra"
+    main(["abc", "-t", tree, "--profiles", prof, "--dup", "0", "1", "--loss", "0", "1.5",
+          "--orig", "0", "4", "--n-sims", "200", "--regression-adjust", "--seed", "1",
+          "-o", str(out)])
+    assert "duplication_adj" in (out / "summary.tsv").read_text()
+
+
+@needs_rust
+def test_abc_smc(tmp_path):
+    """--smc runs the sequential sampler and writes a posterior."""
+    tree = _tree_file(tmp_path, tips=25)
+    prof = _profile_file(tmp_path, tree, dup=0.3, loss=0.6)
+    out = tmp_path / "smc"
+    rc = main(["abc", "-t", tree, "--profiles", prof, "--dup", "0", "1", "--loss", "0", "1.5",
+               "--smc", "--rounds", "2", "--particles", "60", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "posterior.tsv").exists()
