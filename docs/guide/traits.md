@@ -127,6 +127,23 @@ res.labeled_values()                   # {extant leaf: (X, Y)}
 null = z.CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
 ```
 
+### Hidden rate classes (corHMM)
+
+`HiddenStateMk` gives the observed character **hidden rate classes**: its transition rates
+depend on an unobserved class that itself switches along the tree, capturing rate heterogeneity
+a plain `Mk` cannot (Beaulieu et al. 2013). Tips report the observed state; `full_label` and
+`changes()` expose the hidden dimension.
+
+```python
+slow = [[0, 0.1], [0.1, 0]]
+fast = [[0, 3.0], [3.0, 0]]
+hmm = z.HiddenStateMk(observed_rates=[slow, fast], hidden_rate=0.5,
+                      observed_states=[0, 1], hidden_states=["slow", "fast"])
+res = z.simulate_traits(tree, hmm, seed=1)
+res.labeled_values()                   # observed 0/1 (hidden class collapsed)
+res.full_label(res.node_values[tree.extant_leaves()[0]])   # (observed, hidden), e.g. (1, 'fast')
+```
+
 ### The threshold model
 
 An unobserved continuous **liability** evolves by Brownian motion; the observed discrete state
@@ -190,6 +207,51 @@ z.prune(res.tree)              # the reconstructed (survivors-only) tree
 a crown of two lineages sharing the root state (drawn from the character's stationary
 distribution, or set `root_state=`) and is conditioned on at least two survivors; use `age=` or
 `n_tips=` to stop.
+
+### Hidden and quantitative states (HiSSE, QuaSSE)
+
+**`HiSSE`** adds hidden classes to BiSSE, so diversification heterogeneity is not mistakenly
+pinned on the observed character (Beaulieu & O'Meara 2016). Give one `BiSSE` per hidden class —
+a diversification regime — plus the rate of switching between classes:
+
+```python
+fast = z.BiSSE(2.5, 2.5, 0.2, 0.2, 0.3, 0.3)   # a fast-diversifying hidden class
+slow = z.BiSSE(0.4, 0.4, 0.2, 0.2, 0.3, 0.3)   # a slow one; observed state neutral in both
+res = z.simulate_sse(z.HiSSE([fast, slow], hidden_transition=0.15), age=1.5, seed=1)
+res.labeled_values()                   # observed 0/1 (hidden class collapsed)
+```
+
+**`QuaSSE`** lets a **continuous** trait drive diversification: it diffuses (Brownian motion)
+while speciation/extinction are (bounded) functions of its value (FitzJohn 2010). `QuaSSE.sigmoid`
+builds a bounded rate; pass `rate_bound` = an upper bound on `speciation(x) + extinction(x)`.
+
+```python
+spec = z.QuaSSE.sigmoid(low=0.4, high=3.0, center=0.0, slope=3.0)   # speciation rises with x
+res = z.simulate_sse(z.QuaSSE(spec, lambda x: 0.2, sigma2=0.5, rate_bound=3.2, x0=-1.0),
+                     age=2.5, seed=1)
+res.values                             # {extant leaf: trait value} — biased toward high x
+```
+
+## Historical biogeography (DEC)
+
+A species' "trait" can be its **geographic range** — a subset of discrete areas. The
+Dispersal–Extinction–Cladogenesis model (Ree & Smith 2008) evolves the range by *dispersal*
+(gaining an area) and local *extinction* (losing one) along branches, plus a **cladogenetic**
+split of the ancestral range between daughters at each speciation (narrow sympatry, subset
+sympatry, or vicariance). Because of the node process it has its own driver,
+`simulate_biogeography`.
+
+```python
+dec = z.DEC(areas=["A", "B", "C"], dispersal=0.1, extinction=0.1, max_range_size=3)
+res = z.simulate_biogeography(tree, dec, root_state={"A"}, seed=1)
+
+res.labeled_values()                   # {extant leaf: ('A', 'B') ...} — the observed ranges
+res.ancestral_states()                 # ancestral ranges at every internal node
+res.changes()                          # anagenetic dispersal / extinction events along branches
+```
+
+`dispersal` may be a scalar or an area-by-area matrix, `extinction` a scalar or per-area vector,
+and `max_range_size` caps how many areas a range may span.
 
 ## Output
 
