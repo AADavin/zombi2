@@ -62,6 +62,7 @@ nav:
       - Ordered genomes: guide/ordered-genomes.md
       - Nucleotide genomes: guide/nucleotide-genomes.md
       - Rate variation: guide/rate-variation.md
+      - Trait evolution: guide/traits.md
       - Running in parallel: guide/parallel.md
       - Rust engine: guide/rust-engine.md
       - Extending ZOMBI2: guide/extending.md

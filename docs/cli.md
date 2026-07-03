@@ -1,8 +1,8 @@
 # Command-line interface
 
-Installing the package puts a `zombi2` command on your PATH — a thin wrapper over the library
-with two subcommands that mirror the two-step design: build a species tree, then evolve gene
-families along it.
+Installing the package puts a `zombi2` command on your PATH — a thin wrapper over the library.
+Everything starts from a species tree; you then evolve gene families and/or a phenotypic trait
+along it.
 
 ```bash
 # 1. a species tree -> out/species_tree.nwk  (runs with defaults)
@@ -11,10 +11,14 @@ zombi2 species -o out/
 # 2. gene families along that tree (or any Newick tree)
 zombi2 genomes --tree out/species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --max-family-size 0.5 --seed 42 -o out/
+
+# 3. a phenotypic trait along that tree
+zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
 ```
 
 `species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
-full output (see [gene trees & output](guide/gene-trees-and-output.md)). Run
+full output (see [gene trees & output](guide/gene-trees-and-output.md)); `trait` reads a tree and
+writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)). Run
 `zombi2 <command> -h` for a command's options.
 
 ## `species` — the species tree
@@ -69,6 +73,47 @@ zombi2 species --tips 50 --death 0.6 --ghosts -o out/
 `<out>/species_tree.log` (or `<out>/genomes.log`) — version, timestamp, command line, seed, and
 every option used — so any run can be reproduced.
 
+## `trait` — a phenotypic trait
+
+`trait` evolves one trait **along a species tree you provide** (`--tree`, like `genomes`) and
+writes the result to `-o`. It always outputs both the tip values and the **ancestral** node
+values. Pick a model with `--model`:
+
+```bash
+T=out/species_tree.nwk
+
+zombi2 trait -t $T --model bm --sigma2 0.5 -o out/                     # Brownian motion
+zombi2 trait -t $T --model ou --alpha 2 --theta 5 -o out/             # pulled toward an optimum
+zombi2 trait -t $T --model eb --sigma2 1 --rate -1.5 -o out/          # early burst (rate < 0)
+zombi2 trait -t $T --model mk --states 3 --rate 0.5 -o out/           # discrete 3-state
+zombi2 trait -t $T --model threshold --thresholds 0 -o out/          # binary from a liability
+zombi2 trait -t $T --model dec --areas A,B,C --dispersal 0.3 -o out/ # geographic ranges
+```
+
+It writes two files: **`traits.tsv`** (a `node`/`trait` table over *every* node — tips named
+`n*`, ancestral nodes `i*`/`root`) and **`trait_tree.nwk`** (the tree with each value annotated
+as `[&trait=…]`).
+
+**Replicates.** `--replicates N` simulates the trait `N` times with the same parameters and
+writes a **wide** `traits.tsv` — one column per replicate (`rep_1 … rep_N`), one row per node —
+instead of the annotated tree. Handy for an empirical distribution or method-testing dataset:
+
+```bash
+zombi2 trait -t $T --model bm --sigma2 0.5 --replicates 100 --seed 1 -o out/
+```
+
+**The Mk chain.** For `--model mk` the transition structure is up to you: the default is
+equal-rates (every state ↔ every state), `--ordered` restricts to adjacent-only steps
+(`i ↔ i±1`, a meristic character), and `--q-matrix FILE` reads an arbitrary rate matrix — a
+whitespace/comma-separated `k×k` grid (rows = *from*-state, columns = *to*-state; the diagonal is
+ignored, blank/`#` lines skipped), which overrides `--states`/`--rate`/`--ordered`.
+
+**DEC (geographic ranges).** `--model dec` evolves a range over discrete areas by dispersal /
+extinction along branches plus cladogenetic range splits at speciations. Set the areas with
+`--areas` (a count like `3`, or labels like `A,B,C`), the `--dispersal` / `--extinction` rates,
+optionally cap the range with `--max-range-size`, and pin the root range with `--root-range`
+(e.g. `A`). Ranges are written as `{A,B}`.
+
 ## Options
 
 ### `species`
@@ -101,6 +146,22 @@ every option used — so any run can be reproduced.
 | `--sparse` | write the profile as a sparse `Profiles_sparse.tsv` instead of the dense matrix (needs `profiles` in `--output`) |
 | `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
+
+### `trait`
+
+| Option | Meaning |
+| --- | --- |
+| `--tree` / `-t` | input species tree in Newick format (required) |
+| `--model {bm,ou,eb,mk,threshold,dec}` | trait model (default `bm`) |
+| `--sigma2` | diffusion rate [bm/ou/eb/threshold] |
+| `--x0` / `--trend` | root value / directional drift [bm/eb/threshold; OU root defaults to `--theta`] |
+| `--alpha` / `--theta` | OU mean-reversion strength / optimum [ou] |
+| `--rate` | EB rate-of-change (negative = early burst) [eb], or the per-transition rate [mk] |
+| `--states` / `--ordered` / `--q-matrix` | mk: number of states / adjacent-only chain / arbitrary Q from a file |
+| `--thresholds` | comma-separated liability cut points [threshold] |
+| `--areas` `--dispersal` `--extinction` `--max-range-size` `--root-range` | DEC range-evolution parameters |
+| `--replicates` | simulate this many times → wide one-column-per-replicate table |
+| `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
 Run `zombi2 <command> -h` for the authoritative list.
 
