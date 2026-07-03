@@ -68,16 +68,32 @@ class Genomes:
             for fam, records in self.gene_families.items()
         }
 
+    # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
+    # are always written; the CLI's --output maps onto these names.
+    WRITE_PARTS = ("profiles", "trees", "events", "transfers", "summary")
+
     # --- output ------------------------------------------------------------
-    def write(self, outdir: str | Path, annotate_species: bool = False,
-              sparse: bool = False) -> None:
-        """Write the full ZOMBI-1-style output folder.
+    def write(self, outdir: str | Path, *, include=None, sparse: bool = False,
+              annotate_species: bool = False) -> None:
+        """Write the ZOMBI-1-style output folder.
+
+        ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`
+        (``"profiles"``, ``"trees"``, ``"events"``, ``"transfers"``, ``"summary"``);
+        ``None`` (the default) writes them all. ``species_tree.nwk`` and
+        ``species_nodes.tsv`` are always written. Omitted components do no work — notably
+        ``"trees"`` drives the (expensive) gene-tree reconstruction.
 
         With ``sparse=True`` the copy-number profile is written as a single sparse long
         table (``Profiles_sparse.tsv``) instead of the dense ``Profiles.tsv`` /
         ``Presence.tsv`` pair — the latter is ``families × species`` (O(N²) in tip count)
         and is the one output that does not scale; the sparse form is O(present cells).
         """
+        want = set(self.WRITE_PARTS) if include is None else set(include)
+        unknown = want - set(self.WRITE_PARTS)
+        if unknown:
+            raise ValueError(f"unknown write component(s) {sorted(unknown)}; "
+                             f"choose from {self.WRITE_PARTS}")
+
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
 
@@ -88,69 +104,75 @@ class Genomes:
             node_lines.append(f"{n.name}\t{n.time:.10g}\t{int(n.is_leaf())}\t{int(n.is_extant)}")
         (out / "species_nodes.tsv").write_text("\n".join(node_lines) + "\n")
 
-        families = self.gene_families
+        # per-family event lists — needed only by the events and summary tables
+        families = self.gene_families if (want & {"events", "summary"}) else {}
 
-        # per-family event tables (O/D/T/S/L with from -> to lineage ids)
-        gdir = out / "gene_family_events"
-        gdir.mkdir(exist_ok=True)
-        for family, records in families.items():
-            lines = ["time\tevent\tbranch\tdonor\trecipient\tnodes"]
-            for r in records:
-                nodes = ";".join(f"{op.role}={op.gid}" for op in r.genes)
-                lines.append(
-                    f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t"
-                    f"{r.donor or ''}\t{r.recipient or ''}\t{nodes}"
+        if "events" in want:
+            # per-family event tables (O/D/T/S/L with from -> to lineage ids)
+            gdir = out / "gene_family_events"
+            gdir.mkdir(exist_ok=True)
+            for family, records in families.items():
+                lines = ["time\tevent\tbranch\tdonor\trecipient\tnodes"]
+                for r in records:
+                    nodes = ";".join(f"{op.role}={op.gid}" for op in r.genes)
+                    lines.append(
+                        f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t"
+                        f"{r.donor or ''}\t{r.recipient or ''}\t{nodes}"
+                    )
+                (gdir / f"{family}_events.tsv").write_text("\n".join(lines) + "\n")
+
+        if "trees" in want:
+            # gene trees (complete + extant)
+            tdir = out / "gene_trees"
+            tdir.mkdir(exist_ok=True)
+            for family, (complete, extant) in self.gene_trees(annotate_species).items():
+                if complete:
+                    (tdir / f"{family}_complete.nwk").write_text(complete + "\n")
+                if extant:
+                    (tdir / f"{family}_extant.nwk").write_text(extant + "\n")
+
+        if "transfers" in want:
+            # all transfers, one row each
+            tr_lines = ["time\tfamily\tdonor_branch\trecipient_branch\tparent_id\tdonor_copy_id\ttransfer_id"]
+            for r in self.event_log:
+                if r.event is EventType.TRANSFER:
+                    p, dc, tc = (op.gid for op in r.genes)
+                    tr_lines.append(f"{r.time:.10g}\t{r.family}\t{r.donor}\t{r.recipient}\t{p}\t{dc}\t{tc}")
+            (out / "Transfers.tsv").write_text("\n".join(tr_lines) + "\n")
+
+        if "summary" in want:
+            # per-family summary
+            counts_of = lambda recs, ev: sum(1 for r in recs if r.event is ev)
+            sum_lines = ["family\torigin_time\torigin_branch\tn_dup\tn_transfer\tn_loss"
+                         "\tn_speciation\textant_copies\tspecies_present"]
+            pmat = self.profiles
+            fam_row = {f: i for i, f in enumerate(pmat.families)}
+            # Per-family totals off the sparse profile, computed once (no dense N² array).
+            copies_by_row = pmat.copies_per_family()
+            present_by_row = pmat.presence_per_family()
+            for family, records in families.items():
+                origin = next((r for r in records if r.event is EventType.ORIGINATION), None)
+                ot = f"{origin.time:.10g}" if origin else ""
+                ob = origin.branch if origin else ""
+                if family in fam_row:
+                    i = fam_row[family]
+                    extant_copies = int(copies_by_row[i])
+                    species_present = int(present_by_row[i])
+                else:
+                    extant_copies = species_present = 0
+                sum_lines.append(
+                    f"{family}\t{ot}\t{ob}\t{counts_of(records, EventType.DUPLICATION)}\t"
+                    f"{counts_of(records, EventType.TRANSFER)}\t{counts_of(records, EventType.LOSS)}\t"
+                    f"{counts_of(records, EventType.SPECIATION)}\t{extant_copies}\t{species_present}"
                 )
-            (gdir / f"{family}_events.tsv").write_text("\n".join(lines) + "\n")
+            (out / "Gene_family_summary.tsv").write_text("\n".join(sum_lines) + "\n")
 
-        # gene trees (complete + extant)
-        tdir = out / "gene_trees"
-        tdir.mkdir(exist_ok=True)
-        for family, (complete, extant) in self.gene_trees(annotate_species).items():
-            if complete:
-                (tdir / f"{family}_complete.nwk").write_text(complete + "\n")
-            if extant:
-                (tdir / f"{family}_extant.nwk").write_text(extant + "\n")
-
-        # all transfers, one row each
-        tr_lines = ["time\tfamily\tdonor_branch\trecipient_branch\tparent_id\tdonor_copy_id\ttransfer_id"]
-        for r in self.event_log:
-            if r.event is EventType.TRANSFER:
-                p, dc, tc = (op.gid for op in r.genes)
-                tr_lines.append(f"{r.time:.10g}\t{r.family}\t{r.donor}\t{r.recipient}\t{p}\t{dc}\t{tc}")
-        (out / "Transfers.tsv").write_text("\n".join(tr_lines) + "\n")
-
-        # per-family summary
-        counts_of = lambda recs, ev: sum(1 for r in recs if r.event is ev)
-        sum_lines = ["family\torigin_time\torigin_branch\tn_dup\tn_transfer\tn_loss"
-                     "\tn_speciation\textant_copies\tspecies_present"]
-        pmat = self.profiles
-        fam_row = {f: i for i, f in enumerate(pmat.families)}
-        # Per-family totals off the sparse profile, computed once (no dense N² array).
-        copies_by_row = pmat.copies_per_family()
-        present_by_row = pmat.presence_per_family()
-        for family, records in families.items():
-            origin = next((r for r in records if r.event is EventType.ORIGINATION), None)
-            ot = f"{origin.time:.10g}" if origin else ""
-            ob = origin.branch if origin else ""
-            if family in fam_row:
-                i = fam_row[family]
-                extant_copies = int(copies_by_row[i])
-                species_present = int(present_by_row[i])
+        if "profiles" in want:
+            if sparse:
+                (out / "Profiles_sparse.tsv").write_text(self.profiles.to_coo_tsv())
             else:
-                extant_copies = species_present = 0
-            sum_lines.append(
-                f"{family}\t{ot}\t{ob}\t{counts_of(records, EventType.DUPLICATION)}\t"
-                f"{counts_of(records, EventType.TRANSFER)}\t{counts_of(records, EventType.LOSS)}\t"
-                f"{counts_of(records, EventType.SPECIATION)}\t{extant_copies}\t{species_present}"
-            )
-        (out / "Gene_family_summary.tsv").write_text("\n".join(sum_lines) + "\n")
-
-        if sparse:
-            (out / "Profiles_sparse.tsv").write_text(self.profiles.to_coo_tsv())
-        else:
-            (out / "Profiles.tsv").write_text(self.profiles.to_tsv())
-            (out / "Presence.tsv").write_text(self.profiles.to_tsv(presence=True))
+                (out / "Profiles.tsv").write_text(self.profiles.to_tsv())
+                (out / "Presence.tsv").write_text(self.profiles.to_tsv(presence=True))
 
 
 def simulate_genomes(

@@ -120,6 +120,47 @@ def test_write_sparse_replaces_dense_profile(tmp_path):
 
 
 @pytest.mark.skipif(not z.rust_available(), reason="zombi2_core (Rust extension) not built")
+def test_write_include_selects_components(tmp_path):
+    """write(include=...) writes only the requested components (+ the always-on tree files)."""
+    tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=40, age=2.0, seed=6)
+    g = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                           origination=0.5, initial_size=20, seed=8)
+
+    # profiles-only: no gene trees / event tables / transfers / summary
+    p = tmp_path / "prof"
+    g.write(p, include={"profiles"})
+    assert (p / "species_tree.nwk").exists() and (p / "species_nodes.tsv").exists()
+    assert (p / "Profiles.tsv").exists()
+    assert not (p / "gene_trees").exists()
+    assert not (p / "gene_family_events").exists()
+    assert not (p / "Transfers.tsv").exists()
+    assert not (p / "Gene_family_summary.tsv").exists()
+
+    # a different subset
+    t = tmp_path / "te"
+    g.write(t, include=["trees", "events"])
+    assert (t / "gene_trees").exists() and (t / "gene_family_events").exists()
+    assert not (t / "Profiles.tsv").exists()
+    assert not (t / "Transfers.tsv").exists()
+
+    # include composes with sparse
+    s = tmp_path / "ps"
+    g.write(s, include={"profiles"}, sparse=True)
+    assert (s / "Profiles_sparse.tsv").exists()
+    assert not (s / "Profiles.tsv").exists()
+
+    # default writes everything
+    a = tmp_path / "all"
+    g.write(a)
+    for f in ("Profiles.tsv", "Presence.tsv", "Transfers.tsv", "Gene_family_summary.tsv"):
+        assert (a / f).exists()
+    assert (a / "gene_trees").exists() and (a / "gene_family_events").exists()
+
+    with pytest.raises(ValueError):
+        g.write(tmp_path / "bad", include={"profiles", "bogus"})
+
+
+@pytest.mark.skipif(not z.rust_available(), reason="zombi2_core (Rust extension) not built")
 def test_full_genomes_profile_is_sparse_and_consistent():
     """The full-genealogy path also builds its ProfileMatrix sparsely, self-consistently."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=60, age=2.0, seed=7)
