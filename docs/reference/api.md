@@ -40,14 +40,6 @@ Auto-generated from the source docstrings.
 ::: zombi2.traits.pagel_delta
 ::: zombi2.traits.pagel_kappa
 
-## Trait-dependent diversification
-
-::: zombi2.sse.simulate_sse
-::: zombi2.sse.BiSSE
-::: zombi2.sse.MuSSE
-::: zombi2.sse.HiSSE
-::: zombi2.sse.QuaSSE
-
 ## Historical biogeography
 
 ::: zombi2.biogeography.simulate_biogeography

@@ -174,24 +174,13 @@ def test_trait_reproducible(tmp_path):
     assert run("a") == run("b")
 
 
-# --- sse command: simulate a tree + trait jointly (BiSSE / QuaSSE) ----------
-def test_sse_bisse_writes_tree_and_traits(tmp_path):
-    dest = tmp_path / "bs"
-    rc = main(["sse", "--model", "bisse", "--lambda0", "1", "--lambda1", "2",
-               "--age", "1.5", "--seed", "1", "-o", str(dest)])
+def test_trait_replicates_write_wide_table(tmp_path):
+    tree = _tree_file(tmp_path, tips=8)
+    dest = tmp_path / "rep"
+    rc = main(["trait", "-t", tree, "--model", "bm", "--sigma2", "0.5",
+               "--replicates", "5", "--seed", "1", "-o", str(dest)])
     assert rc == 0
-    assert (dest / "species_tree.nwk").read_text().strip().endswith(";")
     rows = (dest / "traits.tsv").read_text().splitlines()
-    assert rows[0] == "node\ttrait"
-    assert {r.split("\t")[1] for r in rows[1:]} <= {"0", "1"}     # binary states
-    assert "[&trait=" in (dest / "trait_tree.nwk").read_text()
-
-
-def test_sse_quasse_writes_continuous_traits(tmp_path):
-    dest = tmp_path / "qs"
-    rc = main(["sse", "--model", "quasse", "--spec-low", "0.3", "--spec-high", "2.0",
-               "--age", "2.0", "--seed", "1", "-o", str(dest)])
-    assert rc == 0
-    assert (dest / "species_tree.nwk").exists()
-    body = (dest / "traits.tsv").read_text().splitlines()[1:]
-    assert all(float(r.split("\t")[1]) == float(r.split("\t")[1]) for r in body)  # numeric values
+    assert rows[0] == "node\trep_1\trep_2\trep_3\trep_4\trep_5"
+    assert all(len(r.split("\t")) == 6 for r in rows[1:])   # one column per replicate
+    assert not (dest / "trait_tree.nwk").exists()           # wide-table mode: no annotated tree

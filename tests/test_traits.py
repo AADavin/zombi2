@@ -736,3 +736,27 @@ def test_hidden_state_mk_reproducible():
     a = z.simulate_traits(tree, m, seed=5).labeled_values()
     b = z.simulate_traits(tree, m, seed=5).labeled_values()
     assert {k.name: v for k, v in a.items()} == {k.name: v for k, v in b.items()}
+
+
+# --------------------------------------------------------------------------- replicates
+def test_replicate_traits_returns_n_independent_results():
+    tree = _fixed_tree(n_tips=6, seed=1)
+    reps = z.replicate_traits(tree, z.BrownianMotion(0.5), 4, seed=1)
+    assert len(reps) == 4
+    leaf = tree.extant_leaves()[0]
+    values = [r.values[leaf] for r in reps]
+    assert len(set(values)) == 4                     # independent draws differ
+
+
+def test_replicate_traits_reproducible():
+    tree = _fixed_tree(seed=1)
+    a = z.replicate_traits(tree, z.BrownianMotion(0.5), 3, seed=7)
+    b = z.replicate_traits(tree, z.BrownianMotion(0.5), 3, seed=7)
+    for ra, rb in zip(a, b):
+        assert {k.name: v for k, v in ra.values.items()} == \
+               {k.name: v for k, v in rb.values.items()}
+
+
+def test_replicate_traits_validation():
+    with pytest.raises(ValueError):
+        z.replicate_traits(_fixed_tree(), z.BrownianMotion(0.5), 0)

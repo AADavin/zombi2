@@ -66,12 +66,12 @@ from .traits import (
     CorrelatedBinary,
     HiddenStateMk,
     simulate_traits,
+    replicate_traits,
     TraitResult,
     pagel_lambda,
     pagel_delta,
     pagel_kappa,
 )
-from .sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
 from .biogeography import DEC, simulate_biogeography
 from .simulation import simulate_genomes, Genomes
 from .matching import (
@@ -117,10 +117,8 @@ __all__ = [
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",
-    "HiddenStateMk", "simulate_traits", "TraitResult",
+    "HiddenStateMk", "simulate_traits", "replicate_traits", "TraitResult",
     "pagel_lambda", "pagel_delta", "pagel_kappa",
-    # trait-dependent diversification (state-dependent speciation/extinction)
-    "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     # historical biogeography (range evolution)
     "DEC", "simulate_biogeography",
     # parallelism

@@ -940,6 +940,22 @@ def simulate_traits(
                        history=history, kind=model.kind)
 
 
+def replicate_traits(tree: Tree, model, n: int, *, seed: int | None = None,
+                     rng: np.random.Generator | None = None) -> list:
+    """Simulate the **same** trait ``n`` times on ``tree`` under ``model`` — independent draws
+    with identical parameters — returning a list of ``n`` :class:`TraitResult`.
+
+    Reproducible given ``seed`` / ``rng`` (a single generator is advanced across the replicates,
+    so the draws are independent). Useful for building a comparative dataset or an empirical null
+    distribution: each replicate is a fresh realization of the trait on the fixed tree.
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    return [simulate_traits(tree, model, rng=rng) for _ in range(n)]
+
+
 # --------------------------------------------------------------------------- Pagel tree transforms
 def _rebuild(tree: Tree, time_fn) -> Tree:
     """Copy ``tree`` with each non-root node's time set by ``time_fn(node, parent_new_time)``."""

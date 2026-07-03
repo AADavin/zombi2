@@ -185,53 +185,6 @@ z.pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational: unit bra
 - **κ** raises each branch length to a power; `0` gives a speciational model (change per
   speciation event, not per unit time).
 
-## Trait-dependent diversification (BiSSE / MuSSE)
-
-The models above evolve a trait on a *fixed* tree. In the **SSE** family the trait and the tree
-**co-evolve**: a lineage's state sets its speciation and extinction rates, so the character
-shapes the tree (Maddison, Midford & Otto 2007). `simulate_sse` runs the joint process forward
-and returns a `TraitResult` whose `.tree` is the simulated (complete) tree.
-
-```python
-res = z.simulate_sse(z.BiSSE(lambda0=1, lambda1=3,    # state 1 speciates 3x faster
-                             mu0=0.3, mu1=0.3,
-                             q01=0.1, q10=0.1),
-                     age=4.0, seed=1)
-
-res.tree                       # complete species tree (extinct leaves have is_extant=False)
-res.values                     # {extant leaf: state} — biased toward the fast state
-z.prune(res.tree)              # the reconstructed (survivors-only) tree
-```
-
-`MuSSE(birth, death, Q, states=…)` generalizes this to any number of states. The run starts from
-a crown of two lineages sharing the root state (drawn from the character's stationary
-distribution, or set `root_state=`) and is conditioned on at least two survivors; use `age=` or
-`n_tips=` to stop.
-
-### Hidden and quantitative states (HiSSE, QuaSSE)
-
-**`HiSSE`** adds hidden classes to BiSSE, so diversification heterogeneity is not mistakenly
-pinned on the observed character (Beaulieu & O'Meara 2016). Give one `BiSSE` per hidden class —
-a diversification regime — plus the rate of switching between classes:
-
-```python
-fast = z.BiSSE(2.5, 2.5, 0.2, 0.2, 0.3, 0.3)   # a fast-diversifying hidden class
-slow = z.BiSSE(0.4, 0.4, 0.2, 0.2, 0.3, 0.3)   # a slow one; observed state neutral in both
-res = z.simulate_sse(z.HiSSE([fast, slow], hidden_transition=0.15), age=1.5, seed=1)
-res.labeled_values()                   # observed 0/1 (hidden class collapsed)
-```
-
-**`QuaSSE`** lets a **continuous** trait drive diversification: it diffuses (Brownian motion)
-while speciation/extinction are (bounded) functions of its value (FitzJohn 2010). `QuaSSE.sigmoid`
-builds a bounded rate; pass `rate_bound` = an upper bound on `speciation(x) + extinction(x)`.
-
-```python
-spec = z.QuaSSE.sigmoid(low=0.4, high=3.0, center=0.0, slope=3.0)   # speciation rises with x
-res = z.simulate_sse(z.QuaSSE(spec, lambda x: 0.2, sigma2=0.5, rate_bound=3.2, x0=-1.0),
-                     age=2.5, seed=1)
-res.values                             # {extant leaf: trait value} — biased toward high x
-```
-
 ## Historical biogeography (DEC)
 
 A species' "trait" can be its **geographic range** — a subset of discrete areas. The
