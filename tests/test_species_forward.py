@@ -135,7 +135,7 @@ def _fossils(tree):
 
 
 def test_fbd_no_fossils_when_psi_zero():
-    t = z.simulate_species_tree_forward(z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.0),
+    t = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4, fossilization=0.0),
                                         age=5.0, seed=1)
     assert _fossils(t) == []
     assert all(len(n.children) == 2 for n in t.internal_nodes())  # still binary
@@ -144,7 +144,7 @@ def test_fbd_no_fossils_when_psi_zero():
 def test_fbd_fossils_scale_with_psi():
     def mean_fossils(psi):
         return np.mean([len(_fossils(z.simulate_species_tree_forward(
-            z.FossilizedBirthDeath(1.0, 0.4, fossilization=psi), age=5.0, seed=s)))
+            z.BirthDeath(1.0, 0.4, fossilization=psi), age=5.0, seed=s)))
             for s in range(40)])
     assert mean_fossils(0.0) == 0
     assert mean_fossils(0.2) < mean_fossils(0.6)
@@ -152,7 +152,7 @@ def test_fbd_fossils_scale_with_psi():
 
 def test_fbd_fossils_are_dated_and_sampled():
     t = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.5, fossilization=0.6), age=6.0, seed=2)
+        z.BirthDeath(1.0, 0.5, fossilization=0.6), age=6.0, seed=2)
     fossils = _fossils(t)
     assert fossils
     for f in fossils:
@@ -162,7 +162,7 @@ def test_fbd_fossils_are_dated_and_sampled():
 
 def test_fbd_sampled_tree_extraction():
     t = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.5, fossilization=0.5, sampling=0.9), age=6.0, seed=1)
+        z.BirthDeath(1.0, 0.5, fossilization=0.5, sampling_fraction=0.9), age=6.0, seed=1)
     n_sampled = sum(1 for n in t.leaves() if n.sampled)
     samp = z.prune_to_sampled(t)
     assert len(samp.leaves()) == n_sampled           # fossils + extant samples
@@ -175,12 +175,12 @@ def test_fbd_sampled_tree_extraction():
 
 def test_fbd_n_tips_mode_allowed():
     t = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.3, fossilization=0.3), n_tips=15, seed=3)
+        z.BirthDeath(1.0, 0.3, fossilization=0.3), n_tips=15, seed=3)
     assert len(t.extant_leaves()) == 15  # constant-rate FBD supports n_tips
 
 
 def test_fbd_reproducible():
-    m = z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.4, sampling=0.9)
+    m = z.BirthDeath(1.0, 0.4, fossilization=0.4, sampling_fraction=0.9)
     a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
     b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
     assert a == b
@@ -193,18 +193,18 @@ def _sampled_ancestors(tree):
 
 
 def test_sampled_ancestors_only_when_removal_below_one():
-    common = dict(fossilization=0.6, sampling=1.0)
+    common = dict(fossilization=0.6, sampling_fraction=1.0)
     t_removed = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.4, removal=1.0, **common), age=6.0, seed=1)
+        z.BirthDeath(1.0, 0.4, removal=1.0, **common), age=6.0, seed=1)
     t_kept = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.4, removal=0.0, **common), age=6.0, seed=1)
+        z.BirthDeath(1.0, 0.4, removal=0.0, **common), age=6.0, seed=1)
     assert _sampled_ancestors(t_removed) == []
     assert len(_sampled_ancestors(t_kept)) > 0
 
 
 def test_gene_sim_passes_through_sampled_ancestors():
     tree = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0), age=6.0, seed=1)
+        z.BirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0), age=6.0, seed=1)
     assert _sampled_ancestors(tree)  # the tree really has degree-two nodes
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
                            origination=0.5, initial_size=20, max_family_size=0.5, seed=42)
@@ -213,7 +213,7 @@ def test_gene_sim_passes_through_sampled_ancestors():
 
 def test_prune_to_sampled_keeps_sampled_ancestors():
     tree = z.simulate_species_tree_forward(
-        z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0, sampling=0.9),
+        z.BirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0, sampling_fraction=0.9),
         age=6.0, seed=1)
     samp = z.prune_to_sampled(tree)
     n_leaf_samples = sum(1 for n in tree.leaves() if n.sampled)
@@ -227,30 +227,30 @@ def test_prune_to_sampled_keeps_sampled_ancestors():
 def test_removal_validation():
     with pytest.raises(ValueError):
         z.simulate_species_tree_forward(
-            z.FossilizedBirthDeath(1.0, 0.4, fossilization=0.5, removal=1.5), age=5.0)
+            z.BirthDeath(1.0, 0.4, fossilization=0.5, removal=1.5), age=5.0)
 
 
 # --- episodic FBD ------------------------------------------------------------
 
 def test_episodic_fbd_produces_fossils():
-    m = z.EpisodicFossilizedBirthDeath(
+    m = z.EpisodicBirthDeath(
         birth=[1.0, 1.4], death=[0.3, 0.5], fossilization=[0.4, 0.4], shifts=[2.0],
-        sampling=0.9, removal=0.5)
+        sampling_fraction=0.9, removal=0.5)
     t = z.simulate_species_tree_forward(m, age=6.0, seed=3)
     assert len(_fossils(t)) > 0
     assert len(t.extant_leaves()) >= 2
 
 
 def test_episodic_fbd_requires_age_mode():
-    m = z.EpisodicFossilizedBirthDeath([1.0], [0.3], [0.3], [])
+    m = z.EpisodicBirthDeath([1.0], [0.3], [], fossilization=[0.3])
     with pytest.raises(NotImplementedError):
         z.simulate_species_tree_forward(m, n_tips=10)
 
 
 def test_episodic_fbd_reproducible():
-    m = z.EpisodicFossilizedBirthDeath(
+    m = z.EpisodicBirthDeath(
         birth=[1.0, 1.4], death=[0.3, 0.5], fossilization=[0.3, 0.5], shifts=[2.0],
-        sampling=0.8, removal=0.5)
+        sampling_fraction=0.8, removal=0.5)
     a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
     b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
     assert a == b

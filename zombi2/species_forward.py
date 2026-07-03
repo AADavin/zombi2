@@ -23,12 +23,7 @@ import bisect
 
 import numpy as np
 
-from .species_model import (
-    BirthDeath,
-    EpisodicBirthDeath,
-    EpisodicFossilizedBirthDeath,
-    FossilizedBirthDeath,
-)
+from .species_model import BirthDeath, EpisodicBirthDeath
 from .tree import Tree, TreeNode
 
 
@@ -41,8 +36,7 @@ class _ForwardRates:
     __slots__ = ("rates", "rate_bound", "rho", "removal")
 
     def __init__(self, model, present):
-        self.removal = 1.0
-        if isinstance(model, EpisodicFossilizedBirthDeath):
+        if isinstance(model, EpisodicBirthDeath):
             model.validate()
             shifts, births, deaths, foss = (model.shifts, model.birth, model.death,
                                             model.fossilization)
@@ -53,36 +47,19 @@ class _ForwardRates:
 
             self.rates = rates
             self.rate_bound = max(b + d + f for b, d, f in zip(births, deaths, foss))
-            self.rho = model.sampling
+            self.rho = model.rho
             self.removal = model.removal
-        elif isinstance(model, FossilizedBirthDeath):
+        elif isinstance(model, BirthDeath):  # Yule is a subclass
             model.validate()
             b, d, psi = model.birth, model.death, model.fossilization
             self.rates = lambda t: (b, d, psi)
             self.rate_bound = b + d + psi
-            self.rho = model.sampling
+            self.rho = model.sampling_fraction
             self.removal = model.removal
-        elif isinstance(model, EpisodicBirthDeath):
-            model.validate()
-            shifts, births, deaths = model.shifts, model.birth, model.death
-
-            def rates(t):
-                i = bisect.bisect_right(shifts, present - t)
-                return births[i], deaths[i], 0.0
-
-            self.rates = rates
-            self.rate_bound = max(b + d for b, d in zip(births, deaths))
-            self.rho = model.rho
-        elif isinstance(model, BirthDeath):  # Yule is a subclass
-            b, d = model.birth, model.death
-            self.rates = lambda t: (b, d, 0.0)
-            self.rate_bound = b + d
-            self.rho = 1.0
         else:
             raise NotImplementedError(
-                f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath, "
-                f"FossilizedBirthDeath and EpisodicFossilizedBirthDeath, not "
-                f"{type(model).__name__}"
+                f"forward simulation supports BirthDeath/Yule and EpisodicBirthDeath, "
+                f"not {type(model).__name__}"
             )
 
 
@@ -197,16 +174,16 @@ def simulate_species_tree_forward(
     """
     if (age is None) == (n_tips is None):
         raise ValueError("provide exactly one of `age` or `n_tips`")
-    if isinstance(model, (EpisodicBirthDeath, EpisodicFossilizedBirthDeath)):
+    if isinstance(model, EpisodicBirthDeath):
         if n_tips is not None:
             raise NotImplementedError(
                 "episodic forward simulation requires `age` (the present must be fixed to map "
                 "age-before-present); n_tips mode is constant-rate only"
             )
-    elif not isinstance(model, (BirthDeath, FossilizedBirthDeath)):
+    elif not isinstance(model, BirthDeath):
         raise NotImplementedError(
-            f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath, "
-            f"FossilizedBirthDeath and EpisodicFossilizedBirthDeath, not {type(model).__name__}"
+            f"forward simulation supports BirthDeath/Yule and EpisodicBirthDeath, "
+            f"not {type(model).__name__}"
         )
     model.validate()
     if age is not None and age <= 0:

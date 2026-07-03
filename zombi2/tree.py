@@ -145,8 +145,8 @@ def prune_to_sampled(tree: Tree) -> Tree | None:
     """Return the **sampled** tree: prune to nodes with ``sampled=True`` (serially-sampled
     fossils plus sampled extant tips), suppressing degree-two nodes and preserving times.
     This is the fossilized-birth–death "reconstructed" tree of dated tips; use it on a tree
-    from :func:`~zombi2.simulate_species_tree_forward` with a
-    :class:`~zombi2.FossilizedBirthDeath` model. Returns ``None`` if nothing is sampled.
+    from a forward run of a fossilized model (``BirthDeath``/``EpisodicBirthDeath`` with
+    ``fossilization > 0``). Returns ``None`` if nothing is sampled.
     """
 
     def leaf_copy(node: TreeNode) -> TreeNode:

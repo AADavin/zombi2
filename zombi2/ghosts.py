@@ -57,9 +57,9 @@ class _ProcessView:
         elif isinstance(model, BirthDeath):  # Yule is a subclass -> supported (μ=0 -> no ghosts)
             model.validate()
             b, d = model.birth, model.death
-            self.E = model.extinction_prob
+            self.E = model.extinction_prob  # ρ-aware (uses model.sampling_fraction)
             self.rates = lambda tau: (b, d)
-            self.rho = 1.0  # constant-rate model assumes complete sampling
+            self.rho = model.sampling_fraction
             self.birth_bound = b
             self.rate_bound = b + d
         else:

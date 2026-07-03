@@ -116,14 +116,15 @@ rates).
 
 ### Fossilized birth–death (serial / through-time sampling)
 
-`FossilizedBirthDeath(birth, death, fossilization, sampling)` adds serial sampling: beyond
-speciation (λ) and extinction (μ), lineages are sampled *through time* at rate ψ
+The same `BirthDeath` (or `EpisodicBirthDeath`) model gains serial sampling through optional
+kwargs: beyond speciation (λ) and extinction (μ), lineages are sampled *through time* at rate ψ
 (`fossilization`) — each a **dated fossil tip** — and extant lineages are sampled at the present
-with probability ρ (`sampling`). Sampling removes the lineage (removal probability 1), so every
-sample is a terminal tip and the tree stays binary (the gene-family machinery is unaffected).
+with probability ρ (`sampling_fraction`). Sampling removes the lineage by default (`removal=1`),
+so every sample is a terminal tip and the tree stays binary (the gene-family machinery is
+unaffected).
 
 ```python
-m = z.FossilizedBirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling=0.9)
+m = z.BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
 tree = z.simulate_species_tree_forward(m, age=6.0, seed=1)   # complete tree + fossils
 fbd = z.prune_to_sampled(tree)   # the sampled tree: dated fossil tips + sampled extant tips
 ```
@@ -140,10 +141,10 @@ node (`sampled=True`, one child). `prune_to_sampled` keeps these as degree-two n
 simulator passes genomes straight through them (they are not gene events), so DTL simulation runs
 unchanged on SA trees.
 
-**Episodic FBD.** `EpisodicFossilizedBirthDeath(birth[], death[], fossilization[], shifts[], *,
-sampling, removal)` composes time-varying λ/μ/ψ with fossil sampling (age mode, like the other
-episodic models). So a mass-extinction epoch and a changing fossilization rate can be combined in
-one forward run.
+**Episodic FBD.** `EpisodicBirthDeath(birth[], death[], shifts[], *, fossilization=[...],
+sampling_fraction=…, removal=…)` composes time-varying λ/μ/ψ with fossil sampling (age mode, like
+the other episodic models). So a mass-extinction epoch and a changing fossilization rate can be
+combined in one forward run.
 
 ## Key references
 
