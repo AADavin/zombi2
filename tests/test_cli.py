@@ -184,3 +184,17 @@ def test_trait_replicates_write_wide_table(tmp_path):
     assert rows[0] == "node\trep_1\trep_2\trep_3\trep_4\trep_5"
     assert all(len(r.split("\t")) == 6 for r in rows[1:])   # one column per replicate
     assert not (dest / "trait_tree.nwk").exists()           # wide-table mode: no annotated tree
+
+
+def test_trait_dec_writes_ranges(tmp_path):
+    tree = _tree_file(tmp_path, tips=10)
+    dest = tmp_path / "dec"
+    rc = main(["trait", "-t", tree, "--model", "dec", "--areas", "A,B,C",
+               "--dispersal", "0.3", "--extinction", "0.1", "--root-range", "A",
+               "--seed", "1", "-o", str(dest)])
+    assert rc == 0
+    vals = {r.split("\t")[0]: r.split("\t")[1]
+            for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
+    assert vals["root"] == "{A}"                             # root range respected
+    assert all(v.startswith("{") and v.endswith("}") for v in vals.values())   # ranges
+    assert "[&trait={" in (dest / "trait_tree.nwk").read_text()

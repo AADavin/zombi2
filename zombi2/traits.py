@@ -876,8 +876,8 @@ def _fmt(v) -> str:
     if isinstance(v, str):
         return v
     arr = np.asarray(v)
-    if arr.ndim >= 1:  # a vector-valued (multivariate) trait -> {a,b,c}
-        return "{" + ",".join(f"{x:.6g}" for x in arr.ravel()) + "}"
+    if arr.ndim >= 1:  # a multivariate trait (floats) or a range tuple (labels) -> {a,b,c}
+        return "{" + ",".join(_fmt(x) for x in arr.ravel()) + "}"
     if arr.dtype.kind == "f":
         return f"{float(v):.6g}"
     return str(v)
