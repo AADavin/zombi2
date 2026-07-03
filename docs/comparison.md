@@ -45,9 +45,9 @@ the output format — while rebuilding the internals around clean interfaces.
   model the other way round: given an empirical gene-family profile, they infer the
   duplication/transfer/loss/origination rates that reproduce it, by Approximate Bayesian
   Computation. See [matching empirical profiles](guide/matching.md).
-- **Scale.** A modern Gillespie core plus an optional **Rust** engine make large trees
+- **Scale.** The built-in model runs on a native **Rust** engine, making large trees
   (thousands to tens of thousands of tips) practical; `z.run_replicates` parallelises
-  independent replicates across cores. See [the Rust fast path](guide/rust-fast-path.md)
+  independent replicates across cores. See [the Rust engine](guide/rust-engine.md)
   and [running in parallel](guide/parallel.md).
 - **Distributions.** Rate distributions accept the built-ins (`z.Gamma`, `z.Exponential`,
   `z.LogNormal`, `z.Uniform`, `z.Fixed`), any `scipy.stats` frozen distribution, or a plain

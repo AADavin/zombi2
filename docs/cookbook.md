@@ -296,25 +296,22 @@ summaries = z.run_replicates(
     seed=0)                 # processes=None uses all cores; processes=1 runs serially
 ```
 
-### The Rust fast paths
+### Profiles only (the fast path)
 
-Optional native engines for large runs (require the compiled `zombi2_core` extension —
-see [the Rust fast path](guide/rust-fast-path.md)). Guard on availability:
+The built-in model already runs on Rust automatically. When you only need the
+copy-number/presence matrix — not the event log or gene trees — pass `output="profiles"` to
+skip the genealogy entirely (much faster; the right path for large datasets and ABC):
 
 ```python
-if z.rust_available():
-    # profiles only (fastest) -> a ProfileMatrix
-    profiles = z.simulate_profiles_fast(tree, duplication=0.05, transfer=0.03, loss=0.1,
-                                        origination=0.5, max_family_size=0.3, seed=42)
+pm = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
+                        origination=0.5, max_family_size=0.3, seed=42,
+                        output="profiles")     # -> ProfileMatrix, no event log / gene trees
 
-    # a full Genomes (event log + gene trees), just faster — a drop-in for simulate_genomes
-    genomes = z.simulate_genomes_fast(tree, duplication=0.05, loss=0.1,
-                                      origination=0.5, seed=42)
-
-    # simulate, reconstruct, and write the whole ZOMBI-1 output in Rust
-    z.simulate_and_write_fast(tree, "out/", duplication=0.05, loss=0.1,
-                              origination=0.5, seed=42)
+pm.matrix.shape                                # (n_families, n_extant_species)
 ```
+
+The default `output="genomes"` returns the full `Genomes`. Both require the compiled
+`zombi2_core` extension for the built-in model — see [the Rust engine](guide/rust-engine.md).
 
 ## Fitting rates to an empirical profile (ABC)
 

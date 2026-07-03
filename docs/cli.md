@@ -34,36 +34,28 @@ is exactly the split form of `zombi2 all`. `species` writes only `species_tree.n
 | `--dup` `--trans` `--loss` `--orig` | `genomes`, `all` | per-copy duplication / transfer / loss / origination rates |
 | `--initial-size` | `genomes`, `all` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | `genomes`, `all` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
-| `--fast` | `genomes`, `all` | run the Rust engine (same output, much faster) — see below |
-| `--profiles-only` | `genomes`, `all` | with `--fast`, write only the profile matrices — see below |
+| `--profiles-only` | `genomes`, `all` | write only the profile matrices (skip event log / gene trees) — see below |
 | `--seed` | all | RNG seed for reproducibility |
 | `-o` / `--out` | all | output directory |
 
 Run `zombi2 <command> --help` for the authoritative list.
 
-## The `--fast` flag (Rust)
+## The Rust engine and `--profiles-only`
 
-`--fast` routes `genomes`/`all` through the optional Rust engine instead of the
-pure-Python simulator. It produces the **same full output** — species tree, per-family
-event tables, complete and extant gene trees, transfers, summary, and the profile matrices
-— only simulated, reconstructed, and written entirely in Rust.
+The built-in model runs on the native **Rust** engine automatically — there is no flag to
+turn it on, and no pure-Python fallback for it (which keeps results reproducible against one
+engine). The CLI therefore needs the compiled `zombi2_core` extension; it is **not** built by
+`pip install`, so build it once (see [the Rust engine](guide/rust-engine.md)) or the command
+exits with a build hint.
 
-```bash
-zombi2 all --birth 1 --tips 5000 --age 5 --dup 0.2 --loss 0.25 --orig 0.5 --fast -o out/
-```
-
-Add `--profiles-only` to skip the event log and gene trees and write just
-`species_tree.nwk` + `Profiles.tsv` / `Presence.tsv` — the fastest path, for when the
-copy-number/presence matrix is all you need:
+By default `genomes`/`all` write the full output — event tables, complete and extant gene
+trees, transfers, summary, and the profile matrices. Add `--profiles-only` to skip the event
+log and gene trees and write just `species_tree.nwk` + `Profiles.tsv` / `Presence.tsv` — the
+fastest path, for when the copy-number/presence matrix is all you need:
 
 ```bash
-zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 \
-    --fast --profiles-only -o out/
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --profiles-only -o out/
 ```
-
-`--fast` requires the compiled `zombi2_core` extension; without it the command exits with a
-build hint. See the [Rust fast path](guide/rust-fast-path.md) guide for how the engines
-relate and how to build the extension.
 
 ## Scope
 

@@ -33,7 +33,11 @@ The library is organised so each subsystem is a small, focused module:
 | `profiles.py` | `ProfileMatrix` (copy-number / presence) |
 | `simulation.py` | `simulate_genomes` + the `Genomes` result and `.write()` |
 | `parallel.py` | `run_replicates` (replicate-level parallelism) |
-| `fast.py` | optional Rust fast paths (`simulate_profiles_fast`, `simulate_genomes_fast`, `simulate_and_write_fast`) |
+| `_rust.py` | native Rust engine bindings; the built-in model runs here automatically |
+| `ghosts.py` | ghost lineages (`add_ghost_lineages`, un-pruning) |
+| `matching.py` | ABC profile matching (`match_profiles`, `match_profiles_smc`) |
+| `species_forward.py` | forward-in-time / fossilized birth–death trees |
+| `nucleotide_genome.py` / `nucleotide_sim.py` | the nucleotide genome model |
 | `cli.py` | the `zombi2` command-line wrapper |
 | `rust/` | the Rust `zombi2_core` extension (built with maturin) |
 
@@ -69,7 +73,7 @@ every change to `docs/`. Edit the pages under `docs/`; the wiki updates itself. 
 
 ## Building the Rust engine
 
-Only needed if you're working on the fast paths in `rust/` or want to benchmark them:
+Only needed if you're working on the Rust engine in `rust/` or want to benchmark it:
 
 ```bash
 pip install maturin
@@ -78,9 +82,9 @@ maturin build --release -i python3
 pip install --force-reinstall target/wheels/*.whl
 ```
 
-The Rust paths must stay behaviourally consistent with the pure-Python engine (they agree
-statistically, not bit-for-bit, since the RNG streams differ). Keep pure Python the
-default; Rust is an optional accelerator. See [the Rust fast path](guide/rust-fast-path.md).
+The Rust engine must stay behaviourally consistent with the pure-Python reference (they agree
+statistically, not bit-for-bit, since the RNG streams differ). The built-in model runs on
+Rust; flexible models run on Python. See [the Rust engine](guide/rust-engine.md).
 
 ## Tests and style
 

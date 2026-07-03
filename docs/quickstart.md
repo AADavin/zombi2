@@ -47,8 +47,8 @@ zombi2 all --birth 1 --death 0.2 --tips 20 --age 5 \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 ```
 
-The `--fast` flag runs the same simulation in Rust; see the full
-[command-line interface](cli.md) for every option.
+The built-in model runs on Rust automatically; add `--profiles-only` for the counts-only
+output. See the full [command-line interface](cli.md) for every option.
 
 ## Next steps
 

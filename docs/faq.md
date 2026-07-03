@@ -8,23 +8,24 @@ as durations. See the [command-line interface](cli.md).
 
 ### Is the CLI using the Rust engine?
 
-Only when you pass `--fast`. By default `zombi2 genomes` and `zombi2 all` run the
-pure-Python simulator. With `--fast` the output is the same; add `--profiles-only` for the
-reduced (profiles-only) output. See the [command-line interface](cli.md).
+Yes — the built-in model runs on Rust automatically, so `zombi2 genomes` / `zombi2 all` use
+it (there is no `--fast` flag any more). Add `--profiles-only` for the reduced, counts-only
+output. See the [command-line interface](cli.md).
 
-### What are the Rust fast paths, and when should I use each?
+### How do I get just the profile matrix, fast?
 
-All three cover the built-in `UnorderedGenome` + `UniformRates` model and require the
-compiled `zombi2_core` extension:
+Call `simulate_genomes` with `output="profiles"` — it runs the Rust engine over per-family
+counts only (no event log or gene trees), which is the right path for large presence/absence
+datasets and for ABC:
 
-| Function | Returns | Use when |
-| --- | --- | --- |
-| `z.simulate_profiles_fast(tree, ...)` | a `ProfileMatrix` (counts only) | you need just the presence/copy-number matrix at scale |
-| `z.simulate_genomes_fast(tree, ...)` | a full `Genomes` (with `.event_log`, `.gene_trees()`, `.write()`) | you want the complete result, just faster — a drop-in for `simulate_genomes` |
-| `z.simulate_and_write_fast(tree, "out/", ...)` | writes the whole output in Rust | you're generating large datasets straight to disk |
+```python
+pm = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
+                        origination=0.5, output="profiles")   # -> ProfileMatrix
+```
 
-The pure-Python `z.simulate_genomes` stays the default. See the
-[Rust fast path](guide/rust-fast-path.md) guide.
+The default `output="genomes"` returns the full `Genomes`. There is no longer a separate
+`simulate_*_fast` family of functions — Rust is selected automatically. See
+[the Rust engine](guide/rust-engine.md).
 
 ### Why don't the Rust and Python engines give identical results?
 
@@ -33,9 +34,12 @@ bit-identical. A given `seed` is reproducible **within** one engine.
 
 ### Do I need Rust to use ZOMBI2?
 
-No. Rust is entirely optional acceleration. Everything works on pure Python; the Rust
-functions and `--fast` simply become unavailable (with a clear message) if the extension
-isn't built. See [installation](installation.md).
+For the **built-in** model (`UnorderedGenome` + `UniformRates`, plus the full
+`TransferModel`), yes — it runs on Rust with no silent Python fallback, so `simulate_genomes`
+raises a clear "build the extension" error if it isn't compiled. **Flexible** models
+(`FamilySampledRates`, `GenomeWiseRates`, `BranchRates`, soft `carrying_capacity`, ordered or
+nucleotide genomes, a custom `sampler`) run on pure Python automatically and need no Rust. See
+[installation](installation.md) and [the Rust engine](guide/rust-engine.md).
 
 ### How do I stop a gene family from growing without bound?
 
