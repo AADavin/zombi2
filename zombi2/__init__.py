@@ -72,6 +72,7 @@ from .traits import (
     pagel_kappa,
 )
 from .sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
+from .biogeography import DEC, simulate_biogeography
 from .simulation import simulate_genomes, Genomes
 from .matching import (
     match_profiles,
@@ -120,6 +121,8 @@ __all__ = [
     "pagel_lambda", "pagel_delta", "pagel_kappa",
     # trait-dependent diversification (state-dependent speciation/extinction)
     "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
+    # historical biogeography (range evolution)
+    "DEC", "simulate_biogeography",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
