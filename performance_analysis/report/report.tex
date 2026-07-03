@@ -1,0 +1,222 @@
+\documentclass[11pt]{article}
+
+% --- packages ---------------------------------------------------------------
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{amsmath}
+\usepackage[colorlinks=true,allcolors=black,urlcolor=blue!55!black]{hyperref}
+
+\graphicspath{{../figures/}}
+
+% --- style ------------------------------------------------------------------
+\definecolor{ink}{HTML}{1A1A1A}
+\definecolor{muted}{HTML}{6A6A6A}
+\color{ink}
+\captionsetup{font=small,labelfont=bf,labelsep=period}
+\sisetup{group-separator={,},group-minimum-digits=4,detect-weight=true}
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.15}
+
+% headline number macro
+\newcommand{\headline}[1]{\textbf{#1}}
+
+\title{\vspace{-1.5em}\textbf{\Large ZOMBI2 performance}\\[0.3em]
+  \large Scaling of species-tree and gene-family simulation}
+\author{Performance analysis\\ \small\color{muted} generated for the ZOMBI2 project}
+\date{\small 2026-07-03}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+% --- abstract ---------------------------------------------------------------
+\begin{abstract}
+\noindent
+We benchmark the two core operations of ZOMBI2 --- simulating a species tree and
+evolving gene families along it --- across five orders of magnitude in tree size,
+on a single laptop. Both are essentially linear in the number of tips.
+A \headline{ten-million-tip species tree} is simulated in
+\headline{$\approx$3.2\,min using 6.4\,GB}; \headline{one-million-tip} gene-family
+copy-number profiles are produced in \headline{$\approx$23\,s using 2.9\,GB}.
+The gene-family output was the one component that did not scale --- a dense
+$\text{families}\times\text{species}$ matrix, quadratic in tip count --- so we
+replaced it with a sparse (COO) representation, moving its ceiling from
+$\sim$\num{100000} tips to several million. Replicate-level parallelism gives a
+$3.9\times$ speed-up on a 10-core (4 performance + 6 efficiency) chip. All raw
+timings, the code that produced them, and these figures are reproducible from the
+\texttt{performance\_analysis/} workspace.
+\end{abstract}
+
+% --- setup ------------------------------------------------------------------
+\section{Setup and methodology}
+
+\textbf{Workload.} Every benchmark uses one fixed regime so the numbers stay
+comparable: a birth--death species model $\text{BirthDeath}(\lambda{=}1.0,\,
+\mu{=}0.3)$ of crown age $2.0$, and gene families evolving under uniform per-copy
+rates ($D{=}0.2$, $T{=}0.1$, $L{=}0.25$, $O{=}0.5$; \num{20} founding families).
+Loss exceeds duplication, so family sizes never run away. The built-in model runs
+on the compiled \texttt{zombi2\_core} (Rust) engine, which \texttt{simulate\_genomes}
+selects automatically.
+
+\textbf{Measurement.} Wall-clock time is taken with a monotonic clock
+(\texttt{time.perf\_counter}) after one untimed warm-up; each point is repeated
+several times and we report the \emph{median} with a shaded inter-quartile
+(25--75\%) band. Species trees are built once per size and reused across the
+gene-family series, so those comparisons are a fair A/B on identical inputs; only
+the timed call sits inside the timer. Peak memory (resident set size) is measured
+in an \emph{isolated subprocess} per size, the only way to get a clean per-size
+figure from a high-water-mark counter.
+
+\textbf{Machine.} Apple Silicon, 10 cores (4 performance + 6 efficiency), 34\,GB
+RAM, macOS; CPython 3.12, ZOMBI2 \texttt{0.2.0.dev0}. Absolute numbers are
+machine-specific; the \emph{scaling} is not.
+
+% --- species tree -----------------------------------------------------------
+\section{Species-tree simulation scales to tens of millions of tips}
+
+Simulating the species tree is $O(N)$ in the number of tips and featherweight
+(Figure~\ref{fig:tree}). The backward reconstructed sampler --- the default,
+which conditions on $N$ extant tips --- takes \SI{55}{\milli\second} at
+\num{10000} tips, \SI{12.4}{\second} at \num{1000000}, and \SI{189.8}{\second} at
+\num{10000000}. The forward complete-tree sampler is comparable up to
+$\sim$\num{100000} tips but grows heavier beyond, because it materialises every
+extinct lineage too (a $10^6$-tip \emph{extant} tree carries $\approx 1.4\times10^6$
+total nodes).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\linewidth]{species_tree_scaling.png}
+  \caption{Wall-clock time to simulate a species tree versus number of extant
+    tips (log--log). Both samplers track the $\propto N$ guide; the backward
+    sampler reaches \num{10000000} tips. Median of repeated runs; band is the
+    inter-quartile range.}
+  \label{fig:tree}
+\end{figure}
+
+% --- gene families ----------------------------------------------------------
+\section{Gene-family simulation: full log vs.\ counts-only}
+
+Evolving D/T/L/O gene families along a fixed tree offers two outputs
+(Figure~\ref{fig:genes}). The \emph{full event log} records every event as an
+object, so its cost tracks the event count and it is practical to
+$\sim$\num{100000} tips (\SI{19.2}{\second}, \num{3052812} events). The
+\emph{counts-only} profile --- the presence/absence dataset used for approximate
+Bayesian computation and downstream analyses --- is far cheaper and, after the
+sparse-output change (\S\ref{sec:mem}), scales linearly into the millions:
+\SI{71}{\milli\second} at \num{10000} tips, \SI{1.3}{\second} at \num{100000}, and
+\SI{23}{\second} at \num{1000000} tips (\num{318930} families).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\linewidth]{gene_family_scaling.png}
+  \caption{Gene-family simulation versus tip count (log--log). The counts-only
+    profile runs straight along the $\propto N$ guide to \num{1000000} tips; the
+    full event log is heavier and caps near \num{100000} tips.}
+  \label{fig:genes}
+\end{figure}
+
+% --- memory -----------------------------------------------------------------
+\section{Memory footprint and the sparse-output change}
+\label{sec:mem}
+
+Peak memory (Figure~\ref{fig:mem}) tells the ``how big can we go'' story. The
+species tree is the lightest, roughly \SI{0.65}{GB} per million tips (76\,MB at
+\num{10000}, 716\,MB at \num{1000000}, 6.4\,GB at \num{10000000}).
+
+The copy-number \emph{profile} was originally a dense
+$\text{families}\times\text{species}$ array. Because the number of families grows
+in proportion to the number of species, that array is $O(N^2)$ --- it would
+demand $\approx$25\,GB of address space already at \num{100000} tips and
+$\approx$8\,TB at \num{1000000}, a hard wall well before the simulation itself
+struggled. We replaced it with a \textbf{sparse (COO) representation} storing only
+the present cells, which is $O(N)$: the profile now costs \SI{422}{MB} at
+\num{100000} tips, \SI{3.2}{GB} at \num{1000000}, and \SI{7.4}{GB} at
+\num{3000000} (\num{958351} families) --- sizes the dense form could never reach.
+All summaries (presence, genome sizes, frequency spectrum) and the on-disk output
+are computed directly from the sparse arrays, so nothing densifies. The full event
+log remains the heaviest path, as it must materialise one record per event.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\linewidth]{memory_scaling.png}
+  \caption{Peak resident memory versus tip count (isolated subprocess per size).
+    The species tree and the sparse profiles both scale linearly into the
+    millions; the full event log is the memory-heaviest path.}
+  \label{fig:mem}
+\end{figure}
+
+% --- parallel ---------------------------------------------------------------
+\section{Replicate-level parallelism}
+
+Independent replicates are embarrassingly parallel. Running \num{20} independent
+full simulations of \num{10000}-tip trees through a process pool
+(Figure~\ref{fig:par}) drops the wall-clock from \SI{21.4}{\second} on one worker
+to \SI{5.4}{\second} on ten --- a $3.9\times$ speed-up. The curve bends away from
+the ideal beyond four workers: this chip has only four performance cores (the
+other six are slower efficiency cores), and on macOS each worker re-imports the
+library under the \texttt{spawn} start method. On a homogeneous, \texttt{fork}-based
+cluster (e.g.\ Linux/SLURM) the same workload scales closer to ideal.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\linewidth]{parallel_scaling.png}
+  \caption{Speed-up of a fixed batch of independent simulations versus worker
+    processes, against the ideal-linear reference. The plateau past four workers
+    reflects the 4-performance/6-efficiency-core split and \texttt{spawn} overhead.}
+  \label{fig:par}
+\end{figure}
+
+% --- summary table ----------------------------------------------------------
+\section{Summary}
+
+\begin{table}[h]
+  \centering
+  \caption{Headline results at representative scales (median wall-clock; peak RSS
+    from the isolated-subprocess memory runs).}
+  \label{tab:summary}
+  \small
+  \begin{tabular}{l S[table-format=8.0] S[table-format=6.1] l l}
+    \toprule
+    Task & {Tips $N$} & {Time} & {Unit} & Peak memory \\
+    \midrule
+    Species tree (backward) & 1000000  & 12.4 & s  & \SI{716}{MB}  \\
+    Species tree (backward) & 10000000 & 189.8 & s & \SI{6.4}{GB}  \\
+    Gene families, full log & 100000   & 19.2 & s  & \SI{3.5}{GB}  \\
+    Gene families, profiles & 1000000  & 23.0 & s  & \SI{2.9}{GB}  \\
+    Gene families, profiles & 3000000  & 104.6 & s & \SI{7.4}{GB}  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Bottom line.} Both core operations are linear in tip count and run at
+million-tip scale on a laptop; the species tree reaches ten million. The only
+super-linear component was the dense profile output, now sparse and linear. The
+remaining heavy path is the full per-event log, which is inherent to recording
+every event; where only the presence/absence profile is needed, the counts-only
+path is the one to use at scale. An overview of all four measurements is shown in
+Figure~\ref{fig:overview}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{overview.png}
+  \caption{Overview: (a) species-tree scaling, (b) gene-family scaling,
+    (c) peak-memory footprint, (d) replicate-level parallelism.}
+  \label{fig:overview}
+\end{figure}
+
+\vfill
+{\small\color{muted}
+Reproducible from \texttt{performance\_analysis/}: \texttt{python run.py} writes raw
+timings to \texttt{results/*.json}; \texttt{python plot.py} renders the figures.
+Each result file embeds its own provenance (git commit, interpreter, CPU).}
+
+\end{document}

@@ -1,0 +1,8 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# results/ and figures/ ARE the record — keep them tracked.
+# Scratch output dirs (temp write benchmarks clean up after themselves).
+scratch/
+*.tmp
