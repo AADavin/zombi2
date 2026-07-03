@@ -48,6 +48,8 @@ def simulate_species_tree(
     max_attempts, max_lineages:
         Forward-only safety bounds (rejection retries / lineage-count cap).
 
+    Notes
+    -----
     Forward-only model features (``fossilization`` > 0, ``removal`` != 1) and constant-rate
     incomplete sampling (``sampling_fraction`` < 1) are rejected under ``direction="backward"``.
     """
