@@ -38,6 +38,35 @@ zombi2 species --model forward --age 5 -o out/                   # complete tree
 zombi2 species --model forward --tips 50 -o out/                 # complete tree, until 50 extant
 ```
 
+### Fancier models
+
+**Episodic (skyline) rates.** Give several `--birth`/`--death` values plus the shift ages
+between them (`K-1` ages for `K` rate epochs, ordered present → past):
+
+```bash
+zombi2 species --birth 1 2 --death 0.3 0.1 --shifts 2 --age 5 --tips 40 -o out/
+```
+
+**Fossilized birth–death & incomplete sampling** (forward only). `--fossilization` (ψ) adds
+dated fossil tips through time, `--sampling-fraction` (ρ) samples only a fraction of extant
+species, and `--removal` (`r < 1`) keeps sampled ancestors:
+
+```bash
+zombi2 species --model forward --age 6 --fossilization 0.3 -o out/       # fossils
+zombi2 species --model forward --age 6 --sampling-fraction 0.5 -o out/   # 50% sampled
+```
+
+**Ghost lineages** (backward only). `--ghosts` un-prunes the reconstructed tree, grafting the
+extinct/unsampled lineages back on (they get `ghost_*` names); `--ghost-method` picks the
+sampler. See [ghost lineages](guide/ghost-lineages.md):
+
+```bash
+zombi2 species --tips 50 --death 0.6 --ghosts -o out/
+```
+
+**Reproducible runs.** Add `--log` to `species` or `genomes` to also write
+`<out>/parameters.log` — the exact parameters, seed, version, and command line used.
+
 ## Options
 
 ### `species`
@@ -45,12 +74,17 @@ zombi2 species --model forward --tips 50 -o out/                 # complete tree
 | Option | Meaning |
 | --- | --- |
 | `--model {backward,forward}` | reconstructed (default) or complete forward tree |
-| `--birth` / `--death` | speciation / extinction rate (default `1.0` / `0.3`) |
+| `--birth` / `--death` | speciation / extinction rate(s) (default `1.0` / `0.3`); several values + `--shifts` = episodic |
+| `--shifts` | episodic rate-shift ages (`K-1` for `K` rate values), present → past |
 | `--tips` | number of extant species (backward default `50`; forward: `--tips` **or** `--age`) |
 | `--age` | tree age / timescale (backward default `1.0`; forward: `--tips` **or** `--age`) |
 | `--age-type {crown,stem}` | interpret `--age` as crown (default) or stem age [backward] |
-| `--max-attempts` | [forward] retries before giving up when the process goes extinct (default 10000) |
-| `--max-lineages` | [forward] abort a run exceeding this many live lineages (default 1000000) |
+| `--sampling-fraction` | [forward] fraction of extant species sampled, ρ (default `1.0`) |
+| `--fossilization` | [forward] fossil sampling rate ψ — fossilized birth–death (default `0`) |
+| `--removal` | [forward] removal probability `r` on sampling (`r<1` → sampled ancestors; default `1.0`) |
+| `--ghosts` / `--ghost-method {rejection,htransform}` | [backward] un-prune extinct/unsampled ghost lineages |
+| `--max-attempts` / `--max-lineages` | [forward] extinction-retry cap / live-lineage cap |
+| `--log` | also write the run's parameters to `<out>/parameters.log` |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 ### `genomes`
@@ -62,6 +96,7 @@ zombi2 species --model forward --tips 50 -o out/                 # complete tree
 | `--initial-size` | number of gene families seeded at the root (default 20) |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
 | `--profiles-only` | write only the profile matrices (skip event log / gene trees) — see below |
+| `--log` | also write the run's parameters to `<out>/parameters.log` |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 Run `zombi2 <command> -h` for the authoritative list.

@@ -119,6 +119,45 @@ def test_genomes_missing_tree_file_returns_clean_error(tmp_path, capsys):
     assert "zombi2: error:" in capsys.readouterr().err
 
 
+def test_species_episodic(tmp_path):
+    """Multiple --birth/--death with --shifts builds an episodic (skyline) model."""
+    out = tmp_path / "ep"
+    rc = main(["species", "--birth", "1", "2", "--death", "0.3", "0.1", "--shifts", "2",
+               "--age", "5", "--tips", "30", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+
+
+def test_species_ghosts_adds_ghost_tips(tmp_path):
+    """--ghosts un-prunes the backward tree, adding ghost_* leaves."""
+    out = tmp_path / "gh"
+    rc = main(["species", "--tips", "30", "--death", "0.6", "--ghosts", "--seed", "1",
+               "-o", str(out)])
+    assert rc == 0
+    assert "ghost_" in (out / "species_tree.nwk").read_text()
+
+
+def test_species_forward_fossils(tmp_path):
+    """Forward + fossilization runs (fossilized birth–death)."""
+    rc = main(["species", "--model", "forward", "--age", "6", "--fossilization", "0.3",
+               "--seed", "1", "-o", str(tmp_path / "fbd")])
+    assert rc == 0
+
+
+def test_species_backward_fossils_is_error(tmp_path):
+    """Fossil / removal / sampling flags require forward mode."""
+    with pytest.raises(SystemExit):
+        main(["species", "--fossilization", "0.2", "-o", str(tmp_path / "x")])
+
+
+def test_log_writes_parameters(tmp_path):
+    """--log records the run's parameters to parameters.log."""
+    out = tmp_path / "sp"
+    main(["species", "--tips", "15", "--seed", "3", "--log", "-o", str(out)])
+    log = (out / "parameters.log").read_text()
+    assert "zombi2_version" in log and "seed\t3" in log and "model\tbackward" in log
+
+
 def test_max_family_size_parses_int_and_fraction(tmp_path):
     """Integer -> absolute cap; a decimal -> fraction of the number of species."""
     from zombi2.cli import _int_or_float
