@@ -261,3 +261,67 @@ def test_runs_on_realistic_tree():
     res = simulate_coupled(tree, spec, seed=2)
     assert res.profiles.shape == (8, 40)
     assert len(res.event_log) > 0
+
+
+# --- ABC for the coupled model: co-occurrence summary + match_coupled -------------
+
+from zombi2 import ProfileMatrix                                             # noqa: E402
+from zombi2.matching import (                                               # noqa: E402
+    cooccurrence_features, cooccurrence_summary, match_coupled,
+)
+
+_ABC_COMMON = dict(between=0.0, h=-0.5, base_loss=1.0, transfer=0.4)
+
+
+def test_cooccurrence_features_detect_modules():
+    """At matched marginal prevalence, coupled families (modules) close far more triangles
+    than independent ones. (Prevalence must be matched — the raw triangle count is otherwise
+    confounded, since sparse independent families also produce spurious co-occurrence.)"""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.5), n_tips=45, age=1.0, seed=1)
+    # h calibrated so both sit at prevalence ~0.5 (coupled needs a lower field to offset the
+    # co-retention its coupling induces): independent h=+0.2, coupled(J=1.2) h=-2.4.
+    coupled = simulate_coupled(
+        tree, pathway_blocks([4]*15, within=1.2, between=0.0, h=-2.4, base_loss=1.0, transfer=0.4), seed=1)
+    indep = simulate_coupled(
+        tree, pathway_blocks([4]*15, within=0.0, between=0.0, h=+0.2, base_loss=1.0, transfer=0.4), seed=1)
+    assert abs(coupled.profiles.matrix.mean() - indep.profiles.matrix.mean()) < 0.12  # prevalence matched
+    fc = cooccurrence_features(coupled.profiles)
+    fi = cooccurrence_features(indep.profiles)
+    assert fc.shape == (3,)                                   # [edges, triangles, transitivity]
+    assert fc[1] > 2 * fi[1]                                  # coupling closes many more triangles
+
+
+def test_cooccurrence_features_constant_is_zero():
+    """Families with no presence variance -> zero features, no crash / no nan."""
+    pm = ProfileMatrix(["a", "b", "c"], ["s1", "s2"], np.ones((3, 2), dtype=int))
+    assert np.array_equal(cooccurrence_features(pm), np.zeros(3))
+
+
+def test_cooccurrence_summary_structure():
+    """Summary = default marginal block + 3 co-occurrence features, with balancing weights."""
+    species = [f"s{i}" for i in range(8)]
+    summ = cooccurrence_summary(species, max_copies=4)
+    pm = ProfileMatrix(["f1", "f2"], species, np.random.default_rng(0).integers(0, 2, (2, 8)))
+    v = summ(pm)
+    assert len(v) == 2 * 8 + 4 + 3                            # freq + sizes + copyspec + 3 co-occ
+    assert len(summ.feature_weights) == len(v)
+    assert summ.feature_weights[-1] > 1.0                     # small co-occ block is up-weighted
+
+
+def test_match_coupled_recovers_coupling_strength():
+    """match_coupled fits the within-pathway coupling J: a coupled target yields a clearly
+    higher fitted J than an uncoupled one, and returns a well-formed posterior."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.5), n_tips=40, age=1.0, seed=1)
+
+    def builder(p):
+        return pathway_blocks([4]*12, within=p["within"], **_ABC_COMMON)
+
+    def fit_median(true_J):
+        emp = simulate_coupled(tree, builder({"within": true_J}), seed=777).profiles
+        fit = match_coupled(tree, emp, builder, {"within": (0.0, 1.5)},
+                            n_sims=120, accept=0.1, seed=1)
+        assert fit.param_names == ["within"]
+        assert len(fit.posterior["within"]) >= 1
+        return fit.summary()["within"]["median"]
+
+    assert fit_median(1.0) > fit_median(0.0) + 0.2           # coupling strength is identified

@@ -2,7 +2,7 @@
 
 Installing the package puts a `zombi2` command on your PATH — a thin wrapper over the library.
 Everything starts from a species tree; you then evolve gene families and/or a phenotypic trait
-along it.
+along it — or run the inverse, fitting rates to an empirical profile.
 
 ```bash
 # 1. a species tree -> out/species_tree.nwk  (runs with defaults)
@@ -14,6 +14,10 @@ zombi2 genomes --tree out/species_tree.nwk \
 
 # 3. a phenotypic trait along that tree
 zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
+
+# 4. fit gene-family rates to an empirical profile (ABC inference)
+zombi2 abc --tree out/species_tree.nwk --profiles empirical_Profiles.tsv \
+    --dup 0 1 --loss 0 1.5 --orig 0 4 --n-sims 1000 --seed 1 -o out/
 ```
 
 `species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
@@ -69,9 +73,9 @@ sampler. See [ghost lineages](guide/ghost-lineages.md):
 zombi2 species --tips 50 --death 0.6 --ghosts -o out/
 ```
 
-**Reproducible runs.** Every run **always** writes the full set of parameters to
-`<out>/species_tree.log` (or `<out>/genomes.log`) — version, timestamp, command line, seed, and
-every option used — so any run can be reproduced.
+**Reproducible runs.** Every run **always** writes the full set of parameters to a log in
+`<out>/` — `species_tree.log`, `genomes.log`, or `trait.log` — with the version, timestamp,
+command line, seed, and every option used, so any run can be reproduced.
 
 ## `trait` — a phenotypic trait
 
@@ -114,6 +118,37 @@ extinction along branches plus cladogenetic range splits at speciations. Set the
 optionally cap the range with `--max-range-size`, and pin the root range with `--root-range`
 (e.g. `A`). Ranges are written as `{A,B}`.
 
+## `abc` — fit rates to an empirical profile
+
+`abc` runs the inverse of `genomes`: given a species tree and an **empirical copy-number profile**
+(a `families × species` TSV, like the `Profiles.tsv` that `genomes` writes), it fits the D/T/L/O
+rates by **Approximate Bayesian Computation** — simulate many profiles from the priors, keep the
+draws whose summary statistics land closest to the data, and report the posterior.
+
+Give each rate you want to fit a **prior**: two values `LOW HIGH` (a uniform prior) or one value
+(fixed); omit a rate to hold it at 0. At least one rate must be a range (there must be something
+to fit).
+
+```bash
+zombi2 abc -t out/species_tree.nwk --profiles empirical_Profiles.tsv \
+    --dup 0 1 --trans 0 0.5 --loss 0 1.5 --orig 0 4 --n-sims 1000 --seed 1 -o out/
+```
+
+It writes **`summary.tsv`** (per-parameter posterior mean / median / 95% CI), **`posterior.tsv`**
+(the accepted draws, one column per fitted rate), **`spectra.tsv`** (a posterior-predictive check:
+the empirical gene-frequency spectrum against the accepted simulations), and `abc.log`.
+
+**Models.** `--model uniform` (default) fits one shared scalar rate per type on the fast Rust
+engine; `--model family` fits each rate as the **mean** of a per-family distribution (ZOMBI-1
+style, Python engine — pass `--max-family-size` to bound runaway growth). **ABC-SMC.** `--smc`
+switches from rejection to a sequential sampler (`--rounds`, `--particles`, `--quantile`) that
+shrinks the tolerance across rounds. **`--regression-adjust`** adds a bias-corrected posterior
+(Beaumont 2002) to `summary.tsv`.
+
+Copy-number profiles identify the **gain-side** rates (duplication, origination) well, but **loss**
+and **transfer** sit on an identifiability ridge — expect wide intervals there. The `spectra.tsv`
+check tells you whether *any* rates reproduce the data.
+
 ## Options
 
 ### `species`
@@ -138,10 +173,12 @@ optionally cap the range with `--max-range-size`, and pin the root range with `-
 | Option | Meaning |
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
-| `--rate-model {uniform,genome-wise}` | `uniform` (default, Rust): same per-copy rates for all families; `genome-wise` (Python): constant per-genome rates, linear growth |
-| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates |
-| `--initial-size` | number of gene families seeded at the root (default 20) |
-| `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) |
+| `--rate-model {uniform,genome-wise,nucleotide}` | `uniform` (default, Rust): same per-copy rates for all families; `genome-wise` (Python): constant per-genome rates, linear growth; `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-rate-model-nucleotide)) |
+| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--rate-model nucleotide`) |
+| `--initial-size` | genomes seeded at the root (default: 20 gene families; `1` root chromosome for `nucleotide`) |
+| `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `nucleotide`] |
+| `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
+| `--root-length` `--extension` | [nucleotide] root chromosome length (nt) / geometric event-length parameter (mean `1/(1-extension)`) |
 | `--output {profiles,trees,events,transfers,summary,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the fast path — see below |
 | `--sparse` | write the profile as a sparse `Profiles_sparse.tsv` instead of the dense matrix (needs `profiles` in `--output`) |
 | `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
@@ -161,6 +198,22 @@ optionally cap the range with `--max-range-size`, and pin the root range with `-
 | `--thresholds` | comma-separated liability cut points [threshold] |
 | `--areas` `--dispersal` `--extinction` `--max-range-size` `--root-range` | DEC range-evolution parameters |
 | `--replicates` | simulate this many times → wide one-column-per-replicate table |
+| `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
+
+### `abc`
+
+| Option | Meaning |
+| --- | --- |
+| `--tree` / `-t` | species tree the empirical data evolved along (required) |
+| `--profiles` | empirical copy-number profile TSV, `families × species` (required) |
+| `--dup` `--trans` `--loss` `--orig` | prior per rate: two values `LOW HIGH` (uniform) or one (fixed); omitted → held at 0 |
+| `--model {uniform,family}` | `uniform` (default, Rust): shared scalar rates; `family` (Python): fit per-family rate means |
+| `--family-shape` | [family] Gamma shape for per-family dispersion (default `2.0`) |
+| `--n-sims` / `--accept` | [rejection] number of simulations (default `1000`) / accepted fraction (default `0.05`) |
+| `--processes` | [rejection] parallel worker processes (default: serial) |
+| `--smc` `--rounds` `--particles` `--quantile` | run ABC-SMC instead of rejection, with these controls |
+| `--regression-adjust` | also write the regression-adjusted posterior (Beaumont 2002) |
+| `--initial-size` / `--max-family-size` | families seeded per sim / growth cap (advised for `--model family`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
 Run `zombi2 <command> -h` for the authoritative list.
@@ -184,6 +237,32 @@ instead of the dense matrix:
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --output all -o out/
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --output profiles --sparse -o out/
 ```
+
+## Nucleotide genomes (`--rate-model nucleotide`)
+
+`--rate-model nucleotide` switches `genomes` to a **nucleotide-resolution** model: each genome is
+a circular sequence that evolves by **variable-length structural events** — inversion, deletion,
+tandem duplication, transposition, HGT transfer and origination. Genes are not predefined; they
+**emerge** as *atoms* — maximal intervals of ancestral sequence with a single shared history — so
+you still get a phylogenetic profile and per-atom gene trees, but derived from real sequence
+structure rather than an atomic gene-family model.
+
+The shared `--dup` / `--trans` / `--loss` / `--orig` flags become **per-nucleotide** rates here
+(so use small values, on the order of `1e-3`); `--inversion` and `--transposition` are the extra
+structural events, `--root-length` sets the starting chromosome length, and `--extension` the mean
+event length (`1/(1-extension)` nt). `--initial-size` seeds root chromosomes (default `1`).
+
+```bash
+zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+    --inversion 0.001 --dup 0.0006 --loss 0.0006 --root-length 1000 --seed 1 -o out/
+```
+
+`--output profiles` writes the emergent atom profile (`Profiles.tsv` / `Presence.tsv`, atoms ×
+species) plus `atoms.tsv` and the per-leaf `Mosaics.tsv`, taking the fast Rust path; the default
+`profiles trees` also writes the per-atom `gene_trees/` and their reconciliations
+(`Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv`). `--sparse`
+applies to the profile as usual. (The family-model `events` / `transfers` / `summary` outputs do
+not apply to this model.)
 
 ## Scope
 

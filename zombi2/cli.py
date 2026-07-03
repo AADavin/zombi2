@@ -11,6 +11,9 @@ import numpy as np
 
 from .biogeography import DEC, simulate_biogeography
 from .ghosts import add_ghost_lineages
+from .matching import match_profiles, match_profiles_smc
+from .nucleotide_sim import simulate_nucleotide_genomes
+from .profiles import ProfileMatrix
 from .rates import GenomeWiseRates
 from .simulation import Genomes, simulate_genomes
 from .species_model import BirthDeath, EpisodicBirthDeath
@@ -28,6 +31,7 @@ Simulate in two steps: build a species tree, then evolve gene families along it.
   zombi2 species   simulate a species tree
   zombi2 genomes   evolve gene families along a species tree (Newick)
   zombi2 trait     evolve a phenotypic trait along a given species tree
+  zombi2 abc       fit gene-family rates to an empirical profile (ABC inference)
 
 Run 'zombi2 <command> -h' for a command's options.
 """
@@ -81,17 +85,26 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
 
 
 def _add_rate_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--rate-model", choices=("uniform", "genome-wise"), default="uniform",
+    p.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide"),
+                   default="uniform",
                    help="uniform: same per-copy rates for every family (Rust; default); "
-                        "genome-wise: constant per-genome rates, linear growth (Python)")
-    p.add_argument("--dup", type=float, default=0.0, help="duplication rate")
-    p.add_argument("--trans", type=float, default=0.0, help="transfer rate")
-    p.add_argument("--loss", type=float, default=0.0, help="loss rate")
-    p.add_argument("--orig", type=float, default=0.0, help="origination rate")
-    p.add_argument("--initial-size", type=int, default=20, help="seed gene families at root")
+                        "genome-wise: constant per-genome rates, linear growth (Python); "
+                        "nucleotide: nucleotide-resolution genomes evolving by variable-length "
+                        "structural events, genes emerge as 'atoms' (see the nucleotide options)")
+    p.add_argument("--dup", type=float, default=0.0,
+                   help="duplication rate (per copy; per nucleotide when --rate-model nucleotide)")
+    p.add_argument("--trans", type=float, default=0.0,
+                   help="transfer rate (per copy; per nucleotide when --rate-model nucleotide)")
+    p.add_argument("--loss", type=float, default=0.0,
+                   help="loss/deletion rate (per copy; per nucleotide when --rate-model nucleotide)")
+    p.add_argument("--orig", type=float, default=0.0, help="origination rate (per branch)")
+    p.add_argument("--initial-size", type=int, default=None,
+                   help="genomes seeded at the root (default: 20 gene families; "
+                        "1 root chromosome for --rate-model nucleotide)")
     p.add_argument("--max-family-size", type=_int_or_float, default=None,
                    help="bound family growth: integer = absolute cap, "
-                        "decimal = fraction of the number of species (e.g. 0.5)")
+                        "decimal = fraction of the number of species (e.g. 0.5) "
+                        "[not used by --rate-model nucleotide]")
     p.add_argument("--output", nargs="+", metavar="PART",
                    choices=(*Genomes.WRITE_PARTS, "all"), default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trees, events, "
@@ -104,6 +117,16 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "matrix — the scalable output for huge trees (needs 'profiles' in --output)")
     p.add_argument("--annotate-species", action="store_true",
                    help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
+    # --- nucleotide model only (--rate-model nucleotide) ---
+    p.add_argument("--inversion", type=float, default=0.001,
+                   help="[nucleotide] per-nucleotide inversion rate (default 0.001)")
+    p.add_argument("--transposition", type=float, default=0.0,
+                   help="[nucleotide] per-nucleotide transposition rate (default 0)")
+    p.add_argument("--root-length", type=int, default=1000,
+                   help="[nucleotide] length of the root chromosome, in nucleotides (default 1000)")
+    p.add_argument("--extension", type=float, default=0.99,
+                   help="[nucleotide] geometric event-length parameter; mean event length is "
+                        "1/(1-extension) nucleotides (default 0.99)")
 
 
 def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -337,12 +360,17 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --output")
 
+    if args.rate_model == "nucleotide":
+        return _run_nucleotides(tree, args, parts)
+
+    initial_size = 20 if args.initial_size is None else args.initial_size
+    args.initial_size = initial_size          # record the effective value in the params log
     if args.rate_model == "genome-wise":
         model_kw = dict(rates=GenomeWiseRates(args.dup, args.trans, args.loss, args.orig))
     else:  # uniform
         model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
                         origination=args.orig)
-    rate_kw = dict(**model_kw, initial_size=args.initial_size,
+    rate_kw = dict(**model_kw, initial_size=initial_size,
                    max_family_size=args.max_family_size, seed=args.seed)
 
     t0 = time.perf_counter()
@@ -360,6 +388,222 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
         n_families = len(genomes.profiles.families)
     return (f"wrote [{' '.join(sorted(parts))}] to {args.out}/ "
             f"({len(tree.leaves())} tips, {n_families} gene families) in {dt:.3g} s")
+
+
+def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
+    """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
+
+    Genes are not atomic here — they emerge as **atoms** (maximal intervals with one shared
+    history). ``profiles`` writes the emergent atom-by-species profile (plus ``atoms.tsv`` and
+    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-atom gene trees and their
+    reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
+    ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
+    """
+    want = parts & {"profiles", "trees"}
+    if not want:
+        raise ValueError("the nucleotide model writes 'profiles' and/or 'trees'; "
+                         "--output events/transfers/summary do not apply to it")
+    initial_size = 1 if args.initial_size is None else args.initial_size
+    args.initial_size = initial_size          # record the effective value in the params log
+    sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
+                  transfer=args.trans, transposition=args.transposition,
+                  origination=args.orig, root_length=args.root_length,
+                  extension=args.extension, initial_size=initial_size, seed=args.seed)
+
+    t0 = time.perf_counter()
+    if "trees" in want:                       # genealogy needs the full Python event log
+        result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
+    else:                                     # profiles only -> Rust fast path (Python fallback)
+        try:
+            result = simulate_nucleotide_genomes(tree, output="profiles", **sim_kw)
+        except (ImportError, RuntimeError):
+            result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick() + "\n")
+
+    if "profiles" in want:
+        _write_atoms_table(args.out, result.atoms)
+        atom_ids, species, matrix = result.profile_matrix()
+        pm = ProfileMatrix([f"atom{a}" for a in atom_ids], species, matrix)
+        if args.sparse:
+            with open(os.path.join(args.out, "Profiles_sparse.tsv"), "w") as f:
+                f.write(pm.to_coo_tsv())
+        else:
+            with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+                f.write(pm.to_tsv())
+            with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+                f.write(pm.to_tsv(presence=True))
+        _write_mosaics(args.out, result)
+    if "trees" in want:
+        _write_atom_gene_trees(args.out, result)
+        result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
+
+    return (f"wrote [{' '.join(sorted(want))}] (nucleotide) to {args.out}/ "
+            f"({len(result.leaf_genomes)} tips, {len(result.atoms)} atoms) in {dt:.3g} s")
+
+
+def _write_atoms_table(out: str, atoms) -> None:
+    """Write ``atoms.tsv`` — the emergent gene families (uncut ancestral intervals)."""
+    lines = ["atom\tsource\tstart\tend\tlength"]
+    for a in atoms:
+        lines.append(f"atom{a.atom_id}\t{a.source}\t{a.start}\t{a.end}\t{a.length}")
+    with open(os.path.join(out, "atoms.tsv"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def _write_mosaics(out: str, result) -> None:
+    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of atoms."""
+    lines = ["leaf\tmosaic"]
+    for leaf in sorted(result.leaf_genomes, key=lambda n: n.name):
+        seq = " ".join(("+" if s > 0 else "-") + f"atom{aid}"
+                       for aid, s in result.leaf_mosaic(leaf))
+        lines.append(f"{leaf.name}\t{seq}")
+    with open(os.path.join(out, "Mosaics.tsv"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def _write_atom_gene_trees(out: str, result) -> None:
+    """Write per-atom gene trees to ``gene_trees/atom<id>_complete.nwk`` / ``_extant.nwk``."""
+    tdir = os.path.join(out, "gene_trees")
+    os.makedirs(tdir, exist_ok=True)
+    for atom_id, (complete, extant) in result.atom_gene_trees().items():
+        if complete:
+            with open(os.path.join(tdir, f"atom{atom_id}_complete.nwk"), "w") as f:
+                f.write(complete + "\n")
+        if extant:
+            with open(os.path.join(tdir, f"atom{atom_id}_extant.nwk"), "w") as f:
+                f.write(extant + "\n")
+
+
+def _add_abc_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("-t", "--tree", required=True,
+                   help="species tree (Newick) the empirical data evolved along")
+    p.add_argument("--profiles", required=True, metavar="TSV",
+                   help="empirical copy-number profile table (families x species TSV, like the "
+                        "Profiles.tsv that 'zombi2 genomes' writes)")
+    # priors — reuse the genomes rate flags, but each takes a PRIOR: two values LOW HIGH
+    # (a uniform prior) or one value (fixed). An omitted rate is held at 0.
+    for flag, param in (("--dup", "duplication"), ("--trans", "transfer"),
+                        ("--loss", "loss"), ("--orig", "origination")):
+        p.add_argument(flag, type=float, nargs="+", default=None, metavar="RATE",
+                       help=f"{param} prior: two values LOW HIGH (uniform) or one value (fixed); "
+                            f"omit to hold {param} at 0")
+    p.add_argument("--model", choices=("uniform", "family"), default="uniform",
+                   help="uniform: one shared scalar rate per type (Rust; default); "
+                        "family: per-family sampled rates, fitting each rate's mean (Python)")
+    p.add_argument("--family-shape", type=float, default=2.0,
+                   help="[--model family] Gamma shape for per-family rate dispersion (default 2.0)")
+    p.add_argument("--n-sims", type=int, default=1000,
+                   help="[rejection] number of prior simulations (default 1000)")
+    p.add_argument("--accept", type=float, default=0.05,
+                   help="[rejection] fraction of closest simulations to accept (default 0.05)")
+    p.add_argument("--processes", type=int, default=None,
+                   help="[rejection] parallel worker processes (default: serial)")
+    p.add_argument("--smc", action="store_true",
+                   help="use ABC-SMC (sequential, shrinking tolerance) instead of rejection")
+    p.add_argument("--rounds", type=int, default=5, help="[--smc] number of SMC rounds (default 5)")
+    p.add_argument("--particles", type=int, default=200,
+                   help="[--smc] particles per round (default 200)")
+    p.add_argument("--quantile", type=float, default=0.5,
+                   help="[--smc] tolerance quantile carried between rounds (default 0.5)")
+    p.add_argument("--regression-adjust", action="store_true",
+                   help="also write the regression-adjusted posterior (Beaumont 2002)")
+    p.add_argument("--initial-size", type=int, default=20,
+                   help="gene families seeded at the root of each simulation (default 20)")
+    p.add_argument("--max-family-size", type=_int_or_float, default=None,
+                   help="growth cap for each simulation — recommended with --model family to "
+                        "avoid runaway growth (integer = absolute, decimal = fraction of N)")
+    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
+    p.add_argument("-o", "--out", required=True, help="output directory")
+
+
+def _build_priors(args: argparse.Namespace) -> dict:
+    """Turn the ``--dup/--trans/--loss/--orig`` flags into a priors dict for ``match_profiles``.
+
+    Two values ``LOW HIGH`` -> a uniform prior on that rate; one value -> fixed; omitted ->
+    the rate is held at 0. At least one rate must be given as a range (there must be something
+    to fit).
+    """
+    priors: dict = {}
+    for flag, param in (("dup", "duplication"), ("trans", "transfer"),
+                        ("loss", "loss"), ("orig", "origination")):
+        spec = getattr(args, flag)
+        if spec is None:
+            continue
+        if len(spec) == 1:
+            priors[param] = spec[0]                       # fixed value
+        elif len(spec) == 2:
+            priors[param] = (spec[0], spec[1])            # uniform (low, high)
+        else:
+            raise ValueError(f"--{flag} takes one value (fixed) or two (LOW HIGH), got {len(spec)}")
+    if not any(isinstance(v, tuple) for v in priors.values()):
+        raise ValueError("give at least one rate to fit as a range, e.g. --loss 0 1.5 (LOW HIGH)")
+    return priors
+
+
+def _write_abc_outputs(out: str, fit, adjusted: bool = False) -> None:
+    """Write the ABC posterior, the per-parameter summary, and the spectrum diagnostic."""
+    post = fit.posterior
+    names = list(post)
+    n_accept = len(next(iter(post.values())))
+    lines = ["\t".join(names)]
+    for i in range(n_accept):
+        lines.append("\t".join(f"{post[nm][i]:.6g}" for nm in names))
+    with open(os.path.join(out, "posterior.tsv"), "w") as f:      # accepted draws, one col/param
+        f.write("\n".join(lines) + "\n")
+
+    slines = ["parameter\tmean\tmedian\tlo95\thi95"]
+    for nm, s in fit.summary().items():
+        slines.append(f"{nm}\t{s['mean']:.6g}\t{s['median']:.6g}\t{s['lo95']:.6g}\t{s['hi95']:.6g}")
+    if adjusted:
+        slines.append("# regression-adjusted (Beaumont 2002)")
+        for nm, s in fit.summary(adjusted=True).items():
+            slines.append(f"{nm}_adj\t{s['mean']:.6g}\t{s['median']:.6g}\t"
+                          f"{s['lo95']:.6g}\t{s['hi95']:.6g}")
+    with open(os.path.join(out, "summary.tsv"), "w") as f:
+        f.write("\n".join(slines) + "\n")
+
+    if fit.uses_default_summary:                                  # posterior-predictive spectrum
+        d = fit.spectra_data()
+        lo, med, hi = np.percentile(d["accepted"], [2.5, 50, 97.5], axis=0)
+        flines = ["k\tempirical\tacc_median\tacc_lo95\tacc_hi95"]
+        for i, k in enumerate(d["k"]):
+            flines.append(f"{int(k)}\t{d['empirical'][i]:.6g}\t{med[i]:.6g}\t"
+                          f"{lo[i]:.6g}\t{hi[i]:.6g}")
+        with open(os.path.join(out, "spectra.tsv"), "w") as f:
+            f.write("\n".join(flines) + "\n")
+
+
+def _run_abc(args: argparse.Namespace) -> str:
+    """Fit gene-family rates to an empirical profile by ABC and write the posterior."""
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    empirical = ProfileMatrix.from_tsv(args.profiles)
+    priors = _build_priors(args)
+    common = dict(model=args.model, family_shape=args.family_shape,
+                  initial_size=args.initial_size, max_family_size=args.max_family_size,
+                  seed=args.seed)
+
+    t0 = time.perf_counter()
+    if args.smc:
+        fit = match_profiles_smc(tree, empirical, priors, rounds=args.rounds,
+                                 n_particles=args.particles, quantile=args.quantile, **common)
+        effort = f"{args.rounds} SMC rounds x {args.particles} particles"
+    else:
+        fit = match_profiles(tree, empirical, priors, n_sims=args.n_sims, accept=args.accept,
+                             processes=args.processes, **common)
+        effort = f"{args.n_sims} sims"
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    _write_abc_outputs(args.out, fit, adjusted=args.regression_adjust)
+    posterior = " ".join(f"{n}={s['median']:.3g}[{s['lo95']:.3g},{s['hi95']:.3g}]"
+                         for n, s in fit.summary().items())
+    return (f"fit {len(fit.accepted)} accepted / {effort}, tol={fit.tolerance:.3g} in {dt:.3g} s "
+            f"-> {args.out}/ (median [95% CI]: {posterior})")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -381,6 +625,9 @@ def main(argv: list[str] | None = None) -> int:
 
     pt = sub.add_parser("trait", help="evolve a phenotypic trait along a given species tree")
     _add_trait_args(pt)
+
+    pa = sub.add_parser("abc", help="fit gene-family rates to an empirical profile by ABC")
+    _add_abc_args(pa)
 
     args = parser.parse_args(argv)
     try:
@@ -444,7 +691,15 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         return 0
 
     if args.command == "trait":
-        print(_run_trait(args))
+        summary = _run_trait(args)
+        print(summary)
+        _write_params_log(os.path.join(args.out, "trait.log"), args, summary)
+        return 0
+
+    if args.command == "abc":
+        summary = _run_abc(args)
+        print(summary)
+        _write_params_log(os.path.join(args.out, "abc.log"), args, summary)
         return 0
 
     return 1

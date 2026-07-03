@@ -84,9 +84,12 @@ from .coupling import (
 from .matching import (
     match_profiles,
     match_profiles_smc,
+    match_coupled,
     ABCFit,
     default_summary,
     default_gene_tree_summary,
+    cooccurrence_summary,
+    cooccurrence_features,
     event_count_summary,
     frequency_spectrum,
     genome_sizes,
@@ -118,8 +121,9 @@ __all__ = [
     "build_gene_trees",
     # gene-family coupling (Potts/Ising non-independence)
     "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled", "CoupledResult",
-    # profile matching (rejection ABC + SMC)
-    "match_profiles", "match_profiles_smc", "ABCFit", "default_summary", "default_gene_tree_summary",
+    # profile matching (rejection ABC + SMC + coupled-model ABC)
+    "match_profiles", "match_profiles_smc", "match_coupled", "ABCFit", "default_summary",
+    "default_gene_tree_summary", "cooccurrence_summary", "cooccurrence_features",
     "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
