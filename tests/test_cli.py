@@ -126,40 +126,72 @@ def test_seed_makes_genomes_reproducible(tmp_path):
     assert run("a") == run("b")
 
 
-# --- trait command (pure-Python trait engine: no Rust needed) ---------------
-def test_trait_prints_tip_table(capsys):
-    """`zombi2 trait` with a simulated tree prints a node<TAB>trait table to stdout."""
-    rc = main(["trait", "--tips", "8", "--model", "bm", "--sigma2", "0.5", "--seed", "1"])
-    assert rc == 0
-    out = capsys.readouterr().out.strip().splitlines()
-    assert out[0] == "node\ttrait"
-    assert len(out) == 1 + 8                              # header + one row per extant tip
+# --- trait command: overlay a trait on a GIVEN tree (pure-Python, no Rust) --
+def _tree_file(tmp_path, tips=10, seed=1):
+    sp = tmp_path / "sp"
+    main(["species", "--tips", str(tips), "--seed", str(seed), "-o", str(sp)])
+    return str(sp / "species_tree.nwk")
 
 
-def test_trait_writes_files(tmp_path):
+def test_trait_writes_tips_and_ancestral_values(tmp_path):
+    tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "tr"
-    rc = main(["trait", "--tips", "10", "--model", "ou", "--alpha", "3", "--theta", "5",
+    rc = main(["trait", "-t", tree, "--model", "ou", "--alpha", "3", "--theta", "5",
                "--seed", "2", "-o", str(dest)])
     assert rc == 0
-    assert (dest / "traits.tsv").read_text().startswith("node\ttrait")
+    rows = (dest / "traits.tsv").read_text().splitlines()
+    assert rows[0] == "node\ttrait"
+    names = {r.split("\t")[0] for r in rows[1:]}
+    assert any(n.startswith("n") for n in names)             # tips present
+    assert "root" in names and any(n.startswith("i") for n in names)   # ancestral values present
     newick = (dest / "trait_tree.nwk").read_text()
     assert newick.strip().endswith(";") and "[&trait=" in newick
 
 
-def test_trait_reads_a_tree(tmp_path, capsys):
-    sp = tmp_path / "sp"
-    main(["species", "--tips", "6", "--seed", "1", "-o", str(sp)])
-    capsys.readouterr()                                  # discard the species command's output
-    rc = main(["trait", "--tree", str(sp / "species_tree.nwk"),
-               "--model", "mk", "--states", "3", "--rate", "0.6", "--seed", "1"])
+def test_trait_requires_tree_and_out(tmp_path):
+    with pytest.raises(SystemExit):                          # -t and -o are required
+        main(["trait", "--model", "bm"])
+
+
+def test_trait_mk_writes_discrete_states(tmp_path):
+    tree = _tree_file(tmp_path, tips=8)
+    dest = tmp_path / "tr"
+    main(["trait", "-t", tree, "--model", "mk", "--states", "3", "--rate", "0.6",
+          "--seed", "1", "-o", str(dest)])
+    values = {r.split("\t")[1] for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
+    assert values <= {"0", "1", "2"}
+
+
+def test_trait_reproducible(tmp_path):
+    tree = _tree_file(tmp_path, tips=8)
+
+    def run(name):
+        dest = tmp_path / name
+        main(["trait", "-t", tree, "--model", "bm", "--sigma2", "0.5", "--seed", "3",
+              "-o", str(dest)])
+        return (dest / "traits.tsv").read_text()
+
+    assert run("a") == run("b")
+
+
+# --- sse command: simulate a tree + trait jointly (BiSSE / QuaSSE) ----------
+def test_sse_bisse_writes_tree_and_traits(tmp_path):
+    dest = tmp_path / "bs"
+    rc = main(["sse", "--model", "bisse", "--lambda0", "1", "--lambda1", "2",
+               "--age", "1.5", "--seed", "1", "-o", str(dest)])
     assert rc == 0
-    rows = capsys.readouterr().out.strip().splitlines()[1:]
-    assert all(row.split("\t")[1] in {"0", "1", "2"} for row in rows)   # discrete states
+    assert (dest / "species_tree.nwk").read_text().strip().endswith(";")
+    rows = (dest / "traits.tsv").read_text().splitlines()
+    assert rows[0] == "node\ttrait"
+    assert {r.split("\t")[1] for r in rows[1:]} <= {"0", "1"}     # binary states
+    assert "[&trait=" in (dest / "trait_tree.nwk").read_text()
 
 
-def test_trait_reproducible(capsys):
-    main(["trait", "--tips", "8", "--model", "bm", "--sigma2", "0.5", "--seed", "3"])
-    a = capsys.readouterr().out
-    main(["trait", "--tips", "8", "--model", "bm", "--sigma2", "0.5", "--seed", "3"])
-    b = capsys.readouterr().out
-    assert a == b
+def test_sse_quasse_writes_continuous_traits(tmp_path):
+    dest = tmp_path / "qs"
+    rc = main(["sse", "--model", "quasse", "--spec-low", "0.3", "--spec-high", "2.0",
+               "--age", "2.0", "--seed", "1", "-o", str(dest)])
+    assert rc == 0
+    assert (dest / "species_tree.nwk").exists()
+    body = (dest / "traits.tsv").read_text().splitlines()[1:]
+    assert all(float(r.split("\t")[1]) == float(r.split("\t")[1]) for r in body)  # numeric values

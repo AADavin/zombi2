@@ -8,6 +8,7 @@ import os
 from .simulation import simulate_genomes
 from .species_model import BirthDeath
 from .species_sim import simulate_species_tree
+from .sse import BiSSE, QuaSSE, simulate_sse
 from .traits import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, simulate_traits,
 )
@@ -20,7 +21,8 @@ Simulate in two steps: build a species tree, then evolve gene families along it.
 
   zombi2 species   simulate a species tree
   zombi2 genomes   evolve gene families along a species tree (Newick)
-  zombi2 trait     evolve a phenotypic trait along a tree
+  zombi2 trait     evolve a phenotypic trait along a given species tree
+  zombi2 sse       simulate a tree and a trait jointly (the trait drives diversification)
 
 Run 'zombi2 <command> -h' for a command's options.
 """
@@ -66,17 +68,8 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
 
 def _add_trait_args(p: argparse.ArgumentParser) -> None:
-    # tree: read one, or simulate a species tree on the fly (so a one-liner works)
-    p.add_argument("-t", "--tree", default=None,
-                   help="input tree in Newick format; if omitted, a species tree is simulated "
-                        "from --tips/--age/--birth/--death")
-    p.add_argument("--tips", type=int, default=20,
-                   help="extant species when simulating the tree (default: 20)")
-    p.add_argument("--age", type=float, default=1.0,
-                   help="tree age when simulating the tree (default: 1.0)")
-    p.add_argument("--birth", type=float, default=1.0, help="speciation rate for the tree")
-    p.add_argument("--death", type=float, default=0.3, help="extinction rate for the tree")
-    # model
+    p.add_argument("-t", "--tree", required=True,
+                   help="input species tree in Newick format (e.g. species_tree.nwk)")
     p.add_argument("--model", choices=("bm", "ou", "eb", "mk", "threshold"), default="bm",
                    help="trait model: bm=Brownian motion, ou=Ornstein-Uhlenbeck, "
                         "eb=early burst/ACDC, mk=discrete k-state, threshold (default: bm)")
@@ -96,8 +89,7 @@ def _add_trait_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--thresholds", default="0.0",
                    help="comma-separated liability cut points [threshold] (default: 0.0)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", default=None,
-                   help="output directory; if omitted, the tip values are printed to stdout")
+    p.add_argument("-o", "--out", required=True, help="output directory")
 
 
 def _build_trait_model(args):
@@ -117,29 +109,84 @@ def _build_trait_model(args):
                           x0=(0.0 if x0 is None else x0))
 
 
+def _write_trait_output(out: str, res, *, tree_file: str | None = None) -> None:
+    """Write traits.tsv (tips + ancestral node values) and trait_tree.nwk (annotated Newick).
+
+    ``tree_file`` names the file to write the tree into (``sse`` writes its own simulated
+    tree); ``None`` for ``trait`` (the tree was supplied on the command line).
+    """
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "traits.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))            # every node: tips AND ancestral states
+    with open(os.path.join(out, "trait_tree.nwk"), "w") as f:
+        f.write(res.to_newick() + "\n")             # values annotated on every node too
+    if tree_file is not None:
+        with open(os.path.join(out, tree_file), "w") as f:
+            f.write(res.tree.to_newick() + "\n")
+
+
 def _run_trait(args) -> str:
-    """Evolve a trait on a tree (read or simulated) and write files or return a tip table."""
-    if args.tree:
-        with open(args.tree) as f:
-            tree = read_newick(f.read())
-    else:
-        tree = simulate_species_tree(BirthDeath(args.birth, args.death),
-                                     n_tips=args.tips, age=args.age, seed=args.seed)
+    """Evolve a trait along the supplied species tree and write the output folder."""
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
     res = simulate_traits(tree, _build_trait_model(args), seed=args.seed)
+    _write_trait_output(args.out, res)
+    return (f"wrote traits to {args.out}/ (model={args.model}; "
+            f"{len(tree.extant_leaves())} tip + {len(tree.internal_nodes())} ancestral values)")
 
-    if not args.out:
-        return res.to_tsv().rstrip("\n")            # tip table to stdout
 
-    os.makedirs(args.out, exist_ok=True)
-    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
-        f.write(res.to_tsv())
-    with open(os.path.join(args.out, "trait_tree.nwk"), "w") as f:
-        f.write(res.to_newick() + "\n")
-    if not args.tree:
-        with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
-            f.write(tree.to_newick() + "\n")
-    return (f"wrote traits to {args.out}/ "
-            f"({len(tree.extant_leaves())} tips, model={args.model})")
+def _add_sse_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--model", choices=("bisse", "quasse"), default="bisse",
+                   help="bisse: a binary trait drives speciation/extinction; "
+                        "quasse: a continuous trait drives it (default: bisse)")
+    p.add_argument("--age", type=float, default=None,
+                   help="grow for this crown age (default: 3.0 if neither --age nor --tips)")
+    p.add_argument("--tips", type=int, default=None,
+                   help="grow until this many extant species instead")
+    # BiSSE: per-state speciation/extinction and transition rates
+    p.add_argument("--lambda0", type=float, default=1.0, help="[bisse] speciation in state 0")
+    p.add_argument("--lambda1", type=float, default=2.0, help="[bisse] speciation in state 1")
+    p.add_argument("--mu0", type=float, default=0.3, help="[bisse] extinction in state 0")
+    p.add_argument("--mu1", type=float, default=0.3, help="[bisse] extinction in state 1")
+    p.add_argument("--q01", type=float, default=0.1, help="[bisse] transition rate 0 -> 1")
+    p.add_argument("--q10", type=float, default=0.1, help="[bisse] transition rate 1 -> 0")
+    # QuaSSE: sigmoidal speciation in the trait + constant extinction
+    p.add_argument("--spec-low", type=float, default=0.2,
+                   help="[quasse] speciation rate at low trait values")
+    p.add_argument("--spec-high", type=float, default=2.0,
+                   help="[quasse] speciation rate at high trait values")
+    p.add_argument("--spec-center", type=float, default=0.0,
+                   help="[quasse] trait value at the middle of the speciation sigmoid")
+    p.add_argument("--spec-slope", type=float, default=1.0,
+                   help="[quasse] steepness of the speciation sigmoid")
+    p.add_argument("--mu", type=float, default=0.1, help="[quasse] constant extinction rate")
+    p.add_argument("--sigma2", type=float, default=1.0, help="[quasse] trait diffusion rate")
+    p.add_argument("--x0", type=float, default=0.0, help="[quasse] root trait value")
+    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
+    p.add_argument("-o", "--out", required=True, help="output directory")
+
+
+def _run_sse(args, parser) -> str:
+    """Simulate a tree and a trait jointly (BiSSE/QuaSSE) and write the output folder."""
+    if args.age is not None and args.tips is not None:
+        parser.error("provide at most one of --age or --tips")
+    age = args.age
+    tips = args.tips
+    if age is None and tips is None:
+        age = 3.0
+    if args.model == "bisse":
+        model = BiSSE(args.lambda0, args.lambda1, args.mu0, args.mu1, args.q01, args.q10)
+    else:  # quasse: sigmoidal speciation, constant extinction; rate_bound = sup(lambda) + mu
+        spec = QuaSSE.sigmoid(args.spec_low, args.spec_high, args.spec_center, args.spec_slope)
+        mu = args.mu
+        model = QuaSSE(spec, lambda x: mu, sigma2=args.sigma2,
+                       rate_bound=args.spec_high + mu, x0=args.x0)
+    res = simulate_sse(model, age=age, n_tips=tips, seed=args.seed)
+    _write_trait_output(args.out, res, tree_file="species_tree.nwk")
+    n_extant = len(res.tree.extant_leaves())
+    n_anc = len(res.tree.internal_nodes())
+    return (f"wrote {args.model} tree + traits to {args.out}/ "
+            f"({n_extant} extant tips + {n_anc} ancestral values)")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
@@ -193,8 +240,11 @@ def main(argv: list[str] | None = None) -> int:
     pg.add_argument("--seed", type=int, default=None)
     pg.add_argument("-o", "--out", required=True, help="output directory")
 
-    pt = sub.add_parser("trait", help="evolve a phenotypic trait along a tree")
+    pt = sub.add_parser("trait", help="evolve a phenotypic trait along a given species tree")
     _add_trait_args(pt)
+
+    pe = sub.add_parser("sse", help="simulate a tree and a trait jointly (BiSSE / QuaSSE)")
+    _add_sse_args(pe)
 
     args = parser.parse_args(argv)
 
@@ -232,6 +282,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "trait":
         print(_run_trait(args))
+        return 0
+
+    if args.command == "sse":
+        print(_run_sse(args, parser))
         return 0
 
     return 1
