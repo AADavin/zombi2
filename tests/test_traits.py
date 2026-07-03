@@ -110,6 +110,20 @@ def test_mk_symmetric_is_symmetrized():
     assert off[0, 1] == 1.5  # (2+1)/2
 
 
+def test_mk_ordered_is_tridiagonal():
+    Q = z.Mk.ordered(4, 0.5).Q
+    assert all(Q[i, j] == 0 for i in range(4) for j in range(4) if abs(i - j) > 1)
+    assert Q[0, 1] == 0.5 and Q[1, 0] == 0.5 and Q[2, 3] == 0.5   # adjacent transitions only
+    assert np.allclose(Q.sum(axis=1), 0.0)
+
+
+def test_mk_ordered_realizes_only_adjacent_steps():
+    tree = _fixed_tree(n_tips=30, seed=2)
+    res = z.simulate_traits(tree, z.Mk.ordered(4, 2.0), seed=3)
+    steps = [abs(frm - to) for _, _, frm, to in res.changes()]
+    assert steps and all(s == 1 for s in steps)                  # never jumps by more than one
+
+
 def test_mk_invalid_inputs():
     with pytest.raises(ValueError):
         z.Mk([[0, 1], [1, 0], [0, 0]])          # not square

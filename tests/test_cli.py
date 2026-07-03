@@ -186,6 +186,28 @@ def test_trait_replicates_write_wide_table(tmp_path):
     assert not (dest / "trait_tree.nwk").exists()           # wide-table mode: no annotated tree
 
 
+def test_trait_mk_ordered(tmp_path):
+    tree = _tree_file(tmp_path, tips=10)
+    dest = tmp_path / "ord"
+    rc = main(["trait", "-t", tree, "--model", "mk", "--states", "4", "--rate", "0.6",
+               "--ordered", "--seed", "1", "-o", str(dest)])
+    assert rc == 0
+    vals = {r.split("\t")[1] for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
+    assert vals <= {"0", "1", "2", "3"}
+
+
+def test_trait_mk_q_matrix(tmp_path):
+    q = tmp_path / "q.tsv"
+    q.write_text("0 2 0\n1 0 1\n0 3 0\n")               # a 3-state arbitrary Markov chain
+    tree = _tree_file(tmp_path, tips=10)
+    dest = tmp_path / "qm"
+    rc = main(["trait", "-t", tree, "--model", "mk", "--q-matrix", str(q),
+               "--seed", "1", "-o", str(dest)])
+    assert rc == 0
+    vals = {r.split("\t")[1] for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
+    assert vals <= {"0", "1", "2"}
+
+
 def test_trait_dec_writes_ranges(tmp_path):
     tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "dec"

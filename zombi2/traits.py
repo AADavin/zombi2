@@ -189,6 +189,22 @@ class Mk:
         np.fill_diagonal(R, 0.0)
         return cls(R, states=states, root=root)
 
+    @classmethod
+    def ordered(cls, k: int, rate: float = 1.0, states=None, root="uniform") -> "Mk":
+        """An **ordered** (meristic) character: transitions only between **adjacent** states
+        (``i <-> i±1``), each at ``rate`` — a tridiagonal ``Q``. This is the character-state
+        analogue of :class:`~zombi2.RateVariation`'s nearest-neighbour walk over ordered bins.
+        """
+        if k < 2:
+            raise ValueError("Mk needs at least 2 states")
+        if rate < 0:
+            raise ValueError(f"rate must be >= 0, got {rate}")
+        Q = np.zeros((k, k))
+        for i in range(k - 1):
+            Q[i, i + 1] = rate
+            Q[i + 1, i] = rate
+        return cls(Q, states=states, root=root)
+
     def _parse_root(self, root):
         """Return either an int state index, the string ``"stationary"``, or a prob vector."""
         if isinstance(root, str):

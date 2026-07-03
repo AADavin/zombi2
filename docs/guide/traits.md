@@ -98,7 +98,15 @@ mk.history[node]                       # [(state, duration), ...] — the stocha
 mk.changes()                           # the transition events
 
 z.Mk.symmetric([[0, 2, 1], [2, 0, 3], [1, 3, 0]])   # SYM: symmetric Q
+z.Mk.ordered(4, 0.5)                                 # ordered: adjacent-only steps (i <-> i±1)
+z.Mk([[0, 1, 2], [3, 0, 1], [1, 1, 0]])             # ARD: any user-supplied rate matrix
 ```
+
+The transition structure is entirely in the `Q` you pass: `equal_rates` is all-to-all at one
+rate, `symmetric` makes `i→j` and `j→i` equal, `ordered` is the tridiagonal nearest-neighbour
+chain (the character-state analogue of [`RateVariation`](rate-variation.md)), and the raw
+constructor takes an arbitrary Markov chain. From the CLI, `--model mk` is equal-rates by
+default, `--ordered` gives the adjacent-only chain, and `--q-matrix FILE` reads an arbitrary `Q`.
 
 Every `Mk` also exposes its analytic quantities:
 

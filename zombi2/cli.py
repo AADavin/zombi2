@@ -88,6 +88,11 @@ def _add_trait_args(p: argparse.ArgumentParser) -> None:
                         "or the per-transition rate [mk] (default: 1.0)")
     p.add_argument("--states", type=int, default=2,
                    help="number of states for the mk model (default: 2)")
+    p.add_argument("--ordered", action="store_true",
+                   help="[mk] only allow transitions between adjacent states (i <-> i±1)")
+    p.add_argument("--q-matrix", default=None,
+                   help="[mk] path to a whitespace/comma-separated k x k rate matrix (an "
+                        "arbitrary Markov chain); overrides --states/--rate/--ordered")
     p.add_argument("--thresholds", default="0.0",
                    help="comma-separated liability cut points [threshold] (default: 0.0)")
     # DEC (geographic-range evolution)
@@ -110,6 +115,22 @@ def _add_trait_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-o", "--out", required=True, help="output directory")
 
 
+def _read_q_matrix(path: str):
+    """Read a ``k x k`` rate matrix from a whitespace/comma-separated file.
+
+    Blank lines and ``#`` comments are skipped; the diagonal is ignored (recomputed by
+    :class:`~zombi2.Mk`). Each row is the *from*-state, each column the *to*-state.
+    """
+    rows = []
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            rows.append([float(x) for x in line.replace(",", " ").split()])
+    return rows
+
+
 def _build_trait_model(args):
     x0 = args.x0
     if args.model == "bm":
@@ -120,7 +141,11 @@ def _build_trait_model(args):
         return EarlyBurst(sigma2=args.sigma2, rate=args.rate,
                           x0=(0.0 if x0 is None else x0), trend=args.trend)
     if args.model == "mk":
-        return Mk.equal_rates(args.states, args.rate)
+        if args.q_matrix:                                    # arbitrary user-supplied Markov chain
+            return Mk(_read_q_matrix(args.q_matrix))
+        if args.ordered:                                     # adjacent-only (meristic) character
+            return Mk.ordered(args.states, args.rate)
+        return Mk.equal_rates(args.states, args.rate)        # equal rates (all-to-all)
     # threshold
     thresholds = [float(t) for t in str(args.thresholds).split(",")]
     return ThresholdModel(thresholds=thresholds, sigma2=args.sigma2,
