@@ -128,6 +128,8 @@ def _read_q_matrix(path: str):
             if not line or line.startswith("#"):
                 continue
             rows.append([float(x) for x in line.replace(",", " ").split()])
+    if rows and any(len(r) != len(rows[0]) for r in rows):
+        raise ValueError("q-matrix rows must all have the same length (a square k x k matrix)")
     return rows
 
 
@@ -201,6 +203,8 @@ def _run_trait(args) -> str:
     every other model overlays a trait with the standard driver. Both return a ``TraitResult``,
     so the output writing is shared.
     """
+    if args.replicates < 1:
+        raise ValueError("--replicates must be >= 1")
     with open(args.tree) as f:
         tree = read_newick(f.read())
     os.makedirs(args.out, exist_ok=True)

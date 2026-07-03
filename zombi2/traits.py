@@ -64,6 +64,24 @@ def _mvn(mean: np.ndarray, cov: np.ndarray, rng) -> np.ndarray:
     return mean + V @ (np.sqrt(np.clip(w, 0.0, None)) * rng.standard_normal(len(mean)))
 
 
+def _expm(M: np.ndarray) -> np.ndarray:
+    """Matrix exponential by scaling-and-squaring with a Taylor series. Correct for **any**
+    matrix, including non-diagonalizable (defective) ones — unlike an eigendecomposition-based
+    ``exp``, which silently returns the wrong matrix when the eigenvectors are (near-)singular."""
+    M = np.asarray(M, dtype=float)
+    norm = float(np.abs(M).sum(axis=1).max())               # inf-norm
+    s = max(0, int(np.ceil(np.log2(norm))) + 1) if norm > 0 else 0
+    A = M / (2.0 ** s)
+    E = np.eye(M.shape[0])
+    term = np.eye(M.shape[0])
+    for k in range(1, 19):                                   # scaled so ||A|| <= ~1 -> converges fast
+        term = term @ A / k
+        E = E + term
+    for _ in range(s):                                       # square back up
+        E = E @ E
+    return E
+
+
 # --------------------------------------------------------------------------- models
 class BrownianMotion:
     """Brownian-motion evolution of a continuous trait (Felsenstein 1985).
@@ -572,15 +590,13 @@ class MultivariateOU:
         if self.x0.shape != (k,):
             raise ValueError(f"x0 must be a length-{k} vector")
         self.V = _lyapunov(A, R)  # stationary covariance
-        w, Vec = np.linalg.eig(A)  # for a fast exp(-A·dt)
-        self._wA, self._VA, self._VAinv = w, Vec, np.linalg.inv(Vec)
 
     def root_value(self, rng):
         return self.x0.copy()
 
     def _E(self, dt):
-        """``exp(-A·dt)`` via the cached eigendecomposition of ``A``."""
-        return (self._VA @ np.diag(np.exp(-self._wA * dt)) @ self._VAinv).real
+        """``exp(-A·dt)`` — robust to a non-diagonalizable mean-reversion matrix ``A``."""
+        return _expm(-self.A * dt)
 
     def evolve(self, x, dt, t0, rng):
         E = self._E(dt)
@@ -861,9 +877,7 @@ class TraitResult:
             raise ValueError("nodes must be 'extant', 'leaves', or 'all'")
         lines = ["node\ttrait"]
         for n in selected:
-            v = self.node_values[n]
-            cell = repr(self.label(v)) if isinstance(self.label(v), str) else _fmt(self.label(v))
-            lines.append(f"{n.name}\t{cell}")
+            lines.append(f"{n.name}\t{_fmt(self.label(self.node_values[n]))}")
         return "\n".join(lines) + "\n"
 
     def to_newick(self, annotate: bool = True) -> str:
@@ -933,7 +947,17 @@ def simulate_traits(
     history: dict | None = {} if model.kind == "discrete" else None
 
     root = tree.root
-    node_values[root] = model.root_value(rng) if root_state is None else root_state
+    if root_state is None:
+        node_values[root] = model.root_value(rng)
+    elif model.kind == "discrete":
+        # accept a state label/tuple or a raw index; store the integer index the engine expects
+        states = getattr(model, "states", None)
+        if states is not None and root_state in states:
+            node_values[root] = states.index(root_state)
+        else:
+            node_values[root] = int(root_state)
+    else:
+        node_values[root] = root_state
     if history is not None:
         history[root] = []
 

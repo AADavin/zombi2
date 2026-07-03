@@ -66,8 +66,8 @@ class DEC(Mk):
         else:
             labels = list(areas)
             n = len(labels)
-        if n < 1:
-            raise ValueError("need at least one area")
+        if n < 2:
+            raise ValueError("DEC needs at least 2 areas")
         maxr = n if max_range_size is None else int(max_range_size)
         if not (1 <= maxr <= n):
             raise ValueError(f"max_range_size must be in [1, {n}]")
@@ -110,7 +110,7 @@ class DEC(Mk):
         states = [tuple(labels[a] for a in range(n) if m >> a & 1) for m in masks]
 
         if isinstance(root, (set, frozenset)):
-            root = index_of[self._encode(root)]
+            root = self.encode(root)                       # clean error for an invalid root range
         super().__init__(Q, states=states, root=root)
 
     # --- range <-> index ---------------------------------------------------
@@ -198,6 +198,11 @@ def simulate_biogeography(tree: Tree, model: DEC, *, root_state=None,
             stack.append((children[1], r2))
         elif len(children) == 1:                     # degree-two node: pass the range through
             stack.append((children[0], end))
+        elif len(children) > 2:                      # cladogenesis is defined only for bifurcations
+            raise ValueError(
+                f"DEC requires a binary tree; node {node.name!r} has {len(children)} children "
+                "(resolve polytomies before simulating biogeography)"
+            )
 
     return TraitResult(tree=tree, model=model, node_values=node_values,
                        history=history, kind="discrete")

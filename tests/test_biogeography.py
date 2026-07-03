@@ -118,3 +118,20 @@ def test_biogeography_validation():
         z.DEC(areas=3, dispersal=0.1, extinction=0.1, max_range_size=5)     # out of range
     with pytest.raises(ValueError):
         z.DEC(areas=3, dispersal=0.1, extinction=0.1).encode([])           # empty range
+
+
+def test_dec_requires_binary_tree():
+    tree = z.read_newick("((A:1,B:1,C:1):1,D:2);")                 # a hard polytomy (3-child node)
+    with pytest.raises(ValueError):
+        z.simulate_biogeography(tree, z.DEC(areas=3, dispersal=0.1, extinction=0.1), seed=1)
+
+
+def test_dec_needs_two_areas():
+    with pytest.raises(ValueError):
+        z.DEC(areas=1, dispersal=0.1, extinction=0.1)
+
+
+def test_dec_invalid_root_range_is_clean_error():
+    with pytest.raises(ValueError):                                # not a cryptic KeyError
+        z.DEC(areas=["A", "B", "C"], dispersal=0.1, extinction=0.1,
+              max_range_size=2, root={"A", "B", "C"})

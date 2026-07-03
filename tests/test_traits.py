@@ -575,8 +575,9 @@ def test_threshold_validation():
 def test_threshold_tsv_reports_discrete_state():
     tree = _fixed_tree()
     res = z.simulate_traits(tree, z.ThresholdModel([0.0], states=["a", "b"]), seed=1)
-    tsv = res.to_tsv()
-    assert "'a'" in tsv or "'b'" in tsv           # discrete labels, not liabilities
+    cells = {line.split("\t")[1] for line in res.to_tsv().splitlines()[1:]}
+    assert cells <= {"a", "b"}                    # discrete labels (bare), not liabilities
+    assert "'" not in res.to_tsv()                # consistent with Newick: no repr quoting
 
 
 # --------------------------------------------------------------------------- early burst / ACDC
@@ -774,3 +775,27 @@ def test_replicate_traits_reproducible():
 def test_replicate_traits_validation():
     with pytest.raises(ValueError):
         z.replicate_traits(_fixed_tree(), z.BrownianMotion(0.5), 0)
+
+
+# --------------------------------------------------------------------------- code-review fixes
+def test_expm_handles_defective_matrix():
+    from zombi2.traits import _expm
+    A = np.array([[2.0, 1.0], [0.0, 2.0]])          # defective: repeated eigenvalue, one eigenvector
+    assert np.allclose(_expm(A), np.exp(2.0) * np.array([[1.0, 1.0], [0.0, 1.0]]), atol=1e-9)
+
+
+def test_mvou_defective_alpha_matrix_is_correct():
+    m = z.MultivariateOU(np.eye(2), alpha=[[2.0, 1.0], [0.0, 2.0]], theta=[0.0, 0.0])
+    expected_E = np.exp(-2.0) * np.array([[1.0, -1.0], [0.0, 1.0]])   # exp(-A·1) for defective A
+    assert np.allclose(m._E(1.0), expected_E, atol=1e-9)
+    assert len(z.simulate_traits(_fixed_tree(), m, seed=1).values) > 0   # runs
+
+
+def test_root_state_accepts_discrete_label_and_tuple():
+    tree = _fixed_tree()
+    mk = z.Mk.equal_rates(3, 0.0, states=["low", "mid", "high"])   # rate 0 -> frozen at the root
+    res = z.simulate_traits(tree, mk, root_state="mid", seed=1)
+    assert all(v == "mid" for v in res.labeled_values().values())
+    cb = z.CorrelatedBinary.independent(0, 0, 0, 0)               # frozen
+    res2 = z.simulate_traits(tree, cb, root_state=(1, 0), seed=1)
+    assert all(lab == (1, 0) for lab in res2.labeled_values().values())
