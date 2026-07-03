@@ -19,31 +19,60 @@ from .tree import Tree, TreeNode
 
 
 def simulate_species_tree(
-    model: BirthDeath,
+    model,
     *,
-    n_tips: int,
-    age: float,
+    n_tips: int | None = None,
+    age: float | None = None,
+    direction: str = "backward",
     age_type: str = "crown",
     seed: int | None = None,
     rng: np.random.Generator | None = None,
+    max_attempts: int = 10_000,
+    max_lineages: int = 1_000_000,
 ) -> Tree:
-    """Simulate a reconstructed species tree (survivors only).
+    """Simulate a species tree under a birth–death ``model``.
 
     Parameters
     ----------
-    model:
-        A species-tree model, e.g. :class:`~zombi2.BirthDeath` or :class:`~zombi2.Yule`.
-    n_tips:
-        Number of extant species ``N`` (>= 2) to condition on.
-    age:
-        Tree age. ``age_type="crown"`` (default): age of the root/MRCA (root at time 0,
-        leaves at ``age``). ``age_type="stem"``: time of origin (a stem precedes the crown).
+    direction:
+        ``"backward"`` (default) samples the **reconstructed** tree (survivors only) as a
+        coalescent point process, conditioned on **both** ``n_tips`` and ``age``.
+        ``"forward"`` simulates the process forward and returns the **complete** tree (extinct
+        and fossil lineages included), conditioned on **exactly one** of ``age`` or ``n_tips``.
+    n_tips, age:
+        Number of extant species ``N`` (>= 2) and the crown age. Backward needs both; forward
+        needs one (the other is then random). ``age_type`` (``"crown"``/``"stem"``) applies to
+        backward only.
     seed / rng:
         Provide a seed (a fresh generator is made) or an explicit numpy Generator.
+    max_attempts, max_lineages:
+        Forward-only safety bounds (rejection retries / lineage-count cap).
+
+    Forward-only model features (``fossilization`` > 0, ``removal`` != 1) and constant-rate
+    incomplete sampling (``sampling_fraction`` < 1) are rejected under ``direction="backward"``.
     """
+    if direction not in ("backward", "forward"):
+        raise ValueError(f"direction must be 'backward' or 'forward', got {direction!r}")
     if rng is None:
         rng = np.random.default_rng(seed)
+
+    if direction == "forward":
+        from .species_forward import simulate_forward
+        return simulate_forward(model, age=age, n_tips=n_tips, rng=rng,
+                                max_attempts=max_attempts, max_lineages=max_lineages)
+
+    # --- backward: reconstructed tree conditioned on (n_tips, age) ---------
     model.validate()
+    if n_tips is None or age is None:
+        raise ValueError("backward simulation needs both `n_tips` and `age`")
+    foss = model.fossilization
+    if (sum(foss) if isinstance(foss, list) else foss) > 0 or getattr(model, "removal", 1.0) != 1.0:
+        raise ValueError("fossilization / removal are forward-only; use direction='forward'")
+    if isinstance(model, BirthDeath) and model.sampling_fraction < 1.0:
+        raise ValueError(
+            "constant-rate backward sampling assumes complete sampling (ρ=1); use "
+            "EpisodicBirthDeath for incomplete sampling, or direction='forward'"
+        )
     if n_tips < 2:
         raise ValueError(f"n_tips must be >= 2, got {n_tips}")
     if age <= 0:

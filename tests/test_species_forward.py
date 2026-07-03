@@ -6,6 +6,10 @@ import pytest
 import zombi2 as z
 
 
+def _fwd(model, **kw):
+    return z.simulate_species_tree(model, direction="forward", **kw)
+
+
 def _dead_names(tree):
     """Names of branches with no extant descendant (the dead part of the tree)."""
     dead = set()
@@ -21,7 +25,7 @@ def _dead_names(tree):
 
 
 def test_age_mode_complete_tree():
-    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=1)
+    tree = _fwd(z.BirthDeath(1.0, 0.4), age=5.0, seed=1)
     assert abs(tree.total_age - 5.0) < 1e-9
     assert tree.root.time == 0.0
     assert len(tree.extant_leaves()) >= 2
@@ -35,7 +39,7 @@ def test_age_mode_complete_tree():
 
 
 def test_n_tips_mode_hits_target():
-    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.5), n_tips=20, seed=2)
+    tree = _fwd(z.BirthDeath(1.0, 0.5), n_tips=20, seed=2)
     assert len(tree.extant_leaves()) == 20
     assert tree.total_age > 0.0
 
@@ -43,30 +47,30 @@ def test_n_tips_mode_hits_target():
 def test_extinction_produces_extinct_leaves():
     n_dead = []
     for s in range(15):
-        t = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), age=6.0, seed=s)
+        t = _fwd(z.BirthDeath(1.0, 0.6), age=6.0, seed=s)
         n_dead.append(sum(1 for leaf in t.leaves() if not leaf.is_extant))
     assert np.mean(n_dead) > 0  # extinction leaves dead lineages
 
 
 def test_yule_has_no_extinction_and_matches_theory():
     lam, age = 1.0, 2.0
-    counts = [len(z.simulate_species_tree_forward(z.Yule(lam), age=age, seed=s).extant_leaves())
+    counts = [len(_fwd(z.Yule(lam), age=age, seed=s).extant_leaves())
               for s in range(400)]
     # Yule crown (2 lineages) grown for `age`: E[extant] = 2 e^{λ·age}
     assert abs(np.mean(counts) - 2 * np.exp(lam * age)) / (2 * np.exp(lam * age)) < 0.15
     # no extinction under Yule
-    t = z.simulate_species_tree_forward(z.Yule(lam), age=age, seed=1)
+    t = _fwd(z.Yule(lam), age=age, seed=1)
     assert all(leaf.is_extant for leaf in t.leaves())
 
 
 def test_reproducible():
-    a = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=7).to_newick()
-    b = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=7).to_newick()
+    a = _fwd(z.BirthDeath(1.0, 0.4), age=5.0, seed=7).to_newick()
+    b = _fwd(z.BirthDeath(1.0, 0.4), age=5.0, seed=7).to_newick()
     assert a == b
 
 
 def test_prune_to_extant_recovers_reconstructed():
-    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), n_tips=25, seed=3)
+    tree = _fwd(z.BirthDeath(1.0, 0.6), n_tips=25, seed=3)
     recon = z.prune_to_extant(tree)
     assert len(recon.extant_leaves()) == len(tree.extant_leaves()) == 25
     assert all(leaf.is_extant for leaf in recon.leaves())
@@ -75,21 +79,21 @@ def test_prune_to_extant_recovers_reconstructed():
 
 def test_argument_validation():
     with pytest.raises(ValueError):  # neither
-        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3))
+        _fwd(z.BirthDeath(1.0, 0.3))
     with pytest.raises(ValueError):  # both
-        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), age=5.0, n_tips=10)
+        _fwd(z.BirthDeath(1.0, 0.3), age=5.0, n_tips=10)
     with pytest.raises(ValueError):  # n_tips too small
-        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), n_tips=1)
+        _fwd(z.BirthDeath(1.0, 0.3), n_tips=1)
     with pytest.raises(ValueError):  # bad age
-        z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.3), age=0.0)
+        _fwd(z.BirthDeath(1.0, 0.3), age=0.0)
     with pytest.raises(NotImplementedError):  # episodic needs a fixed present -> age mode only
-        z.simulate_species_tree_forward(z.EpisodicBirthDeath([1.0], [0.3], []), n_tips=10)
+        _fwd(z.EpisodicBirthDeath([1.0], [0.3], []), n_tips=10)
 
 
 def test_episodic_single_epoch_matches_constant():
     # a one-epoch episodic model == constant BirthDeath forward (same mean extant count)
     def mean_extant(model):
-        return np.mean([len(z.simulate_species_tree_forward(model, age=4.0, seed=s).extant_leaves())
+        return np.mean([len(_fwd(model, age=4.0, seed=s).extant_leaves())
                         for s in range(300)])
     epi = z.EpisodicBirthDeath([1.0], [0.4], [])
     const = z.BirthDeath(1.0, 0.4)
@@ -101,9 +105,9 @@ def test_episodic_recent_mass_extinction_reduces_tips():
     # a high-extinction recent epoch (last 1.0 before present) should leave fewer extant tips
     calm = z.EpisodicBirthDeath([1.0, 1.0], [0.2, 0.2], [1.0])
     crash = z.EpisodicBirthDeath([1.0, 1.0], [2.5, 0.2], [1.0])  # μ=2.5 in the recent epoch
-    m_calm = np.mean([len(z.simulate_species_tree_forward(calm, age=5.0, seed=s).extant_leaves())
+    m_calm = np.mean([len(_fwd(calm, age=5.0, seed=s).extant_leaves())
                       for s in range(200)])
-    m_crash = np.mean([len(z.simulate_species_tree_forward(crash, age=5.0, seed=s).extant_leaves())
+    m_crash = np.mean([len(_fwd(crash, age=5.0, seed=s).extant_leaves())
                        for s in range(200)])
     assert m_crash < m_calm
 
@@ -113,7 +117,7 @@ def test_episodic_incomplete_sampling_marks_unsampled_extant():
     # collect trees; with ρ=0.5 some present-day lineages should be unsampled (is_extant=False)
     saw_unsampled = False
     for s in range(30):
-        t = z.simulate_species_tree_forward(m, age=5.0, seed=s)
+        t = _fwd(m, age=5.0, seed=s)
         present = [n for n in t.leaves() if abs(n.time - t.total_age) < 1e-9]
         if any(not n.is_extant for n in present):
             saw_unsampled = True
@@ -123,8 +127,8 @@ def test_episodic_incomplete_sampling_marks_unsampled_extant():
 
 def test_episodic_reproducible():
     m = z.EpisodicBirthDeath([1.0, 1.6], [0.3, 0.6], [2.0], sampling_fraction=0.8)
-    a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
-    b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    a = _fwd(m, age=5.0, seed=7).to_newick()
+    b = _fwd(m, age=5.0, seed=7).to_newick()
     assert a == b
 
 
@@ -135,7 +139,7 @@ def _fossils(tree):
 
 
 def test_fbd_no_fossils_when_psi_zero():
-    t = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4, fossilization=0.0),
+    t = _fwd(z.BirthDeath(1.0, 0.4, fossilization=0.0),
                                         age=5.0, seed=1)
     assert _fossils(t) == []
     assert all(len(n.children) == 2 for n in t.internal_nodes())  # still binary
@@ -143,7 +147,7 @@ def test_fbd_no_fossils_when_psi_zero():
 
 def test_fbd_fossils_scale_with_psi():
     def mean_fossils(psi):
-        return np.mean([len(_fossils(z.simulate_species_tree_forward(
+        return np.mean([len(_fossils(_fwd(
             z.BirthDeath(1.0, 0.4, fossilization=psi), age=5.0, seed=s)))
             for s in range(40)])
     assert mean_fossils(0.0) == 0
@@ -151,7 +155,7 @@ def test_fbd_fossils_scale_with_psi():
 
 
 def test_fbd_fossils_are_dated_and_sampled():
-    t = z.simulate_species_tree_forward(
+    t = _fwd(
         z.BirthDeath(1.0, 0.5, fossilization=0.6), age=6.0, seed=2)
     fossils = _fossils(t)
     assert fossils
@@ -161,7 +165,7 @@ def test_fbd_fossils_are_dated_and_sampled():
 
 
 def test_fbd_sampled_tree_extraction():
-    t = z.simulate_species_tree_forward(
+    t = _fwd(
         z.BirthDeath(1.0, 0.5, fossilization=0.5, sampling_fraction=0.9), age=6.0, seed=1)
     n_sampled = sum(1 for n in t.leaves() if n.sampled)
     samp = z.prune_to_sampled(t)
@@ -174,15 +178,15 @@ def test_fbd_sampled_tree_extraction():
 
 
 def test_fbd_n_tips_mode_allowed():
-    t = z.simulate_species_tree_forward(
+    t = _fwd(
         z.BirthDeath(1.0, 0.3, fossilization=0.3), n_tips=15, seed=3)
     assert len(t.extant_leaves()) == 15  # constant-rate FBD supports n_tips
 
 
 def test_fbd_reproducible():
     m = z.BirthDeath(1.0, 0.4, fossilization=0.4, sampling_fraction=0.9)
-    a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
-    b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    a = _fwd(m, age=5.0, seed=7).to_newick()
+    b = _fwd(m, age=5.0, seed=7).to_newick()
     assert a == b
 
 
@@ -194,16 +198,16 @@ def _sampled_ancestors(tree):
 
 def test_sampled_ancestors_only_when_removal_below_one():
     common = dict(fossilization=0.6, sampling_fraction=1.0)
-    t_removed = z.simulate_species_tree_forward(
+    t_removed = _fwd(
         z.BirthDeath(1.0, 0.4, removal=1.0, **common), age=6.0, seed=1)
-    t_kept = z.simulate_species_tree_forward(
+    t_kept = _fwd(
         z.BirthDeath(1.0, 0.4, removal=0.0, **common), age=6.0, seed=1)
     assert _sampled_ancestors(t_removed) == []
     assert len(_sampled_ancestors(t_kept)) > 0
 
 
 def test_gene_sim_passes_through_sampled_ancestors():
-    tree = z.simulate_species_tree_forward(
+    tree = _fwd(
         z.BirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0), age=6.0, seed=1)
     assert _sampled_ancestors(tree)  # the tree really has degree-two nodes
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
@@ -212,7 +216,7 @@ def test_gene_sim_passes_through_sampled_ancestors():
 
 
 def test_prune_to_sampled_keeps_sampled_ancestors():
-    tree = z.simulate_species_tree_forward(
+    tree = _fwd(
         z.BirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0, sampling_fraction=0.9),
         age=6.0, seed=1)
     samp = z.prune_to_sampled(tree)
@@ -226,7 +230,7 @@ def test_prune_to_sampled_keeps_sampled_ancestors():
 
 def test_removal_validation():
     with pytest.raises(ValueError):
-        z.simulate_species_tree_forward(
+        _fwd(
             z.BirthDeath(1.0, 0.4, fossilization=0.5, removal=1.5), age=5.0)
 
 
@@ -236,7 +240,7 @@ def test_episodic_fbd_produces_fossils():
     m = z.EpisodicBirthDeath(
         birth=[1.0, 1.4], death=[0.3, 0.5], fossilization=[0.4, 0.4], shifts=[2.0],
         sampling_fraction=0.9, removal=0.5)
-    t = z.simulate_species_tree_forward(m, age=6.0, seed=3)
+    t = _fwd(m, age=6.0, seed=3)
     assert len(_fossils(t)) > 0
     assert len(t.extant_leaves()) >= 2
 
@@ -244,20 +248,20 @@ def test_episodic_fbd_produces_fossils():
 def test_episodic_fbd_requires_age_mode():
     m = z.EpisodicBirthDeath([1.0], [0.3], [], fossilization=[0.3])
     with pytest.raises(NotImplementedError):
-        z.simulate_species_tree_forward(m, n_tips=10)
+        _fwd(m, n_tips=10)
 
 
 def test_episodic_fbd_reproducible():
     m = z.EpisodicBirthDeath(
         birth=[1.0, 1.4], death=[0.3, 0.5], fossilization=[0.3, 0.5], shifts=[2.0],
         sampling_fraction=0.8, removal=0.5)
-    a = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
-    b = z.simulate_species_tree_forward(m, age=5.0, seed=7).to_newick()
+    a = _fwd(m, age=5.0, seed=7).to_newick()
+    b = _fwd(m, age=5.0, seed=7).to_newick()
     assert a == b
 
 
 def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
-    tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.6), n_tips=40, seed=8)
+    tree = _fwd(z.BirthDeath(1.0, 0.6), n_tips=40, seed=8)
     dead = _dead_names(tree)
     assert dead  # forward tree has a dead part
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.4, loss=0.15,

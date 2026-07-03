@@ -31,7 +31,8 @@ class TreeNode:
     children: list["TreeNode"] = field(default_factory=list, repr=False)
     is_extant: bool = True
     #: True if this node is an observation — an extant *sampled* tip or a serially-sampled
-    #: fossil (see fossilized birth–death in ``simulate_species_tree_forward``). Default False.
+    #: fossil (see fossilized birth–death in ``simulate_species_tree(..., direction="forward")``).
+    #: Default False.
     sampled: bool = False
 
     def add_child(self, child: "TreeNode") -> None:

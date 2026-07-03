@@ -147,7 +147,7 @@ def _name(tree: Tree) -> None:
             internal += 1
 
 
-def simulate_species_tree_forward(
+def simulate_forward(
     model,
     *,
     age: float | None = None,
@@ -157,7 +157,8 @@ def simulate_species_tree_forward(
     max_attempts: int = 10_000,
     max_lineages: int = 1_000_000,
 ) -> Tree:
-    """Simulate a **complete** species tree forward in time (extinct lineages included).
+    """Forward implementation behind ``simulate_species_tree(..., direction="forward")``:
+    a **complete** species tree (extinct/fossil lineages included).
 
     Provide exactly one stopping condition:
 

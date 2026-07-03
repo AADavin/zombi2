@@ -87,7 +87,7 @@ whole downstream gene-family machinery are untouched.
 ## Forward simulation (implemented)
 
 `simulate_species_tree` runs *backward* and returns the reconstructed tree (survivors only).
-`simulate_species_tree_forward` runs the birth–death process *forward* and returns the
+`simulate_species_tree(..., direction="forward")` runs the birth–death process *forward* and returns the
 **complete** tree — extinct lineages included natively (`is_extant=False` leaves at their death
 times). It is the second route to a complete tree, alongside grafting ghosts onto a backward
 tree with [`add_ghost_lineages`](ghost_lineages.md); pass either to `simulate_genomes` and
@@ -95,10 +95,10 @@ transfers use the dead lineages automatically.
 
 ```python
 # grow for a fixed crown age (number of extant tips is random):
-tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.4), age=5.0, seed=1)
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.4), age=5.0, direction="forward", seed=1)
 
 # ...or grow until N extant lineages coexist (age is random):
-tree = z.simulate_species_tree_forward(z.BirthDeath(1.0, 0.5), n_tips=50, seed=1)
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
 
 recon = z.prune_to_extant(tree)   # the reconstructed (survivors-only) counterpart
 ```
@@ -125,7 +125,7 @@ unaffected).
 
 ```python
 m = z.BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
-tree = z.simulate_species_tree_forward(m, age=6.0, seed=1)   # complete tree + fossils
+tree = z.simulate_species_tree(m, age=6.0, direction="forward", seed=1)   # complete tree + fossils
 fbd = z.prune_to_sampled(tree)   # the sampled tree: dated fossil tips + sampled extant tips
 ```
 
