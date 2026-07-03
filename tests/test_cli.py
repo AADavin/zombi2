@@ -124,3 +124,42 @@ def test_seed_makes_genomes_reproducible(tmp_path):
         return (dest / "Profiles.tsv").read_text()
 
     assert run("a") == run("b")
+
+
+# --- trait command (pure-Python trait engine: no Rust needed) ---------------
+def test_trait_prints_tip_table(capsys):
+    """`zombi2 trait` with a simulated tree prints a node<TAB>trait table to stdout."""
+    rc = main(["trait", "--tips", "8", "--model", "bm", "--sigma2", "0.5", "--seed", "1"])
+    assert rc == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out[0] == "node\ttrait"
+    assert len(out) == 1 + 8                              # header + one row per extant tip
+
+
+def test_trait_writes_files(tmp_path):
+    dest = tmp_path / "tr"
+    rc = main(["trait", "--tips", "10", "--model", "ou", "--alpha", "3", "--theta", "5",
+               "--seed", "2", "-o", str(dest)])
+    assert rc == 0
+    assert (dest / "traits.tsv").read_text().startswith("node\ttrait")
+    newick = (dest / "trait_tree.nwk").read_text()
+    assert newick.strip().endswith(";") and "[&trait=" in newick
+
+
+def test_trait_reads_a_tree(tmp_path, capsys):
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "6", "--seed", "1", "-o", str(sp)])
+    capsys.readouterr()                                  # discard the species command's output
+    rc = main(["trait", "--tree", str(sp / "species_tree.nwk"),
+               "--model", "mk", "--states", "3", "--rate", "0.6", "--seed", "1"])
+    assert rc == 0
+    rows = capsys.readouterr().out.strip().splitlines()[1:]
+    assert all(row.split("\t")[1] in {"0", "1", "2"} for row in rows)   # discrete states
+
+
+def test_trait_reproducible(capsys):
+    main(["trait", "--tips", "8", "--model", "bm", "--sigma2", "0.5", "--seed", "3"])
+    a = capsys.readouterr().out
+    main(["trait", "--tips", "8", "--model", "bm", "--sigma2", "0.5", "--seed", "3"])
+    b = capsys.readouterr().out
+    assert a == b

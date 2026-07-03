@@ -8,6 +8,9 @@ import os
 from .simulation import simulate_genomes
 from .species_model import BirthDeath
 from .species_sim import simulate_species_tree
+from .traits import (
+    BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, simulate_traits,
+)
 from .tree import Tree, read_newick
 
 _DESCRIPTION = """\
@@ -17,6 +20,7 @@ Simulate in two steps: build a species tree, then evolve gene families along it.
 
   zombi2 species   simulate a species tree
   zombi2 genomes   evolve gene families along a species tree (Newick)
+  zombi2 trait     evolve a phenotypic trait along a tree
 
 Run 'zombi2 <command> -h' for a command's options.
 """
@@ -59,6 +63,83 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--profiles-only", action="store_true",
                    help="write only species_tree.nwk + Profiles.tsv/Presence.tsv (no event "
                         "log or gene trees) — the fastest path (Rust counts-only engine).")
+
+
+def _add_trait_args(p: argparse.ArgumentParser) -> None:
+    # tree: read one, or simulate a species tree on the fly (so a one-liner works)
+    p.add_argument("-t", "--tree", default=None,
+                   help="input tree in Newick format; if omitted, a species tree is simulated "
+                        "from --tips/--age/--birth/--death")
+    p.add_argument("--tips", type=int, default=20,
+                   help="extant species when simulating the tree (default: 20)")
+    p.add_argument("--age", type=float, default=1.0,
+                   help="tree age when simulating the tree (default: 1.0)")
+    p.add_argument("--birth", type=float, default=1.0, help="speciation rate for the tree")
+    p.add_argument("--death", type=float, default=0.3, help="extinction rate for the tree")
+    # model
+    p.add_argument("--model", choices=("bm", "ou", "eb", "mk", "threshold"), default="bm",
+                   help="trait model: bm=Brownian motion, ou=Ornstein-Uhlenbeck, "
+                        "eb=early burst/ACDC, mk=discrete k-state, threshold (default: bm)")
+    p.add_argument("--sigma2", type=float, default=1.0,
+                   help="diffusion rate [bm/ou/eb/threshold] (default: 1.0)")
+    p.add_argument("--x0", type=float, default=None,
+                   help="root value [bm/eb/threshold]; OU defaults it to --theta")
+    p.add_argument("--trend", type=float, default=0.0, help="directional drift [bm/eb]")
+    p.add_argument("--alpha", type=float, default=1.0,
+                   help="OU mean-reversion strength [ou] (default: 1.0)")
+    p.add_argument("--theta", type=float, default=0.0, help="OU optimum [ou] (default: 0.0)")
+    p.add_argument("--rate", type=float, default=1.0,
+                   help="EB rate-of-change (negative = early burst) [eb], "
+                        "or the per-transition rate [mk] (default: 1.0)")
+    p.add_argument("--states", type=int, default=2,
+                   help="number of states for the mk model (default: 2)")
+    p.add_argument("--thresholds", default="0.0",
+                   help="comma-separated liability cut points [threshold] (default: 0.0)")
+    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
+    p.add_argument("-o", "--out", default=None,
+                   help="output directory; if omitted, the tip values are printed to stdout")
+
+
+def _build_trait_model(args):
+    x0 = args.x0
+    if args.model == "bm":
+        return BrownianMotion(sigma2=args.sigma2, x0=(0.0 if x0 is None else x0), trend=args.trend)
+    if args.model == "ou":
+        return OrnsteinUhlenbeck(sigma2=args.sigma2, alpha=args.alpha, theta=args.theta, x0=x0)
+    if args.model == "eb":
+        return EarlyBurst(sigma2=args.sigma2, rate=args.rate,
+                          x0=(0.0 if x0 is None else x0), trend=args.trend)
+    if args.model == "mk":
+        return Mk.equal_rates(args.states, args.rate)
+    # threshold
+    thresholds = [float(t) for t in str(args.thresholds).split(",")]
+    return ThresholdModel(thresholds=thresholds, sigma2=args.sigma2,
+                          x0=(0.0 if x0 is None else x0))
+
+
+def _run_trait(args) -> str:
+    """Evolve a trait on a tree (read or simulated) and write files or return a tip table."""
+    if args.tree:
+        with open(args.tree) as f:
+            tree = read_newick(f.read())
+    else:
+        tree = simulate_species_tree(BirthDeath(args.birth, args.death),
+                                     n_tips=args.tips, age=args.age, seed=args.seed)
+    res = simulate_traits(tree, _build_trait_model(args), seed=args.seed)
+
+    if not args.out:
+        return res.to_tsv().rstrip("\n")            # tip table to stdout
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
+        f.write(res.to_tsv())
+    with open(os.path.join(args.out, "trait_tree.nwk"), "w") as f:
+        f.write(res.to_newick() + "\n")
+    if not args.tree:
+        with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+            f.write(tree.to_newick() + "\n")
+    return (f"wrote traits to {args.out}/ "
+            f"({len(tree.extant_leaves())} tips, model={args.model})")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles) -> None:
@@ -112,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     pg.add_argument("--seed", type=int, default=None)
     pg.add_argument("-o", "--out", required=True, help="output directory")
 
+    pt = sub.add_parser("trait", help="evolve a phenotypic trait along a tree")
+    _add_trait_args(pt)
+
     args = parser.parse_args(argv)
 
     if args.command == "species":
@@ -144,6 +228,10 @@ def main(argv: list[str] | None = None) -> int:
         with open(args.tree) as f:
             tree = read_newick(f.read())
         print(_run_genomes(tree, args))
+        return 0
+
+    if args.command == "trait":
+        print(_run_trait(args))
         return 0
 
     return 1
