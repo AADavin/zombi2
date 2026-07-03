@@ -118,6 +118,74 @@ class BiSSE(MuSSE):
                 f"q01={self.Q[0, 1]:g}, q10={self.Q[1, 0]:g})")
 
 
+class HiSSE(MuSSE):
+    """Hidden-State Speciation and Extinction (Beaulieu & O'Meara 2016).
+
+    Extends :class:`BiSSE` with unobserved **hidden classes**: each of the two observed states
+    comes in ``H`` hidden variants with their own diversification rates, so rate heterogeneity is
+    not falsely pinned on the observed character (the classic failure mode of a raw BiSSE fit).
+    Give one :class:`BiSSE` per hidden class — a diversification "regime" — plus the rates at
+    which lineages switch between classes. Simulate with :func:`simulate_sse`; the tips report the
+    **observed** state (the hidden class is collapsed by :meth:`~zombi2.TraitResult.labeled_values`,
+    but visible via the full ``(observed, hidden)`` node values).
+
+    Parameters
+    ----------
+    classes:
+        A sequence of :class:`BiSSE` models, one per hidden class.
+    hidden_transition:
+        ``H x H`` matrix of switch rates between hidden classes (applied within an observed
+        state), or a scalar for a symmetric all-to-all rate.
+    hidden_states:
+        Optional labels for the ``H`` hidden classes (default ``0 .. H-1``).
+    """
+
+    def __init__(self, classes, hidden_transition, hidden_states=None):
+        classes = list(classes)
+        H = len(classes)
+        if H < 1:
+            raise ValueError("need at least one hidden class")
+        if any(not isinstance(c, BiSSE) for c in classes):
+            raise TypeError("classes must be BiSSE instances (one diversification regime each)")
+        hid = list(range(H)) if hidden_states is None else list(hidden_states)
+        if len(hid) != H:
+            raise ValueError("hidden_states length must match the number of classes")
+        if np.isscalar(hidden_transition):
+            HR = np.full((H, H), float(hidden_transition))
+            np.fill_diagonal(HR, 0.0)
+        else:
+            HR = np.asarray(hidden_transition, dtype=float)
+            if HR.shape != (H, H):
+                raise ValueError("hidden_transition must be an H x H matrix or a scalar")
+
+        n = 2 * H
+        birth = np.zeros(n)
+        death = np.zeros(n)
+        Q = np.zeros((n, n))
+        for h, c in enumerate(classes):
+            for o in (0, 1):
+                birth[o * H + h] = c.lambdas[o]
+                death[o * H + h] = c.mus[o]
+            Q[0 * H + h, 1 * H + h] = c.Q[0, 1]     # observed 0->1 within this class
+            Q[1 * H + h, 0 * H + h] = c.Q[1, 0]     # observed 1->0 within this class
+        for o in (0, 1):
+            for h in range(H):
+                for h2 in range(H):
+                    if h2 != h:
+                        Q[o * H + h, o * H + h2] = HR[h, h2]
+
+        self._H = H
+        states = [(o, hid[h]) for o in (0, 1) for h in range(H)]
+        super().__init__(birth=birth, death=death, Q=Q, states=states)
+
+    def discretize(self, index):
+        """The observed state (0 or 1) of a product-state ``index`` (hidden class collapsed)."""
+        return int(index) // self._H
+
+    def __repr__(self) -> str:
+        return f"HiSSE(hidden={self._H})"
+
+
 # --------------------------------------------------------------------------- engine
 class _Lineage:
     """A live lineage: its growing node, current state, and the segments of its branch so far."""

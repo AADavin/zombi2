@@ -64,13 +64,14 @@ from .traits import (
     EarlyBurst,
     Mk,
     CorrelatedBinary,
+    HiddenStateMk,
     simulate_traits,
     TraitResult,
     pagel_lambda,
     pagel_delta,
     pagel_kappa,
 )
-from .sse import BiSSE, MuSSE, simulate_sse
+from .sse import BiSSE, MuSSE, HiSSE, simulate_sse
 from .simulation import simulate_genomes, Genomes
 from .matching import (
     match_profiles,
@@ -115,10 +116,10 @@ __all__ = [
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",
-    "simulate_traits", "TraitResult",
+    "HiddenStateMk", "simulate_traits", "TraitResult",
     "pagel_lambda", "pagel_delta", "pagel_kappa",
     # trait-dependent diversification (state-dependent speciation/extinction)
-    "BiSSE", "MuSSE", "simulate_sse",
+    "BiSSE", "MuSSE", "HiSSE", "simulate_sse",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)

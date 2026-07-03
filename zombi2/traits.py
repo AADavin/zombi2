@@ -323,6 +323,77 @@ class CorrelatedBinary(Mk):
         return "CorrelatedBinary(Pagel 1994)"
 
 
+class HiddenStateMk(Mk):
+    """A discrete character with hidden rate classes — a hidden Markov model (corHMM).
+
+    The observed character evolves over ``O`` states, but its transition rates depend on an
+    unobserved **hidden class** (a rate category) drawn from ``H`` classes that themselves switch
+    along the tree. The full state is the ``(observed, hidden)`` pair; only the observed part is
+    reported by :meth:`TraitResult.labeled_values`, while :meth:`TraitResult.changes` shows the
+    full history including hidden switches. This captures rate heterogeneity a plain :class:`Mk`
+    cannot (Beaulieu et al. 2013).
+
+    Parameters
+    ----------
+    observed_rates:
+        One ``O x O`` rate matrix **per hidden class** (a length-``H`` sequence): the observed
+        character's transition rates while in that class (e.g. a slow class and a fast class).
+    hidden_rate:
+        ``H x H`` matrix of switch rates between hidden classes (applied within any observed
+        state), or a scalar for a symmetric all-to-all rate.
+    observed_states, hidden_states:
+        Optional labels (defaults ``0 .. O-1`` and ``0 .. H-1``).
+    root:
+        Root policy as in :class:`Mk`, over the ``O*H`` product states.
+    """
+
+    def __init__(self, observed_rates, hidden_rate, observed_states=None,
+                 hidden_states=None, root="uniform"):
+        mats = [np.asarray(R, dtype=float) for R in observed_rates]
+        H = len(mats)
+        if H < 1:
+            raise ValueError("need at least one hidden class")
+        O = mats[0].shape[0]
+        if any(R.shape != (O, O) for R in mats):
+            raise ValueError("each observed_rates matrix must be O x O with the same O")
+        obs = list(range(O)) if observed_states is None else list(observed_states)
+        hid = list(range(H)) if hidden_states is None else list(hidden_states)
+        if len(obs) != O or len(hid) != H:
+            raise ValueError("observed_states / hidden_states lengths must match the matrices")
+        if np.isscalar(hidden_rate):
+            HR = np.full((H, H), float(hidden_rate))
+            np.fill_diagonal(HR, 0.0)
+        else:
+            HR = np.asarray(hidden_rate, dtype=float)
+            if HR.shape != (H, H):
+                raise ValueError("hidden_rate must be an H x H matrix or a scalar")
+
+        n = O * H
+        Q = np.zeros((n, n))
+        for h in range(H):
+            R = mats[h]
+            for o in range(O):
+                for o2 in range(O):
+                    if o2 != o:
+                        Q[o * H + h, o2 * H + h] = R[o, o2]
+        for o in range(O):
+            for h in range(H):
+                for h2 in range(H):
+                    if h2 != h:
+                        Q[o * H + h, o * H + h2] = HR[h, h2]
+
+        self._O, self._H, self._obs = O, H, obs
+        states = [(obs[o], hid[h]) for o in range(O) for h in range(H)]
+        super().__init__(Q, states=states, root=root)
+
+    def discretize(self, index):
+        """The observed state of a product-state ``index`` (hidden class collapsed)."""
+        return self._obs[int(index) // self._H]
+
+    def __repr__(self) -> str:
+        return f"HiddenStateMk(observed={self._O}, hidden={self._H})"
+
+
 class OrnsteinUhlenbeck:
     """Ornstein–Uhlenbeck evolution of a continuous trait (Hansen 1997; Butler & King 2004).
 
@@ -723,8 +794,9 @@ class TraitResult:
         return {n: self.node_values[n] for n in self.tree.internal_nodes()}
 
     def label(self, value):
-        """Map a stored node value to its observable label: a discrete state index to its state
-        label, a threshold-model liability to its discrete state, else the value unchanged."""
+        """Map a stored node value to its **observable** label: a discrete state index to its
+        state label, a hidden-state or threshold model's value to the *observed* state (hidden
+        classes / liabilities collapsed), else the value unchanged."""
         discretize = getattr(self.model, "discretize", None)
         if discretize is not None:
             return discretize(value)
@@ -732,9 +804,17 @@ class TraitResult:
             return self.model.states[int(value)]
         return value
 
+    def full_label(self, value):
+        """The **complete** discrete state label (e.g. a hidden-state model's ``(observed,
+        hidden)`` pair), without collapsing hidden classes; the value itself for continuous."""
+        if self.kind == "discrete":
+            return self.model.states[int(value)]
+        return value
+
     def changes(self) -> list:
-        """Discrete only: realized transitions as ``(node, time, from_label, to_label)``,
-        in time order along the tree (the events of the stochastic map)."""
+        """Discrete only: realized transitions as ``(node, time, from_label, to_label)``, in time
+        order along the tree (the events of the stochastic map). Uses the **full** state label, so
+        hidden-state transitions are visible."""
         if self.kind != "discrete":
             raise ValueError("changes() is only defined for discrete-trait models")
         out = []
@@ -745,7 +825,7 @@ class TraitResult:
             t = node.parent.time
             for (state, dur), (nxt, _) in zip(segs, segs[1:]):
                 t += dur
-                out.append((node, t, self.label(state), self.label(nxt)))
+                out.append((node, t, self.full_label(state), self.full_label(nxt)))
         return out
 
     # --- I/O --------------------------------------------------------------

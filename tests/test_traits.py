@@ -677,3 +677,62 @@ def test_pagel_transform_feeds_simulation():
     t2 = z.pagel_lambda(tree, 0.5)
     res = z.simulate_traits(t2, z.BrownianMotion(0.5), seed=1)
     assert set(res.values) == set(t2.extant_leaves())
+
+
+# --------------------------------------------------------------------------- hidden-state Mk (corHMM)
+def _slow_fast_hmm(hidden_rate=0.5):
+    slow = [[0.0, 0.1], [0.1, 0.0]]
+    fast = [[0.0, 3.0], [3.0, 0.0]]
+    return z.HiddenStateMk(observed_rates=[slow, fast], hidden_rate=hidden_rate,
+                           observed_states=[0, 1], hidden_states=["slow", "fast"])
+
+
+def test_hidden_state_mk_collapses_to_observed():
+    tree = _fixed_tree(n_tips=20, seed=2)
+    res = z.simulate_traits(tree, _slow_fast_hmm(), seed=1)
+    for leaf in tree.extant_leaves():
+        obs = res.labeled_values()[leaf]
+        full = res.full_label(res.node_values[leaf])
+        assert obs in (0, 1)
+        assert full[0] == obs and full[1] in ("slow", "fast")     # full = (observed, hidden)
+
+
+def test_hidden_state_mk_discretize():
+    m = _slow_fast_hmm()
+    # states order: (0,slow)=0, (0,fast)=1, (1,slow)=2, (1,fast)=3
+    assert m.discretize(0) == 0 and m.discretize(1) == 0
+    assert m.discretize(2) == 1 and m.discretize(3) == 1
+
+
+def test_hidden_state_mk_changes_show_hidden_switches():
+    tree = _fixed_tree(n_tips=30, seed=4)
+    res = z.simulate_traits(tree, _slow_fast_hmm(hidden_rate=1.0), seed=2)
+    # at least one change keeps the observed state but switches hidden class
+    assert any(frm[0] == to[0] and frm[1] != to[1] for _, _, frm, to in res.changes())
+
+
+def test_hidden_state_mk_same_rates_are_observed_symmetric():
+    tree = z.simulate_species_tree(z.Yule(1.0), n_tips=30, age=3.0, seed=7)
+    same = [[0.0, 0.8], [0.8, 0.0]]
+    m = z.HiddenStateMk(observed_rates=[same, same], hidden_rate=0.5)  # hidden irrelevant to observed
+    rng = np.random.default_rng(0)
+    obs = []
+    for _ in range(100):
+        res = z.simulate_traits(tree, m, rng=rng)
+        obs += [res.labeled_values()[leaf] for leaf in tree.extant_leaves()]
+    assert abs(np.mean(obs) - 0.5) < 0.08
+
+
+def test_hidden_state_mk_validation():
+    with pytest.raises(ValueError):
+        z.HiddenStateMk([[[0, 1], [1, 0]], [[0, 1, 0], [0, 0, 1], [1, 0, 0]]], 0.5)  # mismatched O
+    with pytest.raises(ValueError):
+        z.HiddenStateMk([[[0, 1], [1, 0]]], hidden_rate=[[0, 1], [1, 0]])            # H=1 vs 2x2
+
+
+def test_hidden_state_mk_reproducible():
+    tree = _fixed_tree(seed=1)
+    m = _slow_fast_hmm()
+    a = z.simulate_traits(tree, m, seed=5).labeled_values()
+    b = z.simulate_traits(tree, m, seed=5).labeled_values()
+    assert {k.name: v for k, v in a.items()} == {k.name: v for k, v in b.items()}
