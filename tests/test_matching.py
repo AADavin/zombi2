@@ -1,15 +1,18 @@
 """Rejection-ABC profile matching (:func:`zombi2.match_profiles`).
 
-The summary-statistic and plumbing tests run on the pure-Python engine at tiny
-``n_sims``. The end-to-end *recovery* test (inject known rates -> simulate a
-pseudo-empirical table -> recover) needs thousands of simulations, so it rides the Rust
-fast path and is skipped when ``zombi2_core`` isn't built.
+The uniform (built-in) model that the plumbing and recovery tests exercise runs on the Rust
+engine, so the whole module is skipped when ``zombi2_core`` isn't built. ``match_profiles``
+picks the engine automatically (uniform -> Rust, family/callable -> Python); there is no
+``engine`` argument.
 """
 
 import numpy as np
 import pytest
 
 import zombi2 as z
+
+pytestmark = pytest.mark.skipif(not z.rust_available(),
+                                reason="zombi2_core (Rust extension) not built")
 
 
 # --- summary statistics ----------------------------------------------------------
@@ -72,13 +75,13 @@ def _small_tree(n=6, seed=1):
 
 
 def _cheap_fit(**kw):
-    """A tiny Python-engine fit for plumbing checks (no Rust needed)."""
+    """A tiny fit for plumbing checks (uniform model -> Rust engine)."""
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
                              initial_size=10, seed=3).profiles
     params = dict(tree=tree, empirical=emp,
                   priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-                  n_sims=15, accept=0.2, initial_size=10, engine="python", seed=1)
+                  n_sims=15, accept=0.2, initial_size=10, seed=1)
     params.update(kw)
     return z.match_profiles(**params)
 
@@ -87,14 +90,14 @@ def test_unknown_parameter_rejected():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors={"speciation": (0, 1)}, n_sims=4, engine="python")
+        z.match_profiles(tree, emp, priors={"speciation": (0, 1)}, n_sims=4)
 
 
 def test_empty_priors_rejected():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors={}, n_sims=4, engine="python")
+        z.match_profiles(tree, emp, priors={}, n_sims=4)
 
 
 def test_fixed_float_prior_is_constant():
@@ -104,14 +107,12 @@ def test_fixed_float_prior_is_constant():
     assert np.allclose(dup, 0.05)
 
 
-def test_bad_accept_and_engine():
+def test_bad_accept():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     priors = {"duplication": (0, 0.3), "origination": (0, 1.5)}
     with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors=priors, accept=1.5, n_sims=4, engine="python")
-    with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors=priors, n_sims=4, engine="bogus")
+        z.match_profiles(tree, emp, priors=priors, accept=1.5, n_sims=4)
 
 
 # --- ABCFit plumbing -------------------------------------------------------------
@@ -149,17 +150,12 @@ def test_determinism_same_seed():
     assert np.array_equal(a.accepted, b.accepted)
 
 
-# --- end-to-end recovery (needs the Rust fast path) ------------------------------
+# --- end-to-end recovery ---------------------------------------------------------
 
-pytestmark_fast = pytest.mark.skipif(not z.rust_available(),
-                                     reason="zombi2_core (Rust extension) not built")
-
-
-@pytestmark_fast
 def test_recover_injected_rates_43_leaves():
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=43, age=5.0, seed=1)
     truth = dict(duplication=0.3, transfer=0.1, loss=0.6, origination=2.0)
-    emp = z.simulate_profiles_fast(tree, initial_size=20, seed=101, **truth)
+    emp = z.simulate_genomes(tree, initial_size=20, seed=101, output="profiles", **truth)
 
     priors = {"duplication": (0, 1), "transfer": (0, 0.5),
               "loss": (0, 1.5), "origination": (0, 3)}
@@ -199,7 +195,7 @@ def test_parallel_matches_serial():
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
                              initial_size=10, seed=3).profiles
     kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-              n_sims=40, accept=0.2, initial_size=10, engine="python", seed=1)
+              n_sims=40, accept=0.2, initial_size=10, seed=1)
     serial = z.match_profiles(tree, emp, **kw)
     parallel = z.match_profiles(tree, emp, processes=2, **kw)
     assert np.array_equal(serial.samples, parallel.samples)
@@ -208,14 +204,6 @@ def test_parallel_matches_serial():
 
 
 # --- family-sampled-rates model --------------------------------------------------
-
-def test_fast_engine_rejected_for_family_model():
-    tree = _small_tree()
-    emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
-    with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors={"origination": (0, 1)},
-                         model="family", engine="fast", n_sims=4)
-
 
 def test_custom_model_allows_arbitrary_param_names():
     # a callable model params->RateModel may use any parameter names (runs on Python engine)
@@ -261,7 +249,7 @@ def test_spectra_data_shapes_and_custom_guard():
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     fit2 = z.match_profiles(tree, emp, priors={"origination": (0, 1)},
                             statistics=lambda pm: np.array([float(pm.matrix.sum())]),
-                            n_sims=10, accept=0.3, engine="python", seed=1)
+                            n_sims=10, accept=0.3, seed=1)
     with pytest.raises(ValueError):
         fit2.spectra_data()
 
@@ -308,14 +296,11 @@ def test_gene_trees_path_runs_with_diagnostics():
     assert fit.spectra_data()["accepted"].shape[1] == fit.n_species
 
 
-def test_gene_trees_requires_genomes_and_python():
+def test_gene_trees_requires_genomes():
     tree, g = _small_genomes()
     pm = g.profiles
     with pytest.raises(TypeError):        # a bare profile lacks gene trees
         z.match_profiles(tree, pm, priors={"origination": (0, 1)}, gene_trees=True, n_sims=4)
-    with pytest.raises(ValueError):       # fast path yields no gene trees
-        z.match_profiles(tree, g, priors={"origination": (0, 1)}, gene_trees=True,
-                         engine="fast", n_sims=4)
 
 
 def test_feature_weights_change_acceptance():
@@ -323,7 +308,7 @@ def test_feature_weights_change_acceptance():
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
                              initial_size=10, seed=3).profiles
     kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-              n_sims=60, accept=0.25, initial_size=10, engine="python", seed=1)
+              n_sims=60, accept=0.25, initial_size=10, seed=1)
     base = z.match_profiles(tree, emp, **kw)
     s = len(emp.species)
     w = np.ones(2 * s + 4)
@@ -339,7 +324,7 @@ def _adjust_fit():
                              initial_size=10, seed=3).profiles
     return z.match_profiles(tree, emp,
                             priors={"duplication": (0, 0.4), "loss": (0, 0.5), "origination": (0, 2)},
-                            n_sims=120, accept=0.25, initial_size=10, engine="python", seed=1)
+                            n_sims=120, accept=0.25, initial_size=10, seed=1)
 
 
 def test_regression_adjust_shapes_and_nonneg():
@@ -392,7 +377,7 @@ def test_smc_runs_and_is_weighted():
     tree, emp = _smc_setup()
     fit = z.match_profiles_smc(
         tree, emp, priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-        rounds=2, n_particles=25, initial_size=10, engine="python", seed=1, max_attempts_factor=40)
+        rounds=2, n_particles=25, initial_size=10, seed=1, max_attempts_factor=40)
     assert fit.sample_weights is not None
     assert len(fit.accepted) == 25                 # population size stays fixed
     assert set(fit.posterior) == {"duplication", "loss", "origination"}
@@ -405,13 +390,13 @@ def test_smc_requires_uniform_priors():
     tree, emp = _smc_setup()
     with pytest.raises(ValueError):
         z.match_profiles_smc(tree, emp, priors={"duplication": z.Gamma(2, 0.1)},
-                             rounds=2, n_particles=10, engine="python", seed=1)
+                             rounds=2, n_particles=10, seed=1)
 
 
 def test_smc_reproducible():
     tree, emp = _smc_setup()
     kw = dict(priors={"duplication": (0, 0.3), "origination": (0, 1.5)}, rounds=2,
-              n_particles=20, initial_size=10, engine="python", seed=1, max_attempts_factor=40)
+              n_particles=20, initial_size=10, seed=1, max_attempts_factor=40)
     a = z.match_profiles_smc(tree, emp, **kw)
     b = z.match_profiles_smc(tree, emp, **kw)
     assert np.array_equal(a.samples, b.samples)

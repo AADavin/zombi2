@@ -67,13 +67,7 @@ from .matching import (
     copy_number_spectrum,
 )
 from .parallel import run_replicates
-from .fast import (
-    simulate_profiles_fast,
-    simulate_genomes_fast,
-    simulate_and_write_fast,
-    simulate_nucleotide_genomes_fast,
-    rust_available,
-)
+from ._rust import available as rust_available
 
 __all__ = [
     "__version__",
@@ -103,7 +97,6 @@ __all__ = [
     "RateVariation", "RateScaledTree",
     # parallelism
     "run_replicates",
-    # optional Rust fast path
-    "simulate_profiles_fast", "simulate_genomes_fast", "simulate_and_write_fast",
-    "simulate_nucleotide_genomes_fast", "rust_available",
+    # Rust engine diagnostic (the built-in model requires the compiled extension)
+    "rust_available",
 ]

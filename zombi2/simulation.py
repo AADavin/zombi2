@@ -153,7 +153,8 @@ def simulate_genomes(
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
     genome_factory=UnorderedGenome,
-) -> Genomes:
+    output: str = "genomes",
+):
     """Simulate gene families forward along ``species_tree``.
 
     Provide either a rate model (``rates=z.UniformRates(...)`` /
@@ -162,7 +163,23 @@ def simulate_genomes(
     :class:`~zombi2.UniformRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
     transfer mechanics; ``max_family_size`` (int absolute, or float as a multiple of the
     number of species) bounds family growth across duplication and transfer.
+
+    Engine (automatic, not a user choice): the **built-in** model — the default
+    ``UnorderedGenome`` with a plain :class:`~zombi2.UniformRates` — runs on the compiled
+    ``zombi2_core`` Rust extension and **requires** it (a clear error asks you to build it if
+    it is missing). Flexible models (``FamilySampledRates`` / ``GenomeWiseRates`` /
+    ``BranchRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
+    pure-Python engine.
+
+    ``output``:
+        ``"genomes"`` (default) returns a full :class:`Genomes` (event log, gene trees,
+        ``write()``). ``"profiles"`` returns only a :class:`~zombi2.ProfileMatrix`; for the
+        built-in model this takes the Rust counts-only path (no gene ids / log / trees) — the
+        fast route for ABC and large presence/absence datasets.
     """
+    if output not in ("genomes", "profiles"):
+        raise ValueError(f"output must be 'genomes' or 'profiles', got {output!r}")
+
     shorthand = any((duplication, transfer, loss, origination))
     if rates is None:
         rates = UniformRates(duplication, transfer, loss, origination)
@@ -171,14 +188,35 @@ def simulate_genomes(
             "pass a rate model OR the duplication/transfer/loss/origination shorthand, not both"
         )
 
+    # Resolve an integer seed for the Rust engine when only an rng is supplied.
+    if seed is None and rng is not None:
+        seed = int(rng.integers(0, 2**63 - 1))
+
+    from . import _rust
+
+    # The Rust engine assumes a strictly binary species tree. Degree-two nodes (FBD sampled
+    # ancestors, from forward simulation with removal < 1) are handled by the Python engine's
+    # pass-through instead — Rust cannot process them, so this is a capability boundary, not a
+    # silent engine preference (each tree has exactly one engine that can run it).
+    binary_tree = all(len(n.children) != 1 for n in species_tree.nodes_preorder())
+    if _rust.eligible(rates, genome_factory, sampler) and binary_tree:
+        _rust.require()  # one engine for the built-in model on a binary tree; no Python fallback
+        kw = dict(initial_size=initial_size, transfers=transfers,
+                  max_family_size=max_family_size, seed=seed)
+        if output == "profiles":
+            return _rust.profiles(species_tree, rates, **kw)
+        return _rust.genomes(species_tree, rates, **kw)
+
+    # --- flexible models: pure-Python engine -----------------------------------
     if rng is None:
         rng = np.random.default_rng(seed)
-
     result = GenomeSimulator(sampler).simulate(
         species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
         max_family_size=max_family_size, genome_factory=genome_factory,
     )
     profiles = ProfileMatrix.from_leaf_genomes(result.leaf_genomes)
+    if output == "profiles":
+        return profiles
     return Genomes(
         species_tree=species_tree,
         leaf_genomes=result.leaf_genomes,

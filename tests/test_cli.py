@@ -6,7 +6,12 @@ import os
 
 import pytest
 
+from zombi2 import rust_available
 from zombi2.cli import main
+
+# The `genomes` / `all` subcommands run the built-in model, which uses the Rust engine.
+needs_rust = pytest.mark.skipif(not rust_available(),
+                                reason="zombi2_core (Rust extension) not built")
 
 
 def test_species_writes_newick(tmp_path):
@@ -18,6 +23,7 @@ def test_species_writes_newick(tmp_path):
     assert newick.endswith(";")
 
 
+@needs_rust
 def test_genomes_on_supplied_tree(tmp_path):
     """`species` output feeds straight into `genomes` — the round-trip the CLI enables."""
     sp = tmp_path / "sp"
@@ -34,51 +40,44 @@ def test_genomes_on_supplied_tree(tmp_path):
     assert os.listdir(gen / "gene_trees")
 
 
-def test_genomes_fast_writes_full_output(tmp_path):
-    """`--fast` routes through the Rust engine and writes the full ZOMBI-1 output."""
-    from zombi2 import rust_available
-
-    if not rust_available():
-        pytest.skip("zombi2_core (Rust) extension not built")
-
+@needs_rust
+def test_genomes_writes_full_output(tmp_path):
+    """The default `genomes` run writes the full ZOMBI-1 output (Rust engine)."""
     sp = tmp_path / "sp"
     main(["species", "--birth", "1", "--death", "0.3",
           "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
 
-    fast = tmp_path / "fast"
+    gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "--fast", "-o", str(fast)])
+               "--seed", "42", "-o", str(gen)])
     assert rc == 0
     for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv", "Transfers.tsv",
               "Gene_family_summary.tsv"):
-        assert (fast / f).exists()
-    assert os.listdir(fast / "gene_trees")
-    assert os.listdir(fast / "gene_family_events")
+        assert (gen / f).exists()
+    assert os.listdir(gen / "gene_trees")
+    assert os.listdir(gen / "gene_family_events")
 
 
-def test_genomes_fast_profiles_only(tmp_path):
-    """`--fast --profiles-only` writes just the profile matrices — no gene trees/event log."""
-    from zombi2 import rust_available
-
-    if not rust_available():
-        pytest.skip("zombi2_core (Rust) extension not built")
-
+@needs_rust
+def test_genomes_profiles_only(tmp_path):
+    """`--profiles-only` writes just the profile matrices — no gene trees / event log."""
     sp = tmp_path / "sp"
     main(["species", "--birth", "1", "--death", "0.3",
           "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
 
-    fast = tmp_path / "fast"
+    gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "--fast", "--profiles-only", "-o", str(fast)])
+               "--seed", "42", "--profiles-only", "-o", str(gen)])
     assert rc == 0
-    assert (fast / "Profiles.tsv").exists()
-    assert (fast / "Presence.tsv").exists()
-    assert not (fast / "gene_trees").exists()
-    assert not (fast / "Transfers.tsv").exists()
+    assert (gen / "Profiles.tsv").exists()
+    assert (gen / "Presence.tsv").exists()
+    assert not (gen / "gene_trees").exists()
+    assert not (gen / "Transfers.tsv").exists()
 
 
+@needs_rust
 def test_all_runs_end_to_end(tmp_path):
     out = tmp_path / "all"
     rc = main(["all", "--birth", "1", "--death", "0.2", "--tips", "15", "--age", "5",
@@ -96,6 +95,7 @@ def test_max_family_size_parses_int_and_fraction(tmp_path):
     assert _int_or_float("0.5") == 0.5 and isinstance(_int_or_float("0.5"), float)
 
 
+@needs_rust
 def test_seed_makes_genomes_reproducible(tmp_path):
     sp = tmp_path / "sp"
     main(["species", "--birth", "1", "--death", "0.3",
