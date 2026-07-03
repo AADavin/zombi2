@@ -128,13 +128,15 @@ def test_species_episodic(tmp_path):
     assert (out / "species_tree.nwk").read_text().strip().endswith(";")
 
 
-def test_species_ghosts_adds_ghost_tips(tmp_path):
-    """--ghosts un-prunes the backward tree, adding ghost_* leaves."""
+def test_species_ghosts_adds_extinct_tips(tmp_path):
+    """--ghosts un-prunes the backward tree, adding extinct (e*) leaves."""
+    import zombi2 as z
     out = tmp_path / "gh"
     rc = main(["species", "--tips", "30", "--death", "0.6", "--ghosts", "--seed", "1",
                "-o", str(out)])
     assert rc == 0
-    assert "ghost_" in (out / "species_tree.nwk").read_text()
+    leaves = z.read_newick((out / "species_tree.nwk").read_text()).leaves()
+    assert any(n.name.startswith("e") for n in leaves)   # extinct/ghost tips are named e*
 
 
 def test_species_forward_fossils(tmp_path):
@@ -151,10 +153,10 @@ def test_species_backward_fossils_is_error(tmp_path):
 
 
 def test_log_writes_parameters(tmp_path):
-    """--log records the run's parameters to parameters.log."""
+    """--log records the run's parameters to species_tree.log."""
     out = tmp_path / "sp"
     main(["species", "--tips", "15", "--seed", "3", "--log", "-o", str(out)])
-    log = (out / "parameters.log").read_text()
+    log = (out / "species_tree.log").read_text()
     assert "zombi2_version" in log and "seed\t3" in log and "model\tbackward" in log
 
 

@@ -57,7 +57,8 @@ zombi2 species --model forward --age 6 --sampling-fraction 0.5 -o out/   # 50% s
 ```
 
 **Ghost lineages** (backward only). `--ghosts` un-prunes the reconstructed tree, grafting the
-extinct/unsampled lineages back on (they get `ghost_*` names); `--ghost-method` picks the
+extinct/unsampled lineages back on (they get `e*` names, like any extinct tip);
+`--ghost-method` picks the
 sampler. See [ghost lineages](guide/ghost-lineages.md):
 
 ```bash

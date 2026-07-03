@@ -225,12 +225,11 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         leaves = tree.leaves()
         n_extant = sum(1 for n in leaves if n.is_extant)
         dead = len(leaves) - n_extant
-        dead_label = "ghost" if args.ghosts else "extinct"
-        extra = f" + {dead} {dead_label}" if dead else ""
+        extra = f" + {dead} extinct" if dead else ""
         summary = f"{n_extant} extant{extra} tips"
         print(f"wrote {args.out}/species_tree.nwk ({summary}) in {dt:.3g} s")
         if args.log:
-            _write_params_log(os.path.join(args.out, "parameters.log"), args, summary)
+            _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
         return 0
 
     if args.command == "genomes":
@@ -239,7 +238,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         summary = _run_genomes(tree, args)
         print(summary)
         if args.log:
-            _write_params_log(os.path.join(args.out, "parameters.log"), args, summary)
+            _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)
         return 0
 
     return 1

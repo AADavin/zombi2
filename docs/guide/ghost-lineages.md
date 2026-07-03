@@ -38,16 +38,17 @@ The function mutates `tree` **in place** (and also returns it, so you can chain)
 ## What you get
 
 Ghost lineages attach along each edge and each roots a birth–death subtree conditioned on
-leaving no sampled descendant. Every new node is marked `is_extant=False` and named
-`ghost_*`; the **sampled leaves are left untouched**, so pruning back to the extant tips
-recovers the original reconstructed tree exactly.
+leaving no sampled descendant. Every new node is marked `is_extant=False`; the grafted dead
+leaves are named `e*` (extinct) and the new internal nodes `i*` — ZOMBI2's standard
+convention (extant leaves stay `n*`). The **sampled leaves are left untouched**, so pruning
+back to the extant tips recovers the original reconstructed tree exactly.
 
 ```python
-extant = [n for n in tree.leaves() if n.is_extant]        # the original sampled tips
-ghosts = [n for n in tree.leaves() if not n.is_extant]    # the grafted dead tips (ghost_*)
+extant = [n for n in tree.leaves() if n.is_extant]        # the original sampled tips (n*)
+ghosts = [n for n in tree.leaves() if not n.is_extant]    # the grafted dead tips (e*)
 print(len(extant), "extant +", len(ghosts), "ghost leaves")
 
-print(tree.to_newick())   # the Newick now includes the ghost_* nodes
+print(tree.to_newick())   # the Newick now includes the e* / i* ghost nodes
 ```
 
 ## When do ghosts appear?

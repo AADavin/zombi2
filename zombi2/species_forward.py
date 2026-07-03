@@ -135,16 +135,21 @@ def _grow(view, age, n_tips, rng, max_lineages):
 
 
 def _name(tree: Tree) -> None:
-    leaf = internal = 1
+    # Shared naming convention: extant leaves n*, extinct/fossil leaves e*, internal nodes i*.
+    extant = extinct = internal = 0
     for node in tree.nodes_preorder():
         if node is tree.root:
             node.name = "root"
         elif node.is_leaf():
-            node.name = f"n{leaf}"
-            leaf += 1
+            if node.is_extant:
+                extant += 1
+                node.name = f"n{extant}"
+            else:
+                extinct += 1
+                node.name = f"e{extinct}"
         else:
-            node.name = f"i{internal}"
             internal += 1
+            node.name = f"i{internal}"
 
 
 def simulate_forward(

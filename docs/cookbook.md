@@ -74,7 +74,7 @@ tree = z.simulate_species_tree(model, n_tips=100, age=5.0, seed=1)
 
 z.add_ghost_lineages(tree, model, seed=7)   # method="htransform" for a rejection-free sampler
 
-ghosts = [n for n in tree.leaves() if not n.is_extant]   # ghost_* tips; extant tips untouched
+ghosts = [n for n in tree.leaves() if not n.is_extant]   # extinct (e*) tips; extant tips untouched
 ```
 
 Only birth–death with extinction (or `sampling_fraction < 1`) produces ghosts — a pure-birth

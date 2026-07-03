@@ -104,8 +104,9 @@ def test_ghost_nodes_are_non_extant_and_bounded_in_time():
     z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.6), seed=13)
     for n in tree.nodes():
         assert n.time <= tree.total_age + 1e-9
-        if n.name.startswith("ghost_"):
+        if n.name.startswith("e"):          # grafted extinct leaves are named e*
             assert not n.is_extant
+    assert any(n.name.startswith("e") for n in tree.leaves())  # some ghosts were added
     # every internal node stays binary (the forward sim relies on this)
     assert all(len(n.children) == 2 for n in tree.internal_nodes())
     # extinct ghost leaves die strictly before the present
@@ -212,7 +213,7 @@ def test_unsupported_model_raises():
 def test_forward_sim_runs_on_augmented_tree():
     tree = _recon(1.0, 0.6, n=30, seed=8)
     z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.6), seed=8)
-    ghost_branches = {n.name for n in tree.nodes() if n.name.startswith("ghost_")}
+    ghost_branches = {n.name for n in tree.nodes() if not n.is_extant}
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.4, loss=0.15,
                            origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
     # profiles only over sampled (extant) species

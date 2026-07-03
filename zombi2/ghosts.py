@@ -218,8 +218,9 @@ def add_ghost_lineages(
     :class:`~zombi2.EpisodicBirthDeath`). Ghost lineages attach along each edge as a Poisson
     process with intensity ``λ(t)·E(t)`` (τ = time before present) and each roots a
     birth–death subtree conditioned on leaving no sampled descendant; every ghost node gets
-    ``is_extant=False`` and a ``ghost_*`` name. The sampled (extant) leaves are left untouched,
-    so pruning back to them recovers the original tree.
+    ``is_extant=False``, and the new leaves are named ``e*`` (extinct), the new internal nodes
+    ``i*`` — the same convention as the rest of ZOMBI2. The sampled (extant) leaves are left
+    untouched, so pruning back to them recovers the original tree.
 
     Parameters
     ----------
@@ -281,10 +282,25 @@ def add_ghost_lineages(
             junction.add_child(ghost)  # the dead sibling
             parent = junction          # next ghost on this edge sits above `node`, below M
 
-    # name every new (ghost / junction) node uniquely; leave reconstructed names intact
-    k = 0
-    for n in tree.nodes_preorder():
-        if not n.name:
-            n.name = f"ghost_{k}"
-            k += 1
+    # Name the new nodes with the shared convention (extant leaves n*, extinct leaves e*,
+    # internal nodes i*), continuing past the indices already used on the reconstructed tree.
+    def _max_index(prefix: str) -> int:
+        used = [int(n.name[len(prefix):]) for n in tree.nodes_preorder()
+                if n.name.startswith(prefix) and n.name[len(prefix):].isdigit()]
+        return max(used, default=0)
+
+    n_ctr, e_ctr, i_ctr = _max_index("n"), _max_index("e"), _max_index("i")
+    for node in tree.nodes_preorder():
+        if node.name:
+            continue
+        if node.is_leaf():
+            if node.is_extant:
+                n_ctr += 1
+                node.name = f"n{n_ctr}"
+            else:
+                e_ctr += 1
+                node.name = f"e{e_ctr}"
+        else:
+            i_ctr += 1
+            node.name = f"i{i_ctr}"
     return tree
