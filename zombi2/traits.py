@@ -1,0 +1,392 @@
+"""Simulation of phenotypic **traits** on a timetree.
+
+A trait is a value that evolves *along the branches* of a fixed tree — a body size, a
+gene-expression level, a discrete character state (habitat, chromosome number, presence of
+a structure). This is the classic phylogenetic-comparative-methods setting (Felsenstein
+1985): given a tree, drop a value at the root and let it wander down every branch to the
+tips.
+
+The engine is the same preorder walk that :mod:`~zombi2.rate_variation` already uses — each
+node inherits its parent's end-state and then evolves across its own branch — so a trait
+model needs only to answer *"starting from state ``x``, where do I end up after ``dt`` units
+of time?"*. Two families share that one driver:
+
+* **continuous** traits (e.g. :class:`BrownianMotion`) draw the branch **endpoint** directly
+  from the exact transition distribution — no path simulation is needed, and the node-by-node
+  walk reproduces the exact multivariate-normal law over the tips;
+* **discrete** traits (e.g. :class:`Mk`) simulate the continuous-time Markov jumps **exactly**
+  along each branch (Gillespie), so the per-branch list of ``(state, duration)`` segments *is*
+  the realized character history — a stochastic character map (Huelsenbeck 2003; Nielsen 2002)
+  for free.
+
+The result (:class:`TraitResult`) exposes the observable tip values, the (exact, not inferred)
+ancestral node states, and — for discrete traits — the full branch histories.
+
+    import zombi2 as z
+    tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=5.0, seed=1)
+
+    bm = z.simulate_traits(tree, z.BrownianMotion(sigma2=0.5), seed=1)
+    bm.values                      # {extant leaf: float}
+
+    mk = z.simulate_traits(tree, z.Mk.equal_rates(3, 0.4), seed=1)
+    mk.values                      # {extant leaf: state index}
+    mk.history                     # {node: [(state, duration), ...]} — the stochastic map
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .tree import Tree, TreeNode
+
+
+# --------------------------------------------------------------------------- models
+class BrownianMotion:
+    """Brownian-motion evolution of a continuous trait (Felsenstein 1985).
+
+    Along a branch of duration ``t`` the trait performs a random walk
+
+        ``dX = trend·dt + σ·dW``,
+
+    so the endpoint given the start ``x`` is normal with mean ``x + trend·t`` and variance
+    ``sigma2·t``. Simulated node-by-node in preorder this reproduces the exact tip law: the
+    tips are multivariate-normal with mean ``x0 + trend·(root-to-tip depth)`` and covariance
+    ``sigma2 · C``, where ``C`` is the shared-path-length matrix of the tree.
+
+    Parameters
+    ----------
+    sigma2:
+        Diffusion rate (variance accrued per unit time). Must be ``>= 0``.
+    x0:
+        Trait value at the root (default ``0.0``). Override per run with
+        ``simulate_traits(..., root_state=)``.
+    trend:
+        Directional drift per unit time (default ``0.0``); a non-zero value makes the walk
+        biased (a "trend" model, e.g. ``phytools``).
+    """
+
+    kind = "continuous"
+
+    def __init__(self, sigma2: float, x0: float = 0.0, trend: float = 0.0):
+        if sigma2 < 0:
+            raise ValueError(f"sigma2 must be >= 0, got {sigma2}")
+        self.sigma2 = float(sigma2)
+        self.x0 = float(x0)
+        self.trend = float(trend)
+
+    def root_value(self, rng):
+        return self.x0
+
+    def evolve(self, x, dt, t0, rng):
+        """Endpoint of the branch: ``Normal(x + trend·dt, sigma2·dt)``. No segments."""
+        std = (self.sigma2 * dt) ** 0.5
+        end = x + self.trend * dt + (rng.normal(0.0, std) if std > 0.0 else 0.0)
+        return end, None
+
+    def __repr__(self) -> str:
+        extra = f", trend={self.trend:g}" if self.trend else ""
+        return f"BrownianMotion(sigma2={self.sigma2:g}, x0={self.x0:g}{extra})"
+
+
+class Mk:
+    """The Mk model: a continuous-time Markov chain over ``k`` discrete states (Lewis 2001).
+
+    Transitions between states follow an instantaneous rate matrix ``Q`` (off-diagonals
+    ``Q[i, j] >= 0`` are the rate ``i -> j``; each diagonal is set to ``-Σ_{j≠i} Q[i, j]`` so
+    rows sum to zero). Along every branch the jumps are simulated **exactly** by the Gillespie
+    algorithm, so the recorded ``(state, duration)`` segments are the realized history.
+
+    This generalizes :class:`~zombi2.RateVariation` (whose ``Q`` is the banded nearest-neighbour
+    walk over ordered rate bins) to an arbitrary transition structure. Convenience constructors
+    cover the standard sub-models:
+
+    * :meth:`equal_rates` — one shared rate (``ER``);
+    * :meth:`symmetric` — ``Q[i, j] == Q[j, i]`` (``SYM``);
+    * the raw constructor — any matrix, including all-rates-different (``ARD``) and ordered
+      (meristic) characters.
+
+    Parameters
+    ----------
+    Q:
+        ``k x k`` rate matrix. Off-diagonals must be ``>= 0``; the diagonal is (re)computed.
+    states:
+        Optional labels for the ``k`` states (default ``0 .. k-1``); used for output only.
+    root:
+        Root-state policy: ``"uniform"`` (default, pick a state uniformly at random),
+        ``"stationary"`` (draw from the chain's stationary distribution), an integer state
+        index, or a length-``k`` probability vector. Override per run with
+        ``simulate_traits(..., root_state=)``.
+    """
+
+    kind = "discrete"
+
+    def __init__(self, Q, states=None, root="uniform"):
+        Q = np.asarray(Q, dtype=float)
+        if Q.ndim != 2 or Q.shape[0] != Q.shape[1]:
+            raise ValueError(f"Q must be a square matrix, got shape {Q.shape}")
+        k = Q.shape[0]
+        if k < 2:
+            raise ValueError("Mk needs at least 2 states")
+        Q = Q.copy()
+        offdiag = Q.copy()
+        np.fill_diagonal(offdiag, 0.0)
+        if np.any(offdiag < 0):
+            raise ValueError("off-diagonal rates Q[i, j] must be >= 0")
+        np.fill_diagonal(Q, -offdiag.sum(axis=1))  # rows sum to zero
+        self.Q = Q
+        self.k = k
+        self.states = list(range(k)) if states is None else list(states)
+        if len(self.states) != k:
+            raise ValueError(f"states has length {len(self.states)}, expected {k}")
+        self._root = self._parse_root(root)
+
+    @classmethod
+    def equal_rates(cls, k: int, rate: float = 1.0, states=None, root="uniform") -> "Mk":
+        """``ER``: every allowed transition happens at the same ``rate``."""
+        if k < 2:
+            raise ValueError("Mk needs at least 2 states")
+        if rate < 0:
+            raise ValueError(f"rate must be >= 0, got {rate}")
+        Q = np.full((k, k), float(rate))
+        np.fill_diagonal(Q, 0.0)
+        return cls(Q, states=states, root=root)
+
+    @classmethod
+    def symmetric(cls, rates, states=None, root="uniform") -> "Mk":
+        """``SYM``: a symmetric rate matrix (``i -> j`` and ``j -> i`` share a rate).
+
+        ``rates`` is the ``k x k`` matrix of off-diagonal rates; it is symmetrized
+        (``(R + Rᵀ)/2``) and the diagonal is ignored.
+        """
+        R = np.asarray(rates, dtype=float)
+        if R.ndim != 2 or R.shape[0] != R.shape[1]:
+            raise ValueError("rates must be a square matrix")
+        R = (R + R.T) / 2.0
+        np.fill_diagonal(R, 0.0)
+        return cls(R, states=states, root=root)
+
+    def _parse_root(self, root):
+        """Return either an int state index, the string ``"stationary"``, or a prob vector."""
+        if isinstance(root, str):
+            if root == "uniform":
+                return np.full(self.k, 1.0 / self.k)
+            if root == "stationary":
+                return "stationary"
+            raise ValueError("root string must be 'uniform' or 'stationary'")
+        if np.isscalar(root):
+            r = int(root)
+            if not (0 <= r < self.k):
+                raise ValueError(f"root index must be in [0, {self.k - 1}], got {root}")
+            return r
+        p = np.asarray(root, dtype=float)
+        if p.shape != (self.k,) or np.any(p < 0) or not np.isclose(p.sum(), 1.0):
+            raise ValueError("root vector must be a length-k probability distribution")
+        return p / p.sum()
+
+    def stationary_distribution(self) -> np.ndarray:
+        """The chain's stationary distribution ``π`` (``π Q = 0``, ``Σ π = 1``)."""
+        A = np.vstack([self.Q.T[:-1], np.ones(self.k)])
+        b = np.zeros(self.k)
+        b[-1] = 1.0
+        pi = np.linalg.solve(A, b)
+        return np.clip(pi, 0.0, None) / np.clip(pi, 0.0, None).sum()
+
+    def transition_matrix(self, t: float) -> np.ndarray:
+        """``P(t) = exp(Q·t)`` — the probability of state ``j`` after time ``t`` from state ``i``.
+
+        Computed by eigendecomposition (valid for the diagonalizable ``Q`` of these models);
+        provided for users and for checking simulations.
+        """
+        vals, vecs = np.linalg.eig(self.Q * t)
+        P = (vecs @ np.diag(np.exp(vals)) @ np.linalg.inv(vecs)).real
+        return np.clip(P, 0.0, 1.0)
+
+    def root_value(self, rng):
+        r = self._root
+        if isinstance(r, (int, np.integer)):
+            return int(r)
+        p = self.stationary_distribution() if isinstance(r, str) else r
+        return int(rng.choice(self.k, p=p))
+
+    def evolve(self, state, dt, t0, rng):
+        """Exact Gillespie simulation of the CTMC along a branch of duration ``dt``.
+
+        Returns ``(end_state, segments)`` where ``segments`` is a list of ``(state, duration)``
+        pieces whose durations sum to ``dt`` — the realized character history on this branch.
+        """
+        segments = []
+        elapsed = 0.0
+        current = int(state)
+        while True:
+            rate_out = -self.Q[current, current]
+            if rate_out <= 0.0:  # absorbing state
+                segments.append((current, dt - elapsed))
+                return current, segments
+            wait = rng.exponential(1.0 / rate_out)
+            if elapsed + wait >= dt:
+                segments.append((current, dt - elapsed))
+                return current, segments
+            segments.append((current, wait))
+            elapsed += wait
+            probs = self.Q[current].copy()
+            probs[current] = 0.0
+            probs /= rate_out
+            current = int(rng.choice(self.k, p=probs))
+
+    def __repr__(self) -> str:
+        return f"Mk(k={self.k})"
+
+
+# --------------------------------------------------------------------------- result
+@dataclass
+class TraitResult:
+    """The outcome of :func:`simulate_traits`.
+
+    ``node_values`` maps **every** node to its (exact) trait value — internal nodes are the
+    true ancestral states, not an inference. ``history`` is the per-branch stochastic character
+    map for discrete models (``{node: [(state, duration), ...]}``) and ``None`` for continuous
+    ones. Discrete states are stored as integer indices; :meth:`label` maps an index to its
+    user-supplied state label.
+    """
+
+    tree: Tree
+    model: object
+    node_values: dict
+    history: dict | None
+    kind: str
+
+    # --- observable / derived views ---------------------------------------
+    @property
+    def values(self) -> dict:
+        """Observable tip values — the **extant** leaves only (the comparative-data vector)."""
+        return {n: self.node_values[n] for n in self.tree.extant_leaves()}
+
+    def leaf_values(self) -> dict:
+        """Values at every leaf (including extinct/fossil tips)."""
+        return {n: self.node_values[n] for n in self.tree.leaves()}
+
+    def ancestral_states(self) -> dict:
+        """Values at every internal node (exact ancestral states)."""
+        return {n: self.node_values[n] for n in self.tree.internal_nodes()}
+
+    def label(self, index):
+        """Map a discrete state index to its user label (identity for continuous traits)."""
+        if self.kind == "discrete":
+            return self.model.states[int(index)]
+        return index
+
+    def changes(self) -> list:
+        """Discrete only: realized transitions as ``(node, time, from_label, to_label)``,
+        in time order along the tree (the events of the stochastic map)."""
+        if self.kind != "discrete":
+            raise ValueError("changes() is only defined for discrete-trait models")
+        out = []
+        for node in self.tree.nodes_preorder():
+            segs = self.history.get(node)
+            if not segs or node.parent is None:
+                continue
+            t = node.parent.time
+            for (state, dur), (nxt, _) in zip(segs, segs[1:]):
+                t += dur
+                out.append((node, t, self.label(state), self.label(nxt)))
+        return out
+
+    # --- I/O --------------------------------------------------------------
+    def to_tsv(self, nodes: str = "extant") -> str:
+        """Two-column ``node<TAB>trait`` table.
+
+        ``nodes`` selects the rows: ``"extant"`` (default, observable tips), ``"leaves"``
+        (all tips), or ``"all"`` (every node, i.e. tips + ancestral states).
+        """
+        if nodes == "extant":
+            selected = self.tree.extant_leaves()
+        elif nodes == "leaves":
+            selected = self.tree.leaves()
+        elif nodes == "all":
+            selected = self.tree.nodes()
+        else:
+            raise ValueError("nodes must be 'extant', 'leaves', or 'all'")
+        lines = ["node\ttrait"]
+        for n in selected:
+            v = self.node_values[n]
+            cell = repr(self.label(v)) if isinstance(self.label(v), str) else _fmt(self.label(v))
+            lines.append(f"{n.name}\t{cell}")
+        return "\n".join(lines) + "\n"
+
+    def to_newick(self, annotate: bool = True) -> str:
+        """Newick with each node's trait value in a BEAST/FigTree comment ``[&trait=…]``.
+
+        With ``annotate=False`` this is just the tree's own Newick.
+        """
+        if not annotate:
+            return self.tree.to_newick()
+
+        def rec(node: TreeNode) -> str:
+            if node.children:
+                inner = ",".join(rec(c) for c in node.children)
+                s = f"({inner}){node.name}"
+            else:
+                s = node.name
+            s += f"[&trait={_fmt(self.label(self.node_values[node]))}]"
+            if node.parent is not None:
+                s += f":{node.branch_length():.10g}"
+            return s
+
+        return rec(self.tree.root) + ";"
+
+
+def _fmt(v) -> str:
+    return v if isinstance(v, str) else (f"{v:.6g}" if isinstance(v, float) else str(v))
+
+
+# --------------------------------------------------------------------------- driver
+def simulate_traits(
+    tree: Tree,
+    model,
+    *,
+    root_state=None,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+) -> TraitResult:
+    """Evolve a single trait down ``tree`` under ``model`` and return a :class:`TraitResult`.
+
+    The trait starts at the root (from ``model``'s own root policy, or ``root_state`` if given)
+    and is evolved branch by branch in preorder — each node inherits its parent's end-state.
+    Works on any :class:`~zombi2.tree.Tree`: a simulated species tree, or a gene tree loaded via
+    :func:`~zombi2.read_newick`.
+
+    Parameters
+    ----------
+    tree:
+        The timetree to evolve the trait on.
+    model:
+        A trait model, e.g. :class:`BrownianMotion` (continuous) or :class:`Mk` (discrete).
+    root_state:
+        Optional explicit value/state to pin at the root, overriding the model's default.
+    seed / rng:
+        Reproducibility, as elsewhere in ZOMBI2 (pass a seed, or your own numpy ``Generator``).
+    """
+    if rng is None:
+        rng = np.random.default_rng(seed)
+
+    node_values: dict = {}
+    history: dict | None = {} if model.kind == "discrete" else None
+
+    root = tree.root
+    node_values[root] = model.root_value(rng) if root_state is None else root_state
+    if history is not None:
+        history[root] = []
+
+    for node in tree.nodes_preorder():
+        if node.parent is None:
+            continue
+        start = node_values[node.parent]
+        end, segs = model.evolve(start, node.branch_length(), node.parent.time, rng)
+        node_values[node] = end
+        if history is not None:
+            history[node] = segs
+
+    return TraitResult(tree=tree, model=model, node_values=node_values,
+                       history=history, kind=model.kind)

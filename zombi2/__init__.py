@@ -54,6 +54,7 @@ from .genome_sim import GenomeSimulator, GenomeResult
 from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
+from .traits import BrownianMotion, Mk, simulate_traits, TraitResult
 from .simulation import simulate_genomes, Genomes
 from .matching import (
     match_profiles,
@@ -95,6 +96,8 @@ __all__ = [
     "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
+    # trait evolution (phylogenetic comparative models)
+    "BrownianMotion", "Mk", "simulate_traits", "TraitResult",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
