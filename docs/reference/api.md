@@ -9,8 +9,7 @@ Auto-generated from the source docstrings.
 ::: zombi2.species_model.EpisodicBirthDeath
 ::: zombi2.species_sim.simulate_species_tree
 ::: zombi2.ghosts.add_ghost_lineages
-::: zombi2.tree.prune_to_extant
-::: zombi2.tree.prune_to_sampled
+::: zombi2.tree.prune
 
 ## Tree
 

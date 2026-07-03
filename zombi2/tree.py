@@ -116,59 +116,43 @@ class Tree:
         return f"Tree(root={self.root.name!r}, n_leaves={len(self.leaves())}, total_age={self.total_age:.6g})"
 
 
-def prune_to_extant(tree: Tree) -> Tree | None:
-    """Return the reconstructed tree: prune a complete tree to lineages ancestral to an extant
-    leaf, suppressing degree-two nodes and preserving node times. Returns ``None`` if no leaf is
-    extant. Inverse of the complete↔reconstructed relationship — pruning a forward complete tree
-    (or a ghost-augmented tree) yields its reconstructed counterpart.
+def prune(tree: Tree, keep: str = "extant") -> Tree | None:
+    """Prune a complete tree to a reconstructed one, keeping only lineages leading to a kept
+    leaf, suppressing degree-two nodes and preserving node times.
+
+    ``keep="extant"`` (default) keeps sampled **extant** tips — the survivors-only reconstructed
+    tree (the inverse of forward simulation / ghost-grafting). ``keep="sampled"`` keeps every
+    **sample** (serially-sampled fossils *and* sampled extant tips), and preserves *sampled
+    ancestors* as degree-two nodes — the fossilized-birth–death sampled tree of dated tips.
+    Returns ``None`` if nothing is kept.
     """
+    if keep == "extant":
+        predicate = lambda n: n.is_extant  # noqa: E731
+        keep_ancestors = False
+    elif keep == "sampled":
+        predicate = lambda n: n.sampled  # noqa: E731
+        keep_ancestors = True
+    else:
+        raise ValueError(f"keep must be 'extant' or 'sampled', got {keep!r}")
+
+    def copy(node: TreeNode) -> TreeNode:
+        return TreeNode(name=node.name, time=node.time,
+                        is_extant=node.is_extant, sampled=node.sampled)
 
     def rec(node: TreeNode) -> TreeNode | None:
         if node.is_leaf():
-            if node.is_extant:
-                return TreeNode(name=node.name, time=node.time, is_extant=True)
-            return None
+            return copy(node) if predicate(node) else None
         kept = [k for k in (rec(c) for c in node.children) if k is not None]
         if not kept:
-            return None
-        if len(kept) == 1:  # suppress this degree-two node
-            return kept[0]
-        new = TreeNode(name=node.name, time=node.time)
-        for k in kept:
-            new.add_child(k)
-        return new
-
-    root = rec(tree.root)
-    return Tree(root, tree.total_age) if root is not None else None
-
-
-def prune_to_sampled(tree: Tree) -> Tree | None:
-    """Return the **sampled** tree: prune to nodes with ``sampled=True`` (serially-sampled
-    fossils plus sampled extant tips), suppressing degree-two nodes and preserving times.
-    This is the fossilized-birth–death "reconstructed" tree of dated tips; use it on a tree
-    from a forward run of a fossilized model (``BirthDeath``/``EpisodicBirthDeath`` with
-    ``fossilization > 0``). Returns ``None`` if nothing is sampled.
-    """
-
-    def leaf_copy(node: TreeNode) -> TreeNode:
-        return TreeNode(name=node.name, time=node.time, is_extant=node.is_extant, sampled=True)
-
-    def rec(node: TreeNode) -> TreeNode | None:
-        if node.is_leaf():
-            return leaf_copy(node) if node.sampled else None
-        kept = [k for k in (rec(c) for c in node.children) if k is not None]
-        if not kept:
-            # a sampled ancestor whose descendants are all unsampled becomes a terminal sample
-            return leaf_copy(node) if node.sampled else None
+            # a kept ancestor with no kept descendants becomes a terminal tip
+            return copy(node) if (keep_ancestors and predicate(node)) else None
         if len(kept) == 1:
-            if node.sampled:  # sampled ancestor -> keep as a degree-two node
-                sa = TreeNode(name=node.name, time=node.time,
-                              is_extant=node.is_extant, sampled=True)
+            if keep_ancestors and predicate(node):  # sampled ancestor -> degree-two node
+                sa = copy(node)
                 sa.add_child(kept[0])
                 return sa
             return kept[0]  # suppress a plain degree-two node
-        new = TreeNode(name=node.name, time=node.time,
-                       is_extant=node.is_extant, sampled=node.sampled)
+        new = copy(node)
         for k in kept:
             new.add_child(k)
         return new

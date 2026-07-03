@@ -25,7 +25,7 @@ from __future__ import annotations
 __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
-from .tree import Tree, TreeNode, read_newick, prune_to_extant, prune_to_sampled
+from .tree import Tree, TreeNode, read_newick, prune
 from .species_model import BirthDeath, Yule, EpisodicBirthDeath
 from .species_sim import simulate_species_tree
 from .ghosts import add_ghost_lineages
@@ -80,7 +80,7 @@ __all__ = [
     # events
     "EventType", "GeneOp", "EventRecord", "Selection", "Region", "TargetParams",
     # tree
-    "Tree", "TreeNode", "read_newick", "prune_to_extant", "prune_to_sampled",
+    "Tree", "TreeNode", "read_newick", "prune",
     # species tree
     "BirthDeath", "Yule", "EpisodicBirthDeath",
     "simulate_species_tree", "add_ghost_lineages",

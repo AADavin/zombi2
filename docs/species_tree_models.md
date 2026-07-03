@@ -100,7 +100,7 @@ tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.4), age=5.0, direction="forwa
 # ...or grow until N extant lineages coexist (age is random):
 tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
 
-recon = z.prune_to_extant(tree)   # the reconstructed (survivors-only) counterpart
+recon = z.prune(tree)   # the reconstructed (survivors-only) counterpart
 ```
 
 Conventions match the backward crown tree: rooted at the crown (`time == 0`), present at
@@ -126,18 +126,18 @@ unaffected).
 ```python
 m = z.BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
 tree = z.simulate_species_tree(m, age=6.0, direction="forward", seed=1)   # complete tree + fossils
-fbd = z.prune_to_sampled(tree)   # the sampled tree: dated fossil tips + sampled extant tips
+fbd = z.prune(tree, keep="sampled")   # the sampled tree: dated fossil tips + sampled extant tips
 ```
 
 Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times; sampled extant
-tips carry `sampled=True, is_extant=True`. `prune_to_sampled` extracts the FBD sampled tree
-(the dated-tip tree used in total-evidence dating); `prune_to_extant` still gives the extant-only
+tips carry `sampled=True, is_extant=True`. `prune(..., keep="sampled")` extracts the FBD sampled tree
+(the dated-tip tree used in total-evidence dating); `prune` still gives the extant-only
 reconstructed tree. Verified: fossil count scales with ψ (0 at ψ=0), fossils are dated before the
 present, and the sampled tree has one tip per sample.
 
 **Sampled ancestors.** With `removal=r<1`, a sampled lineage *continues* with probability `1−r`
 instead of being removed — a **sampled ancestor** (the SA-FBD model), represented as a degree-two
-node (`sampled=True`, one child). `prune_to_sampled` keeps these as degree-two nodes; the gene
+node (`sampled=True`, one child). `prune(..., keep="sampled")` keeps these as degree-two nodes; the gene
 simulator passes genomes straight through them (they are not gene events), so DTL simulation runs
 unchanged on SA trees.
 

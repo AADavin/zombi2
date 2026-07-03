@@ -69,9 +69,9 @@ def test_reproducible():
     assert a == b
 
 
-def test_prune_to_extant_recovers_reconstructed():
+def test_prune_recovers_reconstructed():
     tree = _fwd(z.BirthDeath(1.0, 0.6), n_tips=25, seed=3)
-    recon = z.prune_to_extant(tree)
+    recon = z.prune(tree)
     assert len(recon.extant_leaves()) == len(tree.extant_leaves()) == 25
     assert all(leaf.is_extant for leaf in recon.leaves())
     assert all(len(n.children) == 2 for n in recon.internal_nodes())
@@ -168,11 +168,11 @@ def test_fbd_sampled_tree_extraction():
     t = _fwd(
         z.BirthDeath(1.0, 0.5, fossilization=0.5, sampling_fraction=0.9), age=6.0, seed=1)
     n_sampled = sum(1 for n in t.leaves() if n.sampled)
-    samp = z.prune_to_sampled(t)
+    samp = z.prune(t, keep="sampled")
     assert len(samp.leaves()) == n_sampled           # fossils + extant samples
     assert all(len(nd.children) == 2 for nd in samp.internal_nodes())
-    # prune_to_extant keeps only extant sampled tips (no fossils)
-    recon = z.prune_to_extant(t)
+    # prune keeps only extant sampled tips (no fossils)
+    recon = z.prune(t)
     assert len(recon.leaves()) == len(t.extant_leaves())
     assert len(recon.leaves()) <= len(samp.leaves())
 
@@ -215,16 +215,16 @@ def test_gene_sim_passes_through_sampled_ancestors():
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
 
 
-def test_prune_to_sampled_keeps_sampled_ancestors():
+def test_prune_sampled_keeps_sampled_ancestors():
     tree = _fwd(
         z.BirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0, sampling_fraction=0.9),
         age=6.0, seed=1)
-    samp = z.prune_to_sampled(tree)
+    samp = z.prune(tree, keep="sampled")
     n_leaf_samples = sum(1 for n in tree.leaves() if n.sampled)
     assert len(samp.leaves()) >= n_leaf_samples          # fossil/extant leaf samples kept
     assert any(len(n.children) == 1 and n.sampled for n in samp.nodes())  # SAs preserved
     # the extant-only reconstructed tree suppresses sampled ancestors
-    recon = z.prune_to_extant(tree)
+    recon = z.prune(tree)
     assert all(len(n.children) == 2 for n in recon.internal_nodes())
 
 
