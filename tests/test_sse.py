@@ -202,3 +202,65 @@ def test_hisse_reproducible():
                 hidden_transition=0.2)
     assert z.simulate_sse(m, age=2.0, seed=9).to_newick() == \
            z.simulate_sse(m, age=2.0, seed=9).to_newick()
+
+
+# --------------------------------------------------------------------------- QuaSSE (continuous-trait SSE)
+def _quasse_mean_tip_x(model, *, age, reps, seed):
+    rng = np.random.default_rng(seed)
+    xs = []
+    for _ in range(reps):
+        xs += list(z.simulate_sse(model, age=age, rng=rng).values.values())
+    return float(np.mean(xs))
+
+
+def test_quasse_constant_rates_reduce_to_yule():
+    """x-independent rates with mu=0 -> a plain Yule tree (mean extant 2 e^{lambda age})."""
+    age = 1.5
+    rng = np.random.default_rng(1)
+    m = z.QuaSSE(speciation=lambda x: 1.0, extinction=lambda x: 0.0, sigma2=0.5, rate_bound=1.0)
+    counts = [len(z.simulate_sse(m, age=age, rng=rng).tree.extant_leaves()) for _ in range(400)]
+    assert abs(np.mean(counts) - 2 * np.exp(age)) < 1.0
+
+
+def test_quasse_trait_is_continuous_and_wellformed():
+    m = z.QuaSSE(z.QuaSSE.sigmoid(0.5, 2.0), lambda x: 0.2, sigma2=0.4, rate_bound=2.2)
+    res = z.simulate_sse(m, age=2.0, seed=3)
+    assert res.kind == "continuous" and res.history is None
+    assert all(isinstance(v, float) for v in res.values.values())
+    for node in res.tree.internal_nodes():
+        assert len(node.children) == 2
+    for leaf in res.tree.extant_leaves():
+        assert abs(leaf.time - res.tree.total_age) < 1e-9
+
+
+def test_quasse_x_dependent_speciation_biases_the_trait():
+    """When speciation rises with x, surviving tips are biased to high x vs a constant-rate null."""
+    spec = z.QuaSSE.sigmoid(low=0.4, high=3.0, center=0.0, slope=3.0)
+    signal = z.QuaSSE(spec, lambda x: 0.2, sigma2=0.5, rate_bound=3.2, x0=-1.5)
+    null = z.QuaSSE(lambda x: 1.0, lambda x: 0.2, sigma2=0.5, rate_bound=1.2, x0=-1.5)
+    mean_signal = _quasse_mean_tip_x(signal, age=2.5, reps=120, seed=0)
+    mean_null = _quasse_mean_tip_x(null, age=2.5, reps=120, seed=0)
+    assert abs(mean_null - (-1.5)) < 0.3          # no selection -> tips stay near x0
+    assert mean_signal - mean_null > 0.6          # selection pulls survivors toward high x
+
+
+def test_quasse_sigmoid_is_bounded():
+    f = z.QuaSSE.sigmoid(0.5, 3.0, center=0.0, slope=2.0)
+    xs = np.linspace(-10, 10, 50)
+    assert all(0.5 - 1e-9 <= f(x) <= 3.0 + 1e-9 for x in xs)
+    assert f(0.0) == pytest.approx(1.75)          # midpoint of [0.5, 3.0]
+
+
+def test_quasse_validation():
+    with pytest.raises(TypeError):
+        z.QuaSSE(1.0, lambda x: 0.2, 0.5, rate_bound=1.0)          # speciation not callable
+    with pytest.raises(ValueError):
+        z.QuaSSE(lambda x: 1.0, lambda x: 0.2, -1.0, rate_bound=1.0)  # sigma2 < 0
+    with pytest.raises(ValueError):
+        z.QuaSSE(lambda x: 1.0, lambda x: 0.2, 0.5, rate_bound=0.0)   # rate_bound <= 0
+
+
+def test_quasse_reproducible():
+    m = z.QuaSSE(z.QuaSSE.sigmoid(0.5, 2.0), lambda x: 0.2, sigma2=0.4, rate_bound=2.2)
+    assert z.simulate_sse(m, age=2.0, seed=9).to_newick() == \
+           z.simulate_sse(m, age=2.0, seed=9).to_newick()

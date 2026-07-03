@@ -186,6 +186,59 @@ class HiSSE(MuSSE):
         return f"HiSSE(hidden={self._H})"
 
 
+class QuaSSE:
+    """Quantitative-trait Speciation and Extinction (FitzJohn 2010).
+
+    A **continuous** trait diffuses (Brownian motion) along every lineage, and the speciation
+    and extinction rates are functions of its current value — so a quantitative character shapes
+    the tree. Simulate with :func:`simulate_sse`; the result is a *continuous*
+    :class:`~zombi2.traits.TraitResult` whose ``.tree`` is the complete tree and whose ``.values``
+    are the extant tips' trait values.
+
+    The rate functions must be **bounded**: an unbounded ``λ(x)`` under a diffusing, unbounded
+    ``x`` has no valid thinning bound. Pass ``rate_bound`` = an upper bound on ``λ(x) + μ(x)`` over
+    all ``x``; :meth:`sigmoid` builds a convenient bounded rate function.
+
+    Parameters
+    ----------
+    speciation, extinction:
+        Callables ``x -> rate`` returning non-negative, bounded rates.
+    sigma2:
+        Diffusion rate of the trait (Brownian motion).
+    rate_bound:
+        An upper bound on ``speciation(x) + extinction(x)`` over all ``x`` (for exact thinning).
+    x0:
+        Root trait value (default ``0.0``); override per run with ``simulate_sse(..., root_state=)``.
+    drift:
+        Optional Brownian drift of the trait (default ``0.0``).
+    """
+
+    kind = "continuous"
+
+    def __init__(self, speciation, extinction, sigma2, *, rate_bound, x0=0.0, drift=0.0):
+        if not callable(speciation) or not callable(extinction):
+            raise TypeError("speciation and extinction must be callables x -> rate")
+        if sigma2 < 0:
+            raise ValueError("sigma2 must be >= 0")
+        if rate_bound <= 0:
+            raise ValueError("rate_bound must be > 0")
+        self.speciation = speciation
+        self.extinction = extinction
+        self.sigma2 = float(sigma2)
+        self.rate_bound = float(rate_bound)
+        self.x0 = float(x0)
+        self.drift = float(drift)
+
+    @staticmethod
+    def sigmoid(low, high, center=0.0, slope=1.0):
+        """A bounded rate function ``low + (high-low)/(1 + e^{-slope·(x-center)})`` in ``[low, high]``."""
+        low, high, center, slope = float(low), float(high), float(center), float(slope)
+        return lambda x: low + (high - low) / (1.0 + np.exp(-slope * (x - center)))
+
+    def __repr__(self) -> str:
+        return f"QuaSSE(sigma2={self.sigma2:g}, rate_bound={self.rate_bound:g})"
+
+
 # --------------------------------------------------------------------------- engine
 class _Lineage:
     """A live lineage: its growing node, current state, and the segments of its branch so far."""
@@ -287,6 +340,75 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
     return root, end, node_values, history
 
 
+def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages):
+    """One forward QuaSSE trial: a crown of two lineages carrying a diffusing continuous trait
+    whose value sets each lineage's speciation/extinction rate (exact thinning against
+    ``rate_bound``). Returns ``(root, end, node_values)`` or ``None`` to reject."""
+    spec, ext = model.speciation, model.extinction
+    sigma2, drift, bound = model.sigma2, model.drift, model.rate_bound
+
+    root = TreeNode(name="", time=0.0)
+    node_values = {root: x0}
+    live = []  # [node, trait value]
+    for _ in range(2):
+        child = TreeNode(name="", time=0.0)
+        root.add_child(child)
+        live.append([child, x0])
+
+    def diffuse(interval):
+        std = (sigma2 * interval) ** 0.5
+        for L in live:
+            L[1] += drift * interval + (rng.normal(0.0, std) if std > 0.0 else 0.0)
+
+    t = 0.0
+    end = None
+    while True:
+        n = len(live)
+        if n == 0:
+            return None
+        if n_tips is not None and n == n_tips:
+            end = t
+            break
+        if n > max_lineages:
+            raise RuntimeError(
+                f"QuaSSE tree exceeded max_lineages={max_lineages}; explosive parameters — "
+                "lower the age/rates or raise max_lineages"
+            )
+        dt = rng.exponential(1.0 / (n * bound))
+        if age is not None and t + dt >= age:
+            diffuse(age - t)
+            end = age
+            break
+        t += dt
+        diffuse(dt)
+        idx = int(rng.integers(n))
+        node, x = live[idx]
+        lam, mu = spec(x), ext(x)
+        total = lam + mu
+        if total <= 0.0 or rng.random() >= total / bound:       # thinned out
+            continue
+        node.time = t
+        node_values[node] = x
+        live[idx] = live[-1]
+        live.pop()
+        if rng.random() * total < lam:                          # speciation: daughters inherit x
+            for _ in range(2):
+                d = TreeNode(name="", time=t)
+                node.add_child(d)
+                live.append([d, x])
+        else:                                                   # extinction
+            node.is_extant = False
+
+    for node, x in live:                                        # survivors reach the present
+        node.time = end
+        node.is_extant = True
+        node.sampled = True
+        node_values[node] = x
+    if len(live) < 2:
+        return None
+    return root, end, node_values
+
+
 def simulate_sse(
     model,
     *,
@@ -305,28 +427,47 @@ def simulate_sse(
     * ``age`` — grow for this crown age; the number of extant tips is random.
     * ``n_tips`` — grow until this many extant lineages first coexist; the age is random.
 
-    The run starts from a crown of two lineages sharing the root state (``root_state``, an
-    integer state index; if ``None``, drawn from the character's stationary distribution) and
-    is conditioned on at least two extant survivors. Returns a
-    :class:`~zombi2.traits.TraitResult` whose ``.tree`` is the **complete** simulated tree
-    (extinct leaves carry ``is_extant=False``), ``.values`` are the extant tips' states, and
-    ``.history`` is the realized character map along every branch.
+    The run starts from a crown of two lineages sharing the root state and is conditioned on at
+    least two extant survivors. Returns a :class:`~zombi2.traits.TraitResult` whose ``.tree`` is
+    the **complete** simulated tree (extinct leaves carry ``is_extant=False``) and ``.values``
+    are the extant tips' states.
+
+    For a **discrete** model (:class:`BiSSE`/:class:`MuSSE`/:class:`HiSSE`) ``root_state`` is an
+    integer state index (default: the character's stationary distribution) and ``.history`` is
+    the realized character map. For :class:`QuaSSE` the trait is **continuous**: ``root_state``
+    is the initial trait value (default the model's ``x0``) and ``.history`` is ``None``.
     """
     if (age is None) == (n_tips is None):
         raise ValueError("provide exactly one of `age` or `n_tips`")
-    if not isinstance(model, MuSSE):
-        raise TypeError("model must be a BiSSE or MuSSE instance")
     if age is not None and age <= 0:
         raise ValueError(f"age must be > 0, got {age}")
     if n_tips is not None and n_tips < 2:
         raise ValueError(f"n_tips must be >= 2, got {n_tips}")
+    if rng is None:
+        rng = np.random.default_rng(seed)
+
+    if isinstance(model, QuaSSE):
+        x0 = model.x0 if root_state is None else float(root_state)
+        for _ in range(max_attempts):
+            result = _simulate_quasse(model, age, n_tips, x0, rng, max_lineages)
+            if result is not None:
+                root, end_time, node_values = result
+                tree = Tree(root, end_time)
+                _name(tree)
+                return TraitResult(tree=tree, model=model, node_values=node_values,
+                                   history=None, kind="continuous")
+        raise RuntimeError(
+            f"QuaSSE simulation produced no surviving tree in {max_attempts} attempts; "
+            "raise max_attempts or lower the extinction rate"
+        )
+
+    if not isinstance(model, MuSSE):
+        raise TypeError("model must be a BiSSE, MuSSE, HiSSE, or QuaSSE instance")
     if root_state is not None and not (0 <= int(root_state) < model.k):
         raise ValueError(f"root_state must be a state index in [0, {model.k - 1}]")
     if root_state is None and np.allclose(model.Q - np.diag(np.diag(model.Q)), 0.0):
         raise ValueError("with no state transitions (Q = 0) the stationary root state is "
                          "undefined; pass an explicit root_state")
-    if rng is None:
-        rng = np.random.default_rng(seed)
 
     for _ in range(max_attempts):
         r0 = (int(root_state) if root_state is not None

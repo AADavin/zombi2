@@ -71,7 +71,7 @@ from .traits import (
     pagel_delta,
     pagel_kappa,
 )
-from .sse import BiSSE, MuSSE, HiSSE, simulate_sse
+from .sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
 from .simulation import simulate_genomes, Genomes
 from .matching import (
     match_profiles,
@@ -119,7 +119,7 @@ __all__ = [
     "HiddenStateMk", "simulate_traits", "TraitResult",
     "pagel_lambda", "pagel_delta", "pagel_kappa",
     # trait-dependent diversification (state-dependent speciation/extinction)
-    "BiSSE", "MuSSE", "HiSSE", "simulate_sse",
+    "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
