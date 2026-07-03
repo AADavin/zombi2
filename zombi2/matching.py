@@ -67,26 +67,29 @@ def _wquantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
 # --- summary statistics ----------------------------------------------------------
 
 def frequency_spectrum(pm: ProfileMatrix, n_species: int) -> np.ndarray:
-    """Counts of families present in exactly ``k`` species, for ``k = 1 .. n_species``."""
-    if pm.matrix.size == 0:
+    """Counts of families present in exactly ``k`` species, for ``k = 1 .. n_species``.
+
+    Computed off the sparse profile (per-family presence counts), never the dense array."""
+    if n_species == 0 or pm.shape[0] == 0:
         return np.zeros(n_species)
-    present = (pm.matrix > 0).sum(axis=1)
+    present = pm.presence_per_family()
     return np.bincount(present, minlength=n_species + 1)[1:n_species + 1].astype(float)
 
 
 def genome_sizes(pm: ProfileMatrix, species_order: list[str]) -> np.ndarray:
     """Total copy number per species, aligned to ``species_order`` (missing species -> 0)."""
-    col_sum = pm.matrix.sum(axis=0) if pm.matrix.size else np.zeros(len(pm.species))
+    col_sum = pm.copies_per_species()
     by_name = {s: float(col_sum[j]) for j, s in enumerate(pm.species)}
     return np.array([by_name.get(s, 0.0) for s in species_order])
 
 
 def copy_number_spectrum(pm: ProfileMatrix, max_copies: int = 4) -> np.ndarray:
-    """Counts of present cells with copy number 1, 2, ..., ``>=max_copies``."""
+    """Counts of present cells with copy number 1, 2, ..., ``>=max_copies`` (off the
+    sparse non-zero values, no dense materialisation)."""
     out = np.zeros(max_copies)
-    if pm.matrix.size == 0:
+    vals = pm.copy_values()
+    if vals.size == 0:
         return out
-    vals = pm.matrix[pm.matrix > 0]
     for c in range(1, max_copies):
         out[c - 1] = np.count_nonzero(vals == c)
     out[max_copies - 1] = np.count_nonzero(vals >= max_copies)

@@ -163,7 +163,11 @@ def profiles(species_tree, rates, *, initial_size, transfers, max_family_size, s
 
 
 def _assemble_profiles(result, nodes) -> ProfileMatrix:
-    """Build a ProfileMatrix from the engine's per-leaf (family_id, count) lists."""
+    """Build a ProfileMatrix from the engine's per-leaf (family_id, count) lists.
+
+    Assembled straight into **sparse COO** — one entry per present cell — so a run with
+    millions of tips never materialises the dense O(N²) families x species array (the
+    engine already hands back only the present families per leaf)."""
     from .profiles import _natkey
 
     leaf_cols = {leaf_idx: cols for leaf_idx, cols in result}
@@ -176,12 +180,13 @@ def _assemble_profiles(result, nodes) -> ProfileMatrix:
     frow = {f: i for i, f in enumerate(families_int)}
     col_of = {n: j for j, n in enumerate(species_nodes)}
 
-    matrix = np.zeros((len(families), len(species)), dtype=int)
-    for leaf_idx, cols in leaf_cols.items():
+    rows, cols, data = [], [], []
+    for leaf_idx, leaf in leaf_cols.items():
         j = col_of[nodes[leaf_idx]]
-        for fam, count in cols:
-            matrix[frow[fam], j] = count
-    return ProfileMatrix(families=families, species=species, matrix=matrix)
+        for fam, count in leaf:
+            if count:
+                rows.append(frow[fam]); cols.append(j); data.append(count)
+    return ProfileMatrix(families=families, species=species, coo=(rows, cols, data))
 
 
 # --- full genealogy (event log + gene trees), materialized as a Genomes ----------
