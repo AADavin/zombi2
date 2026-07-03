@@ -59,6 +59,8 @@ from .traits import (
     OrnsteinUhlenbeck,
     MultivariateBrownian,
     MultivariateOU,
+    MultiOptimumOU,
+    ThresholdModel,
     Mk,
     CorrelatedBinary,
     simulate_traits,
@@ -108,7 +110,8 @@ __all__ = [
     "RateVariation", "RateScaledTree",
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
-    "Mk", "CorrelatedBinary", "simulate_traits", "TraitResult",
+    "MultiOptimumOU", "ThresholdModel", "Mk", "CorrelatedBinary",
+    "simulate_traits", "TraitResult",
     # trait-dependent diversification (state-dependent speciation/extinction)
     "BiSSE", "MuSSE", "simulate_sse",
     # parallelism

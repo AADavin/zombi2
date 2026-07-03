@@ -449,3 +449,117 @@ def test_correlated_binary_dependent_induces_association():
     m = z.CorrelatedBinary(x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
                            y_gain_x0=0.05, y_gain_x1=2.0, y_loss_x0=2.0, y_loss_x1=0.05)
     assert _pooled_corr(tree, m, reps=250, seed=1) > 0.3
+
+
+# --------------------------------------------------------------------------- multi-optimum OU
+def test_multi_optimum_ou_tracks_local_optima():
+    """Tips in each regime concentrate near that regime's optimum (strong alpha)."""
+    tree = z.simulate_species_tree(z.Yule(1.0), n_tips=40, age=3.0, seed=7)
+    regimes = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.4), seed=1)
+    tip_reg = {leaf: regimes.node_values[leaf] for leaf in tree.extant_leaves()}
+    assert set(tip_reg.values()) == {0, 1}          # both regimes present at tips
+    mou = z.MultiOptimumOU(regimes, theta=[-5.0, 5.0], alpha=4.0, sigma2=0.4)
+    rng = np.random.default_rng(3)
+    acc = {leaf: [] for leaf in tree.extant_leaves()}
+    for _ in range(30):
+        res = z.simulate_traits(tree, mou, rng=rng)
+        for leaf in acc:
+            acc[leaf].append(res.node_values[leaf])
+    m0 = np.mean([np.mean(acc[leaf]) for leaf in acc if tip_reg[leaf] == 0])
+    m1 = np.mean([np.mean(acc[leaf]) for leaf in acc if tip_reg[leaf] == 1])
+    assert m0 < -2.0 and m1 > 2.0
+
+
+def test_multi_optimum_ou_equal_thetas_reduces_to_single_ou():
+    tree = _fixed_tree(n_tips=20, seed=5)
+    regimes = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.5), seed=1)
+    mou = z.MultiOptimumOU(regimes, theta=[3.0, 3.0], alpha=2.0, sigma2=0.3)
+    rng = np.random.default_rng(0)
+    vals = []
+    for _ in range(200):
+        vals += list(z.simulate_traits(tree, mou, rng=rng).values.values())
+    assert abs(np.mean(vals) - 3.0) < 0.2         # single shared optimum
+
+
+def test_multi_optimum_ou_x0_defaults_to_root_regime_optimum():
+    tree = _fixed_tree()
+    regimes = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.5, root=1), seed=1)
+    mou = z.MultiOptimumOU(regimes, theta=[-2.0, 7.0], alpha=1.0, sigma2=0.1)
+    assert mou.x0 == 7.0                            # root regime is 1
+
+
+def test_multi_optimum_ou_per_regime_params_and_reproducible():
+    tree = _fixed_tree()
+    regimes = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.5), seed=1)
+    mou = z.MultiOptimumOU(regimes, theta=[0.0, 1.0], alpha=[1.0, 3.0], sigma2=[0.1, 0.5])
+    a = z.simulate_traits(tree, mou, seed=9).values
+    b = z.simulate_traits(tree, mou, seed=9).values
+    assert {k.name: v for k, v in a.items()} == {k.name: v for k, v in b.items()}
+
+
+def test_multi_optimum_ou_validation():
+    tree = _fixed_tree()
+    regimes = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.5), seed=1)
+    with pytest.raises(ValueError):
+        z.MultiOptimumOU(regimes, theta=[1.0], alpha=1.0, sigma2=0.1)      # wrong theta length
+    with pytest.raises(ValueError):
+        z.MultiOptimumOU(regimes, theta=[1.0, 2.0], alpha=0.0, sigma2=0.1)  # alpha > 0
+    cont = z.simulate_traits(tree, z.BrownianMotion(0.5), seed=1)
+    with pytest.raises(ValueError):
+        z.MultiOptimumOU(cont, theta=[1.0, 2.0], alpha=1.0, sigma2=0.1)     # regimes not discrete
+
+
+# --------------------------------------------------------------------------- threshold model
+def test_threshold_liability_continuous_state_derived():
+    tree = _fixed_tree()
+    res = z.simulate_traits(tree, z.ThresholdModel(thresholds=[0.0]), seed=1)
+    assert res.kind == "continuous"
+    assert isinstance(list(res.values.values())[0], float)   # values are liabilities
+    for leaf in tree.extant_leaves():
+        liability = res.node_values[leaf]
+        assert res.labeled_values()[leaf] == (1 if liability > 0 else 0)
+
+
+def test_threshold_binary_symmetric_is_balanced():
+    tree = z.simulate_species_tree(z.Yule(1.0), n_tips=40, age=3.0, seed=7)
+    m = z.ThresholdModel(thresholds=[0.0], x0=0.0)
+    rng = np.random.default_rng(0)
+    states = []
+    for _ in range(300):
+        res = z.simulate_traits(tree, m, rng=rng)
+        states += [res.labeled_values()[leaf] for leaf in tree.extant_leaves()]
+    assert abs(np.mean(states) - 0.5) < 0.05
+
+
+def test_threshold_positive_x0_biases_toward_high_state():
+    tree = z.simulate_species_tree(z.Yule(1.0), n_tips=30, age=1.0, seed=7)
+    m = z.ThresholdModel(thresholds=[0.0], sigma2=1.0, x0=3.0)  # liability starts well above 0
+    rng = np.random.default_rng(0)
+    states = []
+    for _ in range(200):
+        res = z.simulate_traits(tree, m, rng=rng)
+        states += [res.labeled_values()[leaf] for leaf in tree.extant_leaves()]
+    assert np.mean(states) > 0.8
+
+
+def test_threshold_ordered_multistate_discretize():
+    m = z.ThresholdModel(thresholds=[-1.0, 1.0], states=["low", "mid", "high"])
+    assert m.discretize(-2.0) == "low"
+    assert m.discretize(0.0) == "mid"
+    assert m.discretize(5.0) == "high"
+
+
+def test_threshold_validation():
+    with pytest.raises(ValueError):
+        z.ThresholdModel(thresholds=[1.0, 0.0])       # not strictly increasing
+    with pytest.raises(ValueError):
+        z.ThresholdModel(thresholds=[])               # empty
+    with pytest.raises(ValueError):
+        z.ThresholdModel(thresholds=[0.0], sigma2=-1.0)
+
+
+def test_threshold_tsv_reports_discrete_state():
+    tree = _fixed_tree()
+    res = z.simulate_traits(tree, z.ThresholdModel([0.0], states=["a", "b"]), seed=1)
+    tsv = res.to_tsv()
+    assert "'a'" in tsv or "'b'" in tsv           # discrete labels, not liabilities

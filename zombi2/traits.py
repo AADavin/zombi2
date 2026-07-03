@@ -505,6 +505,132 @@ class MultivariateOU:
         return f"MultivariateOU(k={self.k})"
 
 
+class MultiOptimumOU:
+    """OU with a different optimum on each painted regime of the tree (``OUwie``, ``ouch``).
+
+    Different parts of the tree adapt toward different optima: each branch belongs to a
+    **regime**, and the trait follows an Ornstein–Uhlenbeck process pulled toward that regime's
+    optimum ``theta``. The regimes come from a **discrete stochastic map** — typically an
+    :class:`Mk` trait simulated on the *same* tree — so a regime may even switch partway along a
+    branch, and the OU is integrated exactly, piece by piece.
+
+    Optionally ``alpha`` and ``sigma2`` also vary by regime (the ``OUMV`` / ``OUMA`` / ``OUMVA``
+    variants); by default they are shared while only ``theta`` differs (``OUM``).
+
+    Parameters
+    ----------
+    regimes:
+        A **discrete** :class:`TraitResult` (e.g. from ``simulate_traits(tree, Mk...)``) whose
+        per-branch history paints the regimes. Simulate this model on that *same* tree.
+    theta:
+        Optima, one per regime state (indexed by the regime's state index).
+    alpha:
+        Mean-reversion strength (``> 0``): a scalar shared by all regimes, or one per regime.
+    sigma2:
+        Diffusion rate (``>= 0``): a scalar, or one per regime.
+    x0:
+        Root value (default: the optimum of the regime at the root).
+    """
+
+    kind = "continuous"
+
+    def __init__(self, regimes, theta, alpha, sigma2, x0=None):
+        if getattr(regimes, "kind", None) != "discrete" or regimes.history is None:
+            raise ValueError("regimes must be a discrete TraitResult carrying a stochastic map")
+        self.regimes = regimes
+        r = len(regimes.model.states)
+        self.theta = np.asarray(theta, dtype=float)
+        if self.theta.shape != (r,):
+            raise ValueError(f"theta must give one optimum per regime ({r} regimes)")
+        self.alpha = np.full(r, float(alpha)) if np.isscalar(alpha) else np.asarray(alpha, float)
+        self.sigma2 = np.full(r, float(sigma2)) if np.isscalar(sigma2) else np.asarray(sigma2, float)
+        if self.alpha.shape != (r,) or self.sigma2.shape != (r,):
+            raise ValueError(f"alpha and sigma2 must be scalars or length-{r} per-regime vectors")
+        if np.any(self.alpha <= 0):
+            raise ValueError("alpha must be > 0")
+        if np.any(self.sigma2 < 0):
+            raise ValueError("sigma2 must be >= 0")
+        root_regime = int(regimes.node_values[regimes.tree.root])
+        self.x0 = float(self.theta[root_regime]) if x0 is None else float(x0)
+
+    def root_value(self, rng):
+        return self.x0
+
+    def evolve_branch(self, node, x, rng):
+        """Integrate the OU across this branch's regime segments (each piece exact)."""
+        segs = self.regimes.history.get(node)
+        if segs is None:
+            raise ValueError("MultiOptimumOU must be simulated on the same tree its regimes "
+                             "were painted on")
+        for regime, dt in segs:
+            th, al, s2 = self.theta[regime], self.alpha[regime], self.sigma2[regime]
+            e = np.exp(-al * dt)
+            mean = th + (x - th) * e
+            var = s2 / (2.0 * al) * (1.0 - e * e)
+            x = mean + (rng.normal(0.0, var ** 0.5) if var > 0.0 else 0.0)
+        return x, None
+
+    def __repr__(self) -> str:
+        return f"MultiOptimumOU(n_regimes={len(self.theta)})"
+
+
+class ThresholdModel:
+    """Felsenstein's (2012) threshold model: a discrete state from an underlying continuous liability.
+
+    An unobserved **liability** evolves by Brownian motion; the observed discrete state is the
+    interval the liability currently falls in, cut by an ordered set of ``thresholds`` (``k-1``
+    thresholds give ``k`` states). This links continuous and discrete evolution and naturally
+    produces correlated / polymorphic discrete characters. Only the ratio of the thresholds to
+    the diffusion scale is identifiable, so ``sigma2`` is fixed to ``1`` by default.
+
+    The evolving value at each node is the liability (``result.values`` / ``ancestral_states``);
+    the observed discrete state comes from :meth:`TraitResult.labeled_values` (or ``to_tsv`` /
+    ``to_newick``, which report the discrete state).
+
+    Parameters
+    ----------
+    thresholds:
+        Strictly increasing cut points on the liability axis. For a binary trait, ``[0.0]``.
+    sigma2:
+        Liability diffusion rate (default ``1.0``).
+    x0:
+        Root liability (default ``0.0``).
+    states:
+        Optional labels for the ``len(thresholds)+1`` states (default ``0 .. k-1``).
+    """
+
+    kind = "continuous"  # the liability is continuous; the observed state is derived
+
+    def __init__(self, thresholds, sigma2: float = 1.0, x0: float = 0.0, states=None):
+        self.thresholds = np.asarray(thresholds, dtype=float)
+        if self.thresholds.ndim != 1 or self.thresholds.size < 1:
+            raise ValueError("thresholds must be a non-empty 1-D array of cut points")
+        if np.any(np.diff(self.thresholds) <= 0):
+            raise ValueError("thresholds must be strictly increasing")
+        if sigma2 < 0:
+            raise ValueError(f"sigma2 must be >= 0, got {sigma2}")
+        self.sigma2 = float(sigma2)
+        self.x0 = float(x0)
+        k = self.thresholds.size + 1
+        self.states = list(range(k)) if states is None else list(states)
+        if len(self.states) != k:
+            raise ValueError(f"states has length {len(self.states)}, expected {k}")
+
+    def root_value(self, rng):
+        return self.x0
+
+    def evolve(self, x, dt, t0, rng):
+        std = (self.sigma2 * dt) ** 0.5
+        return x + (rng.normal(0.0, std) if std > 0.0 else 0.0), None
+
+    def discretize(self, liability):
+        """The observed discrete state: how many thresholds the liability exceeds."""
+        return self.states[int(np.searchsorted(self.thresholds, liability))]
+
+    def __repr__(self) -> str:
+        return f"ThresholdModel(k={self.thresholds.size + 1})"
+
+
 # --------------------------------------------------------------------------- result
 @dataclass
 class TraitResult:
@@ -546,11 +672,15 @@ class TraitResult:
         """Values at every internal node (exact ancestral states)."""
         return {n: self.node_values[n] for n in self.tree.internal_nodes()}
 
-    def label(self, index):
-        """Map a discrete state index to its user label (identity for continuous traits)."""
+    def label(self, value):
+        """Map a stored node value to its observable label: a discrete state index to its state
+        label, a threshold-model liability to its discrete state, else the value unchanged."""
+        discretize = getattr(self.model, "discretize", None)
+        if discretize is not None:
+            return discretize(value)
         if self.kind == "discrete":
-            return self.model.states[int(index)]
-        return index
+            return self.model.states[int(value)]
+        return value
 
     def changes(self) -> list:
         """Discrete only: realized transitions as ``(node, time, from_label, to_label)``,
@@ -661,11 +791,17 @@ def simulate_traits(
     if history is not None:
         history[root] = []
 
+    # branch-aware models (e.g. MultiOptimumOU, whose optimum changes along a branch) implement
+    # evolve_branch(node, start, rng); the rest use the plain evolve(state, dt, t0, rng).
+    branch_hook = getattr(model, "evolve_branch", None)
     for node in tree.nodes_preorder():
         if node.parent is None:
             continue
         start = node_values[node.parent]
-        end, segs = model.evolve(start, node.branch_length(), node.parent.time, rng)
+        if branch_hook is not None:
+            end, segs = branch_hook(node, start, rng)
+        else:
+            end, segs = model.evolve(start, node.branch_length(), node.parent.time, rng)
         node_values[node] = end
         if history is not None:
             history[node] = segs
