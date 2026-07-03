@@ -63,6 +63,7 @@ from .traits import (
     simulate_traits,
     TraitResult,
 )
+from .sse import BiSSE, MuSSE, simulate_sse
 from .simulation import simulate_genomes, Genomes
 from .matching import (
     match_profiles,
@@ -107,6 +108,8 @@ __all__ = [
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "Mk", "simulate_traits", "TraitResult",
+    # trait-dependent diversification (state-dependent speciation/extinction)
+    "BiSSE", "MuSSE", "simulate_sse",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
