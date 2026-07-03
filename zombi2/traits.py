@@ -42,6 +42,28 @@ import numpy as np
 from .tree import Tree, TreeNode
 
 
+# --------------------------------------------------------------------------- linear algebra
+def _matrix_sqrt(S: np.ndarray) -> np.ndarray:
+    """A symmetric square root of a symmetric PSD matrix (``M`` with ``M @ M == S``)."""
+    w, V = np.linalg.eigh(S)
+    return V @ np.diag(np.sqrt(np.clip(w, 0.0, None))) @ V.T
+
+
+def _lyapunov(A: np.ndarray, Q: np.ndarray) -> np.ndarray:
+    """Solve the continuous Lyapunov equation ``A V + V Aᵀ = Q`` for ``V``."""
+    k = A.shape[0]
+    K = np.kron(np.eye(k), A) + np.kron(A, np.eye(k))
+    v = np.linalg.solve(K, Q.reshape(-1, order="F"))
+    return v.reshape((k, k), order="F")
+
+
+def _mvn(mean: np.ndarray, cov: np.ndarray, rng) -> np.ndarray:
+    """Draw one multivariate normal, robust to tiny negative eigenvalues from round-off."""
+    cov = (cov + cov.T) / 2.0
+    w, V = np.linalg.eigh(cov)
+    return mean + V @ (np.sqrt(np.clip(w, 0.0, None)) * rng.standard_normal(len(mean)))
+
+
 # --------------------------------------------------------------------------- models
 class BrownianMotion:
     """Brownian-motion evolution of a continuous trait (Felsenstein 1985).
@@ -239,6 +261,188 @@ class Mk:
         return f"Mk(k={self.k})"
 
 
+class OrnsteinUhlenbeck:
+    """Ornstein–Uhlenbeck evolution of a continuous trait (Hansen 1997; Butler & King 2004).
+
+    The trait is pulled toward an optimum ``theta`` with strength ``alpha`` while it diffuses,
+
+        ``dX = alpha·(theta − X)·dt + σ·dW``,
+
+    a model of stabilizing selection / adaptation. The exact transition over a branch of
+    duration ``t`` from ``x`` is normal with mean ``theta + (x − theta)·e^{−alpha·t}`` and
+    variance ``sigma2/(2·alpha)·(1 − e^{−2·alpha·t})``; the stationary law is
+    ``N(theta, sigma2/(2·alpha))``. As ``alpha → 0`` this approaches :class:`BrownianMotion`.
+
+    Parameters
+    ----------
+    sigma2:
+        Diffusion rate (``>= 0``).
+    alpha:
+        Mean-reversion / selection strength (``> 0``; use :class:`BrownianMotion` for ``0``).
+    theta:
+        Optimum value the trait is pulled toward.
+    x0:
+        Root value (default: ``theta`` — start at the optimum). Override per run with
+        ``simulate_traits(..., root_state=)``.
+    """
+
+    kind = "continuous"
+
+    def __init__(self, sigma2: float, alpha: float, theta: float, x0: float | None = None):
+        if sigma2 < 0:
+            raise ValueError(f"sigma2 must be >= 0, got {sigma2}")
+        if alpha <= 0:
+            raise ValueError(f"alpha must be > 0 (use BrownianMotion for alpha=0), got {alpha}")
+        self.sigma2 = float(sigma2)
+        self.alpha = float(alpha)
+        self.theta = float(theta)
+        self.x0 = self.theta if x0 is None else float(x0)
+
+    def root_value(self, rng):
+        return self.x0
+
+    def evolve(self, x, dt, t0, rng):
+        e = np.exp(-self.alpha * dt)
+        mean = self.theta + (x - self.theta) * e
+        var = self.sigma2 / (2.0 * self.alpha) * (1.0 - e * e)
+        end = mean + (rng.normal(0.0, var ** 0.5) if var > 0.0 else 0.0)
+        return end, None
+
+    def __repr__(self) -> str:
+        return (f"OrnsteinUhlenbeck(sigma2={self.sigma2:g}, alpha={self.alpha:g}, "
+                f"theta={self.theta:g})")
+
+
+class MultivariateBrownian:
+    """Brownian motion of a **vector-valued** trait with a rate (covariance) matrix ``R``.
+
+    A length-``k`` trait diffuses so the increment over a branch of duration ``t`` is
+    ``MVN(trend·t, R·t)``. The off-diagonal ``R[a, b]`` couples dimensions ``a`` and ``b``, so
+    this is the model of **correlated** continuous-trait evolution (``mvMORPH``, ``Rphylopars``):
+    the tips are jointly multivariate-normal with covariance ``R ⊗ C`` (``C`` = the tree's
+    shared-path-length matrix). Each node's value is a length-``k`` :class:`numpy.ndarray`.
+
+    Parameters
+    ----------
+    R:
+        ``k x k`` symmetric positive-semidefinite rate matrix.
+    x0:
+        Root vector (default: zeros).
+    trend:
+        Per-dimension directional drift (default: zeros).
+    """
+
+    kind = "continuous"
+
+    def __init__(self, R, x0=None, trend=None):
+        R = np.asarray(R, dtype=float)
+        if R.ndim != 2 or R.shape[0] != R.shape[1]:
+            raise ValueError(f"R must be a square matrix, got shape {R.shape}")
+        k = R.shape[0]
+        R = (R + R.T) / 2.0
+        if np.linalg.eigvalsh(R).min() < -1e-9:
+            raise ValueError("R must be positive semidefinite")
+        self.k = k
+        self.R = R
+        self._sqrtR = _matrix_sqrt(R)
+        self.x0 = np.zeros(k) if x0 is None else np.asarray(x0, dtype=float)
+        self.trend = np.zeros(k) if trend is None else np.asarray(trend, dtype=float)
+        if self.x0.shape != (k,) or self.trend.shape != (k,):
+            raise ValueError(f"x0 and trend must be length-{k} vectors")
+
+    def root_value(self, rng):
+        return self.x0.copy()
+
+    def evolve(self, x, dt, t0, rng):
+        inc = self.trend * dt + (dt ** 0.5) * (self._sqrtR @ rng.standard_normal(self.k))
+        return x + inc, None
+
+    def __repr__(self) -> str:
+        return f"MultivariateBrownian(k={self.k})"
+
+
+class MultivariateOU:
+    """Ornstein–Uhlenbeck evolution of a **vector-valued** trait (multivariate OU; ``mvMORPH``).
+
+        ``dX = A·(theta − X)·dt + Σ^{1/2}·dW``,
+
+    with mean-reversion matrix ``A`` (``alpha``), optimum vector ``theta``, and diffusion
+    covariance ``R`` (``Σ``). The exact branch transition has mean
+    ``theta + e^{−A·t}·(x − theta)`` and covariance ``V − e^{−A·t}·V·e^{−Aᵀ·t}``, where the
+    stationary covariance ``V`` solves the Lyapunov equation ``A·V + V·Aᵀ = R``. For a scalar
+    ``alpha`` (``A = alpha·I``) this gives ``V = R/(2·alpha)``, matching per-dimension OU with
+    correlated diffusion.
+
+    Parameters
+    ----------
+    R:
+        ``k x k`` symmetric positive-semidefinite diffusion covariance.
+    alpha:
+        Mean reversion, as a scalar (isotropic ``alpha·I``), a length-``k`` vector (a diagonal
+        ``A``), or a ``k x k`` matrix. Its eigenvalues must have positive real part (stable).
+    theta:
+        Optimum vector (length ``k``).
+    x0:
+        Root vector (default: ``theta``).
+    """
+
+    kind = "continuous"
+
+    def __init__(self, R, alpha, theta, x0=None):
+        R = np.asarray(R, dtype=float)
+        if R.ndim != 2 or R.shape[0] != R.shape[1]:
+            raise ValueError(f"R must be a square matrix, got shape {R.shape}")
+        k = R.shape[0]
+        R = (R + R.T) / 2.0
+        if np.linalg.eigvalsh(R).min() < -1e-9:
+            raise ValueError("R must be positive semidefinite")
+
+        a = np.asarray(alpha, dtype=float)
+        if a.ndim == 0:
+            A = float(a) * np.eye(k)
+        elif a.ndim == 1:
+            if a.shape != (k,):
+                raise ValueError(f"alpha vector must have length {k}")
+            A = np.diag(a)
+        elif a.shape == (k, k):
+            A = a
+        else:
+            raise ValueError("alpha must be a scalar, a length-k vector, or a k x k matrix")
+        if np.linalg.eigvals(A).real.min() <= 0:
+            raise ValueError("alpha (A) must have eigenvalues with positive real part "
+                             "(a stable, mean-reverting process)")
+
+        theta = np.asarray(theta, dtype=float)
+        if theta.shape != (k,):
+            raise ValueError(f"theta must be a length-{k} vector")
+        self.k = k
+        self.R = R
+        self.A = A
+        self.theta = theta
+        self.x0 = theta.copy() if x0 is None else np.asarray(x0, dtype=float)
+        if self.x0.shape != (k,):
+            raise ValueError(f"x0 must be a length-{k} vector")
+        self.V = _lyapunov(A, R)  # stationary covariance
+        w, Vec = np.linalg.eig(A)  # for a fast exp(-A·dt)
+        self._wA, self._VA, self._VAinv = w, Vec, np.linalg.inv(Vec)
+
+    def root_value(self, rng):
+        return self.x0.copy()
+
+    def _E(self, dt):
+        """``exp(-A·dt)`` via the cached eigendecomposition of ``A``."""
+        return (self._VA @ np.diag(np.exp(-self._wA * dt)) @ self._VAinv).real
+
+    def evolve(self, x, dt, t0, rng):
+        E = self._E(dt)
+        mean = self.theta + E @ (x - self.theta)
+        cov = self.V - E @ self.V @ E.T
+        return _mvn(mean, cov, rng), None
+
+    def __repr__(self) -> str:
+        return f"MultivariateOU(k={self.k})"
+
+
 # --------------------------------------------------------------------------- result
 @dataclass
 class TraitResult:
@@ -338,7 +542,14 @@ class TraitResult:
 
 
 def _fmt(v) -> str:
-    return v if isinstance(v, str) else (f"{v:.6g}" if isinstance(v, float) else str(v))
+    if isinstance(v, str):
+        return v
+    arr = np.asarray(v)
+    if arr.ndim >= 1:  # a vector-valued (multivariate) trait -> {a,b,c}
+        return "{" + ",".join(f"{x:.6g}" for x in arr.ravel()) + "}"
+    if arr.dtype.kind == "f":
+        return f"{float(v):.6g}"
+    return str(v)
 
 
 # --------------------------------------------------------------------------- driver
