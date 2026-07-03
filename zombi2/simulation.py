@@ -69,7 +69,15 @@ class Genomes:
         }
 
     # --- output ------------------------------------------------------------
-    def write(self, outdir: str | Path, annotate_species: bool = False) -> None:
+    def write(self, outdir: str | Path, annotate_species: bool = False,
+              sparse: bool = False) -> None:
+        """Write the full ZOMBI-1-style output folder.
+
+        With ``sparse=True`` the copy-number profile is written as a single sparse long
+        table (``Profiles_sparse.tsv``) instead of the dense ``Profiles.tsv`` /
+        ``Presence.tsv`` pair — the latter is ``families × species`` (O(N²) in tip count)
+        and is the one output that does not scale; the sparse form is O(present cells).
+        """
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
 
@@ -138,8 +146,11 @@ class Genomes:
             )
         (out / "Gene_family_summary.tsv").write_text("\n".join(sum_lines) + "\n")
 
-        (out / "Profiles.tsv").write_text(self.profiles.to_tsv())
-        (out / "Presence.tsv").write_text(self.profiles.to_tsv(presence=True))
+        if sparse:
+            (out / "Profiles_sparse.tsv").write_text(self.profiles.to_coo_tsv())
+        else:
+            (out / "Profiles.tsv").write_text(self.profiles.to_tsv())
+            (out / "Presence.tsv").write_text(self.profiles.to_tsv(presence=True))
 
 
 def simulate_genomes(

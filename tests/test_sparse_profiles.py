@@ -95,6 +95,31 @@ def test_profiles_path_is_sparse():
 
 
 @pytest.mark.skipif(not z.rust_available(), reason="zombi2_core (Rust extension) not built")
+def test_write_sparse_replaces_dense_profile(tmp_path):
+    """Genomes.write(sparse=True) emits one Profiles_sparse.tsv instead of the dense pair."""
+    tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=40, age=2.0, seed=5)
+    g = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                           origination=0.5, initial_size=20, seed=9)
+
+    dense_dir, sparse_dir = tmp_path / "dense", tmp_path / "sparse"
+    g.write(dense_dir)                 # default
+    g.write(sparse_dir, sparse=True)
+
+    assert (dense_dir / "Profiles.tsv").exists()
+    assert (dense_dir / "Presence.tsv").exists()
+    assert not (dense_dir / "Profiles_sparse.tsv").exists()
+
+    assert (sparse_dir / "Profiles_sparse.tsv").exists()
+    assert not (sparse_dir / "Profiles.tsv").exists()
+    assert not (sparse_dir / "Presence.tsv").exists()
+
+    # the sparse file describes exactly the same profile as the dense one
+    from_sparse = ProfileMatrix.from_coo_tsv((sparse_dir / "Profiles_sparse.tsv").read_text())
+    from_dense = ProfileMatrix.from_tsv((dense_dir / "Profiles.tsv").read_text())
+    assert np.array_equal(from_sparse.matrix, from_dense.matrix)
+
+
+@pytest.mark.skipif(not z.rust_available(), reason="zombi2_core (Rust extension) not built")
 def test_full_genomes_profile_is_sparse_and_consistent():
     """The full-genealogy path also builds its ProfileMatrix sparsely, self-consistently."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=60, age=2.0, seed=7)
