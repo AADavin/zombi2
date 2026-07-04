@@ -254,7 +254,8 @@ def dated_extinction(sp: SpeciesTree, model: DatedDTL, *, n_steps: int = 100) ->
 
 
 def dated_joint_loglik(gene_trees, sp: SpeciesTree, model: DatedDTL, *,
-                       origination: str = "root", n_extinct: int = 0, n_steps: int = 100) -> float:
+                       origination: str = "root", n_extinct: int = 0, n_steps: int = 100,
+                       backend: str = "auto") -> float:
     """Joint dated log-lik of many gene trees sharing one species tree and rates.
 
     Builds the background (extinction) once and reuses it across every tree — the efficient
@@ -262,7 +263,21 @@ def dated_joint_loglik(gene_trees, sp: SpeciesTree, model: DatedDTL, *,
     ``k`` families that were seeded but left no extant copy; include it (with the count of
     fully-extinct families) so the likelihood of a *set* of families seeded together is
     unbiased. ``P(no survivor)`` is taken under the same ``origination`` model.
+
+    ``backend``: ``"auto"`` uses the compiled Rust kernel when available (else Python),
+    ``"rust"`` requires it, ``"python"`` forces the reference implementation.
     """
+    if backend in ("auto", "rust"):
+        from . import _rust
+        if _rust.available():
+            gene_trees = list(gene_trees)
+            return _rust.dated_joint_loglik(gene_trees, sp, model.dup, model.transfer, model.loss,
+                                            origination, n_extinct, n_steps)
+        if backend == "rust":
+            raise RuntimeError("backend='rust' requested but the zombi2_core extension is not built")
+    elif backend != "python":
+        raise ValueError(f"backend must be 'auto', 'rust', or 'python', got {backend!r}")
+
     eng = _DatedEngine(sp, model, n_steps)
     ll = 0.0
     if n_extinct:

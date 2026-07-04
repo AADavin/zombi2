@@ -7,6 +7,8 @@
 //   Python engine) and emits the full event genealogy + leaf genomes, so Python can rebuild
 //   the same event log, gene trees and outputs.
 
+mod alelite;
+
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -1716,5 +1718,6 @@ fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(simulate_trace, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_and_write, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_nucleotide, m)?)?;
+    m.add_function(wrap_pyfunction!(alelite::dated_joint_loglik, m)?)?;
     Ok(())
 }
