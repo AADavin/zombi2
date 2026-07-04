@@ -25,6 +25,7 @@ from .species_model import (
 from .species_sim import simulate_species_tree
 from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
 from .gene_diversification import GeneDiversification, simulate_gene_diversification
+from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from .traits import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -798,6 +799,20 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--root-drivers", dest="root_drivers", type=int, default=0,
                    help="[genes:species] number of drivers present at the root (the first m; "
                         "default 0 = drivers enter by origination)")
+    # species:genes — cladogenetic ('punctuational') genome change on a GIVEN tree (needs -t)
+    p.add_argument("--genome-size", dest="genome_size", type=int, default=30,
+                   help="[species:genes] number of families in the root genome (default 30)")
+    p.add_argument("--gene-loss", dest="gene_loss", type=float, default=0.0,
+                   help="[species:genes] anagenetic per-family loss rate along a branch (default 0)")
+    p.add_argument("--gene-origination", dest="gene_origination", type=float, default=0.0,
+                   help="[species:genes] anagenetic origination rate of new families, per lineage "
+                        "(default 0). With both anagenetic rates 0 the change is purely cladogenetic")
+    p.add_argument("--clado-gene-loss", dest="clado_gene_loss", type=float, default=0.1,
+                   help="[species:genes] probability a daughter drops each family AT each speciation "
+                        "(the founder-effect burst; default 0.1)")
+    p.add_argument("--clado-gene-gain", dest="clado_gene_gain", type=float, default=2.0,
+                   help="[species:genes] mean number of new families a daughter gains AT each "
+                        "speciation (Poisson; default 2.0)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
@@ -874,7 +889,7 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
                          "docs/coevolution_models.md for the full edge set")
     eset = set(edges)
-    supported = {"traits:species", "species:traits", "genes:species"}
+    supported = {"traits:species", "species:traits", "genes:species", "species:genes"}
     unsupported = eset - supported
     if unsupported:
         if eset == {"traits:genes"}:
@@ -882,8 +897,9 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          "that command (it will be folded in as 'coevolve --couple traits:genes')")
         parser.error(f"--couple {', '.join(sorted(unsupported))} is planned but not yet "
                      "implemented; the built edges are traits:species (SSE), species:traits "
-                     "(cladogenetic), their combination (ClaSSE), and genes:species (key "
-                     "innovations). See docs/coevolution_models.md")
+                     "(cladogenetic), their combination (ClaSSE), genes:species (key "
+                     "innovations), and species:genes (cladogenetic genome). See "
+                     "docs/coevolution_models.md")
 
     # genes:species — gene content drives diversification (its own forward joint loop, v1 stands
     # alone; combining it with other edges is the full joint model, still on the roadmap).
@@ -892,6 +908,14 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
             parser.error("genes:species runs on its own in this phase; combining it with other "
                          "edges (the fully joint model) is future work — see docs/coevolution_models.md")
         return _run_genes_species(args, parser)
+
+    # species:genes — speciation drives gene content (cladogenetic genome). An overlay edge (no
+    # arrow into S), so the tree is an INPUT; runs on a given -t tree.
+    if "species:genes" in eset:
+        if eset != {"species:genes"}:
+            parser.error("species:genes runs on its own in this phase; combining it with other "
+                         "edges is future work — see docs/coevolution_models.md")
+        return _run_species_genes(args, parser)
 
     traits_species = "traits:species" in eset      # SSE arrow (trait -> diversification), into S
     species_traits = "species:traits" in eset      # cladogenetic arrow (speciation -> trait)
@@ -984,6 +1008,44 @@ def _run_genes_species(args: argparse.Namespace, parser: argparse.ArgumentParser
           f"--trans 1 --loss 0.5 --output profiles trees -o {args.out}")
     return (f"wrote genes:species (key innovations) to {args.out}/ "
             f"({n_extant} extant tips, {model.n_drivers} drivers, tip prevalence {prev}) "
+            f"in {dt:.3g} s")
+
+
+def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """Evolve a genome down a GIVEN tree with a cladogenetic ('punctuational') burst of gene loss
+    and gain at every speciation (the ``species:genes`` edge — speciation drives gene content)."""
+    if not args.tree:
+        parser.error("species:genes runs on a GIVEN tree — pass -t/--tree (speciation drives the "
+                     "genome; there is no diversification to grow here)")
+    if args.age is not None or args.tips is not None:
+        parser.error("species:genes uses the given -t tree; --age/--tips only apply to the "
+                     "into-species edges that grow a tree")
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    model = CladogeneticGenome(
+        initial_size=args.genome_size, loss=args.gene_loss, origination=args.gene_origination,
+        cladogenetic_loss=args.clado_gene_loss, cladogenetic_gain=args.clado_gene_gain)
+    t0 = time.perf_counter()
+    res = simulate_cladogenetic_genome(tree, model, seed=args.seed)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick() + "\n")              # the given tree, for provenance
+    pm = res.profile_matrix()
+    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+        f.write(pm.to_tsv())
+    with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+        f.write(pm.to_tsv(presence=True))
+    sizes = res.genome_sizes()
+    with open(os.path.join(args.out, "genome_sizes.tsv"), "w") as f:
+        f.write("node\tgenome_size\n")
+        for node in tree.nodes():
+            f.write(f"{node.name}\t{sizes[node]}\n")
+    tips = tree.extant_leaves()
+    mean_size = sum(sizes[t] for t in tips) / len(tips) if tips else 0
+    return (f"wrote species:genes (cladogenetic genome) to {args.out}/ "
+            f"({len(tips)} tips, {len(pm.families)} families, mean genome {mean_size:.0f}) "
             f"in {dt:.3g} s")
 
 
