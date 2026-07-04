@@ -220,5 +220,6 @@ verified values were used.
 
 *Status: 44 verified against Crossref/DOI, 1 flagged UNVERIFIED (the GTDB rate-variation clock).
 Open confirmations for you: (1) which paper the GTDB discrete-bin clock comes from; (2) that
-`croce2019multiscale` is the intended "Croce 2019". A `references.bib` can be generated from these
-keys for the LaTeX/pandoc build on request.*
+`croce2019multiscale` is the intended "Croce 2019". The same 44 entries are in
+[`references.bib`](references.bib) (BibTeX, same keys) for the LaTeX/pandoc PDF build —
+validated with `biber --tool`.*
