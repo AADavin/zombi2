@@ -24,7 +24,7 @@ from .events import EventType
 
 class _Node:
     __slots__ = ("gid", "birth", "end", "kind", "children", "species", "is_loss", "is_extant",
-                 "branch", "recipient", "donor_lost")
+                 "branch", "recipient", "donor_lost", "is_pseudo")
 
     def __init__(self, gid, birth):
         self.gid = gid
@@ -38,16 +38,19 @@ class _Node:
         self.branch: str | None = None       # species branch/node where the event happened
         self.recipient: str | None = None     # transfer recipient species branch
         self.donor_lost = False               # transfer kept because only the copy survives
+        self.is_pseudo = False                # pseudogenization: a unary gene->intergene state flip
 
 
 _INTERNAL = (EventType.DUPLICATION, EventType.TRANSFER, EventType.SPECIATION)
 
 
-def build_gene_trees(records, gid2species, total_age, annotate_species=False):
-    """Return ``(complete_newick, extant_newick)`` for one family; extant may be ``None``.
+def _node_tree(records, gid2species, total_age) -> _Node | None:
+    """Build the complete gene-lineage node tree from one family's event records.
 
-    With ``annotate_species=True`` each internal gene node is labelled ``<gid>|<species-branch>``
-    (the species branch the event happened on) instead of just ``<gid>``.
+    Returns the root :class:`_Node` (each node carrying ``birth``/``end`` times, the species
+    ``branch`` its terminating event fired on, and — for survivors — the leaf ``species``), or
+    ``None`` when nothing originated. Shared by :func:`build_gene_trees` and the
+    sequence-evolution scaler, which both rebuild this genealogy from the log.
     """
     records = sorted(records, key=lambda r: r.time)
 
@@ -63,7 +66,7 @@ def build_gene_trees(records, gid2species, total_age, annotate_species=False):
         if ev is EventType.ORIGINATION:
             root = r.genes[0].gid
             birth.setdefault(root, r.time)
-        elif ev in _INTERNAL:
+        elif ev in _INTERNAL or ev is EventType.PSEUDOGENIZATION:
             frm = r.genes[0].gid
             tos = [op.gid for op in r.genes[1:]]
             children[frm] = tos
@@ -80,7 +83,7 @@ def build_gene_trees(records, gid2species, total_age, annotate_species=False):
             branch[frm] = r.branch
 
     if root is None:
-        return None, None
+        return None
 
     def build(gid: str) -> _Node:
         node = _Node(gid, birth.get(gid, 0.0))
@@ -91,6 +94,7 @@ def build_gene_trees(records, gid2species, total_age, annotate_species=False):
             if kind[gid] is EventType.LOSS:
                 node.is_loss = True
             else:
+                node.is_pseudo = kind[gid] is EventType.PSEUDOGENIZATION
                 node.children = [build(c) for c in children[gid]]
         else:  # alive at the present -> extant leaf
             node.end = total_age
@@ -98,11 +102,74 @@ def build_gene_trees(records, gid2species, total_age, annotate_species=False):
             node.is_extant = node.species is not None
         return node
 
-    root_node = build(root)
+    return build(root)
+
+
+def build_gene_trees(records, gid2species, total_age, annotate_species=False):
+    """Return ``(complete_newick, extant_newick)`` for one family; extant may be ``None``.
+
+    With ``annotate_species=True`` each internal gene node is labelled ``<gid>|<species-branch>``
+    (the species branch the event happened on) instead of just ``<gid>``.
+    """
+    root_node = _node_tree(records, gid2species, total_age)
+    if root_node is None:
+        return None, None
     complete = _to_newick(root_node, annotate_species) + ";"
     pruned = _prune(root_node)
     extant = (_to_newick(pruned, annotate_species) + ";") if pruned is not None else None
     return complete, extant
+
+
+def extant_species_from_records(families, species_tree) -> dict:
+    """Reconstruct ``{gid: extant_species}`` for surviving gene lineages, from event records only.
+
+    The live simulator reads this off its ``leaf_genomes``; when replaying from a written
+    ``Events_trace.tsv`` there are none, so recover it from the genealogy. A lineage that is
+    never the *parent* of a later event survives to the present, and the species it lives in is
+    the branch it was **born into**, fixed by the event that created it:
+
+    * speciation on species ``X`` → its children go to ``X``'s daughter species, in tree order;
+    * transfer → the first child (donor copy) stays on the donor branch, the second (the
+      transferred copy) lands on the ``recipient``;
+    * duplication / pseudogenization → the children stay on the event's own branch.
+
+    Only lineages born into an **extant leaf** species are extant (others sit on extinct or
+    internal branches and are pruned away), so exactly those are returned — matching
+    :meth:`~zombi2.Genomes._gid_to_species`.
+    """
+    node_by_name = {n.name: n for n in species_tree.nodes_preorder()}
+    out: dict = {}
+    for records in families.values():
+        parents: set = set()
+        born: dict = {}          # gid -> species branch it was born into
+        origin_gid = origin_branch = None
+        for r in sorted(records, key=lambda rec: rec.time):
+            gids = [op.gid for op in r.genes]
+            if r.event is EventType.ORIGINATION:
+                origin_gid, origin_branch = gids[0], r.branch
+                continue
+            parents.add(gids[0])
+            children = gids[1:]
+            if not children:
+                continue
+            if r.event is EventType.SPECIATION:
+                daughters = node_by_name[r.branch].children
+                for i, c in enumerate(children):
+                    born[c] = daughters[i].name if i < len(daughters) else r.branch
+            elif r.event is EventType.TRANSFER:
+                born[children[0]] = r.branch                 # donor copy stays
+                if len(children) > 1:
+                    born[children[1]] = r.recipient          # transferred copy -> recipient
+            else:                                            # duplication / pseudogenization
+                for c in children:
+                    born[c] = r.branch
+        if origin_gid is not None and origin_gid not in parents:
+            born.setdefault(origin_gid, origin_branch)       # originated and never split -> survivor
+        for gid in set(born) - parents:
+            node = node_by_name.get(born.get(gid))
+            if node is not None and not node.children and node.is_extant:
+                out[gid] = node.name
+    return out
 
 
 def _bl(node: _Node) -> float:
@@ -119,12 +186,19 @@ def _to_newick(node: _Node, annotate: bool = False) -> str:
             name = node.gid
         return f"{name}:{_bl(node):.6g}"
     inner = ",".join(_to_newick(c, annotate) for c in node.children)
-    label = f"{node.gid}|{node.branch}" if annotate and node.branch else node.gid
+    if node.is_pseudo:  # a gene->intergene state flip is always marked
+        label = f"{node.gid}|G@{node.branch}" if annotate and node.branch else f"{node.gid}|G"
+    else:
+        label = f"{node.gid}|{node.branch}" if annotate and node.branch else node.gid
     return f"({inner}){label}:{_bl(node):.6g}"
 
 
 def _prune(node: _Node) -> _Node | None:
-    """Keep only lineages leading to an extant leaf; suppress degree-two nodes."""
+    """Keep only lineages leading to an extant leaf; suppress degree-two nodes.
+
+    A pseudogenization node is *not* suppressed even though it is degree-one — the gene->intergene
+    state flip must stay visible in the extant tree.
+    """
     if not node.children:
         if not node.is_extant:
             return None
@@ -135,13 +209,14 @@ def _prune(node: _Node) -> _Node | None:
     kept = [k for k in (_prune(c) for c in node.children) if k is not None]
     if not kept:
         return None
-    if len(kept) == 1:  # suppress: absorb this node's branch into the survivor
+    if len(kept) == 1 and not node.is_pseudo:  # suppress: absorb this node's branch into the survivor
         survivor = kept[0]
         survivor.birth = node.birth
         return survivor
 
     inner = _Node(node.gid, node.birth)
     inner.end, inner.kind, inner.children, inner.branch = node.end, node.kind, kept, node.branch
+    inner.is_pseudo = node.is_pseudo
     return inner
 
 
@@ -156,11 +231,15 @@ ReconEvent = namedtuple("ReconEvent", ["event", "species", "recipient", "time", 
 #: ``events`` is the list of :class:`ReconEvent` read off the complete tree.
 Reconciliation = namedtuple("Reconciliation", ["complete", "extant", "events"])
 
-_EV_CHAR = {EventType.DUPLICATION: "D", EventType.TRANSFER: "T", EventType.SPECIATION: "S"}
+_EV_CHAR = {EventType.DUPLICATION: "D", EventType.TRANSFER: "T", EventType.SPECIATION: "S",
+            EventType.PSEUDOGENIZATION: "G"}
 
 
 def _prune_recon(node: "_Node"):
-    """Extant lineages only: drop losses, suppress degree-2 nodes, keep species branch/recipient."""
+    """Extant lineages only: drop losses, suppress degree-2 nodes, keep species branch/recipient.
+
+    A pseudogenization node (degree-one) is kept so the state flip stays in the extant tree.
+    """
     if not node.children:
         if not node.is_extant:
             return None
@@ -170,11 +249,11 @@ def _prune_recon(node: "_Node"):
     kept = [k for k in (_prune_recon(c) for c in node.children) if k is not None]
     if not kept:
         return None
-    if len(kept) == 1:
+    if len(kept) == 1 and not node.is_pseudo:
         kept[0].birth = node.birth
         return kept[0]
     inner = _Node(node.gid, node.birth)
-    inner.end, inner.kind = node.end, node.kind
+    inner.end, inner.kind, inner.is_pseudo = node.end, node.kind, node.is_pseudo
     inner.branch, inner.recipient, inner.children = node.branch, node.recipient, kept
     return inner
 
@@ -189,7 +268,9 @@ def _recon_newick(node: "_Node") -> str:
             name = f"{node.branch}|{node.gid}"
         return f"{name}:{_bl(node):.6g}"
     inner = ",".join(_recon_newick(c) for c in node.children)
-    if node.kind is EventType.TRANSFER:
+    if node.is_pseudo:
+        label = f"{node.branch}|G"
+    elif node.kind is EventType.TRANSFER:
         label = f"{node.branch}|T>{node.recipient}"
     else:
         label = f"{node.branch}|{_EV_CHAR.get(node.kind, '?')}"
@@ -226,7 +307,7 @@ def reconcile(records, gid2species, total_age) -> "Reconciliation":
         if ev is EventType.ORIGINATION:
             root = r.genes[0].gid
             birth.setdefault(root, r.time)
-        elif ev in _INTERNAL:
+        elif ev in _INTERNAL or ev is EventType.PSEUDOGENIZATION:
             frm = r.genes[0].gid
             children[frm] = [op.gid for op in r.genes[1:]]
             end_time[frm], kind[frm], branch[frm] = r.time, ev, r.branch
@@ -249,6 +330,7 @@ def reconcile(records, gid2species, total_age) -> "Reconciliation":
             if kind[gid] is EventType.LOSS:
                 node.is_loss = True
             else:
+                node.is_pseudo = kind[gid] is EventType.PSEUDOGENIZATION
                 node.children = [build(c) for c in children[gid]]
         else:
             node.end = total_age

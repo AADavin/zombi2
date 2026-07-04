@@ -48,6 +48,89 @@ def test_species_forward_requires_exactly_one_of_tips_age(tmp_path):
               "-o", str(tmp_path / "b")])
 
 
+def test_species_forward_mass_extinction(tmp_path):
+    """Forward mode accepts one or more --mass-extinction pulses and logs them."""
+    out = tmp_path / "me"
+    rc = main(["species", "--model", "forward", "--birth", "1.2", "--death", "0.2",
+               "--age", "6", "--mass-extinction", "2", "0.8",
+               "--mass-extinction", "4", "0.5", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+    log = (out / "species_tree.log").read_text()
+    assert "mass_extinction" in log and "[2.0, 0.8]" in log
+
+
+def test_species_mass_extinction_rejected_backward(tmp_path):
+    """--mass-extinction is forward-only; on the default backward model it errors."""
+    with pytest.raises(SystemExit):
+        main(["species", "--mass-extinction", "2", "0.5", "-o", str(tmp_path / "a")])
+
+
+def test_species_mass_extinction_needs_age_not_tips(tmp_path):
+    """A pulse age needs a fixed present, so --mass-extinction requires --age (not --tips)."""
+    with pytest.raises(SystemExit):
+        main(["species", "--model", "forward", "--tips", "20",
+              "--mass-extinction", "2", "0.5", "-o", str(tmp_path / "b")])
+
+
+def test_species_clads(tmp_path):
+    """ClaDS (per-lineage rates) is a forward diversification process."""
+    out = tmp_path / "clads"
+    rc = main(["species", "--model", "forward", "--diversification", "clads",
+               "--birth", "1.0", "--clads-alpha", "0.9", "--clads-sigma", "0.2",
+               "--turnover", "0.1", "--age", "5", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+
+
+def test_species_diversity_dependent(tmp_path):
+    """Diversity-dependent BD needs a carrying capacity and forward mode."""
+    out = tmp_path / "dd"
+    rc = main(["species", "--model", "forward", "--diversification", "diversity-dependent",
+               "--birth", "3", "--death", "0.2", "-K", "40", "--age", "20",
+               "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+
+
+def test_species_diversity_dependent_needs_K(tmp_path):
+    """diversity-dependent without --carrying-capacity errors."""
+    with pytest.raises(SystemExit):
+        main(["species", "--model", "forward", "--diversification", "diversity-dependent",
+              "--age", "10", "-o", str(tmp_path / "a")])
+
+
+def test_species_clads_requires_forward(tmp_path):
+    """clads/diversity-dependent are forward-only; backward errors."""
+    with pytest.raises(SystemExit):
+        main(["species", "--diversification", "clads", "--tips", "20",
+              "-o", str(tmp_path / "b")])
+
+
+def test_species_clade_shift(tmp_path):
+    """Forward mode accepts one or more --clade-shift regimes and logs them."""
+    out = tmp_path / "cs"
+    rc = main(["species", "--model", "forward", "--birth", "0.9", "--death", "0.4",
+               "--age", "5", "--clade-shift", "3.0", "1.6", "0.2",
+               "--clade-shift", "1.5", "0.4", "0.6", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+    assert "clade_shift" in (out / "species_tree.log").read_text()
+
+
+def test_species_clade_shift_needs_age_not_tips(tmp_path):
+    """Clade-shift times need a fixed present, so --clade-shift requires --age (not --tips)."""
+    with pytest.raises(SystemExit):
+        main(["species", "--model", "forward", "--tips", "20",
+              "--clade-shift", "3.0", "2.0", "0.1", "-o", str(tmp_path / "a")])
+
+
+def test_species_clade_shift_rejected_backward(tmp_path):
+    """--clade-shift is forward-only; on the default backward model it errors."""
+    with pytest.raises(SystemExit):
+        main(["species", "--clade-shift", "3.0", "2.0", "0.1", "-o", str(tmp_path / "b")])
+
+
 @needs_rust
 def test_genomes_on_supplied_tree(tmp_path):
     """`species` output feeds straight into `genomes` — the round-trip the CLI enables."""
@@ -100,6 +183,44 @@ def test_genomes_output_profiles(tmp_path):
     assert (gen / "Presence.tsv").exists()
     assert not (gen / "gene_trees").exists()
     assert not (gen / "Transfers.tsv").exists()
+
+
+@needs_rust
+def test_genomes_output_trace(tmp_path):
+    """`--output trace` (optionally + profiles) writes the compact single-file event log via the
+    fast path — Events_trace.tsv, no per-family event files, no gene trees."""
+    sp = tmp_path / "sp"
+    main(["species", "--birth", "1", "--death", "0.3",
+          "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
+
+    gen = tmp_path / "gen"
+    rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
+               "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
+               "--seed", "42", "--output", "trace", "profiles", "--sparse", "-o", str(gen)])
+    assert rc == 0
+    assert (gen / "Events_trace.tsv").exists()
+    assert (gen / "Profiles_sparse.tsv").exists()
+    assert not (gen / "gene_family_events").exists()   # the per-family dir is not written
+    assert not (gen / "gene_trees").exists()            # trees are only reconstructed on request
+    # header + at least the root originations
+    lines = (gen / "Events_trace.tsv").read_text().splitlines()
+    assert lines[0].split("\t") == ["time", "event", "branch", "donor", "recipient",
+                                     "family", "parent", "child1", "child2"]
+    assert len(lines) > 1
+
+
+@needs_rust
+def test_genomes_output_trace_with_trees(tmp_path):
+    """`--output trace trees` writes the trace file *and* reconstructs the gene trees."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "30", "--seed", "1", "-o", str(sp)])
+    gen = tmp_path / "gen"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.2", "--trans", "0.1",
+               "--loss", "0.25", "--orig", "0.5", "--seed", "1",
+               "--output", "trace", "trees", "-o", str(gen)])
+    assert rc == 0
+    assert (gen / "Events_trace.tsv").exists()
+    assert os.listdir(gen / "gene_trees")
 
 
 @needs_rust
@@ -221,6 +342,77 @@ def test_max_family_size_parses_int_and_fraction(tmp_path):
 
     assert _int_or_float("40") == 40 and isinstance(_int_or_float("40"), int)
     assert _int_or_float("0.5") == 0.5 and isinstance(_int_or_float("0.5"), float)
+
+
+def _genomes_run_with_trace(tmp_path):
+    """A helper: species -> genomes (genome-wise, with a written Events_trace.tsv). No Rust."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
+    run = tmp_path / "run"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.4", "--trans", "0.1",
+               "--loss", "0.3", "--orig", "0.6", "--rate-model", "genome-wise",
+               "--output", "trace", "profiles", "--seed", "2", "-o", str(run)])
+    assert rc == 0
+    assert (run / "Events_trace.tsv").exists()
+    return run
+
+
+def test_sequence_command_writes_phylograms(tmp_path):
+    """`zombi2 sequence` replays a genomes run's trace and writes substitution-unit gene trees."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+               "--branch-speed", "0.4", "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    subst = list((out / "gene_trees").glob("*_extant_subst.nwk"))
+    assert subst
+    assert all(p.read_text().strip().endswith(";") for p in subst)
+    assert (out / "gene_family_speeds.tsv").read_text().startswith("family\tspeed")
+    assert (out / "branch_rates.tsv").read_text().startswith("species_branch\trate")
+    assert (out / "sequence.log").exists()
+
+
+def test_sequence_command_discrete_bins(tmp_path):
+    """`--branch-bins` selects the discrete-bin (GTDB) lineage clock."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+               "--branch-bins", "0.25,0.5,1,2,4", "--branch-switch-rate", "1.5",
+               "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    assert list((out / "gene_trees").glob("*_extant_subst.nwk"))
+    assert (out / "branch_rates.tsv").exists()
+
+
+def test_sequence_command_reproducible(tmp_path):
+    """Same genomes run + same seed -> identical phylograms."""
+    run = _genomes_run_with_trace(tmp_path)
+    a, b = tmp_path / "a", tmp_path / "b"
+    for out in (a, b):
+        main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+              "--branch-speed", "0.4", "--seed", "7", "-o", str(out)])
+    fa = sorted((a / "gene_trees").glob("*_extant_subst.nwk"))
+    fb = sorted((b / "gene_trees").glob("*_extant_subst.nwk"))
+    assert fa and [p.name for p in fa] == [p.name for p in fb]
+    assert all(x.read_text() == y.read_text() for x, y in zip(fa, fb))
+
+
+def test_sequence_two_clocks_rejected(tmp_path):
+    """--branch-speed and --branch-bins are two lineage clocks — giving both is an error."""
+    run = _genomes_run_with_trace(tmp_path)
+    rc = main(["sequence", "--genomes", str(run), "--branch-speed", "0.4",
+               "--branch-bins", "0.5,1,2", "-o", str(tmp_path / "seq")])
+    assert rc == 1
+
+
+def test_sequence_missing_trace_is_clean_error(tmp_path):
+    """A genomes run without a written trace gives a clear error, not a traceback."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "15", "--seed", "1", "-o", str(sp)])
+    # a genomes dir with only a species tree (no Events_trace.tsv)
+    rc = main(["sequence", "--genomes", str(sp), "--branch-speed", "0.4",
+               "-o", str(tmp_path / "seq")])
+    assert rc == 1
 
 
 @needs_rust
@@ -386,6 +578,43 @@ def test_genomes_nucleotide_sparse(tmp_path):
     assert rc == 0
     assert (out / "Profiles_sparse.tsv").exists()
     assert not (out / "Profiles.tsv").exists()
+
+
+def test_genomes_nucleotide_genic(tmp_path):
+    """`--genes` enables genic mode: genes.tsv, split Gene/Intergene trees, Pseudogenizations,
+    and atoms.tsv carrying the gene/intergene classification."""
+    tree = _tree_file(tmp_path, tips=10)
+    genes = tmp_path / "genes.tsv"
+    genes.write_text("100\t180\tgeneA\n300\t360\tgeneB\n500\t620\tgeneC\n750\t800\tgeneD\n")
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
+               "--inversion", "0.004", "--loss", "0.003", "--dup", "0.002", "--trans", "0.002",
+               "--root-length", "1000", "--extension", "0.96", "--genes", str(genes),
+               "--pseudogenization", "0.4", "--replacement", "0.6",
+               "--output", "profiles", "trees", "--seed", "9", "-o", str(out)])
+    assert rc == 0
+    for f in ("genes.tsv", "atoms.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
+        assert (out / f).exists()
+    assert os.listdir(out / "Gene_trees") and os.listdir(out / "Intergene_trees")
+    # atoms.tsv carries the classification; the four seed genes are present in genes.tsv
+    assert "kind\tgene_id" in (out / "atoms.tsv").read_text()
+    genes_txt = (out / "genes.tsv").read_text()
+    for name in ("geneA", "geneB", "geneC", "geneD"):
+        assert name in genes_txt
+
+
+def test_genomes_nucleotide_genes_reject_profiles_only(tmp_path):
+    """Genic mode needs the Python engine — a profiles-only run still writes the genic outputs
+    (it never silently takes the Rust path)."""
+    tree = _tree_file(tmp_path, tips=8)
+    genes = tmp_path / "genes.tsv"
+    genes.write_text("100 200 g1\n400 500 g2\n")
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--loss", "0.002",
+               "--root-length", "800", "--genes", str(genes), "--output", "profiles",
+               "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert (out / "genes.tsv").exists() and (out / "atoms.tsv").exists()
 
 
 # --- abc: fit gene-family rates to an empirical profile by ABC inference --

@@ -26,7 +26,9 @@ __version__ = "0.2.0.dev0"
 
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
 from .tree import Tree, TreeNode, read_newick, prune
-from .species_model import BirthDeath, Yule, EpisodicBirthDeath
+from .species_model import (
+    BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent, CladeShiftBirthDeath,
+)
 from .species_sim import simulate_species_tree
 from .ghosts import add_ghost_lineages
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
@@ -54,6 +56,7 @@ from .genome_sim import GenomeSimulator, GenomeResult
 from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
+from .sequence_evolution import SequenceEvolution, GenePhylograms
 from .traits import (
     BrownianMotion,
     OrnsteinUhlenbeck,
@@ -73,13 +76,20 @@ from .traits import (
     pagel_kappa,
 )
 from .biogeography import DEC, simulate_biogeography
-from .simulation import simulate_genomes, Genomes
+from .simulation import simulate_genomes, Genomes, GenomeTrace, read_events_trace
 from .coupling import (
     CouplingSpec,
     PottsRates,
     pathway_blocks,
     simulate_coupled,
     CoupledResult,
+)
+from .trait_coupling import (
+    TraitGeneCoupling,
+    TraitTrajectory,
+    TraitLinkedRates,
+    TraitLinkedResult,
+    simulate_trait_linked_genomes,
 )
 from .matching import (
     match_profiles,
@@ -105,8 +115,8 @@ __all__ = [
     # tree
     "Tree", "TreeNode", "read_newick", "prune",
     # species tree
-    "BirthDeath", "Yule", "EpisodicBirthDeath",
-    "simulate_species_tree", "add_ghost_lineages",
+    "BirthDeath", "Yule", "EpisodicBirthDeath", "ClaDS", "DiversityDependent",
+    "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)
@@ -117,16 +127,21 @@ __all__ = [
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
     # simulation
-    "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes",
-    "build_gene_trees",
+    "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes", "GenomeTrace",
+    "read_events_trace", "build_gene_trees",
     # gene-family coupling (Potts/Ising non-independence)
     "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled", "CoupledResult",
+    # trait-conditioned gene families (trait <-> gene-family coupling)
+    "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
+    "simulate_trait_linked_genomes",
     # profile matching (rejection ABC + SMC + coupled-model ABC)
     "match_profiles", "match_profiles_smc", "match_coupled", "ABCFit", "default_summary",
     "default_gene_tree_summary", "cooccurrence_summary", "cooccurrence_features",
     "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
+    # family sequence evolution (gene x lineage substitution clock)
+    "SequenceEvolution", "GenePhylograms",
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",

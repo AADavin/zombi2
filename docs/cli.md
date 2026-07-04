@@ -64,6 +64,55 @@ zombi2 species --model forward --age 6 --fossilization 0.3 -o out/       # fossi
 zombi2 species --model forward --age 6 --sampling-fraction 0.5 -o out/   # 50% sampled
 ```
 
+**Mass extinctions** (forward only). `--mass-extinction AGE FRACTION` fires an instantaneous,
+tree-wide pulse: at `AGE` before the present, every lineage then alive dies with probability
+`FRACTION`. Repeat the flag for several pulses. Unlike raising `--death` over an episodic epoch
+(which spreads extra extinction across a window), a pulse wipes out a fraction of the standing
+diversity in a single instant. It needs `--age` (the pulse time is an age before a fixed present):
+
+```bash
+zombi2 species --model forward --age 5 --mass-extinction 2.5 0.75 -o out/        # 75% die at age 2.5
+zombi2 species --model forward --age 5 \
+    --mass-extinction 1.0 0.5 --mass-extinction 2.5 0.75 -o out/                 # two pulses
+```
+
+The pulse's victims become extinct `e*` leaves, so a downstream `zombi2 genomes` run sees the
+mass extinction's genomic aftermath (families lost with the dead clades, transfers from the dead).
+
+**Per-lineage & diversity-dependent rates** (forward only). `--diversification` picks a
+heterogeneous-rate process instead of constant-rate birth–death. `clads` gives every lineage its
+own speciation rate that shifts lognormally at each split (`--clads-alpha`, `--clads-sigma`,
+`--turnover`); `diversity-dependent` makes speciation decline toward a carrying capacity
+`--carrying-capacity/-K`:
+
+```bash
+# ClaDS: per-lineage rates, α<1 slows speciation toward the present, ε=μ/λ turnover
+zombi2 species --model forward --diversification clads \
+    --birth 1.0 --clads-alpha 0.9 --clads-sigma 0.2 --turnover 0.1 --age 5 -o out/
+
+# diversity-dependent: radiates then saturates near K=50
+zombi2 species --model forward --diversification diversity-dependent \
+    --birth 2 --death 0.2 -K 50 --age 15 -o out/
+```
+
+Both take `--age` or `--tips` (diversity-dependent needs `--tips ≤ K`) and compose with
+`--mass-extinction` and `--sampling-fraction`.
+
+**Clade-specific rate shifts** (forward only). `--clade-shift AGE BIRTH DEATH` schedules a
+diversification shift: at `AGE` before the present, one lineage then alive (chosen at random,
+since contemporaneous lineages are exchangeable) and *all of its descendants* switch to speciation
+`BIRTH` / extinction `DEATH`. Repeat for several radiating or collapsing clades — the discrete,
+hand-specified version of clade rate heterogeneity. Needs `--age`:
+
+```bash
+# one clade starts diversifying fast at age 3, on a slow background
+zombi2 species --model forward --birth 0.6 --death 0.4 --age 5 \
+    --clade-shift 3.0 2.0 0.1 -o out/
+# several clades shifting to different regimes
+zombi2 species --model forward --age 6 \
+    --clade-shift 4.0 2.0 0.1 --clade-shift 2.0 0.3 0.5 -o out/
+```
+
 **Ghost lineages** (backward only). `--ghosts` un-prunes the reconstructed tree, grafting the
 extinct/unsampled lineages back on (they get `e*` names, like any extinct tip);
 `--ghost-method` picks the
@@ -149,6 +198,27 @@ Copy-number profiles identify the **gain-side** rates (duplication, origination)
 and **transfer** sit on an identifiability ridge — expect wide intervals there. The `spectra.tsv`
 check tells you whether *any* rates reproduce the data.
 
+## `sequence` — substitution branch lengths
+
+`genomes` produces gene trees in **time** units. `sequence` rescales them into
+**substitutions/site** under a gene × lineage clock, as a separate step — so you can retune the
+rate model without re-simulating gene content. It reads a prior `genomes` run's `species_tree.nwk`
+and `Events_trace.tsv` (so run `genomes` with `trace` in `--output`), replays the genealogy, and
+writes the phylograms:
+
+```bash
+zombi2 genomes  -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
+    --output trace profiles -o run/
+zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+```
+
+The model is `rate(family g, species branch b) = R_b · s_g`: a **shared lineage clock** `R_b`
+(either `--branch-speed` autocorrelated lognormal, or `--branch-bins` for the discrete-bin GTDB
+model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. It writes
+`gene_trees/<family>_extant_subst.nwk` (+ `_complete_subst.nwk`) and, for reproducibility,
+`gene_family_speeds.tsv` / `branch_rates.tsv`. See
+[Rate variation](guide/rate-variation.md#family-sequence-evolution) for the model.
+
 ## Options
 
 ### `species`
@@ -156,14 +226,19 @@ check tells you whether *any* rates reproduce the data.
 | Option | Meaning |
 | --- | --- |
 | `--model {backward,forward}` | reconstructed (default) or complete forward tree |
-| `--birth` / `--death` | speciation / extinction rate(s) (default `1.0` / `0.3`); several values + `--shifts` = episodic |
+| `--diversification {constant,clads,diversity-dependent}` | [forward] rate process: constant-rate BD (default), ClaDS per-lineage rates, or diversity-dependent |
+| `--birth` / `--death` | speciation / extinction rate(s) (default `1.0` / `0.3`); several values + `--shifts` = episodic; single λ₀/μ for clads/diversity-dependent |
 | `--shifts` | episodic rate-shift ages (`K-1` for `K` rate values), present → past |
+| `--clads-alpha` / `--clads-sigma` / `--turnover` | [clads] per-branch rate trend α, jump spread σ, and turnover ε=μ/λ |
+| `--carrying-capacity` / `-K` | [diversity-dependent] carrying capacity K in λ(n)=λ₀(1−n/K) |
+| `--clade-shift AGE BIRTH DEATH` | [forward] at AGE, a random lineage + descendants switch to (BIRTH, DEATH) (repeatable) |
 | `--tips` | number of extant species (backward default `50`; forward: `--tips` **or** `--age`) |
 | `--age` | tree age / timescale (backward default `1.0`; forward: `--tips` **or** `--age`) |
 | `--age-type {crown,stem}` | interpret `--age` as crown (default) or stem age [backward] |
 | `--sampling-fraction` | [forward] fraction of extant species sampled, ρ (default `1.0`) |
 | `--fossilization` | [forward] fossil sampling rate ψ — fossilized birth–death (default `0`) |
 | `--removal` | [forward] removal probability `r` on sampling (`r<1` → sampled ancestors; default `1.0`) |
+| `--mass-extinction AGE FRACTION` | [forward] instantaneous pulse: fraction `FRACTION` of lineages die at age `AGE` before the present (repeatable) |
 | `--ghosts` / `--ghost-method {rejection,htransform}` | [backward] un-prune extinct/unsampled ghost lineages |
 | `--max-attempts` / `--max-lineages` | [forward] extinction-retry cap / live-lineage cap |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
@@ -179,10 +254,15 @@ check tells you whether *any* rates reproduce the data.
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
 | `--root-length` `--extension` | [nucleotide] root chromosome length (nt) / geometric event-length parameter (mean `1/(1-extension)`) |
-| `--output {profiles,trees,events,transfers,summary,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the fast path — see below |
+| `--genes FILE` | [nucleotide] BED/TSV of gene intervals (`start end [name]`) on the root chromosome — enables *genic mode* (genes are never split; genes & intergenes recovered as separate tree sets) |
+| `--pseudogenization` `--replacement` | [nucleotide, genic] probability a loss demotes a gene to intergene (sequence retained) / a transfer is a homologous replacement |
+| `--output {profiles,trace,trees,events,transfers,summary,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the counts-only fast path; `trace` (± `profiles`) → the compact `Events_trace.tsv` fast path — see below |
 | `--sparse` | write the profile as a sparse `Profiles_sparse.tsv` instead of the dense matrix (needs `profiles` in `--output`) |
 | `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
+
+Substitution branch lengths (sequence evolution) are a **separate step** — run
+[`zombi2 sequence`](#sequence) on a genomes run, rather than a flag here.
 
 ### `trait`
 
@@ -216,6 +296,16 @@ check tells you whether *any* rates reproduce the data.
 | `--initial-size` / `--max-family-size` | families seeded per sim / growth cap (advised for `--model family`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
+### `sequence`
+
+| Option | Meaning |
+| --- | --- |
+| `--genomes DIR` | a prior `genomes` output directory — reads its `species_tree.nwk` + `Events_trace.tsv` (run `genomes` with `trace` in `--output`) (required) |
+| `--family-speed SIGMA` | per-family intrinsic substitution speed `~ LogNormal(0, SIGMA)`, constant per family (`0` = every family the same) |
+| `--branch-speed SIGMA` | shared lineage clock — autocorrelated lognormal relaxed clock, drift `SIGMA` per `√time` (`0` = strict). Exclusive with `--branch-bins` |
+| `--branch-bins R1,R2,...` | alternative lineage clock — the discrete-bin GTDB model: ordered rate multipliers, a Markov walk between adjacent bins (`--branch-switch-rate`, `--branch-up-bias`) |
+| `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
+
 Run `zombi2 <command> -h` for the authoritative list.
 
 ## Choosing the output, and the Rust engine
@@ -226,9 +316,9 @@ The `genomes` command therefore needs the compiled `zombi2_core` extension; it i
 by `pip install`, so build it once (see [the Rust engine](guide/rust-engine.md)) or the command
 exits with a build hint.
 
-`--output` selects which files to write — any of `profiles`, `trees`, `events`, `transfers`,
-`summary`, or `all` (default: `profiles trees`); `species_tree.nwk` is always written, and a
-component you don't ask for does no work (e.g. omitting `trees` skips the gene-tree
+`--output` selects which files to write — any of `profiles`, `trace`, `trees`, `events`,
+`transfers`, `summary`, or `all` (default: `profiles trees`); `species_tree.nwk` is always
+written, and a component you don't ask for does no work (e.g. omitting `trees` skips the gene-tree
 reconstruction). Asking for **only** `profiles` takes the Rust counts-only fast path (no
 genealogy); `--sparse` then writes the profile as a scalable `Profiles_sparse.tsv` long table
 instead of the dense matrix:
@@ -237,6 +327,30 @@ instead of the dense matrix:
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --output all -o out/
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --output profiles --sparse -o out/
 ```
+
+### The event trace — a fast intermediate for very large datasets
+
+Between the counts-only `profiles` and the full genealogy sits **`--output trace`**. It writes a
+single compact file, `Events_trace.tsv` (one row per event: origination / duplication / transfer
+/ loss / speciation, with the gene-lineage ids), instead of the per-family `gene_family_events/`
+directory — one file rather than one-per-family, so it scales to millions of families without an
+inode explosion. Crucially it **skips gene-tree reconstruction and never materialises the
+per-event objects**, which is the real bottleneck on large trees, so it runs at close to
+counts-only speed while the gene trees remain **reconstructable later on demand** from the trace.
+
+```bash
+# fast: the event trace + the sparse profile, no gene trees
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 \
+    --output trace profiles --sparse -o out/
+
+# reconstruct the gene trees too (pays for the genealogy, still writes the trace file)
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 \
+    --output trace trees -o out/
+```
+
+From the Python API the same thing is `simulate_genomes(tree, ..., output="trace")`, which returns
+a `GenomeTrace` — a lazy handle whose `.profiles`, `.gene_trees()` and `.reconciliations()` build
+only what you ask for.
 
 ## Nucleotide genomes (`--rate-model nucleotide`)
 
@@ -263,6 +377,22 @@ species) plus `atoms.tsv` and the per-leaf `Mosaics.tsv`, taking the fast Rust p
 (`Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv`). `--sparse`
 applies to the profile as usual. (The family-model `events` / `transfers` / `summary` outputs do
 not apply to this model.)
+
+**Genes & intergenes.** Pass `--genes genes.tsv` (a BED/TSV of `start end [name]` intervals on the
+root chromosome) to declare genes explicitly. Event breakpoints then fall only in intergene
+positions, so **genes are never split** — each gene is one atom, each intergene stretch fragments
+into intergene atoms. `--pseudogenization P` makes a loss that hits a gene demote it to intergene
+with probability `P` (sequence retained, a state change in the gene's tree); `--replacement P`
+makes a transfer a homologous replacement (the copy replaces the recipient's syntenic locus, found
+via flanking genes; additive when there is no homolog). Genic mode runs on the Python engine and
+adds `genes.tsv` (the annotation), `Gene_trees/` and `Intergene_trees/` (the two tree sets), a
+`kind`/`gene_id` column in `atoms.tsv`, and `Pseudogenizations.tsv`.
+
+```bash
+zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+    --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
+    --inversion 0.001 --loss 0.0008 --output profiles trees -o out/
+```
 
 ## Scope
 

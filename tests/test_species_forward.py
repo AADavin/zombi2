@@ -260,6 +260,305 @@ def test_episodic_fbd_reproducible():
     assert a == b
 
 
+# --- mass extinctions (instantaneous tree-wide survival pulses) --------------
+
+def _pulse_deaths(tree, pulse_time):
+    """Extinct leaves that died exactly at ``pulse_time`` — the mass-extinction victims
+    (background extinction lands at continuous random times, never exactly on the pulse)."""
+    return [n for n in tree.leaves()
+            if not n.is_extant and abs(n.time - pulse_time) < 1e-9]
+
+
+def test_mass_extinction_reduces_extant_tips():
+    # a severe pulse partway through should leave fewer extant tips than no pulse
+    calm = z.BirthDeath(1.0, 0.3)
+    crash = z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.5, 0.9)])  # 90% die at age 2.5
+    m_calm = np.mean([len(_fwd(calm, age=5.0, seed=s).extant_leaves()) for s in range(200)])
+    m_crash = np.mean([len(_fwd(crash, age=5.0, seed=s).extant_leaves()) for s in range(200)])
+    assert m_crash < m_calm
+
+
+def test_mass_extinction_kills_at_the_pulse_time():
+    # victims become extinct leaves exactly at the pulse instant (present - age = 5 - 2 = 3)
+    m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.0, 0.8)])
+    saw_victims = False
+    for s in range(30):
+        t = _fwd(m, age=5.0, seed=s)
+        if _pulse_deaths(t, 3.0):
+            saw_victims = True
+            # every victim is a dead leaf sitting strictly before the present
+            assert all((not v.is_extant) and v.time < t.total_age for v in _pulse_deaths(t, 3.0))
+            break
+    assert saw_victims
+
+
+def test_mass_extinction_multiple_pulses():
+    # two pulses (ages 3.0 and 1.0 before a present at 5.0 -> tree-times 2.0 and 4.0)
+    m = z.BirthDeath(1.2, 0.2, mass_extinctions=[(3.0, 0.7), (1.0, 0.7)])
+    saw_first = saw_second = False
+    for s in range(40):
+        t = _fwd(m, age=5.0, seed=s)
+        saw_first = saw_first or bool(_pulse_deaths(t, 2.0))
+        saw_second = saw_second or bool(_pulse_deaths(t, 4.0))
+        if saw_first and saw_second:
+            break
+    assert saw_first and saw_second
+
+
+def test_mass_extinction_full_wipe_is_rejected():
+    # fraction == 1.0 kills every lineage -> the run always dies out -> conditioning fails
+    m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.5, 1.0)])
+    with pytest.raises(RuntimeError):
+        _fwd(m, age=5.0, seed=1, max_attempts=30)
+
+
+def test_mass_extinction_requires_age_mode():
+    m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.0, 0.5)])
+    with pytest.raises(NotImplementedError):  # a pulse age needs a fixed present
+        _fwd(m, n_tips=10)
+
+
+def test_mass_extinction_age_must_precede_crown():
+    m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(5.0, 0.5)])
+    with pytest.raises(ValueError):  # pulse at/after the crown age is undefined
+        _fwd(m, age=5.0, seed=1)
+
+
+@pytest.mark.parametrize("frac", [0.0, 1.5, -0.1])
+def test_mass_extinction_fraction_validation(frac):
+    with pytest.raises(ValueError):
+        _fwd(z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.0, frac)]), age=5.0)
+
+
+def test_mass_extinction_backward_is_rejected():
+    m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.0, 0.5)])
+    with pytest.raises(ValueError):  # not represented in the reconstructed tree
+        z.simulate_species_tree(m, direction="backward", n_tips=10, age=5.0)
+
+
+def test_mass_extinction_reproducible():
+    m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(2.5, 0.6), (1.0, 0.5)])
+    a = _fwd(m, age=5.0, seed=7).to_newick()
+    b = _fwd(m, age=5.0, seed=7).to_newick()
+    assert a == b
+
+
+def test_mass_extinction_composes_with_episodic():
+    # a pulse layered on an episodic (skyline) background still fires at its instant
+    m = z.EpisodicBirthDeath([1.0, 1.0], [0.2, 0.2], [2.0], mass_extinctions=[(1.0, 0.8)])
+    saw = False
+    for s in range(30):
+        t = _fwd(m, age=5.0, seed=s)   # pulse tree-time = 5 - 1 = 4
+        if _pulse_deaths(t, 4.0):
+            saw = True
+            break
+    assert saw
+
+
+def test_mass_extinction_feeds_gene_sim():
+    # the pulse's dead lineages are ordinary extinct leaves the gene simulator can use
+    tree = _fwd(z.BirthDeath(1.2, 0.3, mass_extinctions=[(2.5, 0.8)]), age=5.0, seed=4)
+    assert _dead_names(tree)  # the tree has a dead part
+    g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
+                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+    assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
+
+
+# --- ClaDS (per-lineage rates that shift at each speciation) -----------------
+
+def test_clads_age_mode_complete_tree():
+    t = _fwd(z.ClaDS(1.0, alpha=0.9, sigma=0.2, turnover=0.1), age=5.0, seed=1)
+    assert abs(t.total_age - 5.0) < 1e-9
+    assert t.root.time == 0.0
+    assert len(t.extant_leaves()) >= 2
+    assert all(len(n.children) == 2 for n in t.internal_nodes())  # binary
+    for leaf in t.extant_leaves():
+        assert abs(leaf.time - t.total_age) < 1e-9
+
+
+def test_clads_n_tips_mode_hits_target():
+    t = _fwd(z.ClaDS(1.0, turnover=0.1), n_tips=25, seed=2)
+    assert len(t.extant_leaves()) == 25
+    assert t.total_age > 0.0
+
+
+def test_clads_turnover_zero_has_no_extinction():
+    t = _fwd(z.ClaDS(1.0, turnover=0.0), age=4.0, seed=3)
+    assert all(leaf.is_extant for leaf in t.leaves())  # pure birth with shifts
+
+
+def test_clads_turnover_produces_extinct_leaves():
+    n_dead = [sum(1 for leaf in _fwd(z.ClaDS(1.2, turnover=0.4), age=6.0, seed=s).leaves()
+                  if not leaf.is_extant) for s in range(15)]
+    assert np.mean(n_dead) > 0
+
+
+def test_clads_reproducible():
+    m = z.ClaDS(1.0, alpha=0.95, sigma=0.2, turnover=0.1)
+    a = _fwd(m, age=5.0, seed=7).to_newick()
+    b = _fwd(m, age=5.0, seed=7).to_newick()
+    assert a == b
+
+
+def test_clads_backward_is_rejected():
+    with pytest.raises(ValueError):  # no closed-form reconstructed CDF -> forward-only
+        z.simulate_species_tree(z.ClaDS(1.0), direction="backward", n_tips=10, age=5.0)
+
+
+@pytest.mark.parametrize("kw", [dict(lambda_0=0.0), dict(lambda_0=1.0, alpha=0.0),
+                                dict(lambda_0=1.0, sigma=-0.1), dict(lambda_0=1.0, turnover=1.0),
+                                dict(lambda_0=1.0, sampling_fraction=1.5)])
+def test_clads_validation(kw):
+    with pytest.raises(ValueError):
+        _fwd(z.ClaDS(**kw), age=5.0)
+
+
+def test_clads_composes_with_mass_extinction():
+    m = z.ClaDS(1.2, sigma=0.2, turnover=0.1, mass_extinctions=[(2.0, 0.8)])
+    saw = False
+    for s in range(30):
+        t = _fwd(m, age=5.0, seed=s)   # pulse tree-time = 5 - 2 = 3
+        if _pulse_deaths(t, 3.0):
+            saw = True
+            break
+    assert saw
+
+
+def test_clads_feeds_gene_sim():
+    tree = _fwd(z.ClaDS(1.2, sigma=0.2, turnover=0.2), age=5.0, seed=4)
+    g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
+                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+    assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
+
+
+# --- diversity-dependent (density-dependent) birth–death ---------------------
+
+def test_diversity_dependent_saturates_at_K():
+    # with μ=0 and a long age, the tree fills to exactly its carrying capacity K
+    K = 20
+    for s in range(6):
+        t = _fwd(z.DiversityDependent(5.0, 0.0, carrying_capacity=K), age=30.0, seed=s)
+        assert len(t.extant_leaves()) == K
+
+
+def test_diversity_dependent_larger_K_more_tips():
+    def mean_extant(K):
+        return np.mean([len(_fwd(z.DiversityDependent(3.0, 0.2, carrying_capacity=K),
+                                 age=25.0, seed=s).extant_leaves()) for s in range(15)])
+    assert mean_extant(15) < mean_extant(60)
+
+
+def test_diversity_dependent_n_tips_mode():
+    t = _fwd(z.DiversityDependent(3.0, 0.3, carrying_capacity=50), n_tips=25, seed=3)
+    assert len(t.extant_leaves()) == 25
+
+
+def test_diversity_dependent_n_tips_above_K_rejected():
+    with pytest.raises(ValueError):  # cannot grow past carrying capacity
+        _fwd(z.DiversityDependent(3.0, 0.0, carrying_capacity=20), n_tips=40)
+
+
+def test_diversity_dependent_reproducible():
+    m = z.DiversityDependent(3.0, 0.3, carrying_capacity=40)
+    a = _fwd(m, age=8.0, seed=7).to_newick()
+    b = _fwd(m, age=8.0, seed=7).to_newick()
+    assert a == b
+
+
+def test_diversity_dependent_backward_is_rejected():
+    with pytest.raises(ValueError):
+        z.simulate_species_tree(z.DiversityDependent(2.0, carrying_capacity=30),
+                                direction="backward", n_tips=10, age=5.0)
+
+
+@pytest.mark.parametrize("kw", [dict(lambda_0=0.0, carrying_capacity=10),
+                                dict(lambda_0=1.0, death=-0.1, carrying_capacity=10),
+                                dict(lambda_0=1.0, carrying_capacity=0.0),
+                                dict(lambda_0=1.0, carrying_capacity=10, sampling_fraction=0.0)])
+def test_diversity_dependent_validation(kw):
+    with pytest.raises(ValueError):
+        _fwd(z.DiversityDependent(**kw), age=5.0)
+
+
+def test_diversity_dependent_feeds_gene_sim():
+    tree = _fwd(z.DiversityDependent(3.0, 0.3, carrying_capacity=40), age=12.0, seed=4)
+    g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
+                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+    assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
+
+
+# --- clade-specific rate shifts ----------------------------------------------
+
+def test_clade_shift_runs_and_is_binary():
+    m = z.CladeShiftBirthDeath(0.8, 0.5, clade_shifts=[(3.5, 1.4, 0.2)])
+    t = _fwd(m, age=4.0, seed=1)
+    assert abs(t.total_age - 4.0) < 1e-9
+    assert len(t.extant_leaves()) >= 2
+    assert all(len(n.children) == 2 for n in t.internal_nodes())
+
+
+def test_clade_shift_reproducible():
+    m = z.CladeShiftBirthDeath(0.9, 0.4, clade_shifts=[(3.0, 1.5, 0.2), (2.0, 0.4, 0.6)])
+    a = _fwd(m, age=4.0, seed=7).to_newick()
+    b = _fwd(m, age=4.0, seed=7).to_newick()
+    assert a == b
+
+
+def test_clade_shift_to_fast_regime_raises_tip_count():
+    # an early shift of one clade to a faster regime lifts the average number of extant tips
+    base = z.BirthDeath(0.9, 0.5)
+    fast = z.CladeShiftBirthDeath(0.9, 0.5, clade_shifts=[(3.5, 1.5, 0.2)])  # shift near the crown
+    m_base = np.mean([len(_fwd(base, age=4.0, seed=s).extant_leaves()) for s in range(40)])
+    m_fast = np.mean([len(_fwd(fast, age=4.0, seed=s).extant_leaves()) for s in range(40)])
+    assert m_fast > m_base
+
+
+def test_clade_shift_requires_age_mode():
+    m = z.CladeShiftBirthDeath(1.0, 0.3, clade_shifts=[(2.0, 2.0, 0.1)])
+    with pytest.raises(NotImplementedError):  # shift ages need a fixed present
+        _fwd(m, n_tips=10)
+
+
+def test_clade_shift_age_must_precede_crown():
+    m = z.CladeShiftBirthDeath(1.0, 0.3, clade_shifts=[(5.0, 2.0, 0.1)])
+    with pytest.raises(ValueError):
+        _fwd(m, age=5.0, seed=1)
+
+
+def test_clade_shift_backward_is_rejected():
+    m = z.CladeShiftBirthDeath(1.0, 0.3, clade_shifts=[(2.0, 2.0, 0.1)])
+    with pytest.raises(ValueError):
+        z.simulate_species_tree(m, direction="backward", n_tips=10, age=5.0)
+
+
+@pytest.mark.parametrize("kw", [dict(birth=0.0, clade_shifts=[(2.0, 1.0, 0.1)]),
+                                dict(birth=1.0, clade_shifts=[]),
+                                dict(birth=1.0, clade_shifts=[(2.0, 0.0, 0.1)]),   # shift birth <= 0
+                                dict(birth=1.0, clade_shifts=[(0.0, 1.0, 0.1)])])  # shift age <= 0
+def test_clade_shift_validation(kw):
+    with pytest.raises(ValueError):
+        _fwd(z.CladeShiftBirthDeath(**kw), age=5.0)
+
+
+def test_clade_shift_composes_with_mass_extinction():
+    m = z.CladeShiftBirthDeath(1.0, 0.3, clade_shifts=[(3.0, 1.8, 0.1)],
+                               mass_extinctions=[(2.0, 0.7)])
+    saw = False
+    for s in range(30):
+        t = _fwd(m, age=5.0, seed=s)   # pulse tree-time = 5 - 2 = 3
+        if _pulse_deaths(t, 3.0):
+            saw = True
+            break
+    assert saw
+
+
+def test_clade_shift_feeds_gene_sim():
+    tree = _fwd(z.CladeShiftBirthDeath(1.0, 0.3, clade_shifts=[(3.5, 1.6, 0.2)]), age=4.0, seed=4)
+    g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
+                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+    assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
+
+
 def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
     tree = _fwd(z.BirthDeath(1.0, 0.6), n_tips=40, seed=8)
     dead = _dead_names(tree)

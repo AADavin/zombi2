@@ -15,15 +15,31 @@ Supported models: constant-rate :class:`~zombi2.BirthDeath`/:class:`~zombi2.Yule
 mode), and :class:`~zombi2.EpisodicBirthDeath` (time-varying λ/μ and incomplete sampling
 ``ρ<1``) in **age mode only** — the present must be fixed for "age before present" to be defined
 forward.
+
+Any of these may carry ``mass_extinctions`` — instantaneous, tree-wide survival pulses at
+specified ages before the present, where every standing lineage independently dies with a given
+fraction. Because they place their times as ages before the present, they too require age mode.
+The killed lineages become ordinary extinct leaves, so the forward gene simulator treats them as
+ghost transfer partners with no extra work.
+
+Three further models have rates that are *constant between events* (not time-varying), so they are
+grown by an **exact Gillespie** loop (``_grow_gillespie``) instead of the thinning loop above:
+:class:`~zombi2.ClaDS` (per-lineage rates that shift at each speciation),
+:class:`~zombi2.DiversityDependent` (rates that decline as the tree fills a carrying capacity), and
+:class:`~zombi2.CladeShiftBirthDeath` (scheduled clade-specific rate shifts). All are forward-only;
+the first two support ``age`` or ``n_tips`` mode, the clade-shift model ``age`` mode only.
 """
 
 from __future__ import annotations
 
 import bisect
+import math
 
 import numpy as np
 
-from .species_model import BirthDeath, EpisodicBirthDeath
+from .species_model import (
+    BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
+)
 from .tree import Tree, TreeNode
 
 
@@ -31,9 +47,11 @@ class _ForwardRates:
     """Rates as functions of tree-time ``t`` (0 = crown, present at ``present``). Episodic
     rates map tree-time to age-before-present ``present - t`` (age mode, so ``present`` is
     fixed). Provides ``rates(t) -> (λ, μ, ψ)`` (ψ = serial/fossil sampling rate), a thinning
-    bound, the extant sampling fraction ρ, and the removal probability ``r`` on sampling."""
+    bound, the extant sampling fraction ρ, the removal probability ``r`` on sampling, and
+    ``mass_extinctions`` — a list of ``(tree_time, survival)`` pulses (each surviving lineage
+    is kept with probability ``survival`` at that instant), sorted by increasing tree-time."""
 
-    __slots__ = ("rates", "rate_bound", "rho", "removal")
+    __slots__ = ("rates", "rate_bound", "rho", "removal", "mass_extinctions")
 
     def __init__(self, model, present):
         if isinstance(model, EpisodicBirthDeath):
@@ -61,6 +79,10 @@ class _ForwardRates:
                 f"forward simulation supports BirthDeath/Yule and EpisodicBirthDeath, "
                 f"not {type(model).__name__}"
             )
+        # ages before present -> tree-time; death fraction -> survival probability
+        self.mass_extinctions = sorted(
+            (present - age, 1.0 - frac) for age, frac in getattr(model, "mass_extinctions", ())
+        )
 
 
 def _grow(view, age, n_tips, rng, max_lineages):
@@ -73,6 +95,8 @@ def _grow(view, age, n_tips, rng, max_lineages):
         root.add_child(child)
         live.append(child)
     bound = view.rate_bound
+    mass_ext = view.mass_extinctions
+    me_idx = 0
     t = 0.0
     end = None
     while True:
@@ -88,6 +112,21 @@ def _grow(view, age, n_tips, rng, max_lineages):
                 "(birth >> death over this age) — lower the age/rates or raise max_lineages"
             )
         dt = rng.exponential(1.0 / (n * bound))
+        # a scheduled mass extinction before the next candidate event fires first (the
+        # thinning process is memoryless, so we advance to it and redraw the waiting time)
+        if me_idx < len(mass_ext) and mass_ext[me_idx][0] <= t + dt:
+            me_t, survival = mass_ext[me_idx]
+            me_idx += 1
+            t = me_t
+            kept = []
+            for node in live:
+                if survival >= 1.0 or rng.random() < survival:
+                    kept.append(node)
+                else:  # struck down by the mass extinction -> an extinct leaf at this instant
+                    node.time = me_t
+                    node.is_extant = False
+            live = kept
+            continue
         if age is not None and t + dt >= age:
             end = age
             break
@@ -120,16 +159,219 @@ def _grow(view, age, n_tips, rng, max_lineages):
                 live.append(cont)
             # else: removed -> a dated fossil tip (node stays a leaf)
 
+    if _finalize_present(live, end, view.rho, rng) < 2:
+        return None
+    return root, end
+
+
+def _finalize_present(live, end, rho, rng) -> int:
+    """Survivors reach the present at ``end``; each is sampled (kept extant) with probability
+    ``rho``. Unsampled survivors are marked ``is_extant=False`` (ghost tips). Returns the number
+    of sampled tips (the run is conditioned on ≥2)."""
     n_sampled = 0
-    for node in live:  # survivors reach the present; sample each with probability ρ
+    for node in live:
         node.time = end
-        if view.rho >= 1.0 or rng.random() < view.rho:
+        if rho >= 1.0 or rng.random() < rho:
             node.is_extant = True
             node.sampled = True
             n_sampled += 1
         else:
-            node.is_extant = False  # alive but unsampled -> a ghost tip
-    if n_sampled < 2:
+            node.is_extant = False
+    return n_sampled
+
+
+# --- exact-Gillespie forward growth (rates constant between events) ------------
+# For models whose per-lineage (λ, μ) do not vary with time between events, we sample the exact
+# next-event time from the summed rate — no thinning bound needed. Each live lineage carries an
+# opaque *state* (aligned with ``live``) that the view maps to (λ, μ); the loop also interleaves a
+# merged, time-ordered timeline of scheduled tree-wide events (mass extinctions, clade shifts).
+# Covers ClaDS (state = the lineage's own λ), diversity-dependent BD (rates depend only on the
+# live count n), and clade-shift BD (state = the lineage's current (λ, μ) regime).
+
+def _build_schedule(present, mass_extinctions=(), clade_shifts=()):
+    """Merge scheduled tree-wide events into one list of ``(tree_time, kind, payload)`` sorted by
+    tree-time. Ages before present map to tree-time ``present - age``. ``kind`` is
+    ``"mass_extinction"`` (payload = survival probability) or ``"clade_shift"`` (payload = the new
+    ``(λ, μ)`` regime)."""
+    events = [(present - a, "mass_extinction", 1.0 - f) for a, f in mass_extinctions]
+    events += [(present - a, "clade_shift", (b, d)) for a, b, d in clade_shifts]
+    return sorted(events, key=lambda e: e[0])
+
+
+class _ClaDSView:
+    """Per-lineage ClaDS rates. Each lineage's state is its own λ; μ = ε·λ (constant turnover).
+    Daughters jump multiplicatively at each speciation."""
+
+    __slots__ = ("initial_state", "eps", "log_alpha", "sigma", "rho", "scheduled")
+
+    def __init__(self, model: ClaDS, present):
+        self.initial_state = model.lambda_0
+        self.eps = model.turnover
+        self.log_alpha = math.log(model.alpha)
+        self.sigma = model.sigma
+        self.rho = model.sampling_fraction
+        self.scheduled = _build_schedule(present, model.mass_extinctions)
+
+    def lineage_rates(self, lam_i, n):
+        return lam_i, self.eps * lam_i
+
+    def split(self, lam_i, rng):
+        m1 = math.exp(self.log_alpha + self.sigma * rng.normal())
+        m2 = math.exp(self.log_alpha + self.sigma * rng.normal())
+        return lam_i * m1, lam_i * m2
+
+
+class _DDView:
+    """Diversity-dependent rates: all lineages share λ(n) = max(0, λ₀·(1 − n/K)), constant μ.
+    The per-lineage state is an unused dummy (rates come from the count n, not the lineage)."""
+
+    __slots__ = ("initial_state", "lambda_0", "mu", "K", "rho", "scheduled")
+
+    def __init__(self, model: DiversityDependent, present):
+        self.initial_state = model.lambda_0
+        self.lambda_0 = model.lambda_0
+        self.mu = model.death
+        self.K = model.K
+        self.rho = model.sampling_fraction
+        self.scheduled = _build_schedule(present, model.mass_extinctions)
+
+    def lineage_rates(self, state, n):
+        return self.lambda_0 * max(0.0, 1.0 - n / self.K), self.mu
+
+    def split(self, state, rng):
+        return state, state
+
+
+class _ShiftView:
+    """Clade-specific rate shifts. Each lineage's state is its current ``(λ, μ)`` regime; daughters
+    inherit the parent's regime. Shifts arrive as scheduled ``clade_shift`` events that reassign one
+    random live lineage's regime (its descendants inherit it)."""
+
+    __slots__ = ("initial_state", "rho", "scheduled")
+
+    def __init__(self, model: CladeShiftBirthDeath, present):
+        self.initial_state = (model.birth, model.death)
+        self.rho = model.sampling_fraction
+        self.scheduled = _build_schedule(present, model.mass_extinctions, model.clade_shifts)
+
+    def lineage_rates(self, state, n):
+        return state  # (λ, μ)
+
+    def split(self, state, rng):
+        return state, state
+
+
+def _weighted_index(weights, total, rng) -> int:
+    """Index sampled proportional to ``weights`` (which sum to ``total``)."""
+    x = rng.random() * total
+    cum = 0.0
+    for i, w in enumerate(weights):
+        cum += w
+        if x < cum:
+            return i
+    return len(weights) - 1
+
+
+def _cull(live, state, me_t, survival, rng):
+    """Apply a mass extinction: keep each lineage with probability ``survival``; the rest become
+    extinct leaves at ``me_t``. Returns the pruned ``(live, state)`` lists (kept in lockstep)."""
+    kept_live, kept_state = [], []
+    for node, st in zip(live, state):
+        if survival >= 1.0 or rng.random() < survival:
+            kept_live.append(node)
+            kept_state.append(st)
+        else:
+            node.time = me_t
+            node.is_extant = False
+    return kept_live, kept_state
+
+
+def _apply_scheduled(event, live, state, rng):
+    """Apply one scheduled tree-wide event, returning the (possibly new) ``(live, state, t)``."""
+    t, kind, payload = event
+    if kind == "mass_extinction":
+        live, state = _cull(live, state, t, payload, rng)
+    else:  # "clade_shift": a uniformly chosen live lineage (and its descendants) adopts (λ, μ)
+        if live:
+            state[int(rng.integers(len(live)))] = payload
+    return live, state, t
+
+
+def _grow_gillespie(view, age, n_tips, rng, max_lineages):
+    """One forward trial for a rates-constant-between-events model (ClaDS / diversity-dependent /
+    clade-shift). ``state`` runs in lockstep with ``live``, holding each lineage's opaque rate
+    state. Returns ``(crown_node, end_time)`` or ``None`` to reject (extinct / <2 survivors)."""
+    root = TreeNode(name="", time=0.0)
+    live, state = [], []
+    for _ in range(2):
+        child = TreeNode(name="", time=0.0)
+        root.add_child(child)
+        live.append(child)
+        state.append(view.initial_state)
+    scheduled = view.scheduled
+    s_idx = 0
+    t = 0.0
+    end = None
+    while True:
+        n = len(live)
+        if n == 0:
+            return None
+        if n_tips is not None and n == n_tips:
+            end = t
+            break
+        if n > max_lineages:
+            raise RuntimeError(
+                f"forward tree exceeded max_lineages={max_lineages}; explosive parameters — "
+                "lower the age/rates or raise max_lineages"
+            )
+        rates = [view.lineage_rates(state[i], n) for i in range(n)]  # (λ, μ) per lineage
+        totals = [b + d for b, d in rates]
+        total_rate = math.fsum(totals)
+        if total_rate <= 0.0:
+            # nothing stochastic can happen (e.g. diversity-dependent at capacity with μ=0): jump
+            # to the next scheduled event, or coast to the present
+            if s_idx < len(scheduled):
+                live, state, t = _apply_scheduled(scheduled[s_idx], live, state, rng)
+                s_idx += 1
+                continue
+            if age is None:
+                raise RuntimeError(
+                    "the process stalled below the requested --tips (diversity-dependent tree at "
+                    "carrying capacity with no extinction); use --age, a larger K, or death > 0"
+                )
+            end = age
+            break
+        dt = rng.exponential(1.0 / total_rate)
+        if s_idx < len(scheduled) and scheduled[s_idx][0] <= t + dt:
+            live, state, t = _apply_scheduled(scheduled[s_idx], live, state, rng)
+            s_idx += 1
+            continue
+        if age is not None and t + dt >= age:
+            end = age
+            break
+        t += dt
+        i = _weighted_index(totals, total_rate, rng)
+        node, st_i = live[i], state[i]
+        b, d = rates[i]
+        node.time = t
+        live[i] = live[-1]
+        live.pop()
+        state[i] = state[-1]
+        state.pop()
+        if rng.random() * (b + d) < b:  # speciation
+            sa, sb = view.split(st_i, rng)
+            child_a = TreeNode(name="", time=t)
+            child_b = TreeNode(name="", time=t)
+            node.add_child(child_a)
+            node.add_child(child_b)
+            live.append(child_a)
+            state.append(sa)
+            live.append(child_b)
+            state.append(sb)
+        else:  # extinction
+            node.is_extant = False
+
+    if _finalize_present(live, end, view.rho, rng) < 2:
         return None
     return root, end
 
@@ -169,39 +411,82 @@ def simulate_forward(
 
     * ``age`` — grow for this crown age; the number of extant tips is random.
     * ``n_tips`` — grow until this many extant lineages first coexist; the age is random.
-      (Constant-rate models only — the present must be fixed for episodic rates.)
+      (Not for ``EpisodicBirthDeath``, whose present must be fixed.)
 
     The tree is rooted at the crown (``time == 0``), the present is at ``total_age``, extinct
     leaves carry ``is_extant=False`` at their death times, and extant leaves ``is_extant=True``
-    at the present. Under incomplete sampling (``EpisodicBirthDeath`` with ``ρ<1``), extant but
-    unsampled lineages are marked ``is_extant=False`` too. So :func:`~zombi2.simulate_genomes`
-    treats extinct/unsampled lineages as ghost transfer partners automatically. The run is
-    conditioned on ≥2 sampled survivors.
+    at the present. Under incomplete sampling (``ρ<1``), extant but unsampled lineages are marked
+    ``is_extant=False`` too. So :func:`~zombi2.simulate_genomes` treats extinct/unsampled lineages
+    as ghost transfer partners automatically. The run is conditioned on ≥2 sampled survivors.
+
+    ``ClaDS`` and ``DiversityDependent`` (rates constant between events) are grown by an exact
+    Gillespie loop; the other models by thinning. Both routes share the mass-extinction, present-
+    sampling, naming and conditioning logic.
     """
     if (age is None) == (n_tips is None):
         raise ValueError("provide exactly one of `age` or `n_tips`")
+    heterogeneous = isinstance(model, (ClaDS, DiversityDependent, CladeShiftBirthDeath))
     if isinstance(model, EpisodicBirthDeath):
         if n_tips is not None:
             raise NotImplementedError(
                 "episodic forward simulation requires `age` (the present must be fixed to map "
                 "age-before-present); n_tips mode is constant-rate only"
             )
-    elif not isinstance(model, BirthDeath):
+    elif isinstance(model, CladeShiftBirthDeath):
+        if n_tips is not None:
+            raise NotImplementedError(
+                "clade rate shifts are scheduled at ages before the present, so "
+                "CladeShiftBirthDeath requires `age` mode (a fixed present), not `n_tips`"
+            )
+    elif not heterogeneous and not isinstance(model, BirthDeath):
         raise NotImplementedError(
-            f"forward simulation supports BirthDeath/Yule and EpisodicBirthDeath, "
-            f"not {type(model).__name__}"
+            f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath, ClaDS, "
+            f"DiversityDependent and CladeShiftBirthDeath, not {type(model).__name__}"
         )
     model.validate()
     if age is not None and age <= 0:
         raise ValueError(f"age must be > 0, got {age}")
     if n_tips is not None and n_tips < 2:
         raise ValueError(f"n_tips must be >= 2, got {n_tips}")
+    if isinstance(model, DiversityDependent) and n_tips is not None and n_tips > model.K:
+        raise ValueError(
+            f"n_tips ({n_tips}) exceeds the carrying capacity K ({model.K:g}); a diversity-"
+            "dependent tree cannot grow past K, so use age mode or a smaller n_tips"
+        )
+    if isinstance(model, CladeShiftBirthDeath) and any(a >= age for a, _, _ in model.clade_shifts):
+        raise ValueError(
+            f"every clade-shift age must be < the crown age ({age}); "
+            f"got ages {[a for a, _, _ in model.clade_shifts]}"
+        )
+    mes = getattr(model, "mass_extinctions", None)
+    if mes:
+        if n_tips is not None:
+            raise NotImplementedError(
+                "mass extinctions are placed at an age before the present, so they require "
+                "`age` mode (a fixed present), not `n_tips`"
+            )
+        if any(a >= age for a, _ in mes):
+            raise ValueError(
+                f"every mass-extinction age must be < the crown age ({age}); "
+                f"got ages {[a for a, _ in mes]}"
+            )
     if rng is None:
         rng = np.random.default_rng(seed)
 
-    view = _ForwardRates(model, present=(age if age is not None else 0.0))
+    present = age if age is not None else 0.0
+    if heterogeneous:
+        if isinstance(model, ClaDS):
+            view = _ClaDSView(model, present)
+        elif isinstance(model, DiversityDependent):
+            view = _DDView(model, present)
+        else:
+            view = _ShiftView(model, present)
+        grow = _grow_gillespie
+    else:
+        view = _ForwardRates(model, present=present)
+        grow = _grow
     for _ in range(max_attempts):
-        result = _grow(view, age, n_tips, rng, max_lineages)
+        result = grow(view, age, n_tips, rng, max_lineages)
         if result is not None:
             root, end_time = result
             tree = Tree(root, end_time)
