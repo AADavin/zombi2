@@ -257,7 +257,7 @@ def test_cli_coevolve_smoke(tmp_path):
     out = tmp_path / "co"
     rc = main(["coevolve-genetrait", "-t", str(tpath), "--trait-model", "mk", "--states", "2",
                "--trait-center", "--panel", "24", "--responsive", "0.5", "--effect-loss", "3",
-               "--output", "profiles", "trees", "--seed", "7", "-o", str(out)])
+               "--write", "profiles", "trees", "--seed", "7", "-o", str(out)])
     assert rc == 0
     for name in ("Profiles.tsv", "Presence.tsv", "traits.tsv", "trait_tree.nwk",
                  "coupling.tsv", "coevolve-genetrait.log", "species_tree.nwk"):
