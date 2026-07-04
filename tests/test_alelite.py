@@ -242,6 +242,31 @@ def test_dated_inject_recover_prefers_true_rates():
         assert base > joint(**high), f"{which}: truth not preferred over high"
 
 
+def test_dated_rust_matches_python():
+    """The compiled Rust kernel reproduces the Python reference (bit-for-bit up to summation)."""
+    from zombi2.alelite import _rust
+    if not _rust.available():
+        pytest.skip("zombi2_core extension not built")
+    tree = simulate_species_tree(Yule(2.0), n_tips=8, age=1.0, seed=3)
+    g = simulate_genomes(tree, duplication=0.3, transfer=0.2, loss=0.4,
+                         origination=0.0, initial_size=25, seed=3)
+    sp = SpeciesTree.from_tree(tree)
+    trees, n_extinct = [], 0
+    for r in g.reconciliations().values():
+        if r.extant is None:
+            n_extinct += 1
+        else:
+            trees.append(GeneTree.from_reconciliation(r))
+    for origination in ("root", "uniform"):
+        for rates in [(0.3, 0.2, 0.4), (0.1, 0.05, 0.6), (0.5, 0.4, 0.3)]:
+            m = DatedDTL(*rates)
+            py = dated_joint_loglik(trees, sp, m, origination=origination,
+                                    n_extinct=n_extinct, n_steps=30, backend="python")
+            ru = dated_joint_loglik(trees, sp, m, origination=origination,
+                                    n_extinct=n_extinct, n_steps=30, backend="rust")
+            assert abs(py - ru) < 1e-7 * max(1.0, abs(py)), (origination, rates, py, ru)
+
+
 def test_dated_zombi_families_score_finite():
     tree = simulate_species_tree(Yule(1.0), n_tips=6, age=2.0, seed=7)
     g = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
