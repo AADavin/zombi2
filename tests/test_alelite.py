@@ -24,6 +24,7 @@ from zombi2.alelite import (
     dated_joint_loglik,
     dated_loglik,
     reldated_loglik,
+    score_reconciliations,
     undated_joint_loglik,
     undated_loglik,
 )
@@ -246,6 +247,50 @@ def test_reldated_scores_zombi_families_finite():
         assert math.isfinite(ll) and ll <= 1e-9
         scored += 1
     assert scored > 0
+
+
+# ==================================================================== per-family scoring
+
+def test_score_reconciliations_matches_single_tree_reference():
+    """The per-family score table (via the Rust family kernels when built) reproduces the
+    validated single-tree reference functions for every model."""
+    tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=6)
+    g = simulate_genomes(tree, duplication=0.25, transfer=0.2, loss=0.35,
+                         origination=0.0, initial_size=15, seed=6)
+    sp = SpeciesTree.from_tree(tree)
+    recons = g.reconciliations()
+    rows = score_reconciliations(tree, recons, 0.25, 0.2, 0.35,
+                                 models=("dated", "undated", "reldated"), n_steps=60)
+    by_fam = {r.family: r for r in rows}
+    checked = 0
+    for fam, recon in recons.items():
+        if recon.extant is None:
+            continue
+        gt = GeneTree.from_reconciliation(recon)
+        exp = {
+            "dated": dated_loglik(gt, sp, DatedDTL(0.25, 0.2, 0.35), n_steps=60),
+            "undated": undated_loglik(gt, sp, UndatedDTL(0.25, 0.2, 0.35)),
+            "reldated": reldated_loglik(gt, sp, UndatedDTL(0.25, 0.2, 0.35)),
+        }
+        r = by_fam[fam]
+        for m, v in exp.items():
+            assert math.isclose(r.logliks[m], v, rel_tol=1e-8, abs_tol=1e-8), (fam, m)
+        checked += 1
+    assert checked > 0
+
+
+def test_genomes_reconciliation_likelihoods_api():
+    """Genomes.reconciliation_likelihoods returns one FamilyScore per extant family."""
+    tree = simulate_species_tree(Yule(2.0), n_tips=6, age=1.0, seed=8)
+    g = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.3,
+                         origination=0.0, initial_size=10, seed=8)
+    rows = g.reconciliation_likelihoods(0.2, 0.1, 0.3, models=("dated", "undated"), n_steps=40)
+    n_extant = sum(1 for r in g.reconciliations().values() if r.extant is not None)
+    assert len(rows) == n_extant >= 1
+    for r in rows:
+        assert set(r.logliks) == {"dated", "undated"}
+        assert r.extant_tips >= 1
+        assert all(v <= 1e-9 for v in r.logliks.values())
 
 
 # ==================================================================== DATED engine

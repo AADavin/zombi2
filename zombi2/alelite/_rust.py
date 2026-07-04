@@ -17,10 +17,12 @@ try:  # optional native extension (shared with the simulator)
 
     _HAS = hasattr(_core, "dated_joint_loglik")
     _HAS_UNDATED = hasattr(_core, "undated_joint_loglik")
+    _HAS_FAMILY = hasattr(_core, "dated_family_loglik") and hasattr(_core, "undated_family_loglik")
 except ImportError:  # pragma: no cover - depends on whether the wheel is built
     _core = None
     _HAS = False
     _HAS_UNDATED = False
+    _HAS_FAMILY = False
 
 _ORIG = {"root": 0, "uniform": 1}
 _TRANSFERS = {"global": 0, "dated": 1}
@@ -34,6 +36,11 @@ def available() -> bool:
 def available_undated() -> bool:
     """True if the compiled undated/reldated-likelihood kernel is importable."""
     return _HAS_UNDATED
+
+
+def available_family() -> bool:
+    """True if the compiled per-family (per-tree) kernels are importable."""
+    return _HAS_FAMILY
 
 
 def _flat_species(sp):
@@ -90,4 +97,26 @@ def undated_joint_loglik(gene_trees, sp, dup, transfer, loss, origination, trans
         gt_off, gt_leaf, gt_left, gt_right, gt_species,
         float(dup), float(transfer), float(loss),
         _TRANSFERS[transfers], _ORIG[origination], int(n_extinct),
+    )
+
+
+def dated_family_loglik(gene_trees, sp, dup, transfer, loss, origination, n_steps):
+    """Per-family dated log-liks (one per tree). Assumes :func:`available_family` is True."""
+    sp_parent, sp_left, sp_right, sp_is_leaf, sp_time, sp_ptime, sp_root = _flat_species(sp)
+    gt_off, gt_leaf, gt_left, gt_right, gt_species = _flat_genes(gene_trees, sp)
+    return _core.dated_family_loglik(
+        sp_parent, sp_left, sp_right, sp_is_leaf, sp_time, sp_ptime, sp_root,
+        gt_off, gt_leaf, gt_left, gt_right, gt_species,
+        float(dup), float(transfer), float(loss), int(n_steps), _ORIG[origination],
+    )
+
+
+def undated_family_loglik(gene_trees, sp, dup, transfer, loss, origination, transfers):
+    """Per-family undated/reldated log-liks (one per tree). Assumes :func:`available_family`."""
+    _, sp_left, sp_right, sp_is_leaf, sp_time, sp_ptime, sp_root = _flat_species(sp)
+    gt_off, gt_leaf, gt_left, gt_right, gt_species = _flat_genes(gene_trees, sp)
+    return _core.undated_family_loglik(
+        sp_left, sp_right, sp_is_leaf, sp_time, sp_ptime, sp_root,
+        gt_off, gt_leaf, gt_left, gt_right, gt_species,
+        float(dup), float(transfer), float(loss), _TRANSFERS[transfers], _ORIG[origination],
     )

@@ -27,9 +27,11 @@ from .species import SpeciesTree
 from .genetree import GeneTree
 from .undated import UndatedDTL, undated_loglik, reldated_loglik, undated_joint_loglik
 from .dated import DatedDTL, dated_loglik, dated_extinction, dated_joint_loglik
+from .scoring import FamilyScore, score_reconciliations, write_scores_tsv
 
 __all__ = [
     "SpeciesTree", "GeneTree",
     "UndatedDTL", "undated_loglik", "reldated_loglik", "undated_joint_loglik",
     "DatedDTL", "dated_loglik", "dated_extinction", "dated_joint_loglik",
+    "FamilyScore", "score_reconciliations", "write_scores_tsv",
 ]
