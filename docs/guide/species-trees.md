@@ -111,6 +111,12 @@ m = z.EpisodicBirthDeath(birth=[1.0, 1.4], death=[0.2, 0.3], shifts=[2.0],
 
 CLI: `zombi2 species --model forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5 -o out/`.
 
+<figure markdown="span">
+![A forward tree hit by an instantaneous mass-extinction pulse](../img/mass_extinction.svg)
+<figcaption>A mass extinction: at one instant a fraction of the standing diversity is wiped
+out (the pulse), pruning many lineages at once.</figcaption>
+</figure>
+
 ## Per-lineage rates: ClaDS
 
 In the models so far, every lineage shares the same rates at any instant. **ClaDS** (Maliet,
@@ -128,6 +134,12 @@ tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n
 - Forward-only (per-lineage rates have no closed-form reconstructed CDF); `age` or `n_tips` mode.
 - `turnover=0` is ClaDS0 (pure birth with shifts); `turnover>0` adds proportional extinction.
 - Accepts `sampling_fraction` and `mass_extinctions` overlays, like `BirthDeath`.
+
+<figure markdown="span">
+![A ClaDS tree where each lineage carries its own drifting speciation rate](../img/clads.svg)
+<figcaption>ClaDS: each lineage inherits its parent's speciation rate times a lognormal jump,
+so rates drift lineage-by-lineage — some clades radiate, others stall.</figcaption>
+</figure>
 
 ## Diversity-dependent diversification
 
@@ -147,6 +159,12 @@ tree = z.simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or 
 Both are grown by an exact-Gillespie loop (their rates are constant between events), and both feed
 `simulate_genomes` unchanged.
 
+<figure markdown="span">
+![A diversity-dependent tree that radiates then saturates at a carrying capacity](../img/diversity_dependent.svg)
+<figcaption>Diversity-dependent diversification: speciation slows as the tree fills its
+carrying capacity <em>K</em> — fast radiation early, a plateau near <em>K</em>.</figcaption>
+</figure>
+
 ## Clade-specific rate shifts
 
 Where ClaDS shifts *every* lineage a little at *every* speciation, **`CladeShiftBirthDeath`**
@@ -165,6 +183,12 @@ tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 - The shifted lineage is drawn at random — you can't name an unborn clade in a forward run, and
   contemporaneous lineages are exchangeable. Give several shifts for several clades.
 - Accepts `sampling_fraction` and `mass_extinctions` overlays, and feeds `simulate_genomes` as is.
+
+<figure markdown="span">
+![One clade switching to a new diversification regime at a scheduled time](../img/clade_shift.svg)
+<figcaption>A clade-specific shift: at a scheduled age one lineage and all its descendants
+adopt a new speciation/extinction regime — here sparking a fast-diversifying clade.</figcaption>
+</figure>
 
 ## What's coming
 

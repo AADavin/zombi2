@@ -46,6 +46,12 @@ A random walk: `dX = trend·dt + σ·dW`. The tips are jointly multivariate-norm
 z.simulate_traits(tree, z.BrownianMotion(sigma2=0.5, x0=0.0, trend=0.0), seed=1)
 ```
 
+<figure markdown="span">
+![A continuous trait evolving by Brownian motion along a tree](../img/trait_bm.svg)
+<figcaption>A continuous trait wandering down the branches by Brownian motion — the value at
+each tip is the endpoint of its root-to-tip random walk.</figcaption>
+</figure>
+
 ### Ornstein–Uhlenbeck
 
 Stabilizing selection: the trait is pulled toward an optimum `theta` with strength `alpha`
@@ -55,6 +61,12 @@ set `x0`.
 ```python
 z.simulate_traits(tree, z.OrnsteinUhlenbeck(sigma2=0.4, alpha=2.0, theta=10.0), seed=1)
 ```
+
+<figure markdown="span">
+![An Ornstein–Uhlenbeck trait pulled toward an optimum](../img/trait_ou.svg)
+<figcaption>Ornstein–Uhlenbeck: the trait diffuses but is pulled back toward an optimum, so
+lineages cluster around it instead of wandering freely as under Brownian motion.</figcaption>
+</figure>
 
 ### Early burst / ACDC
 
@@ -80,6 +92,12 @@ z.simulate_traits(tree, z.MultivariateBrownian(R), seed=1)
 z.simulate_traits(tree, z.MultivariateOU(R, alpha=1.5, theta=[0.0, 5.0]), seed=1)
 ```
 
+<figure markdown="span">
+![Two correlated continuous traits evolving jointly](../img/trait_multivariate.svg)
+<figcaption>A multivariate trait: the rate matrix <em>R</em> correlates the dimensions, so the
+two traits tend to move together down the tree.</figcaption>
+</figure>
+
 ## Discrete traits
 
 ### The Mk model
@@ -101,6 +119,12 @@ z.Mk.symmetric([[0, 2, 1], [2, 0, 3], [1, 3, 0]])   # SYM: symmetric Q
 z.Mk.ordered(4, 0.5)                                 # ordered: adjacent-only steps (i <-> i±1)
 z.Mk([[0, 1, 2], [3, 0, 1], [1, 1, 0]])             # ARD: any user-supplied rate matrix
 ```
+
+<figure markdown="span">
+![A discrete character changing state along a tree under an Mk model](../img/trait_mk.svg)
+<figcaption>A discrete character under an Mk model: the state jumps along the branches (the
+exact stochastic character map), and the tips inherit whatever state they end in.</figcaption>
+</figure>
 
 The transition structure is entirely in the `Q` you pass: `equal_rates` is all-to-all at one
 rate, `symmetric` makes `i→j` and `j→i` equal, `ordered` is the tridiagonal nearest-neighbour
@@ -164,6 +188,12 @@ th.values                              # liabilities (continuous, latent)
 th.labeled_values()                    # observed 0/1 states
 ```
 
+<figure markdown="span">
+![A threshold model: a latent liability crossing a threshold flips the observed state](../img/trait_threshold.svg)
+<figcaption>The threshold model: a latent liability evolves by Brownian motion (top), and the
+observed discrete state is whichever interval it falls in at each point (bottom).</figcaption>
+</figure>
+
 ## Adaptation to different regimes (multi-optimum OU)
 
 Different parts of the tree can adapt toward different optima (`OUwie`). The **regimes** come
@@ -210,6 +240,13 @@ res.labeled_values()                   # {extant leaf: ('A', 'B') ...} — the o
 res.ancestral_states()                 # ancestral ranges at every internal node
 res.changes()                          # anagenetic dispersal / extinction events along branches
 ```
+
+<figure markdown="span">
+![Geographic range evolution under the DEC model](../img/dec.svg)
+<figcaption>Historical biogeography (DEC): a lineage's range gains and loses discrete areas by
+dispersal and local extinction, and the ancestral range is split between daughters at each
+speciation.</figcaption>
+</figure>
 
 `dispersal` may be a scalar or an area-by-area matrix, `extinction` a scalar or per-area vector,
 and `max_range_size` caps how many areas a range may span.

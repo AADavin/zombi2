@@ -10,6 +10,12 @@ for example, an extinct lineage could have been the donor of a horizontal transf
 `z.add_ghost_lineages` **un-prunes** the tree: it grafts those dead ("ghost") lineages back
 on, so the tree again reflects the full process rather than just the survivors.
 
+<figure markdown="span">
+![A reconstructed tree with extinct ghost lineages grafted back on](../img/model_ghosts.svg)
+<figcaption>Un-pruning: the reconstructed tree of survivors (solid) with the extinct/unsampled
+ghost lineages grafted back on (dashed) to recover the full diversification history.</figcaption>
+</figure>
+
 !!! note "Un-pruning vs. simulating forward"
     Un-pruning is for when you *already have* (or want) a reconstructed tree conditioned on
     `N` extant tips and need the dead lineages added back. If you instead want the complete

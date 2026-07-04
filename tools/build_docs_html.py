@@ -13,6 +13,7 @@ Usage::
 
 from __future__ import annotations
 
+import base64
 import html as _html
 import os
 import re
@@ -52,6 +53,35 @@ def rewrite_links(body: str, src: str) -> str:
     return re.sub(r'(href=")([^"]+)(")', repl, body)
 
 
+_IMG_MIME = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
+             ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+
+
+def embed_images(body: str, src: str) -> str:
+    """Inline every local ``<img>`` as a ``data:`` URI so the one HTML file is self-contained.
+
+    Paths are resolved relative to the page's directory under ``docs/`` (the same base the
+    Markdown author writes against); remote (``http(s):``) and already-inlined (``data:``)
+    sources, and files that are missing or of an unknown type, are left untouched.
+    """
+    src_dir = os.path.dirname(src)
+
+    def repl(m: re.Match) -> str:
+        pre, url, post = m.group(1), m.group(2), m.group(3)
+        if url.startswith(("http://", "https://", "data:")):
+            return m.group(0)
+        path = url.split("#", 1)[0].split("?", 1)[0]
+        mime = _IMG_MIME.get(os.path.splitext(path)[1].lower())
+        fpath = os.path.normpath(os.path.join(DOCS, src_dir, path))
+        if mime is None or not os.path.isfile(fpath):
+            return m.group(0)
+        with open(fpath, "rb") as fh:
+            data = base64.b64encode(fh.read()).decode("ascii")
+        return f'{pre}data:{mime};base64,{data}{post}'
+
+    return re.sub(r'(<img\b[^>]*?\ssrc=")([^"]+)("[^>]*>)', repl, body)
+
+
 def render_page(src: str) -> str:
     if src in STUB_PAGES:
         return (
@@ -60,11 +90,12 @@ def render_page(src: str) -> str:
             f"(<code>mkdocs serve</code>). See the <a href=\"{REPO}\">repository</a>.</p>"
         )
     md = markdown.Markdown(
-        extensions=["fenced_code", "tables", "admonition", "toc", "codehilite", "attr_list", "sane_lists"],
+        extensions=["fenced_code", "tables", "admonition", "toc", "codehilite", "attr_list",
+                    "sane_lists", "md_in_html"],
         extension_configs={"codehilite": {"guess_lang": False}},
     )
     with open(os.path.join(DOCS, src), encoding="utf-8") as f:
-        return rewrite_links(md.convert(f.read()), src)
+        return embed_images(rewrite_links(md.convert(f.read()), src), src)
 
 
 def build_sidebar() -> str:
@@ -111,6 +142,10 @@ blockquote,.admonition{margin:1em 0;padding:.4em 1em;border-left:4px solid var(-
 .admonition-title{font-weight:600;margin:.2em 0}
 .doc-page{scroll-margin-top:16px;border-bottom:1px dashed var(--border);margin-bottom:24px}
 .topnote{color:var(--muted);font-size:13px;margin:0 0 18px}
+main img{max-width:100%;height:auto;display:block;margin:1.4em auto}
+figure{margin:1.4em 0;text-align:center}
+figure img{margin:0 auto .5em}
+figcaption,.caption{color:var(--muted);font-size:13.5px;text-align:center;margin:.2em auto 0;max-width:92%}
 @media(max-width:820px){#side{display:none}main{padding:20px}}
 """
 
