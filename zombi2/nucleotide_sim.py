@@ -65,6 +65,7 @@ class NucleotideResult:
     registry: SegmentRegistry  # segment provenance + split parent-links
     atoms: list         # list[Atom], tiling every source's [0, len)
     root_length: int
+    node_genomes: dict = field(default_factory=dict)  # every node -> genome (retain_internal)
     _by_source: dict = field(default_factory=dict, repr=False)
 
     def __post_init__(self):
@@ -310,6 +311,122 @@ class NucleotideResult:
                     out[a.atom_id].append((r.branch, r.time))
         return out
 
+    # --- ancestral genomes + sequences (needs retain_internal + simulate_sequences) -----
+    def node_mosaic(self, node) -> list[tuple[int, int]]:
+        """The genome at ``node`` as an ordered, signed atom sequence ``[(atom_id, strand), ...]``.
+
+        Generalises :meth:`leaf_mosaic` to any node; the root's mosaic is the input genome's
+        gene/intergene tiling. Requires ``retain_internal`` (see :func:`simulate_nucleotide_genomes`).
+        """
+        out: list[tuple[int, int]] = []
+        for seg in self.node_genomes[node]._segments:
+            covered = self._covered(seg.source, seg.src_start, seg.src_end)
+            if seg.strand == -1:
+                covered = list(reversed(covered))
+            out.extend((a.atom_id, seg.strand) for a in covered)
+        return out
+
+    def _seed_source(self) -> str:
+        """Source id of the seed (input) chromosome — the atoms that map to the real genome/FASTA."""
+        g = self.node_genomes.get(self.species_tree.root)
+        if g is not None and g._segments:
+            return g._segments[0].source
+        by: dict = {}
+        for a in self.atoms:
+            by[a.source] = by.get(a.source, 0) + 1
+        return max(by, key=by.get) if by else "1"
+
+    def simulate_sequences(self, model, *, gamma=None, root_fasta=None, subst_rate: float = 1.0,
+                           clock=None, rng=None, seed: int | None = None) -> dict:
+        """Evolve a DNA sequence for every atom lineage; cache + return ``{atom_id: {gid: seq}}``.
+
+        Each atom's *complete* gene tree is scaled to substitutions/site (a strict clock by default,
+        or a supplied :class:`~zombi2.SequenceEvolution` ``clock``; ``subst_rate`` scales the overall
+        divergence) and a sequence is evolved down it under ``model`` (optionally with across-site
+        :class:`~zombi2.sequence_sim.GammaRates`). A seed-chromosome atom takes its root sequence from
+        ``root_fasta`` (the real genome) when given, else a random root of the atom's length.
+        :meth:`node_sequence` then assembles these into the DNA at any node.
+        """
+        from .reconciliation import _node_tree
+        from .sequence_evolution import SequenceEvolution, _annotate
+        from .sequence_sim import evolve_on_tree
+        if rng is None:
+            rng = np.random.default_rng(seed)
+        zero = clock is None and subst_rate <= 0.0   # no substitutions: root propagates unchanged
+        se = clock or (None if zero else SequenceEvolution(root_rate=subst_rate))
+        segments = None if zero else se._lineage_segments(self.species_tree, rng)[0]
+        total_age = self.species_tree.total_age
+        records_by_atom, species_by_atom = self._atom_records()
+        seed_source = self._seed_source()
+        if root_fasta is not None and len(root_fasta) != self.root_length:
+            raise ValueError(f"root_fasta length {len(root_fasta)} != root_length {self.root_length}")
+
+        atom_seqs: dict[int, dict] = {}
+        for a in self.atoms:
+            root_node = _node_tree(records_by_atom[a.atom_id], species_by_atom[a.atom_id], total_age)
+            if root_node is None:
+                atom_seqs[a.atom_id] = {}
+                continue
+            subst: dict = {}
+            if not zero:
+                _annotate(root_node, segments, max(0.0, se.family_speed.sample(rng)), subst)
+            root_seq = (root_fasta[a.start:a.end]
+                        if (root_fasta is not None and a.source == seed_source) else None)
+            atom_seqs[a.atom_id] = evolve_on_tree(root_node, subst, model, rng,
+                                                  root_seq=root_seq, length=a.length, gamma=gamma)
+        self._atom_seqs = atom_seqs
+        self._seq_species = species_by_atom
+        return atom_seqs
+
+    def node_sequence(self, node) -> str:
+        """Assemble the full DNA of the genome at ``node`` (call :meth:`simulate_sequences` first).
+
+        Concatenates, in genome order, each segment's atom-lineage sequences (reverse-complemented
+        on the − strand). The root node reproduces the input genome; extant leaves give the observed
+        genomes.
+        """
+        from .sequence_sim import reverse_complement
+        atom_seqs = getattr(self, "_atom_seqs", None)
+        if atom_seqs is None:
+            raise RuntimeError("call simulate_sequences(...) before node_sequence(...)")
+        top_cache: dict = {}
+        parts: list[str] = []
+        for seg in self.node_genomes[node]._segments:
+            rep = self._top(seg.seg_id, top_cache)
+            covered = self._covered(seg.source, seg.src_start, seg.src_end)
+            if seg.strand == -1:
+                covered = list(reversed(covered))
+            for atom in covered:
+                s = atom_seqs.get(atom.atom_id, {}).get(rep)
+                if s is None:
+                    raise KeyError(f"no sequence for atom {atom.atom_id} lineage {rep!r} "
+                                   f"at node {getattr(node, 'name', node)!r}")
+                parts.append(reverse_complement(s) if seg.strand == -1 else s)
+        return "".join(parts)
+
+    def gene_alignments(self) -> dict:
+        """``{gene_id: {species_gid: seq}}`` extant alignments for gene atoms (needs sequences)."""
+        return self._alignments("gene")
+
+    def intergene_alignments(self) -> dict:
+        """``{atomN: {species_gid: seq}}`` extant alignments for intergene atoms."""
+        return self._alignments("intergene")
+
+    def _alignments(self, kind: str) -> dict:
+        atom_seqs = getattr(self, "_atom_seqs", None)
+        if atom_seqs is None:
+            raise RuntimeError("call simulate_sequences(...) first")
+        out: dict = {}
+        for a in self.atoms:
+            if a.kind != kind:
+                continue
+            g2s = self._seq_species.get(a.atom_id, {})
+            seqs = atom_seqs.get(a.atom_id, {})
+            aln = {f"{g2s[gid]}_{gid}": seqs[gid] for gid in g2s if gid in seqs}
+            if aln:
+                out[a.gene_id if (kind == "gene" and a.gene_id) else f"atom{a.atom_id}"] = aln
+        return out
+
 
 def _merge(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
     """Merge a list of ``[start, end)`` intervals into disjoint covered spans."""
@@ -399,6 +516,7 @@ def simulate_nucleotide_genomes(
     gene_intervals=None,
     pseudogenization: float = 0.0,
     replacement: float = 0.0,
+    retain_internal: bool = False,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
@@ -481,9 +599,12 @@ def simulate_nucleotide_genomes(
 
     result = GenomeSimulator(sampler).simulate(
         species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
-        genome_factory=factory,
+        genome_factory=factory, retain_internal=retain_internal,
     )
-    atoms = _build_atoms(result.leaf_genomes, root_length, registry)
+    # For ancestral reconstruction, atoms must tile every node's segments (not just the leaves'):
+    # build from all node genomes so internal breakpoints and ancestral-only material are covered.
+    atom_genomes = result.node_genomes if retain_internal else result.leaf_genomes
+    atoms = _build_atoms(atom_genomes, root_length, registry)
     return NucleotideResult(
         species_tree=species_tree,
         leaf_genomes=result.leaf_genomes,
@@ -491,4 +612,5 @@ def simulate_nucleotide_genomes(
         registry=registry,
         atoms=atoms,
         root_length=root_length,
+        node_genomes=result.node_genomes,
     )

@@ -58,6 +58,10 @@ from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
 from .rate_variation import RateVariation, RateScaledTree
 from .sequence_evolution import SequenceEvolution, GenePhylograms
+from .sequence_sim import (
+    SubstitutionModel, GammaRates, jc69, k80, hky85, gtr, make_model,
+    evolve_on_tree, read_fasta, write_fasta,
+)
 from .traits import (
     BrownianMotion,
     OrnsteinUhlenbeck,
@@ -149,6 +153,9 @@ __all__ = [
     "RateVariation", "RateScaledTree",
     # family sequence evolution (gene x lineage substitution clock)
     "SequenceEvolution", "GenePhylograms",
+    # sequence simulation (evolve DNA along a gene tree; ancestral genome reconstruction)
+    "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr", "make_model",
+    "evolve_on_tree", "read_fasta", "write_fasta",
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",

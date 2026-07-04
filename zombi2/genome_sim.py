@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -34,6 +34,7 @@ class GenomeResult:
     event_log: EventLog
     leaf_genomes: dict[TreeNode, Genome]  # extant leaf -> its final genome
     ids: IdManager
+    node_genomes: dict = field(default_factory=dict)  # every node -> its genome (retain_internal)
 
 
 def resolve_max_family_size(max_family_size, n_species: int) -> int | None:
@@ -66,6 +67,7 @@ class GenomeSimulator:
         transfers: TransferModel | None = None,
         max_family_size=None,
         genome_factory=UnorderedGenome,
+        retain_internal: bool = False,
     ) -> GenomeResult:
         """Simulate gene families on ``tree``.
 
@@ -107,6 +109,9 @@ class GenomeSimulator:
             fenwick.set(index[branch], cache[branch][1])
 
         t = root.time
+        node_genomes: dict = {}
+        if retain_internal:
+            node_genomes[root] = root_genome        # the seed genome == the user's input genome
         self._speciate(root_genome, root, alive, log)
         for child in root.children:
             activate(child)
@@ -125,6 +130,8 @@ class GenomeSimulator:
             genome = alive.pop(node)
             cache.pop(node, None)
             fenwick.set(index[node], 0.0)  # this branch ends here
+            if retain_internal:
+                node_genomes[node] = genome         # the ancestral genome at this node
             if node.is_leaf():
                 if node.is_extant:
                     leaf_genomes[node] = genome
@@ -139,7 +146,8 @@ class GenomeSimulator:
                 for child in node.children:
                     activate(child)
 
-        return GenomeResult(event_log=log, leaf_genomes=leaf_genomes, ids=ids)
+        return GenomeResult(event_log=log, leaf_genomes=leaf_genomes, ids=ids,
+                            node_genomes=node_genomes)
 
     # --- speciation: re-mint lineage ids into both children, log it --------
     @staticmethod
