@@ -149,13 +149,15 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "decimal = fraction of the number of species (e.g. 0.5) "
                         "[not used by --rate-model nucleotide]")
     p.add_argument("--output", nargs="+", metavar="PART",
-                   choices=(*Genomes.WRITE_PARTS, "all"), default=["profiles", "trees"],
+                   choices=(*Genomes.WRITE_PARTS, "ancestral", "all"), default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
                         "transfers, summary} or 'all' (default: profiles trees). "
                         "species_tree.nwk is always written; 'profiles' alone takes the fast "
                         "Rust counts-only path; 'trace' (optionally with 'profiles') writes the "
                         "compact single-file event log Events_trace.tsv near counts-only speed, "
-                        "from which gene trees can be reconstructed later on demand")
+                        "from which gene trees can be reconstructed later on demand. "
+                        "[nucleotide] 'ancestral' simulates DNA sequences and reconstructs the "
+                        "genome (architecture + gzipped FASTA) at every node (root = input genome)")
     p.add_argument("--sparse", action="store_true",
                    help="write the profile as a sparse long table (Profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense "
@@ -194,6 +196,26 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="[nucleotide, genic] probability a transfer is a homologous replacement "
                         "(the copy replaces the recipient's syntenic locus, located via flanking "
                         "genes; additive when no homolog) (default 0)")
+    # --- sequences + ancestral genomes (--output ancestral) ---
+    p.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
+                   help="[nucleotide, --output ancestral] nucleotide substitution model for the "
+                        "sequences (default hky85)")
+    p.add_argument("--kappa", type=float, default=2.0,
+                   help="[nucleotide] transition/transversion ratio for k80/hky85 (default 2.0)")
+    p.add_argument("--base-freqs", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
+                   help="[nucleotide] equilibrium base frequencies for hky85/gtr (default equal)")
+    p.add_argument("--gtr-rates", type=float, nargs=6, default=None,
+                   metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
+                   help="[nucleotide] the 6 GTR exchangeabilities (default all 1)")
+    p.add_argument("--gamma-shape", type=float, default=None, metavar="ALPHA",
+                   help="[nucleotide] discrete-Gamma across-site rate heterogeneity shape "
+                        "(default: none / uniform rates)")
+    p.add_argument("--subst-rate", type=float, default=1.0,
+                   help="[nucleotide] overall substitutions/site per unit time — scales sequence "
+                        "divergence (default 1.0)")
+    p.add_argument("--genome-fasta", metavar="FILE", default=None,
+                   help="[nucleotide, --output ancestral] the input genome's DNA (FASTA, optionally "
+                        ".gz) to seed the root sequence; without it the root is drawn at random")
 
 
 def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -1020,10 +1042,11 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
-    want = parts & {"profiles", "trees"}
+    want = parts & {"profiles", "trees", "ancestral"}
     if not want:
-        raise ValueError("the nucleotide model writes 'profiles' and/or 'trees'; "
+        raise ValueError("the nucleotide model writes 'profiles', 'trees' and/or 'ancestral'; "
                          "--output events/transfers/summary do not apply to it")
+    ancestral = "ancestral" in want
     initial_size = 1 if args.initial_size is None else args.initial_size
     args.initial_size = initial_size          # record the effective value in the params log
     if args.gff and args.genes:
@@ -1045,10 +1068,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                   origination=args.orig, root_length=args.root_length,
                   extension=args.extension, initial_size=initial_size, seed=args.seed,
                   gene_intervals=genes, pseudogenization=args.pseudogenization,
-                  replacement=args.replacement, transfers=transfers)
+                  replacement=args.replacement, transfers=transfers, retain_internal=ancestral)
 
     t0 = time.perf_counter()
-    if "trees" in want or genic:              # genealogy (and genic mode) need the Python engine
+    if "trees" in want or genic or ancestral:  # genealogy / genic / ancestral need the Python engine
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -1081,6 +1104,8 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
         if genic:
             _write_pseudogenizations(args.out, result)
+    if ancestral:
+        _write_ancestral(args.out, result, tree, args, gff_info)
 
     if gff_info is not None:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
@@ -1090,6 +1115,51 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     return (f"wrote [{' '.join(sorted(want))}] (nucleotide{'/genic' if genic else ''}) to "
             f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.atoms)} atoms{extra}) "
             f"in {dt:.3g} s")
+
+
+def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
+    """Simulate sequences and write the genome (architecture + gzipped DNA) at every node.
+
+    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome;
+    ``Genomes/<node>.fasta.gz`` — its full assembled DNA (the root reproduces the input genome);
+    ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is seeded
+    from ``--genome-fasta`` (the real genome) when given, else drawn at random.
+    """
+    from .sequence_sim import make_model, GammaRates, read_fasta, write_fasta
+    model = make_model(args.subst_model, kappa=args.kappa,
+                       freqs=args.base_freqs, rates=args.gtr_rates)
+    gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
+    root_fasta = None
+    if args.genome_fasta:
+        fa = read_fasta(args.genome_fasta)
+        seqid = gff_info.seqid if gff_info is not None else None
+        root_fasta = fa[seqid] if seqid in fa else next(iter(fa.values()))
+        if len(root_fasta) != args.root_length:
+            raise ValueError(f"--genome-fasta sequence is {len(root_fasta)} bp but the genome is "
+                             f"{args.root_length} bp; supply the matching chromosome FASTA")
+    result.simulate_sequences(model, gamma=gamma, root_fasta=root_fasta,
+                              subst_rate=args.subst_rate, seed=args.seed)
+
+    adir = os.path.join(out, "Architecture")
+    gdir = os.path.join(out, "Genomes")
+    os.makedirs(adir, exist_ok=True)
+    os.makedirs(gdir, exist_ok=True)
+    for node in tree.nodes_preorder():
+        name = node.name
+        lines = ["order\tatom\tkind\tgene_id\tstrand\tlength"]
+        for i, (aid, strand) in enumerate(result.node_mosaic(node)):
+            a = result._atom_by_id[aid]
+            lines.append(f"{i}\tatom{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
+                         f"{'+' if strand > 0 else '-'}\t{a.length}")
+        with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
+            f.write("\n".join(lines) + "\n")
+        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), {name: result.node_sequence(node)},
+                    gzip_out=True)
+
+    aln_dir = os.path.join(out, "Gene_alignments")
+    os.makedirs(aln_dir, exist_ok=True)
+    for gene, aln in result.gene_alignments().items():
+        write_fasta(os.path.join(aln_dir, f"{gene}.fasta"), aln)
 
 
 def _read_gene_intervals(path: str) -> list[tuple]:
