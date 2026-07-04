@@ -1075,7 +1075,8 @@ def _run_sequence(args: argparse.Namespace) -> str:
     with open(tree_path) as f:
         tree = read_newick(f.read())
     with open(trace_path) as f:
-        families = read_events_trace(f.read())
+        # pass the tree so a compact (speciation-free) trace is replayed back to a full genealogy
+        families = read_events_trace(f.read(), tree)
     gid2species = extant_species_from_records(families, tree)
 
     family_speed = LogNormal(0.0, args.family_speed) if args.family_speed > 0 else 1.0

@@ -58,7 +58,7 @@ def events_trace_from_log(event_log) -> str:
     return "\n".join(rows) + "\n"
 
 
-def read_events_trace(text: str) -> dict:
+def read_events_trace(text: str, species_tree=None) -> dict:
     """Parse ``Events_trace.tsv`` text back into ``{family: [EventRecord]}`` (time-ordered).
 
     The inverse of :func:`events_trace_from_log`. Each row rebuilds one
@@ -66,10 +66,17 @@ def read_events_trace(text: str) -> dict:
     roles are not stored in the trace, and gene-tree / sequence reconstruction does not need
     them). This is the from-disk entry point behind ``zombi2 sequence`` — gene trees stay
     reconstructable on demand from the compact trace.
+
+    The compact ``output="trace"`` file carries **no speciation rows** (a lineage keeps its id
+    across speciations). When ``species_tree`` is supplied and the file is compact, the trace is
+    replayed against it (:func:`~zombi2.reconciliation.expand_trace`) so the returned records are
+    the full O/S/D/T/L genealogy the ordinary reconstruction expects. A file that already
+    contains speciation rows (a full log written as a trace) is returned as-is.
     """
     from .events import EventRecord, EventType, GeneOp
 
     families: dict[str, list] = {}
+    has_speciation = False
     lines = text.splitlines()
     if not lines:
         return families
@@ -84,9 +91,15 @@ def read_events_trace(text: str) -> dict:
             genes.append(GeneOp(child1, family, "child"))
         if child2:
             genes.append(GeneOp(child2, family, "child"))
-        rec = EventRecord(EventType(event), branch, float(time), genes,
+        ev = EventType(event)
+        has_speciation = has_speciation or ev is EventType.SPECIATION
+        rec = EventRecord(ev, branch, float(time), genes,
                           donor=donor or None, recipient=recipient or None)
         families.setdefault(family, []).append(rec)
+
+    if species_tree is not None and not has_speciation:
+        from .reconciliation import expand_trace
+        families = expand_trace(families, species_tree)
     return families
 
 
@@ -98,6 +111,10 @@ class Genomes:
     leaf_genomes: dict  # extant leaf TreeNode -> its final genome
     event_log: object   # EventLog
     profiles: ProfileMatrix
+    # Optional precomputed gid -> extant species. Used when the genealogy was reconstructed by
+    # replaying a compact trace (no leaf genomes to read it off); otherwise it is derived from
+    # ``leaf_genomes``. See :meth:`GenomeTrace.genomes`.
+    gid2species: dict | None = None
 
     @property
     def gene_families(self):
@@ -105,6 +122,8 @@ class Genomes:
         return self.event_log.by_family()
 
     def _gid_to_species(self) -> dict[str, str]:
+        if self.gid2species is not None:
+            return self.gid2species
         out: dict[str, str] = {}
         for leaf, genome in self.leaf_genomes.items():
             for g in genome.genes():
@@ -265,11 +284,15 @@ class GenomeTrace:
     _columns: tuple | None = None   # raw Rust event columns (fast path); None on the Python path
     _nodes: list | None = None      # preorder node list aligned with the column indices
     _event_log: object | None = None  # prebuilt EventLog (Python path) or lazily materialised
+    _genomes_cache: object = None   # promoted Genomes (see genomes())
 
     @property
     def event_log(self):
         """The :class:`~zombi2.events.EventLog` — materialised from the columns on first access
-        (the deferred cost the trace exists to avoid). Cached thereafter."""
+        (the deferred cost the trace exists to avoid). Cached thereafter.
+
+        For the Rust ``output="trace"`` path this is the **compact** log: O/D/T/L only, no
+        speciation records (see :meth:`genomes` for the reconstructed full genealogy)."""
         if self._event_log is None:
             if self._columns is None:
                 raise RuntimeError("GenomeTrace has neither raw columns nor an event log")
@@ -278,9 +301,30 @@ class GenomeTrace:
         return self._event_log
 
     def genomes(self) -> "Genomes":
-        """Promote to a full :class:`Genomes` (builds the event log — the deferred cost)."""
-        return Genomes(species_tree=self.species_tree, leaf_genomes=self.leaf_genomes,
-                       event_log=self.event_log, profiles=self.profiles)
+        """Promote to a full :class:`Genomes` (the deferred reconstruction cost). Cached.
+
+        A compact trace (Rust ``output="trace"``: O/D/T/L only) is first **expanded** — replayed
+        against the species tree to re-insert the implied speciations and remint per-instance
+        gene ids (:func:`zombi2.reconciliation.expand_trace`) — so the resulting ``Genomes`` has a
+        full O/S/D/T/L log and behaves exactly like a directly-simulated one. A log that already
+        carries speciations (the Python-engine path) is wrapped as-is."""
+        if self._genomes_cache is not None:
+            return self._genomes_cache
+        from .events import EventType
+        log = self.event_log
+        if any(r.event is EventType.SPECIATION for r in log):   # full log (Python path)
+            self._genomes_cache = Genomes(self.species_tree, self.leaf_genomes, log, self.profiles)
+        else:                                                    # compact trace → expand
+            from .events import EventLog
+            from .reconciliation import expand_trace, extant_species_from_records
+            full = expand_trace(log.by_family(), self.species_tree)
+            g2s = extant_species_from_records(full, self.species_tree)
+            exp = EventLog()
+            for recs in full.values():
+                for r in recs:
+                    exp.add(r)
+            self._genomes_cache = Genomes(self.species_tree, {}, exp, self.profiles, gid2species=g2s)
+        return self._genomes_cache
 
     def gene_trees(self, annotate_species: bool = False):
         """Reconstruct ``{family: (complete, extant)}`` on demand (see :meth:`Genomes.gene_trees`)."""

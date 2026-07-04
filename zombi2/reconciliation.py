@@ -17,9 +17,10 @@ extant leaf).
 
 from __future__ import annotations
 
+import sys
 from collections import namedtuple
 
-from .events import EventType
+from .events import EventRecord, EventType, GeneOp
 
 
 class _Node:
@@ -170,6 +171,96 @@ def extant_species_from_records(families, species_tree) -> dict:
             if node is not None and not node.children and node.is_extant:
                 out[gid] = node.name
     return out
+
+
+# ============ expand a compact (speciation-free) trace back into a full record list ============
+
+def expand_trace(families, species_tree):
+    """Replay a compact event trace against ``species_tree`` into a full record list.
+
+    The ``output="trace"`` engine keeps gene ids across speciations and emits **no** speciation
+    records, so a lineage id ``g`` is shared by every branch it spreads into; ``(g, branch)`` is
+    then a unique lineage-instance key. This walks the species tree from each origination,
+    re-inserting the speciation bifurcations the tree implies and assigning a **fresh** id to
+    every lineage instance — reproducing exactly the O/S/D/T/L structure the full-log engine
+    would have emitted (with reminted ids). The result feeds the ordinary reconstruction
+    (:func:`build_gene_trees`, :func:`reconcile`, :func:`extant_species_from_records`, and the
+    sequence-evolution scaler) unchanged.
+
+    ``families`` is ``{family: [EventRecord]}`` of O/D/T/L records; returns the same shape with
+    speciations inserted.
+    """
+    node_by_name = {n.name: n for n in species_tree.nodes_preorder()}
+    return {fam: _expand_one(fam, recs, node_by_name) for fam, recs in families.items()}
+
+
+def _expand_one(family, records, node_by_name):
+    origins: list[tuple[str, str, float]] = []       # (gid, branch, time)
+    event_at: dict[tuple[str, str], object] = {}     # (parent_gid, branch) -> the D/T/L record
+    for r in records:
+        if r.event is EventType.ORIGINATION:
+            origins.append((r.genes[0].gid, r.branch, r.time))
+        else:
+            event_at[(r.genes[0].gid, r.branch)] = r
+
+    emitted: list[EventRecord] = []
+    counter = 0
+
+    def fresh() -> str:
+        nonlocal counter
+        counter += 1
+        return f"{family}.{counter}"
+
+    def walk(gid: str, node, birth_time: float, *, origin: bool = False) -> str:
+        """Emit records for the lineage instance (``gid`` on species ``node``) and return the
+        fresh id assigned to it."""
+        my = fresh()
+        if origin:
+            emitted.append(EventRecord(EventType.ORIGINATION, node.name, birth_time,
+                                       [GeneOp(my, family, "origin")]))
+        ev = event_at.get((gid, node.name))
+        if ev is not None:                                   # consumed on this branch
+            if ev.event is EventType.LOSS:
+                emitted.append(EventRecord(EventType.LOSS, node.name, ev.time,
+                                           [GeneOp(my, family, "lost")]))
+            elif ev.event is EventType.DUPLICATION:
+                a = walk(ev.genes[1].gid, node, ev.time)
+                b = walk(ev.genes[2].gid, node, ev.time)
+                emitted.append(EventRecord(EventType.DUPLICATION, node.name, ev.time,
+                    [GeneOp(my, family, "parent"), GeneOp(a, family, "left"),
+                     GeneOp(b, family, "right")]))
+            else:                                            # TRANSFER
+                cont = walk(ev.genes[1].gid, node, ev.time)
+                tc = walk(ev.genes[2].gid, node_by_name[ev.recipient], ev.time)
+                emitted.append(EventRecord(EventType.TRANSFER, node.name, ev.time,
+                    [GeneOp(my, family, "parent"), GeneOp(cont, family, "donor_copy"),
+                     GeneOp(tc, family, "transfer_copy")],
+                    donor=node.name, recipient=ev.recipient))
+        else:                                                # flows to the end of the branch
+            kids = node.children
+            if len(kids) >= 2:                               # speciation at node.time
+                children_ids = [walk(gid, c, node.time) for c in kids]
+                emitted.append(EventRecord(EventType.SPECIATION, node.name, node.time,
+                    [GeneOp(my, family, "parent"),
+                     *(GeneOp(c, family, "child") for c in children_ids)]))
+            elif len(kids) == 1:                             # degree-2 pass-through (non-binary)
+                child_id = walk(gid, kids[0], node.time)
+                emitted.append(EventRecord(EventType.SPECIATION, node.name, node.time,
+                    [GeneOp(my, family, "parent"), GeneOp(child_id, family, "child")]))
+            # leaf: survivor / extinct tip — no record; extant-ness recovered by the caller
+            # (extant_species_from_records) from the emitted speciation edges.
+        return my
+
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(old_limit, 1_000_000))         # species-tree depth can be large
+    try:
+        for gid, branch, t in origins:
+            node = node_by_name.get(branch)
+            if node is not None:
+                walk(gid, node, t, origin=True)
+    finally:
+        sys.setrecursionlimit(old_limit)
+    return emitted
 
 
 def _bl(node: _Node) -> float:

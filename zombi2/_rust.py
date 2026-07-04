@@ -291,26 +291,33 @@ def events_trace_tsv(columns, nodes) -> str:
 
 
 def trace(species_tree, rates, *, initial_size, transfers, max_family_size, seed):
-    """Simulate the full genealogy in Rust but return a :class:`~zombi2.GenomeTrace` — the raw
-    event columns + leaf genomes + profile, *without* building the per-event Python objects.
-    This is the built-in path behind ``simulate_genomes(..., output="trace")``: it uses the same
-    ``simulate_log`` engine as :func:`genomes`, then defers the (expensive) event-log
-    materialisation until something actually needs it."""
+    """Simulate the compact **event trace** in Rust and return a :class:`~zombi2.GenomeTrace`.
+
+    Uses the ``simulate_trace`` engine: identical D/T/L/O dynamics to :func:`genomes`, but
+    speciations neither re-mint gene ids nor emit records (a lineage keeps its id across
+    speciations). The returned columns are therefore O/D/T/L only — ~6x smaller than the full
+    log in the low-rate regime — and the per-event Python objects are never built. The
+    genealogy is reconstructed on demand by replaying the trace against the species tree
+    (:func:`zombi2.reconciliation.expand_trace`). This is the path behind
+    ``simulate_genomes(..., output="trace")``."""
     require()
     d, t, l, o = _resolve_rates(rates)
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
 
-    cols, leaves = _core.simulate_log(
+    cols, leaf_counts = _core.simulate_trace(
         len(nodes), parent, times, extant_leaf, root,
         d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
     )
-    leaf_genomes = {nodes[li]: _RustGenome(pairs) for li, pairs in leaves}
-    profs = ProfileMatrix.from_leaf_genomes(leaf_genomes)
+    # leaf_counts is per-leaf (family, count) — assemble the profile straight from it (the fast
+    # counts path); no per-gene leaf genomes are built. The compact trace's leaf identities are
+    # recovered by replaying against the species tree, not read off leaf genomes, so leaf_genomes
+    # stays empty for this path.
+    profs = _assemble_profiles(leaf_counts, nodes)
 
     from .simulation import GenomeTrace
-    return GenomeTrace(species_tree=species_tree, leaf_genomes=leaf_genomes,
+    return GenomeTrace(species_tree=species_tree, leaf_genomes={},
                        profiles=profs, _columns=cols, _nodes=nodes)
 
 
