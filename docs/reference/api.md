@@ -47,6 +47,14 @@ Auto-generated from the source docstrings.
 ::: zombi2.biogeography.simulate_biogeography
 ::: zombi2.biogeography.DEC
 
+## Trait-linked gene families
+
+::: zombi2.trait_coupling.simulate_trait_linked_genomes
+::: zombi2.trait_coupling.TraitGeneCoupling
+::: zombi2.trait_coupling.TraitLinkedResult
+::: zombi2.trait_coupling.TraitLinkedRates
+::: zombi2.trait_coupling.TraitTrajectory
+
 ## Rate models
 
 ::: zombi2.rates.RateModel
