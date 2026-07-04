@@ -24,6 +24,7 @@ from zombi2.alelite import (
     dated_joint_loglik,
     dated_loglik,
     reldated_loglik,
+    undated_joint_loglik,
     undated_loglik,
 )
 
@@ -189,6 +190,46 @@ def test_reldated_differs_from_undated_with_transfers():
     r = reldated_loglik(gt, sp, m, origination="uniform")
     assert math.isfinite(u) and math.isfinite(r)
     assert not math.isclose(u, r, rel_tol=1e-6)
+
+
+def test_undated_reldated_rust_matches_python():
+    """The Rust undated/reldated kernel reproduces the Python reference for both transfer modes."""
+    from zombi2.alelite import _rust
+    if not _rust.available_undated():
+        pytest.skip("zombi2_core undated kernel not built")
+    tree = simulate_species_tree(Yule(2.0), n_tips=8, age=1.0, seed=3)
+    g = simulate_genomes(tree, duplication=0.3, transfer=0.25, loss=0.4,
+                         origination=0.0, initial_size=25, seed=3)
+    sp = SpeciesTree.from_tree(tree)
+    trees, n_extinct = [], 0
+    for r in g.reconciliations().values():
+        if r.extant is None:
+            n_extinct += 1
+        else:
+            trees.append(GeneTree.from_reconciliation(r))
+    for transfers in ("global", "dated"):
+        for origination in ("root", "uniform"):
+            for rates in [(0.3, 0.25, 0.4), (0.1, 0.05, 0.6), (0.5, 0.4, 0.3)]:
+                m = UndatedDTL(*rates)
+                py = undated_joint_loglik(trees, sp, m, origination=origination, transfers=transfers,
+                                          n_extinct=n_extinct, backend="python")
+                ru = undated_joint_loglik(trees, sp, m, origination=origination, transfers=transfers,
+                                          n_extinct=n_extinct, backend="rust")
+                assert abs(py - ru) < 1e-9 * max(1.0, abs(py)), (transfers, origination, rates)
+
+
+def test_undated_joint_matches_sum_of_singles():
+    """The joint function (no extinct term) equals the sum of per-tree undated_loglik values."""
+    tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=4)
+    g = simulate_genomes(tree, duplication=0.2, transfer=0.15, loss=0.3,
+                         origination=0.0, initial_size=15, seed=4)
+    sp = SpeciesTree.from_tree(tree)
+    trees = [GeneTree.from_reconciliation(r) for r in g.reconciliations().values()
+             if r.extant is not None]
+    m = UndatedDTL(0.2, 0.15, 0.3)
+    singles = sum(undated_loglik(gt, sp, m, transfers="dated") for gt in trees)
+    joint = undated_joint_loglik(trees, sp, m, transfers="dated", backend="python")
+    assert math.isclose(singles, joint, rel_tol=1e-12)
 
 
 def test_reldated_scores_zombi_families_finite():

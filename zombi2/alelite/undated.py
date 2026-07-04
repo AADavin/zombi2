@@ -159,22 +159,10 @@ def _propagate(Pu: list[float], A: list[float], sp: SpeciesTree,
             break
 
 
-def undated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
-                   *, origination: str = "root", transfers: str = "global") -> float:
-    """Log of the marginal reconciliation likelihood ``P(gene_tree | sp, model)``.
-
-    Sums over every reconciliation of the (fixed) gene tree against the species tree under the
-    undated DTL model. ``origination`` is ``"root"`` (family present on the root branch) or
-    ``"uniform"`` (root gene node averaged over all branches). ``transfers`` is ``"global"``
-    (plain undated — a transfer may land on any branch) or ``"dated"`` (**reldated** — a
-    transfer may only land on a branch that overlaps the donor in time, using the species-tree
-    dates to stay time-consistent without full slicing; see :func:`reldated_loglik`).
-    """
-    pD, pT, pL, pS = model.probs()
+def _tree_loglik(gene_tree, sp, pD, pT, pS, E, nb, origination) -> float:
+    """Log-lik of one gene tree given a precomputed extinction ``E`` and neighborhood ``nb``.
+    Shared by :func:`undated_loglik` and :func:`undated_joint_loglik`."""
     n = sp.n
-    nb = _transfer_neighbors(sp, transfers)
-    E = extinction(sp, model, nb)
-
     P: list[list[float]] = [None] * gene_tree.n  # type: ignore[list-item]
     for u in range(gene_tree.n):  # gene tree post-order: children before parents
         g = gene_tree.nodes[u]
@@ -209,9 +197,64 @@ def undated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
         like = math.fsum(root_P) / n
     else:
         raise ValueError(f"origination must be 'root' or 'uniform', got {origination!r}")
-    if like <= 0.0:
-        return -math.inf
-    return math.log(like)
+    return math.log(like) if like > 0.0 else -math.inf
+
+
+def undated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
+                   *, origination: str = "root", transfers: str = "global") -> float:
+    """Log of the marginal reconciliation likelihood ``P(gene_tree | sp, model)``.
+
+    Sums over every reconciliation of the (fixed) gene tree against the species tree under the
+    undated DTL model. ``origination`` is ``"root"`` (family present on the root branch) or
+    ``"uniform"`` (root gene node averaged over all branches). ``transfers`` is ``"global"``
+    (plain undated — a transfer may land on any branch) or ``"dated"`` (**reldated** — a
+    transfer may only land on a branch that overlaps the donor in time, using the species-tree
+    dates to stay time-consistent without full slicing; see :func:`reldated_loglik`). This is
+    the pure-Python reference; :func:`undated_joint_loglik` is the Rust-accelerated batch path.
+    """
+    pD, pT, pL, pS = model.probs()
+    nb = _transfer_neighbors(sp, transfers)
+    E = extinction(sp, model, nb)
+    return _tree_loglik(gene_tree, sp, pD, pT, pS, E, nb, origination)
+
+
+def undated_joint_loglik(gene_trees, sp: SpeciesTree, model: UndatedDTL, *,
+                         origination: str = "root", transfers: str = "global",
+                         n_extinct: int = 0, backend: str = "auto") -> float:
+    """Joint undated (or reldated) log-lik of many gene trees sharing one species tree/rates.
+
+    Builds the extinction background once and reuses it across every tree. ``transfers`` picks
+    plain undated (``"global"``) or reldated (``"dated"``). ``n_extinct`` adds
+    ``k·log P(no survivor)`` for ``k`` fully-extinct families (``E`` at the root branch for
+    ``origination="root"``, mean ``E`` for ``"uniform"``). ``backend`` is ``"auto"`` (Rust when
+    built, else Python), ``"rust"`` (require it) or ``"python"`` (reference).
+    """
+    if backend in ("auto", "rust"):
+        from . import _rust
+        if _rust.available_undated():
+            return _rust.undated_joint_loglik(list(gene_trees), sp, model.dup, model.transfer,
+                                              model.loss, origination, transfers, n_extinct)
+        if backend == "rust":
+            raise RuntimeError("backend='rust' requested but the zombi2_core extension is not built")
+    elif backend != "python":
+        raise ValueError(f"backend must be 'auto', 'rust', or 'python', got {backend!r}")
+
+    pD, pT, pL, pS = model.probs()
+    n = sp.n
+    nb = _transfer_neighbors(sp, transfers)
+    E = extinction(sp, model, nb)
+    ll = 0.0
+    if n_extinct:
+        if origination == "root":
+            pe = E[sp.root]
+        elif origination == "uniform":
+            pe = math.fsum(E) / n
+        else:
+            raise ValueError(f"origination must be 'root' or 'uniform', got {origination!r}")
+        ll += n_extinct * (math.log(pe) if pe > 0.0 else -math.inf)
+    for gt in gene_trees:
+        ll += _tree_loglik(gt, sp, pD, pT, pS, E, nb, origination)
+    return ll
 
 
 def reldated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
