@@ -264,3 +264,68 @@ def test_quasse_reproducible():
     m = z.QuaSSE(z.QuaSSE.sigmoid(0.5, 2.0), lambda x: 0.2, sigma2=0.4, rate_bound=2.2)
     assert z.simulate_sse(m, age=2.0, seed=9).to_newick() == \
            z.simulate_sse(m, age=2.0, seed=9).to_newick()
+
+
+# ---------------------------------------------------- Cladogenesis / ClaSSE (species:traits arrow)
+def test_cladogenesis_validation():
+    with pytest.raises(ValueError):
+        z.Cladogenesis(jump_sigma2=-1.0)
+    with pytest.raises(ValueError):
+        z.Cladogenesis(shift=1.5)
+    assert not z.Cladogenesis().is_active()          # no jump, no shift -> inert
+    assert z.Cladogenesis(shift=0.2).is_active()
+    assert z.Cladogenesis(jump_sigma2=0.5).is_active()
+
+
+def test_classe_cladogenetic_change_without_anagenesis():
+    """q=0 (no anagenetic transitions) but cladogenesis -> both states appear, all change at nodes."""
+    res = z.simulate_sse(z.BiSSE(1, 1, 0.1, 0.1, 0, 0), age=4.0, root_state=0,
+                         cladogenesis=z.Cladogenesis(shift=0.5), seed=1)
+    assert set(res.values.values()) == {0, 1}        # cladogenesis alone produced both states
+    assert res.changes() == []                       # ...with NO anagenetic (within-branch) change
+
+
+def test_classe_default_no_cladogenesis_matches_phase1():
+    """Without cladogenesis, q=0 + a fixed root stays in one state (Phase-1 SSE behavior)."""
+    res = z.simulate_sse(z.BiSSE(1, 1, 0.1, 0.1, 0, 0), age=4.0, root_state=0, seed=1)
+    assert set(res.values.values()) == {0}
+
+
+def test_classe_q_zero_root_allowed_with_cladogenesis():
+    """Q=0 needs an explicit root_state normally, but cladogenesis supplies the dynamics."""
+    with pytest.raises(ValueError):
+        z.simulate_sse(z.BiSSE(1, 1, 0.1, 0.1, 0, 0), age=2.0)      # no root, no clado -> error
+    res = z.simulate_sse(z.BiSSE(1, 1, 0.1, 0.1, 0, 0), age=2.0,
+                         cladogenesis=z.Cladogenesis(shift=0.5), seed=2)  # ok with clado
+    assert len(res.tree.extant_leaves()) >= 2
+
+
+def test_classe_continuous_jump_adds_variance():
+    """QuaSSE with no anagenetic diffusion but cladogenetic jumps still spreads the tips' trait."""
+    m = z.QuaSSE(z.QuaSSE.sigmoid(0.5, 2.0), lambda x: 0.2, sigma2=0.0, rate_bound=2.2, x0=0.0)
+    res = z.simulate_sse(m, n_tips=40, cladogenesis=z.Cladogenesis(jump_sigma2=1.0), seed=2)
+    assert np.var(list(res.values.values())) > 0.1
+
+
+def test_classe_reproducible():
+    m, c = z.BiSSE(1, 2, 0.2, 0.2, 0.1, 0.1), z.Cladogenesis(shift=0.3)
+    assert z.simulate_sse(m, age=3, cladogenesis=c, seed=7).to_newick() == \
+           z.simulate_sse(m, age=3, cladogenesis=c, seed=7).to_newick()
+
+
+def test_cladogenesis_on_fixed_tree_via_simulate_traits():
+    """species:traits on a GIVEN tree: an Mk rate of 0 + cladogenesis -> change only at nodes."""
+    tree = z.simulate_species_tree(z.BirthDeath(1, 0.2), n_tips=40, age=4, seed=3)
+    res = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.0, root=0),
+                            cladogenesis=z.Cladogenesis(shift=0.4), seed=4)
+    assert set(res.values.values()) == {0, 1}        # jumps at speciations spread the state
+    res0 = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.0, root=0), seed=4)
+    assert set(res0.values.values()) == {0}          # no cladogenesis + rate 0 -> stays fixed
+
+
+def test_cladogenesis_off_leaves_traits_unchanged():
+    """simulate_traits(cladogenesis=None) is identical to the plain call (default off)."""
+    tree = z.simulate_species_tree(z.BirthDeath(1, 0.3), n_tips=30, age=3, seed=5)
+    a = z.simulate_traits(tree, z.BrownianMotion(0.5), seed=9).to_newick()
+    b = z.simulate_traits(tree, z.BrownianMotion(0.5), cladogenesis=z.Cladogenesis(), seed=9).to_newick()
+    assert a == b

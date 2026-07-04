@@ -32,7 +32,7 @@ import numpy as np
 
 from .tree import Tree, TreeNode
 from .species_forward import _name
-from .traits import TraitResult
+from .traits import Cladogenesis, TraitResult
 
 
 # --------------------------------------------------------------------------- models
@@ -259,8 +259,12 @@ class _Lineage:
         history[self.node] = self.segs
 
 
-def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
+def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages, clado=None):
     """One forward trial from a crown of two lineages sharing the root state.
+
+    With ``clado`` (a :class:`~zombi2.traits.Cladogenesis` kernel) each daughter's state jumps at
+    its birth (the ``species:traits`` arrow); combined with the state-dependent rates this is the
+    full ClaSSE feedback.
 
     Returns ``(root, end_time, node_values, history)`` or ``None`` to reject (whole clade
     extinct / fewer than two extant survivors).
@@ -271,6 +275,9 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
     if bound <= 0.0:
         raise ValueError("all rates are zero; nothing can happen")
 
+    def born(state):                             # a daughter's starting state (cladogenetic jump)
+        return clado.apply(state, model, rng) if clado is not None else state
+
     root = TreeNode(name="", time=0.0)
     node_values = {root: root_state}
     history = {root: []}
@@ -278,7 +285,7 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
     for _ in range(2):                           # crown: two lineages at time 0, root state
         child = TreeNode(name="", time=0.0)
         root.add_child(child)
-        live.append(_Lineage(child, root_state, 0.0))
+        live.append(_Lineage(child, born(root_state), 0.0))
 
     t = 0.0
     end = None
@@ -307,7 +314,7 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
         if rng.random() >= total / bound:        # thinned out
             continue
         r = rng.random() * total
-        if r < lam:                              # speciation: both daughters inherit state i
+        if r < lam:                              # speciation: daughters inherit i (jumped by clado)
             lin.node.time = t
             lin.close(t, node_values, history)
             live[idx] = live[-1]
@@ -315,7 +322,7 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
             for _ in range(2):
                 d = TreeNode(name="", time=t)
                 lin.node.add_child(d)
-                live.append(_Lineage(d, i, t))
+                live.append(_Lineage(d, born(i), t))
         elif r < lam + mu:                       # extinction
             lin.node.time = t
             lin.node.is_extant = False
@@ -341,12 +348,17 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages):
     return root, end, node_values, history
 
 
-def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages):
+def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages, clado=None):
     """One forward QuaSSE trial: a crown of two lineages carrying a diffusing continuous trait
     whose value sets each lineage's speciation/extinction rate (exact thinning against
-    ``rate_bound``). Returns ``(root, end, node_values)`` or ``None`` to reject."""
+    ``rate_bound``). With ``clado`` each daughter's value also jumps at its birth (the
+    ``species:traits`` arrow — cladogenetic bursts). Returns ``(root, end, node_values)`` or
+    ``None`` to reject."""
     spec, ext = model.speciation, model.extinction
     sigma2, drift, bound = model.sigma2, model.drift, model.rate_bound
+
+    def born(x):                                 # a daughter's starting value (cladogenetic jump)
+        return clado.apply(x, model, rng) if clado is not None else x
 
     root = TreeNode(name="", time=0.0)
     node_values = {root: x0}
@@ -354,7 +366,7 @@ def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages):
     for _ in range(2):
         child = TreeNode(name="", time=0.0)
         root.add_child(child)
-        live.append([child, x0])
+        live.append([child, born(x0)])
 
     def diffuse(interval):
         std = (sigma2 * interval) ** 0.5
@@ -392,11 +404,11 @@ def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages):
         node_values[node] = x
         live[idx] = live[-1]
         live.pop()
-        if rng.random() * total < lam:                          # speciation: daughters inherit x
+        if rng.random() * total < lam:                          # speciation: daughters inherit x (jumped)
             for _ in range(2):
                 d = TreeNode(name="", time=t)
                 node.add_child(d)
-                live.append([d, x])
+                live.append([d, born(x)])
         else:                                                   # extinction
             node.is_extant = False
 
@@ -416,6 +428,7 @@ def simulate_sse(
     age: float | None = None,
     n_tips: int | None = None,
     root_state=None,
+    cladogenesis: Cladogenesis | None = None,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     max_attempts: int = 10_000,
@@ -437,6 +450,11 @@ def simulate_sse(
     integer state index (default: the character's stationary distribution) and ``.history`` is
     the realized character map. For :class:`QuaSSE` the trait is **continuous**: ``root_state``
     is the initial trait value (default the model's ``x0``) and ``.history`` is ``None``.
+
+    ``cladogenesis`` (a :class:`~zombi2.traits.Cladogenesis` kernel) additionally jumps each
+    daughter's state **at speciation** — the ``species:traits`` arrow. Combining it with the
+    state-dependent rates gives the full **ClaSSE** feedback (trait ↔ tree): the trait both shapes
+    the tree *and* is kicked by its branching.
     """
     if (age is None) == (n_tips is None):
         raise ValueError("provide exactly one of `age` or `n_tips`")
@@ -446,11 +464,12 @@ def simulate_sse(
         raise ValueError(f"n_tips must be >= 2, got {n_tips}")
     if rng is None:
         rng = np.random.default_rng(seed)
+    clado = cladogenesis if (cladogenesis is not None and cladogenesis.is_active()) else None
 
     if isinstance(model, QuaSSE):
         x0 = model.x0 if root_state is None else float(root_state)
         for _ in range(max_attempts):
-            result = _simulate_quasse(model, age, n_tips, x0, rng, max_lineages)
+            result = _simulate_quasse(model, age, n_tips, x0, rng, max_lineages, clado)
             if result is not None:
                 root, end_time, node_values = result
                 tree = Tree(root, end_time)
@@ -466,14 +485,21 @@ def simulate_sse(
         raise TypeError("model must be a BiSSE, MuSSE, HiSSE, or QuaSSE instance")
     if root_state is not None and not (0 <= int(root_state) < model.k):
         raise ValueError(f"root_state must be a state index in [0, {model.k - 1}]")
-    if root_state is None and np.allclose(model.Q - np.diag(np.diag(model.Q)), 0.0):
+    # With no anagenetic transitions (Q = 0) the stationary root state is undefined — but if
+    # cladogenesis is active it supplies the state dynamics, so a uniform root is fine there.
+    q_is_zero = np.allclose(model.Q - np.diag(np.diag(model.Q)), 0.0)
+    if root_state is None and q_is_zero and clado is None:
         raise ValueError("with no state transitions (Q = 0) the stationary root state is "
-                         "undefined; pass an explicit root_state")
+                         "undefined; pass an explicit root_state (or add cladogenesis)")
 
     for _ in range(max_attempts):
-        r0 = (int(root_state) if root_state is not None
-              else int(rng.choice(model.k, p=model.stationary_distribution())))
-        result = _simulate_sse(model, age, n_tips, r0, rng, max_lineages)
+        if root_state is not None:
+            r0 = int(root_state)
+        elif q_is_zero:                          # clado active (else we raised): uniform root
+            r0 = int(rng.integers(model.k))
+        else:
+            r0 = int(rng.choice(model.k, p=model.stationary_distribution()))
+        result = _simulate_sse(model, age, n_tips, r0, rng, max_lineages, clado)
         if result is not None:
             root, end_time, node_values, history = result
             tree = Tree(root, end_time)
