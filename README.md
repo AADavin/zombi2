@@ -59,12 +59,12 @@ zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o
 
 ### 5. Couple gene families to a trait
 
-`zombi2 coevolve-genetrait` evolves gene families whose loss/gain **depends on a trait**, so the
-profile carries a known, trait-linked signal (e.g. dating the tree from the Great Oxidation
-Event). See [trait-linked gene families](docs/guide/trait-linked-genomes.md).
+`zombi2 coevolve --couple traits:genes` evolves gene families whose loss/gain **depends on a
+trait**, so the profile carries a known, trait-linked signal (e.g. dating the tree from the Great
+Oxidation Event). See [trait-linked gene families](docs/guide/trait-linked-genomes.md).
 
 ```bash
-zombi2 coevolve-genetrait --tree out/species_tree.nwk --trait-model mk --states 2 \
+zombi2 coevolve --couple traits:genes --tree out/species_tree.nwk --trait-model mk --states 2 \
     --trait-center --panel 40 --responsive 0.3 --effect-loss 3 --seed 1 -o out/
 ```
 
@@ -106,7 +106,7 @@ ZOMBI2 ships a broad range of models, all reachable from the Python API.
 - Ordered chromosomes with inversions and transpositions
 - Nucleotide-resolution genomes, where genes emerge as *atoms* from structural events
 - Gene-family coupling (a Potts model of non-independence)
-- Trait-linked gene families — loss/gain conditioned on a phenotypic trait (`coevolve-genetrait`)
+- Trait-linked gene families — loss/gain conditioned on a phenotypic trait (`coevolve --couple traits:genes`)
 
 **Trait models**
 
