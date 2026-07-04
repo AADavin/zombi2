@@ -4,8 +4,9 @@
 
 ZOMBI2 simulates evolution in two steps: build a **species tree**, then evolve
 **gene families** along it under duplication, transfer, loss, and origination (DTL).
-It is a ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi), with a fast
-Rust engine, a simple command-line interface, and a composable Python library.
+It also evolves **phenotypic traits** along a phylogeny. It is a ground-up redesign of
+[ZOMBI](https://github.com/AADavin/Zombi), with a fast Rust engine, a simple
+command-line interface, and a composable Python library.
 
 Use it to generate benchmark datasets for phylogenetic methods — gene trees,
 reconciliations, and copy-number profiles — with fully reproducible, seeded runs.
@@ -42,16 +43,6 @@ zombi2 genomes --tree out/species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 ```
 
-This writes the full output to `out/`:
-
-| File / folder | Contents |
-|---|---|
-| `Profiles.tsv` / `Presence.tsv` | families × species copy-number / presence matrix |
-| `gene_trees/` | per-family reconstructed gene trees |
-| `gene_family_events/` | per-family event log (origination, duplication, transfer, loss) |
-| `Transfers.tsv` | every transfer (donor, recipient) |
-| `Gene_family_summary.tsv` | per-family event counts and extant copies |
-
 Two further commands round out the tool: `zombi2 trait` evolves a phenotypic trait
 along a tree, and `zombi2 abc` fits DTL rates to an empirical profile by Approximate
 Bayesian Computation. Run `zombi2 <command> -h` for options, or see
@@ -78,7 +69,7 @@ ZOMBI2 ships a broad range of models, all reachable from the Python API.
 - Backward (reconstructed) and forward (complete) birth–death
 - Episodic / skyline rate shifts
 - Fossilized birth–death and incomplete sampling
-- Ghost lineages
+- Ghost lineages added on top of a phylogeny
 
 **Genome models**
 
@@ -88,6 +79,12 @@ ZOMBI2 ships a broad range of models, all reachable from the Python API.
 - Ordered chromosomes with inversions and transpositions
 - Nucleotide-resolution genomes, where genes emerge as *atoms* from structural events
 - Gene-family coupling (a Potts model of non-independence)
+
+**Trait models**
+
+- Brownian motion, Ornstein–Uhlenbeck, and early burst (continuous traits)
+- Mk and threshold models (discrete traits)
+- DEC biogeography (geographic ranges)
 
 ---
 
