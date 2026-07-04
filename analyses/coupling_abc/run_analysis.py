@@ -3,7 +3,7 @@
 Generates every figure in `report/report.tex` and prints the numbers the report cites.
 All results are deterministic (fixed seeds). Run from anywhere:
 
-    python coupling_abc_analysis/run_analysis.py
+    python analyses/coupling_abc/run_analysis.py
 
 Compute: ~2-3 min (two reference sets of coupled simulations, reused across figures).
 """

@@ -7,7 +7,7 @@ presence pattern (so the phylogenetic confound is present in both observed and n
 category assignment is randomized). A positive result supports using COG categories to structure
 the coupling matrix J of the Potts model.
 
-    python coupling_abc_analysis/empirical_analysis.py
+    python analyses/coupling_abc/empirical_analysis.py
 """
 from __future__ import annotations
 

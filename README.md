@@ -83,7 +83,7 @@ where the full event log tops out near 100k. On the identical task, ZOMBI2 runs 
 simulations **over 1000× faster than ZOMBI 1** (48 s → 38 ms at 1,000 tips; the legacy tool
 stalls past ~1,200 tips).
 
-![ZOMBI2 performance](performance_analysis/figures/overview.png)
+![ZOMBI2 performance](analyses/performance/figures/overview.png)
 
 ---
 

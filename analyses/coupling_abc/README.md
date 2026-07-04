@@ -20,9 +20,9 @@ the coupling structure** J — turning "infer which families couple" into a prin
 ## Regenerate
 
 ```bash
-python coupling_abc_analysis/run_analysis.py          # simulations: figures 1-4 + results.json (~2-3 min)
-python coupling_abc_analysis/empirical_analysis.py    # eggNOG: figures 5-6 + empirical_results.json
-cd coupling_abc_analysis/report && latexmk -pdf report.tex   # -> report.pdf
+python analyses/coupling_abc/run_analysis.py          # simulations: figures 1-4 + results.json (~2-3 min)
+python analyses/coupling_abc/empirical_analysis.py    # eggNOG: figures 5-6 + empirical_results.json
+cd analyses/coupling_abc/report && latexmk -pdf report.tex   # -> report.pdf
 ```
 
 Everything is deterministic (fixed seeds). The empirical step reads `ZOMBI2_DATA/` (the tree,

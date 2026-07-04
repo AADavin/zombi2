@@ -1,0 +1,15 @@
+title: "ZOMBI2"
+subtitle: "A Simulator of Genome and Species-Tree Evolution — Concepts & Tutorial"
+author: "The ZOMBI2 project"
+lang: en
+documentclass: book
+classoption:
+  - 11pt
+  - oneside
+geometry: margin=1in
+colorlinks: true
+linkcolor: teal
+urlcolor: teal
+citecolor: teal
+reference-section-title: References
+link-citations: true
