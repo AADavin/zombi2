@@ -43,8 +43,34 @@ zombi2 genomes --tree out/species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 ```
 
-Two further commands round out the tool: `zombi2 trait` evolves a phenotypic trait
-along a tree, and `zombi2 abc` fits DTL rates to an empirical profile by Approximate
+### 3. Evolve a phenotypic trait along it
+
+```bash
+zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
+```
+
+`--model` picks the process: `bm` (Brownian motion), `ou` (Ornstein–Uhlenbeck),
+`eb` (early burst), `mk` (discrete states), `threshold`, or `dec` (geographic ranges).
+It writes both the tip and the ancestral values.
+
+### 4. Add substitution branch lengths
+
+Gene trees come out in **time** units. `zombi2 sequence` rescales them into
+**substitutions/site** under a gene × lineage clock — a separate step, so you can retune
+the rates without re-simulating gene content. It reads a `genomes` run that wrote the
+compact event trace (`trace` in `--output`):
+
+```bash
+zombi2 genomes  --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 \
+    --output trace profiles --seed 42 -o out/
+zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/
+```
+
+`--branch-speed` is a shared species-tree lineage clock and `--family-speed` a per-family
+speed (swap `--branch-speed` for `--branch-bins 0.25,0.5,1,2,4` to use the discrete-bin
+GTDB clock).
+
+`zombi2 abc` rounds out the tool, fitting DTL rates to an empirical profile by Approximate
 Bayesian Computation. Run `zombi2 <command> -h` for options, or see
 [`docs/cli.md`](docs/cli.md).
 
@@ -85,6 +111,11 @@ ZOMBI2 ships a broad range of models, all reachable from the Python API.
 - Brownian motion, Ornstein–Uhlenbeck, and early burst (continuous traits)
 - Mk and threshold models (discrete traits)
 - DEC biogeography (geographic ranges)
+
+**Sequence evolution**
+
+- A gene × lineage relaxed clock that rescales gene trees from time into substitutions/site
+  (lognormal or discrete-bin GTDB lineage rates × per-family speed)
 
 ---
 
