@@ -2,10 +2,23 @@
 % Kept minimal and re-load-safe (pandoc's default template already loads the core packages).
 
 \usepackage{graphicx}
-\setkeys{Gin}{width=0.85\linewidth,keepaspectratio}   % figures default to 85% text width
+\setkeys{Gin}{width=0.6\linewidth,keepaspectratio}   % figures default to 60% text width
 
 \usepackage{booktabs}
 \usepackage{microtype}
+
+% Compact chapter headings — drop the ~1in of blank space the book class puts above them.
+\usepackage{titlesec}
+\titleformat{\chapter}[display]{\normalfont\huge\bfseries}%
+  {\chaptertitlename\ \thechapter}{6pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{0pt}{18pt}
+
+% Let figures sit with the surrounding text instead of being banished to a near-blank page.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
 
 \usepackage{xcolor}
 \definecolor{zteal}{HTML}{0B6B63}
