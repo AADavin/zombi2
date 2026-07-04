@@ -471,6 +471,21 @@ zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
     --output profiles trees -o out/
 ```
 
+**Sequences and ancestral genomes.** `--output ancestral` simulates the DNA and reconstructs the
+genome at **every** node of the tree (the root reproduces the input genome). It writes
+`Architecture/<node>.tsv` (each node's oriented gene/intergene mosaic), gzipped
+`Genomes/<node>.fasta.gz` (the full assembled DNA of every node), and `Gene_alignments/<gene>.fasta`
+(the extant per-gene alignments). Pick the substitution model with `--subst-model {jc69,k80,hky85,
+gtr}` (`--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`). `--genome-fasta
+FILE` seeds the root from the real genome DNA (so the reconstructed root is byte-identical to the
+input); without it, root sequences are drawn at random.
+
+```bash
+zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+    --gff ecoli.gff --genome-fasta ecoli.fna --subst-model hky85 --subst-rate 0.05 \
+    --output ancestral -o out/
+```
+
 ## Scope
 
 The CLI covers the common **uniform-rate** case. For family-sampled or genome-wise rates,

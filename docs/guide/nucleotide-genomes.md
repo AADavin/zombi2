@@ -170,6 +170,45 @@ sequence is used by default; `--gff-seqid ID` (or `read_gff(..., seqid=...)`) pi
 genes keep their annotation names (locus tag / `Name`), so `genes.tsv` and the trees are labelled
 with real gene ids.
 
+## Sequences and ancestral genomes
+
+The model can also evolve the **DNA sequences** and reconstruct the **genome at every node** of the
+tree — with the root being the input genome. Each atom's gene tree is scaled to substitutions/site
+and a sequence is evolved down it under a nucleotide substitution model (`jc69`, `k80`, `hky85`,
+`gtr`, optionally with a discrete-Gamma). The genome at any node is then assembled by concatenating,
+in genome order, the sequence of each segment's lineage (reverse-complemented on the − strand):
+
+```python
+res = z.simulate_nucleotide_genomes(tree, root_length=g.length, gene_intervals=g.genes,
+                                    retain_internal=True, seed=1)          # keep every node's genome
+res.simulate_sequences(z.hky85(2.0), subst_rate=0.05,
+                       root_fasta=z.read_fasta("ecoli.fna")[g.seqid])      # real genome as the root
+
+res.node_sequence(tree.root)     # == the input genome, exactly
+res.node_sequence(leaf)          # the evolved genome at any node
+res.node_mosaic(node)            # its architecture: ordered, oriented gene/intergene atoms
+res.gene_alignments()            # {gene_id: {species_gid: sequence}} extant alignments
+```
+
+If no `root_fasta` is given, each root gene/intergene sequence is drawn at random from the model's
+stationary frequencies (the ZOMBI-1 way); with it, the root sequences are the real genome's
+substrings, so the reconstructed root genome is byte-identical to the input.
+
+On the CLI, `--output ancestral`:
+
+```bash
+zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+  --gff ecoli.gff --genome-fasta ecoli.fna \
+  --subst-model hky85 --kappa 2 --subst-rate 0.05 --output ancestral -o out/
+```
+
+writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node), gzipped
+`Genomes/<node>.fasta.gz` (the full assembled DNA of every node — `root.fasta.gz` reproduces the
+input), and `Gene_alignments/<gene>.fasta` (the extant per-gene alignments). Substitution-model
+options: `--subst-model`, `--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`.
+Sequence simulation runs on the Python engine and scales to real genomes (E. coli's 4.6 Mbp in a
+few seconds).
+
 ## The Rust fast path
 
 `output="profiles"` runs the compiled `zombi2_core` Rust engine over leaf segments only —
