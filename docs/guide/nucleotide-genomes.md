@@ -69,6 +69,54 @@ trees = result.atom_gene_trees()        # {atom_id: (complete_newick, extant_new
 result.write_reconciliations("out/")    # reconciled trees + the events table on disk
 ```
 
+## Genes & intergenes
+
+By default a genome is an unstructured sequence and "genes" are only recovered *post hoc* as
+atoms. Pass `gene_intervals` — non-overlapping `(start, end)` (or `(start, end, name)`)
+intervals on the root chromosome — to declare **genes** up front. Everything else is
+**intergene**. In this *genic mode*:
+
+- **Genes are never split.** Event breakpoints fall only in intergene positions, so every
+  event moves, copies, inverts, or deletes a gene *as a whole*. Each gene is therefore exactly
+  one atom (one genealogy) wherever it survives; intergene stretches still fragment into many
+  intergene atoms. (A short event drawn entirely inside a gene is promoted to the whole gene.)
+- **Pseudogenization.** With probability `pseudogenization`, a loss that hits a gene *demotes*
+  it to intergene — the sequence is retained, but the gene loses function. It is a state change
+  on the continuing lineage (a `G` node in that gene's tree), not a deletion, and it is
+  lineage-specific: the gene stays functional in sister lineages.
+- **Homologous replacement transfer.** With probability `replacement`, a transfer replaces the
+  recipient's syntenic copy instead of adding a new one. The homologous locus is found by the
+  genes flanking the transferred segment; the recipient material between those flank genes is
+  replaced (and logged as recipient losses). When the recipient has no such homolog, the
+  transfer falls back to additive insertion.
+- **Origination** mints a brand-new gene (its own gene tree), as in the base model.
+
+```python
+genes = [(100, 180, "dnaA"), (300, 360, "gyrB"), (500, 620, "rpoB")]
+result = z.simulate_nucleotide_genomes(
+    tree, inversion=1e-3, loss=8e-4, duplication=5e-4, transfer=5e-4,
+    root_length=1000, extension=0.97, gene_intervals=genes,
+    pseudogenization=0.3, replacement=0.4, seed=1)
+
+result.gene_trees()          # {atom_id: (complete, extant)} for the gene atoms
+result.intergene_trees()     # …and for the intergene atoms
+result.pseudogenizations()   # [(atom_id, gene_id, species_branch, time, gene_lineage), …]
+```
+
+Atoms carry their classification (`atom.kind` is `"gene"`/`"intergene"`, `atom.gene_id`), so
+`gene_atoms()` / `intergene_atoms()` partition the atom set. Genic mode runs on the Python
+engine only (the Rust `profiles` path does not model genes). On the CLI:
+
+```bash
+zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+  --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
+  --inversion 0.001 --loss 0.0008 --output profiles trees -o out/
+```
+
+where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
+annotation, including originated genes), gene/intergene trees under `Gene_trees/` and
+`Intergene_trees/`, a `kind`/`gene_id` column in `atoms.tsv`, and `Pseudogenizations.tsv`.
+
 ## The Rust fast path
 
 `output="profiles"` runs the compiled `zombi2_core` Rust engine over leaf segments only —

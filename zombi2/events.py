@@ -34,6 +34,12 @@ class EventType(Enum):
     # --- gene-order rearrangements (ordered genomes only) ---
     INVERSION = "I"
     TRANSPOSITION = "P"
+    # --- gene / intergene state change (nucleotide genic model only) ---
+    # A pseudogenization: a gene loses function but keeps its sequence, so the lineage
+    # continues as intergene. It is a *sub-outcome of LOSS* (never sampled on its own, so
+    # it is not in STOCHASTIC_EVENTS); it surfaces only in the post-processed per-atom
+    # records, where a LOSS row with role "pseudogenized" is rewritten to this event.
+    PSEUDOGENIZATION = "G"
     # --- structural markers (logged, never sampled) ---
     SPECIATION = "S"
     LEAF = "F"
@@ -127,6 +133,12 @@ class TransferSegment:
     a copy too, but as a *new* lineage segment (the transfer is a bifurcation of the
     donor lineage): ``donor_old_gids`` are the pre-transfer ids and ``donor_cont_gids``
     the donor's continuing ids, aligned element-wise with ``genes``.
+
+    ``replacement`` (already flipped by the donor) asks the recipient to attempt a
+    *homologous* swap rather than an additive insertion. ``left_flank`` / ``right_flank``
+    and ``arc_sources`` carry the ancestral source coordinates of the donor arc and its
+    immediate neighbours, so a recipient can locate its homologous span (the nucleotide
+    genic model uses these; other genomes ignore them).
     """
 
     family: str
@@ -134,6 +146,9 @@ class TransferSegment:
     donor_old_gids: list[str] = field(default_factory=list)
     donor_cont_gids: list[str] = field(default_factory=list)
     replacement: bool = False
+    left_flank: tuple | None = None      # (source, src_coord) just before the arc, or None
+    right_flank: tuple | None = None     # (source, src_coord) just after the arc, or None
+    arc_sources: tuple = ()              # ((source, src_start, src_end), ...) of the copied arc
 
 
 @dataclass(slots=True)
