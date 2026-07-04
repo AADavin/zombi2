@@ -20,7 +20,7 @@ zombi2 abc --tree out/species_tree.nwk --profiles empirical_Profiles.tsv \
     --dup 0 1 --loss 0 1.5 --orig 0 4 --n-sims 1000 --seed 1 -o out/
 
 # 5. gene families whose loss/gain is conditioned on a trait
-zombi2 coevolve-genetrait --tree out/species_tree.nwk \
+zombi2 coevolve --couple traits:genes --tree out/species_tree.nwk \
     --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/
 ```
 
@@ -226,21 +226,22 @@ model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. It wri
 `gene_family_speeds.tsv` / `branch_rates.tsv`. See
 [Rate variation](guide/rate-variation.md#family-sequence-evolution) for the model.
 
-## `coevolve-genetrait` — trait-conditioned gene families
+## `coevolve --couple traits:genes` — trait-conditioned gene families
 
-`coevolve-genetrait` links the two halves of the toolkit: it evolves a phenotypic trait along
-the tree, then evolves a **panel** of gene families whose loss and gain **depend on the local
-trait value**, so the resulting profile carries a known, trait-linked signal (the forward
-generator behind reading gene content as a record of a trait's history — e.g. dating the tree
-from the Great Oxidation Event). It simulates the trait with any [`trait`](#trait-a-phenotypic-trait)
-model (`--trait-model`), builds the coupling, and writes the gene-family output alongside the
-trait and a coupling manifest.
+The **`traits:genes`** edge of [`coevolve`](coevolution_models.md) links the two halves of
+the toolkit: it evolves a phenotypic trait along the tree, then evolves a **panel** of gene
+families whose loss and gain **depend on the local trait value**, so the resulting profile carries
+a known, trait-linked signal (the forward generator behind reading gene content as a record of a
+trait's history — e.g. dating the tree from the Great Oxidation Event). It simulates the trait
+with any [`trait`](#trait-a-phenotypic-trait) model (`--trait-model`), builds the coupling, and
+writes the gene-family output alongside the trait and a coupling manifest. (This was the standalone
+`coevolve-genetrait` command before it was folded into `coevolve`.)
 
 ```bash
 T=out/species_tree.nwk
 
 # a binary aerobic(1)/anaerobic(0) trait; 30% of a 40-family panel respond to it
-zombi2 coevolve-genetrait -t $T \
+zombi2 coevolve --couple traits:genes -t $T \
     --trait-model mk --states 2 --rate 0.3 --trait-center \
     --panel 40 --responsive 0.3 --weight 1 --effect-loss 3 \
     --loss 0.4 --trans 1.0 --write all --seed 7 -o out/
@@ -353,10 +354,11 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--branch-bins R1,R2,...` | alternative lineage clock — the discrete-bin GTDB model: ordered rate multipliers, a Markov walk between adjacent bins (`--branch-switch-rate`, `--branch-up-bias`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
-### `coevolve-genetrait`
+### `coevolve --couple traits:genes`
 
 | Option | Meaning |
 | --- | --- |
+| `--couple traits:genes` | select the trait-conditioned-genes edge (required) |
 | `--tree` / `-t` | input species tree in Newick format (required) |
 | `--trait-model {bm,ou,eb,mk,threshold}` | trait to evolve then couple to gene families (default `bm`); its parameters are the [`trait`](#trait-a-phenotypic-trait) flags (`--sigma2`, `--alpha`/`--theta`, `--rate`, `--states`/`--ordered`/`--q-matrix`, `--thresholds`, …) |
 | `--trait-file TSV` | reuse a precomputed trait instead — a numeric `node`/`value` table over **every** node (as `zombi2 trait` writes); overrides `--trait-model` |
