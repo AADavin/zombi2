@@ -76,3 +76,4 @@ nav:
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
+      - Coevolution (coupled models): coevolution_models.md
