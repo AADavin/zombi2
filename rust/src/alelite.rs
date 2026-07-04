@@ -9,6 +9,8 @@
 use pyo3::prelude::*;
 
 const EPS: f64 = 1e-9;
+const MAX_ITERS: usize = 500; // matches zombi2/alelite/undated.py
+const TOL: f64 = 1e-13;
 
 struct Slice {
     hi: f64,
@@ -271,6 +273,240 @@ impl Engine {
             f64::NEG_INFINITY
         }
     }
+}
+
+// ===================================================================== undated / reldated
+//
+// A faithful port of zombi2/alelite/undated.py: per-branch odds (pD,pT,pL,pS), a coupled
+// extinction fixed point, and a per-gene-node DP with its own SL/DL/TL fixed point. The only
+// difference between undated and reldated is the transfer neighborhood `nb`: None = any branch
+// (undated); an explicit per-branch list of time-overlapping branches = reldated.
+
+struct UndatedEngine {
+    n: usize,
+    left: Vec<i64>,
+    right: Vec<i64>,
+    is_leaf: Vec<bool>,
+    root: usize,
+    pd: f64,
+    pt: f64,
+    ps: f64,
+    nb: Option<Vec<Vec<usize>>>,
+    e: Vec<f64>,
+}
+
+impl UndatedEngine {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        left: Vec<i64>,
+        right: Vec<i64>,
+        is_leaf: Vec<bool>,
+        time: Vec<f64>,
+        parent_time: Vec<f64>,
+        root: usize,
+        dup: f64,
+        transfer: f64,
+        loss: f64,
+        transfers: u8,
+    ) -> Self {
+        let n = left.len();
+        let denom = 1.0 + dup + transfer + loss;
+        let (pd, pt, pl, ps) = (dup / denom, transfer / denom, loss / denom, 1.0 / denom);
+        let nb = if transfers == 1 {
+            let tol = 1e-9 * time.iter().cloned().fold(1.0_f64, f64::max);
+            let mut nb = vec![Vec::new(); n];
+            for e in 0..n {
+                for f in 0..n {
+                    if f == e {
+                        continue;
+                    }
+                    let overlap = time[e].min(time[f]) - parent_time[e].max(parent_time[f]);
+                    if overlap > tol {
+                        nb[e].push(f);
+                    }
+                }
+            }
+            Some(nb)
+        } else {
+            None
+        };
+        let mut eng = UndatedEngine {
+            n, left, right, is_leaf, root, pd, pt, ps, nb, e: vec![0.0; n],
+        };
+        eng.extinction(pl);
+        eng
+    }
+
+    fn mean_over(&self, vec: &[f64], total: f64, e: usize) -> f64 {
+        match &self.nb {
+            None => {
+                if self.n > 1 {
+                    (total - vec[e]) / ((self.n - 1) as f64)
+                } else {
+                    0.0
+                }
+            }
+            Some(nb) => {
+                let lst = &nb[e];
+                if lst.is_empty() {
+                    0.0
+                } else {
+                    lst.iter().map(|&f| vec[f]).sum::<f64>() / (lst.len() as f64)
+                }
+            }
+        }
+    }
+
+    fn extinction(&mut self, pl: f64) {
+        let (pd, pt, ps, n) = (self.pd, self.pt, self.ps, self.n);
+        let mut e = vec![0.0f64; n];
+        for _ in 0..MAX_ITERS {
+            let mut total: f64 = e.iter().sum();
+            let mut delta = 0.0f64;
+            for i in 0..n {
+                let ebar = self.mean_over(&e, total, i);
+                let child = if self.is_leaf[i] {
+                    0.0
+                } else {
+                    e[self.left[i] as usize] * e[self.right[i] as usize]
+                };
+                let new = pl + pd * e[i] * e[i] + pt * e[i] * ebar + ps * child;
+                delta = delta.max((new - e[i]).abs());
+                total += new - e[i];
+                e[i] = new;
+            }
+            if delta < TOL {
+                break;
+            }
+        }
+        self.e = e;
+    }
+
+    fn propagate(&self, pu: &mut [f64], a: &[f64]) {
+        let (pd, pt, ps, n) = (self.pd, self.pt, self.ps, self.n);
+        let total_e: f64 = self.e.iter().sum();
+        for _ in 0..MAX_ITERS {
+            let mut total: f64 = pu.iter().sum();
+            let mut delta = 0.0f64;
+            for i in 0..n {
+                let ebar = self.mean_over(&self.e, total_e, i);
+                let pbar = self.mean_over(pu, total, i);
+                let sl = if self.is_leaf[i] {
+                    0.0
+                } else {
+                    ps * (pu[self.left[i] as usize] * self.e[self.right[i] as usize]
+                        + pu[self.right[i] as usize] * self.e[self.left[i] as usize])
+                };
+                let denom = 1.0 - 2.0 * pd * self.e[i] - pt * ebar;
+                let new = (a[i] + sl + pt * self.e[i] * pbar) / denom;
+                delta = delta.max((new - pu[i]).abs());
+                total += new - pu[i];
+                pu[i] = new;
+            }
+            if delta < TOL {
+                break;
+            }
+        }
+    }
+
+    fn gene_loglik(&self, gis_leaf: &[bool], gleft: &[i64], gright: &[i64],
+                   gspecies: &[i64], origination: u8) -> f64 {
+        let (pd, pt, ps, n) = (self.pd, self.pt, self.ps, self.n);
+        let m = gis_leaf.len();
+        let mut p: Vec<Vec<f64>> = vec![Vec::new(); m];
+        for u in 0..m {
+            let mut a = vec![0.0f64; n];
+            if gis_leaf[u] {
+                a[gspecies[u] as usize] = ps;
+            } else {
+                let av = p[gleft[u] as usize].clone();
+                let bv = p[gright[u] as usize].clone();
+                let atot: f64 = av.iter().sum();
+                let btot: f64 = bv.iter().sum();
+                for e in 0..n {
+                    let mut term = 2.0 * pd * av[e] * bv[e];
+                    if !self.is_leaf[e] {
+                        let f = self.left[e] as usize;
+                        let gg = self.right[e] as usize;
+                        term += ps * (av[f] * bv[gg] + av[gg] * bv[f]);
+                    }
+                    if pt > 0.0 {
+                        let abar = self.mean_over(&av, atot, e);
+                        let bbar = self.mean_over(&bv, btot, e);
+                        term += pt * (av[e] * bbar + bv[e] * abar);
+                    }
+                    a[e] = term;
+                }
+            }
+            let mut pu = vec![0.0f64; n];
+            self.propagate(&mut pu, &a);
+            p[u] = pu;
+        }
+        let root_u = m - 1;
+        let like = if origination == 1 {
+            p[root_u].iter().sum::<f64>() / (n as f64)
+        } else {
+            p[root_u][self.root]
+        };
+        if like <= 0.0 {
+            f64::NEG_INFINITY
+        } else {
+            like.ln()
+        }
+    }
+
+    fn extinct_logprob(&self, origination: u8) -> f64 {
+        let pe = if origination == 1 {
+            self.e.iter().sum::<f64>() / (self.n as f64)
+        } else {
+            self.e[self.root]
+        };
+        if pe > 0.0 {
+            pe.ln()
+        } else {
+            f64::NEG_INFINITY
+        }
+    }
+}
+
+/// Joint undated/reldated log-likelihood of a batch of gene trees. `transfers` is `0`
+/// (undated — any recipient) or `1` (reldated — only time-overlapping recipients).
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+pub fn undated_joint_loglik(
+    sp_left: Vec<i64>,
+    sp_right: Vec<i64>,
+    sp_is_leaf: Vec<bool>,
+    sp_time: Vec<f64>,
+    sp_parent_time: Vec<f64>,
+    sp_root: usize,
+    gt_offsets: Vec<usize>,
+    gt_is_leaf: Vec<bool>,
+    gt_left: Vec<i64>,
+    gt_right: Vec<i64>,
+    gt_species: Vec<i64>,
+    dup: f64,
+    transfer: f64,
+    loss: f64,
+    transfers: u8,
+    origination: u8,
+    n_extinct: usize,
+) -> f64 {
+    let eng = UndatedEngine::new(
+        sp_left, sp_right, sp_is_leaf, sp_time, sp_parent_time, sp_root,
+        dup, transfer, loss, transfers,
+    );
+    let mut ll = 0.0f64;
+    if n_extinct > 0 {
+        ll += (n_extinct as f64) * eng.extinct_logprob(origination);
+    }
+    for i in 0..gt_offsets.len().saturating_sub(1) {
+        let (a, b) = (gt_offsets[i], gt_offsets[i + 1]);
+        ll += eng.gene_loglik(
+            &gt_is_leaf[a..b], &gt_left[a..b], &gt_right[a..b], &gt_species[a..b], origination,
+        );
+    }
+    ll
 }
 
 /// Joint dated log-likelihood of a batch of gene trees sharing one species tree and rates.
