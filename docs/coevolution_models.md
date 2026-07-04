@@ -49,7 +49,7 @@ and bidirectional coupling is simply *both* edges. `:` (not `->`) keeps it shell
 | Edge (`driver:target`) | Reading | Model | Tree | Status |
 |---|---|---|---|---|
 | `traits:species` | trait sets speciation/extinction | **SSE** (BiSSE / MuSSE / QuaSSE / HiSSE) | **output** (forward) | **shipped** — `coevolve --couple traits:species` |
-| `genes:species` | gene content sets diversification | gene-content-dependent diversification | **output** (forward) | proposed — Phase 3 (the merged engine) |
+| `genes:species` | gene content sets diversification | key-innovation genes + HGT | **output** (forward) | **shipped** — `coevolve --couple genes:species` |
 | `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | **shipped** — `coevolve --couple species:traits` (both arrows = **ClaSSE**) |
 | `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input | proposed |
 | `traits:genes` | trait sets gene loss/gain | **trait-linked gene families** | input | **shipped** — [`coevolve-genetrait`](guide/trait-linked-genomes.md) |
@@ -68,13 +68,16 @@ from a single question: **does any active edge point into S?**
   **forward-only** (they generate the complete tree, extinct lineages included) and take no
   `-t`. This is the same forward machinery as [`species --model forward`](species_tree_models.md).
 
-!!! warning "`genes:species` is the one real complexity cliff"
-    An arrow from **G into S** means the genome content must be known *as the tree grows*, so the
-    species birth–death events and the gene-family DTL events interleave in **one** event stream.
-    That merges the two Gillespie engines into a single loop and forfeits the fast
-    [Rust genome engine](guide/rust-engine.md) (which assumes a frozen tree). It is expensive
-    whether or not a trait is also present — so paying for `genes:species` once is what unlocks
-    genuine three-way simulation. Every *other* edge is comparatively cheap.
+!!! note "`genes:species` was the complexity cliff — and how it was tamed"
+    An arrow from **G into S** means the genome content must be known *as the tree grows*: the
+    tree can't be built first. The v1 (**shipped**) tames this by observing that, under ZOMBI's
+    **independent** families, only the handful of families that actually touch diversification
+    need to ride in the forward loop. So a small panel of binary **driver** ("key innovation")
+    families grows jointly with the tree, and the entire neutral genome — which does not affect
+    the tree — is overlaid *afterward* by the ordinary [`genomes`](cli.md) / `simulate_genomes` on
+    the finished tree (exact, not an approximation). The genuinely new machinery is the
+    **frequency-dependent transfer** (a driver in more genomes is donated more often), which is
+    why the loop must know the live population — and is what makes this more than a static SSE.
 
 ## Most three-axis scenarios still decompose
 
@@ -146,7 +149,30 @@ Gaussian jump variance for a continuous (`quasse`) trait. In Python the kernel i
 `z.Cladogenesis(shift=…, jump_sigma2=…)`, accepted by both `z.simulate_sse(..., cladogenesis=…)`
 (ClaSSE) and `z.simulate_traits(tree, model, cladogenesis=…)` (`species:traits` on a fixed tree).
 
-The into-species `genes:species` edge (and the full three-way `--all`) remain on the roadmap below.
+### Gene content drives the tree — `genes:species`
+
+The second into-species edge is shipped too: a small panel of binary **driver** ("key innovation")
+gene families whose presence sets each lineage's speciation/extinction rate. Drivers are gained de
+novo (origination) and — the interesting part — by **transfer**, which is *frequency-dependent* (a
+driver in more live genomes spreads faster), so the tree and the gene content grow together. The
+neutral bulk genome is overlaid afterward on the grown tree:
+
+```bash
+# 2 drivers; one seeded at the root with a strong speciation effect, spread by HGT
+zombi2 coevolve --couple genes:species --drivers 2 --root-drivers 1 \
+    --lambda0 1 --mu0 0.2 --driver-speciation 1.2 --driver-transfer 0.8 --driver-loss 0.3 \
+    --tips 200 --seed 1 -o keygene/
+
+# overlay the neutral genome on the resulting tree (the factorization, made explicit)
+zombi2 genomes -t keygene/species_tree.nwk --trans 1 --loss 0.5 --output profiles trees -o keygene/
+```
+
+`coevolve` writes `species_tree.nwk`, `drivers.tsv` (per-node driver presence) and
+`drivers_manifest.tsv` (the effect sizes β and rates). `--driver-speciation`/`--driver-extinction`
+are the per-driver log-rate effects; `--driver-loss`/`--driver-origination`/`--driver-transfer` the
+gene dynamics. In Python: `z.simulate_gene_diversification(z.GeneDiversification(…), n_tips=…)`.
+
+The full three-way `--all` (all edges at once) remains on the roadmap below.
 
 ## The engine: one generic per-lineage state
 
@@ -188,9 +214,13 @@ milestone once the individual edges each work.
   (`zombi2/traits.py`) jumps the trait at speciation; it feeds both `simulate_traits` (the
   `species:traits` edge on a given tree) and the forward `simulate_sse` loop, so
   `--couple traits:species --couple species:traits` is the complete `traits↔species` ClaSSE feedback.
-- **Phase 3 — `genes:species` (the merged loop).** The one hard build: interleave species and
-  gene-family events in a single forward stream. This is also what makes genuine three-way
-  (`--all`) real.
+- **Phase 3 — `genes:species` (key innovations + HGT). ✅ done.** A forward joint loop
+  ([`zombi2/gene_diversification.py`](https://github.com/AADavin/zombi2/blob/main/zombi2/gene_diversification.py))
+  grows the tree together with a panel of binary driver families whose presence sets λ/μ; gain is by
+  origination and **frequency-dependent transfer**. The neutral genome is overlaid afterward with
+  `genomes` (exact under independent families), so the merged loop stays small. `GeneDiversification`
+  / `simulate_gene_diversification`, exposed as `coevolve --couple genes:species`. **v1 scope:** binary
+  drivers, driver *presence* profiles (not yet full driver gene trees), the edge runs on its own.
 - **Phase 4 — `--all` and the remaining overlay edges** (`species:genes`, `genes:traits`) as
   additive rate-functions/kernels, validated against the single-edge cases.
 

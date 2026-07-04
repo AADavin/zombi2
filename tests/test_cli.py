@@ -771,7 +771,7 @@ def test_coevolve_reproducible(tmp_path):
 def test_coevolve_unbuilt_edge_errors(tmp_path):
     """A planned-but-unbuilt edge errors clearly (does not silently run)."""
     with pytest.raises(SystemExit):
-        main(["coevolve", "--couple", "genes:species", "--age", "3", "-o", str(tmp_path / "a")])
+        main(["coevolve", "--couple", "species:genes", "--age", "3", "-o", str(tmp_path / "a")])
 
 
 def test_coevolve_traits_genes_points_to_genetrait(tmp_path):
@@ -851,3 +851,46 @@ def test_coevolve_quasse_classe(tmp_path):
                "--clado-jump", "1.0", "--tips", "60", "--seed", "5", "-o", str(out)])
     assert rc == 0
     assert (out / "trait_tree.nwk").exists()
+
+
+# --------------------------------------------------------------------------- coevolve Phase 3: genes:species
+def test_coevolve_genes_species(tmp_path):
+    """genes:species grows a tree driven by key-innovation gene families; writes drivers + manifest."""
+    out = tmp_path / "gs"
+    rc = main(["coevolve", "--couple", "genes:species", "--drivers", "2",
+               "--lambda0", "1", "--mu0", "0.2", "--driver-speciation", "1.2",
+               "--driver-transfer", "0.8", "--driver-loss", "0.3", "--root-drivers", "1",
+               "--tips", "120", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+    assert (out / "drivers_manifest.tsv").exists()
+    header = (out / "drivers.tsv").read_text().splitlines()[0]
+    assert header == "node\tD0\tD1"
+
+
+def test_coevolve_genes_species_then_genomes_overlay(tmp_path):
+    """The neutral genome overlays on the grown tree with the ordinary genomes command."""
+    out = tmp_path / "gs"
+    main(["coevolve", "--couple", "genes:species", "--drivers", "1", "--root-drivers", "1",
+          "--tips", "60", "--seed", "2", "-o", str(out)])
+    ov = tmp_path / "ov"
+    rc = main(["genomes", "-t", str(out / "species_tree.nwk"), "--trans", "1", "--loss", "0.5",
+               "--output", "profiles", "-o", str(ov)])
+    assert rc == 0
+    assert (ov / "Profiles.tsv").exists()
+
+
+def test_coevolve_genes_species_rejects_tree(tmp_path):
+    """genes:species grows the tree, so -t is an error."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "genes:species", "-t", str(sp / "species_tree.nwk"),
+              "--tips", "20", "-o", str(tmp_path / "a")])
+
+
+def test_coevolve_genes_species_not_combinable_yet(tmp_path):
+    """Combining genes:species with another edge (the joint model) is not in this phase."""
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "genes:species", "--couple", "traits:species",
+              "--tips", "20", "-o", str(tmp_path / "a")])

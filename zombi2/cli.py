@@ -24,6 +24,7 @@ from .species_model import (
 )
 from .species_sim import simulate_species_tree
 from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
+from .gene_diversification import GeneDiversification, simulate_gene_diversification
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from .traits import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -733,6 +734,27 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--clado-jump", dest="clado_jump", type=float, default=1.0,
                    help="[species:traits, continuous trait] variance of the Gaussian jump added to "
                         "each daughter's value AT each speciation (default 1.0)")
+    # genes:species — gene-content-dependent diversification (key innovations + HGT). The base
+    # (no-driver) speciation/extinction rates reuse --lambda0/--mu0.
+    p.add_argument("--drivers", type=int, default=2,
+                   help="[genes:species] number of binary 'driver' (key-innovation) gene families")
+    p.add_argument("--driver-speciation", dest="driver_speciation", type=float, default=1.0,
+                   help="[genes:species] per-driver effect on log speciation: a present driver "
+                        "scales lambda by exp(this) (>0 = a key innovation; default 1.0). Base "
+                        "lambda0 = --lambda0")
+    p.add_argument("--driver-extinction", dest="driver_extinction", type=float, default=0.0,
+                   help="[genes:species] per-driver effect on log extinction: a present driver "
+                        "scales mu by exp(this) (default 0). Base mu0 = --mu0")
+    p.add_argument("--driver-loss", dest="driver_loss", type=float, default=0.1,
+                   help="[genes:species] rate a present driver is lost/deleted (default 0.1)")
+    p.add_argument("--driver-origination", dest="driver_origination", type=float, default=0.05,
+                   help="[genes:species] rate an absent driver appears de novo (default 0.05)")
+    p.add_argument("--driver-transfer", dest="driver_transfer", type=float, default=0.5,
+                   help="[genes:species] per-donor HGT rate of a driver — frequency-dependent gain: "
+                        "a driver in more live genomes spreads faster (default 0.5)")
+    p.add_argument("--root-drivers", dest="root_drivers", type=int, default=0,
+                   help="[genes:species] number of drivers present at the root (the first m; "
+                        "default 0 = drivers enter by origination)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
@@ -809,7 +831,7 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
                          "docs/coevolution_models.md for the full edge set")
     eset = set(edges)
-    supported = {"traits:species", "species:traits"}
+    supported = {"traits:species", "species:traits", "genes:species"}
     unsupported = eset - supported
     if unsupported:
         if eset == {"traits:genes"}:
@@ -817,7 +839,16 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          "that command (it will be folded in as 'coevolve --couple traits:genes')")
         parser.error(f"--couple {', '.join(sorted(unsupported))} is planned but not yet "
                      "implemented; the built edges are traits:species (SSE), species:traits "
-                     "(cladogenetic) and their combination (ClaSSE). See docs/coevolution_models.md")
+                     "(cladogenetic), their combination (ClaSSE), and genes:species (key "
+                     "innovations). See docs/coevolution_models.md")
+
+    # genes:species — gene content drives diversification (its own forward joint loop, v1 stands
+    # alone; combining it with other edges is the full joint model, still on the roadmap).
+    if "genes:species" in eset:
+        if eset != {"genes:species"}:
+            parser.error("genes:species runs on its own in this phase; combining it with other "
+                         "edges (the fully joint model) is future work — see docs/coevolution_models.md")
+        return _run_genes_species(args, parser)
 
     traits_species = "traits:species" in eset      # SSE arrow (trait -> diversification), into S
     species_traits = "species:traits" in eset      # cladogenetic arrow (speciation -> trait)
@@ -863,6 +894,54 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
     model_label = f"ClaSSE {args.sse_model}" if clado is not None else f"SSE {args.sse_model}"
     return (f"wrote {edge_label} ({model_label}) to {args.out}/ "
             f"({n_extant} extant tips{_sse_tip_signal(res)}) in {dt:.3g} s")
+
+
+def _write_drivers_manifest(out: str, model: GeneDiversification) -> None:
+    """Write ``drivers_manifest.tsv`` — the per-driver effect sizes and rates behind the tree, so
+    the gene↔diversification linkage that shaped the profiles is on record for inference."""
+    root = ",".join(f"D{i}" for i in sorted(model.root_set)) or "-"
+    lines = [f"# lambda0\t{model.lambda0:g}", f"# mu0\t{model.mu0:g}",
+             f"# loss\t{model.loss:g}", f"# origination\t{model.origination:g}",
+             f"# transfer\t{model.transfer:g}", f"# root_drivers\t{root}",
+             "driver\tbeta_speciation\tbeta_extinction"]
+    for i in range(model.n_drivers):
+        lines.append(f"D{i}\t{model.beta_lambda[i]:.6g}\t{model.beta_mu[i]:.6g}")
+    with open(os.path.join(out, "drivers_manifest.tsv"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def _run_genes_species(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """Grow a tree whose diversification is driven by a panel of binary key-innovation gene
+    families (``genes:species``); the neutral genome is overlaid afterward with ``zombi2 genomes``
+    on the resulting tree (exact under independent families)."""
+    if args.tree:
+        parser.error("genes:species grows the tree (it is an OUTPUT); give --age/--tips, not an "
+                     "input -t tree")
+    if (args.age is None) == (args.tips is None):
+        parser.error("genes:species grows the tree — give exactly one of --age or --tips")
+
+    model = GeneDiversification(
+        args.drivers, lambda0=args.lambda0, mu0=args.mu0,
+        driver_speciation=args.driver_speciation, driver_extinction=args.driver_extinction,
+        loss=args.driver_loss, origination=args.driver_origination,
+        transfer=args.driver_transfer, root_drivers=args.root_drivers)
+    t0 = time.perf_counter()
+    res = simulate_gene_diversification(model, age=args.age, n_tips=args.tips, seed=args.seed)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(res.tree.to_newick() + "\n")          # the tree the drivers shaped
+    with open(os.path.join(args.out, "drivers.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))              # per-node driver presence (0/1 columns)
+    _write_drivers_manifest(args.out, model)
+    n_extant = len(res.tree.extant_leaves())
+    prev = " ".join(f"D{i}:{100 * p:.0f}%" for i, p in enumerate(res.tip_prevalence()))
+    print(f"  overlay the neutral genome with: zombi2 genomes -t {args.out}/species_tree.nwk "
+          f"--trans 1 --loss 0.5 --output profiles trees -o {args.out}")
+    return (f"wrote genes:species (key innovations) to {args.out}/ "
+            f"({n_extant} extant tips, {model.n_drivers} drivers, tip prevalence {prev}) "
+            f"in {dt:.3g} s")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -> None:
