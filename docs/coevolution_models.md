@@ -14,9 +14,9 @@ breaks and the stages can no longer be run in sequence — the tree, the trait a
 must be grown *together*. The proposed **`coevolve`** mode is exactly for those non-factorising,
 feedback scenarios.
 
-This note fixes the model, the command-line shape, and a phased build order. Only one edge of the
-model ships today (`traits:genes`, as [`coevolve-genetrait`](guide/trait-linked-genomes.md));
-everything else here is a design for what `coevolve` becomes.
+This note fixes the model, the command-line shape, and a phased build order. All six single
+directed edges now ship under `coevolve --couple driver:target` (see the status table below);
+what remains a design is the fully *joint* model that combines several edges with feedback.
 
 ## The coupling graph
 
@@ -52,7 +52,7 @@ and bidirectional coupling is simply *both* edges. `:` (not `->`) keeps it shell
 | `genes:species` | gene content sets diversification | key-innovation genes + HGT | **output** (forward) | **shipped** — `coevolve --couple genes:species` |
 | `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | **shipped** — `coevolve --couple species:traits` (both arrows = **ClaSSE**) |
 | `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input (given tree) | **shipped** — `coevolve --couple species:genes` |
-| `traits:genes` | trait sets gene loss/gain | **trait-linked gene families** | input | **shipped** — [`coevolve-genetrait`](guide/trait-linked-genomes.md) |
+| `traits:genes` | trait sets gene loss/gain | **trait-linked gene families** | input (given tree) | **shipped** — `coevolve --couple traits:genes` |
 | `genes:traits` | gene presence enables a trait shift | gene-conditioned trait | input (given tree) | **shipped** — `coevolve --couple genes:traits` |
 
 ## The one rule: complexity = arrows *into* S
@@ -243,9 +243,9 @@ milestone once the individual edges each work.
 
 ## Phased build order
 
-- **Phase 0 — the umbrella.** Add `coevolve` with the `--couple driver:target` parser; fold the
-  existing [`coevolve-genetrait`](guide/trait-linked-genomes.md) in as `--couple traits:genes`
-  (keep `coevolve-genetrait` as a deprecated alias). Ships immediately; no engine work.
+- **Phase 0 — the umbrella. ✅ done.** `coevolve` with the `--couple driver:target` parser; the
+  former standalone `coevolve-genetrait` command is folded in as `--couple traits:genes`
+  (the standalone command was removed — a clean break, no alias).
 - **Phase 1 — `traits:species` (SSE). ✅ done.** The forward joint tree+trait engine is in
   [`zombi2/sse.py`](https://github.com/AADavin/zombi2/blob/main/zombi2/sse.py) — `BiSSE` (binary),
   `MuSSE` (k-state), `QuaSSE` (continuous) and `HiSSE` (hidden-state), driven by `simulate_sse` and

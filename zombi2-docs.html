@@ -282,7 +282,7 @@ zombi2<span class="w"> </span>abc<span class="w"> </span>--tree<span class="w"> 
 <span class="w">    </span>--dup<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">1</span>.5<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">4</span><span class="w"> </span>--n-sims<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>out/
 
 <span class="c1"># 5. gene families whose loss/gain is conditioned on a trait</span>
-zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:genes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--trait-model<span class="w"> </span>mk<span class="w"> </span>--states<span class="w"> </span><span class="m">2</span><span class="w"> </span>--trait-center<span class="w"> </span>--responsive<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--effect-loss<span class="w"> </span><span class="m">3</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
@@ -448,18 +448,19 @@ model) times a <strong>per-family speed</strong> <code>s_g ~ LogNormal(0, --fami
 <code>gene_trees/&lt;family&gt;_extant_subst.nwk</code> (+ <code>_complete_subst.nwk</code>) and, for reproducibility,
 <code>gene_family_speeds.tsv</code> / <code>branch_rates.tsv</code>. See
 <a href="#guide-rate-variation">Rate variation</a> for the model.</p>
-<h2 id="coevolve-genetrait-trait-conditioned-gene-families"><code>coevolve-genetrait</code> — trait-conditioned gene families</h2>
-<p><code>coevolve-genetrait</code> links the two halves of the toolkit: it evolves a phenotypic trait along
-the tree, then evolves a <strong>panel</strong> of gene families whose loss and gain <strong>depend on the local
-trait value</strong>, so the resulting profile carries a known, trait-linked signal (the forward
-generator behind reading gene content as a record of a trait's history — e.g. dating the tree
-from the Great Oxidation Event). It simulates the trait with any <a href="#trait-a-phenotypic-trait"><code>trait</code></a>
-model (<code>--trait-model</code>), builds the coupling, and writes the gene-family output alongside the
-trait and a coupling manifest.</p>
+<h2 id="coevolve-couple-traitsgenes-trait-conditioned-gene-families"><code>coevolve --couple traits:genes</code> — trait-conditioned gene families</h2>
+<p>The <strong><code>traits:genes</code></strong> edge of <a href="#coevolution-models"><code>coevolve</code></a> links the two halves of
+the toolkit: it evolves a phenotypic trait along the tree, then evolves a <strong>panel</strong> of gene
+families whose loss and gain <strong>depend on the local trait value</strong>, so the resulting profile carries
+a known, trait-linked signal (the forward generator behind reading gene content as a record of a
+trait's history — e.g. dating the tree from the Great Oxidation Event). It simulates the trait
+with any <a href="#trait-a-phenotypic-trait"><code>trait</code></a> model (<code>--trait-model</code>), builds the coupling, and
+writes the gene-family output alongside the trait and a coupling manifest. (This was the standalone
+<code>coevolve-genetrait</code> command before it was folded into <code>coevolve</code>.)</p>
 <div class="codehilite"><pre><span></span><code><span class="nv">T</span><span class="o">=</span>out/species_tree.nwk
 
 <span class="c1"># a binary aerobic(1)/anaerobic(0) trait; 30% of a 40-family panel respond to it</span>
-zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>-t<span class="w"> </span><span class="nv">$T</span><span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:genes<span class="w"> </span>-t<span class="w"> </span><span class="nv">$T</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--trait-model<span class="w"> </span>mk<span class="w"> </span>--states<span class="w"> </span><span class="m">2</span><span class="w"> </span>--rate<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--trait-center<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--panel<span class="w"> </span><span class="m">40</span><span class="w"> </span>--responsive<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--weight<span class="w"> </span><span class="m">1</span><span class="w"> </span>--effect-loss<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--loss<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--write<span class="w"> </span>all<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>-o<span class="w"> </span>out/
@@ -772,7 +773,7 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 </tr>
 </tbody>
 </table>
-<h3 id="coevolve-genetrait"><code>coevolve-genetrait</code></h3>
+<h3 id="coevolve-couple-traitsgenes"><code>coevolve --couple traits:genes</code></h3>
 <table>
 <thead>
 <tr>
@@ -781,6 +782,10 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>--couple traits:genes</code></td>
+<td>select the trait-conditioned-genes edge (required)</td>
+</tr>
 <tr>
 <td><code>--tree</code> / <code>-t</code></td>
 <td>input species tree in Newick format (required)</td>
@@ -2645,14 +2650,14 @@ conditioned on:</p>
 </tbody>
 </table>
 <h2 id="from-the-command-line">From the command line</h2>
-<p><code>zombi2 coevolve-genetrait</code> runs the whole thing on a species tree you provide. It simulates
-the trait (<code>--trait-model</code>, reusing every <code>zombi2 trait</code> model), builds the coupling
+<p><code>zombi2 coevolve --couple traits:genes</code> runs the whole thing on a species tree you provide. It
+simulates the trait (<code>--trait-model</code>, reusing every <code>zombi2 trait</code> model), builds the coupling
 (<code>--panel</code>, <code>--responsive</code>, <code>--weight</code>, <code>--effect-loss</code>), and writes the gene-family output
 plus the trait and a coupling manifest:</p>
 <div class="codehilite"><pre><span></span><code><span class="nv">T</span><span class="o">=</span>out/species_tree.nwk
 
 <span class="c1"># a binary aerobic/anaerobic trait; 30% of a 40-family panel respond to it</span>
-zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>-t<span class="w"> </span><span class="nv">$T</span><span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:genes<span class="w"> </span>-t<span class="w"> </span><span class="nv">$T</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--trait-model<span class="w"> </span>mk<span class="w"> </span>--states<span class="w"> </span><span class="m">2</span><span class="w"> </span>--rate<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--trait-center<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--panel<span class="w"> </span><span class="m">40</span><span class="w"> </span>--responsive<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--weight<span class="w"> </span><span class="m">1</span><span class="w"> </span>--effect-loss<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--loss<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--write<span class="w"> </span>all<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>-o<span class="w"> </span>out/
@@ -2676,8 +2681,8 @@ zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>-t<span 
   as <code>zombi2 trait</code> writes with its all-nodes output.</li>
 <li><code>--effect-gain</code> turns on the optional donor-side HGT-activity coupling.</li>
 </ul>
-<p>See the <a href="#cli">CLI reference</a> for the
-full option table.</p>
+<p>See the <a href="#cli">CLI reference</a>
+for the full option table.</p>
 <h2 id="what-it-recovers">What it recovers</h2>
 <p>Inject a strong coupling and the trait shows up in the profiles: responsive families are
 present where the trait favours them and absent where it does not, while inert families do not
@@ -2690,10 +2695,10 @@ inference should be able to pick out.</p>
 with an over-large <code>base_loss</code> an unprotected family, having only the field-blind influx to
 regain it, is lost tree-wide and the inert rows go all-zero.</p>
 <h2 id="roadmap">Roadmap</h2>
-<p><code>coevolve-genetrait</code> is the <strong><code>traits:genes</code></strong> edge of a broader coupled-simulation design — see
-<a href="#coevolution-models">Coevolution (coupled models)</a>, which generalises it to a directed
-graph over species, traits and gene families (<code>zombi2 coevolve --couple driver:target</code>). Under
-that plan this command becomes <code>coevolve --couple traits:genes</code> (the old name kept as an alias).
+<p><code>coevolve --couple traits:genes</code> is the <strong><code>traits:genes</code></strong> edge of a broader coupled-simulation
+design — see <a href="#coevolution-models">Coevolution (coupled models)</a>, which generalises it to a
+directed graph over species, traits and gene families (<code>zombi2 coevolve --couple driver:target</code>).
+It was formerly the standalone <code>coevolve-genetrait</code> command, now folded into <code>coevolve</code>.
 Planned next:</p>
 <ul>
 <li>an <strong>environmental clock</strong> — a trait (and its coupled families) gated by a dated event such
@@ -3740,9 +3745,9 @@ genome is allowed to feed <strong>back</strong> into the process that generated 
 breaks and the stages can no longer be run in sequence — the tree, the trait and the gene content
 must be grown <em>together</em>. The proposed <strong><code>coevolve</code></strong> mode is exactly for those non-factorising,
 feedback scenarios.</p>
-<p>This note fixes the model, the command-line shape, and a phased build order. Only one edge of the
-model ships today (<code>traits:genes</code>, as <a href="#guide-trait-linked-genomes"><code>coevolve-genetrait</code></a>);
-everything else here is a design for what <code>coevolve</code> becomes.</p>
+<p>This note fixes the model, the command-line shape, and a phased build order. All six single
+directed edges now ship under <code>coevolve --couple driver:target</code> (see the status table below);
+what remains a design is the fully <em>joint</em> model that combines several edges with feedback.</p>
 <h2 id="the-coupling-graph">The coupling graph</h2>
 <p>There are three processes:</p>
 <ul>
@@ -3808,8 +3813,8 @@ and bidirectional coupling is simply <em>both</em> edges. <code>:</code> (not <c
 <td><code>traits:genes</code></td>
 <td>trait sets gene loss/gain</td>
 <td><strong>trait-linked gene families</strong></td>
-<td>input</td>
-<td><strong>shipped</strong> — <a href="#guide-trait-linked-genomes"><code>coevolve-genetrait</code></a></td>
+<td>input (given tree)</td>
+<td><strong>shipped</strong> — <code>coevolve --couple traits:genes</code></td>
 </tr>
 <tr>
 <td><code>genes:traits</code></td>
@@ -3996,9 +4001,9 @@ but the state where every edge's rate-function/kernel is wired on; it becomes a 
 milestone once the individual edges each work.</p>
 <h2 id="phased-build-order">Phased build order</h2>
 <ul>
-<li><strong>Phase 0 — the umbrella.</strong> Add <code>coevolve</code> with the <code>--couple driver:target</code> parser; fold the
-  existing <a href="#guide-trait-linked-genomes"><code>coevolve-genetrait</code></a> in as <code>--couple traits:genes</code>
-  (keep <code>coevolve-genetrait</code> as a deprecated alias). Ships immediately; no engine work.</li>
+<li><strong>Phase 0 — the umbrella. ✅ done.</strong> <code>coevolve</code> with the <code>--couple driver:target</code> parser; the
+  former standalone <code>coevolve-genetrait</code> command is folded in as <code>--couple traits:genes</code>
+  (the standalone command was removed — a clean break, no alias).</li>
 <li><strong>Phase 1 — <code>traits:species</code> (SSE). ✅ done.</strong> The forward joint tree+trait engine is in
   <a href="https://github.com/AADavin/zombi2/blob/main/zombi2/sse.py"><code>zombi2/sse.py</code></a> — <code>BiSSE</code> (binary),
   <code>MuSSE</code> (k-state), <code>QuaSSE</code> (continuous) and <code>HiSSE</code> (hidden-state), driven by <code>simulate_sse</code> and
