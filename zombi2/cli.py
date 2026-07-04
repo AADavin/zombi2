@@ -26,6 +26,7 @@ from .species_sim import simulate_species_tree
 from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
 from .gene_diversification import GeneDiversification, simulate_gene_diversification
 from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
+from .gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from .traits import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -813,6 +814,29 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--clado-gene-gain", dest="clado_gene_gain", type=float, default=2.0,
                    help="[species:genes] mean number of new families a daughter gains AT each "
                         "speciation (Poisson; default 2.0)")
+    # genes:traits — a modifier gene switches a trait's optimum on a GIVEN tree (needs -t)
+    p.add_argument("--modifier-gain", dest="modifier_gain", type=float, default=0.5,
+                   help="[genes:traits] rate the modifier gene is gained (absent -> present; "
+                        "default 0.5)")
+    p.add_argument("--modifier-loss", dest="modifier_loss", type=float, default=0.5,
+                   help="[genes:traits] rate the modifier gene is lost (present -> absent; "
+                        "default 0.5)")
+    p.add_argument("--root-modifier", dest="root_modifier", action="store_true",
+                   help="[genes:traits] start with the modifier gene present at the root")
+    p.add_argument("--theta-absent", dest="theta_absent", type=float, default=0.0,
+                   help="[genes:traits] the trait's OU optimum while the modifier is absent "
+                        "(default 0)")
+    p.add_argument("--theta-present", dest="theta_present", type=float, default=5.0,
+                   help="[genes:traits] the trait's OU optimum while the modifier is present "
+                        "(default 5) — acquiring the gene pulls the trait toward this peak")
+    p.add_argument("--trait-alpha", dest="trait_alpha", type=float, default=1.0,
+                   help="[genes:traits] OU mean-reversion strength of the trait (0 = Brownian; "
+                        "default 1.0)")
+    p.add_argument("--trait-sigma2", dest="trait_sigma2", type=float, default=1.0,
+                   help="[genes:traits] trait diffusion rate sigma^2 (default 1.0)")
+    p.add_argument("--trait-x0", dest="trait_x0", type=float, default=None,
+                   help="[genes:traits] root trait value (default: the optimum of the root "
+                        "modifier state)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
     p.add_argument("-o", "--out", required=True, help="output directory")
 
@@ -889,7 +913,8 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
                          "docs/coevolution_models.md for the full edge set")
     eset = set(edges)
-    supported = {"traits:species", "species:traits", "genes:species", "species:genes"}
+    supported = {"traits:species", "species:traits", "genes:species", "species:genes",
+                 "genes:traits"}
     unsupported = eset - supported
     if unsupported:
         if eset == {"traits:genes"}:
@@ -897,9 +922,9 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          "that command (it will be folded in as 'coevolve --couple traits:genes')")
         parser.error(f"--couple {', '.join(sorted(unsupported))} is planned but not yet "
                      "implemented; the built edges are traits:species (SSE), species:traits "
-                     "(cladogenetic), their combination (ClaSSE), genes:species (key "
-                     "innovations), and species:genes (cladogenetic genome). See "
-                     "docs/coevolution_models.md")
+                     "(cladogenetic), their combination (ClaSSE), genes:species (key innovations), "
+                     "species:genes (cladogenetic genome), and genes:traits (gene-conditioned "
+                     "trait). See docs/coevolution_models.md")
 
     # genes:species — gene content drives diversification (its own forward joint loop, v1 stands
     # alone; combining it with other edges is the full joint model, still on the roadmap).
@@ -908,6 +933,14 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
             parser.error("genes:species runs on its own in this phase; combining it with other "
                          "edges (the fully joint model) is future work — see docs/coevolution_models.md")
         return _run_genes_species(args, parser)
+
+    # genes:traits — gene content conditions a trait (a modifier gene switches the trait's OU
+    # optimum). An overlay edge (no arrow into S), so the tree is an INPUT; runs on a given -t tree.
+    if "genes:traits" in eset:
+        if eset != {"genes:traits"}:
+            parser.error("genes:traits runs on its own in this phase; combining it with other "
+                         "edges is future work — see docs/coevolution_models.md")
+        return _run_genes_traits(args, parser)
 
     # species:genes — speciation drives gene content (cladogenetic genome). An overlay edge (no
     # arrow into S), so the tree is an INPUT; runs on a given -t tree.
@@ -1047,6 +1080,43 @@ def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser
     return (f"wrote species:genes (cladogenetic genome) to {args.out}/ "
             f"({len(tips)} tips, {len(pm.families)} families, mean genome {mean_size:.0f}) "
             f"in {dt:.3g} s")
+
+
+def _run_genes_traits(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """Evolve a trait down a GIVEN tree whose OU optimum is switched by a modifier gene's presence
+    (the ``genes:traits`` edge — gene content conditions the trait)."""
+    if not args.tree:
+        parser.error("genes:traits runs on a GIVEN tree — pass -t/--tree (gene content conditions "
+                     "the trait; there is no diversification to grow here)")
+    if args.age is not None or args.tips is not None:
+        parser.error("genes:traits uses the given -t tree; --age/--tips only apply to the "
+                     "into-species edges that grow a tree")
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    model = GeneConditionedTrait(
+        gene_gain=args.modifier_gain, gene_loss=args.modifier_loss, root_gene=args.root_modifier,
+        theta_absent=args.theta_absent, theta_present=args.theta_present,
+        alpha=args.trait_alpha, sigma2=args.trait_sigma2, x0=args.trait_x0)
+    t0 = time.perf_counter()
+    res = simulate_gene_conditioned_trait(tree, model, seed=args.seed)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick() + "\n")              # the given tree, for provenance
+    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))              # per-node modifier presence + trait value
+    with open(os.path.join(args.out, "trait_tree.nwk"), "w") as f:
+        f.write(res.to_newick() + "\n")               # trait annotated on every node
+
+    tips = tree.extant_leaves()
+    tv, gp = res.trait_values(), res.gene_presence()
+    car = [tv[t] for t in tips if gp[t]]
+    non = [tv[t] for t in tips if not gp[t]]
+    car_m = f"{sum(car) / len(car):.2g}" if car else "-"
+    non_m = f"{sum(non) / len(non):.2g}" if non else "-"
+    return (f"wrote genes:traits (gene-conditioned trait) to {args.out}/ "
+            f"({len(tips)} tips; carrier trait mean {car_m} vs non-carrier {non_m}) in {dt:.3g} s")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -> None:
