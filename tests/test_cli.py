@@ -792,3 +792,62 @@ def test_coevolve_needs_exactly_one_stop_condition(tmp_path):
 def test_coevolve_bad_edge_name_errors(tmp_path):
     with pytest.raises(SystemExit):
         main(["coevolve", "--couple", "foo:bar", "--age", "3", "-o", str(tmp_path / "a")])
+
+
+# --------------------------------------------------------------------------- coevolve Phase 2: species:traits / ClaSSE
+def test_coevolve_species_traits_on_given_tree(tmp_path):
+    """species:traits alone evolves a cladogenetic trait along a GIVEN tree (no diversification)."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "30", "--age", "4", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--couple", "species:traits", "-t", str(sp / "species_tree.nwk"),
+               "--sse-model", "bisse", "--q01", "0", "--q10", "0", "--clado-shift", "0.4",
+               "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert (out / "traits.tsv").exists() and (out / "trait_tree.nwk").exists()
+    assert (out / "species_tree.nwk").exists()       # the given tree, copied for provenance
+
+
+def test_coevolve_classe_both_arrows(tmp_path):
+    """traits:species + species:traits = ClaSSE (grows a tree with cladogenetic jumps)."""
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--couple", "traits:species", "--couple", "species:traits",
+               "--lambda0", "1", "--lambda1", "3", "--q01", "0.05", "--q10", "0.05",
+               "--clado-shift", "0.3", "--tips", "80", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+
+
+def test_coevolve_couple_space_separated_list(tmp_path):
+    """--couple also accepts a space-separated list in a single flag."""
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--couple", "traits:species", "species:traits",
+               "--tips", "60", "--seed", "4", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").exists()
+
+
+def test_coevolve_species_traits_alone_needs_tree(tmp_path):
+    """species:traits alone runs on a given tree; without -t it errors."""
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "species:traits", "--clado-shift", "0.4",
+              "-o", str(tmp_path / "a")])
+
+
+def test_coevolve_into_species_rejects_input_tree(tmp_path):
+    """An into-species edge grows the tree, so passing -t is an error."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:species", "-t", str(sp / "species_tree.nwk"),
+              "--tips", "20", "-o", str(tmp_path / "a")])
+
+
+def test_coevolve_quasse_classe(tmp_path):
+    """Continuous ClaSSE: quasse + a cladogenetic jump."""
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--couple", "traits:species", "species:traits", "--sse-model", "quasse",
+               "--spec-low", "0.4", "--spec-high", "3", "--qmu", "0.2", "--diffusion", "0",
+               "--clado-jump", "1.0", "--tips", "60", "--seed", "5", "-o", str(out)])
+    assert rc == 0
+    assert (out / "trait_tree.nwk").exists()

@@ -50,7 +50,7 @@ and bidirectional coupling is simply *both* edges. `:` (not `->`) keeps it shell
 |---|---|---|---|---|
 | `traits:species` | trait sets speciation/extinction | **SSE** (BiSSE / MuSSE / QuaSSE / HiSSE) | **output** (forward) | **shipped** — `coevolve --couple traits:species` |
 | `genes:species` | gene content sets diversification | gene-content-dependent diversification | **output** (forward) | proposed — Phase 3 (the merged engine) |
-| `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | proposed — Phase 2, cheap |
+| `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | **shipped** — `coevolve --couple species:traits` (both arrows = **ClaSSE**) |
 | `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input | proposed |
 | `traits:genes` | trait sets gene loss/gain | **trait-linked gene families** | input | **shipped** — [`coevolve-genetrait`](guide/trait-linked-genomes.md) |
 | `genes:traits` | gene presence enables a trait shift | gene-conditioned trait | input | proposed |
@@ -91,7 +91,7 @@ axes typically splits into "grow the `S` + its into-S drivers forward, then over
 So true, all-in-one simultaneity is required in exactly one case: an arrow from **G into S**.
 Otherwise "S + T + G together" is a forward core plus overlays, reusing pieces that already exist.
 
-## Using it today (`traits:species`)
+## Using it today (`traits:species`, `species:traits`, ClaSSE)
 
 The first into-species edge is **shipped**. A discrete or continuous trait drives
 speciation/extinction and the tree is grown *jointly* with it — so the command takes **no `-t`
@@ -118,8 +118,35 @@ res.labeled_values()     # the trait at the extant tips
 ```
 
 `z.BiSSE` / `z.MuSSE` / `z.QuaSSE` and `z.HiSSE` (hidden-state SSE, the honest null) are all on the
-public API. The reverse arrow (`species:traits`) and the into-species `genes:species` edge remain
-on the roadmap below.
+public API.
+
+### The reverse arrow — `species:traits` and ClaSSE
+
+The second arrow is also shipped: **`species:traits`** makes the trait jump *at* each speciation
+(cladogenetic / speciational evolution). On its own it has no arrow into S, so it runs on a
+**given** tree (`-t`), with a `Cladogenesis` kernel layered on an ordinary anagenetic model:
+
+```bash
+# a purely speciational binary trait on an existing tree (no within-branch change: --q01/--q10 0)
+zombi2 coevolve --couple species:traits -t out/species_tree.nwk \
+    --sse-model bisse --q01 0 --q10 0 --clado-shift 0.4 --seed 2 -o clado/
+```
+
+Turn on **both** arrows and you get the full **ClaSSE** feedback — the trait shapes the tree *and*
+is kicked by its branching:
+
+```bash
+zombi2 coevolve --couple traits:species --couple species:traits \
+    --lambda0 1 --lambda1 3 --q01 0.05 --q10 0.05 --clado-shift 0.3 \
+    --tips 200 --seed 3 -o classe/
+```
+
+`--clado-shift` is the per-daughter state-hop probability (discrete traits); `--clado-jump` is the
+Gaussian jump variance for a continuous (`quasse`) trait. In Python the kernel is
+`z.Cladogenesis(shift=…, jump_sigma2=…)`, accepted by both `z.simulate_sse(..., cladogenesis=…)`
+(ClaSSE) and `z.simulate_traits(tree, model, cladogenesis=…)` (`species:traits` on a fixed tree).
+
+The into-species `genes:species` edge (and the full three-way `--all`) remain on the roadmap below.
 
 ## The engine: one generic per-lineage state
 
@@ -157,8 +184,10 @@ milestone once the individual edges each work.
   `MuSSE` (k-state), `QuaSSE` (continuous) and `HiSSE` (hidden-state), driven by `simulate_sse` and
   exposed as `coevolve --couple traits:species`. Next: fold the speciation→trait change kernel into
   the same loop for Phase 2.
-- **Phase 2 — `species:traits` and full ClaSSE.** Turn on the speciation→trait kernel (cheap given
-  Phase 1); `traits:species + species:traits` is then the complete `traits↔species` feedback.
+- **Phase 2 — `species:traits` and full ClaSSE. ✅ done.** The `Cladogenesis` kernel
+  (`zombi2/traits.py`) jumps the trait at speciation; it feeds both `simulate_traits` (the
+  `species:traits` edge on a given tree) and the forward `simulate_sse` loop, so
+  `--couple traits:species --couple species:traits` is the complete `traits↔species` ClaSSE feedback.
 - **Phase 3 — `genes:species` (the merged loop).** The one hard build: interleave species and
   gene-family events in a single forward stream. This is also what makes genuine three-way
   (`--all`) real.

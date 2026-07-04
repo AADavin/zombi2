@@ -27,7 +27,7 @@ from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from .traits import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
-    simulate_traits,
+    Cladogenesis, simulate_traits,
 )
 from .transfers import TransferModel
 from .tree import Tree, read_newick
@@ -673,13 +673,18 @@ _COEVOLVE_EDGES = {
 
 
 def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--couple", action="append", metavar="DRIVER:TARGET", default=None,
+    p.add_argument("--couple", action="append", nargs="+", metavar="DRIVER:TARGET", default=None,
                    help="a directed coupling edge 'driver:target' over {species, traits, genes} — "
                         "the driver's state modulates the target's rates. Phase 1 implements "
-                        "'traits:species' (SSE: a trait drives speciation/extinction); the tree is "
-                        "then an OUTPUT, grown forward. Repeatable; default traits:species. See "
+                        "'traits:species' (SSE: a trait drives speciation/extinction), "
+                        "'species:traits' (cladogenetic: speciation jumps the trait), and their "
+                        "combination = ClaSSE. Repeatable; default traits:species. See "
                         "docs/coevolution_models.md for the full edge set")
-    # traits:species grows the tree, so it takes a stopping condition (not an input -t tree)
+    p.add_argument("-t", "--tree", default=None,
+                   help="input species tree (Newick) — required for 'species:traits' ALONE (the "
+                        "trait evolves along a GIVEN tree). Omit for the into-species edges "
+                        "(traits:species / ClaSSE), which GROW the tree via --age/--tips")
+    # into-species edges grow the tree, so they take a stopping condition (not an input -t tree)
     p.add_argument("--age", type=float, default=None,
                    help="[traits:species] crown age to grow for (the extant tip count is random)")
     p.add_argument("--tips", type=int, default=None,
@@ -720,8 +725,32 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--diffusion", type=float, default=1.0,
                    help="[quasse] trait diffusion rate sigma^2 (Brownian motion)")
     p.add_argument("--root-value", type=float, default=0.0, help="[quasse] root trait value x0")
+    # species:traits — the cladogenetic (speciation -> trait) kernel; used when species:traits is
+    # in --couple (on its own, or combined with traits:species for ClaSSE)
+    p.add_argument("--clado-shift", dest="clado_shift", type=float, default=0.3,
+                   help="[species:traits, discrete trait] probability a daughter hops to another "
+                        "state AT each speciation (cladogenetic change; default 0.3)")
+    p.add_argument("--clado-jump", dest="clado_jump", type=float, default=1.0,
+                   help="[species:traits, continuous trait] variance of the Gaussian jump added to "
+                        "each daughter's value AT each speciation (default 1.0)")
     p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
     p.add_argument("-o", "--out", required=True, help="output directory")
+
+
+def _build_anagenetic_trait(args: argparse.Namespace, parser: argparse.ArgumentParser):
+    """The along-branch trait model for the ``species:traits`` edge on a **given** tree, taken from
+    ``--sse-model``. No diversification happens on a fixed tree, so only the transition/diffusion
+    structure is used (bisse/musse -> the Q as an :class:`Mk`; quasse -> Brownian ``--diffusion``);
+    the speciation/extinction rates are inactive here. Returns ``(model, kind_label)``."""
+    if args.sse_model == "quasse":
+        return BrownianMotion(sigma2=args.diffusion, x0=args.root_value), "continuous"
+    if args.sse_model == "musse":
+        if args.q_matrix is None:
+            parser.error("species:traits with --sse-model musse needs --q-matrix (the k-state "
+                         "anagenetic transition matrix)")
+        return Mk(_read_q_matrix(args.q_matrix)), "discrete"
+    # bisse -> a binary Mk from the q01/q10 rates
+    return Mk([[0.0, args.q01], [args.q10, 0.0]]), "discrete"
 
 
 def _build_sse_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -755,46 +784,84 @@ def _sse_tip_signal(res: TraitResult) -> str:
     return f", tip states {frac}"
 
 
+def _write_coevolve_outputs(out: str, tree: Tree, res: TraitResult) -> None:
+    """Write the shared coevolve outputs: the tree, the trait at every node, and the annotated
+    trait tree."""
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick() + "\n")
+    with open(os.path.join(out, "traits.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))              # every node: tips AND ancestral states
+    with open(os.path.join(out, "trait_tree.nwk"), "w") as f:
+        f.write(res.to_newick() + "\n")               # trait annotated on every node
+
+
 def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
-    """Run the ``coevolve`` umbrella. Phase 1: the ``traits:species`` edge (SSE) — a trait drives
-    speciation/extinction, so the tree is grown jointly with the trait and written out."""
-    edges = [e.strip().lower() for e in (args.couple or ["traits:species"])]
+    """Run the ``coevolve`` umbrella. Implemented edges: ``traits:species`` (SSE), ``species:traits``
+    (cladogenetic — the trait jumps at speciation), and their combination = **ClaSSE**. Whether the
+    tree is grown (an arrow into species) or read from ``-t`` follows the arrows-into-S rule."""
+    # --couple accepts both repeated flags and space-separated lists (append + nargs); flatten
+    raw = args.couple or [["traits:species"]]
+    edges = [e.strip().lower() for group in raw for e in group]
     for e in edges:
         if e not in _COEVOLVE_EDGES:
             parser.error(f"unknown --couple edge {e!r}: expected 'driver:target' over "
                          f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
                          "docs/coevolution_models.md for the full edge set")
-    if edges != ["traits:species"]:
-        if edges == ["traits:genes"]:
+    eset = set(edges)
+    supported = {"traits:species", "species:traits"}
+    unsupported = eset - supported
+    if unsupported:
+        if eset == {"traits:genes"}:
             parser.error("the traits:genes edge ships today as 'zombi2 coevolve-genetrait' — use "
                          "that command (it will be folded in as 'coevolve --couple traits:genes')")
-        if len(edges) > 1:
-            parser.error("Phase 1 implements a single edge, traits:species; multi-edge (joint) "
-                         "scenarios are on the roadmap (see docs/coevolution_models.md)")
-        parser.error(f"--couple {edges[0]} is planned but not yet implemented; Phase 1 implements "
-                     "traits:species (SSE — a trait drives speciation/extinction). See "
-                     "docs/coevolution_models.md")
+        parser.error(f"--couple {', '.join(sorted(unsupported))} is planned but not yet "
+                     "implemented; the built edges are traits:species (SSE), species:traits "
+                     "(cladogenetic) and their combination (ClaSSE). See docs/coevolution_models.md")
 
-    # traits:species points INTO the species process, so the tree is an OUTPUT: grow it forward
-    # with exactly one stopping condition (age or tips) — there is no input -t tree.
+    traits_species = "traits:species" in eset      # SSE arrow (trait -> diversification), into S
+    species_traits = "species:traits" in eset      # cladogenetic arrow (speciation -> trait)
+    clado = (Cladogenesis(jump_sigma2=args.clado_jump, shift=args.clado_shift)
+             if species_traits else None)
+
+    # species:traits ALONE — no arrow into S, so the tree is an INPUT (nothing to grow): evolve the
+    # trait along the given tree with cladogenetic jumps at its speciation nodes.
+    if species_traits and not traits_species:
+        if not args.tree:
+            parser.error("species:traits alone runs on a GIVEN tree — pass -t/--tree (no "
+                         "diversification happens on this edge, so there is nothing to grow)")
+        if args.age is not None or args.tips is not None:
+            parser.error("species:traits alone uses the given -t tree; --age/--tips only apply to "
+                         "the into-species edges that grow a tree")
+        with open(args.tree) as f:
+            tree = read_newick(f.read())
+        model, kind = _build_anagenetic_trait(args, parser)
+        t0 = time.perf_counter()
+        res = simulate_traits(tree, model, cladogenesis=clado,
+                              root_state=args.root_state, seed=args.seed)
+        dt = time.perf_counter() - t0
+        _write_coevolve_outputs(args.out, tree, res)
+        return (f"wrote species:traits (cladogenetic {kind}) to {args.out}/ "
+                f"({len(tree.extant_leaves())} tips{_sse_tip_signal(res)}) in {dt:.3g} s")
+
+    # traits:species (SSE) or traits:species + species:traits (ClaSSE): an arrow INTO S, so the
+    # tree is an OUTPUT — grow it forward with exactly one stopping condition (no input -t tree).
+    if args.tree:
+        parser.error("traits:species grows the tree (it is an OUTPUT); give --age/--tips, not an "
+                     "input -t tree (that is the species:traits-alone edge)")
     if (args.age is None) == (args.tips is None):
         parser.error("traits:species grows the tree — give exactly one of --age or --tips")
 
     model = _build_sse_model(args, parser)
     t0 = time.perf_counter()
-    res = simulate_sse(model, age=args.age, n_tips=args.tips,
-                       root_state=args.root_state, seed=args.seed)
+    res = simulate_sse(model, age=args.age, n_tips=args.tips, root_state=args.root_state,
+                       cladogenesis=clado, seed=args.seed)
     dt = time.perf_counter() - t0
-
-    os.makedirs(args.out, exist_ok=True)
-    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
-        f.write(res.tree.to_newick() + "\n")          # the tree the trait's rates shaped
-    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
-        f.write(res.to_tsv(nodes="all"))              # every node: tips AND ancestral states
-    with open(os.path.join(args.out, "trait_tree.nwk"), "w") as f:
-        f.write(res.to_newick() + "\n")               # trait annotated on every node
+    _write_coevolve_outputs(args.out, res.tree, res)
     n_extant = len(res.tree.extant_leaves())
-    return (f"wrote traits:species (SSE {args.sse_model}) to {args.out}/ "
+    edge_label = "traits:species+species:traits" if clado is not None else "traits:species"
+    model_label = f"ClaSSE {args.sse_model}" if clado is not None else f"SSE {args.sse_model}"
+    return (f"wrote {edge_label} ({model_label}) to {args.out}/ "
             f"({n_extant} extant tips{_sse_tip_signal(res)}) in {dt:.3g} s")
 
 

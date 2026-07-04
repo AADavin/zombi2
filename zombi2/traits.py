@@ -784,6 +784,64 @@ class EarlyBurst:
         return f"EarlyBurst(sigma2={self.sigma2:g}, rate={self.rate:g})"
 
 
+# --------------------------------------------------------------------------- cladogenesis
+class Cladogenesis:
+    """Trait change concentrated **at speciation** — the cladogenetic / speciational mode.
+
+    Ordinary trait models change a lineage *along* its branch (anagenesis). Cladogenesis instead
+    puts change *at* each branching event: as a daughter lineage is born, its trait jumps away
+    from the ancestor's value. This is the punctuational model of trait evolution (Bokma 2008)
+    and the cladogenetic half of ClaSSE (Goldberg & Igić 2012) — the ``species:traits`` edge of
+    the :doc:`coevolution model <coevolution_models>`, where *speciation drives the trait*.
+
+    Both daughters jump independently. Combine with an anagenetic model for a punctuational trait
+    (change both along branches and at nodes), or set the anagenetic rate to zero for pure
+    speciational change (the trait is constant along a branch and only ever moves at speciation).
+
+    Parameters
+    ----------
+    jump_sigma2:
+        [continuous trait] variance of the mean-zero Gaussian jump added to each daughter's value
+        at speciation (``0`` = no cladogenetic change).
+    shift:
+        [discrete trait] probability, in ``[0, 1]``, that a daughter moves to a (uniformly chosen)
+        *other* state at speciation (``0`` = no cladogenetic change).
+    """
+
+    def __init__(self, *, jump_sigma2: float = 0.0, shift: float = 0.0):
+        if jump_sigma2 < 0:
+            raise ValueError(f"jump_sigma2 must be >= 0, got {jump_sigma2}")
+        if not (0.0 <= shift <= 1.0):
+            raise ValueError(f"shift must be a probability in [0, 1], got {shift}")
+        self.jump_sigma2 = float(jump_sigma2)
+        self.shift = float(shift)
+
+    def is_active(self) -> bool:
+        """Whether the kernel actually changes anything (a non-zero jump or shift)."""
+        return self.jump_sigma2 > 0.0 or self.shift > 0.0
+
+    def apply(self, value, model, rng):
+        """The daughter's starting trait value after the speciation jump, given the ancestor's
+        end value ``value``. Continuous models jump by ``Normal(0, jump_sigma2)``; discrete models
+        move to a uniformly chosen other state with probability ``shift``."""
+        if getattr(model, "kind", None) == "continuous":
+            if self.jump_sigma2 <= 0.0:
+                return value
+            return float(value) + float(rng.normal(0.0, self.jump_sigma2 ** 0.5))
+        # discrete: with probability `shift`, hop to a uniformly chosen other state
+        if self.shift <= 0.0 or rng.random() >= self.shift:
+            return value
+        k = getattr(model, "k", None)
+        if not k or k < 2:
+            return value
+        i = int(value)
+        j = int(rng.integers(k - 1))
+        return j if j < i else j + 1     # uniform over the k-1 states other than i
+
+    def __repr__(self) -> str:
+        return f"Cladogenesis(jump_sigma2={self.jump_sigma2:g}, shift={self.shift:g})"
+
+
 # --------------------------------------------------------------------------- result
 @dataclass
 class TraitResult:
@@ -919,6 +977,7 @@ def simulate_traits(
     model,
     *,
     root_state=None,
+    cladogenesis: "Cladogenesis | None" = None,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
 ) -> TraitResult:
@@ -937,6 +996,11 @@ def simulate_traits(
         A trait model, e.g. :class:`BrownianMotion` (continuous) or :class:`Mk` (discrete).
     root_state:
         Optional explicit value/state to pin at the root, overriding the model's default.
+    cladogenesis:
+        Optional :class:`Cladogenesis` kernel that jumps the trait **at each speciation** (the
+        ``species:traits`` edge — punctuational/speciational evolution). Layered on top of the
+        anagenetic ``model``: each daughter's branch starts from the ancestor's value *after* the
+        jump. ``None`` (default) = purely anagenetic evolution.
     seed / rng:
         Reproducibility, as elsewhere in ZOMBI2 (pass a seed, or your own numpy ``Generator``).
     """
@@ -964,10 +1028,13 @@ def simulate_traits(
     # branch-aware models (e.g. MultiOptimumOU, whose optimum changes along a branch) implement
     # evolve_branch(node, start, rng); the rest use the plain evolve(state, dt, t0, rng).
     branch_hook = getattr(model, "evolve_branch", None)
+    clado = cladogenesis if (cladogenesis is not None and cladogenesis.is_active()) else None
     for node in tree.nodes_preorder():
         if node.parent is None:
             continue
         start = node_values[node.parent]
+        if clado is not None:                       # speciation jump as this branch is born
+            start = clado.apply(start, model, rng)
         if branch_hook is not None:
             end, segs = branch_hook(node, start, rng)
         else:

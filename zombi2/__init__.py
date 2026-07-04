@@ -69,6 +69,7 @@ from .traits import (
     Mk,
     CorrelatedBinary,
     HiddenStateMk,
+    Cladogenesis,
     simulate_traits,
     replicate_traits,
     TraitResult,
@@ -148,7 +149,7 @@ __all__ = [
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",
-    "HiddenStateMk", "simulate_traits", "replicate_traits", "TraitResult",
+    "HiddenStateMk", "Cladogenesis", "simulate_traits", "replicate_traits", "TraitResult",
     "pagel_lambda", "pagel_delta", "pagel_kappa",
     # historical biogeography (range evolution)
     "DEC", "simulate_biogeography",
