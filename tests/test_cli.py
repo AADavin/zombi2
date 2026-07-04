@@ -822,8 +822,25 @@ def test_coevolve_unbuilt_edge_errors(tmp_path):
         main(["coevolve", "--couple", "species:genes", "--age", "3", "-o", str(tmp_path / "a")])
 
 
-def test_coevolve_traits_genes_points_to_genetrait(tmp_path):
-    """traits:genes is not yet folded in; it errors toward coevolve-genetrait."""
+def test_coevolve_traits_genes_on_given_tree(tmp_path):
+    """traits:genes (folded in from the old coevolve-genetrait command) evolves a trait, then a
+    gene-family panel conditioned on it, along a GIVEN tree."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "24", "--age", "4", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "tg"
+    rc = main(["coevolve", "--couple", "traits:genes", "-t", str(sp / "species_tree.nwk"),
+               "--trait-model", "mk", "--states", "2", "--trait-center", "--panel", "24",
+               "--responsive", "0.5", "--effect-loss", "3", "--write", "profiles", "trees",
+               "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    for name in ("Profiles.tsv", "traits.tsv", "trait_tree.nwk", "coupling.tsv",
+                 "coevolve.log", "species_tree.nwk"):
+        assert (out / name).exists(), name
+    assert (out / "gene_trees").is_dir()
+
+
+def test_coevolve_traits_genes_rejects_grow_flags(tmp_path):
+    """traits:genes runs on a given tree; --age/--tips (which grow a tree) are an error."""
     with pytest.raises(SystemExit):
         main(["coevolve", "--couple", "traits:genes", "--age", "3", "-o", str(tmp_path / "a")])
 

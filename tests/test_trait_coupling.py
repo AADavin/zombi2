@@ -9,7 +9,7 @@ Four layers:
 3. **Ground-truth recovery** — paint a deterministic trait onto a near-star tree (two clades,
    one favoured by the trait, one not) and confirm the responsive families track the trait at
    the tips while inert families do not.
-4. **Driver / CLI** — shape, reproducibility, and the ``coevolve-genetrait`` command.
+4. **Driver / CLI** — shape, reproducibility, and the ``coevolve --couple traits:genes`` edge.
 
 The recovery test uses a near-star tree (all lineages split just below the root, then evolve
 independently for the whole age) to isolate the injected trait→gene signal from the shared-
@@ -255,12 +255,12 @@ def test_cli_coevolve_smoke(tmp_path):
     tpath = tmp_path / "sp.nwk"
     tpath.write_text(tree.to_newick() + "\n")
     out = tmp_path / "co"
-    rc = main(["coevolve-genetrait", "-t", str(tpath), "--trait-model", "mk", "--states", "2",
-               "--trait-center", "--panel", "24", "--responsive", "0.5", "--effect-loss", "3",
-               "--write", "profiles", "trees", "--seed", "7", "-o", str(out)])
+    rc = main(["coevolve", "--couple", "traits:genes", "-t", str(tpath), "--trait-model", "mk",
+               "--states", "2", "--trait-center", "--panel", "24", "--responsive", "0.5",
+               "--effect-loss", "3", "--write", "profiles", "trees", "--seed", "7", "-o", str(out)])
     assert rc == 0
     for name in ("Profiles.tsv", "Presence.tsv", "traits.tsv", "trait_tree.nwk",
-                 "coupling.tsv", "coevolve-genetrait.log", "species_tree.nwk"):
+                 "coupling.tsv", "coevolve.log", "species_tree.nwk"):
         assert (out / name).exists(), name
     assert (out / "gene_trees").is_dir()
     # the manifest records one weight per panel family

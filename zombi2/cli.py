@@ -52,7 +52,6 @@ Gene families & sequences
 
 Traits & coevolution
   trait                evolve a phenotypic trait along a given species tree
-  coevolve-genetrait   evolve gene families conditioned on a trait
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Inference
@@ -594,13 +593,14 @@ def _run_trait(args) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# coevolve-genetrait: trait-conditioned gene-family dynamics
+# coevolve --couple traits:genes: trait-conditioned gene-family dynamics
 # ═══════════════════════════════════════════════════════════════════════════════
 def _add_trait_model_args(g) -> None:
-    """Trait-model flags for the coevolve command (scalar traits; DEC ranges do not apply),
-    added to the argument group ``g``.
+    """Scalar trait-model flags (DEC ranges do not apply), added to the argument group ``g``.
+    Used by the ``coevolve --couple traits:genes`` edge for the trait it simulates.
 
     ``--trait-model`` stores into ``args.model`` so :func:`_build_trait_model` is reused as-is.
+    The Mk rate matrix reuses the command's shared ``--q-matrix`` (not re-added here).
     """
     g.add_argument("--trait-model", dest="model", default="bm", metavar="MODEL",
                    choices=("bm", "ou", "eb", "mk", "threshold"),
@@ -621,21 +621,17 @@ def _add_trait_model_args(g) -> None:
                    help="number of states for the mk model (default: 2)")
     g.add_argument("--ordered", action="store_true",
                    help="[mk] only allow transitions between adjacent states (i <-> i±1)")
-    g.add_argument("--q-matrix", default=None, metavar="FILE",
-                   help="[mk] path to a k x k rate matrix; overrides --states/--rate/--ordered")
     g.add_argument("--thresholds", default="0.0", metavar="CUTS",
                    help="comma-separated liability cut points [threshold] (default: 0.0)")
 
 
-def _add_coevolve_args(p: argparse.ArgumentParser) -> None:
-    g = p.add_argument_group("general")
-    g.add_argument("-t", "--tree", required=True, metavar="FILE",
-                   help="input species tree in Newick format (e.g. species_tree.nwk)")
-    g.add_argument("--seed", type=int, default=None, metavar="N",
-                   help="RNG seed for reproducibility")
-    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
-
-    g = p.add_argument_group("trait model", "the trait to evolve then couple to gene families")
+def _add_traits_genes_args(p: argparse.ArgumentParser) -> None:
+    """The ``coevolve --couple traits:genes`` flags — a trait conditions a gene-family panel's
+    loss/gain (formerly the standalone ``coevolve-genetrait`` command). Runs on a GIVEN -t tree.
+    The trait's Mk matrix reuses the shared ``--q-matrix``; the panel writes with ``--write``."""
+    g = p.add_argument_group("traits:genes trait model",
+                             "--couple traits:genes: the trait to simulate (on a GIVEN tree; needs "
+                             "-t). mk uses the shared --q-matrix")
     _add_trait_model_args(g)
     g.add_argument("--trait-file", default=None, metavar="TSV",
                    help="use a precomputed trait instead of simulating one: a node<TAB>value table "
@@ -651,7 +647,8 @@ def _add_coevolve_args(p: argparse.ArgumentParser) -> None:
                         "K pieces (default 16; ignored for discrete traits, which use their exact "
                         "stochastic map)")
 
-    g = p.add_argument_group("gene-family panel", "the panel and its trait-neutral base rates")
+    g = p.add_argument_group("traits:genes gene panel & coupling",
+                             "the panel, its trait-neutral base rates, and which families respond")
     g.add_argument("--panel", type=int, default=50, metavar="N",
                    help="number of gene families in the panel (default 50)")
     g.add_argument("--loss", type=float, default=0.5, metavar="RATE",
@@ -662,8 +659,6 @@ def _add_coevolve_args(p: argparse.ArgumentParser) -> None:
                    help="per-copy duplication rate, trait-independent (default 0)")
     g.add_argument("--orig", type=float, default=0.0, metavar="RATE",
                    help="background origination rate of brand-new, uncoupled families (default 0)")
-
-    g = p.add_argument_group("trait ↔ gene coupling", "which families respond, and how strongly")
     g.add_argument("--responsive", default="0.3", metavar="SPEC",
                    help="which families respond to the trait: an integer count, a fraction "
                         "(e.g. 0.3), a comma-separated id/index list (e.g. F3,F7,12), or @FILE of "
@@ -680,7 +675,7 @@ def _add_coevolve_args(p: argparse.ArgumentParser) -> None:
                    help="optional HGT-activity coupling: a lineage's transfer rate scales by "
                         "exp(effect_gain * trait) (default 0 = field-blind gain, as in the Potts model)")
 
-    g = p.add_argument_group("output")
+    g = p.add_argument_group("traits:genes output")
     g.add_argument("--write", dest="output", nargs="+", metavar="PART",
                    choices=(*Genomes.WRITE_PARTS, "all"), default=["profiles", "trees"],
                    help="which gene-family outputs to write — any of {profiles, trace, trees, "
@@ -758,8 +753,15 @@ def _write_coupling_manifest(out: str, coupling: TraitGeneCoupling) -> None:
         f.write("\n".join(lines) + "\n")
 
 
-def _run_coevolve(args: argparse.Namespace) -> str:
-    """Simulate a trait, then evolve a gene-family panel whose loss/gain is conditioned on it."""
+def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """``coevolve --couple traits:genes``: simulate a trait, then evolve a gene-family panel whose
+    loss/gain is conditioned on it. An overlay edge — runs along a GIVEN -t tree."""
+    if not args.tree:
+        parser.error("traits:genes runs on a GIVEN tree — pass -t/--tree (a trait conditions gene "
+                     "content along it; there is nothing to grow)")
+    if args.age is not None or args.tips is not None:
+        parser.error("traits:genes uses the given -t tree; --age/--tips only apply to the "
+                     "into-species edges that grow a tree")
     with open(args.tree) as f:
         tree = read_newick(f.read())
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
@@ -827,14 +829,15 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
                         "the driver's state modulates the target's rates. Implemented: "
                         "'traits:species' (SSE), 'species:traits' (cladogenetic), their "
                         "combination = ClaSSE, 'genes:species' (key innovations), 'species:genes' "
-                        "(cladogenetic genome) and 'genes:traits' (a modifier gene switches a "
-                        "trait optimum). Repeatable; default traits:species. See "
-                        "docs/coevolution_models.md for the full edge set")
+                        "(cladogenetic genome), 'genes:traits' (a modifier gene switches a trait "
+                        "optimum) and 'traits:genes' (a trait conditions a gene-family panel). "
+                        "Repeatable; default traits:species. See docs/coevolution_models.md for "
+                        "the full edge set")
     g.add_argument("-t", "--tree", default=None, metavar="FILE",
                    help="input species tree (Newick) — required for the on-a-given-tree edges "
-                        "(species:traits, species:genes, genes:traits). Omit for the into-species "
-                        "edges (traits:species / ClaSSE / genes:species), which GROW the tree via "
-                        "--age/--tips")
+                        "(species:traits, species:genes, genes:traits, traits:genes). Omit for the "
+                        "into-species edges (traits:species / ClaSSE / genes:species), which GROW "
+                        "the tree via --age/--tips")
     g.add_argument("--age", type=float, default=None, metavar="T",
                    help="[into-species] crown age to grow for (the extant tip count is random)")
     g.add_argument("--tips", type=int, default=None, metavar="N",
@@ -955,6 +958,8 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--trait-x0", dest="trait_x0", type=float, default=None, metavar="X0",
                    help="root trait value (default: the optimum of the root modifier state)")
 
+    _add_traits_genes_args(p)   # --couple traits:genes (a trait conditions a gene-family panel)
+
 
 def _build_anagenetic_trait(args: argparse.Namespace, parser: argparse.ArgumentParser):
     """The along-branch trait model for the ``species:traits`` edge on a **given** tree, taken from
@@ -1016,9 +1021,11 @@ def _write_coevolve_outputs(out: str, tree: Tree, res: TraitResult) -> None:
 
 
 def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
-    """Run the ``coevolve`` umbrella. Implemented edges: ``traits:species`` (SSE), ``species:traits``
-    (cladogenetic — the trait jumps at speciation), and their combination = **ClaSSE**. Whether the
-    tree is grown (an arrow into species) or read from ``-t`` follows the arrows-into-S rule."""
+    """Run the ``coevolve`` umbrella over the six directed edges (``--couple``): ``traits:species``
+    (SSE), ``species:traits`` (cladogenetic) and their combination = **ClaSSE**; ``genes:species``
+    (key innovations); ``species:genes`` (cladogenetic genome); ``genes:traits`` (gene-conditioned
+    trait); and ``traits:genes`` (trait-conditioned genes). Whether the tree is grown (an arrow into
+    species) or read from ``-t`` follows the arrows-into-S rule."""
     # --couple accepts both repeated flags and space-separated lists (append + nargs); flatten
     raw = args.couple or [["traits:species"]]
     edges = [e.strip().lower() for group in raw for e in group]
@@ -1029,17 +1036,22 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          "docs/coevolution_models.md for the full edge set")
     eset = set(edges)
     supported = {"traits:species", "species:traits", "genes:species", "species:genes",
-                 "genes:traits"}
+                 "genes:traits", "traits:genes"}
     unsupported = eset - supported
     if unsupported:
-        if eset == {"traits:genes"}:
-            parser.error("the traits:genes edge ships today as 'zombi2 coevolve-genetrait' — use "
-                         "that command (it will be folded in as 'coevolve --couple traits:genes')")
         parser.error(f"--couple {', '.join(sorted(unsupported))} is planned but not yet "
                      "implemented; the built edges are traits:species (SSE), species:traits "
                      "(cladogenetic), their combination (ClaSSE), genes:species (key innovations), "
-                     "species:genes (cladogenetic genome), and genes:traits (gene-conditioned "
-                     "trait). See docs/coevolution_models.md")
+                     "species:genes (cladogenetic genome), genes:traits (gene-conditioned trait), "
+                     "and traits:genes (trait-conditioned genes). See docs/coevolution_models.md")
+
+    # traits:genes — a trait conditions a gene-family panel's loss/gain (formerly the standalone
+    # 'coevolve-genetrait' command). An overlay edge (no arrow into S), so the tree is an INPUT.
+    if "traits:genes" in eset:
+        if eset != {"traits:genes"}:
+            parser.error("traits:genes runs on its own in this phase; combining it with other "
+                         "edges is future work — see docs/coevolution_models.md")
+        return _run_traits_genes(args, parser)
 
     # genes:species — gene content drives diversification (its own forward joint loop, v1 stands
     # alone; combining it with other edges is the full joint model, still on the roadmap).
@@ -1828,17 +1840,9 @@ def main(argv: list[str] | None = None) -> int:
         "zombi2 abc -t FILE --profiles TSV -o DIR [--dup LOW HIGH ...] [options]", _add_abc_args)
 
     _add_subcommand(
-        sub, "coevolve-genetrait",
-        "co-evolve a trait and gene families (trait-conditioned gene-family dynamics)",
-        "Evolve a trait, then a gene-family panel whose loss/gain is conditioned on the local "
-        "trait value.",
-        "zombi2 coevolve-genetrait -t FILE -o DIR [--trait-model MODEL] [options]",
-        _add_coevolve_args)
-
-    _add_subcommand(
         sub, "coevolve", "co-evolve coupled processes (--couple driver:target)",
         "Co-evolve coupled processes over {species, traits, genes} — pick directed edges with "
-        "--couple (e.g. traits:species = SSE).",
+        "--couple (e.g. traits:species = SSE, traits:genes = trait-conditioned gene families).",
         "zombi2 coevolve -o DIR --couple DRIVER:TARGET [-t FILE] [--age T|--tips N] [options]",
         _add_coevolve_mode_args)
 
@@ -1933,12 +1937,6 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         summary = _run_sequence(args)
         print(summary)
         _write_params_log(os.path.join(args.out, "sequence.log"), args, summary)
-        return 0
-
-    if args.command == "coevolve-genetrait":
-        summary = _run_coevolve(args)
-        print(summary)
-        _write_params_log(os.path.join(args.out, "coevolve-genetrait.log"), args, summary)
         return 0
 
     if args.command == "coevolve":

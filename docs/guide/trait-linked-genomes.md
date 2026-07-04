@@ -125,8 +125,8 @@ assert res.trait is trait
 
 ## From the command line
 
-`zombi2 coevolve-genetrait` runs the whole thing on a species tree you provide. It simulates
-the trait (`--trait-model`, reusing every `zombi2 trait` model), builds the coupling
+`zombi2 coevolve --couple traits:genes` runs the whole thing on a species tree you provide. It
+simulates the trait (`--trait-model`, reusing every `zombi2 trait` model), builds the coupling
 (`--panel`, `--responsive`, `--weight`, `--effect-loss`), and writes the gene-family output
 plus the trait and a coupling manifest:
 
@@ -134,7 +134,7 @@ plus the trait and a coupling manifest:
 T=out/species_tree.nwk
 
 # a binary aerobic/anaerobic trait; 30% of a 40-family panel respond to it
-zombi2 coevolve-genetrait -t $T \
+zombi2 coevolve --couple traits:genes -t $T \
     --trait-model mk --states 2 --rate 0.3 --trait-center \
     --panel 40 --responsive 0.3 --weight 1 --effect-loss 3 \
     --loss 0.4 --trans 1.0 --write all --seed 7 -o out/
@@ -158,8 +158,8 @@ Useful options:
   as `zombi2 trait` writes with its all-nodes output.
 - `--effect-gain` turns on the optional donor-side HGT-activity coupling.
 
-See the [CLI reference](../cli.md#coevolve-genetrait-trait-conditioned-gene-families) for the
-full option table.
+See the [CLI reference](../cli.md#coevolve-couple-traitsgenes-trait-conditioned-gene-families)
+for the full option table.
 
 ## What it recovers
 
@@ -177,10 +177,10 @@ regain it, is lost tree-wide and the inert rows go all-zero.
 
 ## Roadmap
 
-`coevolve-genetrait` is the **`traits:genes`** edge of a broader coupled-simulation design — see
-[Coevolution (coupled models)](../coevolution_models.md), which generalises it to a directed
-graph over species, traits and gene families (`zombi2 coevolve --couple driver:target`). Under
-that plan this command becomes `coevolve --couple traits:genes` (the old name kept as an alias).
+`coevolve --couple traits:genes` is the **`traits:genes`** edge of a broader coupled-simulation
+design — see [Coevolution (coupled models)](../coevolution_models.md), which generalises it to a
+directed graph over species, traits and gene families (`zombi2 coevolve --couple driver:target`).
+It was formerly the standalone `coevolve-genetrait` command, now folded into `coevolve`.
 Planned next:
 
 - an **environmental clock** — a trait (and its coupled families) gated by a dated event such
