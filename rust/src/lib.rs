@@ -542,6 +542,10 @@ struct LogEngine {
     rec: Records,
     events: u64,
     max_events: u64,
+    // When false (the "trace" scheme): speciation neither re-mints gene ids nor emits an EV_S
+    // record — a gene lineage keeps its id across speciations, so (gid, branch) stays a unique
+    // instance key and the D/T/L/O trace alone reconstructs the genealogy against the species tree.
+    record_speciation: bool,
 }
 
 impl LogEngine {
@@ -708,12 +712,18 @@ impl LogEngine {
         let mut g1 = LogGenome::new();
         let mut g2 = LogGenome::new();
         for gene in parent.genes.iter() {
-            let n1 = self.next_gid;
-            let n2 = self.next_gid + 1;
-            self.next_gid += 2;
-            g1.add(n1, gene.family);
-            g2.add(n2, gene.family);
-            self.rec.push(EV_S, node as u32, t, -1, -1, gene.family, gene.gid, n1 as i64, n2 as i64);
+            if self.record_speciation {
+                let n1 = self.next_gid;
+                let n2 = self.next_gid + 1;
+                self.next_gid += 2;
+                g1.add(n1, gene.family);
+                g2.add(n2, gene.family);
+                self.rec.push(EV_S, node as u32, t, -1, -1, gene.family, gene.gid, n1 as i64, n2 as i64);
+            } else {
+                // trace scheme: both children keep the parent's gid; no record
+                g1.add(gene.gid, gene.family);
+                g2.add(gene.gid, gene.family);
+            }
         }
         self.genomes[c1] = Some(g1);
         self.genomes[c2] = Some(g2);
@@ -740,6 +750,7 @@ fn run_log(
     cap: i64,
     seed: u64,
     tr: Transfers,
+    record_speciation: bool,
 ) -> PyResult<(Records, Vec<(usize, Vec<(u64, u64)>)>)> {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
     for (node, &p) in parent.iter().enumerate() {
@@ -769,6 +780,7 @@ fn run_log(
         rec: Records::new(),
         events: 0,
         max_events: 2_000_000_000,
+        record_speciation,
     };
 
     // seed the root genome (one origination per initial family), then speciate the root
@@ -825,8 +837,47 @@ fn simulate_log(
 ) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
     let tr = Transfers { replacement, decay: distance_decay, allow_self };
     let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
-        duplication, transfer, loss, origination, initial_size, cap, seed, tr)?;
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr, true)?;
     Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaves))
+}
+
+/// The compact "event trace" engine: identical dynamics to `simulate_log`, but speciations
+/// neither re-mint gene ids nor emit records (see `LogEngine.record_speciation`). Returns only
+/// the O/D/T/L columns — the genealogy is recovered by replaying them against the species tree
+/// (Python side), so the log is ~6x smaller and the reminting/record work is skipped.
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_trace(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    duplication: f64,
+    transfer: f64,
+    loss: f64,
+    origination: f64,
+    initial_size: usize,
+    cap: i64,
+    seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
+) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u32)>)>)> {
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr, false)?;
+    // The trace path needs leaves only for the copy-number profile — return per-family COUNTS
+    // (like `simulate_profiles`), not the per-gene id list, so a million-leaf run never carries
+    // one Python object per gene. The genealogy's leaf identities are recovered by the replay.
+    let leaf_counts: Vec<(usize, Vec<(u64, u32)>)> = leaves.into_iter().map(|(li, pairs)| {
+        let mut m: HashMap<u64, u32> = HashMap::new();
+        for (_gid, fam) in pairs {
+            *m.entry(fam).or_insert(0) += 1;
+        }
+        (li, m.into_iter().collect())
+    }).collect();
+    Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaf_counts))
 }
 
 // ============ output writing in Rust (gene trees + tables) — no big return to Python ============
@@ -1186,7 +1237,7 @@ fn simulate_and_write(
 ) -> PyResult<(usize, usize, usize)> {
     let tr = Transfers { replacement, decay: distance_decay, allow_self };
     let (rec, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
-        duplication, transfer, loss, origination, initial_size, cap, seed, tr)?;
+        duplication, transfer, loss, origination, initial_size, cap, seed, tr, true)?;
     let (n_families, n_species) = write_outputs(&rec, &leaves, &names, total_age, &outdir)
         .map_err(|e| PyIOError::new_err(e.to_string()))?;
     Ok((n_families, rec.ev.len(), n_species))
@@ -1662,6 +1713,7 @@ fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(available, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_profiles, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_log, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_trace, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_and_write, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_nucleotide, m)?)?;
     Ok(())
