@@ -557,3 +557,72 @@ pub fn dated_joint_loglik(
     }
     ll
 }
+
+/// Per-family dated log-likelihoods: extinction is built once and every gene tree in the batch
+/// is scored against it, returning one log-lik per tree (in input order) — for a per-family
+/// score table rather than the joint sum.
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+pub fn dated_family_loglik(
+    sp_parent: Vec<i64>,
+    sp_left: Vec<i64>,
+    sp_right: Vec<i64>,
+    sp_is_leaf: Vec<bool>,
+    sp_time: Vec<f64>,
+    sp_parent_time: Vec<f64>,
+    sp_root: usize,
+    gt_offsets: Vec<usize>,
+    gt_is_leaf: Vec<bool>,
+    gt_left: Vec<i64>,
+    gt_right: Vec<i64>,
+    gt_species: Vec<i64>,
+    dup: f64,
+    transfer: f64,
+    loss: f64,
+    n_steps: usize,
+    origination: u8,
+) -> Vec<f64> {
+    let eng = Engine::new(
+        &sp_parent, sp_left, sp_right, sp_is_leaf, sp_time, sp_parent_time, sp_root,
+        dup, transfer, loss, n_steps,
+    );
+    (0..gt_offsets.len().saturating_sub(1))
+        .map(|i| {
+            let (a, b) = (gt_offsets[i], gt_offsets[i + 1]);
+            eng.gene_loglik(&gt_is_leaf[a..b], &gt_left[a..b], &gt_right[a..b], &gt_species[a..b], origination)
+        })
+        .collect()
+}
+
+/// Per-family undated/reldated log-likelihoods (extinction built once). `transfers` = 0
+/// (undated) or 1 (reldated).
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+pub fn undated_family_loglik(
+    sp_left: Vec<i64>,
+    sp_right: Vec<i64>,
+    sp_is_leaf: Vec<bool>,
+    sp_time: Vec<f64>,
+    sp_parent_time: Vec<f64>,
+    sp_root: usize,
+    gt_offsets: Vec<usize>,
+    gt_is_leaf: Vec<bool>,
+    gt_left: Vec<i64>,
+    gt_right: Vec<i64>,
+    gt_species: Vec<i64>,
+    dup: f64,
+    transfer: f64,
+    loss: f64,
+    transfers: u8,
+    origination: u8,
+) -> Vec<f64> {
+    let eng = UndatedEngine::new(
+        sp_left, sp_right, sp_is_leaf, sp_time, sp_parent_time, sp_root, dup, transfer, loss, transfers,
+    );
+    (0..gt_offsets.len().saturating_sub(1))
+        .map(|i| {
+            let (a, b) = (gt_offsets[i], gt_offsets[i + 1]);
+            eng.gene_loglik(&gt_is_leaf[a..b], &gt_left[a..b], &gt_right[a..b], &gt_species[a..b], origination)
+        })
+        .collect()
+}

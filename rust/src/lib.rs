@@ -1920,5 +1920,7 @@ fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(simulate_nucleotide, m)?)?;
     m.add_function(wrap_pyfunction!(alelite::dated_joint_loglik, m)?)?;
     m.add_function(wrap_pyfunction!(alelite::undated_joint_loglik, m)?)?;
+    m.add_function(wrap_pyfunction!(alelite::dated_family_loglik, m)?)?;
+    m.add_function(wrap_pyfunction!(alelite::undated_family_loglik, m)?)?;
     Ok(())
 }
