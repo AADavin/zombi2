@@ -153,7 +153,7 @@ Bernoulli, so the realized fraction fluctuates around `fraction` (exactly it in 
 pulse of `fraction=1.0` wipes the tree out entirely and is rejected by the ≥2-survivor
 conditioning.
 
-CLI: `zombi2 species --model forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5`.
+CLI: `zombi2 species --mode forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5`.
 
 ### Fossilized birth–death (serial / through-time sampling)
 
@@ -223,7 +223,7 @@ tree = z.simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or 
 Both support `age` **and** `n_tips` mode (their rates don't reference age-before-present), reject
 the backward sampler (no closed-form reconstructed CDF), and accept `sampling_fraction` and
 `mass_extinctions` overlays. For `DiversityDependent`, `n_tips` must be `≤ K`. CLI: `zombi2 species
---model forward --diversification clads|diversity-dependent …`.
+--mode forward --diversification clads|diversity-dependent …`.
 
 **Clade-specific rate shifts** (`CladeShiftBirthDeath`). Where ClaDS shifts *every* lineage a
 little at *every* speciation, this shifts *one* clade a lot at a *scheduled* time — the discrete,
@@ -242,7 +242,7 @@ tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 
 Because the shift schedule is in ages before the present, this model is **age mode only** (unlike
 ClaDS/DD); it too rejects the backward sampler and accepts `sampling_fraction`/`mass_extinctions`.
-CLI: `zombi2 species --model forward --age 5 --clade-shift AGE BIRTH DEATH` (repeatable).
+CLI: `zombi2 species --mode forward --age 5 --clade-shift AGE BIRTH DEATH` (repeatable).
 
 ## Key references
 

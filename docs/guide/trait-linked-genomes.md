@@ -137,10 +137,10 @@ T=out/species_tree.nwk
 zombi2 coevolve-genetrait -t $T \
     --trait-model mk --states 2 --rate 0.3 --trait-center \
     --panel 40 --responsive 0.3 --weight 1 --effect-loss 3 \
-    --loss 0.4 --trans 1.0 --output all --seed 7 -o out/
+    --loss 0.4 --trans 1.0 --write all --seed 7 -o out/
 ```
 
-Besides the usual gene-family files (chosen with `--output`, exactly as in
+Besides the usual gene-family files (chosen with `--write`, exactly as in
 [`genomes`](../cli.md#choosing-the-output-and-the-rust-engine)), it always writes:
 
 - **`traits.tsv`** / **`trait_tree.nwk`** — the trait at every node (as `zombi2 trait` writes).

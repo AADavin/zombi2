@@ -53,7 +53,7 @@ zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1
 
 ```bash
 zombi2 genomes  --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 \
-    --output trace profiles --seed 42 -o out/
+    --write trace profiles --seed 42 -o out/
 zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/
 ```
 
