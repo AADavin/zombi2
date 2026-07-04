@@ -1,0 +1,187 @@
+{
+  "name": "vs_zombi1",
+  "title": "ZOMBI2 (Rust) vs ZOMBI 1 (Python): same task, gene-family simulation",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "BirthDeath(\u03bb=1.0, \u03bc=0.3), age 2.0; D=0.2 T=0.1 L=0.25 O=0.5, initial_size=20",
+    "profile": "standard",
+    "zombi1_available": true,
+    "note": "Yule(\u03bb=1) tree grown to matched tips; genome step only is timed; ZOMBI 1 Gm regime D=0.2 T=0.1 L=0.25 O=0.5, initial size 20, replacement transfers (see vs_zombi1/NOTES.md)"
+  },
+  "env": {
+    "timestamp_utc": "2026-07-04T06:31:10+00:00",
+    "git_commit": "81b0278",
+    "git_dirty": true,
+    "zombi2_version": "0.2.0.dev0",
+    "rust_available": true,
+    "python": "3.12.2",
+    "numpy": "2.4.0",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 20,
+      "times": [
+        0.0011859170044772327,
+        0.0010393749980721623,
+        0.0011279590253252536,
+        0.0008169170178007334,
+        0.0006899159925524145
+      ],
+      "work": {
+        "n_families": 24
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 100,
+      "times": [
+        0.0031041250040289015,
+        0.004035165999084711,
+        0.003061708004679531,
+        0.003705416980665177,
+        0.0038452500011771917
+      ],
+      "work": {
+        "n_families": 68
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 300,
+      "times": [
+        0.01228645900846459,
+        0.014749417023267597,
+        0.011407208017772064,
+        0.012094542005797848,
+        0.013264667009934783
+      ],
+      "work": {
+        "n_families": 156
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 1000,
+      "times": [
+        0.03809358298894949,
+        0.044240874995011836,
+        0.035594999993918464,
+        0.03484845897764899,
+        0.03995808301260695
+      ],
+      "work": {
+        "n_families": 463
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 3000,
+      "times": [
+        0.12047791699296795,
+        0.1534239579923451,
+        0.11292666700319387,
+        0.13998499998706393,
+        0.10937891600769944
+      ],
+      "work": {
+        "n_families": 1440
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 10000,
+      "times": [
+        0.5157758329878561,
+        0.4818229170050472,
+        0.4664903749944642,
+        0.5163875419821125,
+        0.46176012500654906
+      ],
+      "work": {
+        "n_families": 4542
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 30000,
+      "times": [
+        1.6034899160149507,
+        1.709313833998749,
+        1.39012024999829,
+        1.549865042004967,
+        1.536615624994738
+      ],
+      "work": {
+        "n_families": 13482
+      }
+    },
+    {
+      "series": "ZOMBI2 \u00b7 Rust",
+      "x": 100000,
+      "times": [
+        5.398859709006501,
+        6.761715375003405,
+        6.790649542002939,
+        5.179575541988015,
+        5.766547250008443
+      ],
+      "work": {
+        "n_families": 44684
+      }
+    },
+    {
+      "series": "ZOMBI 1 \u00b7 Python",
+      "x": 20,
+      "times": [
+        0.664
+      ],
+      "work": {
+        "n_families": 27
+      }
+    },
+    {
+      "series": "ZOMBI 1 \u00b7 Python",
+      "x": 100,
+      "times": [
+        0.898
+      ],
+      "work": {
+        "n_families": 67
+      }
+    },
+    {
+      "series": "ZOMBI 1 \u00b7 Python",
+      "x": 300,
+      "times": [
+        5.377
+      ],
+      "work": {
+        "n_families": 177
+      }
+    },
+    {
+      "series": "ZOMBI 1 \u00b7 Python",
+      "x": 1000,
+      "times": [
+        48.213
+      ],
+      "work": {
+        "n_families": 528
+      }
+    },
+    {
+      "series": "ZOMBI 1 \u00b7 Python",
+      "x": 1200,
+      "times": [
+        54.937
+      ],
+      "work": {
+        "n_families": 564
+      }
+    }
+  ]
+}

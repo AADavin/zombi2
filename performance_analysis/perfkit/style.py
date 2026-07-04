@@ -35,11 +35,16 @@ SERIES_STYLE = {
     "Species tree · backward": dict(color=INK,  linestyle=LS_SOLID,   marker="o"),
     "Species tree · forward":  dict(color=DARK, linestyle=LS_DASH,    marker="D"),
     "Rust · full genomes":     dict(color=INK,  linestyle=LS_SOLID,   marker="s"),
-    "Rust · profiles only":    dict(color=DARK, linestyle=LS_DASH,    marker="^"),
+    "Rust · event trace":      dict(color=DARK, linestyle=LS_DASHDOT, marker="D"),
+    "Rust · profiles only":    dict(color=MUTED, linestyle=LS_DOT,    marker="^"),
     # memory footprint series
     "Species tree":            dict(color=INK,  linestyle=LS_SOLID,   marker="o"),
     "Gene families · full":    dict(color=DARK, linestyle=LS_DASH,    marker="s"),
+    "Gene families · trace":   dict(color=DARK, linestyle=LS_DASHDOT, marker="D"),
     "Gene families · profiles":dict(color=MUTED, linestyle=LS_DOT,    marker="^"),
+    # cross-tool comparison (ZOMBI2 vs ZOMBI 1)
+    "ZOMBI2 · Rust":           dict(color=INK,  linestyle=LS_SOLID,   marker="o"),
+    "ZOMBI 1 · Python":        dict(color=DARK, linestyle=LS_DASH,    marker="s"),
     # writing / parallel
     "write()":                 dict(color=INK,  linestyle=LS_SOLID,   marker="v"),
     "measured":                dict(color=INK,  linestyle=LS_SOLID,   marker="o"),

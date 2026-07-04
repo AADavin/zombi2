@@ -14,7 +14,11 @@ only the timed call sits inside :func:`perfkit.measure`, setup is untimed.
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Callable
@@ -128,12 +132,15 @@ def species_tree(profile: str) -> Result:
 
 @benchmark("gene_families")
 def gene_families(profile: str) -> Result:
-    """Gene-family (D/T/L/O) simulation vs tip count, two output modes.
+    """Gene-family (D/T/L/O) simulation vs tip count, three output modes.
 
-    ``Rust · full genomes`` materialises the whole event log (one object per
-    event → memory grows with the event count). ``Rust · profiles only`` returns
-    just the counts matrix (the ABC / large-dataset fast path), reaching ~3x more
-    tips before the dense presence/absence matrix (O(N^2)) becomes the limit.
+    ``Rust · full genomes`` materialises the whole event log (one Python object per
+    event → memory grows with the event count → caps around 10^5 tips). ``Rust · event
+    trace`` keeps the genealogy as the engine's compact columns (``output="trace"``),
+    deferring the per-event objects, so gene trees stay reconstructable yet it scales to
+    millions like the counts path (~2x its cost). ``Rust · profiles only`` returns just
+    the sparse counts matrix (the ABC / large-dataset fast path) — the cheapest, no
+    genealogy at all.
     """
     sizes = _grid(profile,
                   quick=[1000, 10_000, 100_000],
@@ -141,7 +148,10 @@ def gene_families(profile: str) -> Result:
                   full=[1000, 10_000, 100_000, 1_000_000, 3_000_000])
     # Full event log materialises one object per event → caps around 10^5 tips.
     full_cap = {"quick": 10_000, "standard": 100_000, "full": 100_000}[profile]
-    # Counts-only output is now SPARSE (COO) → O(N), so it scales to millions of tips.
+    # Event trace keeps the genealogy as compact columns (no per-event objects) → reaches
+    # the millions like the counts path, just carrying the full event columns (~2x cost).
+    trace_cap = {"quick": 100_000, "standard": 1_000_000, "full": 3_000_000}[profile]
+    # Counts-only output is SPARSE (COO) → O(N), so it scales to millions of tips.
     prof_cap = {"quick": 100_000, "standard": 1_000_000, "full": 3_000_000}[profile]
 
     trees = {n: z.simulate_species_tree(config.model(), n_tips=n, age=config.TREE_AGE,
@@ -152,18 +162,24 @@ def gene_families(profile: str) -> Result:
         return z.simulate_genomes(trees[n], rates=rates,
                                   initial_size=config.INITIAL_SIZE, seed=7000 + i)
 
+    def trace_fn(n, i):
+        return z.simulate_genomes(trees[n], rates=rates, initial_size=config.INITIAL_SIZE,
+                                  output="trace", seed=7000 + i)
+
     def profiles_fn(n, i):
         return z.simulate_genomes(trees[n], rates=rates, initial_size=config.INITIAL_SIZE,
                                   output="profiles", seed=7000 + i)
 
     points = _timed_grid(profile, sizes, genomes_fn, "Rust · full genomes",
                          cap=full_cap, work_of=_genomes_work)
+    points += _timed_grid(profile, sizes, trace_fn, "Rust · event trace",
+                          cap=trace_cap, work_of=lambda tr: dict(n_families=len(tr.profiles.families)))
     points += _timed_grid(profile, sizes, profiles_fn, "Rust · profiles only",
                           cap=prof_cap, work_of=lambda pm: dict(n_families=len(pm.families)))
 
     return Result(
         name="gene_families",
-        title="Gene-family simulation: full event log vs counts-only",
+        title="Gene-family simulation: full log vs event trace vs counts-only",
         x_label="Number of extant tips",
         points=points,
         meta=dict(regime=config.label(), profile=profile),
@@ -199,6 +215,12 @@ def memory_scaling(profile: str) -> Result:
                        quick=[10_000],
                        standard=[10_000, 30_000, 100_000],
                        full=[10_000, 30_000, 100_000])
+    # Event trace keeps compact columns (no per-event objects) → far lighter than the
+    # full log, reaching the millions with the tree.
+    trace_sizes = _grid(profile,
+                        quick=[10_000, 100_000],
+                        standard=[10_000, 100_000, 1_000_000],
+                        full=[10_000, 100_000, 1_000_000, 3_000_000])
     # Sparse counts output → O(N), scales with the tree into the millions.
     prof_sizes = _grid(profile,
                        quick=[10_000, 100_000],
@@ -207,6 +229,7 @@ def memory_scaling(profile: str) -> Result:
 
     plan = ([("tree", n, "Species tree") for n in tree_sizes]
             + [("genomes", n, "Gene families · full") for n in full_sizes]
+            + [("trace", n, "Gene families · trace") for n in trace_sizes]
             + [("profiles", n, "Gene families · profiles") for n in prof_sizes])
 
     points: list[Point] = []
@@ -345,4 +368,100 @@ def write_output(profile: str) -> Result:
         x_label="Number of extant tips",
         points=points,
         meta=dict(regime=config.label(), profile=profile),
+    )
+
+
+# =========================================================================
+# 6. Cross-tool comparison — ZOMBI2 (Rust) vs ZOMBI 1 (legacy pure-Python)
+# =========================================================================
+
+_VS_ZOMBI1_DIR = Path(__file__).resolve().parent / "vs_zombi1"
+
+
+def _zombi1_dir() -> Path:
+    return Path(os.environ.get("ZOMBI1_DIR", "/Users/aadria/Desktop/Github/ZOMBI"))
+
+
+def _zombi1_gm(n: int, seed: int, timeout: float) -> dict | None:
+    """Time ZOMBI 1's ``Gm`` genome step at ~n extant tips via the vendored harness
+    (a subprocess to the ZOMBI 1 checkout). Returns its JSON dict, or None on failure."""
+    proc = subprocess.run(
+        [sys.executable, str(_VS_ZOMBI1_DIR / "harness.py"),
+         "--n", str(n), "--seed", str(seed), "--timeout", str(timeout)],
+        capture_output=True, text=True,
+    )
+    lines = [ln for ln in proc.stdout.strip().splitlines() if ln.startswith("{")]
+    return json.loads(lines[-1]) if lines else None
+
+
+@benchmark("vs_zombi1")
+def vs_zombi1(profile: str) -> Result:
+    """ZOMBI2 (Rust) vs ZOMBI 1 (legacy pure-Python) on the *same* gene-family task.
+
+    Both evolve D/T/L/O gene families over a pure-birth (Yule λ=1) tree grown to a matched
+    extant-tip count, in the same regime (D=0.2 T=0.1 L=0.25 O=0.5, initial genome size 20,
+    size-neutral replacement transfers). Only the genome step is timed (the species tree is
+    built untimed in both). ZOMBI 1's ``Gm`` is measured through ``vs_zombi1/harness.py`` and
+    is strongly super-linear — its practical ceiling is ~1200 tips in a couple of minutes —
+    whereas ZOMBI2 runs the same task in milliseconds and keeps scaling to millions.
+
+    Opt-in (not a core benchmark): needs the ZOMBI 1 checkout ($ZOMBI1_DIR, or the default
+    clone path). If it is absent, only the ZOMBI2 curve is produced.
+    """
+    z2_sizes = _grid(profile,
+                     quick=[20, 100, 1000],
+                     standard=[20, 100, 300, 1000, 3000, 10_000, 30_000, 100_000],
+                     full=[20, 100, 300, 1000, 3000, 10_000, 30_000, 100_000, 300_000])
+    z1_sizes = _grid(profile,
+                     quick=[20, 100],
+                     standard=[20, 100, 300, 1000, 1200],
+                     full=[20, 100, 300, 1000, 1200, 1500])
+    z1_timeout = {"quick": 60.0, "standard": 180.0, "full": 240.0}[profile]
+
+    # Same regime as ZOMBI 1's Gm harness: size-neutral (replacement) transfers so the two
+    # tools do comparable work; a pure-birth Yule tree grown forward to a matched tip count.
+    rates = config.rate_model()
+    transfers = z.TransferModel(replacement=1.0)
+    trees = {n: z.simulate_species_tree(z.Yule(config.BIRTH), n_tips=n,
+                                        direction="forward", seed=200 + n) for n in z2_sizes}
+
+    def z2_fn(n, i):
+        return z.simulate_genomes(trees[n], rates=rates, initial_size=config.INITIAL_SIZE,
+                                  transfers=transfers, seed=8000 + i)
+
+    points = _timed_grid(profile, z2_sizes, z2_fn, "ZOMBI2 · Rust",
+                         work_of=lambda g: dict(n_families=len(g.profiles.families)))
+
+    # --- ZOMBI 1 (opt-in; skipped if the checkout is absent) --------------------------
+    have_z1 = (_zombi1_dir() / "Zombi.py").is_file()
+    if not have_z1:
+        print(f"  ZOMBI 1 · Python           SKIPPED (no checkout at {_zombi1_dir()}; "
+              f"set $ZOMBI1_DIR)")
+    else:
+        for n in z1_sizes:
+            res = _zombi1_gm(n, seed=1, timeout=z1_timeout)
+            if res is None:
+                print(f"  ZOMBI 1 · Python           n={n:<9d} FAILED (harness error)")
+                break
+            if res["status"] != "ok":
+                print(f"  ZOMBI 1 · Python           n={n:<9d} {res['status'].upper()} "
+                      f"(> {z1_timeout:.0f}s) — practical ceiling reached")
+                break
+            points.append(Point(series="ZOMBI 1 · Python", x=res["n_tips"],
+                                times=[res["seconds"]],
+                                work=dict(n_families=res["n_gene_families"])))
+            print(f"  ZOMBI 1 · Python           n={res['n_tips']:<9d} "
+                  f"best={res['seconds']*1e3:10.2f} ms  "
+                  f"{{'n_families': {res['n_gene_families']}}}")
+
+    return Result(
+        name="vs_zombi1",
+        title="ZOMBI2 (Rust) vs ZOMBI 1 (Python): same task, gene-family simulation",
+        x_label="Number of extant tips",
+        points=points,
+        meta=dict(regime=config.label(), profile=profile,
+                  zombi1_available=have_z1,
+                  note="Yule(λ=1) tree grown to matched tips; genome step only is timed; "
+                       "ZOMBI 1 Gm regime D=0.2 T=0.1 L=0.25 O=0.5, initial size 20, "
+                       "replacement transfers (see vs_zombi1/NOTES.md)"),
     )
