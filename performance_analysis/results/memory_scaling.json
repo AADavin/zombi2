@@ -8,8 +8,8 @@
     "note": "peak RSS from resource.getrusage in an isolated subprocess"
   },
   "env": {
-    "timestamp_utc": "2026-07-04T06:16:33+00:00",
-    "git_commit": "81b0278",
+    "timestamp_utc": "2026-07-04T14:09:09+00:00",
+    "git_commit": "66f09e8",
     "git_dirty": true,
     "zombi2_version": "0.2.0.dev0",
     "rust_available": true,
@@ -24,10 +24,10 @@
       "series": "Species tree",
       "x": 10000,
       "times": [
-        0.0751
+        0.0718
       ],
       "work": {
-        "rss_mb": 76.8,
+        "rss_mb": 76.2,
         "nodes": 10000
       }
     },
@@ -35,10 +35,10 @@
       "series": "Species tree",
       "x": 100000,
       "times": [
-        0.9665
+        0.9348
       ],
       "work": {
-        "rss_mb": 132.6,
+        "rss_mb": 133.1,
         "nodes": 100000
       }
     },
@@ -46,10 +46,10 @@
       "series": "Species tree",
       "x": 1000000,
       "times": [
-        10.6136
+        10.4636
       ],
       "work": {
-        "rss_mb": 712.6,
+        "rss_mb": 707.9,
         "nodes": 1000000
       }
     },
@@ -57,10 +57,10 @@
       "series": "Species tree",
       "x": 3000000,
       "times": [
-        34.0732
+        32.6926
       ],
       "work": {
-        "rss_mb": 2006.9,
+        "rss_mb": 2005.9,
         "nodes": 3000000
       }
     },
@@ -68,10 +68,10 @@
       "series": "Gene families \u00b7 full",
       "x": 10000,
       "times": [
-        1.0708
+        1.0033
       ],
       "work": {
-        "rss_mb": 402.2,
+        "rss_mb": 399.9,
         "families": 3230,
         "events": 302768
       }
@@ -80,10 +80,10 @@
       "series": "Gene families \u00b7 full",
       "x": 30000,
       "times": [
-        3.6815
+        3.5772
       ],
       "work": {
-        "rss_mb": 1073.3,
+        "rss_mb": 1046.7,
         "families": 9564,
         "events": 914361
       }
@@ -92,10 +92,10 @@
       "series": "Gene families \u00b7 full",
       "x": 100000,
       "times": [
-        15.5226
+        14.0006
       ],
       "work": {
-        "rss_mb": 3450.8,
+        "rss_mb": 3453.7,
         "families": 31952,
         "events": 3067493
       }
@@ -104,10 +104,10 @@
       "series": "Gene families \u00b7 trace",
       "x": 10000,
       "times": [
-        0.2233
+        0.155
       ],
       "work": {
-        "rss_mb": 223.8,
+        "rss_mb": 128.6,
         "families": 3230
       }
     },
@@ -115,10 +115,10 @@
       "series": "Gene families \u00b7 trace",
       "x": 100000,
       "times": [
-        3.6218
+        2.7292
       ],
       "work": {
-        "rss_mb": 1469.9,
+        "rss_mb": 639.5,
         "families": 31952
       }
     },
@@ -126,10 +126,10 @@
       "series": "Gene families \u00b7 trace",
       "x": 1000000,
       "times": [
-        54.306
+        32.5255
       ],
       "work": {
-        "rss_mb": 11096.6,
+        "rss_mb": 5068.0,
         "families": 319323
       }
     },
@@ -137,10 +137,10 @@
       "series": "Gene families \u00b7 profiles",
       "x": 10000,
       "times": [
-        0.136
+        0.1322
       ],
       "work": {
-        "rss_mb": 107.7,
+        "rss_mb": 106.7,
         "families": 3181
       }
     },
@@ -148,10 +148,10 @@
       "series": "Gene families \u00b7 profiles",
       "x": 100000,
       "times": [
-        2.4931
+        2.341
       ],
       "work": {
-        "rss_mb": 426.4,
+        "rss_mb": 416.3,
         "families": 31732
       }
     },
@@ -159,10 +159,10 @@
       "series": "Gene families \u00b7 profiles",
       "x": 1000000,
       "times": [
-        31.8547
+        29.2909
       ],
       "work": {
-        "rss_mb": 3161.8,
+        "rss_mb": 3173.6,
         "families": 318660
       }
     }

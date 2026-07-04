@@ -119,16 +119,17 @@ Evolving D/T/L/O gene families along a fixed tree offers three outputs of
 increasing richness (Figure~\ref{fig:genes}). The \emph{full event log}
 (\texttt{output="genomes"}) records every event as a Python object, so its cost
 tracks the event count and it is practical to $\sim$\num{100000} tips
-(\SI{5.0}{\second}, $\approx$\num{3000000} events). The \emph{event trace}
-(\texttt{output="trace"}) keeps the same genealogy as the engine's compact columns
-instead of per-event objects --- gene trees remain reconstructable on demand --- so it
-runs at roughly twice the counts-only cost yet scales to a million tips
-(\SI{2.2}{\second} at \num{100000}, \SI{29}{\second} at \num{1000000}). The
+(\SI{4.9}{\second}, $\approx$\num{3000000} events). The \emph{event trace}
+(\texttt{output="trace"}) records the same D/T/L/O history but drops the speciation
+``carry'' events entirely --- a gene keeps its id across speciations, and the implied
+bifurcations are recovered by replaying the trace against the species tree --- so gene
+trees remain reconstructable on demand while the cost falls to barely above counts-only:
+\SI{1.4}{\second} at \num{100000} tips and \SI{19}{\second} at \num{1000000}. The
 \emph{counts-only} profile (\texttt{output="profiles"}) --- the presence/absence
 dataset used for approximate Bayesian computation and downstream analyses --- is the
 cheapest and, after the sparse-output change (\S\ref{sec:mem}), scales linearly into
-the millions: \SI{66}{\milli\second} at \num{10000} tips, \SI{1.3}{\second} at
-\num{100000}, and \SI{18}{\second} at \num{1000000} tips.
+the millions: \SI{63}{\milli\second} at \num{10000} tips, \SI{1.1}{\second} at
+\num{100000}, and \SI{16}{\second} at \num{1000000} tips.
 
 \begin{figure}[h]
   \centering
@@ -155,20 +156,20 @@ $\approx$25\,GB of address space already at \num{100000} tips and $\approx$8\,TB
 it with a \textbf{sparse (COO) representation} storing only the present cells, which
 is $O(N)$: the profile now costs \SI{0.43}{GB} at \num{100000} tips and
 \SI{3.2}{GB} at \num{1000000} --- sizes the dense form could never reach. The
-\emph{event trace} sits between the profile and the full log: it holds the whole
-event history (as columns, not objects), so it reaches a million tips but at
-\SI{11}{GB}, versus the full log's \SI{3.5}{GB} already at \num{100000} tips (one
-record per event). Reducing the trace's footprint --- most of it is the
-speciation ``carry'' rows, which are redundant given the species tree --- is the
-obvious next optimisation.
+\emph{event trace} sits just above it: by dropping the redundant speciation ``carry''
+rows (recoverable from the species tree) and keeping only per-family leaf counts, it
+holds the whole D/T/L/O history for a million tips in \SI{5.1}{GB} --- close to the
+counts-only floor, and far below the full log's \SI{3.5}{GB} already at \num{100000}
+tips (one Python object per event). The residual gap to the profile is the trace
+columns themselves, held as Python lists.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.82\linewidth]{memory_scaling.png}
   \caption{Peak resident memory versus tip count (isolated subprocess per size).
-    The species tree and the sparse profiles scale linearly into the millions; the
-    event trace reaches a million tips at a higher constant; the full event log is
-    the memory-heaviest path and caps near \num{100000} tips.}
+    The species tree, the sparse profiles, and the event trace all scale linearly into
+    the millions (the trace just above the counts-only floor); the full event log is the
+    memory-heaviest path and caps near \num{100000} tips.}
   \label{fig:mem}
 \end{figure}
 
@@ -234,10 +235,10 @@ to \num{100000} tips and beyond, where ZOMBI~1 is long since infeasible.
     \midrule
     Species tree (backward)   & 1000000 & 5.7  & s & \SI{0.71}{GB} \\
     Species tree (backward)   & 3000000 & 17.6 & s & \SI{2.0}{GB}  \\
-    Gene families, full log   & 100000  & 5.0  & s & \SI{3.5}{GB}  \\
-    Gene families, event trace& 100000  & 2.2  & s & \SI{1.5}{GB}  \\
-    Gene families, event trace& 1000000 & 29.3 & s & \SI{11}{GB}   \\
-    Gene families, profiles   & 1000000 & 18.0 & s & \SI{3.2}{GB}  \\
+    Gene families, full log   & 100000  & 4.9  & s & \SI{3.5}{GB}  \\
+    Gene families, event trace& 100000  & 1.4  & s & \SI{0.64}{GB} \\
+    Gene families, event trace& 1000000 & 19.0 & s & \SI{5.1}{GB}  \\
+    Gene families, profiles   & 1000000 & 16.0 & s & \SI{3.2}{GB}  \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -245,10 +246,10 @@ to \num{100000} tips and beyond, where ZOMBI~1 is long since infeasible.
 \textbf{Bottom line.} Both core operations are linear in tip count and run at
 million-tip scale on a laptop; the species tree reaches the millions with room to
 spare. The only super-linear component was the dense profile output, now sparse and
-linear. Of the three gene-family outputs, the counts-only profile is the one to use
-at pure scale, the event trace is the intermediate that keeps gene trees
-reconstructable while still reaching a million tips, and the full per-event log --- the
-richest but heaviest --- is best kept to $\sim$\num{100000} tips. Against the legacy
+linear. Of the three gene-family outputs, the counts-only profile is the cheapest, the
+event trace keeps gene trees reconstructable for barely more (both reach a million tips
+at close to the same time and memory), and the full per-event log --- the richest but
+heaviest --- is best kept to $\sim$\num{100000} tips. Against the legacy
 ZOMBI~1 the Rust engine is over three orders of magnitude faster on the same task
 (\S\ref{sec:vs}). An overview of the headline results is shown in
 Figure~\ref{fig:overview}.

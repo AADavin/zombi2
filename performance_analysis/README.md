@@ -112,10 +112,10 @@ Measured on this machine (Apple Silicon, 4 P + 6 E cores, 34 GB):
   **1M tips in ~18 s using ~3.2 GB**, where the old *dense* N×N matrix hit a wall
   at ~100k (it would have needed ~8 TB of address space at 1M). See the sparse
   refactor of `zombi2/profiles.py`.
-* **Gene-family event trace** (`output="trace"`) keeps the genealogy as compact
-  engine columns rather than per-event Python objects, so gene trees stay
-  reconstructable yet it **reaches 1M tips (~29 s, ~11 GB)** — the intermediate
-  between counts and the full log.
+* **Gene-family event trace** (`output="trace"`) drops the redundant speciation rows
+  (recovered from the species tree by replay) and keeps only per-family leaf counts, so
+  gene trees stay reconstructable yet it **reaches 1M tips (~19 s, ~5 GB)** — barely above
+  the counts-only floor, the intermediate between counts and the full log.
 * **Gene-family full event log** grows with the *event* count (one Python object
   per event → ~3.5 GB at 100k) → practical to ~10⁵ tips; the heaviest path, and why
   the trace exists.
