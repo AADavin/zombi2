@@ -109,7 +109,7 @@ m = z.EpisodicBirthDeath(birth=[1.0, 1.4], death=[0.2, 0.3], shifts=[2.0],
 - A pulse of `fraction=1.0` wipes the whole tree out; the ≥2-survivor conditioning then rejects
   the run.
 
-CLI: `zombi2 species --model forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5 -o out/`.
+CLI: `zombi2 species --mode forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5 -o out/`.
 
 <figure markdown="span">
 ![A forward tree hit by an instantaneous mass-extinction pulse](../img/mass_extinction.svg)

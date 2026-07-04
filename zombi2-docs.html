@@ -107,7 +107,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .codehilite .vg { color: #19177C } /* Name.Variable.Global */
 .codehilite .vi { color: #19177C } /* Name.Variable.Instance */
 .codehilite .vm { color: #19177C } /* Name.Variable.Magic */
-.codehilite .il { color: #666 } /* Literal.Number.Integer.Long */</style></head><body><div id=wrap><nav id="side"><div class="brand">ZOMBI2</div><a class="lnk" href="#index">Home</a><a class="lnk" href="#installation">Installation</a><a class="lnk" href="#quickstart">Quickstart</a><a class="lnk" href="#cli">Command-line interface</a><div class="sec">User guide</div><a class="lnk sub" href="#guide-species-trees">Species trees</a><a class="lnk sub" href="#guide-ghost-lineages">Ghost lineages</a><a class="lnk sub" href="#ghost-lineages">Ghost lineages — how it works</a><a class="lnk sub" href="#guide-gene-families">Gene families &amp; rates</a><a class="lnk sub" href="#guide-transfers">Transfers</a><a class="lnk sub" href="#guide-growth">Bounding growth</a><a class="lnk sub" href="#guide-gene-trees-and-output">Gene trees &amp; output</a><a class="lnk sub" href="#guide-matching">Matching empirical profiles</a><a class="lnk sub" href="#guide-coupling">Gene-family coupling</a><a class="lnk sub" href="#guide-ordered-genomes">Ordered genomes</a><a class="lnk sub" href="#guide-nucleotide-genomes">Nucleotide genomes</a><a class="lnk sub" href="#guide-rate-variation">Rate variation</a><a class="lnk sub" href="#guide-traits">Trait evolution</a><a class="lnk sub" href="#guide-trait-linked-genomes">Trait-linked gene families</a><a class="lnk sub" href="#guide-parallel">Running in parallel</a><a class="lnk sub" href="#guide-rust-engine">Rust engine</a><a class="lnk sub" href="#guide-extending">Extending ZOMBI2</a><a class="lnk" href="#cookbook">Cookbook</a><a class="lnk" href="#faq">FAQ</a><a class="lnk" href="#comparison">Comparison with ZOMBI-1</a><a class="lnk" href="#contributing">Contributing</a><a class="lnk" href="#reference-api">API reference</a><div class="sec">Roadmap</div><a class="lnk sub" href="#species-tree-models">Species-tree models</a></nav><main><p class=topnote>Offline build of the ZOMBI2 docs — regenerate with <code>python tools/build_docs_html.py</code>.</p><section id="index" class="doc-page"><h1 id="zombi2">ZOMBI2</h1>
+.codehilite .il { color: #666 } /* Literal.Number.Integer.Long */</style></head><body><div id=wrap><nav id="side"><div class="brand">ZOMBI2</div><a class="lnk" href="#index">Home</a><a class="lnk" href="#installation">Installation</a><a class="lnk" href="#quickstart">Quickstart</a><a class="lnk" href="#cli">Command-line interface</a><div class="sec">User guide</div><a class="lnk sub" href="#guide-species-trees">Species trees</a><a class="lnk sub" href="#guide-ghost-lineages">Ghost lineages</a><a class="lnk sub" href="#ghost-lineages">Ghost lineages — how it works</a><a class="lnk sub" href="#guide-gene-families">Gene families &amp; rates</a><a class="lnk sub" href="#guide-transfers">Transfers</a><a class="lnk sub" href="#guide-growth">Bounding growth</a><a class="lnk sub" href="#guide-gene-trees-and-output">Gene trees &amp; output</a><a class="lnk sub" href="#guide-matching">Matching empirical profiles</a><a class="lnk sub" href="#guide-coupling">Gene-family coupling</a><a class="lnk sub" href="#guide-ordered-genomes">Ordered genomes</a><a class="lnk sub" href="#guide-nucleotide-genomes">Nucleotide genomes</a><a class="lnk sub" href="#guide-rate-variation">Rate variation</a><a class="lnk sub" href="#guide-traits">Trait evolution</a><a class="lnk sub" href="#guide-trait-linked-genomes">Trait-linked gene families</a><a class="lnk sub" href="#guide-parallel">Running in parallel</a><a class="lnk sub" href="#guide-rust-engine">Rust engine</a><a class="lnk sub" href="#guide-extending">Extending ZOMBI2</a><a class="lnk" href="#cookbook">Cookbook</a><a class="lnk" href="#faq">FAQ</a><a class="lnk" href="#comparison">Comparison with ZOMBI-1</a><a class="lnk" href="#contributing">Contributing</a><a class="lnk" href="#reference-api">API reference</a><div class="sec">Roadmap</div><a class="lnk sub" href="#species-tree-models">Species-tree models</a><a class="lnk sub" href="#coevolution-models">Coevolution (coupled models)</a></nav><main><p class=topnote>Offline build of the ZOMBI2 docs — regenerate with <code>python tools/build_docs_html.py</code>.</p><section id="index" class="doc-page"><h1 id="zombi2">ZOMBI2</h1>
 <p><strong>ZOMBI2</strong> is a Python library for simulating <strong>species-tree</strong> and <strong>gene-family</strong>
 evolution in phylogenetics — a ground-up redesign of
 <a href="https://github.com/AADavin/Zombi">ZOMBI</a>.</p>
@@ -253,7 +253,7 @@ zombi2<span class="w"> </span>species<span class="w"> </span>--birth<span class=
 zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--trans<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
-<p>The built-in model runs on Rust automatically; use <code>--output profiles</code> for the counts-only
+<p>The built-in model runs on Rust automatically; use <code>--write profiles</code> for the counts-only
 output. See the full <a href="#cli">command-line interface</a> for every option.</p>
 <h2 id="next-steps">Next steps</h2>
 <ul>
@@ -288,10 +288,12 @@ zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>--tree<s
 
 <p><code>species</code> writes only <code>species_tree.nwk</code>; <code>genomes</code> reads a tree from <code>--tree</code> and writes the
 full output (see <a href="#guide-gene-trees-and-output">gene trees &amp; output</a>); <code>trait</code> reads a tree and
-writes the tip and ancestral trait values (see <a href="#guide-traits">trait evolution</a>). Run
-<code>zombi2 &lt;command&gt; -h</code> for a command's options.</p>
+writes the tip and ancestral trait values (see <a href="#guide-traits">trait evolution</a>).</p>
+<p>Run <code>zombi2 &lt;command&gt; -h</code> for a command's options — each command's help groups its flags into
+labelled model sections (the general options, then one section per model), so the parameters of
+different models are kept clearly apart. <code>zombi2 --version</code> prints the version.</p>
 <h2 id="species-the-species-tree"><code>species</code> — the species tree</h2>
-<p><code>species</code> runs a birth–death process in one of two models, chosen by <code>--model</code>:</p>
+<p><code>species</code> runs a birth–death process in one of two modes, chosen by <code>--mode</code>:</p>
 <ul>
 <li><strong><code>backward</code></strong> (default) — the <em>reconstructed</em> tree: only surviving (extant) lineages,
   <strong>conditioned on the number of tips</strong>. <code>--tips</code> sets how many extant species you get; <code>--age</code>
@@ -304,8 +306,8 @@ writes the tip and ancestral trait values (see <a href="#guide-traits">trait evo
 <p>Everything has a default, so a bare run works:</p>
 <div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>species<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">                                            </span><span class="c1"># backward, 50 tips, age 1.0</span>
 zombi2<span class="w"> </span>species<span class="w"> </span>--tips<span class="w"> </span><span class="m">5000</span><span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span>--birth<span class="w"> </span><span class="m">1</span><span class="w"> </span>--death<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">  </span><span class="c1"># backward, custom</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span>-o<span class="w"> </span>out/<span class="w">                   </span><span class="c1"># complete tree, grown 5 time units</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--tips<span class="w"> </span><span class="m">50</span><span class="w"> </span>-o<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># complete tree, until 50 extant</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span>-o<span class="w"> </span>out/<span class="w">                   </span><span class="c1"># complete tree, grown 5 time units</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--tips<span class="w"> </span><span class="m">50</span><span class="w"> </span>-o<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># complete tree, until 50 extant</span>
 </code></pre></div>
 
 <h3 id="fancier-models">Fancier models</h3>
@@ -317,8 +319,8 @@ between them (<code>K-1</code> ages for <code>K</code> rate epochs, ordered pres
 <p><strong>Fossilized birth–death &amp; incomplete sampling</strong> (forward only). <code>--fossilization</code> (ψ) adds
 dated fossil tips through time, <code>--sampling-fraction</code> (ρ) samples only a fraction of extant
 species, and <code>--removal</code> (<code>r &lt; 1</code>) keeps sampled ancestors:</p>
-<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">6</span><span class="w"> </span>--fossilization<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">       </span><span class="c1"># fossils</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">6</span><span class="w"> </span>--sampling-fraction<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">   </span><span class="c1"># 50% sampled</span>
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">6</span><span class="w"> </span>--fossilization<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">       </span><span class="c1"># fossils</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">6</span><span class="w"> </span>--sampling-fraction<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">   </span><span class="c1"># 50% sampled</span>
 </code></pre></div>
 
 <p><strong>Mass extinctions</strong> (forward only). <code>--mass-extinction AGE FRACTION</code> fires an instantaneous,
@@ -326,8 +328,8 @@ tree-wide pulse: at <code>AGE</code> before the present, every lineage then aliv
 <code>FRACTION</code>. Repeat the flag for several pulses. Unlike raising <code>--death</code> over an episodic epoch
 (which spreads extra extinction across a window), a pulse wipes out a fraction of the standing
 diversity in a single instant. It needs <code>--age</code> (the pulse time is an age before a fixed present):</p>
-<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span>--mass-extinction<span class="w"> </span><span class="m">2</span>.5<span class="w"> </span><span class="m">0</span>.75<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">        </span><span class="c1"># 75% die at age 2.5</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span>--mass-extinction<span class="w"> </span><span class="m">2</span>.5<span class="w"> </span><span class="m">0</span>.75<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">        </span><span class="c1"># 75% die at age 2.5</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--mass-extinction<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--mass-extinction<span class="w"> </span><span class="m">2</span>.5<span class="w"> </span><span class="m">0</span>.75<span class="w"> </span>-o<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># two pulses</span>
 </code></pre></div>
 
@@ -339,11 +341,11 @@ own speciation rate that shifts lognormally at each split (<code>--clads-alpha</
 <code>--turnover</code>); <code>diversity-dependent</code> makes speciation decline toward a carrying capacity
 <code>--carrying-capacity/-K</code>:</p>
 <div class="codehilite"><pre><span></span><code><span class="c1"># ClaDS: per-lineage rates, α&lt;1 slows speciation toward the present, ε=μ/λ turnover</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--diversification<span class="w"> </span>clads<span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--diversification<span class="w"> </span>clads<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--birth<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--clads-alpha<span class="w"> </span><span class="m">0</span>.9<span class="w"> </span>--clads-sigma<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--turnover<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span>-o<span class="w"> </span>out/
 
 <span class="c1"># diversity-dependent: radiates then saturates near K=50</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--diversification<span class="w"> </span>diversity-dependent<span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--diversification<span class="w"> </span>diversity-dependent<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--birth<span class="w"> </span><span class="m">2</span><span class="w"> </span>--death<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>-K<span class="w"> </span><span class="m">50</span><span class="w"> </span>--age<span class="w"> </span><span class="m">15</span><span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
@@ -355,10 +357,10 @@ since contemporaneous lineages are exchangeable) and <em>all of its descendants<
 <code>BIRTH</code> / extinction <code>DEATH</code>. Repeat for several radiating or collapsing clades — the discrete,
 hand-specified version of clade rate heterogeneity. Needs <code>--age</code>:</p>
 <div class="codehilite"><pre><span></span><code><span class="c1"># one clade starts diversifying fast at age 3, on a slow background</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--birth<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>--death<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--birth<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>--death<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--age<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--clade-shift<span class="w"> </span><span class="m">3</span>.0<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>-o<span class="w"> </span>out/
 <span class="c1"># several clades shifting to different regimes</span>
-zombi2<span class="w"> </span>species<span class="w"> </span>--model<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">6</span><span class="w"> </span><span class="se">\</span>
+zombi2<span class="w"> </span>species<span class="w"> </span>--mode<span class="w"> </span>forward<span class="w"> </span>--age<span class="w"> </span><span class="m">6</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--clade-shift<span class="w"> </span><span class="m">4</span>.0<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--clade-shift<span class="w"> </span><span class="m">2</span>.0<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
@@ -420,8 +422,8 @@ to fit).</p>
 <p>It writes <strong><code>summary.tsv</code></strong> (per-parameter posterior mean / median / 95% CI), <strong><code>posterior.tsv</code></strong>
 (the accepted draws, one column per fitted rate), <strong><code>spectra.tsv</code></strong> (a posterior-predictive check:
 the empirical gene-frequency spectrum against the accepted simulations), and <code>abc.log</code>.</p>
-<p><strong>Models.</strong> <code>--model uniform</code> (default) fits one shared scalar rate per type on the fast Rust
-engine; <code>--model family</code> fits each rate as the <strong>mean</strong> of a per-family distribution (ZOMBI-1
+<p><strong>Models.</strong> <code>--rate-model uniform</code> (default) fits one shared scalar rate per type on the fast Rust
+engine; <code>--rate-model family</code> fits each rate as the <strong>mean</strong> of a per-family distribution (ZOMBI-1
 style, Python engine — pass <code>--max-family-size</code> to bound runaway growth). <strong>ABC-SMC.</strong> <code>--smc</code>
 switches from rejection to a sequential sampler (<code>--rounds</code>, <code>--particles</code>, <code>--quantile</code>) that
 shrinks the tolerance across rounds. <strong><code>--regression-adjust</code></strong> adds a bias-corrected posterior
@@ -433,10 +435,10 @@ check tells you whether <em>any</em> rates reproduce the data.</p>
 <p><code>genomes</code> produces gene trees in <strong>time</strong> units. <code>sequence</code> rescales them into
 <strong>substitutions/site</strong> under a gene × lineage clock, as a separate step — so you can retune the
 rate model without re-simulating gene content. It reads a prior <code>genomes</code> run's <code>species_tree.nwk</code>
-and <code>Events_trace.tsv</code> (so run <code>genomes</code> with <code>trace</code> in <code>--output</code>), replays the genealogy, and
+and <code>Events_trace.tsv</code> (so run <code>genomes</code> with <code>trace</code> in <code>--write</code>), replays the genealogy, and
 writes the phylograms:</p>
 <div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w">  </span>-t<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--trans<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--output<span class="w"> </span>trace<span class="w"> </span>profiles<span class="w"> </span>-o<span class="w"> </span>run/
+<span class="w">    </span>--write<span class="w"> </span>trace<span class="w"> </span>profiles<span class="w"> </span>-o<span class="w"> </span>run/
 zombi2<span class="w"> </span>sequence<span class="w"> </span>--genomes<span class="w"> </span>run/<span class="w"> </span>--branch-speed<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--family-speed<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>-o<span class="w"> </span>run/
 </code></pre></div>
 
@@ -460,7 +462,7 @@ trait and a coupling manifest.</p>
 zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>-t<span class="w"> </span><span class="nv">$T</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--trait-model<span class="w"> </span>mk<span class="w"> </span>--states<span class="w"> </span><span class="m">2</span><span class="w"> </span>--rate<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--trait-center<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--panel<span class="w"> </span><span class="m">40</span><span class="w"> </span>--responsive<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--weight<span class="w"> </span><span class="m">1</span><span class="w"> </span>--effect-loss<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--loss<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--output<span class="w"> </span>all<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">    </span>--loss<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--write<span class="w"> </span>all<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <p>A <em>responsive</em> family is retained where the trait favours it (loss scaled by
@@ -473,7 +475,7 @@ trait's states (recommended for a binary character, giving a symmetric two-sided
 <code>--trait-steps K</code> sets the within-branch resolution for a continuous trait (discrete traits use
 their exact stochastic map). <code>--effect-gain</code> optionally scales a lineage's transfer activity by
 the trait too (off by default).</p>
-<p>It writes the gene-family files selected by <code>--output</code> (as <a href="#choosing-the-output-and-the-rust-engine"><code>genomes</code></a>),
+<p>It writes the gene-family files selected by <code>--write</code> (as <a href="#choosing-the-output-and-the-rust-engine"><code>genomes</code></a>),
 and always adds <strong><code>traits.tsv</code></strong> / <strong><code>trait_tree.nwk</code></strong> (the trait at every node) and
 <strong><code>coupling.tsv</code></strong> (the per-family weights and effect sizes — the trait↔gene linkage on record
 for downstream inference). Reuse a precomputed trait instead of simulating one with
@@ -491,7 +493,7 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 </thead>
 <tbody>
 <tr>
-<td><code>--model {backward,forward}</code></td>
+<td><code>--mode {backward,forward}</code></td>
 <td>reconstructed (default) or complete forward tree</td>
 </tr>
 <tr>
@@ -610,12 +612,12 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 <td>[nucleotide, genic] probability a loss demotes a gene to intergene (sequence retained) / a transfer is a homologous replacement</td>
 </tr>
 <tr>
-<td><code>--output {profiles,trace,trees,events,transfers,summary,all}</code></td>
+<td><code>--write {profiles,trace,trees,events,transfers,summary,all}</code></td>
 <td>which files to write (one or more; default <code>profiles trees</code>); <code>profiles</code> alone → the counts-only fast path; <code>trace</code> (± <code>profiles</code>) → the compact <code>Events_trace.tsv</code> fast path — see below</td>
 </tr>
 <tr>
 <td><code>--sparse</code></td>
-<td>write the profile as a sparse <code>Profiles_sparse.tsv</code> instead of the dense matrix (needs <code>profiles</code> in <code>--output</code>)</td>
+<td>write the profile as a sparse <code>Profiles_sparse.tsv</code> instead of the dense matrix (needs <code>profiles</code> in <code>--write</code>)</td>
 </tr>
 <tr>
 <td><code>--annotate-species</code></td>
@@ -706,7 +708,7 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 <td>prior per rate: two values <code>LOW HIGH</code> (uniform) or one (fixed); omitted → held at 0</td>
 </tr>
 <tr>
-<td><code>--model {uniform,family}</code></td>
+<td><code>--rate-model {uniform,family}</code></td>
 <td><code>uniform</code> (default, Rust): shared scalar rates; <code>family</code> (Python): fit per-family rate means</td>
 </tr>
 <tr>
@@ -731,7 +733,7 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 </tr>
 <tr>
 <td><code>--initial-size</code> / <code>--max-family-size</code></td>
-<td>families seeded per sim / growth cap (advised for <code>--model family</code>)</td>
+<td>families seeded per sim / growth cap (advised for <code>--rate-model family</code>)</td>
 </tr>
 <tr>
 <td><code>--seed</code> / <code>-o</code> / <code>--out</code></td>
@@ -750,7 +752,7 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 <tbody>
 <tr>
 <td><code>--genomes DIR</code></td>
-<td>a prior <code>genomes</code> output directory — reads its <code>species_tree.nwk</code> + <code>Events_trace.tsv</code> (run <code>genomes</code> with <code>trace</code> in <code>--output</code>) (required)</td>
+<td>a prior <code>genomes</code> output directory — reads its <code>species_tree.nwk</code> + <code>Events_trace.tsv</code> (run <code>genomes</code> with <code>trace</code> in <code>--write</code>) (required)</td>
 </tr>
 <tr>
 <td><code>--family-speed SIGMA</code></td>
@@ -824,7 +826,7 @@ with numeric values, as <code>zombi2 trait</code> writes). See
 <td>optional donor-side HGT-activity coupling: transfer scales by <code>exp(effect_gain · trait)</code> (default <code>0</code>)</td>
 </tr>
 <tr>
-<td><code>--output {profiles,trace,trees,events,transfers,summary,all}</code></td>
+<td><code>--write {profiles,trace,trees,events,transfers,summary,all}</code></td>
 <td>which gene-family files to write (default <code>profiles trees</code>); <code>traits.tsv</code> / <code>trait_tree.nwk</code> / <code>coupling.tsv</code> are always written too</td>
 </tr>
 <tr>
@@ -844,18 +846,18 @@ it on, and no pure-Python fallback for it (which keeps results reproducible agai
 The <code>genomes</code> command therefore needs the compiled <code>zombi2_core</code> extension; it is <strong>not</strong> built
 by <code>pip install</code>, so build it once (see <a href="#guide-rust-engine">the Rust engine</a>) or the command
 exits with a build hint.</p>
-<p><code>--output</code> selects which files to write — any of <code>profiles</code>, <code>trace</code>, <code>trees</code>, <code>events</code>,
+<p><code>--write</code> selects which files to write — any of <code>profiles</code>, <code>trace</code>, <code>trees</code>, <code>events</code>,
 <code>transfers</code>, <code>summary</code>, or <code>all</code> (default: <code>profiles trees</code>); <code>species_tree.nwk</code> is always
 written, and a component you don't ask for does no work (e.g. omitting <code>trees</code> skips the gene-tree
 reconstruction). Asking for <strong>only</strong> <code>profiles</code> takes the Rust counts-only fast path (no
 genealogy); <code>--sparse</code> then writes the profile as a scalable <code>Profiles_sparse.tsv</code> long table
 instead of the dense matrix:</p>
-<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--output<span class="w"> </span>all<span class="w"> </span>-o<span class="w"> </span>out/
-zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--output<span class="w"> </span>profiles<span class="w"> </span>--sparse<span class="w"> </span>-o<span class="w"> </span>out/
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--write<span class="w"> </span>all<span class="w"> </span>-o<span class="w"> </span>out/
+zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--write<span class="w"> </span>profiles<span class="w"> </span>--sparse<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <h3 id="the-event-trace-a-fast-intermediate-for-very-large-datasets">The event trace — a fast intermediate for very large datasets</h3>
-<p>Between the counts-only <code>profiles</code> and the full genealogy sits <strong><code>--output trace</code></strong>. It writes a
+<p>Between the counts-only <code>profiles</code> and the full genealogy sits <strong><code>--write trace</code></strong>. It writes a
 single compact file, <code>Events_trace.tsv</code> (one row per event: origination / duplication / transfer
 / loss / speciation, with the gene-lineage ids), instead of the per-family <code>gene_family_events/</code>
 directory — one file rather than one-per-family, so it scales to millions of families without an
@@ -864,11 +866,11 @@ per-event objects</strong>, which is the real bottleneck on large trees, so it r
 counts-only speed while the gene trees remain <strong>reconstructable later on demand</strong> from the trace.</p>
 <div class="codehilite"><pre><span></span><code><span class="c1"># fast: the event trace + the sparse profile, no gene trees</span>
 zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--output<span class="w"> </span>trace<span class="w"> </span>profiles<span class="w"> </span>--sparse<span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">    </span>--write<span class="w"> </span>trace<span class="w"> </span>profiles<span class="w"> </span>--sparse<span class="w"> </span>-o<span class="w"> </span>out/
 
 <span class="c1"># reconstruct the gene trees too (pays for the genealogy, still writes the trace file)</span>
 zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.25<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--output<span class="w"> </span>trace<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">    </span>--write<span class="w"> </span>trace<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <p>From the Python API the same thing is <code>simulate_genomes(tree, ..., output="trace")</code>, which returns
@@ -889,7 +891,7 @@ event length (<code>1/(1-extension)</code> nt). <code>--initial-size</code> seed
 <span class="w">    </span>--inversion<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.0006<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.0006<span class="w"> </span>--root-length<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
-<p><code>--output profiles</code> writes the emergent atom profile (<code>Profiles.tsv</code> / <code>Presence.tsv</code>, atoms ×
+<p><code>--write profiles</code> writes the emergent atom profile (<code>Profiles.tsv</code> / <code>Presence.tsv</code>, atoms ×
 species) plus <code>atoms.tsv</code> and the per-leaf <code>Mosaics.tsv</code>, taking the fast Rust path; the default
 <code>profiles trees</code> also writes the per-atom <code>gene_trees/</code> and their reconciliations
 (<code>Reconciled_complete.nwk</code> / <code>Reconciled_extant.nwk</code> / <code>Reconciliation_events.tsv</code>). <code>--sparse</code>
@@ -906,7 +908,7 @@ adds <code>genes.tsv</code> (the annotation), <code>Gene_trees/</code> and <code
 <code>kind</code>/<code>gene_id</code> column in <code>atoms.tsv</code>, and <code>Pseudogenizations.tsv</code>.</p>
 <div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--rate-model<span class="w"> </span>nucleotide<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--genes<span class="w"> </span>genes.tsv<span class="w"> </span>--pseudogenization<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--replacement<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--inversion<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.0008<span class="w"> </span>--output<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">    </span>--inversion<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.0008<span class="w"> </span>--write<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <p><strong>Starting from a real genome.</strong> <code>--gff FILE</code> copies a real annotation's chromosome length and
@@ -918,7 +920,20 @@ gzipped; for a chromosome-plus-plasmids file the most-annotated sequence is used
 <div class="codehilite"><pre><span></span><code><span class="c1"># evolve the E. coli K-12 chromosome (from its RefSeq GFF) along a tree</span>
 zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--rate-model<span class="w"> </span>nucleotide<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--gff<span class="w"> </span>ecoli.gff<span class="w"> </span>--inversion<span class="w"> </span>2e-6<span class="w"> </span>--loss<span class="w"> </span><span class="m">1</span>.5e-6<span class="w"> </span>--pseudogenization<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--output<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">    </span>--write<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
+</code></pre></div>
+
+<p><strong>Sequences and ancestral genomes.</strong> <code>--write ancestral</code> simulates the DNA and reconstructs the
+genome at <strong>every</strong> node of the tree (the root reproduces the input genome). It writes
+<code>Architecture/&lt;node&gt;.tsv</code> (each node's oriented gene/intergene mosaic), gzipped
+<code>Genomes/&lt;node&gt;.fasta.gz</code> (the full assembled DNA of every node), and <code>Gene_alignments/&lt;gene&gt;.fasta</code>
+(the extant per-gene alignments). Pick the substitution model with <code>--subst-model {jc69,k80,hky85,
+gtr}</code> (<code>--kappa</code>, <code>--base-freqs</code>, <code>--gtr-rates</code>, <code>--gamma-shape</code>, <code>--subst-rate</code>). <code>--genome-fasta
+FILE</code> seeds the root from the real genome DNA (so the reconstructed root is byte-identical to the
+input); without it, root sequences are drawn at random.</p>
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>out/species_tree.nwk<span class="w"> </span>--rate-model<span class="w"> </span>nucleotide<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--gff<span class="w"> </span>ecoli.gff<span class="w"> </span>--genome-fasta<span class="w"> </span>ecoli.fna<span class="w"> </span>--subst-model<span class="w"> </span>hky85<span class="w"> </span>--subst-rate<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--write<span class="w"> </span>ancestral<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <h2 id="scope">Scope</h2>
@@ -1020,7 +1035,7 @@ the standing diversity is wiped out at once. Give any forward model a <code>mass
 <li>A pulse of <code>fraction=1.0</code> wipes the whole tree out; the ≥2-survivor conditioning then rejects
   the run.</li>
 </ul>
-<p>CLI: <code>zombi2 species --model forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5 -o out/</code>.</p>
+<p>CLI: <code>zombi2 species --mode forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5 -o out/</code>.</p>
 <figure>
 <img alt="A forward tree hit by an instantaneous mass-extinction pulse" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIgogICAgIHdpZHRoPSIxMTgwIiBoZWlnaHQ9Ijc2MCIgdmlld0JveD0iMCAwIDExODAgNzYwIj4KPGRlZnM+CjwvZGVmcz4KPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjExODAiIGhlaWdodD0iNzYwIiBmaWxsPSJ3aGl0ZSIgLz4KPHRleHQgeD0iNDAiIHk9IjQwIiBmb250LXNpemU9IjIwIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiB0ZXh0LWFuY2hvcj0ic3RhcnQiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSIjMWExYTFhIj5UaGUgbWFzcy1leHRpbmN0aW9uIG1vZGVsIOKAlCBhbiBpbnN0YW50YW5lb3VzLCB0cmVlLXdpZGUgc3Vydml2YWwgcHVsc2U8L3RleHQ+Cjx0ZXh0IHg9IjQwIiB5PSI2NCIgZm9udC1zaXplPSIxMyIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9InN0YXJ0IiBmaWxsPSIjNzc3Ij5hdCBhIHNldCBhZ2UgYmVmb3JlIHRoZSBwcmVzZW50LCBldmVyeSBsaW5lYWdlIGluZGVwZW5kZW50bHkgZGllcyB3aXRoIHByb2JhYmlsaXR5IGY7ICBoZXJlIGYgPSAwLjggKDgwJSB3aXBlZCBvdXQpLiAgWk9NQkkyOiBCaXJ0aERlYXRoKC4uLiwgbWFzc19leHRpbmN0aW9ucz1bKGFnZSwgZildKTwvdGV4dD4KPHBhdGggZD0iTTEwMDAuMCw4OCBMMTAwMC4wLDY5NCIgc3Ryb2tlPSIjY2NjY2NjIiBzdHJva2Utd2lkdGg9IjEuMCIgc3Ryb2tlLWRhc2hhcnJheT0iMiw0IiAvPgo8cmVjdCB4PSI1NDEuMCIgeT0iODgiIHdpZHRoPSIxNCIgaGVpZ2h0PSI2MDYiIGZpbGw9IiNlOWU5ZTkiIC8+CjxwYXRoIGQ9Ik01NDguMCw4OCBMNTQ4LjAsNjk0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMS42IiBzdHJva2UtZGFzaGFycmF5PSI1LDQiIC8+CjxwYXRoIGQ9Ik04Mi4wLDEzNy41NjQ2Mzc4ODAwNjc1NSBMOTYuMCwxMzcuNTY0NjM3ODgwMDY3NTUiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTk2LjAsMTM3LjU2NDYzNzg4MDA2NzU1IEw5Ni4wLDE2NS44MzE5Nzg0NjI4Mzc4NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTYuMCwxMzcuNTY0NjM3ODgwMDY3NTUgTDk2LjAsMTA5LjI5NzI5NzI5NzI5NzI5IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNOTYuMCwxNjUuODMxOTc4NDYyODM3ODQgTDM1NC41MzY3MzQ0MTMxMzY3LDE2NS44MzE5Nzg0NjI4Mzc4NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNMzU0LjUzNjczNDQxMzEzNjcsMTY1LjgzMTk3ODQ2MjgzNzg0IEwzNTQuNTM2NzM0NDEzMTM2NywxOTcuMjA0NDk3NDY2MjE2MiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNMzU0LjUzNjczNDQxMzEzNjcsMTY1LjgzMTk3ODQ2MjgzNzg0IEwzNTQuNTM2NzM0NDEzMTM2NywxMzQuNDU5NDU5NDU5NDU5NDUiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik0zNTQuNTM2NzM0NDEzMTM2NywxOTcuMjA0NDk3NDY2MjE2MiBMMzk2LjYwODAwODk3MDgyODcsMTk3LjIwNDQ5NzQ2NjIxNjIiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTM5Ni42MDgwMDg5NzA4Mjg3LDE5Ny4yMDQ0OTc0NjYyMTYyIEwzOTYuNjA4MDA4OTcwODI4NywyMjEuNTQ0MTMwMDY3NTY3NTUiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTM5Ni42MDgwMDg5NzA4Mjg3LDE5Ny4yMDQ0OTc0NjYyMTYyIEwzOTYuNjA4MDA4OTcwODI4NywxNzIuODY0ODY0ODY0ODY0ODciIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik0zOTYuNjA4MDA4OTcwODI4NywyMjEuNTQ0MTMwMDY3NTY3NTUgTDQzNS45MjYyOTY1Njg1MDM4NiwyMjEuNTQ0MTMwMDY3NTY3NTUiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTQzNS45MjYyOTY1Njg1MDM4NiwyMjEuNTQ0MTMwMDY3NTY3NTUgTDQzNS45MjYyOTY1Njg1MDM4NiwxOTQuMDU0MDU0MDU0MDU0MDYiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik00MzUuOTI2Mjk2NTY4NTAzODYsMjIxLjU0NDEzMDA2NzU2NzU1IEw0MzUuOTI2Mjk2NTY4NTAzODYsMjQ5LjAzNDIwNjA4MTA4MTEiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTQzNS45MjYyOTY1Njg1MDM4NiwxOTQuMDU0MDU0MDU0MDU0MDYgTDU0My45OTI0NDYyOTgzMzU0LDE5NC4wNTQwNTQwNTQwNTQwNiIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0My45OTI0NDYyOTgzMzU0LDE5NC4wNTQwNTQwNTQwNTQwNiBMNTQzLjk5MjQ0NjI5ODMzNTQsMTg4Ljc1Njc1Njc1Njc1Njc3IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNTQzLjk5MjQ0NjI5ODMzNTQsMTk0LjA1NDA1NDA1NDA1NDA2IEw1NDMuOTkyNDQ2Mjk4MzM1NCwxOTkuMzUxMzUxMzUxMzUxMzUiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01NDMuOTkyNDQ2Mjk4MzM1NCwxODguNzU2NzU2NzU2NzU2NzcgTDU0OC4wLDE4OC43NTY3NTY3NTY3NTY3NyIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0My45OTI0NDYyOTgzMzU0LDE5OS4zNTEzNTEzNTEzNTEzNSBMNTQ4LjAsMTk5LjM1MTM1MTM1MTM1MTM1IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNDM1LjkyNjI5NjU2ODUwMzg2LDI0OS4wMzQyMDYwODEwODExIEw0NDEuODAyODU1NDE1NjQ5NzMsMjQ5LjAzNDIwNjA4MTA4MTEiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTQ0MS44MDI4NTU0MTU2NDk3MywyNDkuMDM0MjA2MDgxMDgxMSBMNDQxLjgwMjg1NTQxNTY0OTczLDIwOS45NDU5NDU5NDU5NDU5NCIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTQ0MS44MDI4NTU0MTU2NDk3MywyNDkuMDM0MjA2MDgxMDgxMSBMNDQxLjgwMjg1NTQxNTY0OTczLDI4OC4xMjI0NjYyMTYyMTYyNSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNDQxLjgwMjg1NTQxNTY0OTczLDIwOS45NDU5NDU5NDU5NDU5NCBMNTQ4LjAsMjA5Ljk0NTk0NTk0NTk0NTk0IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNDQxLjgwMjg1NTQxNTY0OTczLDI4OC4xMjI0NjYyMTYyMTYyNSBMNDc4LjQyNTQ1MzU0MzE3NDksMjg4LjEyMjQ2NjIxNjIxNjI1IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik00NzguNDI1NDUzNTQzMTc0OSwyODguMTIyNDY2MjE2MjE2MjUgTDQ3OC40MjU0NTM1NDMxNzQ5LDMzMS44NjY1NTQwNTQwNTQwNiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNDc4LjQyNTQ1MzU0MzE3NDksMjg4LjEyMjQ2NjIxNjIxNjI1IEw0NzguNDI1NDUzNTQzMTc0OSwyNDQuMzc4Mzc4Mzc4Mzc4NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNDc4LjQyNTQ1MzU0MzE3NDksMzMxLjg2NjU1NDA1NDA1NDA2IEw2NDEuNDY2ODI2MzE3MjY1NSwzMzEuODY2NTU0MDU0MDU0MDYiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY0MS40NjY4MjYzMTcyNjU1LDMzMS44NjY1NTQwNTQwNTQwNiBMNjQxLjQ2NjgyNjMxNzI2NTUsMzYyLjQwODc4Mzc4Mzc4MzgiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY0MS40NjY4MjYzMTcyNjU1LDMzMS44NjY1NTQwNTQwNTQwNiBMNjQxLjQ2NjgyNjMxNzI2NTUsMzAxLjMyNDMyNDMyNDMyNDMiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY0MS40NjY4MjYzMTcyNjU1LDM2Mi40MDg3ODM3ODM3ODM4IEw2ODMuODkwOTcyNTYzMTU5MiwzNjIuNDA4NzgzNzgzNzgzOCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNjgzLjg5MDk3MjU2MzE1OTIsMzYyLjQwODc4Mzc4Mzc4MzggTDY4My44OTA5NzI1NjMxNTkyLDMzNy4wODEwODEwODEwODExIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik02ODMuODkwOTcyNTYzMTU5MiwzNjIuNDA4NzgzNzgzNzgzOCBMNjgzLjg5MDk3MjU2MzE1OTIsMzg3LjczNjQ4NjQ4NjQ4NjUiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY4My44OTA5NzI1NjMxNTkyLDMzNy4wODEwODEwODEwODExIEwxMDAwLjAsMzM3LjA4MTA4MTA4MTA4MTEiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY4My44OTA5NzI1NjMxNTkyLDM4Ny43MzY0ODY0ODY0ODY1IEw3MzUuNzM2MTAwODQxMDAxNiwzODcuNzM2NDg2NDg2NDg2NSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzM1LjczNjEwMDg0MTAwMTYsMzg3LjczNjQ4NjQ4NjQ4NjUgTDczNS43MzYxMDA4NDEwMDE2LDQyMi41IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03MzUuNzM2MTAwODQxMDAxNiwzODcuNzM2NDg2NDg2NDg2NSBMNzM1LjczNjEwMDg0MTAwMTYsMzUyLjk3Mjk3Mjk3Mjk3Mjk3IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03MzUuNzM2MTAwODQxMDAxNiw0MjIuNSBMNzU1LjMwMzgwNzE2NzA3NzcsNDIyLjUiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTc1NS4zMDM4MDcxNjcwNzc3LDQyMi41IEw3NTUuMzAzODA3MTY3MDc3Nyw0NTguOTE4OTE4OTE4OTE4OSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzU1LjMwMzgwNzE2NzA3NzcsNDIyLjUgTDc1NS4zMDM4MDcxNjcwNzc3LDM4Ni4wODEwODEwODEwODExIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03NTUuMzAzODA3MTY3MDc3Nyw0NTguOTE4OTE4OTE4OTE4OSBMNzc2LjQ5MjU2MjI4MzA3NTYsNDU4LjkxODkxODkxODkxODkiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTc3Ni40OTI1NjIyODMwNzU2LDQ1OC45MTg5MTg5MTg5MTg5IEw3NzYuNDkyNTYyMjgzMDc1Niw0MzcuNzI5NzI5NzI5NzI5NzQiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTc3Ni40OTI1NjIyODMwNzU2LDQ1OC45MTg5MTg5MTg5MTg5IEw3NzYuNDkyNTYyMjgzMDc1Niw0ODAuMTA4MTA4MTA4MTA4MSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzc2LjQ5MjU2MjI4MzA3NTYsNDM3LjcyOTcyOTcyOTcyOTc0IEw5MTguMjM5NDg5MzAwNjIxNiw0MzcuNzI5NzI5NzI5NzI5NzQiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTkxOC4yMzk0ODkzMDA2MjE2LDQzNy43Mjk3Mjk3Mjk3Mjk3NCBMOTE4LjIzOTQ4OTMwMDYyMTYsNDI3LjEzNTEzNTEzNTEzNTE2IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MTguMjM5NDg5MzAwNjIxNiw0MzcuNzI5NzI5NzI5NzI5NzQgTDkxOC4yMzk0ODkzMDA2MjE2LDQ0OC4zMjQzMjQzMjQzMjQzIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MTguMjM5NDg5MzAwNjIxNiw0MjcuMTM1MTM1MTM1MTM1MTYgTDk1MC43ODQ2MzU5ODQxOTc0LDQyNy4xMzUxMzUxMzUxMzUxNiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTUwLjc4NDYzNTk4NDE5NzQsNDI3LjEzNTEzNTEzNTEzNTE2IEw5NTAuNzg0NjM1OTg0MTk3NCw0MjEuODM3ODM3ODM3ODM3ODciIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTk1MC43ODQ2MzU5ODQxOTc0LDQyNy4xMzUxMzUxMzUxMzUxNiBMOTUwLjc4NDYzNTk4NDE5NzQsNDMyLjQzMjQzMjQzMjQzMjQ1IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05NTAuNzg0NjM1OTg0MTk3NCw0MjEuODM3ODM3ODM3ODM3ODcgTDEwMDAuMCw0MjEuODM3ODM3ODM3ODM3ODciIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTk1MC43ODQ2MzU5ODQxOTc0LDQzMi40MzI0MzI0MzI0MzI0NSBMMTAwMC4wLDQzMi40MzI0MzI0MzI0MzI0NSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTE4LjIzOTQ4OTMwMDYyMTYsNDQ4LjMyNDMyNDMyNDMyNDMgTDkyMC44NTYyNzAwNjg0MzE0LDQ0OC4zMjQzMjQzMjQzMjQzIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MjAuODU2MjcwMDY4NDMxNCw0NDguMzI0MzI0MzI0MzI0MyBMOTIwLjg1NjI3MDA2ODQzMTQsNDQzLjAyNzAyNzAyNzAyNzAzIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MjAuODU2MjcwMDY4NDMxNCw0NDguMzI0MzI0MzI0MzI0MyBMOTIwLjg1NjI3MDA2ODQzMTQsNDUzLjYyMTYyMTYyMTYyMTYiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTkyMC44NTYyNzAwNjg0MzE0LDQ0My4wMjcwMjcwMjcwMjcwMyBMMTAwMC4wLDQ0My4wMjcwMjcwMjcwMjcwMyIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTIwLjg1NjI3MDA2ODQzMTQsNDUzLjYyMTYyMTYyMTYyMTYgTDEwMDAuMCw0NTMuNjIxNjIxNjIxNjIxNiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzc2LjQ5MjU2MjI4MzA3NTYsNDgwLjEwODEwODEwODEwODEgTDk3My45NjUxNTk4NjAzMjMzLDQ4MC4xMDgxMDgxMDgxMDgxIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05NzMuOTY1MTU5ODYwMzIzMyw0ODAuMTA4MTA4MTA4MTA4MSBMOTczLjk2NTE1OTg2MDMyMzMsNDY5LjUxMzUxMzUxMzUxMzU0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05NzMuOTY1MTU5ODYwMzIzMyw0ODAuMTA4MTA4MTA4MTA4MSBMOTczLjk2NTE1OTg2MDMyMzMsNDkwLjcwMjcwMjcwMjcwMjciIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTk3My45NjUxNTk4NjAzMjMzLDQ2OS41MTM1MTM1MTM1MTM1NCBMOTgyLjQ1MzA2NDgyOTE1NTksNDY5LjUxMzUxMzUxMzUxMzU0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05ODIuNDUzMDY0ODI5MTU1OSw0NjkuNTEzNTEzNTEzNTEzNTQgTDk4Mi40NTMwNjQ4MjkxNTU5LDQ2NC4yMTYyMTYyMTYyMTYyIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05ODIuNDUzMDY0ODI5MTU1OSw0NjkuNTEzNTEzNTEzNTEzNTQgTDk4Mi40NTMwNjQ4MjkxNTU5LDQ3NC44MTA4MTA4MTA4MTA4NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTgyLjQ1MzA2NDgyOTE1NTksNDY0LjIxNjIxNjIxNjIxNjIgTDEwMDAuMCw0NjQuMjE2MjE2MjE2MjE2MiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTgyLjQ1MzA2NDgyOTE1NTksNDc0LjgxMDgxMDgxMDgxMDg0IEwxMDAwLjAsNDc0LjgxMDgxMDgxMDgxMDg0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05NzMuOTY1MTU5ODYwMzIzMyw0OTAuNzAyNzAyNzAyNzAyNyBMOTg3LjA0NjQzNDcyODQ5MjgsNDkwLjcwMjcwMjcwMjcwMjciIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTk4Ny4wNDY0MzQ3Mjg0OTI4LDQ5MC43MDI3MDI3MDI3MDI3IEw5ODcuMDQ2NDM0NzI4NDkyOCw0ODUuNDA1NDA1NDA1NDA1NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTg3LjA0NjQzNDcyODQ5MjgsNDkwLjcwMjcwMjcwMjcwMjcgTDk4Ny4wNDY0MzQ3Mjg0OTI4LDQ5Ni4wIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05ODcuMDQ2NDM0NzI4NDkyOCw0ODUuNDA1NDA1NDA1NDA1NCBMMTAwMC4wLDQ4NS40MDU0MDU0MDU0MDU0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05ODcuMDQ2NDM0NzI4NDkyOCw0OTYuMCBMMTAwMC4wLDQ5Ni4wIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03NTUuMzAzODA3MTY3MDc3NywzODYuMDgxMDgxMDgxMDgxMSBMNzY4LjkxNTY1MTE3NzM4ODYsMzg2LjA4MTA4MTA4MTA4MTEiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTc2OC45MTU2NTExNzczODg2LDM4Ni4wODEwODEwODEwODExIEw3NjguOTE1NjUxMTc3Mzg4NiwzNzQuMTYyMTYyMTYyMTYyMiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzY4LjkxNTY1MTE3NzM4ODYsMzg2LjA4MTA4MTA4MTA4MTEgTDc2OC45MTU2NTExNzczODg2LDM5OC4wIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03NjguOTE1NjUxMTc3Mzg4NiwzNzQuMTYyMTYyMTYyMTYyMiBMOTAyLjg2Mzg5MzM1MzMwNDQsMzc0LjE2MjE2MjE2MjE2MjIiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTkwMi44NjM4OTMzNTMzMDQ0LDM3NC4xNjIxNjIxNjIxNjIyIEw5MDIuODYzODkzMzUzMzA0NCwzNjguODY0ODY0ODY0ODY0ODQiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTkwMi44NjM4OTMzNTMzMDQ0LDM3NC4xNjIxNjIxNjIxNjIyIEw5MDIuODYzODkzMzUzMzA0NCwzNzkuNDU5NDU5NDU5NDU5NSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTAyLjg2Mzg5MzM1MzMwNDQsMzY4Ljg2NDg2NDg2NDg2NDg0IEwxMDAwLjAsMzY4Ljg2NDg2NDg2NDg2NDg0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MDIuODYzODkzMzUzMzA0NCwzNzkuNDU5NDU5NDU5NDU5NSBMMTAwMC4wLDM3OS40NTk0NTk0NTk0NTk1IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03NjguOTE1NjUxMTc3Mzg4NiwzOTguMCBMODY1LjgwMjcyMDYzNTQyNTgsMzk4LjAiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTg2NS44MDI3MjA2MzU0MjU4LDM5OC4wIEw4NjUuODAyNzIwNjM1NDI1OCw0MDUuOTQ1OTQ1OTQ1OTQ1OTQiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTg2NS44MDI3MjA2MzU0MjU4LDM5OC4wIEw4NjUuODAyNzIwNjM1NDI1OCwzOTAuMDU0MDU0MDU0MDU0MDYiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTg2NS44MDI3MjA2MzU0MjU4LDQwNS45NDU5NDU5NDU5NDU5NCBMODY3LjUyNTM2NzUxMDIyODMsNDA1Ljk0NTk0NTk0NTk0NTk0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik04NjcuNTI1MzY3NTEwMjI4Myw0MDUuOTQ1OTQ1OTQ1OTQ1OTQgTDg2Ny41MjUzNjc1MTAyMjgzLDQwMC42NDg2NDg2NDg2NDg2NSIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTg2Ny41MjUzNjc1MTAyMjgzLDQwNS45NDU5NDU5NDU5NDU5NCBMODY3LjUyNTM2NzUxMDIyODMsNDExLjI0MzI0MzI0MzI0MzIiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTg2Ny41MjUzNjc1MTAyMjgzLDQwMC42NDg2NDg2NDg2NDg2NSBMOTM5LjA5MDc0NDc5NTg0MDEsNDAwLjY0ODY0ODY0ODY0ODY1IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNODY3LjUyNTM2NzUxMDIyODMsNDExLjI0MzI0MzI0MzI0MzIgTDEwMDAuMCw0MTEuMjQzMjQzMjQzMjQzMiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNODY1LjgwMjcyMDYzNTQyNTgsMzkwLjA1NDA1NDA1NDA1NDA2IEwxMDAwLjAsMzkwLjA1NDA1NDA1NDA1NDA2IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03MzUuNzM2MTAwODQxMDAxNiwzNTIuOTcyOTcyOTcyOTcyOTcgTDc3My40MTg1NDA5MDUwMzc4LDM1Mi45NzI5NzI5NzI5NzI5NyIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzczLjQxODU0MDkwNTAzNzgsMzUyLjk3Mjk3Mjk3Mjk3Mjk3IEw3NzMuNDE4NTQwOTA1MDM3OCwzNDcuNjc1Njc1Njc1Njc1NyIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTc3My40MTg1NDA5MDUwMzc4LDM1Mi45NzI5NzI5NzI5NzI5NyBMNzczLjQxODU0MDkwNTAzNzgsMzU4LjI3MDI3MDI3MDI3MDI2IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik03NzMuNDE4NTQwOTA1MDM3OCwzNDcuNjc1Njc1Njc1Njc1NyBMNzg2LjA2NTU3MDU4MjQ3OTgsMzQ3LjY3NTY3NTY3NTY3NTciIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik03NzMuNDE4NTQwOTA1MDM3OCwzNTguMjcwMjcwMjcwMjcwMjYgTDEwMDAuMCwzNTguMjcwMjcwMjcwMjcwMjYiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY0MS40NjY4MjYzMTcyNjU1LDMwMS4zMjQzMjQzMjQzMjQzIEw2NzAuNjU5Njc4ODczNDAwNSwzMDEuMzI0MzI0MzI0MzI0MyIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNjcwLjY1OTY3ODg3MzQwMDUsMzAxLjMyNDMyNDMyNDMyNDMgTDY3MC42NTk2Nzg4NzM0MDA1LDI4OS40MDU0MDU0MDU0MDU0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik02NzAuNjU5Njc4ODczNDAwNSwzMDEuMzI0MzI0MzI0MzI0MyBMNjcwLjY1OTY3ODg3MzQwMDUsMzEzLjI0MzI0MzI0MzI0MzIiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY3MC42NTk2Nzg4NzM0MDA1LDI4OS40MDU0MDU0MDU0MDU0IEw4NTIuMTk3MzYwOTkwNDE5NCwyODkuNDA1NDA1NDA1NDA1NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNODUyLjE5NzM2MDk5MDQxOTQsMjg5LjQwNTQwNTQwNTQwNTQgTDg1Mi4xOTczNjA5OTA0MTk0LDI4NC4xMDgxMDgxMDgxMDgxIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik04NTIuMTk3MzYwOTkwNDE5NCwyODkuNDA1NDA1NDA1NDA1NCBMODUyLjE5NzM2MDk5MDQxOTQsMjk0LjcwMjcwMjcwMjcwMjciIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTg1Mi4xOTczNjA5OTA0MTk0LDI4NC4xMDgxMDgxMDgxMDgxIEwxMDAwLjAsMjg0LjEwODEwODEwODEwODEiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTg1Mi4xOTczNjA5OTA0MTk0LDI5NC43MDI3MDI3MDI3MDI3IEwxMDAwLjAsMjk0LjcwMjcwMjcwMjcwMjciIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTY3MC42NTk2Nzg4NzM0MDA1LDMxMy4yNDMyNDMyNDMyNDMyIEw5MTEuODU4ODM2NjE4MTc4MywzMTMuMjQzMjQzMjQzMjQzMiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTExLjg1ODgzNjYxODE3ODMsMzEzLjI0MzI0MzI0MzI0MzIgTDkxMS44NTg4MzY2MTgxNzgzLDMwNS4yOTcyOTcyOTcyOTczIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MTEuODU4ODM2NjE4MTc4MywzMTMuMjQzMjQzMjQzMjQzMiBMOTExLjg1ODgzNjYxODE3ODMsMzIxLjE4OTE4OTE4OTE4OTE2IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MTEuODU4ODM2NjE4MTc4MywzMDUuMjk3Mjk3Mjk3Mjk3MyBMMTAwMC4wLDMwNS4yOTcyOTcyOTcyOTczIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05MTEuODU4ODM2NjE4MTc4MywzMjEuMTg5MTg5MTg5MTg5MTYgTDk1NS41NDY4OTQyNzE4NzQ1LDMyMS4xODkxODkxODkxODkxNiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTU1LjU0Njg5NDI3MTg3NDUsMzIxLjE4OTE4OTE4OTE4OTE2IEw5NTUuNTQ2ODk0MjcxODc0NSwzMTUuODkxODkxODkxODkxOSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNOTU1LjU0Njg5NDI3MTg3NDUsMzIxLjE4OTE4OTE4OTE4OTE2IEw5NTUuNTQ2ODk0MjcxODc0NSwzMjYuNDg2NDg2NDg2NDg2NDYiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik05NTUuNTQ2ODk0MjcxODc0NSwzMTUuODkxODkxODkxODkxOSBMMTAwMC4wLDMxNS44OTE4OTE4OTE4OTE5IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik05NTUuNTQ2ODk0MjcxODc0NSwzMjYuNDg2NDg2NDg2NDg2NDYgTDk4NS44MTc2NTY2OTA1NjAzLDMyNi40ODY0ODY0ODY0ODY0NiIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTQ3OC40MjU0NTM1NDMxNzQ5LDI0NC4zNzgzNzgzNzgzNzg0IEw0ODkuNTExNjgxNzI2MDYwMSwyNDQuMzc4Mzc4Mzc4Mzc4NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNDg5LjUxMTY4MTcyNjA2MDEsMjQ0LjM3ODM3ODM3ODM3ODQgTDQ4OS41MTE2ODE3MjYwNjAxLDIyOC40ODY0ODY0ODY0ODY0OCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNDg5LjUxMTY4MTcyNjA2MDEsMjQ0LjM3ODM3ODM3ODM3ODQgTDQ4OS41MTE2ODE3MjYwNjAxLDI2MC4yNzAyNzAyNzAyNzAyNiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNDg5LjUxMTY4MTcyNjA2MDEsMjI4LjQ4NjQ4NjQ4NjQ4NjQ4IEw1MDUuMzcwNzE4Mzk3MTc4MywyMjguNDg2NDg2NDg2NDg2NDgiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHBhdGggZD0iTTUwNS4zNzA3MTgzOTcxNzgzLDIyOC40ODY0ODY0ODY0ODY0OCBMNTA1LjM3MDcxODM5NzE3ODMsMjM2LjQzMjQzMjQzMjQzMjQyIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik01MDUuMzcwNzE4Mzk3MTc4MywyMjguNDg2NDg2NDg2NDg2NDggTDUwNS4zNzA3MTgzOTcxNzgzLDIyMC41NDA1NDA1NDA1NDA1NSIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTUwNS4zNzA3MTgzOTcxNzgzLDIzNi40MzI0MzI0MzI0MzI0MiBMNTQxLjgzMjIxNTgzOTE1OTMsMjM2LjQzMjQzMjQzMjQzMjQyIiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik01NDEuODMyMjE1ODM5MTU5MywyMzYuNDMyNDMyNDMyNDMyNDIgTDU0MS44MzIyMTU4MzkxNTkzLDIzMS4xMzUxMzUxMzUxMzUxMyIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0MS44MzIyMTU4MzkxNTkzLDIzNi40MzI0MzI0MzI0MzI0MiBMNTQxLjgzMjIxNTgzOTE1OTMsMjQxLjcyOTcyOTcyOTcyOTc0IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMi4wIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CjxwYXRoIGQ9Ik01NDEuODMyMjE1ODM5MTU5MywyMzEuMTM1MTM1MTM1MTM1MTMgTDU0OC4wLDIzMS4xMzUxMzUxMzUxMzUxMyIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0MS44MzIyMTU4MzkxNTkzLDI0MS43Mjk3Mjk3Mjk3Mjk3NCBMMTAwMC4wLDI0MS43Mjk3Mjk3Mjk3Mjk3NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNTA1LjM3MDcxODM5NzE3ODMsMjIwLjU0MDU0MDU0MDU0MDU1IEw1NDguMCwyMjAuNTQwNTQwNTQwNTQwNTUiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik00ODkuNTExNjgxNzI2MDYwMSwyNjAuMjcwMjcwMjcwMjcwMjYgTDUwNC4zOTQ0MTk4MzAyMDEzLDI2MC4yNzAyNzAyNzAyNzAyNiIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNTA0LjM5NDQxOTgzMDIwMTMsMjYwLjI3MDI3MDI3MDI3MDI2IEw1MDQuMzk0NDE5ODMwMjAxMywyNTIuMzI0MzI0MzI0MzI0MzIiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01MDQuMzk0NDE5ODMwMjAxMywyNjAuMjcwMjcwMjcwMjcwMjYgTDUwNC4zOTQ0MTk4MzAyMDEzLDI2OC4yMTYyMTYyMTYyMTYyNSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNTA0LjM5NDQxOTgzMDIwMTMsMjUyLjMyNDMyNDMyNDMyNDMyIEw1NDguMCwyNTIuMzI0MzI0MzI0MzI0MzIiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01MDQuMzk0NDE5ODMwMjAxMywyNjguMjE2MjE2MjE2MjE2MjUgTDc2NC45MTgyNDI1NDkyMzQ1LDI2OC4yMTYyMTYyMTYyMTYyNSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzY0LjkxODI0MjU0OTIzNDUsMjY4LjIxNjIxNjIxNjIxNjI1IEw3NjQuOTE4MjQyNTQ5MjM0NSwyNjIuOTE4OTE4OTE4OTE4OTYiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik03NjQuOTE4MjQyNTQ5MjM0NSwyNjguMjE2MjE2MjE2MjE2MjUgTDc2NC45MTgyNDI1NDkyMzQ1LDI3My41MTM1MTM1MTM1MTM1NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNNzY0LjkxODI0MjU0OTIzNDUsMjYyLjkxODkxODkxODkxODk2IEw4NTEuODIzNzQxOTAyMjc4LDI2Mi45MTg5MTg5MTg5MTg5NiIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTc2NC45MTgyNDI1NDkyMzQ1LDI3My41MTM1MTM1MTM1MTM1NCBMMTAwMC4wLDI3My41MTM1MTM1MTM1MTM1NCIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjIuMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8cGF0aCBkPSJNMzk2LjYwODAwODk3MDgyODcsMTcyLjg2NDg2NDg2NDg2NDg3IEw0MzEuNjYyNDM5NTcyNzQ0NSwxNzIuODY0ODY0ODY0ODY0ODciIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik00MzEuNjYyNDM5NTcyNzQ0NSwxNzIuODY0ODY0ODY0ODY0ODcgTDQzMS42NjI0Mzk1NzI3NDQ1LDE2Ny41Njc1Njc1Njc1Njc1NSIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTQzMS42NjI0Mzk1NzI3NDQ1LDE3Mi44NjQ4NjQ4NjQ4NjQ4NyBMNDMxLjY2MjQzOTU3Mjc0NDUsMTc4LjE2MjE2MjE2MjE2MjE2IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNDMxLjY2MjQzOTU3Mjc0NDUsMTY3LjU2NzU2NzU2NzU2NzU1IEw0NzQuMjI0NDM2NzgwMjcwNSwxNjcuNTY3NTY3NTY3NTY3NTUiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik00MzEuNjYyNDM5NTcyNzQ0NSwxNzguMTYyMTYyMTYyMTYyMTYgTDQ1Ni45NTk5ODg3NDEyNzc2LDE3OC4xNjIxNjIxNjIxNjIxNiIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTM1NC41MzY3MzQ0MTMxMzY3LDEzNC40NTk0NTk0NTk0NTk0NSBMNDk1LjAxMDg5MDk5MTkxMDIsMTM0LjQ1OTQ1OTQ1OTQ1OTQ1IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNDk1LjAxMDg5MDk5MTkxMDIsMTM0LjQ1OTQ1OTQ1OTQ1OTQ1IEw0OTUuMDEwODkwOTkxOTEwMiwxNDMuNzI5NzI5NzI5NzI5NzQiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik00OTUuMDEwODkwOTkxOTEwMiwxMzQuNDU5NDU5NDU5NDU5NDUgTDQ5NS4wMTA4OTA5OTE5MTAyLDEyNS4xODkxODkxODkxODkyIiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNDk1LjAxMDg5MDk5MTkxMDIsMTQzLjcyOTcyOTcyOTcyOTc0IEw1MTguODczNjU0MTAzNzgxNiwxNDMuNzI5NzI5NzI5NzI5NzQiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01MTguODczNjU0MTAzNzgxNiwxNDMuNzI5NzI5NzI5NzI5NzQgTDUxOC44NzM2NTQxMDM3ODE2LDEzNS43ODM3ODM3ODM3ODM3OCIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTUxOC44NzM2NTQxMDM3ODE2LDE0My43Mjk3Mjk3Mjk3Mjk3NCBMNTE4Ljg3MzY1NDEwMzc4MTYsMTUxLjY3NTY3NTY3NTY3NTY4IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNTE4Ljg3MzY1NDEwMzc4MTYsMTM1Ljc4Mzc4Mzc4Mzc4Mzc4IEw1NDguMCwxMzUuNzgzNzgzNzgzNzgzNzgiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01MTguODczNjU0MTAzNzgxNiwxNTEuNjc1Njc1Njc1Njc1NjggTDU0Ni42OTU4OTQ4NjczNTEzLDE1MS42NzU2NzU2NzU2NzU2OCIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0Ni42OTU4OTQ4NjczNTEzLDE1MS42NzU2NzU2NzU2NzU2OCBMNTQ2LjY5NTg5NDg2NzM1MTMsMTQ2LjM3ODM3ODM3ODM3ODQiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01NDYuNjk1ODk0ODY3MzUxMywxNTEuNjc1Njc1Njc1Njc1NjggTDU0Ni42OTU4OTQ4NjczNTEzLDE1Ni45NzI5NzI5NzI5NzI5NyIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0Ni42OTU4OTQ4NjczNTEzLDE0Ni4zNzgzNzgzNzgzNzg0IEw1NDguMCwxNDYuMzc4Mzc4Mzc4Mzc4NCIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTU0Ni42OTU4OTQ4NjczNTEzLDE1Ni45NzI5NzI5NzI5NzI5NyBMNTQ4LjAsMTU2Ljk3Mjk3Mjk3Mjk3Mjk3IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNDk1LjAxMDg5MDk5MTkxMDIsMTI1LjE4OTE4OTE4OTE4OTIgTDU0OC4wLDEyNS4xODkxODkxODkxODkyIiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNOTYuMCwxMDkuMjk3Mjk3Mjk3Mjk3MjkgTDUwOS4wNjkzMzE3MDA0NDkyLDEwOS4yOTcyOTcyOTcyOTcyOSIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiBzdHJva2UtbGluZWNhcD0iYnV0dCIgLz4KPHBhdGggZD0iTTUwOS4wNjkzMzE3MDA0NDkyLDEwOS4yOTcyOTcyOTcyOTcyOSBMNTA5LjA2OTMzMTcwMDQ0OTIsMTA0LjAiIHN0cm9rZT0iIzlhOWE5YSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1kYXNoYXJyYXk9IjYsNSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiIC8+CjxwYXRoIGQ9Ik01MDkuMDY5MzMxNzAwNDQ5MiwxMDkuMjk3Mjk3Mjk3Mjk3MjkgTDUwOS4wNjkzMzE3MDA0NDkyLDExNC41OTQ1OTQ1OTQ1OTQ2IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNTA5LjA2OTMzMTcwMDQ0OTIsMTA0LjAgTDU0OC4wLDEwNC4wIiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8cGF0aCBkPSJNNTA5LjA2OTMzMTcwMDQ0OTIsMTE0LjU5NDU5NDU5NDU5NDYgTDU0OC4wLDExNC41OTQ1OTQ1OTQ1OTQ2IiBzdHJva2U9IiM5YTlhOWEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtZGFzaGFycmF5PSI2LDUiIHN0cm9rZS1saW5lY2FwPSJidXR0IiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjE4OC43NTY3NTY3NTY3NTY3NyIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjE5OS4zNTEzNTEzNTEzNTEzNSIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjIwOS45NDU5NDU5NDU5NDU5NCIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjIzMS4xMzUxMzUxMzUxMzUxMyIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjIyMC41NDA1NDA1NDA1NDA1NSIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjI1Mi4zMjQzMjQzMjQzMjQzMiIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjEzNS43ODM3ODM3ODM3ODM3OCIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjE0Ni4zNzgzNzgzNzgzNzg0IiByPSIzLjAiIGZpbGw9IiMxYTFhMWEiIC8+CjxjaXJjbGUgY3g9IjU0OC4wIiBjeT0iMTU2Ljk3Mjk3Mjk3Mjk3Mjk3IiByPSIzLjAiIGZpbGw9IiMxYTFhMWEiIC8+CjxjaXJjbGUgY3g9IjU0OC4wIiBjeT0iMTI1LjE4OTE4OTE4OTE4OTIiIHI9IjMuMCIgZmlsbD0iIzFhMWExYSIgLz4KPGNpcmNsZSBjeD0iNTQ4LjAiIGN5PSIxMDQuMCIgcj0iMy4wIiBmaWxsPSIjMWExYTFhIiAvPgo8Y2lyY2xlIGN4PSI1NDguMCIgY3k9IjExNC41OTQ1OTQ1OTQ1OTQ2IiByPSIzLjAiIGZpbGw9IiMxYTFhMWEiIC8+Cjx0ZXh0IHg9IjU0OC4wIiB5PSI4MCIgZm9udC1zaXplPSIxNCIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMxYTFhMWEiPm1hc3MgZXh0aW5jdGlvbjwvdGV4dD4KPHRleHQgeD0iNTM2LjAiIHk9IjEwMC4wIiBmb250LXNpemU9IjEyIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiB0ZXh0LWFuY2hvcj0iZW5kIiBmaWxsPSIjNTU1Ij4xMiBsaW5lYWdlcyBkaWUgYXQgdGhlIHB1bHNlPC90ZXh0Pgo8dGV4dCB4PSIxMDA4LjAiIHk9IjEwMC4wIiBmb250LXNpemU9IjEyIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiB0ZXh0LWFuY2hvcj0ic3RhcnQiIGZpbGw9IiM1NTUiPjIwIHN1cnZpdmUgdG8gdGhlIHByZXNlbnQ8L3RleHQ+CjxwYXRoIGQ9Ik05Niw2OTQgTDEwMDAsNjk0IiBzdHJva2U9IiNiZGJkYmQiIHN0cm9rZS13aWR0aD0iMS4yIiAvPgo8cGF0aCBkPSJNOTYsNTY2IEw5Niw2OTQiIHN0cm9rZT0iI2JkYmRiZCIgc3Ryb2tlLXdpZHRoPSIxLjIiIC8+CjxwYXRoIGQ9Ik05Ni4wLDY5NC4wIEw5Ny4yOTE0Mjg1NzE0Mjg1Nyw2ODEuMiBMOTguNTgyODU3MTQyODU3MTQsNjgxLjIgTDk5Ljg3NDI4NTcxNDI4NTcyLDY4MS4yIEwxMDEuMTY1NzE0Mjg1NzE0MjksNjgxLjIgTDEwMi40NTcxNDI4NTcxNDI4Niw2ODEuMiBMMTAzLjc0ODU3MTQyODU3MTQyLDY4MS4yIEwxMDUuMDQsNjgxLjIgTDEwNi4zMzE0Mjg1NzE0Mjg1Nyw2ODEuMiBMMTA3LjYyMjg1NzE0Mjg1NzE0LDY4MS4yIEwxMDguOTE0Mjg1NzE0Mjg1NzEsNjgxLjIgTDExMC4yMDU3MTQyODU3MTQzLDY4MS4yIEwxMTEuNDk3MTQyODU3MTQyODYsNjgxLjIgTDExMi43ODg1NzE0Mjg1NzE0Myw2ODEuMiBMMTE0LjA4LDY4MS4yIEwxMTUuMzcxNDI4NTcxNDI4NTcsNjgxLjIgTDExNi42NjI4NTcxNDI4NTcxNSw2ODEuMiBMMTE3Ljk1NDI4NTcxNDI4NTcyLDY4MS4yIEwxMTkuMjQ1NzE0Mjg1NzE0MjksNjgxLjIgTDEyMC41MzcxNDI4NTcxNDI4NSw2ODEuMiBMMTIxLjgyODU3MTQyODU3MTQyLDY4MS4yIEwxMjMuMTIsNjgxLjIgTDEyNC40MTE0Mjg1NzE0Mjg1Nyw2ODEuMiBMMTI1LjcwMjg1NzE0Mjg1NzE0LDY4MS4yIEwxMjYuOTk0Mjg1NzE0Mjg1NzIsNjgxLjIgTDEyOC4yODU3MTQyODU3MTQyOCw2ODEuMiBMMTI5LjU3NzE0Mjg1NzE0Mjg2LDY4MS4yIEwxMzAuODY4NTcxNDI4NTcxNDQsNjgxLjIgTDEzMi4xNiw2ODEuMiBMMTMzLjQ1MTQyODU3MTQyODU4LDY4MS4yIEwxMzQuNzQyODU3MTQyODU3MTMsNjgxLjIgTDEzNi4wMzQyODU3MTQyODU3Miw2ODEuMiBMMTM3LjMyNTcxNDI4NTcxNDMsNjgxLjIgTDEzOC42MTcxNDI4NTcxNDI4NSw2ODEuMiBMMTM5LjkwODU3MTQyODU3MTQzLDY4MS4yIEwxNDEuMiw2ODEuMiBMMTQyLjQ5MTQyODU3MTQyODU3LDY4MS4yIEwxNDMuNzgyODU3MTQyODU3MTUsNjgxLjIgTDE0NS4wNzQyODU3MTQyODU3LDY4MS4yIEwxNDYuMzY1NzE0Mjg1NzE0Myw2ODEuMiBMMTQ3LjY1NzE0Mjg1NzE0Mjg0LDY4MS4yIEwxNDguOTQ4NTcxNDI4NTcxNDMsNjgxLjIgTDE1MC4yNCw2ODEuMiBMMTUxLjUzMTQyODU3MTQyODU2LDY4MS4yIEwxNTIuODIyODU3MTQyODU3MTUsNjgxLjIgTDE1NC4xMTQyODU3MTQyODU3Myw2ODEuMiBMMTU1LjQwNTcxNDI4NTcxNDI4LDY4MS4yIEwxNTYuNjk3MTQyODU3MTQyODYsNjgxLjIgTDE1Ny45ODg1NzE0Mjg1NzE0NSw2ODEuMiBMMTU5LjI4LDY4MS4yIEwxNjAuNTcxNDI4NTcxNDI4NTYsNjgxLjIgTDE2MS44NjI4NTcxNDI4NTcxNCw2ODEuMiBMMTYzLjE1NDI4NTcxNDI4NTcyLDY4MS4yIEwxNjQuNDQ1NzE0Mjg1NzE0MjcsNjgxLjIgTDE2NS43MzcxNDI4NTcxNDI4OSw2ODEuMiBMMTY3LjAyODU3MTQyODU3MTQsNjgxLjIgTDE2OC4zMiw2ODEuMiBMMTY5LjYxMTQyODU3MTQyODU4LDY4MS4yIEwxNzAuOTAyODU3MTQyODU3MTYsNjgxLjIgTDE3Mi4xOTQyODU3MTQyODU3LDY4MS4yIEwxNzMuNDg1NzE0Mjg1NzE0MjcsNjgxLjIgTDE3NC43NzcxNDI4NTcxNDI4NSw2ODEuMiBMMTc2LjA2ODU3MTQyODU3MTQzLDY4MS4yIEwxNzcuMzYsNjgxLjIgTDE3OC42NTE0Mjg1NzE0Mjg1Nyw2ODEuMiBMMTc5Ljk0Mjg1NzE0Mjg1NzE1LDY4MS4yIEwxODEuMjM0Mjg1NzE0Mjg1Nyw2ODEuMiBMMTgyLjUyNTcxNDI4NTcxNDMsNjgxLjIgTDE4My44MTcxNDI4NTcxNDI4Nyw2ODEuMiBMMTg1LjEwODU3MTQyODU3MTQ1LDY4MS4yIEwxODYuNCw2ODEuMiBMMTg3LjY5MTQyODU3MTQyODU2LDY4MS4yIEwxODguOTgyODU3MTQyODU3MTQsNjgxLjIgTDE5MC4yNzQyODU3MTQyODU3Miw2ODEuMiBMMTkxLjU2NTcxNDI4NTcxNDMsNjgxLjIgTDE5Mi44NTcxNDI4NTcxNDI4Myw2ODEuMiBMMTk0LjE0ODU3MTQyODU3MTQyLDY4MS4yIEwxOTUuNDQsNjgxLjIgTDE5Ni43MzE0Mjg1NzE0Mjg1OCw2ODEuMiBMMTk4LjAyMjg1NzE0Mjg1NzEzLDY4MS4yIEwxOTkuMzE0Mjg1NzE0Mjg1NzIsNjgxLjIgTDIwMC42MDU3MTQyODU3MTQzLDY4MS4yIEwyMDEuODk3MTQyODU3MTQyODUsNjgxLjIgTDIwMy4xODg1NzE0Mjg1NzE0NCw2ODEuMiBMMjA0LjQ4LDY4MS4yIEwyMDUuNzcxNDI4NTcxNDI4NTQsNjgxLjIgTDIwNy4wNjI4NTcxNDI4NTcxMyw2ODEuMiBMMjA4LjM1NDI4NTcxNDI4NTcsNjgxLjIgTDIwOS42NDU3MTQyODU3MTQzLDY4MS4yIEwyMTAuOTM3MTQyODU3MTQyODcsNjgxLjIgTDIxMi4yMjg1NzE0Mjg1NzE0Niw2ODEuMiBMMjEzLjUyLDY4MS4yIEwyMTQuODExNDI4NTcxNDI4NTYsNjgxLjIgTDIxNi4xMDI4NTcxNDI4NTcxNSw2ODEuMiBMMjE3LjM5NDI4NTcxNDI4NTczLDY4MS4yIEwyMTguNjg1NzE0Mjg1NzE0Myw2ODEuMiBMMjE5Ljk3NzE0Mjg1NzE0Mjg3LDY4MS4yIEwyMjEuMjY4NTcxNDI4NTcxNDIsNjgxLjIgTDIyMi41Niw2ODEuMiBMMjIzLjg1MTQyODU3MTQyODU4LDY4MS4yIEwyMjUuMTQyODU3MTQyODU3MTQsNjgxLjIgTDIyNi40MzQyODU3MTQyODU3Miw2ODEuMiBMMjI3LjcyNTcxNDI4NTcxNDI4LDY4MS4yIEwyMjkuMDE3MTQyODU3MTQyODYsNjgxLjIgTDIzMC4zMDg1NzE0Mjg1NzE0NCw2ODEuMiBMMjMxLjYsNjgxLjIgTDIzMi44OTE0Mjg1NzE0Mjg1NSw2ODEuMiBMMjM0LjE4Mjg1NzE0Mjg1NzEzLDY4MS4yIEwyMzUuNDc0Mjg1NzE0Mjg1NzQsNjgxLjIgTDIzNi43NjU3MTQyODU3MTQzLDY4MS4yIEwyMzguMDU3MTQyODU3MTQyODUsNjgxLjIgTDIzOS4zNDg1NzE0Mjg1NzE0LDY4MS4yIEwyNDAuNjQwMDAwMDAwMDAwMDEsNjgxLjIgTDI0MS45MzE0Mjg1NzE0Mjg1Nyw2ODEuMiBMMjQzLjIyMjg1NzE0Mjg1NzE1LDY4MS4yIEwyNDQuNTE0Mjg1NzE0Mjg1Nyw2ODEuMiBMMjQ1LjgwNTcxNDI4NTcxNDMsNjgxLjIgTDI0Ny4wOTcxNDI4NTcxNDI4Nyw2ODEuMiBMMjQ4LjM4ODU3MTQyODU3MTQyLDY4MS4yIEwyNDkuNjc5OTk5OTk5OTk5OTgsNjgxLjIgTDI1MC45NzE0Mjg1NzE0Mjg1Niw2ODEuMiBMMjUyLjI2Mjg1NzE0Mjg1NzE3LDY4MS4yIEwyNTMuNTU0Mjg1NzE0Mjg1NzMsNjgxLjIgTDI1NC44NDU3MTQyODU3MTQyOCw2ODEuMiBMMjU2LjEzNzE0Mjg1NzE0Mjg2LDY4MS4yIEwyNTcuNDI4NTcxNDI4NTcxNDQsNjgxLjIgTDI1OC43Miw2ODEuMiBMMjYwLjAxMTQyODU3MTQyODYsNjgxLjIgTDI2MS4zMDI4NTcxNDI4NTcxNCw2ODEuMiBMMjYyLjU5NDI4NTcxNDI4NTcsNjgxLjIgTDI2My44ODU3MTQyODU3MTQzLDY4MS4yIEwyNjUuMTc3MTQyODU3MTQyOCw2ODEuMiBMMjY2LjQ2ODU3MTQyODU3MTQsNjgxLjIgTDI2Ny43Niw2ODEuMiBMMjY5LjA1MTQyODU3MTQyODYsNjgxLjIgTDI3MC4zNDI4NTcxNDI4NTcxNiw2ODEuMiBMMjcxLjYzNDI4NTcxNDI4NTc0LDY4MS4yIEwyNzIuOTI1NzE0Mjg1NzE0MjYsNjgxLjIgTDI3NC4yMTcxNDI4NTcxNDI5LDY4MS4yIEwyNzUuNTA4NTcxNDI4NTcxNDMsNjgxLjIgTDI3Ni44LDY4MS4yIEwyNzguMDkxNDI4NTcxNDI4NTQsNjgxLjIgTDI3OS4zODI4NTcxNDI4NTcxLDY4MS4yIEwyODAuNjc0Mjg1NzE0Mjg1Nyw2ODEuMiBMMjgxLjk2NTcxNDI4NTcxNDMsNjgxLjIgTDI4My4yNTcxNDI4NTcxNDI4Nyw2ODEuMiBMMjg0LjU0ODU3MTQyODU3MTQ1LDY4MS4yIEwyODUuODQwMDAwMDAwMDAwMDMsNjgxLjIgTDI4Ny4xMzE0Mjg1NzE0Mjg2LDY4MS4yIEwyODguNDIyODU3MTQyODU3MTQsNjgxLjIgTDI4OS43MTQyODU3MTQyODU2Nyw2ODEuMiBMMjkxLjAwNTcxNDI4NTcxNDI1LDY4MS4yIEwyOTIuMjk3MTQyODU3MTQyODMsNjgxLjIgTDI5My41ODg1NzE0Mjg1NzE0LDY4MS4yIEwyOTQuODgsNjgxLjIgTDI5Ni4xNzE0Mjg1NzE0Mjg2LDY4MS4yIEwyOTcuNDYyODU3MTQyODU3MTYsNjgxLjIgTDI5OC43NTQyODU3MTQyODU3NCw2ODEuMiBMMzAwLjA0NTcxNDI4NTcxNDI3LDY4MS4yIEwzMDEuMzM3MTQyODU3MTQyODUsNjgxLjIgTDMwMi42Mjg1NzE0Mjg1NzE0Myw2ODEuMiBMMzAzLjkxOTk5OTk5OTk5OTk2LDY4MS4yIEwzMDUuMjExNDI4NTcxNDI4Niw2ODEuMiBMMzA2LjUwMjg1NzE0Mjg1NzEsNjgxLjIgTDMwNy43OTQyODU3MTQyODU3LDY4MS4yIEwzMDkuMDg1NzE0Mjg1NzE0Myw2ODEuMiBMMzEwLjM3NzE0Mjg1NzE0Mjg3LDY4MS4yIEwzMTEuNjY4NTcxNDI4NTcxNDUsNjgxLjIgTDMxMi45Niw2ODEuMiBMMzE0LjI1MTQyODU3MTQyODU2LDY4MS4yIEwzMTUuNTQyODU3MTQyODU3MSw2ODEuMiBMMzE2LjgzNDI4NTcxNDI4NTcsNjgxLjIgTDMxOC4xMjU3MTQyODU3MTQyNSw2ODEuMiBMMzE5LjQxNzE0Mjg1NzE0Mjg0LDY4MS4yIEwzMjAuNzA4NTcxNDI4NTcxNCw2ODEuMiBMMzIyLjAsNjgxLjIgTDMyMy4yOTE0Mjg1NzE0Mjg2LDY4MS4yIEwzMjQuNTgyODU3MTQyODU3MTYsNjgxLjIgTDMyNS44NzQyODU3MTQyODU3NSw2ODEuMiBMMzI3LjE2NTcxNDI4NTcxNDIsNjgxLjIgTDMyOC40NTcxNDI4NTcxNDI5LDY4MS4yIEwzMjkuNzQ4NTcxNDI4NTcxNCw2ODEuMiBMMzMxLjA0LDY4MS4yIEwzMzIuMzMxNDI4NTcxNDI4Niw2ODEuMiBMMzMzLjYyMjg1NzE0Mjg1NzEzLDY4MS4yIEwzMzQuOTE0Mjg1NzE0Mjg1Nyw2ODEuMiBMMzM2LjIwNTcxNDI4NTcxNDMsNjgxLjIgTDMzNy40OTcxNDI4NTcxNDI5LDY4MS4yIEwzMzguNzg4NTcxNDI4NTcxNDYsNjgxLjIgTDM0MC4wODAwMDAwMDAwMDAwNCw2ODEuMiBMMzQxLjM3MTQyODU3MTQyODYsNjgxLjIgTDM0Mi42NjI4NTcxNDI4NTcxNSw2ODEuMiBMMzQzLjk1NDI4NTcxNDI4NTczLDY4MS4yIEwzNDUuMjQ1NzE0Mjg1NzE0MjYsNjgxLjIgTDM0Ni41MzcxNDI4NTcxNDI4NCw2ODEuMiBMMzQ3LjgyODU3MTQyODU3MTQsNjgxLjIgTDM0OS4xMiw2ODEuMiBMMzUwLjQxMTQyODU3MTQyODYsNjgxLjIgTDM1MS43MDI4NTcxNDI4NTcxNyw2ODEuMiBMMzUyLjk5NDI4NTcxNDI4NTc1LDY4MS4yIEwzNTQuMjg1NzE0Mjg1NzE0Myw2ODEuMiBMMzU1LjU3NzE0Mjg1NzE0Mjg2LDY3NC44IEwzNTYuODY4NTcxNDI4NTcxNDQsNjc0LjggTDM1OC4xNTk5OTk5OTk5OTk5Nyw2NzQuOCBMMzU5LjQ1MTQyODU3MTQyODU1LDY3NC44IEwzNjAuNzQyODU3MTQyODU3MTMsNjc0LjggTDM2Mi4wMzQyODU3MTQyODU3LDY3NC44IEwzNjMuMzI1NzE0Mjg1NzE0Myw2NzQuOCBMMzY0LjYxNzE0Mjg1NzE0MjksNjc0LjggTDM2NS45MDg1NzE0Mjg1NzE0Niw2NzQuOCBMMzY3LjIsNjc0LjggTDM2OC40OTE0Mjg1NzE0Mjg1Nyw2NzQuOCBMMzY5Ljc4Mjg1NzE0Mjg1NzEsNjc0LjggTDM3MS4wNzQyODU3MTQyODU3LDY3NC44IEwzNzIuMzY1NzE0Mjg1NzE0MjYsNjc0LjggTDM3My42NTcxNDI4NTcxNDI5LDY3NC44IEwzNzQuOTQ4NTcxNDI4NTcxNSw2NzQuOCBMMzc2LjI0LDY3NC44IEwzNzcuNTMxNDI4NTcxNDI4Niw2NzQuOCBMMzc4LjgyMjg1NzE0Mjg1NzEsNjc0LjggTDM4MC4xMTQyODU3MTQyODU3LDY3NC44IEwzODEuNDA1NzE0Mjg1NzE0Myw2NzQuOCBMMzgyLjY5NzE0Mjg1NzE0MjgsNjc0LjggTDM4My45ODg1NzE0Mjg1NzE0NSw2NzQuOCBMMzg1LjI4MDAwMDAwMDAwMDAzLDY3NC44IEwzODYuNTcxNDI4NTcxNDI4Niw2NzQuOCBMMzg3Ljg2Mjg1NzE0Mjg1NzE0LDY3NC44IEwzODkuMTU0Mjg1NzE0Mjg1Nyw2NzQuOCBMMzkwLjQ0NTcxNDI4NTcxNDMsNjc0LjggTDM5MS43MzcxNDI4NTcxNDI4LDY3NC44IEwzOTMuMDI4NTcxNDI4NTcxNCw2NzQuOCBMMzk0LjMxOTk5OTk5OTk5OTk0LDY3NC44IEwzOTUuNjExNDI4NTcxNDI4Niw2NzQuOCBMMzk2LjkwMjg1NzE0Mjg1NzE2LDY2OC40IEwzOTguMTk0Mjg1NzE0Mjg1NzQsNjY4LjQgTDM5OS40ODU3MTQyODU3MTQzLDY2OC40IEw0MDAuNzc3MTQyODU3MTQyODUsNjY4LjQgTDQwMi4wNjg1NzE0Mjg1NzE0Myw2NjguNCBMNDAzLjM1OTk5OTk5OTk5OTk2LDY2OC40IEw0MDQuNjUxNDI4NTcxNDI4NTQsNjY4LjQgTDQwNS45NDI4NTcxNDI4NTcxLDY2OC40IEw0MDcuMjM0Mjg1NzE0Mjg1NzYsNjY4LjQgTDQwOC41MjU3MTQyODU3MTQzNCw2NjguNCBMNDA5LjgxNzE0Mjg1NzE0Mjg3LDY2OC40IEw0MTEuMTA4NTcxNDI4NTcxNDUsNjY4LjQgTDQxMi40LDY2OC40IEw0MTMuNjkxNDI4NTcxNDI4NTYsNjY4LjQgTDQxNC45ODI4NTcxNDI4NTcxNCw2NjguNCBMNDE2LjI3NDI4NTcxNDI4NTY3LDY2OC40IEw0MTcuNTY1NzE0Mjg1NzE0MjUsNjY4LjQgTDQxOC44NTcxNDI4NTcxNDI5LDY2OC40IEw0MjAuMTQ4NTcxNDI4NTcxNSw2NjguNCBMNDIxLjQ0LDY2OC40IEw0MjIuNzMxNDI4NTcxNDI4Niw2NjguNCBMNDI0LjAyMjg1NzE0Mjg1NzE2LDY2OC40IEw0MjUuMzE0Mjg1NzE0Mjg1Nyw2NjguNCBMNDI2LjYwNTcxNDI4NTcxNDI3LDY2OC40IEw0MjcuODk3MTQyODU3MTQyOCw2NjguNCBMNDI5LjE4ODU3MTQyODU3MTQ0LDY2OC40IEw0MzAuNDgsNjY4LjQgTDQzMS43NzE0Mjg1NzE0Mjg2LDY2Mi4wIEw0MzMuMDYyODU3MTQyODU3Miw2NjIuMCBMNDM0LjM1NDI4NTcxNDI4NTcsNjYyLjAgTDQzNS42NDU3MTQyODU3MTQzLDY2Mi4wIEw0MzYuOTM3MTQyODU3MTQyOCw2NTUuNiBMNDM4LjIyODU3MTQyODU3MTQsNjU1LjYgTDQzOS41Miw2NTUuNiBMNDQwLjgxMTQyODU3MTQyODU2LDY1NS42IEw0NDIuMTAyODU3MTQyODU3Miw2NDkuMiBMNDQzLjM5NDI4NTcxNDI4NTczLDY0OS4yIEw0NDQuNjg1NzE0Mjg1NzE0Myw2NDkuMiBMNDQ1Ljk3NzE0Mjg1NzE0Mjg0LDY0OS4yIEw0NDcuMjY4NTcxNDI4NTcxNCw2NDkuMiBMNDQ4LjU2LDY0OS4yIEw0NDkuODUxNDI4NTcxNDI4NSw2NDkuMiBMNDUxLjE0Mjg1NzE0Mjg1NzEsNjQ5LjIgTDQ1Mi40MzQyODU3MTQyODU3NSw2NDkuMiBMNDUzLjcyNTcxNDI4NTcxNDMzLDY0OS4yIEw0NTUuMDE3MTQyODU3MTQyODYsNjQ5LjIgTDQ1Ni4zMDg1NzE0Mjg1NzE0NCw2NDkuMiBMNDU3LjYsNjU1LjYgTDQ1OC44OTE0Mjg1NzE0Mjg1NSw2NTUuNiBMNDYwLjE4Mjg1NzE0Mjg1NzEzLDY1NS42IEw0NjEuNDc0Mjg1NzE0Mjg1NjYsNjU1LjYgTDQ2Mi43NjU3MTQyODU3MTQyNCw2NTUuNiBMNDY0LjA1NzE0Mjg1NzE0MjksNjU1LjYgTDQ2NS4zNDg1NzE0Mjg1NzE0LDY1NS42IEw0NjYuNjQsNjU1LjYgTDQ2Ny45MzE0Mjg1NzE0Mjg1LDY1NS42IEw0NjkuMjIyODU3MTQyODU3Miw2NTUuNiBMNDcwLjUxNDI4NTcxNDI4NTczLDY1NS42IEw0NzEuODA1NzE0Mjg1NzE0Myw2NTUuNiBMNDczLjA5NzE0Mjg1NzE0Mjg0LDY1NS42IEw0NzQuMzg4NTcxNDI4NTcxNCw2NjIuMCBMNDc1LjY4MDAwMDAwMDAwMDA2LDY2Mi4wIEw0NzYuOTcxNDI4NTcxNDI4Niw2NjIuMCBMNDc4LjI2Mjg1NzE0Mjg1NzIsNjYyLjAgTDQ3OS41NTQyODU3MTQyODU3LDY1NS42IEw0ODAuODQ1NzE0Mjg1NzE0Myw2NTUuNiBMNDgyLjEzNzE0Mjg1NzE0Mjg2LDY1NS42IEw0ODMuNDI4NTcxNDI4NTcxNCw2NTUuNiBMNDg0LjcxOTk5OTk5OTk5OTk3LDY1NS42IEw0ODYuMDExNDI4NTcxNDI4NTUsNjU1LjYgTDQ4Ny4zMDI4NTcxNDI4NTcxNCw2NTUuNiBMNDg4LjU5NDI4NTcxNDI4NTcsNjU1LjYgTDQ4OS44ODU3MTQyODU3MTQyNCw2NDkuMiBMNDkxLjE3NzE0Mjg1NzE0MjgsNjQ5LjIgTDQ5Mi40Njg1NzE0Mjg1NzE0Nyw2NDkuMiBMNDkzLjc2MDAwMDAwMDAwMDA1LDY0OS4yIEw0OTUuMDUxNDI4NTcxNDI4Niw2NDIuOCBMNDk2LjM0Mjg1NzE0Mjg1NzE2LDY0Mi44IEw0OTcuNjM0Mjg1NzE0Mjg1NzQsNjQyLjggTDQ5OC45MjU3MTQyODU3MTQzLDY0Mi44IEw1MDAuMjE3MTQyODU3MTQyOSw2NDIuOCBMNTAxLjUwODU3MTQyODU3MTQzLDY0Mi44IEw1MDIuOCw2NDIuOCBMNTA0LjA5MTQyODU3MTQyODU0LDY0Mi44IEw1MDUuMzgyODU3MTQyODU3MSw2MzAuMCBMNTA2LjY3NDI4NTcxNDI4NTcsNjMwLjAgTDUwNy45NjU3MTQyODU3MTQzLDYzMC4wIEw1MDkuMjU3MTQyODU3MTQyODcsNjIzLjYgTDUxMC41NDg1NzE0Mjg1NzE0LDYyMy42IEw1MTEuODQsNjIzLjYgTDUxMy4xMzE0Mjg1NzE0Mjg2LDYyMy42IEw1MTQuNDIyODU3MTQyODU3Miw2MjMuNiBMNTE1LjcxNDI4NTcxNDI4NTgsNjIzLjYgTDUxNy4wMDU3MTQyODU3MTQyLDYyMy42IEw1MTguMjk3MTQyODU3MTQzLDYyMy42IEw1MTkuNTg4NTcxNDI4NTcxNCw2MTcuMiBMNTIwLjg4MDAwMDAwMDAwMDEsNjE3LjIgTDUyMi4xNzE0Mjg1NzE0Mjg2LDYxNy4yIEw1MjMuNDYyODU3MTQyODU3Miw2MTcuMiBMNTI0Ljc1NDI4NTcxNDI4NTcsNjE3LjIgTDUyNi4wNDU3MTQyODU3MTQyLDYxNy4yIEw1MjcuMzM3MTQyODU3MTQyOSw2MTcuMiBMNTI4LjYyODU3MTQyODU3MTQsNjE3LjIgTDUyOS45Miw2MTcuMiBMNTMxLjIxMTQyODU3MTQyODUsNjE3LjIgTDUzMi41MDI4NTcxNDI4NTcxLDYxNy4yIEw1MzMuNzk0Mjg1NzE0Mjg1Nyw2MTcuMiBMNTM1LjA4NTcxNDI4NTcxNDIsNjE3LjIgTDUzNi4zNzcxNDI4NTcxNDI5LDYxNy4yIEw1MzcuNjY4NTcxNDI4NTcxNSw2MTcuMiBMNTM4Ljk2LDYxNy4yIEw1NDAuMjUxNDI4NTcxNDI4NSw2MTcuMiBMNTQxLjU0Mjg1NzE0Mjg1NzIsNjE3LjIgTDU0Mi44MzQyODU3MTQyODU3LDYxMC44IEw1NDQuMTI1NzE0Mjg1NzE0NCw2MDQuNCBMNTQ1LjQxNzE0Mjg1NzE0MjgsNjA0LjQgTDU0Ni43MDg1NzE0Mjg1NzE0LDU5OC4wIEw1NDguMCw1OTguMCBMNTQ5LjI5MTQyODU3MTQyODYsNjc0LjggTDU1MC41ODI4NTcxNDI4NTcyLDY3NC44IEw1NTEuODc0Mjg1NzE0Mjg1Niw2NzQuOCBMNTUzLjE2NTcxNDI4NTcxNDMsNjc0LjggTDU1NC40NTcxNDI4NTcxNDI4LDY3NC44IEw1NTUuNzQ4NTcxNDI4NTcxNSw2NzQuOCBMNTU3LjA0LDY3NC44IEw1NTguMzMxNDI4NTcxNDI4NCw2NzQuOCBMNTU5LjYyMjg1NzE0Mjg1NzEsNjc0LjggTDU2MC45MTQyODU3MTQyODU4LDY3NC44IEw1NjIuMjA1NzE0Mjg1NzE0Myw2NzQuOCBMNTYzLjQ5NzE0Mjg1NzE0MjgsNjc0LjggTDU2NC43ODg1NzE0Mjg1NzE1LDY3NC44IEw1NjYuMDgsNjc0LjggTDU2Ny4zNzE0Mjg1NzE0Mjg2LDY3NC44IEw1NjguNjYyODU3MTQyODU3Miw2NzQuOCBMNTY5Ljk1NDI4NTcxNDI4NTcsNjc0LjggTDU3MS4yNDU3MTQyODU3MTQzLDY3NC44IEw1NzIuNTM3MTQyODU3MTQyOCw2NzQuOCBMNTczLjgyODU3MTQyODU3MTQsNjc0LjggTDU3NS4xMiw2NzQuOCBMNTc2LjQxMTQyODU3MTQyODYsNjc0LjggTDU3Ny43MDI4NTcxNDI4NTcsNjc0LjggTDU3OC45OTQyODU3MTQyODU4LDY3NC44IEw1ODAuMjg1NzE0Mjg1NzE0Miw2NzQuOCBMNTgxLjU3NzE0Mjg1NzE0MjksNjc0LjggTDU4Mi44Njg1NzE0Mjg1NzE0LDY3NC44IEw1ODQuMTYwMDAwMDAwMDAwMSw2NzQuOCBMNTg1LjQ1MTQyODU3MTQyODYsNjc0LjggTDU4Ni43NDI4NTcxNDI4NTcyLDY3NC44IEw1ODguMDM0Mjg1NzE0Mjg1Nyw2NzQuOCBMNTg5LjMyNTcxNDI4NTcxNDMsNjc0LjggTDU5MC42MTcxNDI4NTcxNDI5LDY3NC44IEw1OTEuOTA4NTcxNDI4NTcxNSw2NzQuOCBMNTkzLjIsNjc0LjggTDU5NC40OTE0Mjg1NzE0Mjg1LDY3NC44IEw1OTUuNzgyODU3MTQyODU3MSw2NzQuOCBMNTk3LjA3NDI4NTcxNDI4NTcsNjc0LjggTDU5OC4zNjU3MTQyODU3MTQzLDY3NC44IEw1OTkuNjU3MTQyODU3MTQyOCw2NzQuOCBMNjAwLjk0ODU3MTQyODU3MTMsNjc0LjggTDYwMi4yNCw2NzQuOCBMNjAzLjUzMTQyODU3MTQyODUsNjc0LjggTDYwNC44MjI4NTcxNDI4NTcyLDY3NC44IEw2MDYuMTE0Mjg1NzE0Mjg1Niw2NzQuOCBMNjA3LjQwNTcxNDI4NTcxNDMsNjc0LjggTDYwOC42OTcxNDI4NTcxNDI5LDY3NC44IEw2MDkuOTg4NTcxNDI4NTcxNSw2NzQuOCBMNjExLjI4MDAwMDAwMDAwMDEsNjc0LjggTDYxMi41NzE0Mjg1NzE0Mjg2LDY3NC44IEw2MTMuODYyODU3MTQyODU3MSw2NzQuOCBMNjE1LjE1NDI4NTcxNDI4NTcsNjc0LjggTDYxNi40NDU3MTQyODU3MTQzLDY3NC44IEw2MTcuNzM3MTQyODU3MTQyOSw2NzQuOCBMNjE5LjAyODU3MTQyODU3MTQsNjc0LjggTDYyMC4zMTk5OTk5OTk5OTk5LDY3NC44IEw2MjEuNjExNDI4NTcxNDI4NSw2NzQuOCBMNjIyLjkwMjg1NzE0Mjg1NzEsNjc0LjggTDYyNC4xOTQyODU3MTQyODU3LDY3NC44IEw2MjUuNDg1NzE0Mjg1NzE0Myw2NzQuOCBMNjI2Ljc3NzE0Mjg1NzE0MjgsNjc0LjggTDYyOC4wNjg1NzE0Mjg1NzE0LDY3NC44IEw2MjkuMzYwMDAwMDAwMDAwMSw2NzQuOCBMNjMwLjY1MTQyODU3MTQyODYsNjc0LjggTDYzMS45NDI4NTcxNDI4NTcyLDY3NC44IEw2MzMuMjM0Mjg1NzE0Mjg1OCw2NzQuOCBMNjM0LjUyNTcxNDI4NTcxNDMsNjc0LjggTDYzNS44MTcxNDI4NTcxNDI5LDY3NC44IEw2MzcuMTA4NTcxNDI4NTcxNCw2NzQuOCBMNjM4LjQsNjc0LjggTDYzOS42OTE0Mjg1NzE0Mjg2LDY3NC44IEw2NDAuOTgyODU3MTQyODU3MSw2NzQuOCBMNjQyLjI3NDI4NTcxNDI4NTcsNjY4LjQgTDY0My41NjU3MTQyODU3MTQyLDY2OC40IEw2NDQuODU3MTQyODU3MTQyOCw2NjguNCBMNjQ2LjE0ODU3MTQyODU3MTQsNjY4LjQgTDY0Ny40Mzk5OTk5OTk5OTk5LDY2OC40IEw2NDguNzMxNDI4NTcxNDI4NSw2NjguNCBMNjUwLjAyMjg1NzE0Mjg1NzEsNjY4LjQgTDY1MS4zMTQyODU3MTQyODU4LDY2OC40IEw2NTIuNjA1NzE0Mjg1NzE0NCw2NjguNCBMNjUzLjg5NzE0Mjg1NzE0Myw2NjguNCBMNjU1LjE4ODU3MTQyODU3MTQsNjY4LjQgTDY1Ni40OCw2NjguNCBMNjU3Ljc3MTQyODU3MTQyODYsNjY4LjQgTDY1OS4wNjI4NTcxNDI4NTcyLDY2OC40IEw2NjAuMzU0Mjg1NzE0Mjg1OCw2NjguNCBMNjYxLjY0NTcxNDI4NTcxNDIsNjY4LjQgTDY2Mi45MzcxNDI4NTcxNDI4LDY2OC40IEw2NjQuMjI4NTcxNDI4NTcxNCw2NjguNCBMNjY1LjUyLDY2OC40IEw2NjYuODExNDI4NTcxNDI4Niw2NjguNCBMNjY4LjEwMjg1NzE0Mjg1Nyw2NjguNCBMNjY5LjM5NDI4NTcxNDI4NTYsNjY4LjQgTDY3MC42ODU3MTQyODU3MTQyLDY2Mi4wIEw2NzEuOTc3MTQyODU3MTQyOSw2NjIuMCBMNjczLjI2ODU3MTQyODU3MTUsNjYyLjAgTDY3NC41NjAwMDAwMDAwMDAxLDY2Mi4wIEw2NzUuODUxNDI4NTcxNDI4Niw2NjIuMCBMNjc3LjE0Mjg1NzE0Mjg1NzIsNjYyLjAgTDY3OC40MzQyODU3MTQyODU4LDY2Mi4wIEw2NzkuNzI1NzE0Mjg1NzE0Myw2NjIuMCBMNjgxLjAxNzE0Mjg1NzE0MjksNjYyLjAgTDY4Mi4zMDg1NzE0Mjg1NzE0LDY2Mi4wIEw2ODMuNiw2NjIuMCBMNjg0Ljg5MTQyODU3MTQyODYsNjU1LjYgTDY4Ni4xODI4NTcxNDI4NTcxLDY1NS42IEw2ODcuNDc0Mjg1NzE0Mjg1Nyw2NTUuNiBMNjg4Ljc2NTcxNDI4NTcxNDIsNjU1LjYgTDY5MC4wNTcxNDI4NTcxNDI4LDY1NS42IEw2OTEuMzQ4NTcxNDI4NTcxNCw2NTUuNiBMNjkyLjYzOTk5OTk5OTk5OTksNjU1LjYgTDY5My45MzE0Mjg1NzE0Mjg2LDY1NS42IEw2OTUuMjIyODU3MTQyODU3Miw2NTUuNiBMNjk2LjUxNDI4NTcxNDI4NTcsNjU1LjYgTDY5Ny44MDU3MTQyODU3MTQzLDY1NS42IEw2OTkuMDk3MTQyODU3MTQyOSw2NTUuNiBMNzAwLjM4ODU3MTQyODU3MTUsNjU1LjYgTDcwMS42ODAwMDAwMDAwMDAxLDY1NS42IEw3MDIuOTcxNDI4NTcxNDI4Niw2NTUuNiBMNzA0LjI2Mjg1NzE0Mjg1NzEsNjU1LjYgTDcwNS41NTQyODU3MTQyODU3LDY1NS42IEw3MDYuODQ1NzE0Mjg1NzE0Myw2NTUuNiBMNzA4LjEzNzE0Mjg1NzE0MjksNjU1LjYgTDcwOS40Mjg1NzE0Mjg1NzE0LDY1NS42IEw3MTAuNzE5OTk5OTk5OTk5OSw2NTUuNiBMNzEyLjAxMTQyODU3MTQyODUsNjU1LjYgTDcxMy4zMDI4NTcxNDI4NTcxLDY1NS42IEw3MTQuNTk0Mjg1NzE0Mjg1Nyw2NTUuNiBMNzE1Ljg4NTcxNDI4NTcxNDIsNjU1LjYgTDcxNy4xNzcxNDI4NTcxNDI4LDY1NS42IEw3MTguNDY4NTcxNDI4NTcxNSw2NTUuNiBMNzE5Ljc2MDAwMDAwMDAwMDEsNjU1LjYgTDcyMS4wNTE0Mjg1NzE0Mjg3LDY1NS42IEw3MjIuMzQyODU3MTQyODU3Miw2NTUuNiBMNzIzLjYzNDI4NTcxNDI4NTcsNjU1LjYgTDcyNC45MjU3MTQyODU3MTQzLDY1NS42IEw3MjYuMjE3MTQyODU3MTQyOSw2NTUuNiBMNzI3LjUwODU3MTQyODU3MTUsNjU1LjYgTDcyOC44LDY1NS42IEw3MzAuMDkxNDI4NTcxNDI4NSw2NTUuNiBMNzMxLjM4Mjg1NzE0Mjg1NzEsNjU1LjYgTDczMi42NzQyODU3MTQyODU3LDY1NS42IEw3MzMuOTY1NzE0Mjg1NzE0Myw2NTUuNiBMNzM1LjI1NzE0Mjg1NzE0MjgsNjU1LjYgTDczNi41NDg1NzE0Mjg1NzEzLDY0OS4yIEw3MzcuODM5OTk5OTk5OTk5OSw2NDkuMiBMNzM5LjEzMTQyODU3MTQyODUsNjQ5LjIgTDc0MC40MjI4NTcxNDI4NTcyLDY0OS4yIEw3NDEuNzE0Mjg1NzE0Mjg1OCw2NDkuMiBMNzQzLjAwNTcxNDI4NTcxNDQsNjQ5LjIgTDc0NC4yOTcxNDI4NTcxNDMsNjQ5LjIgTDc0NS41ODg1NzE0Mjg1NzE1LDY0OS4yIEw3NDYuODgsNjQ5LjIgTDc0OC4xNzE0Mjg1NzE0Mjg2LDY0OS4yIEw3NDkuNDYyODU3MTQyODU3Miw2NDkuMiBMNzUwLjc1NDI4NTcxNDI4NTcsNjQ5LjIgTDc1Mi4wNDU3MTQyODU3MTQzLDY0OS4yIEw3NTMuMzM3MTQyODU3MTQyOCw2NDkuMiBMNzU0LjYyODU3MTQyODU3MTQsNjQ5LjIgTDc1NS45Miw2NDIuOCBMNzU3LjIxMTQyODU3MTQyODUsNjQyLjggTDc1OC41MDI4NTcxNDI4NTcxLDY0Mi44IEw3NTkuNzk0Mjg1NzE0Mjg1Niw2NDIuOCBMNzYxLjA4NTcxNDI4NTcxNDIsNjQyLjggTDc2Mi4zNzcxNDI4NTcxNDI5LDY0Mi44IEw3NjMuNjY4NTcxNDI4NTcxNSw2NDIuOCBMNzY0Ljk2LDYzNi40IEw3NjYuMjUxNDI4NTcxNDI4Niw2MzYuNCBMNzY3LjU0Mjg1NzE0Mjg1NzIsNjM2LjQgTDc2OC44MzQyODU3MTQyODU4LDYzNi40IEw3NzAuMTI1NzE0Mjg1NzE0NCw2MzAuMCBMNzcxLjQxNzE0Mjg1NzE0MjgsNjMwLjAgTDc3Mi43MDg1NzE0Mjg1NzE0LDYzMC4wIEw3NzQuMCw2MjMuNiBMNzc1LjI5MTQyODU3MTQyODYsNjIzLjYgTDc3Ni41ODI4NTcxNDI4NTcyLDYxNy4yIEw3NzcuODc0Mjg1NzE0Mjg1Niw2MTcuMiBMNzc5LjE2NTcxNDI4NTcxNDIsNjE3LjIgTDc4MC40NTcxNDI4NTcxNDI4LDYxNy4yIEw3ODEuNzQ4NTcxNDI4NTcxNCw2MTcuMiBMNzgzLjA0LDYxNy4yIEw3ODQuMzMxNDI4NTcxNDI4NSw2MTcuMiBMNzg1LjYyMjg1NzE0Mjg1NzEsNjE3LjIgTDc4Ni45MTQyODU3MTQyODU4LDYyMy42IEw3ODguMjA1NzE0Mjg1NzE0NCw2MjMuNiBMNzg5LjQ5NzE0Mjg1NzE0MjksNjIzLjYgTDc5MC43ODg1NzE0Mjg1NzE1LDYyMy42IEw3OTIuMDgsNjIzLjYgTDc5My4zNzE0Mjg1NzE0Mjg2LDYyMy42IEw3OTQuNjYyODU3MTQyODU3Miw2MjMuNiBMNzk1Ljk1NDI4NTcxNDI4NTcsNjIzLjYgTDc5Ny4yNDU3MTQyODU3MTQzLDYyMy42IEw3OTguNTM3MTQyODU3MTQyOCw2MjMuNiBMNzk5LjgyODU3MTQyODU3MTQsNjIzLjYgTDgwMS4xMiw2MjMuNiBMODAyLjQxMTQyODU3MTQyODUsNjIzLjYgTDgwMy43MDI4NTcxNDI4NTcsNjIzLjYgTDgwNC45OTQyODU3MTQyODU2LDYyMy42IEw4MDYuMjg1NzE0Mjg1NzE0Miw2MjMuNiBMODA3LjU3NzE0Mjg1NzE0MjgsNjIzLjYgTDgwOC44Njg1NzE0Mjg1NzE1LDYyMy42IEw4MTAuMTYwMDAwMDAwMDAwMSw2MjMuNiBMODExLjQ1MTQyODU3MTQyODcsNjIzLjYgTDgxMi43NDI4NTcxNDI4NTcyLDYyMy42IEw4MTQuMDM0Mjg1NzE0Mjg1Nyw2MjMuNiBMODE1LjMyNTcxNDI4NTcxNDMsNjIzLjYgTDgxNi42MTcxNDI4NTcxNDI5LDYyMy42IEw4MTcuOTA4NTcxNDI4NTcxNSw2MjMuNiBMODE5LjIsNjIzLjYgTDgyMC40OTE0Mjg1NzE0Mjg1LDYyMy42IEw4MjEuNzgyODU3MTQyODU3MSw2MjMuNiBMODIzLjA3NDI4NTcxNDI4NTcsNjIzLjYgTDgyNC4zNjU3MTQyODU3MTQzLDYyMy42IEw4MjUuNjU3MTQyODU3MTQyOCw2MjMuNiBMODI2Ljk0ODU3MTQyODU3MTMsNjIzLjYgTDgyOC4yMzk5OTk5OTk5OTk5LDYyMy42IEw4MjkuNTMxNDI4NTcxNDI4NSw2MjMuNiBMODMwLjgyMjg1NzE0Mjg1NzIsNjIzLjYgTDgzMi4xMTQyODU3MTQyODU4LDYyMy42IEw4MzMuNDA1NzE0Mjg1NzE0Miw2MjMuNiBMODM0LjY5NzE0Mjg1NzE0MjgsNjIzLjYgTDgzNS45ODg1NzE0Mjg1NzE0LDYyMy42IEw4MzcuMjgsNjIzLjYgTDgzOC41NzE0Mjg1NzE0Mjg2LDYyMy42IEw4MzkuODYyODU3MTQyODU3LDYyMy42IEw4NDEuMTU0Mjg1NzE0Mjg1Niw2MjMuNiBMODQyLjQ0NTcxNDI4NTcxNDQsNjIzLjYgTDg0My43MzcxNDI4NTcxNDI5LDYyMy42IEw4NDUuMDI4NTcxNDI4NTcxNSw2MjMuNiBMODQ2LjMyLDYyMy42IEw4NDcuNjExNDI4NTcxNDI4Niw2MjMuNiBMODQ4LjkwMjg1NzE0Mjg1NzIsNjIzLjYgTDg1MC4xOTQyODU3MTQyODU3LDYyMy42IEw4NTEuNDg1NzE0Mjg1NzE0Myw2MjMuNiBMODUyLjc3NzE0Mjg1NzE0MjgsNjIzLjYgTDg1NC4wNjg1NzE0Mjg1NzE0LDYyMy42IEw4NTUuMzYwMDAwMDAwMDAwMSw2MjMuNiBMODU2LjY1MTQyODU3MTQyODYsNjIzLjYgTDg1Ny45NDI4NTcxNDI4NTcyLDYyMy42IEw4NTkuMjM0Mjg1NzE0Mjg1OCw2MjMuNiBMODYwLjUyNTcxNDI4NTcxNDMsNjIzLjYgTDg2MS44MTcxNDI4NTcxNDI5LDYyMy42IEw4NjMuMTA4NTcxNDI4NTcxNCw2MjMuNiBMODY0LjQsNjIzLjYgTDg2NS42OTE0Mjg1NzE0Mjg2LDYyMy42IEw4NjYuOTgyODU3MTQyODU3MSw2MTcuMiBMODY4LjI3NDI4NTcxNDI4NTcsNjEwLjggTDg2OS41NjU3MTQyODU3MTQyLDYxMC44IEw4NzAuODU3MTQyODU3MTQyOCw2MTAuOCBMODcyLjE0ODU3MTQyODU3MTQsNjEwLjggTDg3My40Mzk5OTk5OTk5OTk5LDYxMC44IEw4NzQuNzMxNDI4NTcxNDI4NSw2MTAuOCBMODc2LjAyMjg1NzE0Mjg1NzEsNjEwLjggTDg3Ny4zMTQyODU3MTQyODU3LDYxMC44IEw4NzguNjA1NzE0Mjg1NzE0Myw2MTAuOCBMODc5Ljg5NzE0Mjg1NzE0MjksNjEwLjggTDg4MS4xODg1NzE0Mjg1NzE0LDYxMC44IEw4ODIuNDc5OTk5OTk5OTk5OSw2MTAuOCBMODgzLjc3MTQyODU3MTQyODUsNjEwLjggTDg4NS4wNjI4NTcxNDI4NTcxLDYxMC44IEw4ODYuMzU0Mjg1NzE0Mjg1Nyw2MTAuOCBMODg3LjY0NTcxNDI4NTcxNDMsNjEwLjggTDg4OC45MzcxNDI4NTcxNDI5LDYxMC44IEw4OTAuMjI4NTcxNDI4NTcxNSw2MTAuOCBMODkxLjUyMDAwMDAwMDAwMDEsNjEwLjggTDg5Mi44MTE0Mjg1NzE0Mjg2LDYxMC44IEw4OTQuMTAyODU3MTQyODU3MSw2MTAuOCBMODk1LjM5NDI4NTcxNDI4NTcsNjEwLjggTDg5Ni42ODU3MTQyODU3MTQzLDYxMC44IEw4OTcuOTc3MTQyODU3MTQyOSw2MTAuOCBMODk5LjI2ODU3MTQyODU3MTUsNjEwLjggTDkwMC41NjAwMDAwMDAwMDAxLDYxMC44IEw5MDEuODUxNDI4NTcxNDI4Niw2MTAuOCBMOTAzLjE0Mjg1NzE0Mjg1NzIsNjA0LjQgTDkwNC40MzQyODU3MTQyODU4LDYwNC40IEw5MDUuNzI1NzE0Mjg1NzE0Myw2MDQuNCBMOTA3LjAxNzE0Mjg1NzE0MjksNjA0LjQgTDkwOC4zMDg1NzE0Mjg1NzE0LDYwNC40IEw5MDkuNiw2MDQuNCBMOTEwLjg5MTQyODU3MTQyODYsNjA0LjQgTDkxMi4xODI4NTcxNDI4NTcxLDU5OC4wIEw5MTMuNDc0Mjg1NzE0Mjg1Nyw1OTguMCBMOTE0Ljc2NTcxNDI4NTcxNDIsNTk4LjAgTDkxNi4wNTcxNDI4NTcxNDI4LDU5OC4wIEw5MTcuMzQ4NTcxNDI4NTcxNCw1OTguMCBMOTE4LjYzOTk5OTk5OTk5OTksNTkxLjYgTDkxOS45MzE0Mjg1NzE0Mjg2LDU5MS42IEw5MjEuMjIyODU3MTQyODU3Miw1ODUuMiBMOTIyLjUxNDI4NTcxNDI4NTcsNTg1LjIgTDkyMy44MDU3MTQyODU3MTQzLDU4NS4yIEw5MjUuMDk3MTQyODU3MTQyOCw1ODUuMiBMOTI2LjM4ODU3MTQyODU3MTQsNTg1LjIgTDkyNy42OCw1ODUuMiBMOTI4Ljk3MTQyODU3MTQyODUsNTg1LjIgTDkzMC4yNjI4NTcxNDI4NTcxLDU4NS4yIEw5MzEuNTU0Mjg1NzE0Mjg1Niw1ODUuMiBMOTMyLjg0NTcxNDI4NTcxNDQsNTg1LjIgTDkzNC4xMzcxNDI4NTcxNDMsNTg1LjIgTDkzNS40Mjg1NzE0Mjg1NzE0LDU4NS4yIEw5MzYuNzIsNTg1LjIgTDkzOC4wMTE0Mjg1NzE0Mjg2LDU4NS4yIEw5MzkuMzAyODU3MTQyODU3Miw1OTEuNiBMOTQwLjU5NDI4NTcxNDI4NTgsNTkxLjYgTDk0MS44ODU3MTQyODU3MTQyLDU5MS42IEw5NDMuMTc3MTQyODU3MTQyOCw1OTEuNiBMOTQ0LjQ2ODU3MTQyODU3MTUsNTkxLjYgTDk0NS43NjAwMDAwMDAwMDAxLDU5MS42IEw5NDcuMDUxNDI4NTcxNDI4Nyw1OTEuNiBMOTQ4LjM0Mjg1NzE0Mjg1NzIsNTkxLjYgTDk0OS42MzQyODU3MTQyODU3LDU5MS42IEw5NTAuOTI1NzE0Mjg1NzE0Myw1ODUuMiBMOTUyLjIxNzE0Mjg1NzE0MjksNTg1LjIgTDk1My41MDg1NzE0Mjg1NzE1LDU4NS4yIEw5NTQuOCw1ODUuMiBMOTU2LjA5MTQyODU3MTQyODUsNTc4LjggTDk1Ny4zODI4NTcxNDI4NTcxLDU3OC44IEw5NTguNjc0Mjg1NzE0Mjg1Nyw1NzguOCBMOTU5Ljk2NTcxNDI4NTcxNDMsNTc4LjggTDk2MS4yNTcxNDI4NTcxNDI4LDU3OC44IEw5NjIuNTQ4NTcxNDI4NTcxMyw1NzguOCBMOTYzLjgzOTk5OTk5OTk5OTksNTc4LjggTDk2NS4xMzE0Mjg1NzE0Mjg1LDU3OC44IEw5NjYuNDIyODU3MTQyODU3Miw1NzguOCBMOTY3LjcxNDI4NTcxNDI4NTcsNTc4LjggTDk2OS4wMDU3MTQyODU3MTQyLDU3OC44IEw5NzAuMjk3MTQyODU3MTQyOCw1NzguOCBMOTcxLjU4ODU3MTQyODU3MTQsNTc4LjggTDk3Mi44OCw1NzguOCBMOTc0LjE3MTQyODU3MTQyODUsNTcyLjQgTDk3NS40NjI4NTcxNDI4NTcsNTcyLjQgTDk3Ni43NTQyODU3MTQyODU2LDU3Mi40IEw5NzguMDQ1NzE0Mjg1NzE0Myw1NzIuNCBMOTc5LjMzNzE0Mjg1NzE0MjksNTcyLjQgTDk4MC42Mjg1NzE0Mjg1NzE1LDU3Mi40IEw5ODEuOTIwMDAwMDAwMDAwMSw1NzIuNCBMOTgzLjIxMTQyODU3MTQyODcsNTY2LjAgTDk4NC41MDI4NTcxNDI4NTcxLDU2Ni4wIEw5ODUuNzk0Mjg1NzE0Mjg1Nyw1NjYuMCBMOTg3LjA4NTcxNDI4NTcxNDMsNTY2LjAgTDk4OC4zNzcxNDI4NTcxNDI5LDU2Ni4wIEw5ODkuNjY4NTcxNDI4NTcxNSw1NjYuMCBMOTkwLjk2LDU2Ni4wIEw5OTIuMjUxNDI4NTcxNDI4Niw1NjYuMCBMOTkzLjU0Mjg1NzE0Mjg1NzIsNTY2LjAgTDk5NC44MzQyODU3MTQyODU4LDU2Ni4wIEw5OTYuMTI1NzE0Mjg1NzE0NCw1NjYuMCBMOTk3LjQxNzE0Mjg1NzE0MjgsNTY2LjAgTDk5OC43MDg1NzE0Mjg1NzE0LDU2Ni4wIEwxMDAwLjAsNTY2LjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIC8+Cjx0ZXh0IHg9Ijg4IiB5PSI2OTQuMCIgZm9udC1zaXplPSIxMSIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9ImVuZCIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIGZpbGw9IiM3NzciPjA8L3RleHQ+Cjx0ZXh0IHg9Ijg4IiB5PSI1NjYuMCIgZm9udC1zaXplPSIxMSIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9ImVuZCIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIGZpbGw9IiM3NzciPjIwPC90ZXh0Pgo8dGV4dCB4PSI2NiIgeT0iNjMwLjAiIGZvbnQtc2l6ZT0iMTIuNSIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzc3NyIgdHJhbnNmb3JtPSJyb3RhdGUoLTkwIDY2IDYzMC4wKSI+bGluZWFnZXM8L3RleHQ+CjxwYXRoIGQ9Ik05Ni4wLDY5NCBMOTYuMCw2OTkiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIxLjIiIC8+Cjx0ZXh0IHg9Ijk2LjAiIHk9IjcxMiIgZm9udC1zaXplPSIxMSIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzc3NyI+MDwvdGV4dD4KPHBhdGggZD0iTTI3Ni44LDY5NCBMMjc2LjgsNjk5IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMS4yIiAvPgo8dGV4dCB4PSIyNzYuOCIgeT0iNzEyIiBmb250LXNpemU9IjExIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzc3Ij4xPC90ZXh0Pgo8cGF0aCBkPSJNNDU3LjYsNjk0IEw0NTcuNiw2OTkiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIxLjIiIC8+Cjx0ZXh0IHg9IjQ1Ny42IiB5PSI3MTIiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtZmFtaWx5PSJIZWx2ZXRpY2EiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM3NzciPjI8L3RleHQ+CjxwYXRoIGQ9Ik02MzguNCw2OTQgTDYzOC40LDY5OSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjEuMiIgLz4KPHRleHQgeD0iNjM4LjQiIHk9IjcxMiIgZm9udC1zaXplPSIxMSIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzc3NyI+MzwvdGV4dD4KPHBhdGggZD0iTTgxOS4yLDY5NCBMODE5LjIsNjk5IiBzdHJva2U9IiMxYTFhMWEiIHN0cm9rZS13aWR0aD0iMS4yIiAvPgo8dGV4dCB4PSI4MTkuMiIgeT0iNzEyIiBmb250LXNpemU9IjExIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzc3Ij40PC90ZXh0Pgo8cGF0aCBkPSJNMTAwMC4wLDY5NCBMMTAwMC4wLDY5OSIgc3Ryb2tlPSIjMWExYTFhIiBzdHJva2Utd2lkdGg9IjEuMiIgLz4KPHRleHQgeD0iMTAwMC4wIiB5PSI3MTIiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtZmFtaWx5PSJIZWx2ZXRpY2EiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM3NzciPjU8L3RleHQ+Cjx0ZXh0IHg9IjU0OC4wIiB5PSI3MzIiIGZvbnQtc2l6ZT0iMTIuNSIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzc3NyI+dGltZSAocm9vdCAtJmd0OyBwcmVzZW50KTwvdGV4dD4KPHBhdGggZD0iTTc1MCwxMTAgTDc3NiwxMTAiIHN0cm9rZT0iIzFhMWExYSIgc3Ryb2tlLXdpZHRoPSIyLjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KPHRleHQgeD0iNzgyIiB5PSIxMTAiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtZmFtaWx5PSJIZWx2ZXRpY2EiIHRleHQtYW5jaG9yPSJzdGFydCIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIGZpbGw9IiMxYTFhMWEiPnN1cnZpdmluZyBsaW5lYWdlPC90ZXh0Pgo8cGF0aCBkPSJNNzUwLDEzMCBMNzc2LDEzMCIgc3Ryb2tlPSIjOWE5YTlhIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNiw1IiAvPgo8dGV4dCB4PSI3ODIiIHk9IjEzMCIgZm9udC1zaXplPSIxMiIgZm9udC1mYW1pbHk9IkhlbHZldGljYSIgdGV4dC1hbmNob3I9InN0YXJ0IiBkb21pbmFudC1iYXNlbGluZT0iY2VudHJhbCIgZmlsbD0iIzFhMWExYSI+ZXh0aW5jdCBsaW5lYWdlPC90ZXh0Pgo8L3N2Zz4=" />
 
@@ -2071,7 +2086,7 @@ intervals on the root chromosome — to declare <strong>genes</strong> up front.
 engine only (the Rust <code>profiles</code> path does not model genes). On the CLI:</p>
 <div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>species_tree.nwk<span class="w"> </span>--rate-model<span class="w"> </span>nucleotide<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--genes<span class="w"> </span>genes.tsv<span class="w"> </span>--pseudogenization<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--replacement<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--inversion<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.0008<span class="w"> </span>--output<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">  </span>--inversion<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.0008<span class="w"> </span>--write<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <p>where <code>genes.tsv</code> is a BED/TSV of <code>start end [name]</code> lines. The run writes <code>genes.tsv</code> (the
@@ -2095,13 +2110,45 @@ gene swallowed whole is dropped:</p>
 <p>On the CLI, <code>--gff</code> sets the length and genes in one step (superseding <code>--genes</code>/<code>--root-length</code>):</p>
 <div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>species_tree.nwk<span class="w"> </span>--rate-model<span class="w"> </span>nucleotide<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--gff<span class="w"> </span>ecoli.gff<span class="w"> </span>--inversion<span class="w"> </span>2e-6<span class="w"> </span>--loss<span class="w"> </span><span class="m">1</span>.5e-6<span class="w"> </span>--pseudogenization<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">  </span>--write<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
 <p>The GFF may be gzipped. For a multi-sequence file (chromosome + plasmids), the most-annotated
 sequence is used by default; <code>--gff-seqid ID</code> (or <code>read_gff(..., seqid=...)</code>) picks another. The
 genes keep their annotation names (locus tag / <code>Name</code>), so <code>genes.tsv</code> and the trees are labelled
 with real gene ids.</p>
+<h2 id="sequences-and-ancestral-genomes">Sequences and ancestral genomes</h2>
+<p>The model can also evolve the <strong>DNA sequences</strong> and reconstruct the <strong>genome at every node</strong> of the
+tree — with the root being the input genome. Each atom's gene tree is scaled to substitutions/site
+and a sequence is evolved down it under a nucleotide substitution model (<code>jc69</code>, <code>k80</code>, <code>hky85</code>,
+<code>gtr</code>, optionally with a discrete-Gamma). The genome at any node is then assembled by concatenating,
+in genome order, the sequence of each segment's lineage (reverse-complemented on the − strand):</p>
+<div class="codehilite"><pre><span></span><code><span class="n">res</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">simulate_nucleotide_genomes</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">root_length</span><span class="o">=</span><span class="n">g</span><span class="o">.</span><span class="n">length</span><span class="p">,</span> <span class="n">gene_intervals</span><span class="o">=</span><span class="n">g</span><span class="o">.</span><span class="n">genes</span><span class="p">,</span>
+                                    <span class="n">retain_internal</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>          <span class="c1"># keep every node&#39;s genome</span>
+<span class="n">res</span><span class="o">.</span><span class="n">simulate_sequences</span><span class="p">(</span><span class="n">z</span><span class="o">.</span><span class="n">hky85</span><span class="p">(</span><span class="mf">2.0</span><span class="p">),</span> <span class="n">subst_rate</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+                       <span class="n">root_fasta</span><span class="o">=</span><span class="n">z</span><span class="o">.</span><span class="n">read_fasta</span><span class="p">(</span><span class="s2">&quot;ecoli.fna&quot;</span><span class="p">)[</span><span class="n">g</span><span class="o">.</span><span class="n">seqid</span><span class="p">])</span>      <span class="c1"># real genome as the root</span>
+
+<span class="n">res</span><span class="o">.</span><span class="n">node_sequence</span><span class="p">(</span><span class="n">tree</span><span class="o">.</span><span class="n">root</span><span class="p">)</span>     <span class="c1"># == the input genome, exactly</span>
+<span class="n">res</span><span class="o">.</span><span class="n">node_sequence</span><span class="p">(</span><span class="n">leaf</span><span class="p">)</span>          <span class="c1"># the evolved genome at any node</span>
+<span class="n">res</span><span class="o">.</span><span class="n">node_mosaic</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>            <span class="c1"># its architecture: ordered, oriented gene/intergene atoms</span>
+<span class="n">res</span><span class="o">.</span><span class="n">gene_alignments</span><span class="p">()</span>            <span class="c1"># {gene_id: {species_gid: sequence}} extant alignments</span>
+</code></pre></div>
+
+<p>If no <code>root_fasta</code> is given, each root gene/intergene sequence is drawn at random from the model's
+stationary frequencies (the ZOMBI-1 way); with it, the root sequences are the real genome's
+substrings, so the reconstructed root genome is byte-identical to the input.</p>
+<p>On the CLI, <code>--write ancestral</code>:</p>
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>species_tree.nwk<span class="w"> </span>--rate-model<span class="w"> </span>nucleotide<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--gff<span class="w"> </span>ecoli.gff<span class="w"> </span>--genome-fasta<span class="w"> </span>ecoli.fna<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--subst-model<span class="w"> </span>hky85<span class="w"> </span>--kappa<span class="w"> </span><span class="m">2</span><span class="w"> </span>--subst-rate<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>--write<span class="w"> </span>ancestral<span class="w"> </span>-o<span class="w"> </span>out/
+</code></pre></div>
+
+<p>writes <code>Architecture/&lt;node&gt;.tsv</code> (the oriented gene/intergene mosaic of every node), gzipped
+<code>Genomes/&lt;node&gt;.fasta.gz</code> (the full assembled DNA of every node — <code>root.fasta.gz</code> reproduces the
+input), and <code>Gene_alignments/&lt;gene&gt;.fasta</code> (the extant per-gene alignments). Substitution-model
+options: <code>--subst-model</code>, <code>--kappa</code>, <code>--base-freqs</code>, <code>--gtr-rates</code>, <code>--gamma-shape</code>, <code>--subst-rate</code>.
+Sequence simulation runs on the Python engine and scales to real genomes (E. coli's 4.6 Mbp in a
+few seconds).</p>
 <h2 id="the-rust-fast-path">The Rust fast path</h2>
 <p><code>output="profiles"</code> runs the compiled <code>zombi2_core</code> Rust engine over leaf segments only —
 much faster, and enough for <code>profile_matrix()</code>, <code>leaf_mosaic()</code>, and <code>trace_back()</code>. It emits
@@ -2211,9 +2258,9 @@ carry several rate segments, integrated exactly under each gene branch:</p>
 <h3 id="from-the-cli">From the CLI</h3>
 <p>Sequence evolution is a <strong>separate command</strong>, <code>zombi2 sequence</code>, run on a prior <code>genomes</code>
 result — so you can retune the clock without re-simulating gene content. <code>genomes</code> just has to
-have written the event trace (<code>trace</code> in <code>--output</code>):</p>
+have written the event trace (<code>trace</code> in <code>--write</code>):</p>
 <div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>genomes<span class="w">  </span>-t<span class="w"> </span>species_tree.nwk<span class="w"> </span>--dup<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--trans<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--orig<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--output<span class="w"> </span>trace<span class="w"> </span>profiles<span class="w"> </span>-o<span class="w"> </span>run/
+<span class="w">    </span>--write<span class="w"> </span>trace<span class="w"> </span>profiles<span class="w"> </span>-o<span class="w"> </span>run/
 
 <span class="c1"># lognormal lineage clock + per-family speed</span>
 zombi2<span class="w"> </span>sequence<span class="w"> </span>--genomes<span class="w"> </span>run/<span class="w"> </span>--branch-speed<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--family-speed<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>-o<span class="w"> </span>run/
@@ -2608,10 +2655,10 @@ plus the trait and a coupling manifest:</p>
 zombi2<span class="w"> </span>coevolve-genetrait<span class="w"> </span>-t<span class="w"> </span><span class="nv">$T</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--trait-model<span class="w"> </span>mk<span class="w"> </span>--states<span class="w"> </span><span class="m">2</span><span class="w"> </span>--rate<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--trait-center<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--panel<span class="w"> </span><span class="m">40</span><span class="w"> </span>--responsive<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span>--weight<span class="w"> </span><span class="m">1</span><span class="w"> </span>--effect-loss<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--loss<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--output<span class="w"> </span>all<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>-o<span class="w"> </span>out/
+<span class="w">    </span>--loss<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span>--write<span class="w"> </span>all<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span><span class="w"> </span>-o<span class="w"> </span>out/
 </code></pre></div>
 
-<p>Besides the usual gene-family files (chosen with <code>--output</code>, exactly as in
+<p>Besides the usual gene-family files (chosen with <code>--write</code>, exactly as in
 <a href="#cli"><code>genomes</code></a>), it always writes:</p>
 <ul>
 <li><strong><code>traits.tsv</code></strong> / <strong><code>trait_tree.nwk</code></strong> — the trait at every node (as <code>zombi2 trait</code> writes).</li>
@@ -2643,13 +2690,17 @@ inference should be able to pick out.</p>
 with an over-large <code>base_loss</code> an unprotected family, having only the field-blind influx to
 regain it, is lost tree-wide and the inert rows go all-zero.</p>
 <h2 id="roadmap">Roadmap</h2>
-<p><code>coevolve-genetrait</code> is the first of a <code>coevolve-*</code> family. Planned next:</p>
+<p><code>coevolve-genetrait</code> is the <strong><code>traits:genes</code></strong> edge of a broader coupled-simulation design — see
+<a href="#coevolution-models">Coevolution (coupled models)</a>, which generalises it to a directed
+graph over species, traits and gene families (<code>zombi2 coevolve --couple driver:target</code>). Under
+that plan this command becomes <code>coevolve --couple traits:genes</code> (the old name kept as an alias).
+Planned next:</p>
 <ul>
 <li>an <strong>environmental clock</strong> — a trait (and its coupled families) gated by a dated event such
   as the GOE, which is what turns the coupled dynamics into a <em>time</em> signal;</li>
 <li>a <strong>recipient-side gain</strong> channel (trait-dependent acquisition, not only retention);</li>
-<li><code>coevolve-speciesgene</code> / <code>coevolve-all</code> — coupling gene families back to the species-tree
-  process, and the fully joint model.</li>
+<li>the into-species edges (<code>traits:species</code> = SSE, <code>genes:species</code>) that couple traits and gene
+  families <em>back</em> to the diversification process, up to the fully joint <code>--all</code> model.</li>
 </ul></section><section id="guide-parallel" class="doc-page"><h1 id="running-many-replicates-in-parallel">Running many replicates in parallel</h1>
 <p>A single ZOMBI2 simulation is a sequential process, but <strong>replicate</strong> simulations
 (independent seeds) are embarrassingly parallel — and Monte-Carlo studies usually want
@@ -3120,7 +3171,7 @@ zombi2<span class="w"> </span>genomes<span class="w"> </span>--tree<span class="
 as durations. See the <a href="#cli">command-line interface</a>.</p>
 <h3 id="is-the-cli-using-the-rust-engine">Is the CLI using the Rust engine?</h3>
 <p>Yes — the built-in model runs on Rust automatically, so <code>zombi2 genomes</code> uses it (there is no
-<code>--fast</code> flag any more). Use <code>--output profiles</code> for the reduced, counts-only output. See the
+<code>--fast</code> flag any more). Use <code>--write profiles</code> for the reduced, counts-only output. See the
 <a href="#cli">command-line interface</a>.</p>
 <h3 id="how-do-i-get-just-the-profile-matrix-fast">How do I get just the profile matrix, fast?</h3>
 <p>Call <code>simulate_genomes</code> with <code>output="profiles"</code> — it runs the Rust engine over per-family
@@ -3589,7 +3640,7 @@ with the dead clades, transfers <em>from</em> the dead) with no extra wiring. Ki
 Bernoulli, so the realized fraction fluctuates around <code>fraction</code> (exactly it in expectation); a
 pulse of <code>fraction=1.0</code> wipes the tree out entirely and is rejected by the ≥2-survivor
 conditioning.</p>
-<p>CLI: <code>zombi2 species --model forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5</code>.</p>
+<p>CLI: <code>zombi2 species --mode forward --age 5 --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5</code>.</p>
 <h3 id="fossilized-birthdeath-serial-through-time-sampling">Fossilized birth–death (serial / through-time sampling)</h3>
 <p>The same <code>BirthDeath</code> (or <code>EpisodicBirthDeath</code>) model gains serial sampling through optional
 kwargs: beyond speciation (λ) and extinction (μ), lineages are sampled <em>through time</em> at rate ψ
@@ -3646,7 +3697,7 @@ macroevolutionary analogue of the per-family <code>carrying_capacity</code> ZOMB
 <p>Both support <code>age</code> <strong>and</strong> <code>n_tips</code> mode (their rates don't reference age-before-present), reject
 the backward sampler (no closed-form reconstructed CDF), and accept <code>sampling_fraction</code> and
 <code>mass_extinctions</code> overlays. For <code>DiversityDependent</code>, <code>n_tips</code> must be <code>≤ K</code>. CLI: <code>zombi2 species
---model forward --diversification clads|diversity-dependent …</code>.</p>
+--mode forward --diversification clads|diversity-dependent …</code>.</p>
 <p><strong>Clade-specific rate shifts</strong> (<code>CladeShiftBirthDeath</code>). Where ClaDS shifts <em>every</em> lineage a
 little at <em>every</em> speciation, this shifts <em>one</em> clade a lot at a <em>scheduled</em> time — the discrete,
 hand-specified version of rate heterogeneity. Diversification runs at the background <code>(birth,
@@ -3662,7 +3713,7 @@ run, so the shifted lineage is drawn at random — contemporaneous lineages are 
 
 <p>Because the shift schedule is in ages before the present, this model is <strong>age mode only</strong> (unlike
 ClaDS/DD); it too rejects the backward sampler and accepts <code>sampling_fraction</code>/<code>mass_extinctions</code>.
-CLI: <code>zombi2 species --model forward --age 5 --clade-shift AGE BIRTH DEATH</code> (repeatable).</p>
+CLI: <code>zombi2 species --mode forward --age 5 --clade-shift AGE BIRTH DEATH</code> (repeatable).</p>
 <h2 id="key-references">Key references</h2>
 <ul>
 <li>Stadler (2009), <em>J. Theor. Biol.</em> — reconstructed birth–death process.</li>
@@ -3677,4 +3728,332 @@ CLI: <code>zombi2 species --model forward --age 5 --clade-shift AGE BIRTH DEATH<
 <li>Louca &amp; Pennell (2020), <em>Nature</em> — identifiability limits of time-varying BD (a caveat
   for how far to push time-varying models).</li>
 <li>Louca (2020), <em>Bioinformatics</em> — castor, large-scale tree simulation.</li>
+</ul></section><section id="coevolution-models" class="doc-page"><h1 id="coevolution-coupled-species-traits-and-gene-families-a-design">Coevolution: coupled species, traits and gene families — a design</h1>
+<p>ZOMBI2 simulates in a <strong>pipeline</strong>: build a species tree, then evolve a trait along it, then
+evolve gene families along it (optionally conditioned on the trait). That works because today's
+couplings are <em>one-directional</em> and the joint distribution <strong>factorises</strong>,</p>
+<div class="codehilite"><pre><span></span><code>P(tree) · P(trait | tree) · P(genes | tree, trait),
+</code></pre></div>
+
+<p>so each stage can be drawn on the frozen output of the previous one. The moment a trait or a
+genome is allowed to feed <strong>back</strong> into the process that generated the tree, this factorisation
+breaks and the stages can no longer be run in sequence — the tree, the trait and the gene content
+must be grown <em>together</em>. The proposed <strong><code>coevolve</code></strong> mode is exactly for those non-factorising,
+feedback scenarios.</p>
+<p>This note fixes the model, the command-line shape, and a phased build order. Only one edge of the
+model ships today (<code>traits:genes</code>, as <a href="#guide-trait-linked-genomes"><code>coevolve-genetrait</code></a>);
+everything else here is a design for what <code>coevolve</code> becomes.</p>
+<h2 id="the-coupling-graph">The coupling graph</h2>
+<p>There are three processes:</p>
+<ul>
+<li><strong>S</strong> — species diversification (the birth–death process that grows the tree),</li>
+<li><strong>T</strong> — a phenotypic trait (<a href="#guide-traits">BM/OU/EB/Mk/threshold</a>),</li>
+<li><strong>G</strong> — gene-family content (the <a href="#guide-gene-families">DTL</a> process).</li>
+</ul>
+<p>A <strong>coupling is a directed edge</strong> <code>driver → target</code>: the <em>driver's</em> state modulates the
+<em>target's</em> rates. A coevolution scenario is just a <strong>set of directed edges</strong> on these three nodes.
+That single abstraction covers everything from SSE to full three-way feedback, and it makes the
+one thing that actually matters — <em>direction</em> — explicit rather than implied.</p>
+<p><strong>CLI convention.</strong> One repeatable flag, <code>--couple driver:target</code>, where the order reads as the
+arrow (driver first, left to right):</p>
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:species<span class="w">   </span>...<span class="w">   </span><span class="c1"># T→S : the trait sets speciation/extinction (SSE)</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>species:traits<span class="w">   </span>...<span class="w">   </span><span class="c1"># S→T : speciation drives the trait (cladogenetic)</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:species<span class="w"> </span>--couple<span class="w"> </span>species:traits<span class="w">   </span>...<span class="w">   </span><span class="c1"># both arrows = ClaSSE</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--all<span class="w">             </span>...<span class="w">           </span><span class="c1"># every edge — the fully joint model</span>
+</code></pre></div>
+
+<p>So <code>--couple species:traits</code> and <code>--couple traits:species</code> are deliberately <strong>different models</strong>,
+and bidirectional coupling is simply <em>both</em> edges. <code>:</code> (not <code>-&gt;</code>) keeps it shell-safe.</p>
+<h2 id="summary-the-six-directed-edges">Summary — the six directed edges</h2>
+<table>
+<thead>
+<tr>
+<th>Edge (<code>driver:target</code>)</th>
+<th>Reading</th>
+<th>Model</th>
+<th>Tree</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traits:species</code></td>
+<td>trait sets speciation/extinction</td>
+<td><strong>SSE</strong> (BiSSE / MuSSE / QuaSSE / HiSSE)</td>
+<td><strong>output</strong> (forward)</td>
+<td><strong>shipped</strong> — <code>coevolve --couple traits:species</code></td>
+</tr>
+<tr>
+<td><code>genes:species</code></td>
+<td>gene content sets diversification</td>
+<td>key-innovation genes + HGT</td>
+<td><strong>output</strong> (forward)</td>
+<td><strong>shipped</strong> — <code>coevolve --couple genes:species</code></td>
+</tr>
+<tr>
+<td><code>species:traits</code></td>
+<td>trait jumps <em>at</em> speciation</td>
+<td>cladogenetic / speciational trait evolution</td>
+<td>input (given tree)</td>
+<td><strong>shipped</strong> — <code>coevolve --couple species:traits</code> (both arrows = <strong>ClaSSE</strong>)</td>
+</tr>
+<tr>
+<td><code>species:genes</code></td>
+<td>gene gain/loss bursts at speciation</td>
+<td>cladogenetic genome upheaval</td>
+<td>input (given tree)</td>
+<td><strong>shipped</strong> — <code>coevolve --couple species:genes</code></td>
+</tr>
+<tr>
+<td><code>traits:genes</code></td>
+<td>trait sets gene loss/gain</td>
+<td><strong>trait-linked gene families</strong></td>
+<td>input</td>
+<td><strong>shipped</strong> — <a href="#guide-trait-linked-genomes"><code>coevolve-genetrait</code></a></td>
+</tr>
+<tr>
+<td><code>genes:traits</code></td>
+<td>gene presence enables a trait shift</td>
+<td>gene-conditioned trait</td>
+<td>input (given tree)</td>
+<td><strong>shipped</strong> — <code>coevolve --couple genes:traits</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-one-rule-complexity-arrows-into-s">The one rule: complexity = arrows <em>into</em> S</h2>
+<p>Everything about the difficulty (and about whether the command takes a tree or makes one) follows
+from a single question: <strong>does any active edge point into S?</strong></p>
+<ul>
+<li><strong>No edge into S</strong> — the tree is fixed. It is read from <code>-t/--tree</code> (or a prior <code>species</code> run),
+  and every coupling is an <em>overlay</em> on a frozen tree. This is a pipeline, not a joint simulation;
+  even several axes at once stay a sequence of overlays.</li>
+<li><strong>An edge into S</strong> (<code>traits:species</code> and/or <code>genes:species</code>) — the tree topology now <em>depends</em>
+  on the coupled state, so it cannot be drawn first: <strong>the tree is an output</strong>. These runs are
+  <strong>forward-only</strong> (they generate the complete tree, extinct lineages included) and take no
+  <code>-t</code>. This is the same forward machinery as <a href="#species-tree-models"><code>species --mode forward</code></a>.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title"><code>genes:species</code> was the complexity cliff — and how it was tamed</p>
+<p>An arrow from <strong>G into S</strong> means the genome content must be known <em>as the tree grows</em>: the
+tree can't be built first. The v1 (<strong>shipped</strong>) tames this by observing that, under ZOMBI's
+<strong>independent</strong> families, only the handful of families that actually touch diversification
+need to ride in the forward loop. So a small panel of binary <strong>driver</strong> ("key innovation")
+families grows jointly with the tree, and the entire neutral genome — which does not affect
+the tree — is overlaid <em>afterward</em> by the ordinary <a href="#cli"><code>genomes</code></a> / <code>simulate_genomes</code> on
+the finished tree (exact, not an approximation). The genuinely new machinery is the
+<strong>frequency-dependent transfer</strong> (a driver in more genomes is donated more often), which is
+why the loop must know the live population — and is what makes this more than a static SSE.</p>
+</div>
+<h2 id="most-three-axis-scenarios-still-decompose">Most three-axis scenarios still decompose</h2>
+<p>"Simulate species, traits and genes simultaneously" does <strong>not</strong> require one monolithic engine.
+Because genes and traits usually do not feed back into S, even a scenario that touches all three
+axes typically splits into "grow the <code>S</code> + its into-S drivers forward, then overlay the rest":</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Edges</th>
+<th>How it runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A trait drives a radiation <strong>and</strong> shapes gene content</td>
+<td><code>traits:species</code>, <code>traits:genes</code></td>
+<td>forward-grow <strong>(tree, trait)</strong> jointly, then <strong>overlay genes</strong> conditioned on the trait — the grown tree is fed straight into today's <a href="#guide-trait-linked-genomes"><code>simulate_trait_linked_genomes</code></a></td>
+</tr>
+<tr>
+<td>Full ClaSSE with trait-linked genes</td>
+<td><code>traits:species</code>, <code>species:traits</code>, <code>traits:genes</code></td>
+<td>same: grow the <code>S</code>+trait core forward, overlay genes downstream</td>
+</tr>
+<tr>
+<td>Genome content itself drives diversification</td>
+<td><code>genes:species</code> (± anything)</td>
+<td><strong>the merged loop</strong> — tree and genome grow together in one interleaved event stream</td>
+</tr>
+</tbody>
+</table>
+<p>So true, all-in-one simultaneity is required in exactly one case: an arrow from <strong>G into S</strong>.
+Otherwise "S + T + G together" is a forward core plus overlays, reusing pieces that already exist.</p>
+<h2 id="using-it-today-traitsspecies-speciestraits-classe">Using it today (<code>traits:species</code>, <code>species:traits</code>, ClaSSE)</h2>
+<p>The first into-species edge is <strong>shipped</strong>. A discrete or continuous trait drives
+speciation/extinction and the tree is grown <em>jointly</em> with it — so the command takes <strong>no <code>-t</code>
+tree</strong> (it produces one) and a stopping condition instead:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># BiSSE: state 1 speciates faster, so it comes to dominate the standing tips</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:species<span class="w"> </span>--sse-model<span class="w"> </span>bisse<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lambda0<span class="w"> </span><span class="m">1</span><span class="w"> </span>--lambda1<span class="w"> </span><span class="m">3</span><span class="w"> </span>--mu0<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--mu1<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--q01<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>--q10<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tips<span class="w"> </span><span class="m">200</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>out/
+</code></pre></div>
+
+<p>This writes <code>species_tree.nwk</code> (the tree the trait's rates shaped), <code>traits.tsv</code> (every node —
+tips <em>and</em> ancestral states), and <code>trait_tree.nwk</code>. <code>--sse-model musse</code> is the k-state variant
+(<code>--birth</code>/<code>--death</code> vectors + a <code>--q-matrix</code> file); <code>--sse-model quasse</code> is the continuous-trait
+variant (sigmoidal speciation via <code>--spec-low/high/center/slope</code> + Brownian <code>--diffusion</code>). From
+Python the driver is <code>simulate_sse</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">zombi2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">z</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">simulate_sse</span><span class="p">(</span><span class="n">z</span><span class="o">.</span><span class="n">BiSSE</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span> <span class="n">n_tips</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">res</span><span class="o">.</span><span class="n">tree</span>                 <span class="c1"># complete tree (extinct lineages kept; z.prune() for the reconstructed one)</span>
+<span class="n">res</span><span class="o">.</span><span class="n">labeled_values</span><span class="p">()</span>     <span class="c1"># the trait at the extant tips</span>
+</code></pre></div>
+
+<p><code>z.BiSSE</code> / <code>z.MuSSE</code> / <code>z.QuaSSE</code> and <code>z.HiSSE</code> (hidden-state SSE, the honest null) are all on the
+public API.</p>
+<h3 id="the-reverse-arrow-speciestraits-and-classe">The reverse arrow — <code>species:traits</code> and ClaSSE</h3>
+<p>The second arrow is also shipped: <strong><code>species:traits</code></strong> makes the trait jump <em>at</em> each speciation
+(cladogenetic / speciational evolution). On its own it has no arrow into S, so it runs on a
+<strong>given</strong> tree (<code>-t</code>), with a <code>Cladogenesis</code> kernel layered on an ordinary anagenetic model:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># a purely speciational binary trait on an existing tree (no within-branch change: --q01/--q10 0)</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>species:traits<span class="w"> </span>-t<span class="w"> </span>out/species_tree.nwk<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--sse-model<span class="w"> </span>bisse<span class="w"> </span>--q01<span class="w"> </span><span class="m">0</span><span class="w"> </span>--q10<span class="w"> </span><span class="m">0</span><span class="w"> </span>--clado-shift<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--seed<span class="w"> </span><span class="m">2</span><span class="w"> </span>-o<span class="w"> </span>clado/
+</code></pre></div>
+
+<p>Turn on <strong>both</strong> arrows and you get the full <strong>ClaSSE</strong> feedback — the trait shapes the tree <em>and</em>
+is kicked by its branching:</p>
+<div class="codehilite"><pre><span></span><code>zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>traits:species<span class="w"> </span>--couple<span class="w"> </span>species:traits<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lambda0<span class="w"> </span><span class="m">1</span><span class="w"> </span>--lambda1<span class="w"> </span><span class="m">3</span><span class="w"> </span>--q01<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>--q10<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>--clado-shift<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tips<span class="w"> </span><span class="m">200</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">3</span><span class="w"> </span>-o<span class="w"> </span>classe/
+</code></pre></div>
+
+<p><code>--clado-shift</code> is the per-daughter state-hop probability (discrete traits); <code>--clado-jump</code> is the
+Gaussian jump variance for a continuous (<code>quasse</code>) trait. In Python the kernel is
+<code>z.Cladogenesis(shift=…, jump_sigma2=…)</code>, accepted by both <code>z.simulate_sse(..., cladogenesis=…)</code>
+(ClaSSE) and <code>z.simulate_traits(tree, model, cladogenesis=…)</code> (<code>species:traits</code> on a fixed tree).</p>
+<h3 id="gene-content-drives-the-tree-genesspecies">Gene content drives the tree — <code>genes:species</code></h3>
+<p>The second into-species edge is shipped too: a small panel of binary <strong>driver</strong> ("key innovation")
+gene families whose presence sets each lineage's speciation/extinction rate. Drivers are gained de
+novo (origination) and — the interesting part — by <strong>transfer</strong>, which is <em>frequency-dependent</em> (a
+driver in more live genomes spreads faster), so the tree and the gene content grow together. The
+neutral bulk genome is overlaid afterward on the grown tree:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 2 drivers; one seeded at the root with a strong speciation effect, spread by HGT</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>genes:species<span class="w"> </span>--drivers<span class="w"> </span><span class="m">2</span><span class="w"> </span>--root-drivers<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lambda0<span class="w"> </span><span class="m">1</span><span class="w"> </span>--mu0<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>--driver-speciation<span class="w"> </span><span class="m">1</span>.2<span class="w"> </span>--driver-transfer<span class="w"> </span><span class="m">0</span>.8<span class="w"> </span>--driver-loss<span class="w"> </span><span class="m">0</span>.3<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tips<span class="w"> </span><span class="m">200</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>keygene/
+
+<span class="c1"># overlay the neutral genome on the resulting tree (the factorization, made explicit)</span>
+zombi2<span class="w"> </span>genomes<span class="w"> </span>-t<span class="w"> </span>keygene/species_tree.nwk<span class="w"> </span>--trans<span class="w"> </span><span class="m">1</span><span class="w"> </span>--loss<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>--write<span class="w"> </span>profiles<span class="w"> </span>trees<span class="w"> </span>-o<span class="w"> </span>keygene/
+</code></pre></div>
+
+<p><code>coevolve</code> writes <code>species_tree.nwk</code>, <code>drivers.tsv</code> (per-node driver presence) and
+<code>drivers_manifest.tsv</code> (the effect sizes β and rates). <code>--driver-speciation</code>/<code>--driver-extinction</code>
+are the per-driver log-rate effects; <code>--driver-loss</code>/<code>--driver-origination</code>/<code>--driver-transfer</code> the
+gene dynamics. In Python: <code>z.simulate_gene_diversification(z.GeneDiversification(…), n_tips=…)</code>.</p>
+<h3 id="speciation-drives-the-genome-speciesgenes">Speciation drives the genome — <code>species:genes</code></h3>
+<p>The reverse of <code>genes:species</code>: here gene content does <strong>not</strong> affect diversification, so this is an
+overlay on a <strong>given</strong> tree — the genomic twin of <code>species:traits</code>. A genome is evolved down the tree
+with a <em>cladogenetic burst</em> of gene loss and gain at each speciation (founder-effect upheaval), on
+top of the usual gradual (anagenetic) change — <strong>punctuational genome evolution</strong>:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># purely punctuational genomes: change ONLY at speciations (no anagenetic gene-loss/-origination)</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>species:genes<span class="w"> </span>-t<span class="w"> </span>species_tree.nwk<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--genome-size<span class="w"> </span><span class="m">30</span><span class="w"> </span>--clado-gene-loss<span class="w"> </span><span class="m">0</span>.15<span class="w"> </span>--clado-gene-gain<span class="w"> </span><span class="m">3</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">2</span><span class="w"> </span>-o<span class="w"> </span>punctgenome/
+</code></pre></div>
+
+<p><code>--clado-gene-loss</code> is the per-family drop probability at each speciation and <code>--clado-gene-gain</code> the
+mean number of new families gained (Poisson); <code>--gene-loss</code>/<code>--gene-origination</code> add gradual
+along-branch change (both 0 = pure punctuation). It writes <code>Profiles.tsv</code>/<code>Presence.tsv</code> (families ×
+extant tips) and <code>genome_sizes.tsv</code>. In Python:
+<code>z.simulate_cladogenetic_genome(tree, z.CladogeneticGenome(…))</code>. The signature of the model is that
+<strong>sister tips differ</strong> — change is injected at their split, not spread along the branches.</p>
+<h3 id="gene-content-shapes-a-trait-genestraits">Gene content shapes a trait — <code>genes:traits</code></h3>
+<p>The reverse of <code>traits:genes</code>: here gene content conditions a <strong>trait</strong>. A binary <em>modifier</em> gene comes
+and goes along the tree (gain/loss), and its presence sets a continuous trait's <strong>OU optimum</strong> — so a
+lineage that acquires the gene is pulled toward a new adaptive peak (<code>theta_present</code>), and one that
+loses it drifts back to <code>theta_absent</code>. "Gene presence enables a trait shift." Also an overlay on a
+given tree:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># a modifier gene that unlocks a phenotypic optimum at 5 (vs 0 without it)</span>
+zombi2<span class="w"> </span>coevolve<span class="w"> </span>--couple<span class="w"> </span>genes:traits<span class="w"> </span>-t<span class="w"> </span>species_tree.nwk<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--modifier-gain<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>--modifier-loss<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>--theta-absent<span class="w"> </span><span class="m">0</span><span class="w"> </span>--theta-present<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--trait-alpha<span class="w"> </span><span class="m">2</span>.5<span class="w"> </span>--trait-sigma2<span class="w"> </span><span class="m">0</span>.4<span class="w"> </span>--seed<span class="w"> </span><span class="m">2</span><span class="w"> </span>-o<span class="w"> </span>genetrait/
+</code></pre></div>
+
+<p>It writes <code>traits.tsv</code> (per node: modifier presence 0/1 and the trait value) and <code>trait_tree.nwk</code>.
+<code>--trait-alpha</code> is the OU mean-reversion (0 = Brownian); the modifier's own dynamics are
+<code>--modifier-gain</code>/<code>--modifier-loss</code>/<code>--root-modifier</code>. In Python:
+<code>z.simulate_gene_conditioned_trait(tree, z.GeneConditionedTrait(…))</code>. The signal: <strong>tips carrying the
+modifier sit near <code>theta_present</code></strong>, those without near <code>theta_absent</code>.</p>
+<p>Only the full three-way <code>--all</code> remains on the roadmap below.</p>
+<h2 id="the-engine-one-generic-per-lineage-state">The engine: one generic per-lineage state</h2>
+<p>The investment that unlocks the whole into-S family is a single generalisation of the forward
+birth–death loop (<a href="#species-tree-models"><code>species_forward.py</code></a>):
+today a growing lineage is an <em>unlabelled topology</em>; the coevolve engine gives each lineage a
+<strong>state bag</strong> and lets the birth–death rates be a function of it.</p>
+<div class="codehilite"><pre><span></span><code>lineage.state   # an open container of the active coupled processes: a trait value, a genome, or both
+rate(lineage)   # speciation / extinction read off lineage.state
+on_speciation   # daughters inherit (copy) the state, optionally with a change kernel applied
+</code></pre></div>
+
+<p>Crucially the loop does not care <em>what</em> the state is:</p>
+<ul>
+<li>put a <strong>trait</strong> in the bag and read it in <code>rate()</code> → <code>traits:species</code> (SSE);</li>
+<li>put a <strong>genome</strong> in the bag → <code>genes:species</code>;</li>
+<li>put <strong>both</strong> → three-way.</li>
+</ul>
+<p>And the reverse arrows are nearly free in the same loop: applying a change kernel to the daughters
+in <code>on_speciation</code> gives <code>species:traits</code> (cladogenetic trait jumps) and <code>species:genes</code> — so the
+full <code>traits:species</code> <strong>+</strong> <code>species:traits</code> feedback (ClaSSE) needs only the trait→rate function
+<em>and</em> the speciation→trait kernel, both small and additive. <code>--all</code> is then not a separate build
+but the state where every edge's rate-function/kernel is wired on; it becomes a validation
+milestone once the individual edges each work.</p>
+<h2 id="phased-build-order">Phased build order</h2>
+<ul>
+<li><strong>Phase 0 — the umbrella.</strong> Add <code>coevolve</code> with the <code>--couple driver:target</code> parser; fold the
+  existing <a href="#guide-trait-linked-genomes"><code>coevolve-genetrait</code></a> in as <code>--couple traits:genes</code>
+  (keep <code>coevolve-genetrait</code> as a deprecated alias). Ships immediately; no engine work.</li>
+<li><strong>Phase 1 — <code>traits:species</code> (SSE). ✅ done.</strong> The forward joint tree+trait engine is in
+  <a href="https://github.com/AADavin/zombi2/blob/main/zombi2/sse.py"><code>zombi2/sse.py</code></a> — <code>BiSSE</code> (binary),
+  <code>MuSSE</code> (k-state), <code>QuaSSE</code> (continuous) and <code>HiSSE</code> (hidden-state), driven by <code>simulate_sse</code> and
+  exposed as <code>coevolve --couple traits:species</code>. Next: fold the speciation→trait change kernel into
+  the same loop for Phase 2.</li>
+<li><strong>Phase 2 — <code>species:traits</code> and full ClaSSE. ✅ done.</strong> The <code>Cladogenesis</code> kernel
+  (<code>zombi2/traits.py</code>) jumps the trait at speciation; it feeds both <code>simulate_traits</code> (the
+  <code>species:traits</code> edge on a given tree) and the forward <code>simulate_sse</code> loop, so
+  <code>--couple traits:species --couple species:traits</code> is the complete <code>traits↔species</code> ClaSSE feedback.</li>
+<li><strong>Phase 3 — <code>genes:species</code> (key innovations + HGT). ✅ done.</strong> A forward joint loop
+  (<a href="https://github.com/AADavin/zombi2/blob/main/zombi2/gene_diversification.py"><code>zombi2/gene_diversification.py</code></a>)
+  grows the tree together with a panel of binary driver families whose presence sets λ/μ; gain is by
+  origination and <strong>frequency-dependent transfer</strong>. The neutral genome is overlaid afterward with
+  <code>genomes</code> (exact under independent families), so the merged loop stays small. <code>GeneDiversification</code>
+  / <code>simulate_gene_diversification</code>, exposed as <code>coevolve --couple genes:species</code>. <strong>v1 scope:</strong> binary
+  drivers, driver <em>presence</em> profiles (not yet full driver gene trees), the edge runs on its own.</li>
+<li><strong>Phase 4a — <code>species:genes</code> (cladogenetic genome). ✅ done.</strong> An overlay on a given tree
+  (<a href="https://github.com/AADavin/zombi2/blob/main/zombi2/cladogenetic_genome.py"><code>zombi2/cladogenetic_genome.py</code></a>):
+  a genome is evolved down the tree with a founder-effect burst of gene loss/gain at each speciation
+  (<code>CladogeneticGenome</code> / <code>simulate_cladogenetic_genome</code>, <code>coevolve --couple species:genes</code>). v1 scope:
+  presence/absence genome, gain by origination (no HGT yet), runs on its own.</li>
+<li><strong>Phase 4b — <code>genes:traits</code> (gene-conditioned trait). ✅ done.</strong> An overlay on a given tree
+  (<a href="https://github.com/AADavin/zombi2/blob/main/zombi2/gene_conditioned_trait.py"><code>zombi2/gene_conditioned_trait.py</code></a>):
+  a binary modifier gene (a two-state Markov chain along the tree) switches a continuous trait's OU
+  optimum, so acquiring the gene pulls the trait to a new peak (<code>GeneConditionedTrait</code> /
+  <code>simulate_gene_conditioned_trait</code>, <code>coevolve --couple genes:traits</code>). <strong>All six directed edges now
+  exist individually.</strong></li>
+<li><strong>Phase 4 — <code>--all</code>.</strong> The fully joint model: all six edges active at once (every pair
+  bidirectional = maximal mutual feedback). There is no single causal direction — forward time
+  resolves the mutual dependence (current states set next-event rates). Needs the generic
+  per-lineage-state forward loop carrying both trait and genome, plus stability guards on the
+  feedback loops (esp. trait↔gene). Best expressed by composing edges with <code>--couple</code>; <code>--all</code>
+  would be sugar for "all six".</li>
+</ul>
+<h2 id="caveats">Caveats</h2>
+<div class="admonition note">
+<p class="admonition-title">SSE draws spurious associations easily</p>
+<p>State-dependent diversification models are notorious for high false-positive rates in
+<em>inference</em>: a neutral trait can look strongly diversification-linked (Rabosky &amp; Goldberg
+2015; Maddison &amp; FitzJohn 2015). ZOMBI2 is a <strong>forward generator</strong>, so it is not itself
+fooled — but the whole point of generating these scenarios is to test downstream inference, so
+the simulator should make it easy to produce the null (<code>--couple</code> absent, or a zero-effect
+coupling) as a control, exactly as the <code>traits:genes</code> model keeps inert families as controls.</p>
+</div>
+<p>Fitting or even interpreting the fully-coupled <code>--all</code> model is hard (many entangled knobs); as a
+<em>simulator</em> that is fine, but three-way feedback is best treated as a stress-test/showcase rather
+than a routine analysis mode. Performance-wise, only the into-S edges leave the fast paths — every
+overlay edge keeps the existing engines.</p>
+<h2 id="key-references">Key references</h2>
+<ul>
+<li>Maddison, Midford &amp; Otto (2007), <em>Syst. Biol.</em> — BiSSE (binary state-dependent speciation/extinction).</li>
+<li>FitzJohn (2010), <em>Syst. Biol.</em> — QuaSSE (quantitative-trait SSE); FitzJohn (2012), <em>Methods Ecol. Evol.</em> — diversitree, MuSSE.</li>
+<li>Beaulieu &amp; O'Meara (2016), <em>Syst. Biol.</em> — HiSSE (hidden-state SSE, the honest null).</li>
+<li>Goldberg &amp; Igić (2012), <em>Evolution</em> — ClaSSE (cladogenetic state change + SSE): the model behind the reverse <code>species:traits</code> arrow.</li>
+<li>Bokma (2008), <em>J. Evol. Biol.</em>; Pagel (1999), <em>Nature</em> — speciational / punctuational trait evolution (change concentrated at branching).</li>
+<li>Rabosky &amp; Goldberg (2015), <em>Syst. Biol.</em>; Maddison &amp; FitzJohn (2015), <em>Syst. Biol.</em> — the false-positive caveat for SSE inference.</li>
+<li>Maliet, Hartig &amp; Morlon (2019), <em>Nat. Ecol. Evol.</em> — ClaDS: the per-lineage-rate cousin already shipped, and a template for carrying per-lineage state forward.</li>
 </ul></section></main></div><script>var links=[].slice.call(document.querySelectorAll('#side a.lnk'));var secs=links.map(function(a){return document.getElementById(a.getAttribute('href').slice(1));});function onScroll(){var y=window.scrollY+90,i=0;for(var k=0;k<secs.length;k++){if(secs[k]&&secs[k].offsetTop<=y)i=k;}links.forEach(function(a,j){a.classList.toggle('active',j===i);});}document.addEventListener('scroll',onScroll);onScroll();</script></body></html>

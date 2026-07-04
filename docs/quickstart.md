@@ -43,7 +43,7 @@ zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 -o out/
 ```
 
-The built-in model runs on Rust automatically; use `--output profiles` for the counts-only
+The built-in model runs on Rust automatically; use `--write profiles` for the counts-only
 output. See the full [command-line interface](cli.md) for every option.
 
 ## Next steps

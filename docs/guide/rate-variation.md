@@ -114,11 +114,11 @@ phylo = z.SequenceEvolution(lineage=rv, family_speed=z.LogNormal(0.0, 0.4)).scal
 
 Sequence evolution is a **separate command**, `zombi2 sequence`, run on a prior `genomes`
 result — so you can retune the clock without re-simulating gene content. `genomes` just has to
-have written the event trace (`trace` in `--output`):
+have written the event trace (`trace` in `--write`):
 
 ```bash
 zombi2 genomes  -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
-    --output trace profiles -o run/
+    --write trace profiles -o run/
 
 # lognormal lineage clock + per-family speed
 zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
