@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1240" height="860" viewBox="0 0 1240 860">
+<defs>
+</defs>
+<rect x="0" y="0" width="1240" height="860" fill="white" />
+<text x="40" y="44" font-size="21" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">The Potts model — gene families that gain and lose together</text>
+<text x="40" y="70" font-size="13.5" font-family="Helvetica" text-anchor="start" fill="#777">non-independent gene families: pairwise couplings J make partners co-occur (+) or avoid each other (−).  ZOMBI2: PottsRates / simulate_coupled</text>
+<path d="M620,100 L620,812" stroke="#e8e8e8" stroke-width="1.2" />
+<path d="M48,330 L1192,330" stroke="#e8e8e8" stroke-width="1.2" />
+<text x="56" y="130" font-size="19" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">1</text>
+<text x="82" y="130" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">A genome = which families it has  (present / absent vector σ)</text>
+<rect x="96" y="168" width="38" height="38" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="115" y="226" font-size="13" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F0</text>
+<text x="115" y="246" font-size="13" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#888">1</text>
+<rect x="146" y="168" width="38" height="38" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="165" y="226" font-size="13" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F1</text>
+<text x="165" y="246" font-size="13" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#888">1</text>
+<rect x="196" y="168" width="38" height="38" fill="white" stroke="#bfc6cf" stroke-width="1.4" />
+<text x="215" y="226" font-size="13" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F2</text>
+<text x="215" y="246" font-size="13" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#888">0</text>
+<rect x="246" y="168" width="38" height="38" fill="#E08A3C" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="265" y="226" font-size="13" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F3</text>
+<text x="265" y="246" font-size="13" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#888">1</text>
+<rect x="296" y="168" width="38" height="38" fill="white" stroke="#bfc6cf" stroke-width="1.4" />
+<text x="315" y="226" font-size="13" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F4</text>
+<text x="315" y="246" font-size="13" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#888">0</text>
+<rect x="346" y="168" width="38" height="38" fill="white" stroke="#bfc6cf" stroke-width="1.4" />
+<text x="365" y="226" font-size="13" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F5</text>
+<text x="365" y="246" font-size="13" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#888">0</text>
+<text x="422" y="180" font-size="12.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">present</text>
+<rect x="404" y="168" width="16" height="16" fill="#9aa7b4" stroke="#1a1a1a" stroke-width="1.4" />
+<rect x="404" y="196" width="16" height="16" fill="white" stroke="#bfc6cf" stroke-width="1.4" />
+<text x="422" y="204" font-size="12.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">absent</text>
+<text x="96" y="290" font-size="12.5" font-family="Helvetica" text-anchor="start" fill="#777">a fixed panel of N gene families; colour = pathway module</text>
+<text x="640" y="130" font-size="19" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">2</text>
+<text x="666" y="130" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Families are coupled by J</text>
+<path d="M660,166 L686,166" stroke="#2f8f4e" stroke-width="3" />
+<text x="692" y="166" font-size="12.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &gt; 0  (partners co-occur)</text>
+<path d="M940,166 L966,166" stroke="#cc4b3c" stroke-width="2.6" stroke-dasharray="6,4" />
+<text x="972" y="166" font-size="12.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &lt; 0  (partners avoid)</text>
+<path d="M760,216 L720,272" stroke="#2f8f4e" stroke-width="3" />
+<path d="M760,216 L810,270" stroke="#2f8f4e" stroke-width="3" />
+<path d="M720,272 L810,270" stroke="#2f8f4e" stroke-width="3" />
+<path d="M1030,216 L990,272" stroke="#2f8f4e" stroke-width="3" />
+<path d="M1030,216 L1080,270" stroke="#2f8f4e" stroke-width="3" />
+<path d="M990,272 L1080,270" stroke="#2f8f4e" stroke-width="3" />
+<path d="M810,270 L990,272" stroke="#cc4b3c" stroke-width="2.6" stroke-dasharray="6,4" />
+<circle cx="760" cy="216" r="17" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="760" y="216" font-size="12" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F0</text>
+<circle cx="720" cy="272" r="17" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="720" y="272" font-size="12" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F1</text>
+<circle cx="810" cy="270" r="17" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="810" y="270" font-size="12" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F2</text>
+<circle cx="1030" cy="216" r="17" fill="#E08A3C" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="1030" y="216" font-size="12" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F3</text>
+<circle cx="990" cy="272" r="17" fill="#E08A3C" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="990" y="272" font-size="12" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F4</text>
+<circle cx="1080" cy="270" r="17" fill="#E08A3C" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="1080" y="270" font-size="12" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F5</text>
+<text x="765" y="306" font-size="12.5" font-family="Helvetica" text-anchor="middle" fill="#4477AA" font-weight="bold">module A</text>
+<text x="1035" y="306" font-size="12.5" font-family="Helvetica" text-anchor="middle" fill="#E08A3C" font-weight="bold">module B</text>
+<text x="56" y="372" font-size="19" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">3</text>
+<text x="82" y="372" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Coupling enters through the LOSS rate</text>
+<text x="96" y="404" font-size="14" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">local field   f_i  =  h_i  +  Σ_j  J_ij · σ_j        (sum over present partners)</text>
+<text x="96" y="430" font-size="14" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">loss rate   loss_i  =  base_loss · e^(−β · f_i)</text>
+<path d="M132,462 L132,694" stroke="#bdbdbd" stroke-width="1.2" />
+<path d="M132,694 L488,694" stroke="#bdbdbd" stroke-width="1.2" />
+<path d="M274.4,462 L274.4,694" stroke="#dcdcdc" stroke-width="1" stroke-dasharray="3,3" />
+<path d="M132.0,462.0 L135.56,462.0 L139.12,462.0 L142.68,462.0 L146.24,462.0 L149.8,462.0 L153.36,462.0 L156.92000000000002,462.0 L160.48000000000002,462.0 L164.04000000000002,462.0 L167.60000000000002,462.0 L171.16000000000003,462.0 L174.72000000000003,462.0 L178.28000000000003,470.2693192195756 L181.84000000000003,481.18079327808397 L185.40000000000003,491.56010846721335 L188.96000000000004,501.4332184812804 L192.52000000000004,510.8248112379936 L196.08000000000004,519.758370611107 L199.64000000000004,528.2562351523367 L203.20000000000005,536.3396539493755 L206.76000000000005,544.0288397596811 L210.32000000000005,551.3430195528971 L213.88000000000005,558.3004825882927 L217.44000000000008,564.918626147437 L221.00000000000009,571.213999036465 L224.5600000000001,577.2023429667124 L228.1200000000001,582.8986319171942 L231.6800000000001,588.3171095773506 L235.2400000000001,593.4713249636912 L238.8000000000001,598.3741662993928 L242.36000000000007,603.0378932415704 L245.92000000000007,607.4741675368065 L249.48000000000008,611.6940821815912 L253.04000000000008,615.7081891605919 L256.6000000000001,619.5265258321111 L260.1600000000001,623.1586400267103 L263.7200000000001,626.6136139217597 L267.2800000000001,629.9000867516125 L270.8400000000001,633.0262764101907 L274.4000000000001,636.0000000000001 L277.9600000000001,638.8286933789586 L281.5200000000001,641.5194297539144 L285.0800000000001,644.0789373673467 L288.6400000000001,646.5136163214771 L292.2000000000001,648.8295545818586 L295.7600000000001,651.0325432004604 L299.3200000000001,653.1280907963147 L302.8800000000001,655.121437329933 L306.44000000000005,657.0175672059372 L310.0000000000001,658.8212217366673 L313.56000000000006,660.5369109979318 L317.1200000000001,662.1689251065465 L320.68000000000006,663.7213449478611 L324.2400000000001,665.1980523800983 L327.80000000000007,666.6027399410212 L331.3600000000001,667.9389200812012 L334.9200000000001,669.2099339469739 L338.48000000000013,670.4189597350453 L342.0400000000001,671.569020639639 L345.60000000000014,672.6629924120564 L349.1600000000001,673.703610551553 L352.72000000000014,674.6934771455115 L356.2800000000001,675.635067376015 L359.84000000000015,676.5307357090923 L363.4000000000001,677.382721782109 L366.96000000000015,678.1931560040273 L370.5200000000001,678.9640648825383 L374.08000000000015,679.6973760913869 L377.6400000000001,680.3949232905597 L381.20000000000016,681.0584507113911 L384.7600000000001,681.689617518049 L388.32000000000016,682.29000195631 L391.88000000000017,682.8611052999963 L395.44000000000017,683.4043556049414 L399.00000000000017,683.9211112798743 L402.5600000000002,684.412664483148 L406.1200000000002,684.8802443538096 L409.6800000000002,685.3250200850872 L413.2400000000002,685.7481038479822 L416.8000000000001,686.1505535722765 L420.3600000000002,686.5333755919073 L423.9200000000001,686.897527161327 L427.48000000000013,687.2439188491372 L431.0400000000001,687.5734168149846 L434.60000000000014,687.8868449754119 L438.16,688.1849870640774 L441.72000000000014,688.4685885914981 L445.28000000000003,688.738358709214 L448.8400000000001,688.9949719830365 L452.40000000000003,689.2390700798139 L455.96000000000004,689.4712633719331 L459.52,689.6921324635687 L463.08000000000004,689.9022296424951 L466.63999999999993,690.1020802610946 L470.2,690.292184050011 L473.75999999999993,690.4730163677374 L477.32,690.6450293892593 L480.87999999999994,690.8086532367283 L484.43999999999994,690.9642970549909 L487.9999999999999,691.1123500346639" fill="none" stroke="#1a1a1a" stroke-width="2.4" stroke-linejoin="round" />
+<text x="104" y="578.0" font-size="12.5" font-family="Helvetica" text-anchor="middle" fill="#777" transform="rotate(-90 104 578.0)">loss rate</text>
+<text x="310.0" y="718" font-size="12.5" font-family="Helvetica" text-anchor="middle" fill="#777">local field  f</text>
+<circle cx="274.4" cy="636.0" r="3" fill="#999" />
+<text x="280.4" y="629.0" font-size="11" font-family="Helvetica" text-anchor="start" fill="#999">base_loss</text>
+<circle cx="203.2" cy="536.3396539493754" r="5" fill="#cc4b3c" stroke="#1a1a1a" stroke-width="1.2" />
+<text x="215.2" y="536.3396539493754" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#cc4b3c" font-weight="bold">no partners: fast loss</text>
+<circle cx="416.8" cy="686.1505535722764" r="5" fill="#2f8f4e" stroke="#1a1a1a" stroke-width="1.2" />
+<text x="416.8" y="670.1505535722764" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">partners present: protected</text>
+<text x="96" y="776" font-size="12.5" font-family="Helvetica" text-anchor="start" fill="#777">more present + partners  -&gt;  lower loss, so coupled families stay together</text>
+<text x="640" y="372" font-size="19" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">4</text>
+<text x="666" y="372" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Gain = HGT (blind); retention = selective</text>
+<rect x="700" y="500" width="38" height="38" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="719" y="554" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F0</text>
+<rect x="760" y="500" width="38" height="38" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="779" y="554" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F1</text>
+<rect x="820" y="500" width="38" height="38" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="839" y="554" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F2</text>
+<path d="M779,466 L779,496" stroke="#1a1a1a" stroke-width="2" />
+<path d="M779,498 L773,488 L785,488 Z" fill="#1a1a1a" />
+<text x="802" y="478" font-size="11" font-family="Helvetica" text-anchor="start" fill="#777">HGT</text>
+<path d="M880,520 L885,526 L894,513" fill="none" stroke="#2f8f4e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<text x="902" y="519" font-size="15" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#2f8f4e">kept</text>
+<text x="700" y="574" font-size="12" font-family="Helvetica" text-anchor="start" fill="#555">partners F0, F2 present:  the transferred F1 is retained</text>
+<rect x="700" y="650" width="38" height="38" fill="white" stroke="#bfc6cf" stroke-width="1.4" />
+<text x="719" y="704" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F0</text>
+<rect x="760" y="650" width="38" height="38" fill="#4477AA" fill-opacity="0.28" stroke="#bfc6cf" stroke-width="1.4" stroke-dasharray="4,3" />
+<text x="779" y="704" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F1</text>
+<rect x="820" y="650" width="38" height="38" fill="white" stroke="#bfc6cf" stroke-width="1.4" />
+<text x="839" y="704" font-size="12" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">F2</text>
+<path d="M779,616 L779,646" stroke="#1a1a1a" stroke-width="2" />
+<path d="M779,648 L773,638 L785,638 Z" fill="#1a1a1a" />
+<text x="802" y="628" font-size="11" font-family="Helvetica" text-anchor="start" fill="#777">HGT</text>
+<path d="M881,664 L891,674" stroke="#cc4b3c" stroke-width="3" stroke-linecap="round" />
+<path d="M881,674 L891,664" stroke="#cc4b3c" stroke-width="3" stroke-linecap="round" />
+<text x="902" y="669" font-size="15" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#cc4b3c">purged</text>
+<text x="700" y="724" font-size="12" font-family="Helvetica" text-anchor="start" fill="#555">partners F0, F2 absent:  F1 has no protection, lost fast</text>
+<text x="640" y="760" font-size="12.5" font-family="Helvetica" text-anchor="start" fill="#777">differential retention of transferred genes writes J into the profiles</text>
+</svg>

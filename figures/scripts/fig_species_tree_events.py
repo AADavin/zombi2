@@ -1,0 +1,141 @@
+"""Figure: gene-family events painted on the species tree.
+
+This is the *scenario* companion to the gene-tree figure: the exact events of
+ZOMBI2 gene family 9 (genome run along this tree, dup=trans=loss=0.2, seed 7),
+placed at their true time on the species tree. The same three events reappear as
+the gene tree in ``fig_gene_tree`` — species tree -> events -> gene tree.
+
+  * duplication in species I           -> hatched square
+  * transfer F -> G                    -> black arc, donor dot -> arrowhead on recipient
+  * loss in species J                  -> hatched circle
+
+Monochrome, print-friendly. Run:  python figures/scripts/fig_species_tree_events.py
+"""
+
+from __future__ import annotations
+
+import string
+from pathlib import Path
+
+import drawsvg as draw
+import phylustrator as ph
+from phylustrator.io import read_newick
+
+from zombi_style import INK, PANEL, species_style
+
+FIG_DIR = Path(__file__).resolve().parent.parent
+TREE_NWK = FIG_DIR / "species_tree_10" / "species_tree.nwk"
+OUT_STEM = FIG_DIR / "species_tree_events" / "species_tree_events"
+
+# Family 9's events, in DISPLAY-name space (leaves A-J), at their true simulated
+# times (from 9_events.tsv) so this figure matches the gene tree exactly.
+DUPLICATIONS = [("I", 0.5965)]                              # duplication in species I
+LOSSES = [("J", 0.7128)]                                    # loss in species J
+TRANSFERS = [{"from": "F", "to": "G", "time": 0.4233}]      # transfer F -> G
+
+MARKER_R = 8.0
+
+
+def annotate_times(tree) -> float:
+    """Set ``node.time_from_origin`` (root = 0); return the present (max)."""
+    present = 0.0
+    for n in tree.traverse("preorder"):
+        n.time_from_origin = 0.0 if n.is_root() else n.up.time_from_origin + n.dist
+        present = max(present, n.time_from_origin)
+    return present
+
+
+def make_hatch(d, spacing=4.5, sw=1.2):
+    """A diagonal black-on-white hatch pattern, shared by duplication & loss glyphs."""
+    p = draw.Pattern(spacing, spacing, id="event_hatch", patternUnits="userSpaceOnUse")
+    p.append(draw.Rectangle(0, 0, spacing, spacing, fill=PANEL))
+    for off in (-spacing, 0, spacing):
+        p.append(draw.Line(off, spacing, off + spacing, 0, stroke=INK, stroke_width=sw))
+    d.drawing.append(p)
+    return p
+
+
+def _branch_point(d, node, t):
+    """(x, y) at absolute time ``t`` along the branch above ``node``."""
+    p = node.up
+    x_c, y_c = node.coordinates
+    if p is None:
+        return x_c, y_c
+    x_p, _ = p.coordinates
+    span = node.time_from_origin - p.time_from_origin
+    frac = 0.5 if abs(span) < 1e-12 else max(0.0, min(1.0, (t - p.time_from_origin) / span))
+    return x_p + (x_c - x_p) * frac, y_c
+
+
+def draw_events(d, tree, hatch):
+    name2node = {n.name: n for n in tree.traverse()}
+    marker = dict(r=MARKER_R, stroke=INK, stroke_width=2.0)
+    for br, t in DUPLICATIONS:
+        d._draw_shape_at(*_branch_point(d, name2node[br], t), "square", hatch, **marker)
+    for br, t in LOSSES:
+        d._draw_shape_at(*_branch_point(d, name2node[br], t), "circle", hatch, **marker)
+    d.plot_transfers(TRANSFERS, mode="time", use_gradient=False, color=INK,
+                     stroke_width=2.6, arc_intensity=38.0, opacity=1.0,
+                     arrowhead=True, arrow_size=12.0, donor_dot=True)
+
+
+def add_legend(d, hatch, x, y, font_size=15):
+    r = MARKER_R
+    fam = d.style.font_family
+    d.drawing.append(draw.Text("Gene-family events", font_size + 2, x, y, font_weight="bold",
+                               font_family=fam, text_anchor="start"))
+    label_x = x + 2 * r + 14
+    cy = y + font_size * 1.9
+
+    d._draw_shape_at(x + r, cy, "square", hatch, r=r, stroke=INK, stroke_width=2.0)
+    d.drawing.append(draw.Text("Duplication", font_size, label_x, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="middle"))
+    cy += font_size * 1.9
+
+    d._draw_shape_at(x + r, cy, "circle", hatch, r=r, stroke=INK, stroke_width=2.0)
+    d.drawing.append(draw.Text("Loss", font_size, label_x, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="middle"))
+    cy += font_size * 1.9
+
+    # transfer glyph: donor dot -> arc -> arrowhead tip touching a short branch tick
+    bx0, bx1 = x, x + 2 * r
+    by = cy + 7
+    mid = (bx0 + bx1) / 2
+    base = by - 9
+    d.drawing.append(draw.Line(bx0, by, bx1, by, stroke=INK, stroke_width=2.4))       # branch
+    d.drawing.append(draw.Circle(bx0 + 2, cy - 8, 2.6, fill=INK))                      # donor dot
+    p = draw.Path(stroke=INK, stroke_width=2.4, fill="none", stroke_linecap="round")
+    p.M(bx0 + 2, cy - 8).C(bx0 - 5, cy - 8, mid, base - 8, mid, base)
+    d.drawing.append(p)
+    d.drawing.append(draw.Lines(mid, by, mid - 5, base, mid + 5, base, close=True, fill=INK))
+    d.drawing.append(draw.Text("Transfer", font_size, label_x, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="middle"))
+
+
+def main():
+    tree = read_newick(TREE_NWK)
+    present = annotate_times(tree)
+    for leaf, letter in zip(tree.get_leaves(), string.ascii_uppercase):
+        leaf.name = letter
+
+    style = species_style()
+    d = ph.VerticalTreeDrawer(tree, style=style)
+    d.draw()
+    d.add_leaf_names(color=INK, padding=12)
+
+    hatch = make_hatch(d)
+    draw_events(d, tree, hatch)
+
+    ticks = [round(present * i / 4, 6) for i in range(5)]
+    d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
+                    label="Time (root to present)", tick_size=6.0, padding=14.0,
+                    stroke_width=1.6)
+    add_legend(d, hatch, x=-style.width / 2 + 34, y=-style.height / 2 + 40)
+
+    d.save_svg(f"{OUT_STEM}.svg")
+    d.save_png(f"{OUT_STEM}.png", dpi=300)
+    print(f"wrote {OUT_STEM}.svg / .png")
+
+
+if __name__ == "__main__":
+    main()
