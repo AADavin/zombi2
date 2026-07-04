@@ -48,7 +48,7 @@ and bidirectional coupling is simply *both* edges. `:` (not `->`) keeps it shell
 
 | Edge (`driver:target`) | Reading | Model | Tree | Status |
 |---|---|---|---|---|
-| `traits:species` | trait sets speciation/extinction | **SSE** (BiSSE / MuSSE / QuaSSE) | **output** (forward) | proposed — **Phase 1**; a prior version is recoverable from git `d6892b5` |
+| `traits:species` | trait sets speciation/extinction | **SSE** (BiSSE / MuSSE / QuaSSE / HiSSE) | **output** (forward) | **shipped** — `coevolve --couple traits:species` |
 | `genes:species` | gene content sets diversification | gene-content-dependent diversification | **output** (forward) | proposed — Phase 3 (the merged engine) |
 | `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | proposed — Phase 2, cheap |
 | `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input | proposed |
@@ -91,6 +91,36 @@ axes typically splits into "grow the `S` + its into-S drivers forward, then over
 So true, all-in-one simultaneity is required in exactly one case: an arrow from **G into S**.
 Otherwise "S + T + G together" is a forward core plus overlays, reusing pieces that already exist.
 
+## Using it today (`traits:species`)
+
+The first into-species edge is **shipped**. A discrete or continuous trait drives
+speciation/extinction and the tree is grown *jointly* with it — so the command takes **no `-t`
+tree** (it produces one) and a stopping condition instead:
+
+```bash
+# BiSSE: state 1 speciates faster, so it comes to dominate the standing tips
+zombi2 coevolve --couple traits:species --sse-model bisse \
+    --lambda0 1 --lambda1 3 --mu0 0.2 --mu1 0.2 --q01 0.1 --q10 0.1 \
+    --tips 200 --seed 1 -o out/
+```
+
+This writes `species_tree.nwk` (the tree the trait's rates shaped), `traits.tsv` (every node —
+tips *and* ancestral states), and `trait_tree.nwk`. `--sse-model musse` is the k-state variant
+(`--birth`/`--death` vectors + a `--q-matrix` file); `--sse-model quasse` is the continuous-trait
+variant (sigmoidal speciation via `--spec-low/high/center/slope` + Brownian `--diffusion`). From
+Python the driver is `simulate_sse`:
+
+```python
+import zombi2 as z
+res = z.simulate_sse(z.BiSSE(1, 3, 0.2, 0.2, 0.1, 0.1), n_tips=200, seed=1)
+res.tree                 # complete tree (extinct lineages kept; z.prune() for the reconstructed one)
+res.labeled_values()     # the trait at the extant tips
+```
+
+`z.BiSSE` / `z.MuSSE` / `z.QuaSSE` and `z.HiSSE` (hidden-state SSE, the honest null) are all on the
+public API. The reverse arrow (`species:traits`) and the into-species `genes:species` edge remain
+on the roadmap below.
+
 ## The engine: one generic per-lineage state
 
 The investment that unlocks the whole into-S family is a single generalisation of the forward
@@ -122,10 +152,11 @@ milestone once the individual edges each work.
 - **Phase 0 — the umbrella.** Add `coevolve` with the `--couple driver:target` parser; fold the
   existing [`coevolve-genetrait`](guide/trait-linked-genomes.md) in as `--couple traits:genes`
   (keep `coevolve-genetrait` as a deprecated alias). Ships immediately; no engine work.
-- **Phase 1 — `traits:species` (SSE).** Build the generic per-lineage-state forward engine and
-  wire the trait→rate coupling (BiSSE for binary/`Mk`, MuSSE for k-state, QuaSSE for a continuous
-  trait), recovering and adapting the `d6892b5` code onto the new engine. Design `on_speciation`
-  to accept a change kernel from the start.
+- **Phase 1 — `traits:species` (SSE). ✅ done.** The forward joint tree+trait engine is in
+  [`zombi2/sse.py`](https://github.com/AADavin/zombi2/blob/main/zombi2/sse.py) — `BiSSE` (binary),
+  `MuSSE` (k-state), `QuaSSE` (continuous) and `HiSSE` (hidden-state), driven by `simulate_sse` and
+  exposed as `coevolve --couple traits:species`. Next: fold the speciation→trait change kernel into
+  the same loop for Phase 2.
 - **Phase 2 — `species:traits` and full ClaSSE.** Turn on the speciation→trait kernel (cheap given
   Phase 1); `traits:species + species:traits` is then the complete `traits↔species` feedback.
 - **Phase 3 — `genes:species` (the merged loop).** The one hard build: interleave species and
