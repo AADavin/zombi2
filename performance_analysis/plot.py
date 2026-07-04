@@ -62,9 +62,10 @@ def _log_axes(ax, x_label, y_label, y_fmt=_fmt_time):
 
 # --- reusable drawers -----------------------------------------------------
 
-def draw_scaling(ax, result, *, series_order=None, ref=True):
+def draw_scaling(ax, result, *, series_order=None, label_map=None):
     """Median line + interquartile band + open markers, log-log (time)."""
     labels = series_order or result.series()
+    label_map = label_map or {}
     for i, label in enumerate(labels):
         pts = result.by_series(label)
         if not pts:
@@ -75,12 +76,11 @@ def draw_scaling(ax, result, *, series_order=None, ref=True):
         hi = np.array([np.percentile(p.times, 75) for p in pts])
         st = style.style_for(label, i)
         ax.fill_between(xs, lo, hi, color=st["color"], alpha=0.12, linewidth=0)
-        style.plot_series(ax, xs, med, label, i, label=label, zorder=3)
+        style.plot_series(ax, xs, med, label, i, label=label_map.get(label, label),
+                          zorder=3)
 
     _log_axes(ax, result.x_label, "Wall-clock time")
-    if ref:
-        _linear_guide(ax, result, labels, y_of=lambda p: p.median)
-    ax.legend(frameon=False, loc="upper left", handlelength=2.4)
+    ax.legend(frameon=False, loc="upper left", handlelength=3.2)
 
 
 def draw_memory(ax, result, *, series_order=None):
@@ -94,33 +94,7 @@ def draw_memory(ax, result, *, series_order=None):
         ys = np.array([p.work["rss_mb"] for p in pts])
         style.plot_series(ax, xs, ys, label, i, label=label, zorder=3)
     _log_axes(ax, result.x_label, "Peak memory (RSS)", y_fmt=_fmt_mem)
-    _linear_guide(ax, result, labels, y_of=lambda p: p.work.get("rss_mb"))
-    ax.legend(frameon=False, loc="upper left", handlelength=2.4)
-
-
-def _linear_guide(ax, result, labels, *, y_of):
-    """Dashed grey slope-1 reference, offset below the fastest series."""
-    xs_all = [p.x for p in result.points]
-    if not xs_all:
-        return
-    xmin, xmax = min(xs_all), max(xs_all)
-    if xmin == xmax:
-        return
-    firsts = []
-    for l in labels:
-        pts = result.by_series(l)
-        if pts:
-            y = y_of(pts[0])
-            if y:
-                firsts.append(y)
-    if not firsts:
-        return
-    y0 = min(firsts) * 0.45
-    xline = np.array([xmin, xmax], float)
-    ax.plot(xline, y0 * (xline / xmin), color=style.MUTED, linestyle=(0, (4, 3)),
-            linewidth=1.1, zorder=1)
-    ax.text(xline[-1], y0 * (xmax / xmin), r"  $\propto N$", color=style.MUTED,
-            fontsize=8.5, va="center", ha="left")
+    ax.legend(frameon=False, loc="upper left", handlelength=3.2)
 
 
 def draw_parallel(ax, result):
@@ -159,6 +133,8 @@ def _caption(fig, results):
 
 _TREE_ORDER = ["Species tree · backward", "Species tree · forward"]
 _GENE_ORDER = ["Rust · full genomes", "Rust · profiles only"]
+_GENE_LABELS = {"Rust · full genomes": "full gene trees",
+                "Rust · profiles only": "profiles only"}
 _MEM_ORDER = ["Species tree", "Gene families · full", "Gene families · profiles"]
 
 
@@ -174,7 +150,7 @@ def fig_species_tree(results):
 def fig_gene_families(results):
     r = results["gene_families"]
     fig, ax = _new_single()
-    draw_scaling(ax, r, series_order=_GENE_ORDER)
+    draw_scaling(ax, r, series_order=_GENE_ORDER, label_map=_GENE_LABELS)
     ax.set_title(r.title, loc="left", pad=10)
     _caption(fig, [r])
     return style.save(fig, FIGURES_DIR / "gene_family_scaling")
@@ -201,33 +177,24 @@ def fig_parallel(results):
 def fig_write(results):
     r = results["write_output"]
     fig, ax = _new_single()
-    draw_scaling(ax, r, ref=True)
+    draw_scaling(ax, r)
     ax.set_title(r.title, loc="left", pad=10)
     _caption(fig, [r])
     return style.save(fig, FIGURES_DIR / "write_scaling")
 
 
 def fig_overview(results):
-    fig, axes = plt.subplots(2, 2, figsize=(12.4, 9.2))
-    (a, b), (c, d) = axes
+    fig, (a, b) = plt.subplots(1, 2, figsize=(12.4, 4.8))
     if "species_tree" in results:
         draw_scaling(a, results["species_tree"], series_order=_TREE_ORDER)
         a.set_title("a  Species-tree simulation", loc="left", pad=8)
     if "gene_families" in results:
-        draw_scaling(b, results["gene_families"], series_order=_GENE_ORDER)
+        draw_scaling(b, results["gene_families"], series_order=_GENE_ORDER,
+                     label_map=_GENE_LABELS)
         b.set_title("b  Gene-family simulation", loc="left", pad=8)
-    if "memory_scaling" in results:
-        draw_memory(c, results["memory_scaling"], series_order=_MEM_ORDER)
-        c.set_title("c  Peak memory footprint", loc="left", pad=8)
-    if "parallel_scaling" in results:
-        draw_parallel(d, results["parallel_scaling"])
-        d.set_title("d  Replicate-level parallelism", loc="left", pad=8)
-    elif "write_output" in results:
-        draw_scaling(d, results["write_output"], ref=True)
-        d.set_title("d  Writing output to disk", loc="left", pad=8)
 
     fig.suptitle("ZOMBI2 performance", x=0.01, ha="left", fontsize=16, weight="bold")
-    fig.tight_layout(rect=(0, 0.015, 1, 0.98))
+    fig.tight_layout(rect=(0, 0.015, 1, 0.94))
     _caption(fig, list(results.values()))
     return style.save(fig, FIGURES_DIR / "overview")
 
