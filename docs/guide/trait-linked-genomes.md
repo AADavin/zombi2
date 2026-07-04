@@ -177,10 +177,14 @@ regain it, is lost tree-wide and the inert rows go all-zero.
 
 ## Roadmap
 
-`coevolve-genetrait` is the first of a `coevolve-*` family. Planned next:
+`coevolve-genetrait` is the **`traits:genes`** edge of a broader coupled-simulation design — see
+[Coevolution (coupled models)](../coevolution_models.md), which generalises it to a directed
+graph over species, traits and gene families (`zombi2 coevolve --couple driver:target`). Under
+that plan this command becomes `coevolve --couple traits:genes` (the old name kept as an alias).
+Planned next:
 
 - an **environmental clock** — a trait (and its coupled families) gated by a dated event such
   as the GOE, which is what turns the coupled dynamics into a *time* signal;
 - a **recipient-side gain** channel (trait-dependent acquisition, not only retention);
-- `coevolve-speciesgene` / `coevolve-all` — coupling gene families back to the species-tree
-  process, and the fully joint model.
+- the into-species edges (`traits:species` = SSE, `genes:species`) that couple traits and gene
+  families *back* to the diversification process, up to the fully joint `--all` model.

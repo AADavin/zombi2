@@ -41,3 +41,6 @@ docs/non_independence.tex
 
 # Multi-agent coordination log (shared via the working tree, not committed)
 HANDOFF.md
+
+# Phylustrator is a separate editable git checkout (figure tool), not vendored here
+tools/Phylustrator/

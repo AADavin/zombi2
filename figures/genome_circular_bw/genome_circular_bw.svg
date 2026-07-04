@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="760" height="760" viewBox="0 0 760 760">
+<defs>
+<pattern width="6" height="6" patternUnits="userSpaceOnUse" id="g_diag">
+<rect x="0" y="0" width="6" height="6" fill="white" />
+<path d="M-6,6 L0,0" stroke="black" stroke-width="1.3" />
+<path d="M0,6 L6,0" stroke="black" stroke-width="1.3" />
+<path d="M6,6 L12,0" stroke="black" stroke-width="1.3" />
+</pattern>
+<pattern width="6" height="6" patternUnits="userSpaceOnUse" id="g_diag2">
+<rect x="0" y="0" width="6" height="6" fill="white" />
+<path d="M-6,0 L0,6" stroke="black" stroke-width="1.3" />
+<path d="M0,0 L6,6" stroke="black" stroke-width="1.3" />
+<path d="M6,0 L12,6" stroke="black" stroke-width="1.3" />
+</pattern>
+<pattern width="6" height="6" patternUnits="userSpaceOnUse" id="g_horiz">
+<rect x="0" y="0" width="6" height="6" fill="white" />
+<path d="M0,1.7999999999999998 L6,1.7999999999999998" stroke="black" stroke-width="1.3" />
+<path d="M0,4.199999999999999 L6,4.199999999999999" stroke="black" stroke-width="1.3" />
+</pattern>
+<pattern width="6" height="6" patternUnits="userSpaceOnUse" id="g_vert">
+<rect x="0" y="0" width="6" height="6" fill="white" />
+<path d="M1.7999999999999998,0 L1.7999999999999998,6" stroke="black" stroke-width="1.3" />
+<path d="M4.199999999999999,0 L4.199999999999999,6" stroke="black" stroke-width="1.3" />
+</pattern>
+<pattern width="6" height="6" patternUnits="userSpaceOnUse" id="g_cross">
+<rect x="0" y="0" width="6" height="6" fill="white" />
+<path d="M0,3.0 L6,3.0" stroke="black" stroke-width="1.3" />
+<path d="M3.0,0 L3.0,6" stroke="black" stroke-width="1.3" />
+</pattern>
+<pattern width="6" height="6" patternUnits="userSpaceOnUse" id="g_dots">
+<rect x="0" y="0" width="6" height="6" fill="white" />
+<circle cx="3.0" cy="3.0" r="1.35" fill="black" />
+</pattern>
+</defs>
+<rect x="0" y="0" width="760" height="760" fill="white" />
+<use xlink:href="#g_diag" />
+<use xlink:href="#g_diag2" />
+<use xlink:href="#g_horiz" />
+<use xlink:href="#g_vert" />
+<use xlink:href="#g_cross" />
+<use xlink:href="#g_dots" />
+<circle cx="380.0" cy="374.0" r="212" fill="none" stroke="#e2e2e2" stroke-width="1.2" />
+<path d="M335.59882382926423,173.0 L410.40117617073577,173.0 L410.40117617073577,180.0 L424.40117617073577,162.0 L410.40117617073577,144.0 L410.40117617073577,151.0 L335.59882382926423,151.0 Z" fill="url(#g_diag)" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="380.0" y="128.0" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">1</text>
+<path d="M518.9525465217654,222.1294819246957 L454.1718091312167,184.72830575395994 L450.6718091312167,190.79048358045102 L447.54745347823456,168.20202631233113 L468.6718091312167,159.61356904421123 L465.1718091312167,165.6757468707023 L529.9525465217654,203.07692304143808 Z" fill="#555555" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="503.0" y="160.95775066902812" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">2</text>
+<path d="M531.8705180753044,235.0474534782346 L569.27169424604,299.8281908687833 L563.209516419549,303.3281908687833 L585.7979736876689,306.45254652176544 L594.3864309557888,285.3281908687833 L588.3242531292977,288.8281908687833 L550.9230769585621,224.0474534782346 Z" fill="url(#g_cross)" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="593.0422493309719" y="251.0" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">3</text>
+<path d="M581.0,329.59882382926423 L581.0,404.40117617073577 L574.0,404.40117617073577 L592.0,418.40117617073577 L610.0,404.40117617073577 L603.0,404.40117617073577 L603.0,329.59882382926423 Z" fill="#bfbfbf" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="626.0" y="374.0" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">4</text>
+<path d="M531.8705180753044,512.9525465217654 L569.27169424604,448.1718091312167 L563.209516419549,444.6718091312167 L585.7979736876689,441.54745347823456 L594.3864309557888,462.6718091312167 L588.3242531292977,459.1718091312167 L550.9230769585621,523.9525465217654 Z" fill="url(#g_dots)" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="593.0422493309719" y="497.0" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">5</text>
+<path d="M518.9525465217654,525.8705180753043 L454.1718091312167,563.2716942460399 L450.6718091312167,557.2095164195489 L447.54745347823456,579.7979736876688 L468.6718091312167,588.3864309557887 L465.1718091312167,582.3242531292976 L529.9525465217654,544.923076958562 Z" fill="url(#g_diag2)" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="503.0" y="587.0422493309719" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">6</text>
+<path d="M424.40117617073577,575.0 L349.59882382926423,575.0 L349.59882382926423,568.0 L335.59882382926423,586.0 L349.59882382926423,604.0 L349.59882382926423,597.0 L424.40117617073577,597.0 Z" fill="#8f8f8f" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="380.0" y="620.0" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">7</text>
+<path d="M241.0474534782346,525.8705180753044 L305.8281908687833,563.27169424604 L309.3281908687833,557.209516419549 L312.45254652176544,579.7979736876689 L291.3281908687833,588.3864309557888 L294.8281908687833,582.3242531292977 L230.0474534782346,544.9230769585621 Z" fill="url(#g_horiz)" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="257.00000000000006" y="587.0422493309719" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">8</text>
+<path d="M228.12948192469568,512.9525465217654 L190.72830575395992,448.1718091312167 L196.790483580451,444.6718091312167 L174.2020263123311,441.54745347823456 L165.6135690442112,462.6718091312167 L171.67574687070228,459.1718091312167 L209.07692304143805,523.9525465217654 Z" fill="#e2e2e2" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="166.9577506690281" y="497.0" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">9</text>
+<path d="M179.0,329.59882382926423 L179.0,404.40117617073577 L186.0,404.40117617073577 L168.0,418.40117617073577 L150.0,404.40117617073577 L157.0,404.40117617073577 L157.0,329.59882382926423 Z" fill="url(#g_vert)" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="134.0" y="374.00000000000006" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">10</text>
+<path d="M183.72830575395994,311.95254652176544 L221.1294819246957,247.17180913121672 L227.1916597511868,250.67180913121672 L218.6032024830669,229.5474534782346 L196.014745214947,232.67180913121672 L202.07692304143808,236.17180913121672 L164.6757468707023,300.95254652176544 Z" fill="white" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="166.95775066902812" y="250.99999999999997" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">11</text>
+<path d="M241.04745347823447,222.12948192469577 L305.82819086878317,184.72830575396 L309.32819086878317,190.79048358045108 L312.45254652176527,168.20202631233118 L291.32819086878317,159.6135690442113 L294.82819086878317,165.67574687070237 L230.04745347823447,203.07692304143814 Z" fill="#333333" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="256.9999999999999" y="160.95775066902817" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" fill="#1a1a1a">12</text>
+<text x="380.0" y="374.0" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#1a1a1a">Ordered genome</text>
+</svg>
