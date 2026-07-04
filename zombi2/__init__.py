@@ -86,6 +86,9 @@ from .sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
 from .gene_diversification import (
     GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
 )
+from .cladogenetic_genome import (
+    CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
+)
 from .simulation import simulate_genomes, Genomes, GenomeTrace, read_events_trace
 from .coupling import (
     CouplingSpec,
@@ -167,6 +170,8 @@ __all__ = [
     "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     # gene-content-dependent diversification (genes drive the tree — coevolve genes:species)
     "GeneDiversification", "GeneDiversificationResult", "simulate_gene_diversification",
+    # cladogenetic genome evolution (speciation drives gene content — coevolve species:genes)
+    "CladogeneticGenome", "CladogeneticGenomeResult", "simulate_cladogenetic_genome",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
