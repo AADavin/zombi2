@@ -23,7 +23,7 @@ benchmarks.py ──run.py──▶ results/*.json ──plot.py──▶ figure
 ## Quick start
 
 ```bash
-cd performance_analysis
+cd analyses/performance
 
 python run.py --quick        # fast smoke test (small grids, few repeats)
 python run.py                # standard publishable run (up to 3M tips)
@@ -52,7 +52,7 @@ cd report && latexmk -pdf report.tex   # needs a LaTeX toolchain (pdflatex)
 ## Layout
 
 ```
-performance_analysis/
+analyses/performance/
 ├── config.py           the ONE simulation regime (model + rates), shared by all
 ├── perfkit/            reusable core — stable, rarely edited
 │   ├── timing.py         measure(fn) → per-repeat times; the Point record

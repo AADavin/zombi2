@@ -20,7 +20,7 @@ import sys
 import time
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parent.parent  # .../performance_analysis
+_ROOT = Path(__file__).resolve().parent.parent  # .../analyses/performance
 
 
 def _peak_rss_mb() -> float:

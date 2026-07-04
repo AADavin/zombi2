@@ -16,7 +16,7 @@ from .environment import describe
 from .timing import Point
 
 # Repo-relative anchors so scripts work from any cwd.
-ROOT = Path(__file__).resolve().parent.parent          # .../performance_analysis
+ROOT = Path(__file__).resolve().parent.parent          # .../analyses/performance
 RESULTS_DIR = ROOT / "results"
 FIGURES_DIR = ROOT / "figures"
 

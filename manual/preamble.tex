@@ -1,0 +1,28 @@
+% ZOMBI2 manual — LaTeX preamble, injected via pandoc --include-in-header.
+% Kept minimal and re-load-safe (pandoc's default template already loads the core packages).
+
+\usepackage{graphicx}
+\setkeys{Gin}{width=0.85\linewidth,keepaspectratio}   % figures default to 85% text width
+
+\usepackage{booktabs}
+\usepackage{microtype}
+
+\usepackage{xcolor}
+\definecolor{zteal}{HTML}{0B6B63}
+\definecolor{zwarn}{HTML}{B03A2E}
+\definecolor{ztip}{HTML}{1E8449}
+
+% Callout boxes (see callouts.lua: ::: note / ::: warning / ::: tip)
+\usepackage[most]{tcolorbox}
+\newtcolorbox{notebox}{breakable,enhanced,colback=zteal!4,colframe=zteal,
+  coltitle=white,fonttitle=\bfseries,title=Note,boxrule=0.6pt,
+  left=2.5mm,right=2.5mm,top=1.2mm,bottom=1.2mm}
+\newtcolorbox{warnbox}{breakable,enhanced,colback=zwarn!4,colframe=zwarn,
+  coltitle=white,fonttitle=\bfseries,title=Warning,boxrule=0.6pt,
+  left=2.5mm,right=2.5mm,top=1.2mm,bottom=1.2mm}
+\newtcolorbox{tipbox}{breakable,enhanced,colback=ztip!4,colframe=ztip,
+  coltitle=white,fonttitle=\bfseries,title=Tip,boxrule=0.6pt,
+  left=2.5mm,right=2.5mm,top=1.2mm,bottom=1.2mm}
+
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,labelsep=period}
