@@ -60,6 +60,7 @@ nav:
       - Bounding growth: guide/growth.md
       - Gene trees & output: guide/gene-trees-and-output.md
       - Matching empirical profiles: guide/matching.md
+      - Gene-family coupling: guide/coupling.md
       - Ordered genomes: guide/ordered-genomes.md
       - Nucleotide genomes: guide/nucleotide-genomes.md
       - Rate variation: guide/rate-variation.md

@@ -38,6 +38,13 @@ result = z.simulate_nucleotide_genomes(
     Duplication and additive transfer grow the genome without a cap. Over long ages keep them
     at or below `loss` to avoid runaway growth.
 
+<figure markdown="span">
+![Structural events acting on a nucleotide genome](../img/nucleotide_events.svg)
+<figcaption>Structural events on a nucleotide genome: an inversion reverses a segment's
+orientation (the reversed colour gradient), a tandem duplication lengthens it — each acting on
+a variable-length stretch of nucleotides.</figcaption>
+</figure>
+
 ## Atoms: units of shared ancestry
 
 The simulator partitions the surviving material into **atoms** — maximal segments that share
@@ -47,6 +54,14 @@ which a single gene tree is meaningful. Results are expressed over atoms:
 ```python
 atom_ids, species, matrix = result.profile_matrix()   # copy number of each atom per extant leaf
 ```
+
+<figure markdown="span">
+![Events partition a genome into atoms, each with its own reconstructed tree](../img/nucleotide_tree.svg)
+<figcaption>From events to atoms to gene trees: each structural event carves out a segment
+(left); the same breakpoints partition every genome into shared <strong>atoms</strong>
+(middle); and each atom has its own reconstructed gene tree (right) — a duplication adds a tip,
+a loss prunes one, an inversion leaves the genealogy unchanged.</figcaption>
+</figure>
 
 ## Reading a leaf genome
 
@@ -58,6 +73,13 @@ result.trace_back(leaf)    # every nucleotide's ancestral origin: [(source, src_
 
 `leaf_mosaic` gives the leaf as a sequence of atoms with orientation; `trace_back` resolves
 each nucleotide to where it came from.
+
+<figure markdown="span">
+![A leaf genome traced back to its ancestral coordinates](../img/nucleotide_segments.svg)
+<figcaption>Tracing a leaf back to the ancestor: the top bar is the ancestral genome painted by
+position; the bottom bar is a leaf, each nucleotide coloured by where it came from — collinear
+stretches keep the gradient, an inversion shows it reversed.</figcaption>
+</figure>
 
 ## Per-atom gene trees & reconciliation
 
