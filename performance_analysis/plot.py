@@ -132,10 +132,35 @@ def _caption(fig, results):
 
 
 _TREE_ORDER = ["Species tree · backward", "Species tree · forward"]
-_GENE_ORDER = ["Rust · full genomes", "Rust · profiles only"]
-_GENE_LABELS = {"Rust · full genomes": "full gene trees",
-                "Rust · profiles only": "profiles only"}
-_MEM_ORDER = ["Species tree", "Gene families · full", "Gene families · profiles"]
+_GENE_ORDER = ["Rust · full genomes", "Rust · event trace", "Rust · profiles only"]
+_GENE_LABELS = {"Rust · full genomes": "full event log",
+                "Rust · event trace": "event trace",
+                "Rust · profiles only": "profiles (counts)"}
+_MEM_ORDER = ["Species tree", "Gene families · full", "Gene families · trace",
+              "Gene families · profiles"]
+_VS_ORDER = ["ZOMBI2 · Rust", "ZOMBI 1 · Python"]
+
+
+def draw_vs_zombi1(ax, result):
+    """Two log-log curves (ZOMBI2 vs ZOMBI 1) with the speed-up annotated at the largest
+    tip count both tools reached, and ZOMBI 1's practical ceiling marked."""
+    draw_scaling(ax, result, series_order=_VS_ORDER)
+    z2 = {p.x: p.median for p in result.by_series("ZOMBI2 · Rust")}
+    z1 = {p.x: p.median for p in result.by_series("ZOMBI 1 · Python")}
+    common = sorted(set(z2) & set(z1))
+    if common:
+        x = common[-1]
+        factor = z1[x] / z2[x]
+        ax.annotate(f"≈ {factor:,.0f}× faster\nat {_fmt_count(x)} tips",
+                    xy=(x, (z1[x] * z2[x]) ** 0.5), xytext=(0.30, 0.72),
+                    textcoords="axes fraction", fontsize=9.5, color=style.INK,
+                    ha="center", va="center",
+                    arrowprops=dict(arrowstyle="->", color=style.MUTED, linewidth=1.0))
+    if z1:  # ZOMBI 1's largest finishing size — its practical ceiling
+        ceil = max(z1)
+        ax.axvline(ceil, color=style.MUTED, linestyle=(0, (1, 2)), linewidth=1.0, zorder=1)
+        ax.text(ceil, ax.get_ylim()[0], "ZOMBI 1\nceiling ", rotation=0,
+                fontsize=8, color=style.MUTED, ha="right", va="bottom")
 
 
 def fig_species_tree(results):
@@ -183,15 +208,31 @@ def fig_write(results):
     return style.save(fig, FIGURES_DIR / "write_scaling")
 
 
+def fig_vs_zombi1(results):
+    r = results["vs_zombi1"]
+    fig, ax = _new_single()
+    draw_vs_zombi1(ax, r)
+    ax.set_title(r.title, loc="left", pad=10)
+    _caption(fig, [r])
+    return style.save(fig, FIGURES_DIR / "vs_zombi1")
+
+
 def fig_overview(results):
-    fig, (a, b) = plt.subplots(1, 2, figsize=(12.4, 4.8))
+    # Three panels when the cross-tool comparison has data, else the classic two.
+    have_vs = "vs_zombi1" in results
+    ncols = 3 if have_vs else 2
+    fig, axes = plt.subplots(1, ncols, figsize=(6.2 * ncols, 4.8))
+    a, b = axes[0], axes[1]
     if "species_tree" in results:
         draw_scaling(a, results["species_tree"], series_order=_TREE_ORDER)
         a.set_title("a  Species-tree simulation", loc="left", pad=8)
     if "gene_families" in results:
         draw_scaling(b, results["gene_families"], series_order=_GENE_ORDER,
                      label_map=_GENE_LABELS)
-        b.set_title("b  Gene-family simulation", loc="left", pad=8)
+        b.set_title("b  Gene-family output modes", loc="left", pad=8)
+    if have_vs:
+        draw_vs_zombi1(axes[2], results["vs_zombi1"])
+        axes[2].set_title("c  vs ZOMBI 1 (legacy Python)", loc="left", pad=8)
 
     fig.suptitle("ZOMBI2 performance", x=0.01, ha="left", fontsize=16, weight="bold")
     fig.tight_layout(rect=(0, 0.015, 1, 0.94))
@@ -207,6 +248,7 @@ FIGURES = [
     ("memory_scaling", fig_memory),
     ("parallel_scaling", fig_parallel),
     ("write_output", fig_write),
+    ("vs_zombi1", fig_vs_zombi1),
 ]
 
 

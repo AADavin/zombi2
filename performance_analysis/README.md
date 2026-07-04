@@ -37,6 +37,7 @@ python run.py --list                 # what benchmarks exist
 python run.py species_tree           # run just one
 python run.py --full                 # push to 10M tips (heavier; see "Scale")
 python run.py write_output           # opt-in extra benchmark
+ZOMBI1_DIR=/path/to/ZOMBI python run.py vs_zombi1   # opt-in: vs legacy ZOMBI 1
 ```
 
 ## Report
@@ -75,19 +76,25 @@ actually runs it, pushed to where each task stops being cheap.
 | Benchmark          | Task                                          | The story |
 |--------------------|-----------------------------------------------|-----------|
 | `species_tree`     | Simulate a species tree vs #tips              | O(N) → tens of millions |
-| `gene_families`    | Evolve D/T/L/O families vs #tips              | full log (~10⁵) vs sparse counts (millions) |
+| `gene_families`    | Evolve D/T/L/O families vs #tips              | full log (~10⁵) vs **event trace** vs sparse counts (both → millions) |
 | `memory_scaling`   | Peak RSS vs #tips (isolated subprocess)       | what fits in RAM |
 | `parallel_scaling` | N independent sims vs #worker processes       | compute-bound speed-up |
 | `write_output`     | Serialise a full simulation to disk (opt-in)  | reconstruct + write cost |
+| `vs_zombi1`        | Same task in ZOMBI2 vs legacy ZOMBI 1 (opt-in)| >1000× faster; ZOMBI 1 ceiling ~1200 tips |
 
 All benchmarks share one regime (`config.py`): `BirthDeath(λ=1.0, μ=0.3)`, tree
 age 2.0, `D=0.2 T=0.1 L=0.25 O=0.5`, `initial_size=20`. Trees are built once per
-size and only the timed call sits inside the timer.
+size and only the timed call sits inside the timer. (`vs_zombi1` uses a matched
+pure-birth Yule tree and rate regime so the two tools do comparable work — see
+[`vs_zombi1/NOTES.md`](vs_zombi1/NOTES.md); it is opt-in and needs the ZOMBI 1
+checkout via `$ZOMBI1_DIR`.)
 
 Methodology: a monotonic clock (`time.perf_counter`), one untimed warm-up (none
-for the multi-second giants), several repeats; figures plot the **median** with a
-shaded **interquartile (25–75%)** band. Raw per-repeat times stay in the JSON, so
-any estimator recomputes without re-running.
+for the multi-second giants), several repeats **with the cyclic GC disabled inside
+each timed region** (a full `gc.collect()` between repeats) — so a collection can't
+land in the timed call and inflate the object-heavy paths, exactly as `timeit` does.
+Figures plot the **median** with a shaded **interquartile (25–75%)** band. Raw
+per-repeat times stay in the JSON, so any estimator recomputes without re-running.
 
 ## Style
 
@@ -99,18 +106,23 @@ perfectly in greyscale and single-ink print.
 
 Measured on this machine (Apple Silicon, 4 P + 6 E cores, 34 GB):
 
-* **Species tree** is O(N) and featherweight: **10M tips in ~3.2 min using 6.4 GB**
-  (3M in ~50 s / 2 GB). This scales to tens of millions.
-* **Gene-family counts (profiles)** are now **sparse (COO) output → O(N)**:
-  **1M tips in ~36 s using ~2.9 GB**, where the old *dense* N×N matrix hit a wall
+* **Species tree** is O(N) and featherweight: **3M tips in ~18 s using ~2 GB**
+  (1M in ~6 s / 0.7 GB). This scales to tens of millions.
+* **Gene-family counts (profiles)** are **sparse (COO) output → O(N)**:
+  **1M tips in ~18 s using ~3.2 GB**, where the old *dense* N×N matrix hit a wall
   at ~100k (it would have needed ~8 TB of address space at 1M). See the sparse
   refactor of `zombi2/profiles.py`.
-* **Gene-family full event log** still grows with the *event* count (one object
-  per event) → practical to ~10⁵ tips; that is now the heaviest path.
+* **Gene-family event trace** (`output="trace"`) keeps the genealogy as compact
+  engine columns rather than per-event Python objects, so gene trees stay
+  reconstructable yet it **reaches 1M tips (~29 s, ~11 GB)** — the intermediate
+  between counts and the full log.
+* **Gene-family full event log** grows with the *event* count (one Python object
+  per event → ~3.5 GB at 100k) → practical to ~10⁵ tips; the heaviest path, and why
+  the trace exists.
 
-**Running 10M+ :** `python run.py --full`. Species trees and sparse profiles both
-reach the millions here; the full event log is the remaining heavy path. The
-workspace is cluster-ready (plain-JSON results, a `--full` profile, the regime in
+**Running 10M+ :** `python run.py --full`. Species trees, event traces and sparse
+profiles all reach the millions here; the full event log is the remaining heavy path.
+The workspace is cluster-ready (plain-JSON results, a `--full` profile, the regime in
 one `config.py`) for pushing further on Euler (SLURM).
 
 ## Adding a benchmark

@@ -75,8 +75,13 @@ Run `zombi2 <command> -h` or see [`docs/cli.md`](docs/cli.md).
 ## Performance
 
 The core models run on a native Rust engine and scale to millions of tips on a laptop.
-A backward species tree of 1M tips builds in ~19 s; gene families over a 100k-tip tree
-in ~19 s; and the counts-only profile path handles 100k tips in ~1.4 s.
+A backward species tree of 1M tips builds in ~6 s (3M in ~18 s). Gene families over a
+100k-tip tree take ~5 s as a full event log, ~2 s as a compact **event trace** (from
+which gene trees stay reconstructable), or ~1 s as counts-only **profiles** — and the
+trace and profile paths keep scaling to 1M tips (~29 s / ~18 s), where the full event log
+tops out near 100k. On the identical task, ZOMBI2 runs gene-family simulations **over
+1000× faster than ZOMBI 1** (48 s → 38 ms at 1,000 tips; the legacy tool stalls past
+~1,200 tips).
 
 ![ZOMBI2 performance](performance_analysis/figures/overview.png)
 

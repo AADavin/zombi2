@@ -1,0 +1,52 @@
+### PARAMETERS GENOME LEVEL (benchmark, non-exploding, ZOMBI2-comparable) ###
+## Gm mode: DUPLICATION/TRANSFER/LOSS are PER-GENE-FAMILY rates (per gene, per time unit).
+## ZOMBI2 comparable regime: D=0.2 T=0.1 L=0.25 O=0.5, initial genome size 20.
+## Transfers set to REPLACEMENT (=1) so additive transfer does not grow genomes;
+## then per-gene birth = D = 0.2 < death = L = 0.25 -> families do NOT run away.
+#
+DUPLICATION f:0.2
+TRANSFER f:0.1
+LOSS f:0.25
+#
+## Genome-wise events (per lineage, per time unit)
+INVERSION f:0
+TRANSPOSITION f:0
+ORIGINATION f:0.5
+#
+## Extensions (number of contiguous genes per event). g:1 => geometric(1) => almost always 1 gene.
+DUPLICATION_EXTENSION g:1
+TRANSFER_EXTENSION g:1
+LOSS_EXTENSION g:1
+INVERSION_EXTENSION g:0.05
+TRANSPOSITION_EXTENSION g:0.3
+#
+## Transfer related parameters
+## REPLACEMENT_TRANSFER = 1 -> every transfer replaces a gene in the recipient (no net genome growth).
+REPLACEMENT_TRANSFER 1
+#
+ASSORTATIVE_TRANSFER False
+ALPHA 100
+#
+## Genome size related parameters
+INITIAL_GENOME_SIZE	20
+MIN_GENOME_SIZE	5
+#
+## Output related parameters. Keep outputs minimal for a fair genome-step timing.
+EVENTS_PER_BRANCH 0
+PROFILES 1
+GENE_TREES 0
+RECONCILED_TREES 0
+VERBOSE 0
+SCALE_TREE 0
+#
+### GF SPECIFIC PARAMETERS ###
+GENE_LENGTH f:100
+INTERGENE_LENGTH 100
+PSEUDOGENIZATION 0.5
+#
+### GM SPECIFIC PARAMETERS ###
+RATE_FILE False
+SCALE_RATES True
+#
+## SEED : If 0, the SEED is chosen randomly
+SEED 0

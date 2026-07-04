@@ -11,6 +11,7 @@ error bands and so a re-analysis never needs to re-run the sims.
 
 from __future__ import annotations
 
+import gc
 import time
 from dataclasses import dataclass, field, asdict
 from statistics import median as _median, pstdev
@@ -79,6 +80,12 @@ def measure(
     ``max_seconds`` is a soft budget: once the elapsed timed total exceeds it we
     stop early (but always do at least one timed repeat), so a single very large
     point can't blow up the whole run.
+
+    Each timed repeat runs with the cyclic garbage collector **disabled** (and a full
+    ``gc.collect()`` before it), so a collection triggered mid-call cannot land inside
+    the timed region. Without this the object-heavy paths (e.g. the full event log, which
+    allocates one Python object per event) swing wildly repeat-to-repeat as GC fires at
+    different points; this measures the intrinsic cost, not the collector's schedule.
     """
     for _ in range(max(0, warmup)):
         fn()
@@ -86,12 +93,21 @@ def measure(
     times: list[float] = []
     result = None
     elapsed = 0.0
-    for i in range(max(1, repeat)):
-        t0 = time.perf_counter()
-        result = fn()
-        dt = time.perf_counter() - t0
-        times.append(dt)
-        elapsed += dt
-        if max_seconds is not None and elapsed >= max_seconds and i + 1 >= 1:
-            break
+    gc_was_enabled = gc.isenabled()
+    try:
+        for i in range(max(1, repeat)):
+            gc.collect()          # reclaim the previous repeat's garbage, untimed
+            gc.disable()          # no collection inside the timed region
+            t0 = time.perf_counter()
+            result = fn()
+            dt = time.perf_counter() - t0
+            if gc_was_enabled:
+                gc.enable()
+            times.append(dt)
+            elapsed += dt
+            if max_seconds is not None and elapsed >= max_seconds and i + 1 >= 1:
+                break
+    finally:
+        if gc_was_enabled:
+            gc.enable()
     return times, result

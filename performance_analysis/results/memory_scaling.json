@@ -4,13 +4,13 @@
   "x_label": "Number of extant tips",
   "meta": {
     "regime": "BirthDeath(\u03bb=1.0, \u03bc=0.3), age 2.0; D=0.2 T=0.1 L=0.25 O=0.5, initial_size=20",
-    "profile": "full",
+    "profile": "standard",
     "note": "peak RSS from resource.getrusage in an isolated subprocess"
   },
   "env": {
-    "timestamp_utc": "2026-07-03T12:06:18+00:00",
-    "git_commit": "1d07a37",
-    "git_dirty": false,
+    "timestamp_utc": "2026-07-04T06:16:33+00:00",
+    "git_commit": "81b0278",
+    "git_dirty": true,
     "zombi2_version": "0.2.0.dev0",
     "rust_available": true,
     "python": "3.12.2",
@@ -24,10 +24,10 @@
       "series": "Species tree",
       "x": 10000,
       "times": [
-        0.0696
+        0.0751
       ],
       "work": {
-        "rss_mb": 75.7,
+        "rss_mb": 76.8,
         "nodes": 10000
       }
     },
@@ -35,10 +35,10 @@
       "series": "Species tree",
       "x": 100000,
       "times": [
-        0.8938
+        0.9665
       ],
       "work": {
-        "rss_mb": 131.5,
+        "rss_mb": 132.6,
         "nodes": 100000
       }
     },
@@ -46,10 +46,10 @@
       "series": "Species tree",
       "x": 1000000,
       "times": [
-        10.1475
+        10.6136
       ],
       "work": {
-        "rss_mb": 716.1,
+        "rss_mb": 712.6,
         "nodes": 1000000
       }
     },
@@ -57,32 +57,21 @@
       "series": "Species tree",
       "x": 3000000,
       "times": [
-        32.7283
+        34.0732
       ],
       "work": {
-        "rss_mb": 2011.0,
+        "rss_mb": 2006.9,
         "nodes": 3000000
-      }
-    },
-    {
-      "series": "Species tree",
-      "x": 10000000,
-      "times": [
-        135.7326
-      ],
-      "work": {
-        "rss_mb": 6353.4,
-        "nodes": 10000000
       }
     },
     {
       "series": "Gene families \u00b7 full",
       "x": 10000,
       "times": [
-        1.0608
+        1.0708
       ],
       "work": {
-        "rss_mb": 402.8,
+        "rss_mb": 402.2,
         "families": 3230,
         "events": 302768
       }
@@ -91,10 +80,10 @@
       "series": "Gene families \u00b7 full",
       "x": 30000,
       "times": [
-        3.487
+        3.6815
       ],
       "work": {
-        "rss_mb": 1074.8,
+        "rss_mb": 1073.3,
         "families": 9564,
         "events": 914361
       }
@@ -103,22 +92,55 @@
       "series": "Gene families \u00b7 full",
       "x": 100000,
       "times": [
-        15.0875
+        15.5226
       ],
       "work": {
-        "rss_mb": 3455.1,
+        "rss_mb": 3450.8,
         "families": 31952,
         "events": 3067493
+      }
+    },
+    {
+      "series": "Gene families \u00b7 trace",
+      "x": 10000,
+      "times": [
+        0.2233
+      ],
+      "work": {
+        "rss_mb": 223.8,
+        "families": 3230
+      }
+    },
+    {
+      "series": "Gene families \u00b7 trace",
+      "x": 100000,
+      "times": [
+        3.6218
+      ],
+      "work": {
+        "rss_mb": 1469.9,
+        "families": 31952
+      }
+    },
+    {
+      "series": "Gene families \u00b7 trace",
+      "x": 1000000,
+      "times": [
+        54.306
+      ],
+      "work": {
+        "rss_mb": 11096.6,
+        "families": 319323
       }
     },
     {
       "series": "Gene families \u00b7 profiles",
       "x": 10000,
       "times": [
-        0.1398
+        0.136
       ],
       "work": {
-        "rss_mb": 105.2,
+        "rss_mb": 107.7,
         "families": 3181
       }
     },
@@ -126,10 +148,10 @@
       "series": "Gene families \u00b7 profiles",
       "x": 100000,
       "times": [
-        2.4614
+        2.4931
       ],
       "work": {
-        "rss_mb": 421.9,
+        "rss_mb": 426.4,
         "families": 31732
       }
     },
@@ -137,22 +159,11 @@
       "series": "Gene families \u00b7 profiles",
       "x": 1000000,
       "times": [
-        29.9919
+        31.8547
       ],
       "work": {
-        "rss_mb": 3173.0,
+        "rss_mb": 3161.8,
         "families": 318660
-      }
-    },
-    {
-      "series": "Gene families \u00b7 profiles",
-      "x": 3000000,
-      "times": [
-        104.6154
-      ],
-      "work": {
-        "rss_mb": 7361.0,
-        "families": 958351
       }
     }
   ]

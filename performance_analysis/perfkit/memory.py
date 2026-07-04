@@ -72,6 +72,11 @@ def _child(task: str, n: int) -> None:
         g = z.simulate_genomes(tree, rates=rates, initial_size=config.INITIAL_SIZE, seed=3)
         info["families"] = len(g.profiles.families)
         info["events"] = sum(1 for _ in g.event_log)
+    elif task == "trace":
+        tree = z.simulate_species_tree(model, n_tips=n, age=config.TREE_AGE, seed=1)
+        tr = z.simulate_genomes(tree, rates=rates, initial_size=config.INITIAL_SIZE,
+                                output="trace", seed=3)
+        info["families"] = len(tr.profiles.families)
     else:  # pragma: no cover
         raise SystemExit(f"unknown task {task!r}")
     secs = time.perf_counter() - t0
