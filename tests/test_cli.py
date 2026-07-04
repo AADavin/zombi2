@@ -651,6 +651,34 @@ def test_genomes_gff_and_genes_conflict(tmp_path, capsys):
     assert "either --gff or --genes" in capsys.readouterr().err
 
 
+def test_genomes_nucleotide_ancestral(tmp_path):
+    """`--output ancestral` simulates DNA and writes the genome (architecture + gzipped FASTA) at
+    every node; with --genome-fasta the reconstructed root == the input genome."""
+    import gzip
+    import numpy as np
+    genes = tmp_path / "genes.tsv"
+    genes.write_text("20 60 gA\n90 130 gB\n160 200 gC\n230 280 gD\n")
+    genome = "".join(np.random.default_rng(1).choice(list("ACGT"), size=300))
+    fasta = tmp_path / "genome.fasta"
+    fasta.write_text(">seq\n" + genome + "\n")
+    tree = _tree_file(tmp_path, tips=6)
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--genes", str(genes),
+               "--root-length", "300", "--inversion", "0.01", "--loss", "0.006", "--dup", "0.005",
+               "--subst-model", "hky85", "--subst-rate", "0.4", "--gamma-shape", "0.5",
+               "--genome-fasta", str(fasta), "--output", "ancestral", "--seed", "5", "-o", str(out)])
+    assert rc == 0
+    assert os.listdir(out / "Architecture") and os.listdir(out / "Genomes")
+    assert os.listdir(out / "Gene_alignments")
+    # the root genome FASTA reconstructs the input exactly
+    with gzip.open(out / "Genomes" / "root.fasta.gz", "rt") as fh:
+        root_seq = "".join(l.strip() for l in fh if not l.startswith(">"))
+    assert root_seq == genome
+    # root architecture keeps the four genes intact and in order
+    arch = (out / "Architecture" / "root.tsv").read_text()
+    assert arch.count("\tgene\t") == 4
+
+
 # --- abc: fit gene-family rates to an empirical profile by ABC inference --
 
 def _profile_file(tmp_path, tree, **rates):
