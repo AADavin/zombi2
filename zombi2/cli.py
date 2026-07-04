@@ -23,6 +23,7 @@ from .species_model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
 )
 from .species_sim import simulate_species_tree
+from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from .traits import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -42,6 +43,7 @@ Simulate in two steps: build a species tree, then evolve gene families along it.
   zombi2 abc       fit gene-family rates to an empirical profile (ABC inference)
   zombi2 sequence  rescale a genomes run's gene trees into substitutions/site
   zombi2 coevolve-genetrait  evolve gene families conditioned on a trait
+  zombi2 coevolve  co-evolve coupled processes (--couple traits:species = SSE)
 
 Run 'zombi2 <command> -h' for a command's options.
 """
