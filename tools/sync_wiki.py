@@ -37,6 +37,7 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("guide/growth.md",                 "Bounding-Growth",            "Bounding growth",         "User guide"),
     ("guide/gene-trees-and-output.md",  "Gene-Trees-and-Output",      "Gene trees & output",     "User guide"),
     ("guide/matching.md",               "Matching-Empirical-Profiles","Matching empirical profiles", "User guide"),
+    ("guide/coupling.md",               "Gene-Family-Coupling",       "Gene-family coupling",    "User guide"),
     ("guide/ordered-genomes.md",        "Ordered-Genomes",            "Ordered genomes",         "User guide"),
     ("guide/nucleotide-genomes.md",     "Nucleotide-Genomes",         "Nucleotide genomes",      "User guide"),
     ("guide/rate-variation.md",         "Rate-Variation",             "Rate variation",          "User guide"),
