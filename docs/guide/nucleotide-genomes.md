@@ -132,7 +132,7 @@ engine only (the Rust `profiles` path does not model genes). On the CLI:
 ```bash
 zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
   --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
-  --inversion 0.001 --loss 0.0008 --output profiles trees -o out/
+  --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
 
 where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
@@ -162,7 +162,7 @@ On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`
 ```bash
 zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
   --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
-  --output profiles trees -o out/
+  --write profiles trees -o out/
 ```
 
 The GFF may be gzipped. For a multi-sequence file (chromosome + plasmids), the most-annotated
@@ -194,12 +194,12 @@ If no `root_fasta` is given, each root gene/intergene sequence is drawn at rando
 stationary frequencies (the ZOMBI-1 way); with it, the root sequences are the real genome's
 substrings, so the reconstructed root genome is byte-identical to the input.
 
-On the CLI, `--output ancestral`:
+On the CLI, `--write ancestral`:
 
 ```bash
 zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
   --gff ecoli.gff --genome-fasta ecoli.fna \
-  --subst-model hky85 --kappa 2 --subst-rate 0.05 --output ancestral -o out/
+  --subst-model hky85 --kappa 2 --subst-rate 0.05 --write ancestral -o out/
 ```
 
 writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node), gzipped

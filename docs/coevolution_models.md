@@ -66,7 +66,7 @@ from a single question: **does any active edge point into S?**
 - **An edge into S** (`traits:species` and/or `genes:species`) — the tree topology now *depends*
   on the coupled state, so it cannot be drawn first: **the tree is an output**. These runs are
   **forward-only** (they generate the complete tree, extinct lineages included) and take no
-  `-t`. This is the same forward machinery as [`species --model forward`](species_tree_models.md).
+  `-t`. This is the same forward machinery as [`species --mode forward`](species_tree_models.md).
 
 !!! note "`genes:species` was the complexity cliff — and how it was tamed"
     An arrow from **G into S** means the genome content must be known *as the tree grows*: the
@@ -164,7 +164,7 @@ zombi2 coevolve --couple genes:species --drivers 2 --root-drivers 1 \
     --tips 200 --seed 1 -o keygene/
 
 # overlay the neutral genome on the resulting tree (the factorization, made explicit)
-zombi2 genomes -t keygene/species_tree.nwk --trans 1 --loss 0.5 --output profiles trees -o keygene/
+zombi2 genomes -t keygene/species_tree.nwk --trans 1 --loss 0.5 --write profiles trees -o keygene/
 ```
 
 `coevolve` writes `species_tree.nwk`, `drivers.tsv` (per-node driver presence) and

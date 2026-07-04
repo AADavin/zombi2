@@ -34,7 +34,7 @@ def test_species_bare_defaults(tmp_path):
 def test_species_forward_keeps_extinct(tmp_path):
     """Forward mode grows the complete tree, keeping extinct lineages (not in backward)."""
     out = tmp_path / "fwd"
-    rc = main(["species", "--model", "forward", "--age", "6", "--seed", "1", "-o", str(out)])
+    rc = main(["species", "--mode", "forward", "--age", "6", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "species_tree.nwk").exists()
 
@@ -42,16 +42,16 @@ def test_species_forward_keeps_extinct(tmp_path):
 def test_species_forward_requires_exactly_one_of_tips_age(tmp_path):
     """Forward needs exactly one of --tips/--age; neither or both is an error."""
     with pytest.raises(SystemExit):
-        main(["species", "--model", "forward", "-o", str(tmp_path / "a")])
+        main(["species", "--mode", "forward", "-o", str(tmp_path / "a")])
     with pytest.raises(SystemExit):
-        main(["species", "--model", "forward", "--tips", "20", "--age", "5",
+        main(["species", "--mode", "forward", "--tips", "20", "--age", "5",
               "-o", str(tmp_path / "b")])
 
 
 def test_species_forward_mass_extinction(tmp_path):
     """Forward mode accepts one or more --mass-extinction pulses and logs them."""
     out = tmp_path / "me"
-    rc = main(["species", "--model", "forward", "--birth", "1.2", "--death", "0.2",
+    rc = main(["species", "--mode", "forward", "--birth", "1.2", "--death", "0.2",
                "--age", "6", "--mass-extinction", "2", "0.8",
                "--mass-extinction", "4", "0.5", "--seed", "1", "-o", str(out)])
     assert rc == 0
@@ -69,14 +69,14 @@ def test_species_mass_extinction_rejected_backward(tmp_path):
 def test_species_mass_extinction_needs_age_not_tips(tmp_path):
     """A pulse age needs a fixed present, so --mass-extinction requires --age (not --tips)."""
     with pytest.raises(SystemExit):
-        main(["species", "--model", "forward", "--tips", "20",
+        main(["species", "--mode", "forward", "--tips", "20",
               "--mass-extinction", "2", "0.5", "-o", str(tmp_path / "b")])
 
 
 def test_species_clads(tmp_path):
     """ClaDS (per-lineage rates) is a forward diversification process."""
     out = tmp_path / "clads"
-    rc = main(["species", "--model", "forward", "--diversification", "clads",
+    rc = main(["species", "--mode", "forward", "--diversification", "clads",
                "--birth", "1.0", "--clads-alpha", "0.9", "--clads-sigma", "0.2",
                "--turnover", "0.1", "--age", "5", "--seed", "1", "-o", str(out)])
     assert rc == 0
@@ -86,7 +86,7 @@ def test_species_clads(tmp_path):
 def test_species_diversity_dependent(tmp_path):
     """Diversity-dependent BD needs a carrying capacity and forward mode."""
     out = tmp_path / "dd"
-    rc = main(["species", "--model", "forward", "--diversification", "diversity-dependent",
+    rc = main(["species", "--mode", "forward", "--diversification", "diversity-dependent",
                "--birth", "3", "--death", "0.2", "-K", "40", "--age", "20",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
@@ -96,7 +96,7 @@ def test_species_diversity_dependent(tmp_path):
 def test_species_diversity_dependent_needs_K(tmp_path):
     """diversity-dependent without --carrying-capacity errors."""
     with pytest.raises(SystemExit):
-        main(["species", "--model", "forward", "--diversification", "diversity-dependent",
+        main(["species", "--mode", "forward", "--diversification", "diversity-dependent",
               "--age", "10", "-o", str(tmp_path / "a")])
 
 
@@ -110,7 +110,7 @@ def test_species_clads_requires_forward(tmp_path):
 def test_species_clade_shift(tmp_path):
     """Forward mode accepts one or more --clade-shift regimes and logs them."""
     out = tmp_path / "cs"
-    rc = main(["species", "--model", "forward", "--birth", "0.9", "--death", "0.4",
+    rc = main(["species", "--mode", "forward", "--birth", "0.9", "--death", "0.4",
                "--age", "5", "--clade-shift", "3.0", "1.6", "0.2",
                "--clade-shift", "1.5", "0.4", "0.6", "--seed", "1", "-o", str(out)])
     assert rc == 0
@@ -121,7 +121,7 @@ def test_species_clade_shift(tmp_path):
 def test_species_clade_shift_needs_age_not_tips(tmp_path):
     """Clade-shift times need a fixed present, so --clade-shift requires --age (not --tips)."""
     with pytest.raises(SystemExit):
-        main(["species", "--model", "forward", "--tips", "20",
+        main(["species", "--mode", "forward", "--tips", "20",
               "--clade-shift", "3.0", "2.0", "0.1", "-o", str(tmp_path / "a")])
 
 
@@ -157,7 +157,7 @@ def test_genomes_score_likelihoods_writes_table(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.3", "--trans", "0.2", "--loss", "0.4", "--initial-size", "12",
-               "--seed", "5", "--output", "trees",
+               "--seed", "5", "--write", "trees",
                "--score-likelihoods", "--score-model", "dated", "undated", "-o", str(gen)])
     assert rc == 0
     table = gen / "Reconciliation_likelihoods.tsv"
@@ -177,7 +177,7 @@ def test_genomes_output_all_writes_full(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "--output", "all", "-o", str(gen)])
+               "--seed", "42", "--write", "all", "-o", str(gen)])
     assert rc == 0
     for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv", "Transfers.tsv",
               "Gene_family_summary.tsv"):
@@ -196,7 +196,7 @@ def test_genomes_output_profiles(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "--output", "profiles", "-o", str(gen)])
+               "--seed", "42", "--write", "profiles", "-o", str(gen)])
     assert rc == 0
     assert (gen / "Profiles.tsv").exists()
     assert (gen / "Presence.tsv").exists()
@@ -215,7 +215,7 @@ def test_genomes_output_trace(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
-               "--seed", "42", "--output", "trace", "profiles", "--sparse", "-o", str(gen)])
+               "--seed", "42", "--write", "trace", "profiles", "--sparse", "-o", str(gen)])
     assert rc == 0
     assert (gen / "Events_trace.tsv").exists()
     assert (gen / "Profiles_sparse.tsv").exists()
@@ -236,7 +236,7 @@ def test_genomes_output_trace_with_trees(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.2", "--trans", "0.1",
                "--loss", "0.25", "--orig", "0.5", "--seed", "1",
-               "--output", "trace", "trees", "-o", str(gen)])
+               "--write", "trace", "trees", "-o", str(gen)])
     assert rc == 0
     assert (gen / "Events_trace.tsv").exists()
     assert os.listdir(gen / "gene_trees")
@@ -250,7 +250,7 @@ def test_genomes_output_selection(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.2", "--trans", "0.2",
                "--loss", "0.2", "--orig", "0.5", "--seed", "1",
-               "--output", "trees", "transfers", "-o", str(gen)])
+               "--write", "trees", "transfers", "-o", str(gen)])
     assert rc == 0
     assert (gen / "gene_trees").exists() and (gen / "Transfers.tsv").exists()
     assert not (gen / "Profiles.tsv").exists()          # profiles not requested
@@ -262,17 +262,18 @@ def test_sparse_requires_profiles(tmp_path):
     sp = tmp_path / "sp"
     main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.2", "--loss", "0.2",
-               "--orig", "0.5", "--output", "trees", "--sparse", "-o", str(tmp_path / "g")])
+               "--orig", "0.5", "--write", "trees", "--sparse", "-o", str(tmp_path / "g")])
     assert rc == 1
 
 
 def test_forward_extinction_returns_clean_error(tmp_path, capsys):
     """A forward run that keeps going extinct exits 1 with a clean message (no traceback)."""
-    rc = main(["species", "--model", "forward", "--age", "8", "--birth", "1", "--death", "20",
+    rc = main(["species", "--mode", "forward", "--age", "8", "--birth", "1", "--death", "20",
                "--max-attempts", "5", "-o", str(tmp_path / "x")])
     assert rc == 1
     err = capsys.readouterr().err
-    assert err.startswith("zombi2: error:") and "extinct" in err
+    # the run banner is printed to stderr first; the clean one-line error follows it
+    assert "zombi2: error:" in err and "extinct" in err
 
 
 def test_genomes_missing_tree_file_returns_clean_error(tmp_path, capsys):
@@ -305,7 +306,7 @@ def test_species_ghosts_adds_extinct_tips(tmp_path):
 
 def test_species_forward_fossils(tmp_path):
     """Forward + fossilization runs (fossilized birth–death)."""
-    rc = main(["species", "--model", "forward", "--age", "6", "--fossilization", "0.3",
+    rc = main(["species", "--mode", "forward", "--age", "6", "--fossilization", "0.3",
                "--seed", "1", "-o", str(tmp_path / "fbd")])
     assert rc == 0
 
@@ -370,7 +371,7 @@ def _genomes_run_with_trace(tmp_path):
     run = tmp_path / "run"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.4", "--trans", "0.1",
                "--loss", "0.3", "--orig", "0.6", "--rate-model", "genome-wise",
-               "--output", "trace", "profiles", "--seed", "2", "-o", str(run)])
+               "--write", "trace", "profiles", "--seed", "2", "-o", str(run)])
     assert rc == 0
     assert (run / "Events_trace.tsv").exists()
     return run
@@ -580,7 +581,7 @@ def test_genomes_nucleotide_profiles_only(tmp_path):
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
-               "--dup", "0.0006", "--loss", "0.0006", "--output", "profiles",
+               "--dup", "0.0006", "--loss", "0.0006", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "Profiles.tsv").exists() and (out / "atoms.tsv").exists()
@@ -593,7 +594,7 @@ def test_genomes_nucleotide_sparse(tmp_path):
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--loss", "0.0008",
-               "--output", "profiles", "--sparse", "--seed", "1", "-o", str(out)])
+               "--write", "profiles", "--sparse", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "Profiles_sparse.tsv").exists()
     assert not (out / "Profiles.tsv").exists()
@@ -610,7 +611,7 @@ def test_genomes_nucleotide_genic(tmp_path):
                "--inversion", "0.004", "--loss", "0.003", "--dup", "0.002", "--trans", "0.002",
                "--root-length", "1000", "--extension", "0.96", "--genes", str(genes),
                "--pseudogenization", "0.4", "--replacement", "0.6",
-               "--output", "profiles", "trees", "--seed", "9", "-o", str(out)])
+               "--write", "profiles", "trees", "--seed", "9", "-o", str(out)])
     assert rc == 0
     for f in ("genes.tsv", "atoms.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
         assert (out / f).exists()
@@ -630,7 +631,7 @@ def test_genomes_nucleotide_genes_reject_profiles_only(tmp_path):
     genes.write_text("100 200 g1\n400 500 g2\n")
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--loss", "0.002",
-               "--root-length", "800", "--genes", str(genes), "--output", "profiles",
+               "--root-length", "800", "--genes", str(genes), "--write", "profiles",
                "--seed", "2", "-o", str(out)])
     assert rc == 0
     assert (out / "genes.tsv").exists() and (out / "atoms.tsv").exists()
@@ -648,7 +649,7 @@ def test_genomes_nucleotide_from_gff(tmp_path):
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--gff", str(gff),
                "--loss", "0.003", "--dup", "0.002", "--pseudogenization", "0.3",
-               "--output", "profiles", "trees", "--seed", "5", "-o", str(out)])
+               "--write", "profiles", "trees", "--seed", "5", "-o", str(out)])
     assert rc == 0
     genes_txt = (out / "genes.tsv").read_text()
     for locus in ("a", "b", "d"):
@@ -685,7 +686,7 @@ def test_genomes_nucleotide_ancestral(tmp_path):
     rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--genes", str(genes),
                "--root-length", "300", "--inversion", "0.01", "--loss", "0.006", "--dup", "0.005",
                "--subst-model", "hky85", "--subst-rate", "0.4", "--gamma-shape", "0.5",
-               "--genome-fasta", str(fasta), "--output", "ancestral", "--seed", "5", "-o", str(out)])
+               "--genome-fasta", str(fasta), "--write", "ancestral", "--seed", "5", "-o", str(out)])
     assert rc == 0
     assert os.listdir(out / "Architecture") and os.listdir(out / "Genomes")
     assert os.listdir(out / "Gene_alignments")
@@ -703,7 +704,7 @@ def test_genomes_nucleotide_ancestral(tmp_path):
 def _profile_file(tmp_path, tree, **rates):
     """Simulate an empirical profile with known rates (uniform model) -> its Profiles.tsv."""
     dest = tmp_path / "truth"
-    args = ["genomes", "-t", tree, "--output", "profiles", "--seed", "7", "-o", str(dest)]
+    args = ["genomes", "-t", tree, "--write", "profiles", "--seed", "7", "-o", str(dest)]
     for k, v in rates.items():
         args += [f"--{k}", str(v)]
     main(args)
@@ -922,7 +923,7 @@ def test_coevolve_genes_species_then_genomes_overlay(tmp_path):
           "--tips", "60", "--seed", "2", "-o", str(out)])
     ov = tmp_path / "ov"
     rc = main(["genomes", "-t", str(out / "species_tree.nwk"), "--trans", "1", "--loss", "0.5",
-               "--output", "profiles", "-o", str(ov)])
+               "--write", "profiles", "-o", str(ov)])
     assert rc == 0
     assert (ov / "Profiles.tsv").exists()
 
@@ -941,3 +942,46 @@ def test_coevolve_genes_species_not_combinable_yet(tmp_path):
     with pytest.raises(SystemExit):
         main(["coevolve", "--couple", "genes:species", "--couple", "traits:species",
               "--tips", "20", "-o", str(tmp_path / "a")])
+
+
+# ── the redesigned CLI surface: --version, grouped help, and the renamed flags ──────
+def test_version_flag_prints_version(capsys):
+    """`zombi2 --version` prints the version and exits 0 (argparse version action)."""
+    with pytest.raises(SystemExit) as e:
+        main(["--version"])
+    assert e.value.code == 0
+    assert "ZOMBI2" in capsys.readouterr().out
+
+
+def test_top_level_help_lists_commands_grouped(capsys):
+    """The top-level help carries the banner and the curated, theme-grouped command list
+    (not a duplicate argparse positional dump)."""
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    out = capsys.readouterr().out
+    assert "a phylogenetic simulator" in out          # banner
+    assert "Species trees" in out and "Inference" in out
+    for cmd in ("species", "genomes", "trait", "abc", "coevolve", "sequence"):
+        assert cmd in out
+    assert "==SUPPRESS==" not in out                   # the auto command dump is hidden
+
+
+def test_genomes_help_is_sectioned_by_model(capsys):
+    """`genomes --help` groups its options into UPPERCASE model sections (IQ-TREE style),
+    and advertises --write (not the old --output)."""
+    with pytest.raises(SystemExit):
+        main(["genomes", "--help"])
+    out = capsys.readouterr().out
+    for section in ("GENERAL", "GENE-FAMILY RATES", "OUTPUT",
+                    "NUCLEOTIDE MODEL", "GENES & INTERGENES"):
+        assert section in out
+    assert "--write" in out and "--output" not in out
+
+
+def test_renamed_flags_work_and_old_names_rejected(tmp_path):
+    """The renamed flags parse; the old names are gone (a clean break, as designed)."""
+    out = tmp_path / "sp"
+    assert main(["species", "--mode", "backward", "--tips", "8", "--seed", "1",
+                 "-o", str(out)]) == 0
+    with pytest.raises(SystemExit):                    # old species --model is gone
+        main(["species", "--model", "backward", "-o", str(tmp_path / "old")])

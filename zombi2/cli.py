@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 import time
 
 import numpy as np
+
+from . import __version__
 
 from .biogeography import DEC, simulate_biogeography
 from .ghosts import add_ghost_lineages
@@ -36,20 +39,65 @@ from .transfers import TransferModel
 from .tree import Tree, read_newick
 
 _DESCRIPTION = """\
-ZOMBI2 — a phylogenetic simulator of species trees and gene families.
+Simulate in two steps — build a species tree, then evolve gene families along it —
+or run the inverse and fit rates to data. Run 'zombi2 <command> -h' for a command's
+options, grouped by model.
 
-Simulate in two steps: build a species tree, then evolve gene families along it.
+Species trees
+  species              simulate a species tree (birth-death; forward or reconstructed)
 
-  zombi2 species   simulate a species tree
-  zombi2 genomes   evolve gene families along a species tree (Newick)
-  zombi2 trait     evolve a phenotypic trait along a given species tree
-  zombi2 abc       fit gene-family rates to an empirical profile (ABC inference)
-  zombi2 sequence  rescale a genomes run's gene trees into substitutions/site
-  zombi2 coevolve-genetrait  evolve gene families conditioned on a trait
-  zombi2 coevolve  co-evolve coupled processes (--couple traits:species = SSE)
+Gene families & sequences
+  genomes              evolve gene families along a species tree (Newick)
+  sequence             rescale a genomes run's gene trees into substitutions/site
 
-Run 'zombi2 <command> -h' for a command's options.
+Traits & coevolution
+  trait                evolve a phenotypic trait along a given species tree
+  coevolve-genetrait   evolve gene families conditioned on a trait
+  coevolve             co-evolve coupled processes (--couple driver:target)
+
+Inference
+  abc                  fit gene-family rates to an empirical profile (ABC)
 """
+
+
+# ── house style: an IQ-TREE-like grouped, sectioned help ────────────────────────────
+_BOLD, _RESET = "\033[1m", "\033[0m"
+
+
+def _use_color() -> bool:
+    """Bold section headers only for an interactive terminal (never when piped/redirected,
+    under NO_COLOR, or a dumb terminal) — so redirected help stays plain text."""
+    if os.environ.get("NO_COLOR") or os.environ.get("TERM") == "dumb":
+        return False
+    return sys.stdout.isatty()
+
+
+def _banner() -> str:
+    return f"ZOMBI2 {__version__} — a phylogenetic simulator of species trees and gene families"
+
+
+class ZombiHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Grouped help in the IQ-TREE house style: argument-group titles become UPPERCASE
+    section headers (bold on a terminal), with a wide, aligned help column. The auto usage
+    line is kept short by giving each command a hand-written ``usage=``."""
+
+    def __init__(self, prog: str) -> None:
+        width = min(shutil.get_terminal_size((90, 24)).columns - 2, 92)
+        super().__init__(prog, max_help_position=32, width=width)
+
+    def start_section(self, heading: str | None) -> None:
+        if heading and heading not in ("positional arguments", "options", "optional arguments"):
+            heading = heading.upper()
+            if _use_color():
+                heading = _BOLD + heading + _RESET
+        super().start_section(heading)
+
+    def _format_action(self, action: argparse.Action) -> str:
+        # Hide the auto subcommand list from the top-level help — the commands are curated,
+        # grouped by theme, in the description instead (avoids a duplicate, ungrouped dump).
+        if isinstance(action, argparse._SubParsersAction):
+            return ""
+        return super()._format_action(action)
 
 
 def _int_or_float(text: str) -> int | float:
@@ -59,186 +107,216 @@ def _int_or_float(text: str) -> int | float:
 
 
 def _add_species_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--model", choices=("backward", "forward"), default="backward",
+    g = p.add_argument_group("general")
+    g.add_argument("--mode", dest="model", choices=("backward", "forward"), default="backward",
+                   metavar="MODE",
                    help="backward: reconstructed tree conditioned on --tips extant species "
                         "(default); forward: complete tree grown in time, keeping extinct "
                         "lineages (and fossils)")
-    p.add_argument("--diversification", choices=("constant", "clads", "diversity-dependent"),
-                   default="constant",
-                   help="diversification process (forward only): constant-rate birth–death "
-                        "(default); clads = per-lineage rates that shift at each speciation "
-                        "(ClaDS); diversity-dependent = rates decline toward a carrying capacity")
-    p.add_argument("--birth", type=float, nargs="+", default=[1.0], metavar="RATE",
+    g.add_argument("--tips", type=int, default=None, metavar="N",
+                   help="number of extant species (backward default 50; forward: --tips OR --age)")
+    g.add_argument("--age", type=float, default=None, metavar="T",
+                   help="tree age / timescale, in the same time units as the rates "
+                        "(backward default 1.0; forward: --tips OR --age)")
+    g.add_argument("--age-type", choices=("crown", "stem"), default="crown", metavar="KIND",
+                   help="[backward] interpret --age as crown (default) or stem age")
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group("diversification model",
+                             "the rate process, chosen by --diversification (forward only)")
+    g.add_argument("--diversification", choices=("constant", "clads", "diversity-dependent"),
+                   default="constant", metavar="PROCESS",
+                   help="constant-rate birth-death (default); clads = per-lineage rates that "
+                        "shift at each speciation (ClaDS); diversity-dependent = rates decline "
+                        "toward a carrying capacity")
+    g.add_argument("--birth", type=float, nargs="+", default=[1.0], metavar="RATE",
                    help="speciation rate (default 1.0); several values with --shifts give an "
                         "episodic (skyline) model. For clads/diversity-dependent it is the "
                         "root/intrinsic rate λ₀ (a single value)")
-    p.add_argument("--death", type=float, nargs="+", default=[0.3], metavar="RATE",
+    g.add_argument("--death", type=float, nargs="+", default=[0.3], metavar="RATE",
                    help="extinction rate (default 0.3); several values with --shifts give an "
                         "episodic (skyline) model. The constant μ for --diversification "
                         "diversity-dependent (clads uses --turnover instead)")
-    p.add_argument("--shifts", type=float, nargs="+", default=None, metavar="AGE",
-                   help="episodic rate-shift ages, present -> past (K-1 ages for K rate values)")
-    p.add_argument("--tips", type=int, default=None,
-                   help="number of extant species (backward default 50; forward: --tips OR --age)")
-    p.add_argument("--age", type=float, default=None,
-                   help="tree age / timescale, in the same time units as the rates "
-                        "(backward default 1.0; forward: --tips OR --age)")
-    p.add_argument("--age-type", choices=("crown", "stem"), default="crown",
-                   help="interpret --age as crown (default) or stem age [backward]")
-    p.add_argument("--sampling-fraction", type=float, default=1.0, metavar="RHO",
-                   help="[forward] fraction of extant species sampled, 0<rho<=1 (default 1.0)")
-    p.add_argument("--fossilization", type=float, default=0.0, metavar="PSI",
-                   help="[forward] fossil (serial) sampling rate psi — fossilized birth–death "
-                        "(default 0 = no fossils)")
-    p.add_argument("--removal", type=float, default=1.0, metavar="R",
-                   help="[forward] removal probability on sampling, 0<=r<=1 (r<1 keeps sampled "
-                        "ancestors; default 1.0)")
-    p.add_argument("--mass-extinction", action="append", nargs=2, type=float,
-                   metavar=("AGE", "FRACTION"), default=None, dest="mass_extinction",
-                   help="[forward] a mass extinction: at AGE before the present, each lineage "
-                        "dies with probability FRACTION (0<FRACTION<=1). Repeat for several "
-                        "pulses, e.g. --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5")
-    p.add_argument("--clads-alpha", type=float, default=0.9, metavar="ALPHA",
-                   help="[--diversification clads] speciation-rate trend per branch; α<1 = "
-                        "rates slow toward the present (default 0.9)")
-    p.add_argument("--clads-sigma", type=float, default=0.1, metavar="SIGMA",
-                   help="[--diversification clads] lognormal spread of the per-branch rate "
-                        "shift (default 0.1)")
-    p.add_argument("--turnover", type=float, default=0.0, metavar="EPS",
-                   help="[--diversification clads] extinction/speciation ratio ε=μ/λ, in [0,1) "
-                        "(0 = pure birth; default 0.0)")
-    p.add_argument("--carrying-capacity", "-K", type=float, default=None, metavar="K",
-                   help="[--diversification diversity-dependent] carrying capacity K; the "
-                        "speciation rate is λ₀·(1−n/K) (required for this model)")
-    p.add_argument("--clade-shift", action="append", nargs=3, type=float,
+    g.add_argument("--shifts", type=float, nargs="+", default=None, metavar="AGE",
+                   help="[episodic] rate-shift ages, present -> past (K-1 ages for K rate values)")
+
+    g = p.add_argument_group("clads model", "with --diversification clads")
+    g.add_argument("--clads-alpha", type=float, default=0.9, metavar="ALPHA",
+                   help="speciation-rate trend per branch; α<1 = rates slow toward the present "
+                        "(default 0.9)")
+    g.add_argument("--clads-sigma", type=float, default=0.1, metavar="SIGMA",
+                   help="lognormal spread of the per-branch rate shift (default 0.1)")
+    g.add_argument("--turnover", type=float, default=0.0, metavar="EPS",
+                   help="extinction/speciation ratio ε=μ/λ, in [0,1) (0 = pure birth; default 0.0)")
+
+    g = p.add_argument_group("diversity-dependent model",
+                             "with --diversification diversity-dependent")
+    g.add_argument("--carrying-capacity", "-K", type=float, default=None, metavar="K",
+                   help="carrying capacity K; the speciation rate is λ₀·(1−n/K) (required for "
+                        "this model)")
+
+    g = p.add_argument_group("clade-specific shifts", "forward only")
+    g.add_argument("--clade-shift", action="append", nargs=3, type=float,
                    metavar=("AGE", "BIRTH", "DEATH"), default=None, dest="clade_shift",
-                   help="[forward] a clade-specific rate shift: at AGE before the present, one "
-                        "random lineage then alive (and its descendants) switches to speciation "
-                        "BIRTH / extinction DEATH. Repeat for several shifting clades, e.g. "
+                   help="a clade-specific rate shift: at AGE before the present, one random "
+                        "lineage then alive (and its descendants) switches to speciation BIRTH / "
+                        "extinction DEATH. Repeat for several shifting clades, e.g. "
                         "--clade-shift 3.0 2.5 0.1")
-    p.add_argument("--ghosts", action="store_true",
-                   help="[backward] graft the extinct/unsampled 'ghost' lineages back onto the tree")
-    p.add_argument("--ghost-method", choices=("rejection", "htransform"), default="rejection",
+
+    g = p.add_argument_group("forward sampling & fossils", "only with --mode forward")
+    g.add_argument("--sampling-fraction", type=float, default=1.0, metavar="RHO",
+                   help="fraction of extant species sampled, 0<rho<=1 (default 1.0)")
+    g.add_argument("--fossilization", type=float, default=0.0, metavar="PSI",
+                   help="fossil (serial) sampling rate psi — fossilized birth-death "
+                        "(default 0 = no fossils)")
+    g.add_argument("--removal", type=float, default=1.0, metavar="R",
+                   help="removal probability on sampling, 0<=r<=1 (r<1 keeps sampled ancestors; "
+                        "default 1.0)")
+    g.add_argument("--mass-extinction", action="append", nargs=2, type=float,
+                   metavar=("AGE", "FRACTION"), default=None, dest="mass_extinction",
+                   help="a mass extinction: at AGE before the present, each lineage dies with "
+                        "probability FRACTION (0<FRACTION<=1). Repeat for several pulses, e.g. "
+                        "--mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5")
+
+    g = p.add_argument_group("ghost lineages", "backward only")
+    g.add_argument("--ghosts", action="store_true",
+                   help="graft the extinct/unsampled 'ghost' lineages back onto the tree")
+    g.add_argument("--ghost-method", choices=("rejection", "htransform"), default="rejection",
+                   metavar="METHOD",
                    help="ghost-subtree sampler used with --ghosts (default rejection)")
-    p.add_argument("--max-attempts", type=int, default=10000,
-                   help="[forward] retries before giving up when the process goes extinct "
-                        "(default 10000)")
-    p.add_argument("--max-lineages", type=int, default=1_000_000,
-                   help="[forward] abort a run exceeding this many live lineages (default 1000000)")
-    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", required=True, help="output directory")
+
+    g = p.add_argument_group("run limits", "forward only")
+    g.add_argument("--max-attempts", type=int, default=10000, metavar="N",
+                   help="retries before giving up when the process goes extinct (default 10000)")
+    g.add_argument("--max-lineages", type=int, default=1_000_000, metavar="N",
+                   help="abort a run exceeding this many live lineages (default 1000000)")
 
 
 def _add_rate_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide"),
-                   default="uniform",
+    g = p.add_argument_group("general")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
+                   help="input species tree in Newick format (e.g. species_tree.nwk)")
+    g.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide"),
+                   default="uniform", metavar="MODEL",
                    help="uniform: same per-copy rates for every family (Rust; default); "
                         "genome-wise: constant per-genome rates, linear growth (Python); "
                         "nucleotide: nucleotide-resolution genomes evolving by variable-length "
-                        "structural events, genes emerge as 'atoms' (see the nucleotide options)")
-    p.add_argument("--dup", type=float, default=0.0,
-                   help="duplication rate (per copy; per nucleotide when --rate-model nucleotide)")
-    p.add_argument("--trans", type=float, default=0.0,
-                   help="transfer rate (per copy; per nucleotide when --rate-model nucleotide)")
-    p.add_argument("--loss", type=float, default=0.0,
-                   help="loss/deletion rate (per copy; per nucleotide when --rate-model nucleotide)")
-    p.add_argument("--orig", type=float, default=0.0, help="origination rate (per branch)")
-    p.add_argument("--initial-size", type=int, default=None,
-                   help="genomes seeded at the root (default: 20 gene families; "
-                        "1 root chromosome for --rate-model nucleotide)")
-    p.add_argument("--max-family-size", type=_int_or_float, default=None,
-                   help="bound family growth: integer = absolute cap, "
-                        "decimal = fraction of the number of species (e.g. 0.5) "
-                        "[not used by --rate-model nucleotide]")
-    p.add_argument("--output", nargs="+", metavar="PART",
+                        "structural events, genes emerge as 'atoms' (see the nucleotide sections)")
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group(
+        "gene-family rates",
+        "per copy for uniform/genome-wise; per nucleotide for --rate-model nucleotide")
+    g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
+    g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
+    g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
+    g.add_argument("--orig", type=float, default=0.0, metavar="RATE",
+                   help="origination rate (per branch)")
+    g.add_argument("--initial-size", type=int, default=None, metavar="N",
+                   help="genomes seeded at the root (default: 20 gene families; 1 root chromosome "
+                        "for --rate-model nucleotide)")
+    g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
+                   help="bound family growth: integer = absolute cap, decimal = fraction of the "
+                        "number of species (e.g. 0.5) [not used by --rate-model nucleotide]")
+
+    g = p.add_argument_group("output")
+    g.add_argument("--write", dest="output", nargs="+", metavar="PART",
                    choices=(*Genomes.WRITE_PARTS, "ancestral", "all"), default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
-                        "transfers, summary} or 'all' (default: profiles trees). "
-                        "species_tree.nwk is always written; 'profiles' alone takes the fast "
-                        "Rust counts-only path; 'trace' (optionally with 'profiles') writes the "
-                        "compact single-file event log Events_trace.tsv near counts-only speed, "
-                        "from which gene trees can be reconstructed later on demand. "
-                        "[nucleotide] 'ancestral' simulates DNA sequences and reconstructs the "
-                        "genome (architecture + gzipped FASTA) at every node (root = input genome)")
-    p.add_argument("--sparse", action="store_true",
+                        "transfers, summary} or 'all' (default: profiles trees). species_tree.nwk "
+                        "is always written; 'profiles' alone takes the fast Rust counts-only path; "
+                        "'trace' (optionally with 'profiles') writes the compact single-file event "
+                        "log Events_trace.tsv near counts-only speed, from which gene trees can be "
+                        "reconstructed later on demand. [nucleotide] 'ancestral' simulates DNA and "
+                        "reconstructs the genome (architecture + gzipped FASTA) at every node")
+    g.add_argument("--sparse", action="store_true",
                    help="write the profile as a sparse long table (Profiles_sparse.tsv: "
-                        "family/species/copies, present cells only) instead of the dense "
-                        "matrix — the scalable output for huge trees (needs 'profiles' in --output)")
-    p.add_argument("--threads", type=int, default=1, metavar="N",
-                   help="parallelise the counts-only profile simulation across N cores "
-                        "(only with --output profiles; Poisson-thins the gene families into N "
-                        "independent copies and sums them — a different but statistically "
-                        "identical realisation, whose output depends on N). Default 1 (serial)")
-    p.add_argument("--annotate-species", action="store_true",
+                        "family/species/copies, present cells only) instead of the dense matrix — "
+                        "the scalable output for huge trees (needs 'profiles' in --write)")
+    g.add_argument("--threads", type=int, default=1, metavar="N",
+                   help="parallelise the counts-only profile simulation across N cores (only with "
+                        "--write profiles; Poisson-thins the gene families into N independent "
+                        "copies and sums them — a different but statistically identical "
+                        "realisation, whose output depends on N). Default 1 (serial)")
+    g.add_argument("--annotate-species", action="store_true",
                    help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
-    # --- ALElite: per-family reconciliation likelihood (ALE) ---
-    p.add_argument("--score-likelihoods", action="store_true",
+
+    g = p.add_argument_group(
+        "reconciliation likelihoods (ALE)",
+        "score every extant gene tree (forces the full gene-family path)")
+    g.add_argument("--score-likelihoods", action="store_true",
                    help="also write Reconciliation_likelihoods.tsv: the ALE reconciliation "
                         "log-likelihood of every extant family's gene tree, under each "
-                        "--score-model, at the --dup/--trans/--loss rates (forces the full "
-                        "gene-family path)")
-    p.add_argument("--score-model", nargs="+", metavar="MODEL",
+                        "--score-model, at the --dup/--trans/--loss rates")
+    g.add_argument("--score-model", nargs="+", metavar="MODEL",
                    choices=("dated", "undated", "reldated"), default=["dated", "undated"],
                    help="ALE model(s) to score with (default: dated undated). dated = faithful "
                         "time-sliced likelihood (rates are per-unit-time); undated/reldated use "
                         "per-branch odds")
-    p.add_argument("--score-nsteps", type=int, default=100,
+    g.add_argument("--score-nsteps", type=int, default=100, metavar="N",
                    help="dated model time-grid resolution (sub-steps per slice; default 100)")
-    p.add_argument("--score-origination", choices=("root", "uniform"), default="root",
-                   help="where the family enters the tree: 'root' (default; exact for "
-                        "root-seeded families) or 'uniform' over branches")
-    # --- nucleotide model only (--rate-model nucleotide) ---
-    p.add_argument("--inversion", type=float, default=0.001,
-                   help="[nucleotide] per-nucleotide inversion rate (default 0.001)")
-    p.add_argument("--transposition", type=float, default=0.0,
-                   help="[nucleotide] per-nucleotide transposition rate (default 0)")
-    p.add_argument("--root-length", type=int, default=1000,
-                   help="[nucleotide] length of the root chromosome, in nucleotides (default 1000)")
-    p.add_argument("--extension", type=float, default=0.99,
-                   help="[nucleotide] geometric event-length parameter; mean event length is "
-                        "1/(1-extension) nucleotides (default 0.99)")
-    # --- genes & intergenes (nucleotide model) ---
-    p.add_argument("--gff", metavar="FILE", default=None,
-                   help="[nucleotide] a GFF3 annotation (optionally .gz) to start from a real "
-                        "genome: sets the chromosome length and the gene coordinates (intergenes "
-                        "are the gaps). Overlapping genes are trimmed to be disjoint. Enables "
-                        "genic mode; supersedes --genes/--root-length")
-    p.add_argument("--gff-seqid", metavar="ID", default=None,
-                   help="[nucleotide] which GFF sequence to read (default: the most-annotated "
-                        "one — the chromosome of a single-chromosome bacterium)")
-    p.add_argument("--genes", metavar="FILE", default=None,
-                   help="[nucleotide] BED/TSV of gene intervals on the root chromosome (columns: "
-                        "start end [name], 0-based half-open) — an alternative to --gff. Enables "
-                        "genic mode: event breakpoints fall only in intergene positions so genes "
-                        "are never split; genes and intergenes are recovered as separate tree sets")
-    p.add_argument("--pseudogenization", type=float, default=0.0,
-                   help="[nucleotide, genic] probability a loss hitting a gene demotes it to "
-                        "intergene (sequence retained, a state change) instead of deleting it "
-                        "(default 0)")
-    p.add_argument("--replacement", type=float, default=0.0,
-                   help="[nucleotide, genic] probability a transfer is a homologous replacement "
-                        "(the copy replaces the recipient's syntenic locus, located via flanking "
-                        "genes; additive when no homolog) (default 0)")
-    # --- sequences + ancestral genomes (--output ancestral) ---
-    p.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
-                   help="[nucleotide, --output ancestral] nucleotide substitution model for the "
-                        "sequences (default hky85)")
-    p.add_argument("--kappa", type=float, default=2.0,
-                   help="[nucleotide] transition/transversion ratio for k80/hky85 (default 2.0)")
-    p.add_argument("--base-freqs", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
-                   help="[nucleotide] equilibrium base frequencies for hky85/gtr (default equal)")
-    p.add_argument("--gtr-rates", type=float, nargs=6, default=None,
+    g.add_argument("--score-origination", choices=("root", "uniform"), default="root",
+                   metavar="WHERE",
+                   help="where the family enters the tree: 'root' (default; exact for root-seeded "
+                        "families) or 'uniform' over branches")
+
+    g = p.add_argument_group("nucleotide model", "with --rate-model nucleotide")
+    g.add_argument("--inversion", type=float, default=0.001, metavar="RATE",
+                   help="per-nucleotide inversion rate (default 0.001)")
+    g.add_argument("--transposition", type=float, default=0.0, metavar="RATE",
+                   help="per-nucleotide transposition rate (default 0)")
+    g.add_argument("--root-length", type=int, default=1000, metavar="BP",
+                   help="length of the root chromosome, in nucleotides (default 1000)")
+    g.add_argument("--extension", type=float, default=0.99, metavar="P",
+                   help="geometric event-length parameter; mean event length is 1/(1-extension) "
+                        "nucleotides (default 0.99)")
+
+    g = p.add_argument_group("genes & intergenes",
+                             "nucleotide model; declare genes to enable genic mode")
+    g.add_argument("--gff", metavar="FILE", default=None,
+                   help="a GFF3 annotation (optionally .gz) to start from a real genome: sets the "
+                        "chromosome length and the gene coordinates (intergenes are the gaps). "
+                        "Overlapping genes are trimmed to be disjoint. Supersedes --genes/--root-length")
+    g.add_argument("--gff-seqid", metavar="ID", default=None,
+                   help="which GFF sequence to read (default: the most-annotated one — the "
+                        "chromosome of a single-chromosome bacterium)")
+    g.add_argument("--genes", metavar="FILE", default=None,
+                   help="BED/TSV of gene intervals on the root chromosome (columns: start end "
+                        "[name], 0-based half-open) — an alternative to --gff. Event breakpoints "
+                        "fall only in intergene positions so genes are never split; genes and "
+                        "intergenes are recovered as separate tree sets")
+    g.add_argument("--pseudogenization", type=float, default=0.0, metavar="P",
+                   help="[genic] probability a loss hitting a gene demotes it to intergene "
+                        "(sequence retained, a state change) instead of deleting it (default 0)")
+    g.add_argument("--replacement", type=float, default=0.0, metavar="P",
+                   help="[genic] probability a transfer is a homologous replacement (the copy "
+                        "replaces the recipient's syntenic locus, located via flanking genes; "
+                        "additive when no homolog) (default 0)")
+
+    g = p.add_argument_group("sequences & ancestral genomes",
+                             "nucleotide model, with --write ancestral")
+    g.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
+                   metavar="MODEL",
+                   help="nucleotide substitution model for the sequences (default hky85)")
+    g.add_argument("--kappa", type=float, default=2.0, metavar="K",
+                   help="transition/transversion ratio for k80/hky85 (default 2.0)")
+    g.add_argument("--base-freqs", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
+                   help="equilibrium base frequencies for hky85/gtr (default equal)")
+    g.add_argument("--gtr-rates", type=float, nargs=6, default=None,
                    metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
-                   help="[nucleotide] the 6 GTR exchangeabilities (default all 1)")
-    p.add_argument("--gamma-shape", type=float, default=None, metavar="ALPHA",
-                   help="[nucleotide] discrete-Gamma across-site rate heterogeneity shape "
-                        "(default: none / uniform rates)")
-    p.add_argument("--subst-rate", type=float, default=1.0,
-                   help="[nucleotide] overall substitutions/site per unit time — scales sequence "
-                        "divergence (default 1.0)")
-    p.add_argument("--genome-fasta", metavar="FILE", default=None,
-                   help="[nucleotide, --output ancestral] the input genome's DNA (FASTA, optionally "
-                        ".gz) to seed the root sequence; without it the root is drawn at random")
+                   help="the 6 GTR exchangeabilities (default all 1)")
+    g.add_argument("--gamma-shape", type=float, default=None, metavar="ALPHA",
+                   help="discrete-Gamma across-site rate heterogeneity shape (default: none)")
+    g.add_argument("--subst-rate", type=float, default=1.0, metavar="RATE",
+                   help="overall substitutions/site per unit time — scales sequence divergence "
+                        "(default 1.0)")
+    g.add_argument("--genome-fasta", metavar="FILE", default=None,
+                   help="the input genome's DNA (FASTA, optionally .gz) to seed the root sequence; "
+                        "without it the root is drawn at random")
 
 
 def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -246,10 +324,10 @@ def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentPars
     DiversityDependent) from the CLI args (validated)."""
     if args.model == "backward" and (args.fossilization or args.removal != 1.0
                                      or args.sampling_fraction != 1.0):
-        parser.error("--fossilization / --removal / --sampling-fraction require --model forward "
+        parser.error("--fossilization / --removal / --sampling-fraction require --mode forward "
                      "(the backward reconstructed sampler assumes complete sampling)")
     if args.model == "backward" and args.mass_extinction:
-        parser.error("--mass-extinction requires --model forward (mass extinctions kill real "
+        parser.error("--mass-extinction requires --mode forward (mass extinctions kill real "
                      "lineages forward in time; the backward reconstructed sampler never sees them)")
     # [(age, fraction), ...] pulses, or None; carried by whichever model is built
     mass_ext = args.mass_extinction
@@ -283,7 +361,7 @@ def _build_heterogeneous_model(args: argparse.Namespace, parser: argparse.Argume
     dependent rate processes selected by ``--diversification``."""
     if args.model != "forward":
         parser.error(f"--diversification {args.diversification} is a forward-in-time process; "
-                     "add --model forward")
+                     "add --mode forward")
     if args.shifts is not None or len(args.birth) > 1 or len(args.death) > 1:
         parser.error(f"--diversification {args.diversification} takes a single --birth/--death "
                      "(no --shifts / multiple rates — those are the episodic model)")
@@ -308,7 +386,7 @@ def _build_clade_shift_model(args: argparse.Namespace, parser: argparse.Argument
     """Build a CladeShiftBirthDeath — constant background plus scheduled clade-specific rate
     shifts (forward-only, age mode)."""
     if args.model != "forward":
-        parser.error("--clade-shift requires --model forward (the shifts play out forward in time)")
+        parser.error("--clade-shift requires --mode forward (the shifts play out forward in time)")
     if args.shifts is not None or len(args.birth) > 1 or len(args.death) > 1:
         parser.error("--clade-shift takes a single background --birth/--death (no --shifts; those "
                      "are the episodic model)")
@@ -337,50 +415,63 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str) -> None
 
 
 def _add_trait_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("-t", "--tree", required=True,
+    g = p.add_argument_group("general")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    p.add_argument("--model", choices=("bm", "ou", "eb", "mk", "threshold", "dec"), default="bm",
+    g.add_argument("--model", choices=("bm", "ou", "eb", "mk", "threshold", "dec"), default="bm",
+                   metavar="MODEL",
                    help="trait model: bm=Brownian motion, ou=Ornstein-Uhlenbeck, "
                         "eb=early burst/ACDC, mk=discrete k-state, threshold, "
                         "dec=geographic-range evolution (default: bm)")
-    p.add_argument("--sigma2", type=float, default=1.0,
-                   help="diffusion rate [bm/ou/eb/threshold] (default: 1.0)")
-    p.add_argument("--x0", type=float, default=None,
-                   help="root value [bm/eb/threshold]; OU defaults it to --theta")
-    p.add_argument("--trend", type=float, default=0.0, help="directional drift [bm/eb]")
-    p.add_argument("--alpha", type=float, default=1.0,
-                   help="OU mean-reversion strength [ou] (default: 1.0)")
-    p.add_argument("--theta", type=float, default=0.0, help="OU optimum [ou] (default: 0.0)")
-    p.add_argument("--rate", type=float, default=1.0,
-                   help="EB rate-of-change (negative = early burst) [eb], "
-                        "or the per-transition rate [mk] (default: 1.0)")
-    p.add_argument("--states", type=int, default=2,
-                   help="number of states for the mk model (default: 2)")
-    p.add_argument("--ordered", action="store_true",
-                   help="[mk] only allow transitions between adjacent states (i <-> i±1)")
-    p.add_argument("--q-matrix", default=None,
-                   help="[mk] path to a whitespace/comma-separated k x k rate matrix (an "
-                        "arbitrary Markov chain); overrides --states/--rate/--ordered")
-    p.add_argument("--thresholds", default="0.0",
-                   help="comma-separated liability cut points [threshold] (default: 0.0)")
-    # DEC (geographic-range evolution)
-    p.add_argument("--areas", default="3",
-                   help="[dec] number of areas (e.g. 3) or comma-separated area labels "
-                        "(e.g. A,B,C) (default: 3)")
-    p.add_argument("--dispersal", type=float, default=0.1,
-                   help="[dec] rate of gaining an area (dispersal) (default: 0.1)")
-    p.add_argument("--extinction", type=float, default=0.1,
-                   help="[dec] rate of losing an area (local extinction) (default: 0.1)")
-    p.add_argument("--max-range-size", type=int, default=None,
-                   help="[dec] maximum number of areas a range may span (default: all)")
-    p.add_argument("--root-range", default=None,
-                   help="[dec] comma-separated area labels for the root range (e.g. A); "
-                        "default: a random range")
-    p.add_argument("--replicates", type=int, default=1,
+    g.add_argument("--replicates", type=int, default=1, metavar="N",
                    help="simulate the trait this many times with the same parameters; writes "
                         "traits.tsv with one column per replicate (default: 1)")
-    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", required=True, help="output directory")
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group("continuous traits", "bm / ou / eb / threshold")
+    g.add_argument("--sigma2", type=float, default=1.0, metavar="S2",
+                   help="diffusion rate (default: 1.0)")
+    g.add_argument("--x0", type=float, default=None, metavar="X0",
+                   help="root value [bm/eb/threshold]; OU defaults it to --theta")
+    g.add_argument("--trend", type=float, default=0.0, metavar="MU", help="directional drift [bm/eb]")
+
+    g = p.add_argument_group("ornstein-uhlenbeck", "--model ou")
+    g.add_argument("--alpha", type=float, default=1.0, metavar="A",
+                   help="mean-reversion strength (default: 1.0)")
+    g.add_argument("--theta", type=float, default=0.0, metavar="T", help="optimum (default: 0.0)")
+
+    g = p.add_argument_group("early burst & Mk rate", "--model eb / --model mk")
+    g.add_argument("--rate", type=float, default=1.0, metavar="R",
+                   help="EB rate-of-change (negative = early burst) [eb], or the per-transition "
+                        "rate [mk] (default: 1.0)")
+
+    g = p.add_argument_group("discrete Mk", "--model mk")
+    g.add_argument("--states", type=int, default=2, metavar="K",
+                   help="number of states for the mk model (default: 2)")
+    g.add_argument("--ordered", action="store_true",
+                   help="only allow transitions between adjacent states (i <-> i±1)")
+    g.add_argument("--q-matrix", default=None, metavar="FILE",
+                   help="path to a whitespace/comma-separated k x k rate matrix (an arbitrary "
+                        "Markov chain); overrides --states/--rate/--ordered")
+
+    g = p.add_argument_group("threshold", "--model threshold")
+    g.add_argument("--thresholds", default="0.0", metavar="CUTS",
+                   help="comma-separated liability cut points (default: 0.0)")
+
+    g = p.add_argument_group("DEC biogeography", "--model dec")
+    g.add_argument("--areas", default="3", metavar="SPEC",
+                   help="number of areas (e.g. 3) or comma-separated area labels (e.g. A,B,C) "
+                        "(default: 3)")
+    g.add_argument("--dispersal", type=float, default=0.1, metavar="RATE",
+                   help="rate of gaining an area (dispersal) (default: 0.1)")
+    g.add_argument("--extinction", type=float, default=0.1, metavar="RATE",
+                   help="rate of losing an area (local extinction) (default: 0.1)")
+    g.add_argument("--max-range-size", type=int, default=None, metavar="N",
+                   help="maximum number of areas a range may span (default: all)")
+    g.add_argument("--root-range", default=None, metavar="AREAS",
+                   help="comma-separated area labels for the root range (e.g. A); default: random")
 
 
 def _read_q_matrix(path: str):
@@ -505,90 +596,101 @@ def _run_trait(args) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 # coevolve-genetrait: trait-conditioned gene-family dynamics
 # ═══════════════════════════════════════════════════════════════════════════════
-def _add_trait_model_args(p: argparse.ArgumentParser) -> None:
-    """Trait-model flags for the coevolve command (scalar traits; DEC ranges do not apply).
+def _add_trait_model_args(g) -> None:
+    """Trait-model flags for the coevolve command (scalar traits; DEC ranges do not apply),
+    added to the argument group ``g``.
 
     ``--trait-model`` stores into ``args.model`` so :func:`_build_trait_model` is reused as-is.
     """
-    p.add_argument("--trait-model", dest="model", default="bm",
+    g.add_argument("--trait-model", dest="model", default="bm", metavar="MODEL",
                    choices=("bm", "ou", "eb", "mk", "threshold"),
                    help="trait to evolve then couple to gene families: bm=Brownian motion, "
                         "ou=Ornstein-Uhlenbeck, eb=early burst, mk=discrete k-state, threshold "
                         "(default: bm). Use --trait-file to supply a precomputed trait instead")
-    p.add_argument("--sigma2", type=float, default=1.0,
+    g.add_argument("--sigma2", type=float, default=1.0, metavar="S2",
                    help="diffusion rate [bm/ou/eb/threshold] (default: 1.0)")
-    p.add_argument("--x0", type=float, default=None,
+    g.add_argument("--x0", type=float, default=None, metavar="X0",
                    help="root value [bm/eb/threshold]; OU defaults it to --theta")
-    p.add_argument("--trend", type=float, default=0.0, help="directional drift [bm/eb]")
-    p.add_argument("--alpha", type=float, default=1.0, help="OU mean-reversion strength [ou]")
-    p.add_argument("--theta", type=float, default=0.0, help="OU optimum [ou]")
-    p.add_argument("--rate", type=float, default=1.0,
+    g.add_argument("--trend", type=float, default=0.0, metavar="MU", help="directional drift [bm/eb]")
+    g.add_argument("--alpha", type=float, default=1.0, metavar="A",
+                   help="OU mean-reversion strength [ou]")
+    g.add_argument("--theta", type=float, default=0.0, metavar="T", help="OU optimum [ou]")
+    g.add_argument("--rate", type=float, default=1.0, metavar="R",
                    help="EB rate-of-change (negative = early burst) [eb], or per-transition rate [mk]")
-    p.add_argument("--states", type=int, default=2, help="number of states for the mk model (default: 2)")
-    p.add_argument("--ordered", action="store_true",
+    g.add_argument("--states", type=int, default=2, metavar="K",
+                   help="number of states for the mk model (default: 2)")
+    g.add_argument("--ordered", action="store_true",
                    help="[mk] only allow transitions between adjacent states (i <-> i±1)")
-    p.add_argument("--q-matrix", default=None,
+    g.add_argument("--q-matrix", default=None, metavar="FILE",
                    help="[mk] path to a k x k rate matrix; overrides --states/--rate/--ordered")
-    p.add_argument("--thresholds", default="0.0",
+    g.add_argument("--thresholds", default="0.0", metavar="CUTS",
                    help="comma-separated liability cut points [threshold] (default: 0.0)")
 
 
 def _add_coevolve_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("-t", "--tree", required=True,
+    g = p.add_argument_group("general")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    _add_trait_model_args(p)
-    p.add_argument("--trait-file", default=None, metavar="TSV",
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group("trait model", "the trait to evolve then couple to gene families")
+    _add_trait_model_args(g)
+    g.add_argument("--trait-file", default=None, metavar="TSV",
                    help="use a precomputed trait instead of simulating one: a node<TAB>value table "
                         "over ALL nodes (tips and ancestors), as 'zombi2 trait' writes with "
                         "nodes=all; values must be numeric (encode discrete states as numbers). "
                         "Overrides --trait-model")
-    p.add_argument("--trait-center", action="store_true",
+    g.add_argument("--trait-center", action="store_true",
                    help="[discrete trait] center the state values around their mean so the trait "
                         "pushes retention both up and down — recommended for a binary "
                         "aerobic/anaerobic trait; by default states are 0,1,..,k-1")
-    p.add_argument("--trait-steps", type=int, default=16, metavar="K",
+    g.add_argument("--trait-steps", type=int, default=16, metavar="K",
                    help="[continuous trait] within-branch resolution: sub-segment each branch into "
                         "K pieces (default 16; ignored for discrete traits, which use their exact "
                         "stochastic map)")
-    # --- gene-family panel and its base rates ---
-    p.add_argument("--panel", type=int, default=50,
+
+    g = p.add_argument_group("gene-family panel", "the panel and its trait-neutral base rates")
+    g.add_argument("--panel", type=int, default=50, metavar="N",
                    help="number of gene families in the panel (default 50)")
-    p.add_argument("--loss", type=float, default=0.5,
+    g.add_argument("--loss", type=float, default=0.5, metavar="RATE",
                    help="baseline per-copy loss rate — the loss where the trait is neutral (default 0.5)")
-    p.add_argument("--trans", type=float, default=1.0,
+    g.add_argument("--trans", type=float, default=1.0, metavar="RATE",
                    help="per-copy transfer (HGT) rate — the field-blind gain channel (default 1.0)")
-    p.add_argument("--dup", type=float, default=0.0,
+    g.add_argument("--dup", type=float, default=0.0, metavar="RATE",
                    help="per-copy duplication rate, trait-independent (default 0)")
-    p.add_argument("--orig", type=float, default=0.0,
+    g.add_argument("--orig", type=float, default=0.0, metavar="RATE",
                    help="background origination rate of brand-new, uncoupled families (default 0)")
-    # --- the trait <-> gene-family coupling ---
-    p.add_argument("--responsive", default="0.3", metavar="SPEC",
+
+    g = p.add_argument_group("trait ↔ gene coupling", "which families respond, and how strongly")
+    g.add_argument("--responsive", default="0.3", metavar="SPEC",
                    help="which families respond to the trait: an integer count, a fraction "
                         "(e.g. 0.3), a comma-separated id/index list (e.g. F3,F7,12), or @FILE of "
                         "ids/indices (default: 0.3 = 30%% of the panel, chosen at random)")
-    p.add_argument("--weight", type=float, default=1.0,
+    g.add_argument("--weight", type=float, default=1.0, metavar="W",
                    help="coupling weight of each responsive family (default 1.0)")
-    p.add_argument("--signed", action="store_true",
+    g.add_argument("--signed", action="store_true",
                    help="randomise the sign of each responsive weight (some families favoured by a "
                         "high trait value, some by a low one); by default all favour a high value")
-    p.add_argument("--effect-loss", type=float, default=2.0,
+    g.add_argument("--effect-loss", type=float, default=2.0, metavar="B",
                    help="retention coupling strength: a responsive family's loss scales by "
                         "exp(-effect_loss * weight * trait) (default 2.0; 0 = no coupling)")
-    p.add_argument("--effect-gain", type=float, default=0.0,
+    g.add_argument("--effect-gain", type=float, default=0.0, metavar="B",
                    help="optional HGT-activity coupling: a lineage's transfer rate scales by "
                         "exp(effect_gain * trait) (default 0 = field-blind gain, as in the Potts model)")
-    p.add_argument("--output", nargs="+", metavar="PART",
+
+    g = p.add_argument_group("output")
+    g.add_argument("--write", dest="output", nargs="+", metavar="PART",
                    choices=(*Genomes.WRITE_PARTS, "all"), default=["profiles", "trees"],
                    help="which gene-family outputs to write — any of {profiles, trace, trees, "
                         "events, transfers, summary} or 'all' (default: profiles trees). "
                         "traits.tsv, trait_tree.nwk and coupling.tsv (the responsive-family "
                         "manifest) are always written alongside")
-    p.add_argument("--sparse", action="store_true",
-                   help="write the profile as a sparse long table (needs 'profiles' in --output)")
-    p.add_argument("--annotate-species", action="store_true",
+    g.add_argument("--sparse", action="store_true",
+                   help="write the profile as a sparse long table (needs 'profiles' in --write)")
+    g.add_argument("--annotate-species", action="store_true",
                    help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
-    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", required=True, help="output directory")
 
 
 def _parse_responsive(text: str):
@@ -662,7 +764,7 @@ def _run_coevolve(args: argparse.Namespace) -> str:
         tree = read_newick(f.read())
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
     if args.sparse and "profiles" not in parts:
-        raise ValueError("--sparse affects the profile output; add 'profiles' to --output")
+        raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
     if args.panel < 1:
         raise ValueError("--panel must be >= 1")
     rng = np.random.default_rng(args.seed)
@@ -719,126 +821,139 @@ _COEVOLVE_EDGES = {
 
 
 def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--couple", action="append", nargs="+", metavar="DRIVER:TARGET", default=None,
+    g = p.add_argument_group("general")
+    g.add_argument("--couple", action="append", nargs="+", metavar="DRIVER:TARGET", default=None,
                    help="a directed coupling edge 'driver:target' over {species, traits, genes} — "
-                        "the driver's state modulates the target's rates. Phase 1 implements "
-                        "'traits:species' (SSE: a trait drives speciation/extinction), "
-                        "'species:traits' (cladogenetic: speciation jumps the trait), and their "
-                        "combination = ClaSSE. Repeatable; default traits:species. See "
+                        "the driver's state modulates the target's rates. Implemented: "
+                        "'traits:species' (SSE), 'species:traits' (cladogenetic), their "
+                        "combination = ClaSSE, 'genes:species' (key innovations), 'species:genes' "
+                        "(cladogenetic genome) and 'genes:traits' (a modifier gene switches a "
+                        "trait optimum). Repeatable; default traits:species. See "
                         "docs/coevolution_models.md for the full edge set")
-    p.add_argument("-t", "--tree", default=None,
-                   help="input species tree (Newick) — required for 'species:traits' ALONE (the "
-                        "trait evolves along a GIVEN tree). Omit for the into-species edges "
-                        "(traits:species / ClaSSE), which GROW the tree via --age/--tips")
-    # into-species edges grow the tree, so they take a stopping condition (not an input -t tree)
-    p.add_argument("--age", type=float, default=None,
-                   help="[traits:species] crown age to grow for (the extant tip count is random)")
-    p.add_argument("--tips", type=int, default=None,
-                   help="[traits:species] stop when this many extant tips first coexist (age random)")
-    p.add_argument("--sse-model", dest="sse_model", choices=("bisse", "musse", "quasse"),
-                   default="bisse",
-                   help="[traits:species] which state-dependent model drives diversification: "
-                        "bisse (binary trait), musse (k-state), quasse (continuous trait) "
-                        "(default: bisse)")
-    # BiSSE — per-state speciation/extinction and asymmetric transitions
-    p.add_argument("--lambda0", type=float, default=1.0, help="[bisse] speciation in state 0")
-    p.add_argument("--lambda1", type=float, default=2.0, help="[bisse] speciation in state 1")
-    p.add_argument("--mu0", type=float, default=0.3, help="[bisse] extinction in state 0")
-    p.add_argument("--mu1", type=float, default=0.3, help="[bisse] extinction in state 1")
-    p.add_argument("--q01", type=float, default=0.1, help="[bisse] transition rate 0 -> 1")
-    p.add_argument("--q10", type=float, default=0.1, help="[bisse] transition rate 1 -> 0")
-    # MuSSE — general k-state
-    p.add_argument("--birth", type=float, nargs="+", default=None, metavar="RATE",
-                   help="[musse] per-state speciation rates (k values)")
-    p.add_argument("--death", type=float, nargs="+", default=None, metavar="RATE",
-                   help="[musse] per-state extinction rates (k values)")
-    p.add_argument("--q-matrix", default=None, metavar="FILE",
-                   help="[musse] path to a k x k anagenetic transition-rate matrix (same format as "
-                        "'zombi2 trait --q-matrix')")
-    p.add_argument("--root-state", type=int, default=None,
+    g.add_argument("-t", "--tree", default=None, metavar="FILE",
+                   help="input species tree (Newick) — required for the on-a-given-tree edges "
+                        "(species:traits, species:genes, genes:traits). Omit for the into-species "
+                        "edges (traits:species / ClaSSE / genes:species), which GROW the tree via "
+                        "--age/--tips")
+    g.add_argument("--age", type=float, default=None, metavar="T",
+                   help="[into-species] crown age to grow for (the extant tip count is random)")
+    g.add_argument("--tips", type=int, default=None, metavar="N",
+                   help="[into-species] stop when this many extant tips first coexist (age random)")
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group("SSE model", "--couple traits:species (trait drives diversification)")
+    g.add_argument("--sse-model", dest="sse_model", choices=("bisse", "musse", "quasse"),
+                   default="bisse", metavar="MODEL",
+                   help="which state-dependent model drives diversification: bisse (binary trait), "
+                        "musse (k-state), quasse (continuous trait) (default: bisse)")
+    g.add_argument("--root-state", type=int, default=None, metavar="I",
                    help="[bisse/musse] root state index (default: the character's stationary "
                         "distribution)")
-    # QuaSSE — continuous trait, sigmoidal speciation + constant extinction
-    p.add_argument("--spec-low", type=float, default=0.5,
-                   help="[quasse] speciation rate at low trait values")
-    p.add_argument("--spec-high", type=float, default=2.0,
-                   help="[quasse] speciation rate at high trait values")
-    p.add_argument("--spec-center", type=float, default=0.0,
-                   help="[quasse] trait value at the middle of the speciation sigmoid")
-    p.add_argument("--spec-slope", type=float, default=1.0,
-                   help="[quasse] steepness of the speciation sigmoid")
-    p.add_argument("--qmu", type=float, default=0.1, help="[quasse] constant extinction rate")
-    p.add_argument("--diffusion", type=float, default=1.0,
-                   help="[quasse] trait diffusion rate sigma^2 (Brownian motion)")
-    p.add_argument("--root-value", type=float, default=0.0, help="[quasse] root trait value x0")
-    # species:traits — the cladogenetic (speciation -> trait) kernel; used when species:traits is
-    # in --couple (on its own, or combined with traits:species for ClaSSE)
-    p.add_argument("--clado-shift", dest="clado_shift", type=float, default=0.3,
-                   help="[species:traits, discrete trait] probability a daughter hops to another "
-                        "state AT each speciation (cladogenetic change; default 0.3)")
-    p.add_argument("--clado-jump", dest="clado_jump", type=float, default=1.0,
-                   help="[species:traits, continuous trait] variance of the Gaussian jump added to "
-                        "each daughter's value AT each speciation (default 1.0)")
-    # genes:species — gene-content-dependent diversification (key innovations + HGT). The base
-    # (no-driver) speciation/extinction rates reuse --lambda0/--mu0.
-    p.add_argument("--drivers", type=int, default=2,
-                   help="[genes:species] number of binary 'driver' (key-innovation) gene families")
-    p.add_argument("--driver-speciation", dest="driver_speciation", type=float, default=1.0,
-                   help="[genes:species] per-driver effect on log speciation: a present driver "
-                        "scales lambda by exp(this) (>0 = a key innovation; default 1.0). Base "
-                        "lambda0 = --lambda0")
-    p.add_argument("--driver-extinction", dest="driver_extinction", type=float, default=0.0,
-                   help="[genes:species] per-driver effect on log extinction: a present driver "
-                        "scales mu by exp(this) (default 0). Base mu0 = --mu0")
-    p.add_argument("--driver-loss", dest="driver_loss", type=float, default=0.1,
-                   help="[genes:species] rate a present driver is lost/deleted (default 0.1)")
-    p.add_argument("--driver-origination", dest="driver_origination", type=float, default=0.05,
-                   help="[genes:species] rate an absent driver appears de novo (default 0.05)")
-    p.add_argument("--driver-transfer", dest="driver_transfer", type=float, default=0.5,
-                   help="[genes:species] per-donor HGT rate of a driver — frequency-dependent gain: "
-                        "a driver in more live genomes spreads faster (default 0.5)")
-    p.add_argument("--root-drivers", dest="root_drivers", type=int, default=0,
-                   help="[genes:species] number of drivers present at the root (the first m; "
-                        "default 0 = drivers enter by origination)")
-    # species:genes — cladogenetic ('punctuational') genome change on a GIVEN tree (needs -t)
-    p.add_argument("--genome-size", dest="genome_size", type=int, default=30,
-                   help="[species:genes] number of families in the root genome (default 30)")
-    p.add_argument("--gene-loss", dest="gene_loss", type=float, default=0.0,
-                   help="[species:genes] anagenetic per-family loss rate along a branch (default 0)")
-    p.add_argument("--gene-origination", dest="gene_origination", type=float, default=0.0,
-                   help="[species:genes] anagenetic origination rate of new families, per lineage "
-                        "(default 0). With both anagenetic rates 0 the change is purely cladogenetic")
-    p.add_argument("--clado-gene-loss", dest="clado_gene_loss", type=float, default=0.1,
-                   help="[species:genes] probability a daughter drops each family AT each speciation "
-                        "(the founder-effect burst; default 0.1)")
-    p.add_argument("--clado-gene-gain", dest="clado_gene_gain", type=float, default=2.0,
-                   help="[species:genes] mean number of new families a daughter gains AT each "
-                        "speciation (Poisson; default 2.0)")
-    # genes:traits — a modifier gene switches a trait's optimum on a GIVEN tree (needs -t)
-    p.add_argument("--modifier-gain", dest="modifier_gain", type=float, default=0.5,
-                   help="[genes:traits] rate the modifier gene is gained (absent -> present; "
-                        "default 0.5)")
-    p.add_argument("--modifier-loss", dest="modifier_loss", type=float, default=0.5,
-                   help="[genes:traits] rate the modifier gene is lost (present -> absent; "
-                        "default 0.5)")
-    p.add_argument("--root-modifier", dest="root_modifier", action="store_true",
-                   help="[genes:traits] start with the modifier gene present at the root")
-    p.add_argument("--theta-absent", dest="theta_absent", type=float, default=0.0,
-                   help="[genes:traits] the trait's OU optimum while the modifier is absent "
-                        "(default 0)")
-    p.add_argument("--theta-present", dest="theta_present", type=float, default=5.0,
-                   help="[genes:traits] the trait's OU optimum while the modifier is present "
-                        "(default 5) — acquiring the gene pulls the trait toward this peak")
-    p.add_argument("--trait-alpha", dest="trait_alpha", type=float, default=1.0,
-                   help="[genes:traits] OU mean-reversion strength of the trait (0 = Brownian; "
-                        "default 1.0)")
-    p.add_argument("--trait-sigma2", dest="trait_sigma2", type=float, default=1.0,
-                   help="[genes:traits] trait diffusion rate sigma^2 (default 1.0)")
-    p.add_argument("--trait-x0", dest="trait_x0", type=float, default=None,
-                   help="[genes:traits] root trait value (default: the optimum of the root "
-                        "modifier state)")
-    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", required=True, help="output directory")
+
+    g = p.add_argument_group("BiSSE", "--sse-model bisse (binary trait)")
+    g.add_argument("--lambda0", type=float, default=1.0, metavar="RATE", help="speciation in state 0")
+    g.add_argument("--lambda1", type=float, default=2.0, metavar="RATE", help="speciation in state 1")
+    g.add_argument("--mu0", type=float, default=0.3, metavar="RATE", help="extinction in state 0")
+    g.add_argument("--mu1", type=float, default=0.3, metavar="RATE", help="extinction in state 1")
+    g.add_argument("--q01", type=float, default=0.1, metavar="RATE", help="transition rate 0 -> 1")
+    g.add_argument("--q10", type=float, default=0.1, metavar="RATE", help="transition rate 1 -> 0")
+
+    g = p.add_argument_group("MuSSE", "--sse-model musse (k-state trait)")
+    g.add_argument("--birth", type=float, nargs="+", default=None, metavar="RATE",
+                   help="per-state speciation rates (k values)")
+    g.add_argument("--death", type=float, nargs="+", default=None, metavar="RATE",
+                   help="per-state extinction rates (k values)")
+    g.add_argument("--q-matrix", default=None, metavar="FILE",
+                   help="path to a k x k anagenetic transition-rate matrix (same format as "
+                        "'zombi2 trait --q-matrix')")
+
+    g = p.add_argument_group("QuaSSE", "--sse-model quasse (continuous trait)")
+    g.add_argument("--spec-low", type=float, default=0.5, metavar="RATE",
+                   help="speciation rate at low trait values")
+    g.add_argument("--spec-high", type=float, default=2.0, metavar="RATE",
+                   help="speciation rate at high trait values")
+    g.add_argument("--spec-center", type=float, default=0.0, metavar="X",
+                   help="trait value at the middle of the speciation sigmoid")
+    g.add_argument("--spec-slope", type=float, default=1.0, metavar="S",
+                   help="steepness of the speciation sigmoid")
+    g.add_argument("--qmu", type=float, default=0.1, metavar="RATE", help="constant extinction rate")
+    g.add_argument("--diffusion", type=float, default=1.0, metavar="S2",
+                   help="trait diffusion rate sigma^2 (Brownian motion)")
+    g.add_argument("--root-value", type=float, default=0.0, metavar="X0", help="root trait value x0")
+
+    g = p.add_argument_group("cladogenetic kernel",
+                             "--couple species:traits (speciation jumps the trait)")
+    g.add_argument("--clado-shift", dest="clado_shift", type=float, default=0.3, metavar="P",
+                   help="[discrete trait] probability a daughter hops to another state AT each "
+                        "speciation (cladogenetic change; default 0.3)")
+    g.add_argument("--clado-jump", dest="clado_jump", type=float, default=1.0, metavar="S2",
+                   help="[continuous trait] variance of the Gaussian jump added to each daughter's "
+                        "value AT each speciation (default 1.0)")
+
+    g = p.add_argument_group(
+        "gene-driven diversification",
+        "--couple genes:species (key-innovation gene families; base rates reuse --lambda0/--mu0)")
+    g.add_argument("--drivers", type=int, default=2, metavar="N",
+                   help="number of binary 'driver' (key-innovation) gene families")
+    g.add_argument("--driver-speciation", dest="driver_speciation", type=float, default=1.0,
+                   metavar="B",
+                   help="per-driver effect on log speciation: a present driver scales lambda by "
+                        "exp(this) (>0 = a key innovation; default 1.0)")
+    g.add_argument("--driver-extinction", dest="driver_extinction", type=float, default=0.0,
+                   metavar="B",
+                   help="per-driver effect on log extinction: a present driver scales mu by "
+                        "exp(this) (default 0)")
+    g.add_argument("--driver-loss", dest="driver_loss", type=float, default=0.1, metavar="RATE",
+                   help="rate a present driver is lost/deleted (default 0.1)")
+    g.add_argument("--driver-origination", dest="driver_origination", type=float, default=0.05,
+                   metavar="RATE", help="rate an absent driver appears de novo (default 0.05)")
+    g.add_argument("--driver-transfer", dest="driver_transfer", type=float, default=0.5,
+                   metavar="RATE",
+                   help="per-donor HGT rate of a driver — frequency-dependent gain: a driver in "
+                        "more live genomes spreads faster (default 0.5)")
+    g.add_argument("--root-drivers", dest="root_drivers", type=int, default=0, metavar="M",
+                   help="number of drivers present at the root (the first m; default 0 = drivers "
+                        "enter by origination)")
+
+    g = p.add_argument_group("cladogenetic genome",
+                             "--couple species:genes (on a GIVEN tree; needs -t)")
+    g.add_argument("--genome-size", dest="genome_size", type=int, default=30, metavar="N",
+                   help="number of families in the root genome (default 30)")
+    g.add_argument("--gene-loss", dest="gene_loss", type=float, default=0.0, metavar="RATE",
+                   help="anagenetic per-family loss rate along a branch (default 0)")
+    g.add_argument("--gene-origination", dest="gene_origination", type=float, default=0.0,
+                   metavar="RATE",
+                   help="anagenetic origination rate of new families, per lineage (default 0). "
+                        "With both anagenetic rates 0 the change is purely cladogenetic")
+    g.add_argument("--clado-gene-loss", dest="clado_gene_loss", type=float, default=0.1, metavar="P",
+                   help="probability a daughter drops each family AT each speciation (the "
+                        "founder-effect burst; default 0.1)")
+    g.add_argument("--clado-gene-gain", dest="clado_gene_gain", type=float, default=2.0,
+                   metavar="MEAN",
+                   help="mean number of new families a daughter gains AT each speciation "
+                        "(Poisson; default 2.0)")
+
+    g = p.add_argument_group("gene-conditioned trait",
+                             "--couple genes:traits (on a GIVEN tree; needs -t)")
+    g.add_argument("--modifier-gain", dest="modifier_gain", type=float, default=0.5, metavar="RATE",
+                   help="rate the modifier gene is gained (absent -> present; default 0.5)")
+    g.add_argument("--modifier-loss", dest="modifier_loss", type=float, default=0.5, metavar="RATE",
+                   help="rate the modifier gene is lost (present -> absent; default 0.5)")
+    g.add_argument("--root-modifier", dest="root_modifier", action="store_true",
+                   help="start with the modifier gene present at the root")
+    g.add_argument("--theta-absent", dest="theta_absent", type=float, default=0.0, metavar="T",
+                   help="the trait's OU optimum while the modifier is absent (default 0)")
+    g.add_argument("--theta-present", dest="theta_present", type=float, default=5.0, metavar="T",
+                   help="the trait's OU optimum while the modifier is present (default 5) — "
+                        "acquiring the gene pulls the trait toward this peak")
+    g.add_argument("--trait-alpha", dest="trait_alpha", type=float, default=1.0, metavar="A",
+                   help="OU mean-reversion strength of the trait (0 = Brownian; default 1.0)")
+    g.add_argument("--trait-sigma2", dest="trait_sigma2", type=float, default=1.0, metavar="S2",
+                   help="trait diffusion rate sigma^2 (default 1.0)")
+    g.add_argument("--trait-x0", dest="trait_x0", type=float, default=None, metavar="X0",
+                   help="root trait value (default: the optimum of the root modifier state)")
 
 
 def _build_anagenetic_trait(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -1038,7 +1153,7 @@ def _run_genes_species(args: argparse.Namespace, parser: argparse.ArgumentParser
     n_extant = len(res.tree.extant_leaves())
     prev = " ".join(f"D{i}:{100 * p:.0f}%" for i, p in enumerate(res.tip_prevalence()))
     print(f"  overlay the neutral genome with: zombi2 genomes -t {args.out}/species_tree.nwk "
-          f"--trans 1 --loss 0.5 --output profiles trees -o {args.out}")
+          f"--trans 1 --loss 0.5 --write profiles trees -o {args.out}")
     return (f"wrote genes:species (key innovations) to {args.out}/ "
             f"({n_extant} extant tips, {model.n_drivers} drivers, tip prevalence {prev}) "
             f"in {dt:.3g} s")
@@ -1147,10 +1262,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
     """
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
     if args.sparse and "profiles" not in parts:
-        raise ValueError("--sparse affects the profile output; add 'profiles' to --output")
+        raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
     if args.threads > 1 and parts != {"profiles"}:
         raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
-                         "exactly --output profiles")
+                         "exactly --write profiles")
 
     if args.rate_model == "nucleotide":
         return _run_nucleotides(tree, args, parts)
@@ -1220,7 +1335,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     want = parts & {"profiles", "trees", "ancestral"}
     if not want:
         raise ValueError("the nucleotide model writes 'profiles', 'trees' and/or 'ancestral'; "
-                         "--output events/transfers/summary do not apply to it")
+                         "--write events/transfers/summary do not apply to it")
     ancestral = "ancestral" in want
     initial_size = 1 if args.initial_size is None else args.initial_size
     args.initial_size = initial_size          # record the effective value in the params log
@@ -1428,45 +1543,59 @@ def _write_atom_gene_trees(out: str, result, genic: bool = False) -> None:
 
 
 def _add_abc_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("-t", "--tree", required=True,
+    g = p.add_argument_group("general")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="species tree (Newick) the empirical data evolved along")
-    p.add_argument("--profiles", required=True, metavar="TSV",
+    g.add_argument("--profiles", required=True, metavar="TSV",
                    help="empirical copy-number profile table (families x species TSV, like the "
                         "Profiles.tsv that 'zombi2 genomes' writes)")
-    # priors — reuse the genomes rate flags, but each takes a PRIOR: two values LOW HIGH
-    # (a uniform prior) or one value (fixed). An omitted rate is held at 0.
-    for flag, param in (("--dup", "duplication"), ("--trans", "transfer"),
-                        ("--loss", "loss"), ("--orig", "origination")):
-        p.add_argument(flag, type=float, nargs="+", default=None, metavar="RATE",
-                       help=f"{param} prior: two values LOW HIGH (uniform) or one value (fixed); "
-                            f"omit to hold {param} at 0")
-    p.add_argument("--model", choices=("uniform", "family"), default="uniform",
+    g.add_argument("--rate-model", dest="model", choices=("uniform", "family"), default="uniform",
+                   metavar="MODEL",
                    help="uniform: one shared scalar rate per type (Rust; default); "
                         "family: per-family sampled rates, fitting each rate's mean (Python)")
-    p.add_argument("--family-shape", type=float, default=2.0,
-                   help="[--model family] Gamma shape for per-family rate dispersion (default 2.0)")
-    p.add_argument("--n-sims", type=int, default=1000,
-                   help="[rejection] number of prior simulations (default 1000)")
-    p.add_argument("--accept", type=float, default=0.05,
-                   help="[rejection] fraction of closest simulations to accept (default 0.05)")
-    p.add_argument("--processes", type=int, default=None,
-                   help="[rejection] parallel worker processes (default: serial)")
-    p.add_argument("--smc", action="store_true",
-                   help="use ABC-SMC (sequential, shrinking tolerance) instead of rejection")
-    p.add_argument("--rounds", type=int, default=5, help="[--smc] number of SMC rounds (default 5)")
-    p.add_argument("--particles", type=int, default=200,
-                   help="[--smc] particles per round (default 200)")
-    p.add_argument("--quantile", type=float, default=0.5,
-                   help="[--smc] tolerance quantile carried between rounds (default 0.5)")
-    p.add_argument("--regression-adjust", action="store_true",
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group(
+        "priors",
+        "the rates to fit — two values LOW HIGH (uniform) or one (fixed); omit to hold at 0. "
+        "At least one must be a range")
+    # priors reuse the genomes rate flags, but each takes a PRIOR (see _build_priors)
+    for flag, param in (("--dup", "duplication"), ("--trans", "transfer"),
+                        ("--loss", "loss"), ("--orig", "origination")):
+        g.add_argument(flag, type=float, nargs="+", default=None, metavar="RATE",
+                       help=f"{param} prior")
+
+    g = p.add_argument_group("family model", "--rate-model family")
+    g.add_argument("--family-shape", type=float, default=2.0, metavar="A",
+                   help="Gamma shape for per-family rate dispersion (default 2.0)")
+
+    g = p.add_argument_group("rejection ABC", "the default sampler")
+    g.add_argument("--n-sims", type=int, default=1000, metavar="N",
+                   help="number of prior simulations (default 1000)")
+    g.add_argument("--accept", type=float, default=0.05, metavar="FRAC",
+                   help="fraction of closest simulations to accept (default 0.05)")
+    g.add_argument("--processes", type=int, default=None, metavar="N",
+                   help="parallel worker processes (default: serial)")
+
+    g = p.add_argument_group("ABC-SMC", "sequential sampler with shrinking tolerance")
+    g.add_argument("--smc", action="store_true", help="use ABC-SMC instead of rejection")
+    g.add_argument("--rounds", type=int, default=5, metavar="N",
+                   help="number of SMC rounds (default 5)")
+    g.add_argument("--particles", type=int, default=200, metavar="N",
+                   help="particles per round (default 200)")
+    g.add_argument("--quantile", type=float, default=0.5, metavar="Q",
+                   help="tolerance quantile carried between rounds (default 0.5)")
+
+    g = p.add_argument_group("posterior & simulation")
+    g.add_argument("--regression-adjust", action="store_true",
                    help="also write the regression-adjusted posterior (Beaumont 2002)")
-    p.add_argument("--initial-size", type=int, default=20,
+    g.add_argument("--initial-size", type=int, default=20, metavar="N",
                    help="gene families seeded at the root of each simulation (default 20)")
-    p.add_argument("--max-family-size", type=_int_or_float, default=None,
-                   help="growth cap for each simulation — recommended with --model family to "
+    g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
+                   help="growth cap for each simulation — recommended with --rate-model family to "
                         "avoid runaway growth (integer = absolute, decimal = fraction of N)")
-    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", required=True, help="output directory")
 
 
 def _build_priors(args: argparse.Namespace) -> dict:
@@ -1556,27 +1685,32 @@ def _run_abc(args: argparse.Namespace) -> str:
 
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--genomes", required=True, metavar="DIR",
+    g = p.add_argument_group("general")
+    g.add_argument("--genomes", required=True, metavar="DIR",
                    help="a prior 'zombi2 genomes' output directory — reads its species_tree.nwk "
-                        "and Events_trace.tsv (run genomes with 'trace' in --output)")
-    p.add_argument("--family-speed", type=float, default=0.0, metavar="SIGMA",
+                        "and Events_trace.tsv (run genomes with 'trace' in --write)")
+    g.add_argument("--seed", type=int, default=None, metavar="N",
+                   help="RNG seed for reproducibility")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+
+    g = p.add_argument_group("per-family speed")
+    g.add_argument("--family-speed", type=float, default=0.0, metavar="SIGMA",
                    help="per-gene-family intrinsic substitution speed: each family draws a "
                         "constant multiplier ~ LogNormal(0, SIGMA) (0 = every family the same)")
-    p.add_argument("--branch-speed", type=float, default=0.0, metavar="SIGMA",
-                   help="shared species-tree lineage clock: an autocorrelated lognormal relaxed "
-                        "clock, drift SIGMA per sqrt(time) (0 = strict clock). Combine with "
-                        "--family-speed for the full gene x lineage model; exclusive with --branch-bins")
-    p.add_argument("--branch-bins", default=None, metavar="R1,R2,...",
-                   help="alternative lineage clock — the discrete-bin within-branch GTDB model: "
-                        "comma-separated ORDERED rate multipliers (e.g. 0.25,0.5,1,2,4), a Markov "
-                        "walk between adjacent bins (--branch-switch-rate, --branch-up-bias)")
-    p.add_argument("--branch-switch-rate", type=float, default=1.0, metavar="RATE",
+
+    g = p.add_argument_group("lineage clock",
+                             "shared across families; pick lognormal OR discrete-bin")
+    g.add_argument("--branch-speed", type=float, default=0.0, metavar="SIGMA",
+                   help="lognormal relaxed clock: autocorrelated, drift SIGMA per sqrt(time) "
+                        "(0 = strict clock). Exclusive with --branch-bins")
+    g.add_argument("--branch-bins", default=None, metavar="R1,R2,...",
+                   help="discrete-bin within-branch GTDB clock: comma-separated ORDERED rate "
+                        "multipliers (e.g. 0.25,0.5,1,2,4), a Markov walk between adjacent bins")
+    g.add_argument("--branch-switch-rate", type=float, default=1.0, metavar="RATE",
                    help="[--branch-bins] rate of stepping to a neighbouring bin (default 1.0)")
-    p.add_argument("--branch-up-bias", type=float, default=0.5, metavar="P",
+    g.add_argument("--branch-up-bias", type=float, default=0.5, metavar="P",
                    help="[--branch-bins] probability a step goes to the faster neighbour "
                         "(default 0.5 = symmetric walk)")
-    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    p.add_argument("-o", "--out", required=True, help="output directory")
 
 
 def _run_sequence(args: argparse.Namespace) -> str:
@@ -1602,7 +1736,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     if not os.path.exists(trace_path):
         raise FileNotFoundError(
             f"{trace_path} not found — re-run 'zombi2 genomes' on that tree with 'trace' in "
-            f"--output (e.g. --output trace profiles) so the genealogy can be replayed")
+            f"--write (e.g. --write trace profiles) so the genealogy can be replayed")
     with open(tree_path) as f:
         tree = read_newick(f.read())
     with open(trace_path) as f:
@@ -1650,44 +1784,73 @@ def _run_sequence(args: argparse.Namespace) -> str:
             f"(clock: {clock}, family-speed {args.family_speed}) in {dt:.3g} s")
 
 
+def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder):
+    """Register a subcommand with the house-style formatter and a hand-written compact usage.
+
+    The command list itself is curated (grouped by theme) in the top-level description, so the
+    per-command ``help`` is suppressed from argparse's auto listing to avoid a duplicate dump.
+    """
+    p = sub.add_parser(name, help=help, description=description, usage=usage,
+                       formatter_class=ZombiHelpFormatter)
+    adder(p)
+    return p
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="zombi2", description=_DESCRIPTION,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,
+        formatter_class=ZombiHelpFormatter,
     )
+    parser.add_argument("--version", action="version", version=f"ZOMBI2 {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
 
-    ps = sub.add_parser("species", help="simulate a species tree")
-    _add_species_args(ps)
+    _add_subcommand(
+        sub, "species", "simulate a species tree",
+        "Simulate a species tree — a birth-death process, forward in time or reconstructed.",
+        "zombi2 species -o DIR [--mode MODE] [--diversification PROCESS] [options]",
+        _add_species_args)
 
-    pg = sub.add_parser("genomes", help="evolve gene families along a species tree")
-    pg.add_argument("-t", "--tree", required=True,
-                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    _add_rate_args(pg)
-    pg.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
-    pg.add_argument("-o", "--out", required=True, help="output directory")
+    _add_subcommand(
+        sub, "genomes", "evolve gene families along a species tree",
+        "Evolve gene families along a species tree by duplication, transfer, loss and origination.",
+        "zombi2 genomes -t FILE -o DIR [--rate-model MODEL] [--write PART ...] [options]",
+        _add_rate_args)
 
-    pt = sub.add_parser("trait", help="evolve a phenotypic trait along a given species tree")
-    _add_trait_args(pt)
+    _add_subcommand(
+        sub, "trait", "evolve a phenotypic trait along a given species tree",
+        "Evolve a phenotypic trait along a species tree, writing tip and ancestral values.",
+        "zombi2 trait -t FILE -o DIR [--model MODEL] [options]", _add_trait_args)
 
-    pa = sub.add_parser("abc", help="fit gene-family rates to an empirical profile by ABC")
-    _add_abc_args(pa)
+    _add_subcommand(
+        sub, "abc", "fit gene-family rates to an empirical profile by ABC",
+        "Fit gene-family rates to an empirical copy-number profile by Approximate Bayesian "
+        "Computation (the inverse of 'genomes').",
+        "zombi2 abc -t FILE --profiles TSV -o DIR [--dup LOW HIGH ...] [options]", _add_abc_args)
 
-    pce = sub.add_parser(
-        "coevolve-genetrait",
-        help="co-evolve a trait and gene families (trait-conditioned gene-family dynamics)")
-    _add_coevolve_args(pce)
+    _add_subcommand(
+        sub, "coevolve-genetrait",
+        "co-evolve a trait and gene families (trait-conditioned gene-family dynamics)",
+        "Evolve a trait, then a gene-family panel whose loss/gain is conditioned on the local "
+        "trait value.",
+        "zombi2 coevolve-genetrait -t FILE -o DIR [--trait-model MODEL] [options]",
+        _add_coevolve_args)
 
-    pcv = sub.add_parser(
-        "coevolve",
-        help="co-evolve coupled processes (Phase 1: --couple traits:species = SSE)")
-    _add_coevolve_mode_args(pcv)
+    _add_subcommand(
+        sub, "coevolve", "co-evolve coupled processes (--couple driver:target)",
+        "Co-evolve coupled processes over {species, traits, genes} — pick directed edges with "
+        "--couple (e.g. traits:species = SSE).",
+        "zombi2 coevolve -o DIR --couple DRIVER:TARGET [-t FILE] [--age T|--tips N] [options]",
+        _add_coevolve_mode_args)
 
-    pq = sub.add_parser("sequence",
-                        help="rescale a genomes run's gene trees into substitutions/site")
-    _add_sequence_args(pq)
+    _add_subcommand(
+        sub, "sequence", "rescale a genomes run's gene trees into substitutions/site",
+        "Rescale a 'genomes' run's gene trees from time into substitutions/site under a "
+        "gene × lineage clock.",
+        "zombi2 sequence --genomes DIR -o DIR [--branch-speed SIGMA|--branch-bins ...] [options]",
+        _add_sequence_args)
 
     args = parser.parse_args(argv)
+    print(_banner(), file=sys.stderr)          # a banner on each run (stderr keeps stdout clean)
     try:
         return _dispatch(args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
@@ -1731,7 +1894,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 raise RuntimeError(
                     f"forward simulation kept going extinct in {args.max_attempts} attempts. "
                     f"With --death {args.death} vs --birth {args.birth}, most runs die out — "
-                    f"lower --death, raise --max-attempts, or use --model backward.") from None
+                    f"lower --death, raise --max-attempts, or use --mode backward.") from None
         dt = time.perf_counter() - t0
 
         os.makedirs(args.out, exist_ok=True)
