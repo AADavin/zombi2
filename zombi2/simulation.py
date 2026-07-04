@@ -385,6 +385,7 @@ def simulate_genomes(
     sampler: EventSampler | None = None,
     genome_factory=UnorderedGenome,
     output: str = "genomes",
+    threads: int = 1,
 ):
     """Simulate gene families forward along ``species_tree``.
 
@@ -411,9 +412,17 @@ def simulate_genomes(
         without materialising the per-event Python objects or gene trees (built lazily, only if
         asked). It is the intermediate for very large datasets: near counts-only speed, yet
         gene trees remain reconstructable on demand.
+
+    ``threads`` (only with ``output="profiles"`` on the built-in Rust model, binary tree): run the
+    counts-only engine on ``threads`` cores by Poisson-thinning the gene families across ``threads``
+    independent copies and summing the profiles. Distributionally identical to the serial run (a
+    different but equivalent realization); the output depends on ``(seed, threads)`` but not on
+    scheduling. ``threads=1`` (default) is the exact serial engine.
     """
     if output not in ("genomes", "profiles", "trace"):
         raise ValueError(f"output must be 'genomes', 'profiles' or 'trace', got {output!r}")
+    if threads > 1 and output != "profiles":
+        raise ValueError("threads>1 (parallel simulation) is only supported for output='profiles'")
 
     shorthand = any((duplication, transfer, loss, origination))
     if rates is None:
@@ -439,10 +448,16 @@ def simulate_genomes(
         kw = dict(initial_size=initial_size, transfers=transfers,
                   max_family_size=max_family_size, seed=seed)
         if output == "profiles":
+            if threads > 1:
+                return _rust.profiles_parallel(species_tree, rates, threads=threads, **kw)
             return _rust.profiles(species_tree, rates, **kw)
         if output == "trace":
             return _rust.trace(species_tree, rates, **kw)
         return _rust.genomes(species_tree, rates, **kw)
+
+    if threads > 1:
+        raise ValueError("threads>1 (parallel profiles) requires the built-in model "
+                         "(UnorderedGenome + UniformRates) on a binary species tree")
 
     # --- flexible models: pure-Python engine -----------------------------------
     if rng is None:

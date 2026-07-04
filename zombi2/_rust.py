@@ -181,6 +181,31 @@ def profiles(species_tree, rates, *, initial_size, transfers, max_family_size, s
     return _assemble_profiles(result, nodes)
 
 
+def profiles_parallel(species_tree, rates, *, initial_size, transfers, max_family_size, seed,
+                      threads):
+    """Parallel counts-only path (behind ``simulate_genomes(..., output="profiles", threads=N)``).
+
+    Runs ``threads`` **independent** copies of the engine, each with origination rate ``o/threads``
+    and a ``1/threads`` share of the founding families, and sums the profiles. Gene families are
+    independent and a Poisson process splits, so this is distributionally identical to one serial
+    run — a different but equivalent realization. The result depends on ``(seed, threads)`` but not
+    on scheduling (thread-count-independent given the copy count), and every transfer mode is
+    supported (the recipient choice depends only on the tree + donor, so it decomposes unchanged)."""
+    require()
+    d, t, l, o = _resolve_rates(rates)
+    nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
+    cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
+    rep, dec, aself = _transfer_params(transfers)
+
+    # copies = threads (one balanced Poisson-thinned copy per worker); pool size = threads
+    result = _core.simulate_profiles_parallel(
+        len(nodes), parent, times, extant_leaf, root,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
+        int(threads), int(threads),
+    )
+    return _assemble_profiles(result, nodes)
+
+
 def _assemble_profiles(result, nodes) -> ProfileMatrix:
     """Build a ProfileMatrix from the engine's flat COO byte buffers (``simulate_profiles`` /
     ``simulate_trace``).

@@ -162,6 +162,11 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="write the profile as a sparse long table (Profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense "
                         "matrix — the scalable output for huge trees (needs 'profiles' in --output)")
+    p.add_argument("--threads", type=int, default=1, metavar="N",
+                   help="parallelise the counts-only profile simulation across N cores "
+                        "(only with --output profiles; Poisson-thins the gene families into N "
+                        "independent copies and sums them — a different but statistically "
+                        "identical realisation, whose output depends on N). Default 1 (serial)")
     p.add_argument("--annotate-species", action="store_true",
                    help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
     # --- nucleotide model only (--rate-model nucleotide) ---
@@ -995,6 +1000,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --output")
+    if args.threads > 1 and parts != {"profiles"}:
+        raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
+                         "exactly --output profiles")
 
     if args.rate_model == "nucleotide":
         return _run_nucleotides(tree, args, parts)
@@ -1011,8 +1019,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
 
     t0 = time.perf_counter()
     if parts == {"profiles"}:
-        # counts-only Rust fast path: no genealogy reconstructed
-        profiles = simulate_genomes(tree, output="profiles", **rate_kw)
+        # counts-only Rust fast path: no genealogy reconstructed (parallel when --threads > 1)
+        profiles = simulate_genomes(tree, output="profiles", threads=args.threads, **rate_kw)
         dt = time.perf_counter() - t0
         _write_profiles_only(args.out, tree, profiles, sparse=args.sparse)
         n_families = len(profiles.families)

@@ -226,11 +226,13 @@ impl Genome {
     }
 }
 
-struct Engine {
-    children: Vec<Vec<usize>>,
-    extant_leaf: Vec<bool>,
-    parent: Vec<i64>,
-    time: Vec<f64>,
+// The tree arrays are borrowed (not owned) so that many independent copies of the engine — the
+// Poisson-thinned parallel profile path — share one read-only copy of the topology instead of
+// cloning it per thread.
+struct Engine<'a> {
+    children: &'a [Vec<usize>],
+    parent: &'a [i64],
+    time: &'a [f64],
     tr: Transfers,
     d: f64,
     t: f64,
@@ -247,7 +249,7 @@ struct Engine {
     max_events: u64,
 }
 
-impl Engine {
+impl<'a> Engine<'a> {
     fn subtotal(&self, g: &Genome) -> f64 {
         (g.size as f64) * (self.d + self.t + self.l) + self.o
     }
@@ -277,7 +279,10 @@ impl Engine {
         self.fenwick.set(node, sub);
     }
 
-    fn evolve_interval(&mut self, mut t: f64, t1: f64) -> PyResult<()> {
+    // Err(()) signals runaway growth (max_events exceeded). A plain unit error, not a PyErr, so
+    // this runs on rayon worker threads without touching the Python C-API / GIL; the caller maps
+    // it to a PyRuntimeError under the GIL.
+    fn evolve_interval(&mut self, mut t: f64, t1: f64) -> Result<(), ()> {
         loop {
             let total = self.fenwick.total;
             if total <= 0.0 {
@@ -290,9 +295,7 @@ impl Engine {
             t += dt;
             self.events += 1;
             if self.events > self.max_events {
-                return Err(PyRuntimeError::new_err(
-                    "exceeded max_events; families likely growing without bound — set max_family_size",
-                ));
+                return Err(());
             }
             let branch = self.fenwick.find((1.0 - self.rng.next_f64()) * total);
             self.fire(branch, t);
@@ -326,7 +329,7 @@ impl Engine {
                 g.family_at(idx)
             };
             let recipient = match choose_recipient(&mut self.rng, &self.alive_list,
-                &self.alive_pos, branch, &self.parent, &self.time, t, &self.tr) {
+                &self.alive_pos, branch, self.parent, self.time, t, &self.tr) {
                 Some(x) => x,
                 None => return,
             };
@@ -393,6 +396,149 @@ impl ProfileCooBuf {
     }
 }
 
+/// children adjacency from parent pointers.
+fn build_children(n_nodes: usize, parent: &[i64]) -> Vec<Vec<usize>> {
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
+    for (node, &p) in parent.iter().enumerate() {
+        if p >= 0 {
+            children[p as usize].push(node);
+        }
+    }
+    children
+}
+
+/// Non-root nodes in time order (the order the sweep processes speciations / leaves in).
+fn time_order(n_nodes: usize, parent: &[i64], time: &[f64]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..n_nodes).filter(|&i| parent[i] >= 0).collect();
+    order.sort_by(|&a, &b| time[a].partial_cmp(&time[b]).unwrap());
+    order
+}
+
+/// Well-mixed per-copy seed (splitmix64 of seed + copy index), so each Poisson-thinned copy has
+/// an independent, deterministic RNG stream regardless of thread scheduling.
+fn derive_seed(seed: u64, copy: u64) -> u64 {
+    let mut z = seed.wrapping_add(copy.wrapping_add(1).wrapping_mul(0x9E3779B97F4A7C15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+    z ^ (z >> 31)
+}
+
+/// Run one independent copy of the counts-only engine over the (shared, read-only) tree and emit
+/// its profile cells as parallel `(column, local family id, count)` vectors, plus the number of
+/// families it minted. Family ids are local (start at 0); the caller offsets them so copies stay
+/// distinct. Shared by `simulate_profiles` (one copy) and `simulate_profiles_parallel` (K
+/// Poisson-thinned copies run in parallel). `Err(())` on runaway growth.
+#[allow(clippy::too_many_arguments)]
+fn run_profile_copy(
+    children: &[Vec<usize>],
+    extant_leaf: &[bool],
+    parent: &[i64],
+    time: &[f64],
+    order: &[usize],
+    root: usize,
+    n_nodes: usize,
+    tr: Transfers,
+    d: f64,
+    t: f64,
+    l: f64,
+    o: f64,
+    cap: i64,
+    seed: u64,
+    initial_size: usize,
+) -> Result<(Vec<u32>, Vec<u64>, Vec<u32>, u64), ()> {
+    let mut eng = Engine {
+        children,
+        parent,
+        time,
+        tr,
+        d,
+        t,
+        l,
+        o,
+        cap,
+        rng: Rng::new(seed),
+        next_family: 0,
+        genomes: (0..n_nodes).map(|_| None).collect(),
+        alive_list: Vec::new(),
+        alive_pos: vec![-1; n_nodes],
+        fenwick: Fenwick::new(n_nodes),
+        events: 0,
+        max_events: 2_000_000_000,
+    };
+
+    // seed the root genome, then speciate the root into its children
+    let mut root_genome = Genome::new();
+    for _ in 0..initial_size {
+        let fam = eng.next_family;
+        eng.next_family += 1;
+        root_genome.add(fam);
+    }
+    for &child in children[root].iter() {
+        eng.activate(child, root_genome.clone());
+    }
+
+    // sweep node events in time order; emit one column per extant leaf, one cell per present family
+    let mut col: Vec<u32> = Vec::new();
+    let mut fam: Vec<u64> = Vec::new();
+    let mut cnt: Vec<u32> = Vec::new();
+    let mut ncols: u32 = 0;
+    let mut cur = time[root];
+    for &node in order {
+        eng.evolve_interval(cur, time[node])?;
+        cur = time[node];
+        let genome = eng.deactivate(node);
+        if extant_leaf[node] {
+            let c = ncols;
+            ncols += 1;
+            for (&f, &n) in genome.counts.iter() {
+                col.push(c);
+                fam.push(f);
+                cnt.push(n);
+            }
+        } else {
+            for &child in children[node].iter() {
+                eng.activate(child, genome.clone());
+            }
+        }
+    }
+    Ok((col, fam, cnt, eng.next_family))
+}
+
+/// Extant-leaf node indices in emission (time) order — column `c` of the profile is `leaf_nodes[c]`.
+fn leaf_nodes_bytes(order: &[usize], extant_leaf: &[bool]) -> Vec<u8> {
+    let mut v = Vec::new();
+    for &node in order {
+        if extant_leaf[node] {
+            v.extend_from_slice(&(node as u32).to_ne_bytes());
+        }
+    }
+    v
+}
+
+/// Concatenate the copies' `(col, fam_local, cnt, n_families)` into the flat native-endian COO
+/// byte buffers, offsetting each copy's family ids by the running family total so copies stay
+/// distinct (columns are already shared — same tree, same emission order).
+fn pack_coo(leaf_nodes: Vec<u8>, groups: Vec<(Vec<u32>, Vec<u64>, Vec<u32>, u64)>) -> ProfileCoo {
+    let total: usize = groups.iter().map(|g| g.0.len()).sum();
+    let mut col = Vec::with_capacity(total * 4);
+    let mut fam = Vec::with_capacity(total * 8);
+    let mut cnt = Vec::with_capacity(total * 4);
+    let mut offset: u64 = 0;
+    for (c, f, n, nfam) in groups {
+        for x in &c {
+            col.extend_from_slice(&x.to_ne_bytes());
+        }
+        for x in &f {
+            fam.extend_from_slice(&(x + offset).to_ne_bytes());
+        }
+        for x in &n {
+            cnt.extend_from_slice(&x.to_ne_bytes());
+        }
+        offset += nfam;
+    }
+    (leaf_nodes, col, fam, cnt)
+}
+
 #[allow(clippy::too_many_arguments)]
 #[pyfunction]
 fn simulate_profiles(
@@ -412,69 +558,84 @@ fn simulate_profiles(
     distance_decay: f64,
     allow_self: bool,
 ) -> PyResult<ProfileCoo> {
-    // children adjacency from parent pointers
-    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
-    for (node, &p) in parent.iter().enumerate() {
-        if p >= 0 {
-            children[p as usize].push(node);
-        }
-    }
+    let children = build_children(n_nodes, &parent);
+    let order = time_order(n_nodes, &parent, &time);
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let group = run_profile_copy(
+        &children, &extant_leaf, &parent, &time, &order, root, n_nodes,
+        tr, duplication, transfer, loss, origination, cap, seed, initial_size,
+    )
+    .map_err(|_| PyRuntimeError::new_err(
+        "exceeded max_events; families likely growing without bound — set max_family_size",
+    ))?;
+    let leaf_nodes = leaf_nodes_bytes(&order, &extant_leaf);
+    Ok(pack_coo(leaf_nodes, vec![group]))
+}
 
-    let mut engine = Engine {
-        children,
-        extant_leaf,
-        parent: parent.clone(),
-        time: time.clone(),
-        tr: Transfers { replacement, decay: distance_decay, allow_self },
-        d: duplication,
-        t: transfer,
-        l: loss,
-        o: origination,
-        cap,
-        rng: Rng::new(seed),
-        next_family: 0,
-        genomes: (0..n_nodes).map(|_| None).collect(),
-        alive_list: Vec::new(),
-        alive_pos: vec![-1; n_nodes],
-        fenwick: Fenwick::new(n_nodes),
-        events: 0,
-        max_events: 2_000_000_000,
-    };
+/// Poisson-thinned parallel counts-only engine: run `n_copies` independent copies of the engine,
+/// each with origination rate `o / n_copies` and a `1/n_copies` share of the founding families,
+/// then sum their profiles. Because gene families are independent and a Poisson process splits,
+/// this is distributionally identical to one full serial run (a different but equivalent
+/// realization). The copies run on a rayon pool of `n_threads`; the tree is shared read-only, and
+/// the GIL is released for the compute. Handles every transfer mode (the recipient choice depends
+/// only on the tree + donor, so it decomposes across families unchanged).
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+fn simulate_profiles_parallel(
+    n_nodes: usize,
+    parent: Vec<i64>,
+    time: Vec<f64>,
+    extant_leaf: Vec<bool>,
+    root: usize,
+    duplication: f64,
+    transfer: f64,
+    loss: f64,
+    origination: f64,
+    initial_size: usize,
+    cap: i64,
+    seed: u64,
+    replacement: f64,
+    distance_decay: f64,
+    allow_self: bool,
+    n_copies: usize,
+    n_threads: usize,
+) -> PyResult<ProfileCoo> {
+    let children = build_children(n_nodes, &parent);
+    let order = time_order(n_nodes, &parent, &time);
+    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let k = n_copies.max(1);
+    let o_k = origination / (k as f64);
+    let base = initial_size / k;
+    let extra = initial_size % k;
+    // per-copy (seed, founding-family count); the shares sum to initial_size
+    let params: Vec<(u64, usize)> = (0..k)
+        .map(|c| (derive_seed(seed, c as u64), base + if c < extra { 1 } else { 0 }))
+        .collect();
 
-    // seed the root genome, then speciate the root into its children
-    let mut root_genome = Genome::new();
-    for _ in 0..initial_size {
-        let fam = engine.next_family;
-        engine.next_family += 1;
-        root_genome.add(fam);
-    }
-    for &child in engine.children[root].clone().iter() {
-        engine.activate(child, root_genome.clone());
-    }
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(n_threads.max(1))
+        .build()
+        .map_err(|e| PyRuntimeError::new_err(format!("rayon pool: {e}")))?;
 
-    // node events (all non-root nodes) in time order
-    let mut order: Vec<usize> = (0..n_nodes).filter(|&i| parent[i] >= 0).collect();
-    order.sort_by(|&a, &b| time[a].partial_cmp(&time[b]).unwrap());
+    // rayon workers run pure Rust (no Python calls), so they parallelise while this thread holds
+    // the GIL; install on the sized pool and collect one result per copy (order preserved).
+    let results: Result<Vec<_>, ()> = pool.install(|| {
+        params
+            .par_iter()
+            .map(|&(seed_c, init_c)| {
+                run_profile_copy(
+                    &children, &extant_leaf, &parent, &time, &order, root, n_nodes,
+                    tr, duplication, transfer, loss, o_k, cap, seed_c, init_c,
+                )
+            })
+            .collect()
+    });
 
-    // Emit the profile straight into flat COO byte buffers (packed native-endian): one column
-    // per extant leaf (in emission order; Python reorders to natkey), one cell per present
-    // family. Returning packed bytes (vs a nested Python list) lets Python np.frombuffer it in a
-    // single memcpy — no per-cell Python objects, which was ~40% of the wall-clock at scale.
-    let mut coo = ProfileCooBuf::new();
-    let mut t = time[root];
-    for node in order {
-        engine.evolve_interval(t, time[node])?;
-        t = time[node];
-        let genome = engine.deactivate(node);
-        if engine.extant_leaf[node] {
-            coo.push_leaf(node as u32, &genome.counts);
-        } else {
-            for &child in engine.children[node].clone().iter() {
-                engine.activate(child, genome.clone());
-            }
-        }
-    }
-    Ok(coo.into_tuple())
+    let groups = results.map_err(|_| PyRuntimeError::new_err(
+        "exceeded max_events; families likely growing without bound — set max_family_size",
+    ))?;
+    let leaf_nodes = leaf_nodes_bytes(&order, &extant_leaf);
+    Ok(pack_coo(leaf_nodes, groups))
 }
 
 // ===================================================================================
@@ -1752,6 +1913,7 @@ fn available() -> bool {
 fn zombi2_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(available, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_profiles, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_profiles_parallel, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_log, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_trace, m)?)?;
     m.add_function(wrap_pyfunction!(simulate_and_write, m)?)?;
