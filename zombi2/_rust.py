@@ -163,30 +163,40 @@ def profiles(species_tree, rates, *, initial_size, transfers, max_family_size, s
 
 
 def _assemble_profiles(result, nodes) -> ProfileMatrix:
-    """Build a ProfileMatrix from the engine's per-leaf (family_id, count) lists.
+    """Build a ProfileMatrix from the engine's flat COO byte buffers (``simulate_profiles`` /
+    ``simulate_trace``).
 
-    Assembled straight into **sparse COO** — one entry per present cell — so a run with
-    millions of tips never materialises the dense O(N²) families x species array (the
-    engine already hands back only the present families per leaf)."""
+    ``result`` is ``(leaf_nodes, col, fam, cnt)`` of packed native-endian bytes: ``leaf_nodes[c]``
+    is the node index of column ``c`` (columns in the engine's emission order), then one cell per
+    present family as parallel ``u32`` column / ``u64`` family id / ``u32`` count. Everything is
+    ``np.frombuffer``-d (one memcpy, no per-cell Python objects) and mapped to sorted family rows
+    and natkey-ordered species columns with vectorised numpy — the per-cell Python loop this
+    replaces was ~40% of the wall-clock at millions of tips. Stays sparse COO throughout, so the
+    dense O(N²) array is never built."""
     from .profiles import _natkey
 
-    leaf_cols = {leaf_idx: cols for leaf_idx, cols in result}
-    species_nodes = sorted((nodes[i] for i in leaf_cols), key=lambda n: _natkey(n.name))
-    species = [n.name for n in species_nodes]
+    leaf_nodes_b, col_b, fam_b, cnt_b = result
+    leaf_idx = np.frombuffer(leaf_nodes_b, dtype=np.uint32)
+    col = np.frombuffer(col_b, dtype=np.uint32)
+    fam = np.frombuffer(fam_b, dtype=np.uint64)
+    cnt = np.frombuffer(cnt_b, dtype=np.uint32)
 
-    famset = {fam for cols in leaf_cols.values() for fam, _ in cols}
-    families_int = sorted(famset)
-    families = [str(f + 1) for f in families_int]  # 1-based labels, ZOMBI-style
-    frow = {f: i for i, f in enumerate(families_int)}
-    col_of = {n: j for j, n in enumerate(species_nodes)}
+    # species (columns): extant-leaf names in natkey order; remap the engine's emission-order
+    # column index to that order via the inverse permutation.
+    leaf_names = [nodes[i].name for i in leaf_idx.tolist()]
+    order = sorted(range(len(leaf_names)), key=lambda j: _natkey(leaf_names[j]))
+    species = [leaf_names[j] for j in order]
+    inv = np.empty(len(order), dtype=np.int64)
+    inv[np.asarray(order, dtype=np.int64)] = np.arange(len(order), dtype=np.int64)
+    cols = inv[col.astype(np.int64)] if col.size else np.zeros(0, dtype=np.int64)
 
-    rows, cols, data = [], [], []
-    for leaf_idx, leaf in leaf_cols.items():
-        j = col_of[nodes[leaf_idx]]
-        for fam, count in leaf:
-            if count:
-                rows.append(frow[fam]); cols.append(j); data.append(count)
-    return ProfileMatrix(families=families, species=species, coo=(rows, cols, data))
+    # families (rows): sorted unique family ids, 1-based ZOMBI-style labels.
+    uniq = np.unique(fam) if fam.size else np.zeros(0, dtype=np.uint64)
+    families = [str(int(f) + 1) for f in uniq.tolist()]
+    rows = np.searchsorted(uniq, fam).astype(np.int64) if fam.size else np.zeros(0, dtype=np.int64)
+
+    return ProfileMatrix(families=families, species=species,
+                         coo=(rows, cols, cnt.astype(np.int64)))
 
 
 # --- full genealogy (event log + gene trees), materialized as a Genomes ----------
@@ -306,15 +316,14 @@ def trace(species_tree, rates, *, initial_size, transfers, max_family_size, seed
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
 
-    cols, leaf_counts = _core.simulate_trace(
+    cols, leaf_coo = _core.simulate_trace(
         len(nodes), parent, times, extant_leaf, root,
         d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
     )
-    # leaf_counts is per-leaf (family, count) — assemble the profile straight from it (the fast
-    # counts path); no per-gene leaf genomes are built. The compact trace's leaf identities are
-    # recovered by replaying against the species tree, not read off leaf genomes, so leaf_genomes
-    # stays empty for this path.
-    profs = _assemble_profiles(leaf_counts, nodes)
+    # leaf_coo is the flat COO profile buffers (per-family counts, no per-gene objects); assemble
+    # straight from it. The compact trace's leaf identities are recovered by replaying against the
+    # species tree, not read off leaf genomes, so leaf_genomes stays empty for this path.
+    profs = _assemble_profiles(leaf_coo, nodes)
 
     from .simulation import GenomeTrace
     return GenomeTrace(species_tree=species_tree, leaf_genomes={},

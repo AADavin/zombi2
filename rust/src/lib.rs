@@ -359,6 +359,40 @@ impl Engine {
     }
 }
 
+/// The copy-number profile as flat, native-endian COO byte buffers, ready for `np.frombuffer`:
+/// `(leaf_nodes, col, fam, cnt)` — `leaf_nodes[c]` is the u32 species-tree node index of column
+/// `c` (columns in emission order; Python reorders to natkey); then one cell per present family,
+/// as parallel `u32` column, `u64` family id, `u32` copy count. Packed bytes so Python assembles
+/// the sparse matrix in one memcpy + vectorised numpy, instead of a per-cell Python loop.
+type ProfileCoo = (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>);
+
+struct ProfileCooBuf {
+    leaf_nodes: Vec<u8>,
+    col: Vec<u8>,
+    fam: Vec<u8>,
+    cnt: Vec<u8>,
+    ncols: u32,
+}
+impl ProfileCooBuf {
+    fn new() -> Self {
+        ProfileCooBuf { leaf_nodes: Vec::new(), col: Vec::new(), fam: Vec::new(), cnt: Vec::new(), ncols: 0 }
+    }
+    /// Append one extant leaf column and its present-family cells (sorted family order).
+    fn push_leaf(&mut self, node: u32, counts: &BTreeMap<u64, u32>) {
+        self.leaf_nodes.extend_from_slice(&node.to_ne_bytes());
+        let c = self.ncols;
+        self.ncols += 1;
+        for (&f, &n) in counts.iter() {
+            self.col.extend_from_slice(&c.to_ne_bytes());
+            self.fam.extend_from_slice(&f.to_ne_bytes());
+            self.cnt.extend_from_slice(&n.to_ne_bytes());
+        }
+    }
+    fn into_tuple(self) -> ProfileCoo {
+        (self.leaf_nodes, self.col, self.fam, self.cnt)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[pyfunction]
 fn simulate_profiles(
@@ -377,7 +411,7 @@ fn simulate_profiles(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
-) -> PyResult<Vec<(usize, Vec<(u64, u32)>)>> {
+) -> PyResult<ProfileCoo> {
     // children adjacency from parent pointers
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
     for (node, &p) in parent.iter().enumerate() {
@@ -422,22 +456,25 @@ fn simulate_profiles(
     let mut order: Vec<usize> = (0..n_nodes).filter(|&i| parent[i] >= 0).collect();
     order.sort_by(|&a, &b| time[a].partial_cmp(&time[b]).unwrap());
 
-    let mut profiles: Vec<(usize, Vec<(u64, u32)>)> = Vec::new();
+    // Emit the profile straight into flat COO byte buffers (packed native-endian): one column
+    // per extant leaf (in emission order; Python reorders to natkey), one cell per present
+    // family. Returning packed bytes (vs a nested Python list) lets Python np.frombuffer it in a
+    // single memcpy — no per-cell Python objects, which was ~40% of the wall-clock at scale.
+    let mut coo = ProfileCooBuf::new();
     let mut t = time[root];
     for node in order {
         engine.evolve_interval(t, time[node])?;
         t = time[node];
         let genome = engine.deactivate(node);
         if engine.extant_leaf[node] {
-            let cols: Vec<(u64, u32)> = genome.counts.iter().map(|(&f, &c)| (f, c)).collect();
-            profiles.push((node, cols));
+            coo.push_leaf(node as u32, &genome.counts);
         } else {
             for &child in engine.children[node].clone().iter() {
                 engine.activate(child, genome.clone());
             }
         }
     }
-    Ok(profiles)
+    Ok(coo.into_tuple())
 }
 
 // ===================================================================================
@@ -865,21 +902,22 @@ fn simulate_trace(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
-) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u32)>)>)> {
+) -> PyResult<(LogColumns, ProfileCoo)> {
     let tr = Transfers { replacement, decay: distance_decay, allow_self };
     let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
         duplication, transfer, loss, origination, initial_size, cap, seed, tr, false)?;
-    // The trace path needs leaves only for the copy-number profile — return per-family COUNTS
-    // (like `simulate_profiles`), not the per-gene id list, so a million-leaf run never carries
-    // one Python object per gene. The genealogy's leaf identities are recovered by the replay.
-    let leaf_counts: Vec<(usize, Vec<(u64, u32)>)> = leaves.into_iter().map(|(li, pairs)| {
-        let mut m: HashMap<u64, u32> = HashMap::new();
+    // The trace path needs leaves only for the copy-number profile — aggregate each leaf's genes
+    // to per-family counts and emit the same flat COO buffers as simulate_profiles (no per-gene
+    // Python objects; the genealogy's leaf identities are recovered by the replay instead).
+    let mut coo = ProfileCooBuf::new();
+    for (li, pairs) in leaves {
+        let mut m: BTreeMap<u64, u32> = BTreeMap::new();
         for (_gid, fam) in pairs {
             *m.entry(fam).or_insert(0) += 1;
         }
-        (li, m.into_iter().collect())
-    }).collect();
-    Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaf_counts))
+        coo.push_leaf(li as u32, &m);
+    }
+    Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), coo.into_tuple()))
 }
 
 // ============ output writing in Rust (gene trees + tables) — no big return to Python ============
