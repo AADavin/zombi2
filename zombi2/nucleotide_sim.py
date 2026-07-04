@@ -35,12 +35,20 @@ from .tree import Tree, TreeNode
 
 @dataclass(frozen=True)
 class Atom:
-    """A maximal uncut interval ``[start, end)`` of one ancestral ``source``."""
+    """A maximal uncut interval ``[start, end)`` of one ancestral ``source``.
+
+    ``kind`` is ``"gene"`` when the interval is (part of) a gene annotation, else
+    ``"intergene"``; ``gene_id`` names the gene (``None`` for intergene). Classification is by
+    *ancestral coordinate*, so it is unaffected by pseudogenization (an ancestrally-gene atom
+    stays a gene tree; a pseudogenization surfaces as a state-change edge inside that tree).
+    """
 
     atom_id: int
     source: str
     start: int
     end: int
+    kind: str = "intergene"
+    gene_id: str | None = None
 
     @property
     def length(self) -> int:
@@ -68,6 +76,7 @@ class NucleotideResult:
         self._by_source = by_source
         # parallel start arrays so any [src_start, src_end) segment finds its atoms by bisection
         self._starts = {src: [a.start for a in atoms] for src, atoms in by_source.items()}
+        self._atom_by_id = {a.atom_id: a for a in self.atoms}
 
     def _covered(self, source: str, ss: int, se: int) -> list:
         """Atoms of ``source`` lying in ``[ss, se)`` (segment boundaries are atom boundaries)."""
@@ -144,6 +153,20 @@ class NucleotideResult:
 
         for r in self.event_log:
             ev = r.event
+            if ev is EventType.ORIGINATION:
+                # the seed origination has one row per seed segment (gene / intergene tiling),
+                # each the root of the atoms it covers; a novel origination has a single row.
+                for op in r.genes:
+                    e2 = prov.get(op.gid)
+                    if e2 is None:
+                        continue
+                    s2, ss2, se2 = e2
+                    rec = EventRecord(EventType.ORIGINATION, r.branch, r.time,
+                                      [GeneOp(op.gid, s2, "origin")])
+                    for a in self._covered(s2, ss2, se2):
+                        records_by_atom[a.atom_id].append(rec)
+                continue
+
             g0 = r.genes[0].gid
             entry = prov.get(g0)
             if entry is None:
@@ -152,17 +175,22 @@ class NucleotideResult:
             atoms = self._covered(source, ss, se)
             if not atoms:
                 continue
-            if ev is EventType.ORIGINATION:
-                rec = r  # gid == root == its own lineage rep
-            elif ev in (EventType.SPECIATION, EventType.DUPLICATION, EventType.TRANSFER):
+            if ev in (EventType.SPECIATION, EventType.DUPLICATION, EventType.TRANSFER):
                 rep = self._top(g0, top_cache)
                 rec = EventRecord(ev, r.branch, r.time,
                                   [GeneOp(rep, source, "parent"),
                                    *(GeneOp(op.gid, source, "child") for op in r.genes[1:])],
                                   donor=r.donor, recipient=r.recipient)
             elif ev is EventType.LOSS:
-                rec = EventRecord(ev, r.branch, r.time,
-                                  [GeneOp(self._top(g0, top_cache), source, "lost")])
+                if len(r.genes) == 2 and r.genes[1].role == "pseudogenized":
+                    # pseudogenization was logged as a LOSS with a continuation row; rewrite it
+                    # to a state-change edge (gene -> intergene) on the continuing lineage.
+                    rec = EventRecord(EventType.PSEUDOGENIZATION, r.branch, r.time,
+                                      [GeneOp(self._top(g0, top_cache), source, "parent"),
+                                       GeneOp(r.genes[1].gid, source, "child")])
+                else:
+                    rec = EventRecord(EventType.LOSS, r.branch, r.time,
+                                      [GeneOp(self._top(g0, top_cache), source, "lost")])
             else:
                 continue  # inversion / transposition never re-mint a lineage
             for a in atoms:
@@ -192,6 +220,38 @@ class NucleotideResult:
         return {a.atom_id: build_gene_trees(records_by_atom[a.atom_id],
                                             species_by_atom[a.atom_id], total_age)
                 for a in self.atoms}
+
+    # --- gene vs intergene partition (recover both tree sets) ---------------
+    def gene_atoms(self) -> list:
+        """The ancestrally-gene atoms (one per surviving gene copy lineage)."""
+        return [a for a in self.atoms if a.kind == "gene"]
+
+    def intergene_atoms(self) -> list:
+        return [a for a in self.atoms if a.kind == "intergene"]
+
+    def gene_trees(self) -> dict[int, tuple]:
+        """``atom_id -> (complete, extant)`` for the **gene** atoms only."""
+        trees = self.atom_gene_trees()
+        return {aid: t for aid, t in trees.items() if self._atom_by_id[aid].kind == "gene"}
+
+    def intergene_trees(self) -> dict[int, tuple]:
+        """``atom_id -> (complete, extant)`` for the **intergene** atoms only."""
+        trees = self.atom_gene_trees()
+        return {aid: t for aid, t in trees.items() if self._atom_by_id[aid].kind == "intergene"}
+
+    def pseudogenizations(self) -> list[tuple]:
+        """``[(atom_id, gene_id, species_branch, time, gene_lineage)]`` — each gene->intergene flip.
+
+        Read off the per-atom reconciliation events (the ``"G"`` rows), so it reports both where
+        (species branch) and when a gene lost function while its sequence continued as intergene.
+        """
+        out: list[tuple] = []
+        for atom_id, rec in self.atom_reconciliations().items():
+            atom = self._atom_by_id[atom_id]
+            for e in rec.events:
+                if e.event == "G":
+                    out.append((atom_id, atom.gene_id, e.species, e.time, e.gene))
+        return out
 
     def atom_reconciliations(self) -> dict:
         """``atom_id -> Reconciliation(complete, extant, events)`` — each atom reconciled
@@ -262,12 +322,14 @@ def _merge(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return [(lo, hi) for lo, hi in merged]
 
 
-def _build_atoms(leaf_genomes: dict, root_length: int) -> list[Atom]:
+def _build_atoms(leaf_genomes: dict, root_length: int, registry=None) -> list[Atom]:
     """Partition each source into atoms at the union of all extant-leaf breakpoints.
 
     With deletion, some ancestral positions survive in no extant leaf; those gaps carry
     no atom. So an interval between consecutive breakpoints becomes an atom only if some
-    leaf still covers it.
+    leaf still covers it. When a gene annotation is present (``registry``), gene boundaries
+    are seeded as breakpoints — genes are their own segments, so this only makes classification
+    robust — and each atom is tagged ``"gene"``/``"intergene"`` by ancestral coordinate.
     """
     bounds: dict[str, set[int]] = {}
     spans: dict[str, list[tuple[int, int]]] = {}
@@ -276,16 +338,49 @@ def _build_atoms(leaf_genomes: dict, root_length: int) -> list[Atom]:
             bounds.setdefault(seg.source, {0}).add(seg.src_start)
             bounds[seg.source].add(seg.src_end)
             spans.setdefault(seg.source, []).append((seg.src_start, seg.src_end))
+    if registry is not None:
+        for source, gis in registry.genes.items():
+            for gi in gis:
+                bounds.setdefault(source, {0}).update((gi.start, gi.end))
     atoms: list[Atom] = []
     aid = 0
     for source in sorted(bounds):
-        covered = _merge(spans[source])
+        covered = _merge(spans.get(source, []))
         cuts = sorted(bounds[source])
         for a, b in zip(cuts, cuts[1:]):
             if any(lo <= a and b <= hi for lo, hi in covered):  # surviving material only
-                atoms.append(Atom(aid, source, a, b))
+                gid = registry.gene_id_at(source, a, b) if registry is not None else None
+                atoms.append(Atom(aid, source, a, b, "gene" if gid is not None else "intergene", gid))
                 aid += 1
     return atoms
+
+
+def _normalize_gene_intervals(gene_intervals, root_length: int):
+    """Validate + normalise user gene intervals to sorted ``[(start, end, name|None)]``.
+
+    Genes must be non-overlapping half-open intervals inside ``[0, root_length)``. Returns an
+    empty list when no genes are supplied (the plain nucleotide model).
+    """
+    if not gene_intervals:
+        return []
+    out = []
+    for gi in gene_intervals:
+        if len(gi) == 2:
+            a, b, name = gi[0], gi[1], None
+        elif len(gi) == 3:
+            a, b, name = gi
+        else:
+            raise ValueError(f"gene interval must be (start, end) or (start, end, name), got {gi!r}")
+        a, b = int(a), int(b)
+        if not (0 <= a < b <= root_length):
+            raise ValueError(f"gene interval {gi!r} must satisfy 0 <= start < end <= "
+                             f"root_length ({root_length})")
+        out.append((a, b, str(name) if name is not None else None))
+    out.sort()
+    for (a1, b1, _), (a2, b2, _) in zip(out, out[1:]):
+        if a2 < b1:
+            raise ValueError(f"gene intervals must not overlap: [{a1},{b1}) and [{a2},{b2})")
+    return out
 
 
 def simulate_nucleotide_genomes(
@@ -301,6 +396,9 @@ def simulate_nucleotide_genomes(
     extension: float | None = 0.99,
     initial_size: int = 1,
     transfers=None,
+    gene_intervals=None,
+    pseudogenization: float = 0.0,
+    replacement: float = 0.0,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
@@ -317,6 +415,18 @@ def simulate_nucleotide_genomes(
     carrying the extant leaf genomes, the event log, the segment registry, and the atom
     partition (over the surviving ancestral material).
 
+    Genes & intergenes (genic mode): pass ``gene_intervals`` — a list of non-overlapping
+    ``(start, end)`` or ``(start, end, name)`` intervals on the root chromosome. Event
+    breakpoints then only fall in intergene positions, so genes are never split; each gene is
+    exactly one atom (``kind="gene"``) and its own genealogy, while intergene stretches
+    decompose into ``kind="intergene"`` atoms. ``pseudogenization`` in ``[0, 1]`` is the
+    probability that a loss hitting a gene *demotes* it to intergene (sequence retained, a
+    ``G`` state-change edge in its tree) rather than deleting it. ``replacement`` in ``[0, 1]``
+    is the probability that a transfer is a *homologous* replacement: the copy replaces the
+    recipient's syntenic material (located via flanking genes), falling back to additive
+    insertion when the recipient has no homolog. See :meth:`NucleotideResult.gene_trees` /
+    :meth:`~NucleotideResult.intergene_trees` / :meth:`~NucleotideResult.pseudogenizations`.
+
     Duplication and additive transfer grow the genome with no cap, so keep them at or below
     ``loss`` over long ages to avoid runaway growth.
 
@@ -325,12 +435,23 @@ def simulate_nucleotide_genomes(
         (event log, per-atom gene trees and histories). ``"profiles"`` runs the compiled
         ``zombi2_core`` Rust engine over leaf segments only — much faster, and enough for
         ``profile_matrix()`` / ``leaf_mosaic()`` / ``trace_back()`` — but emits no event log,
-        so ``atom_gene_trees()`` / ``atom_histories()`` are unavailable and it **requires**
-        the extension.
+        so ``atom_gene_trees()`` / ``atom_histories()`` are unavailable, it **requires**
+        the extension, and it does **not** support the genic model (``gene_intervals`` /
+        ``pseudogenization``).
     """
     if output not in ("genomes", "profiles"):
         raise ValueError(f"output must be 'genomes' or 'profiles', got {output!r}")
+    if not (0.0 <= pseudogenization <= 1.0):
+        raise ValueError(f"pseudogenization must be in [0, 1], got {pseudogenization}")
+    if not (0.0 <= replacement <= 1.0):
+        raise ValueError(f"replacement must be in [0, 1], got {replacement}")
+    pending_genes = _normalize_gene_intervals(gene_intervals, root_length)
     if output == "profiles":
+        if pending_genes:
+            raise ValueError("gene intervals require the Python engine (output='genomes'); the "
+                             "Rust profiles path does not model genes/intergenes")
+        if pseudogenization:
+            raise ValueError("pseudogenization requires output='genomes' (the Python engine)")
         if sampler is not None:
             raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
         if extension is None:
@@ -351,17 +472,18 @@ def simulate_nucleotide_genomes(
     rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
                          origination=origination)
-    registry = SegmentRegistry()
+    registry = SegmentRegistry(pending_genes=pending_genes)
 
     def factory(ids):
         return NucleotideGenome(ids, root_length=root_length, extension=extension,
-                                registry=registry)
+                                registry=registry, pseudogenization=pseudogenization,
+                                replacement=replacement)
 
     result = GenomeSimulator(sampler).simulate(
         species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
         genome_factory=factory,
     )
-    atoms = _build_atoms(result.leaf_genomes, root_length)
+    atoms = _build_atoms(result.leaf_genomes, root_length, registry)
     return NucleotideResult(
         species_tree=species_tree,
         leaf_genomes=result.leaf_genomes,

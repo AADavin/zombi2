@@ -287,7 +287,22 @@ class GenomeSimulator:
 
         Works per family in the transferred segment, so it is correct for single-gene and
         multi-gene (ordered) transfers alike.
+
+        A genome that performs its own *homologous* replacement (the nucleotide genic model)
+        exposes ``pop_replaced_segments``: a list (possibly empty) means it already swapped the
+        recipient's syntenic copy, and those removed segments are logged here as recipient losses,
+        bypassing the random-removal path below. ``None`` (the default for every other genome, and
+        for the plain nucleotide model) leaves the random-removal replacement unchanged.
         """
+        pop = getattr(genome, "pop_replaced_segments", None)
+        if pop is not None:
+            removed = pop()
+            if removed is not None:
+                for seg in removed:
+                    log.add(EventRecord(EventType.LOSS, branch.name, t,
+                                        [GeneOp(seg.seg_id, seg.family, "lost")]))
+                return
+
         protected = {g.gid for g in segment.genes}
         for family, n_inserted in Counter(g.family for g in segment.genes).items():
             total = genome.copy_number(family)

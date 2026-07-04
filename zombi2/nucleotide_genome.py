@@ -34,6 +34,25 @@ from .events import EventType, GeneOp, Region, Selection, TransferSegment
 from .genome import Gene, Genome, IdManager
 
 
+@dataclass(frozen=True)
+class GeneInterval:
+    """A gene as a half-open ancestral interval ``[start, end)`` on one ``source``.
+
+    Genes are *indivisible*: no event breakpoint ever falls strictly inside one, so a gene
+    is exactly one atom wherever it survives — one genealogy per gene. ``gene_id`` is the
+    immutable identity (kept even after pseudogenization).
+    """
+
+    gene_id: str
+    source: str
+    start: int
+    end: int
+
+    @property
+    def length(self) -> int:
+        return self.end - self.start
+
+
 class SegmentRegistry:
     """Provenance shared across all genomes of one simulation (clones share one instance).
 
@@ -43,13 +62,52 @@ class SegmentRegistry:
     cut from; those births are the only ones *not* in the event log (a split is a degree-2
     node), so recording them here keeps the segment genealogy connected for gene-tree
     reconstruction.
+
+    ``genes`` (``source -> [GeneInterval]``, sorted by start) is the gene annotation, shared
+    across clones so gene identity is a global property of *source coordinates* while
+    functional state stays per-:class:`Segment`. ``_pending_genes`` holds the user's
+    ``(start, end, name)`` intervals until the root chromosome is seeded and its source id is
+    known (see :meth:`consume_pending_genes`).
     """
 
-    __slots__ = ("provenance", "split_parent")
+    __slots__ = ("provenance", "split_parent", "genes", "_pending_genes")
 
-    def __init__(self) -> None:
+    def __init__(self, pending_genes=None) -> None:
         self.provenance: dict[str, tuple[str, int, int]] = {}
         self.split_parent: dict[str, str] = {}
+        self.genes: dict[str, list[GeneInterval]] = {}
+        self._pending_genes: list[tuple[int, int, str | None]] = list(pending_genes or [])
+
+    def has_genes(self) -> bool:
+        return bool(self.genes) or bool(self._pending_genes)
+
+    def register_gene(self, gi: GeneInterval) -> None:
+        lst = self.genes.setdefault(gi.source, [])
+        lst.append(gi)
+        lst.sort(key=lambda g: g.start)
+
+    def consume_pending_genes(self, source: str) -> list[GeneInterval]:
+        """Bind the user's pending intervals to the freshly-minted seed ``source`` and register.
+
+        Called once, by the seed :meth:`NucleotideGenome.originate`. Returns the gene intervals
+        sorted by start (also now in ``self.genes[source]``); empties ``_pending_genes``.
+        """
+        out: list[GeneInterval] = []
+        for k, (a, b, name) in enumerate(sorted(self._pending_genes)):
+            gi = GeneInterval(name if name else f"gene{k + 1}", source, a, b)
+            self.register_gene(gi)
+            out.append(gi)
+        self._pending_genes = []
+        return out
+
+    def gene_id_at(self, source: str, start: int, end: int) -> str | None:
+        """The gene whose interval contains ``[start, end)`` (else ``None``) — atom classifier."""
+        for gi in self.genes.get(source, ()):  # sorted by start
+            if gi.start <= start and end <= gi.end:
+                return gi.gene_id
+            if gi.start >= end:
+                break
+        return None
 
 
 @dataclass(slots=True)
@@ -59,6 +117,12 @@ class Segment:
     ``[src_start, src_end)`` is the half-open interval on ``source`` this run descends
     from (``src_start < src_end`` always); ``strand`` says whether it is read forward
     (+1) or reverse-complemented (-1) relative to that source.
+
+    ``gene_id`` is ``None`` for intergene, else the ancestral gene this block belongs to;
+    ``is_gene`` is the *functional* state on this lineage (``True`` = functional gene,
+    ``False`` = pseudogene — a gene demoted to intergene by pseudogenization, sequence
+    retained). A block with ``gene_id is not None`` is never cut internally (functional or
+    pseudogenized), which is what keeps a gene to exactly one atom.
     """
 
     seg_id: str
@@ -66,6 +130,8 @@ class Segment:
     src_start: int
     src_end: int
     strand: int = 1
+    gene_id: str | None = None
+    is_gene: bool = True
     length: int = field(init=False)  # cached (src coords never change after construction)
 
     def __post_init__(self):
@@ -92,17 +158,23 @@ class NucleotideGenome(Genome):
     """
 
     def __init__(self, ids: IdManager, root_length: int = 1000,
-                 extension: float | None = 0.99, registry: SegmentRegistry | None = None):
+                 extension: float | None = 0.99, registry: SegmentRegistry | None = None,
+                 pseudogenization: float = 0.0, replacement: float = 0.0):
         self.ids = ids
         self.root_length = int(root_length)
         self.extension = extension
         self._registry: SegmentRegistry = registry if registry is not None else SegmentRegistry()
         self._segments: list[Segment] = []
         self._length = 0  # total nucleotide length; O(1), maintained on every event
+        # genic-model parameters (0 in the plain nucleotide model); inherited by clones
+        self.pseudogenization = pseudogenization  # P(a loss on genes demotes instead of deletes)
+        self.replacement = replacement            # P(a transfer is a homologous replacement)
+        self._last_replaced: list[Segment] | None = None  # recipient homolog removed by a transfer
 
     # --- minting ------------------------------------------------------------
-    def _new_segment(self, source: str, a: int, b: int, strand: int) -> Segment:
-        seg = Segment(self.ids.new_gene(), source, a, b, strand)
+    def _new_segment(self, source: str, a: int, b: int, strand: int,
+                     gene_id: str | None = None, is_gene: bool = True) -> Segment:
+        seg = Segment(self.ids.new_gene(), source, a, b, strand, gene_id, is_gene)
         self._registry.provenance[seg.seg_id] = (source, a, b)
         return seg
 
@@ -154,43 +226,88 @@ class NucleotideGenome(Genome):
     def originate(self, rng, params) -> list[GeneOp]:
         """Create brand-new sequence under a fresh ``source`` namespace.
 
-        The first call (empty genome, the seed) lays down the full-length root chromosome.
-        Later calls insert a *novel* gene of geometric length at a random position — it
-        descends from no ancestral position, so it opens its own source and its own atoms,
-        with the gene tree rooted at this origination time.
+        The first call (empty genome, the seed) lays down the full-length root chromosome —
+        tiled into gene / intergene segments when a gene annotation was supplied. Later calls
+        insert a *novel* gene of geometric length at a random position — it descends from no
+        ancestral position, so it opens its own source and its own atoms (in genic mode it is a
+        whole gene), with the gene tree rooted at this origination time.
         """
         source = self.ids.new_family()
         if not self._segments:                      # seed: the root chromosome
+            pending = self._registry.consume_pending_genes(source)
+            if pending:
+                ops = self._seed_with_genes(source, pending)
+                self._length += self.root_length
+                return ops
             seg = self._new_segment(source, 0, self.root_length, 1)
             self._segments.append(seg)
-        else:                                       # novel gene inserted somewhere
-            length = self._draw_length(rng, params)
+            self._length += seg.length
+            return [GeneOp(seg.seg_id, source, "origin")]
+
+        # novel gene inserted somewhere
+        length = self._draw_length(rng, params)
+        if self._registry.has_genes():              # a novel gene is one whole, indivisible gene
+            self._registry.register_gene(GeneInterval(source, source, 0, length))
+            seg = self._new_segment(source, 0, length, 1, gene_id=source, is_gene=True)
+            at = self._snap(int(rng.integers(self._length + 1)))
+        else:
             seg = self._new_segment(source, 0, length, 1)
             at = int(rng.integers(self._length + 1))
-            if at >= self._length:
-                self._segments.append(seg)
-            else:
-                self._split_at(at)
-                self._segments.insert(self._index_at(at), seg)
+        if at >= self._length:
+            self._segments.append(seg)
+        else:
+            self._split_at(at)
+            self._segments.insert(self._index_at(at), seg)
         self._length += seg.length
         return [GeneOp(seg.seg_id, source, "origin")]
+
+    def _seed_with_genes(self, source: str, pending: list[GeneInterval]) -> list[GeneOp]:
+        """Tile the root chromosome into intergene / gene segments (genes get their own block).
+
+        One ORIGINATION row per seed segment, so each becomes the root of the atoms it covers.
+        """
+        ops: list[GeneOp] = []
+        cursor = 0
+        for gi in pending:                          # sorted, non-overlapping
+            if gi.start > cursor:
+                ig = self._new_segment(source, cursor, gi.start, 1)
+                self._segments.append(ig)
+                ops.append(GeneOp(ig.seg_id, source, "origin"))
+            g = self._new_segment(source, gi.start, gi.end, 1, gene_id=gi.gene_id, is_gene=True)
+            self._segments.append(g)
+            ops.append(GeneOp(g.seg_id, source, "origin"))
+            cursor = gi.end
+        if cursor < self.root_length:
+            ig = self._new_segment(source, cursor, self.root_length, 1)
+            self._segments.append(ig)
+            ops.append(GeneOp(ig.seg_id, source, "origin"))
+        return ops
 
     # --- the split primitive (the whole novelty vs OrderedGenome) ----------
     def _split_segment(self, seg: Segment, o: int) -> tuple[Segment, Segment]:
         """Split ``seg`` after ``o`` physical positions into (left, right), strand-aware."""
         if seg.strand == 1:
-            left = self._new_segment(seg.source, seg.src_start, seg.src_start + o, 1)
-            right = self._new_segment(seg.source, seg.src_start + o, seg.src_end, 1)
+            left = self._new_segment(seg.source, seg.src_start, seg.src_start + o, 1,
+                                     seg.gene_id, seg.is_gene)
+            right = self._new_segment(seg.source, seg.src_start + o, seg.src_end, 1,
+                                      seg.gene_id, seg.is_gene)
         else:  # reversed: first o physical positions are the HIGH end of the source
-            left = self._new_segment(seg.source, seg.src_end - o, seg.src_end, -1)
-            right = self._new_segment(seg.source, seg.src_start, seg.src_end - o, -1)
+            left = self._new_segment(seg.source, seg.src_end - o, seg.src_end, -1,
+                                     seg.gene_id, seg.is_gene)
+            right = self._new_segment(seg.source, seg.src_start, seg.src_end - o, -1,
+                                      seg.gene_id, seg.is_gene)
         # a split is a degree-2 birth (unlogged); record it so the genealogy stays connected
         self._registry.split_parent[left.seg_id] = seg.seg_id
         self._registry.split_parent[right.seg_id] = seg.seg_id
         return left, right
 
     def _split_at(self, c: int) -> None:
-        """Ensure a segment boundary at physical coordinate ``c`` (``0`` is always one)."""
+        """Ensure a segment boundary at physical coordinate ``c`` (``0`` is always one).
+
+        The genic invariant — ``c`` never lands strictly inside a gene block — is enforced
+        upstream by :meth:`_snap`; the assertion here is the cheap safety net (a no-op for
+        intergene, where ``gene_id is None``).
+        """
         if c == 0:
             return
         pos = 0
@@ -199,10 +316,36 @@ class NucleotideGenome(Genome):
                 return  # already a boundary
             seglen = seg.length
             if pos < c < pos + seglen:
+                assert seg.gene_id is None, f"illegal split inside gene {seg.gene_id!r} at {c}"
                 self._segments[i:i + 1] = list(self._split_segment(seg, c - pos))
                 return
             pos += seglen
         # c == self._length: a boundary (wrap point); no-op
+
+    def _snap(self, c: int, direction: int = 0) -> int:
+        """Move ``c`` out of any gene interior to a legal breakpoint (a no-op in intergene).
+
+        ``direction`` picks the boundary when ``c`` is inside a gene: ``-1`` = the gene's
+        physical start, ``+1`` = its end, ``0`` = the nearer of the two. Positions in intergene
+        (or on an existing boundary) are returned unchanged — cutting there is legal and is how
+        intergene atoms form. Walks the segment list (O(n), like :meth:`_split_at`) using the
+        accumulated positions, so it stays correct mid-mutation.
+        """
+        pos = 0
+        for seg in self._segments:
+            nxt = pos + seg.length
+            if c == pos:
+                return c                       # already a boundary
+            if c < nxt:                        # pos < c < nxt: strictly inside this segment
+                if seg.gene_id is None:
+                    return c                   # intergene interior: a legal cut
+                if direction < 0:
+                    return pos
+                if direction > 0:
+                    return nxt
+                return pos if (c - pos) <= (nxt - c) else nxt
+            pos = nxt
+        return c                               # c == total length: the wrap / append boundary
 
     def _index_at(self, phys: int) -> int:
         pos = 0
@@ -282,6 +425,39 @@ class NucleotideGenome(Genome):
         self._length -= ell
         return removed
 
+    def _apply_loss_or_pseudogenize(self, s: int, ell: int, rng):
+        """Resolve a LOSS: either delete the arc, or *pseudogenize* the genes it contains.
+
+        Returns ``("loss", removed_segments)`` or ``("pseudo", [(old, cont), ...])``. With
+        probability ``pseudogenization`` — and only when the arc holds a functional gene — the
+        gene segments are re-minted in place with ``is_gene=False`` (same ``gene_id`` / ancestral
+        coords, all sequence retained, length unchanged); every other arc segment stays. This is
+        a logged ``parent -> continuation`` edge on the gene lineage (a state change), not a
+        split. Otherwise the arc is deleted as usual.
+        """
+        if (self.pseudogenization > 0.0 and self._registry.has_genes() and self._length > 0):
+            i_s, i_e = self._arc_range(s, ell)   # splits the (snapped, legal) ends
+            arc = self._segments[i_s:i_e]
+            if (any(sg.gene_id is not None and sg.is_gene for sg in arc)
+                    and rng.random() < self.pseudogenization):
+                demoted, new_arc = [], []
+                for sg in arc:
+                    if sg.gene_id is not None and sg.is_gene:
+                        cont = self._new_segment(sg.source, sg.src_start, sg.src_end, sg.strand,
+                                                 gene_id=sg.gene_id, is_gene=False)
+                        demoted.append((sg, cont))
+                        new_arc.append(cont)
+                    else:
+                        new_arc.append(sg)
+                self._segments[i_s:i_e] = new_arc      # length unchanged (sequence retained)
+                return "pseudo", demoted
+            # coin said delete (or no functional gene): remove the already-split arc
+            removed = self._segments[i_s:i_e]
+            del self._segments[i_s:i_e]
+            self._length -= sum(sg.length for sg in removed)
+            return "loss", removed
+        return "loss", self._apply_loss(s, ell)
+
     # --- duplication --------------------------------------------------------
     def _arc_range(self, s: int, ell: int) -> tuple[int, int]:
         """Split the ends of arc ``[s, s+ell)`` and return its ``[i_s, i_e)`` segment range.
@@ -323,8 +499,8 @@ class NucleotideGenome(Genome):
         arc = self._segments[i_s:i_e]
         groups, conts, copies = [], [], []
         for a in arc:
-            cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand)
-            copy = self._new_segment(a.source, a.src_start, a.src_end, a.strand)
+            cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand, a.gene_id, a.is_gene)
+            copy = self._new_segment(a.source, a.src_start, a.src_end, a.strand, a.gene_id, a.is_gene)
             conts.append(cont)
             copies.append(copy)
             groups.append([GeneOp(a.seg_id, a.source, "parent"),
@@ -351,6 +527,8 @@ class NucleotideGenome(Genome):
         del self._segments[i_s:i_e]
         rem = L - ell
         dest %= rem + 1
+        if self._registry.has_genes() and dest < rem:  # never paste into a gene interior
+            dest = self._snap(dest)                     # (may snap up to the wrap boundary == rem)
         if dest >= rem:
             self._segments.extend(arc)
         else:
@@ -375,8 +553,18 @@ class NucleotideGenome(Genome):
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if event not in self._TARGETABLE:
             raise ValueError(f"NucleotideGenome does not target {event!r}")
-        s = int(rng.integers(self._length))
+        L = self._length
+        s = int(rng.integers(L))
         ell = self._draw_length(rng, params)
+        if self._registry.has_genes():
+            if ell >= L:                       # whole genome: keep it whole, just legalise the
+                s = self._snap(s, -1)          # single split point (inversion splits at s)
+                ell = L
+            else:                              # snap start down, end up: genes stay whole; a
+                s2 = self._snap(s, -1)         # sub-gene arc is promoted to the whole gene
+                e2 = self._snap((s + ell) % L, +1)
+                ell = (e2 - s2) % L or L
+                s = s2
         return Selection(genes=(), region=Region(chromosome=0, start=s, length=ell))
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
@@ -386,8 +574,15 @@ class NucleotideGenome(Genome):
             return [[GeneOp(seg.seg_id, seg.source, "inverted", orientation=seg.strand)
                      for seg in arc]]
         if event is EventType.LOSS:
-            removed = self._apply_loss(region.start, region.length)
-            return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in removed]
+            kind, payload = self._apply_loss_or_pseudogenize(region.start, region.length, rng)
+            if kind == "loss":
+                return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in payload]
+            # pseudogenization: parent -> continuation (is_gene=False), one group per gene segment.
+            # The driver logs these under the LOSS it fired; the role lets the post-processor
+            # rewrite them to PSEUDOGENIZATION (a state change, not a terminal loss).
+            return [[GeneOp(old.seg_id, old.source, "parent"),
+                     GeneOp(cont.seg_id, cont.source, "pseudogenized")]
+                    for (old, cont) in payload]
         if event is EventType.DUPLICATION:
             return self._apply_duplication(region.start, region.length)
         if event is EventType.TRANSPOSITION:
@@ -410,23 +605,93 @@ class NucleotideGenome(Genome):
         region = selection.region
         i_s, i_e = self._arc_range(region.start, region.length)
         arc = self._segments[i_s:i_e]
-        old_gids, cont_gids, copies, conts = [], [], [], []
+        old_gids, cont_gids, copies, conts, arc_sources = [], [], [], [], []
         for a in arc:
             old_gids.append(a.seg_id)
-            cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand)
+            cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand, a.gene_id, a.is_gene)
             conts.append(cont)
             cont_gids.append(cont.seg_id)
-            copies.append(self._new_segment(a.source, a.src_start, a.src_end, a.strand))
+            copies.append(self._new_segment(a.source, a.src_start, a.src_end, a.strand,
+                                            a.gene_id, a.is_gene))
+            arc_sources.append((a.source, a.src_start, a.src_end))
         self._segments[i_s:i_e] = conts          # donor length unchanged (arc -> continuations)
+        # genic model: decide a homologous replacement and record the flanking genes (the
+        # homology anchors) so the recipient can locate its syntenic copy to replace.
+        replacement = self._registry.has_genes() and rng.random() < self.replacement
+        left_flank = self._nearest_flank_gene(i_s - 1, -1) if replacement else None
+        right_flank = self._nearest_flank_gene(i_e, +1) if replacement else None
         return TransferSegment(family=None, genes=tuple(copies),
-                               donor_old_gids=old_gids, donor_cont_gids=cont_gids)
+                               donor_old_gids=old_gids, donor_cont_gids=cont_gids,
+                               replacement=replacement, left_flank=left_flank,
+                               right_flank=right_flank, arc_sources=tuple(arc_sources))
 
-    def choose_insertion_point(self, segment, rng) -> int:
-        return int(rng.integers(self._length + 1))  # any physical position, 0..length
+    def _nearest_flank_gene(self, start_idx: int, step: int) -> tuple | None:
+        """``(source, gene_id)`` of the nearest gene outward from ``start_idx`` (no wrap), else None."""
+        i = start_idx
+        while 0 <= i < len(self._segments):
+            seg = self._segments[i]
+            if seg.gene_id is not None:
+                return (seg.source, seg.gene_id)
+            i += step
+        return None
+
+    def _find_homologous_span(self, segment) -> tuple[int, int] | None:
+        """Recipient span ``[i_s, i_e)`` lying between copies of the donor's flank genes, else None.
+
+        "Search on the sides": locate the left-flank gene, then the next right-flank gene after
+        it; the segments strictly between them are the homologous locus to replace (an empty span
+        means the flanks are adjacent — the copy is inserted homologously with no removal).
+        """
+        lf, rf = segment.left_flank, segment.right_flank
+        if lf is None or rf is None:
+            return None
+        li = ri = None
+        for idx, seg in enumerate(self._segments):
+            if seg.gene_id is None:
+                continue
+            if li is None and (seg.source, seg.gene_id) == lf:
+                li = idx
+            elif li is not None and (seg.source, seg.gene_id) == rf:
+                ri = idx
+                break
+        if li is None or ri is None or ri <= li:
+            return None
+        return (li + 1, ri)
+
+    def choose_insertion_point(self, segment, rng):
+        """Recipient side: a homologous span (replacement) or a physical position (additive).
+
+        Returns ``("homolog", (i_s, i_e))`` when a replacement transfer finds its syntenic locus,
+        else an integer physical position (snapped off any gene interior). No homolog → additive.
+        """
+        if getattr(segment, "replacement", False) and self._registry.has_genes():
+            # a self-transfer (recipient is the donor) still holds the arc's continuation
+            # segments — homologous replacement would delete them, so fall back to additive
+            cont_ids = set(segment.donor_cont_gids or ())
+            is_self = any(seg.seg_id in cont_ids for seg in self._segments)
+            if not is_self:
+                span = self._find_homologous_span(segment)
+                if span is not None:
+                    return ("homolog", span)
+        at = int(rng.integers(self._length + 1))  # any physical position, 0..length
+        return self._snap(at) if self._registry.has_genes() else at
 
     def insert_segment(self, segment, at, rng) -> list[GeneOp]:
-        """Recipient side: splice the transferred copy block in at physical position ``at``."""
+        """Recipient side: splice the transferred copy block in — homologously, or additively.
+
+        Sets ``_last_replaced`` to the recipient segments a homologous swap removed (``[]`` for a
+        plain additive insertion in genic mode; ``None`` in the plain nucleotide model, which lets
+        the driver fall back to its own random-removal replacement). :meth:`pop_replaced_segments`
+        hands the removed list to the driver, which logs them as recipient losses.
+        """
         copies = list(segment.genes)
+        if isinstance(at, tuple) and at and at[0] == "homolog":
+            i_s, i_e = at[1]
+            removed = self._segments[i_s:i_e]
+            self._segments[i_s:i_e] = copies
+            self._length += sum(c.length for c in copies) - sum(r.length for r in removed)
+            self._last_replaced = removed
+            return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]
         if at is None or at >= self._length:
             idx = len(self._segments)
         else:
@@ -434,15 +699,29 @@ class NucleotideGenome(Genome):
             idx = self._index_at(at)
         self._segments[idx:idx] = copies
         self._length += sum(seg.length for seg in copies)
+        self._last_replaced = [] if self._registry.has_genes() else None
         return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]
+
+    def pop_replaced_segments(self):
+        """Recipient segments a homologous transfer removed (for the driver to log as losses).
+
+        ``None`` when this is the plain nucleotide model (no genes) — the signal for the driver to
+        run its own random-removal replacement instead. A list (possibly empty) means the genome
+        already handled replacement homologously. Resets after each read.
+        """
+        r = self._last_replaced
+        self._last_replaced = None
+        return r
 
     # --- speciation ---------------------------------------------------------
     def clone_reminting(self) -> tuple["NucleotideGenome", list[tuple[str, str, str]]]:
-        child = NucleotideGenome(self.ids, self.root_length, self.extension, self._registry)
+        child = NucleotideGenome(self.ids, self.root_length, self.extension, self._registry,
+                                 self.pseudogenization, self.replacement)
         child._length = self._length
         mapping: list[tuple[str, str, str]] = []
         for seg in self._segments:
-            ns = child._new_segment(seg.source, seg.src_start, seg.src_end, seg.strand)
+            ns = child._new_segment(seg.source, seg.src_start, seg.src_end, seg.strand,
+                                    seg.gene_id, seg.is_gene)
             child._segments.append(ns)
             mapping.append((seg.seg_id, ns.seg_id, seg.source))
         return child, mapping
