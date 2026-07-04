@@ -51,7 +51,7 @@ and bidirectional coupling is simply *both* edges. `:` (not `->`) keeps it shell
 | `traits:species` | trait sets speciation/extinction | **SSE** (BiSSE / MuSSE / QuaSSE / HiSSE) | **output** (forward) | **shipped** — `coevolve --couple traits:species` |
 | `genes:species` | gene content sets diversification | key-innovation genes + HGT | **output** (forward) | **shipped** — `coevolve --couple genes:species` |
 | `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | **shipped** — `coevolve --couple species:traits` (both arrows = **ClaSSE**) |
-| `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input | proposed |
+| `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input (given tree) | **shipped** — `coevolve --couple species:genes` |
 | `traits:genes` | trait sets gene loss/gain | **trait-linked gene families** | input | **shipped** — [`coevolve-genetrait`](guide/trait-linked-genomes.md) |
 | `genes:traits` | gene presence enables a trait shift | gene-conditioned trait | input | proposed |
 
@@ -172,7 +172,27 @@ zombi2 genomes -t keygene/species_tree.nwk --trans 1 --loss 0.5 --output profile
 are the per-driver log-rate effects; `--driver-loss`/`--driver-origination`/`--driver-transfer` the
 gene dynamics. In Python: `z.simulate_gene_diversification(z.GeneDiversification(…), n_tips=…)`.
 
-The full three-way `--all` (all edges at once) remains on the roadmap below.
+### Speciation drives the genome — `species:genes`
+
+The reverse of `genes:species`: here gene content does **not** affect diversification, so this is an
+overlay on a **given** tree — the genomic twin of `species:traits`. A genome is evolved down the tree
+with a *cladogenetic burst* of gene loss and gain at each speciation (founder-effect upheaval), on
+top of the usual gradual (anagenetic) change — **punctuational genome evolution**:
+
+```bash
+# purely punctuational genomes: change ONLY at speciations (no anagenetic gene-loss/-origination)
+zombi2 coevolve --couple species:genes -t species_tree.nwk \
+    --genome-size 30 --clado-gene-loss 0.15 --clado-gene-gain 3 --seed 2 -o punctgenome/
+```
+
+`--clado-gene-loss` is the per-family drop probability at each speciation and `--clado-gene-gain` the
+mean number of new families gained (Poisson); `--gene-loss`/`--gene-origination` add gradual
+along-branch change (both 0 = pure punctuation). It writes `Profiles.tsv`/`Presence.tsv` (families ×
+extant tips) and `genome_sizes.tsv`. In Python:
+`z.simulate_cladogenetic_genome(tree, z.CladogeneticGenome(…))`. The signature of the model is that
+**sister tips differ** — change is injected at their split, not spread along the branches.
+
+The remaining `genes:traits` edge and the full three-way `--all` remain on the roadmap below.
 
 ## The engine: one generic per-lineage state
 
@@ -221,8 +241,13 @@ milestone once the individual edges each work.
   `genomes` (exact under independent families), so the merged loop stays small. `GeneDiversification`
   / `simulate_gene_diversification`, exposed as `coevolve --couple genes:species`. **v1 scope:** binary
   drivers, driver *presence* profiles (not yet full driver gene trees), the edge runs on its own.
-- **Phase 4 — `--all` and the remaining overlay edges** (`species:genes`, `genes:traits`) as
-  additive rate-functions/kernels, validated against the single-edge cases.
+- **Phase 4a — `species:genes` (cladogenetic genome). ✅ done.** An overlay on a given tree
+  ([`zombi2/cladogenetic_genome.py`](https://github.com/AADavin/zombi2/blob/main/zombi2/cladogenetic_genome.py)):
+  a genome is evolved down the tree with a founder-effect burst of gene loss/gain at each speciation
+  (`CladogeneticGenome` / `simulate_cladogenetic_genome`, `coevolve --couple species:genes`). v1 scope:
+  presence/absence genome, gain by origination (no HGT yet), runs on its own.
+- **Phase 4 — `--all` and the remaining overlay edge** (`genes:traits`) as additive
+  rate-functions/kernels, validated against the single-edge cases.
 
 ## Caveats
 
