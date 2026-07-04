@@ -13,23 +13,56 @@ import math
 import numpy as np
 
 
+def _normalize_mass_extinctions(mass_extinctions):
+    """Normalize ``mass_extinctions`` into a sorted list of ``(age, fraction)`` float pairs.
+
+    A *mass extinction* is an instantaneous, tree-wide pulse: at ``age`` before the present
+    every lineage alive at that instant independently **dies** with probability ``fraction``
+    (equivalently, survives with probability ``1 - fraction``). Several pulses may be given.
+    Times are ages before the present, matching :class:`EpisodicBirthDeath` ``shifts``.
+    Returns ``[]`` when none are supplied. This is a *forward-simulation* feature — the pulses
+    kill real lineages in time (see :func:`~zombi2.simulate_species_tree` with
+    ``direction="forward"``).
+    """
+    if not mass_extinctions:
+        return []
+    return sorted((float(age), float(frac)) for age, frac in mass_extinctions)
+
+
+def _validate_mass_extinctions(mes) -> None:
+    ages = [a for a, _ in mes]
+    if any(a <= 0 for a in ages):
+        raise ValueError("mass-extinction times must be positive ages before the present")
+    if len(set(ages)) != len(ages):
+        raise ValueError("mass-extinction times must be distinct")
+    for _, frac in mes:
+        if not (0.0 < frac <= 1.0):
+            raise ValueError(f"mass-extinction fraction must be in (0, 1], got {frac}")
+
+
 class BirthDeath:
     """Constant-rate birth-death process (speciation ``birth`` λ, extinction ``death`` μ).
 
     Optional (forward-simulation) extras: serial ``fossilization`` (ψ, dated fossils), extant
-    ``sampling_fraction`` (ρ), and ``removal`` (r) on sampling — see
-    :func:`~zombi2.simulate_species_tree` with ``direction="forward"``. ``fossilization`` and
-    ``removal != 1`` are forward-only; the backward reconstructed sampler assumes ρ=1.
+    ``sampling_fraction`` (ρ), ``removal`` (r) on sampling, and ``mass_extinctions`` (tree-wide
+    survival pulses) — see :func:`~zombi2.simulate_species_tree` with ``direction="forward"``.
+    ``fossilization``, ``removal != 1`` and ``mass_extinctions`` are forward-only; the backward
+    reconstructed sampler assumes ρ=1 and no mass extinctions.
+
+    ``mass_extinctions`` is a list of ``(age, fraction)`` pairs: at each ``age`` before the
+    present, every lineage independently dies with probability ``fraction`` (a cataclysm that
+    wipes out that fraction of the standing diversity in one instant).
     """
 
     def __init__(self, birth: float, death: float = 0.0, *,
                  fossilization: float = 0.0, sampling_fraction: float = 1.0,
-                 removal: float = 1.0):
+                 removal: float = 1.0, mass_extinctions=None):
         self.birth = float(birth)
         self.death = float(death)
         self.fossilization = float(fossilization)
         self.sampling_fraction = float(sampling_fraction)
         self.removal = float(removal)
+        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
 
     def validate(self) -> None:
         if self.birth <= 0:
@@ -42,6 +75,7 @@ class BirthDeath:
             raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
         if not (0.0 <= self.removal <= 1.0):
             raise ValueError(f"removal must be in [0, 1], got {self.removal}")
+        _validate_mass_extinctions(self.mass_extinctions)
 
     def sample_internal_age(self, u: float, A: float, tol: float = 1e-12) -> float:
         """Draw one internal-node age in (0, A) from the reconstructed-process CDF.
@@ -78,10 +112,13 @@ class BirthDeath:
 
 
 class Yule(BirthDeath):
-    """Pure-birth (Yule) process — a birth-death with no extinction."""
+    """Pure-birth (Yule) process — a birth-death with no (background) extinction.
 
-    def __init__(self, birth: float):
-        super().__init__(birth, 0.0)
+    ``mass_extinctions`` still applies: a Yule radiation punctuated by cataclysms.
+    """
+
+    def __init__(self, birth: float, *, mass_extinctions=None):
+        super().__init__(birth, 0.0, mass_extinctions=mass_extinctions)
 
 
 class EpisodicBirthDeath:
@@ -118,7 +155,8 @@ class EpisodicBirthDeath:
     """
 
     def __init__(self, birth, death, shifts, *, fossilization=None,
-                 sampling_fraction: float = 1.0, removal: float = 1.0, grid: int = 8000):
+                 sampling_fraction: float = 1.0, removal: float = 1.0,
+                 mass_extinctions=None, grid: int = 8000):
         self.birth = [float(x) for x in birth]
         self.death = [float(x) for x in death]
         self.shifts = [float(x) for x in shifts]
@@ -127,6 +165,8 @@ class EpisodicBirthDeath:
                               else [float(x) for x in fossilization])
         self.rho = float(sampling_fraction)
         self.removal = float(removal)
+        # instantaneous tree-wide survival pulses layered on the episodic rates (forward-only)
+        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
         self.grid = int(grid)
         self._cache_A = None
         self._ages = None
@@ -153,6 +193,7 @@ class EpisodicBirthDeath:
             raise ValueError("shifts must be strictly increasing positive ages")
         if not (0.0 < self.rho <= 1.0):
             raise ValueError(f"sampling_fraction must be in (0, 1], got {self.rho}")
+        _validate_mass_extinctions(self.mass_extinctions)
 
     @staticmethod
     def _cumtrapz(y, x):
@@ -196,3 +237,132 @@ class EpisodicBirthDeath:
         if self._cache_A != A:
             self._prepare(A)
         return float(np.interp(u, self._cdf, self._ages))
+
+
+class ClaDS:
+    """Cladogenetic diversification with rate shifts (ClaDS; Maliet, Hartig & Morlon 2019).
+
+    Every lineage carries its **own** speciation rate. At each speciation the two daughters
+    each inherit the parent's rate times an independent lognormal jump,
+    ``λ_child = λ_parent · exp(N(log α, σ²))`` — a small multiplicative shift per branch, so
+    rates drift lineage-by-lineage down the tree. ``α`` is the trend (``α<1`` = the typical
+    slow-down of speciation toward the present); ``σ`` is the jump spread. Extinction is tied
+    to speciation through a constant **turnover** ``ε = μ/λ`` (so ``μ_child = ε·λ_child``);
+    ``ε=0`` is ClaDS0 (pure birth with shifts), ``ε>0`` is ClaDS2.
+
+    This is a **forward-only** model — per-lineage rates have no closed-form reconstructed CDF,
+    so the backward sampler cannot draw i.i.d. node ages. Use
+    :func:`~zombi2.simulate_species_tree` with ``direction="forward"`` (``age`` or ``n_tips``
+    mode; ``mass_extinctions`` require ``age`` mode). ``sampling_fraction`` (ρ) and
+    ``mass_extinctions`` overlay exactly as for :class:`BirthDeath`.
+    """
+
+    def __init__(self, lambda_0: float, *, alpha: float = 0.9, sigma: float = 0.1,
+                 turnover: float = 0.0, sampling_fraction: float = 1.0,
+                 mass_extinctions=None):
+        self.lambda_0 = float(lambda_0)
+        self.alpha = float(alpha)
+        self.sigma = float(sigma)
+        self.turnover = float(turnover)
+        self.sampling_fraction = float(sampling_fraction)
+        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
+
+    def validate(self) -> None:
+        if self.lambda_0 <= 0:
+            raise ValueError(f"lambda_0 (root speciation rate) must be > 0, got {self.lambda_0}")
+        if self.alpha <= 0:
+            raise ValueError(f"alpha (rate-shift trend) must be > 0, got {self.alpha}")
+        if self.sigma < 0:
+            raise ValueError(f"sigma (rate-shift spread) must be >= 0, got {self.sigma}")
+        if not (0.0 <= self.turnover < 1.0):
+            raise ValueError(f"turnover (ε = μ/λ) must be in [0, 1), got {self.turnover}")
+        if not (0.0 < self.sampling_fraction <= 1.0):
+            raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
+        _validate_mass_extinctions(self.mass_extinctions)
+
+
+class DiversityDependent:
+    """Diversity-dependent (density-dependent) birth–death: diversification slows as the tree
+    fills its carrying capacity ``K`` (Rabosky & Lovette 2008; Etienne et al. 2012).
+
+    The speciation rate declines linearly with the number of standing lineages ``n``,
+    ``λ(n) = max(0, λ₀·(1 − n/K))``, while extinction ``μ`` is constant. The tree grows fast
+    when small and saturates near ``K`` (with ``μ=0``) or near the equilibrium
+    ``n* = K·(1 − μ/λ₀)``. All lineages share the current ``λ(n)``, so it is *homogeneous* but
+    *time/diversity-varying* — the ecological counterpart of the per-family carrying capacity
+    ZOMBI2 already offers for gene families.
+
+    A **forward-only** model (the rate depends on the running lineage count). ``age`` or
+    ``n_tips`` mode both work — but ``n_tips`` must be ``≤ K`` (the tree cannot grow past its
+    capacity). ``sampling_fraction`` (ρ) and ``mass_extinctions`` overlay as for
+    :class:`BirthDeath` (mass extinctions still require ``age`` mode).
+    """
+
+    def __init__(self, lambda_0: float, death: float = 0.0, *, carrying_capacity: float,
+                 sampling_fraction: float = 1.0, mass_extinctions=None):
+        self.lambda_0 = float(lambda_0)
+        self.death = float(death)
+        self.K = float(carrying_capacity)
+        self.sampling_fraction = float(sampling_fraction)
+        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
+
+    def validate(self) -> None:
+        if self.lambda_0 <= 0:
+            raise ValueError(f"lambda_0 (speciation rate) must be > 0, got {self.lambda_0}")
+        if self.death < 0:
+            raise ValueError(f"death rate must be >= 0, got {self.death}")
+        if self.K <= 0:
+            raise ValueError(f"carrying_capacity K must be > 0, got {self.K}")
+        if not (0.0 < self.sampling_fraction <= 1.0):
+            raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
+        _validate_mass_extinctions(self.mass_extinctions)
+
+
+class CladeShiftBirthDeath:
+    """Constant-rate birth–death with a finite set of **clade-specific rate shifts**.
+
+    Diversification runs at the background ``(birth, death)`` until a scheduled shift: at each
+    ``age`` before the present, one lineage then alive — chosen uniformly at random, since
+    contemporaneous lineages are exchangeable — and *all of its descendants* switch to a new
+    ``(birth, death)`` regime. This is the discrete, hand-specified version of clade rate
+    heterogeneity: "at this time, some clade starts diversifying under these rates" (a key
+    innovation sparking a radiation, a lineage entering a slow-down). Give several shifts for
+    several radiating/collapsing clades.
+
+    A **forward-only** model in **age mode** (the shifts are scheduled as ages before a fixed
+    present). ``sampling_fraction`` (ρ) and ``mass_extinctions`` overlay as for :class:`BirthDeath`.
+
+    Parameters
+    ----------
+    birth, death:
+        Background speciation/extinction rates (before any shift).
+    clade_shifts:
+        List of ``(age, birth, death)`` — at ``age`` before the present, a random extant lineage
+        and its descendants adopt ``(birth, death)``.
+    """
+
+    def __init__(self, birth: float, death: float = 0.0, *, clade_shifts,
+                 sampling_fraction: float = 1.0, mass_extinctions=None):
+        self.birth = float(birth)
+        self.death = float(death)
+        self.clade_shifts = sorted((float(a), float(b), float(d)) for a, b, d in clade_shifts)
+        self.sampling_fraction = float(sampling_fraction)
+        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
+
+    def validate(self) -> None:
+        if self.birth <= 0:
+            raise ValueError(f"birth rate must be > 0, got {self.birth}")
+        if self.death < 0:
+            raise ValueError(f"death rate must be >= 0, got {self.death}")
+        if not self.clade_shifts:
+            raise ValueError("CladeShiftBirthDeath needs at least one (age, birth, death) shift")
+        for a, b, d in self.clade_shifts:
+            if a <= 0:
+                raise ValueError(f"clade-shift age must be a positive age before the present, got {a}")
+            if b <= 0:
+                raise ValueError(f"clade-shift birth rate must be > 0, got {b}")
+            if d < 0:
+                raise ValueError(f"clade-shift death rate must be >= 0, got {d}")
+        if not (0.0 < self.sampling_fraction <= 1.0):
+            raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
+        _validate_mass_extinctions(self.mass_extinctions)

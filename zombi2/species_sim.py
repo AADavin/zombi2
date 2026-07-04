@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .species_model import BirthDeath
+from .species_model import BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent
 from .tree import Tree, TreeNode
 
 
@@ -64,12 +64,22 @@ def simulate_species_tree(
                                 max_attempts=max_attempts, max_lineages=max_lineages)
 
     # --- backward: reconstructed tree conditioned on (n_tips, age) ---------
+    if isinstance(model, (ClaDS, DiversityDependent, CladeShiftBirthDeath)):
+        raise ValueError(
+            f"{type(model).__name__} has per-lineage/diversity-dependent rates with no closed-form "
+            "reconstructed CDF; it is forward-only — use direction='forward'"
+        )
     model.validate()
     if n_tips is None or age is None:
         raise ValueError("backward simulation needs both `n_tips` and `age`")
     foss = model.fossilization
     if (sum(foss) if isinstance(foss, list) else foss) > 0 or getattr(model, "removal", 1.0) != 1.0:
         raise ValueError("fossilization / removal are forward-only; use direction='forward'")
+    if getattr(model, "mass_extinctions", None):
+        raise ValueError(
+            "mass_extinctions kill real lineages forward in time and are not represented in the "
+            "backward reconstructed tree; use direction='forward'"
+        )
     if isinstance(model, BirthDeath) and model.sampling_fraction < 1.0:
         raise ValueError(
             "constant-rate backward sampling assumes complete sampling (ρ=1); use "

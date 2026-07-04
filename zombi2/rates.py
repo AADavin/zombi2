@@ -67,6 +67,16 @@ class RateModel(ABC):
     def target_params(self, event: EventType, genome, branch: str, time: float) -> TargetParams:
         return TargetParams()
 
+    def refresh_times(self, t0: float, t1: float) -> list[tuple[float, str]]:
+        """Times in ``(t0, t1)`` at which a branch's weights change on their own — i.e. *not*
+        as a consequence of a gene event — and which branch changes. The simulator pauses the
+        Gillespie loop at each, refreshes that branch's cached weights, and continues, so a
+        rate model whose weights follow an externally-imposed schedule (e.g. a trait value that
+        drifts/jumps along the branch, see :mod:`zombi2.trait_coupling`) stays exact without
+        the blunt ``time_dependent`` full-refresh-every-event. Default: none — weights change
+        only at events, so no extra refresh points are needed."""
+        return []
+
     def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
         """Called once at the start of a simulation with the RNG, the resolved hard
         family-size cap (or ``None``), and the species ``tree`` (some models, e.g.

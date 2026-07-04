@@ -99,6 +99,7 @@ class GenomeSimulator:
         # O(log branches) event-branch selection and O(log) updates — no per-event scan.
         nodes_by_index = list(tree.nodes_preorder())
         index = {node: i for i, node in enumerate(nodes_by_index)}
+        name_to_node = {node.name: node for node in nodes_by_index}
         fenwick = Fenwick(len(nodes_by_index))
 
         def activate(branch):
@@ -118,7 +119,7 @@ class GenomeSimulator:
             key=lambda n: n.time,
         )
         for node in node_events:
-            self._evolve_interval(alive, cache, fenwick, index, nodes_by_index,
+            self._evolve_interval(alive, cache, fenwick, index, nodes_by_index, name_to_node,
                                   t, node.time, rate_model, log, rng)
             t = node.time
             genome = alive.pop(node)
@@ -156,7 +157,7 @@ class GenomeSimulator:
         alive[child2] = g2
 
     # --- Gillespie over a constant-membership interval ---------------------
-    def _evolve_interval(self, alive, cache, fenwick, index, nodes_by_index,
+    def _evolve_interval(self, alive, cache, fenwick, index, nodes_by_index, name_to_node,
                          t0, t1, rate_model, log, rng):
         """Gillespie loop over one inter-speciation interval.
 
@@ -165,6 +166,13 @@ class GenomeSimulator:
         needs no per-interval setup. After each event only the changed branch(es) are
         refreshed (cache + Fenwick). A rate model whose weights vary continuously with time
         can set ``time_dependent = True`` to force a full refresh each step.
+
+        A rate model may also expose ``refresh_times(t0, t1)`` — a sorted list of
+        ``(time, branch_name)`` at which a branch's weights change on their own (a trait
+        drifting/jumping along the branch, say). We interleave those into the loop: the
+        integration advances to each breakpoint before it would overshoot it, refreshes just
+        that branch, and continues — exact for piecewise-constant schedules, and free when the
+        list is empty (every existing rate model).
         """
         refresh_all = getattr(rate_model, "time_dependent", False)
         t = t0
@@ -173,13 +181,30 @@ class GenomeSimulator:
                 cache[b] = self._branch_weights(alive[b], b, rate_model, t)
                 fenwick.set(index[b], cache[b][1])
 
+        breaks = rate_model.refresh_times(t0, t1)
+        bi, nb = 0, len(breaks)
+
         for _ in range(self.max_events_per_interval):
             total = fenwick.total
+            next_bt = breaks[bi][0] if bi < nb else math.inf
             if total <= 0.0:
+                # nothing can fire until a scheduled change alters the rates; skip to it
+                if next_bt < t1:
+                    t = next_bt
+                    bi = self._apply_breaks(breaks, bi, t, name_to_node, alive,
+                                            cache, fenwick, index, rate_model)
+                    continue
                 return
             dt = self.sampler.next_waiting_time(total, rng)
-            if not math.isfinite(dt) or t + dt >= t1:
+            if not math.isfinite(dt):
                 return
+            if t + dt >= min(t1, next_bt):
+                if next_bt < t1:  # a scheduled refresh falls before the drawn event
+                    t = next_bt
+                    bi = self._apply_breaks(breaks, bi, t, name_to_node, alive,
+                                            cache, fenwick, index, rate_model)
+                    continue
+                return  # crossed t1 with no earlier breakpoint — interval done
             t += dt
 
             # (1 - U) keeps the draw in (0, total], so we always land on a live branch
@@ -195,6 +220,17 @@ class GenomeSimulator:
             "gene families are likely growing without bound (duplication/transfer > loss). "
             "Set max_family_size= (or carrying_capacity= on the rate model) to regulate growth."
         )
+
+    def _apply_breaks(self, breaks, bi, t, name_to_node, alive, cache, fenwick, index, rate_model):
+        """Refresh every branch scheduled to change at time ``t`` (there may be several), and
+        return the advanced breakpoint cursor. Branches no longer alive are skipped."""
+        while bi < len(breaks) and breaks[bi][0] == t:
+            node = name_to_node.get(breaks[bi][1])
+            if node is not None and node in alive:
+                cache[node] = self._branch_weights(alive[node], node, rate_model, t)
+                fenwick.set(index[node], cache[node][1])
+            bi += 1
+        return bi
 
     @staticmethod
     def _branch_weights(genome, branch, rate_model, t):

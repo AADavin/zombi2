@@ -254,6 +254,66 @@ def _build_event_log(cols, nodes) -> EventLog:
     return log
 
 
+def events_trace_tsv(columns, nodes) -> str:
+    """Serialise the raw Rust event columns as the compact ``Events_trace.tsv`` text — the fast
+    path behind ``output="trace"``. This never builds an :class:`~zombi2.events.EventRecord`;
+    it formats the columns directly, which is the whole point (object construction is the wall
+    on large trees). The format matches the record-based
+    :func:`zombi2.simulation.events_trace_from_log` exactly (g-prefixed gids, 1-based families)."""
+    from .simulation import EVENTS_TRACE_HEADER
+
+    ev, br, tm, dn, rc, fm, g0, g1, g2 = columns
+    n = len(br)
+    names = np.array([nd.name for nd in nodes], dtype=object)
+    ev_a = np.frombuffer(ev, dtype=np.uint8)
+    br_a = np.asarray(br, dtype=np.int64)
+    dn_a = np.asarray(dn, dtype=np.int64)
+    rc_a = np.asarray(rc, dtype=np.int64)
+    # resolve names / event chars vectorially; -1 (no donor/recipient) becomes ""
+    evchar = np.array([e.value for e in _EV], dtype=object)[ev_a].tolist()
+    brn = names[br_a].tolist()
+    dnn = np.where(dn_a >= 0, names[np.clip(dn_a, 0, None)], "").tolist()
+    rcn = np.where(rc_a >= 0, names[np.clip(rc_a, 0, None)], "").tolist()
+    tm_l = list(tm)
+    fm_l = (np.asarray(fm, dtype=np.int64) + 1).tolist()  # 1-based family labels
+    g0_l, g1_l, g2_l = list(g0), list(g1), list(g2)
+
+    def gid(x):
+        return f"g{x}" if x >= 0 else ""
+
+    rows = [EVENTS_TRACE_HEADER]
+    rows.extend(
+        f"{tm_l[k]:.10g}\t{evchar[k]}\t{brn[k]}\t{dnn[k]}\t{rcn[k]}\t{fm_l[k]}\t"
+        f"g{g0_l[k]}\t{gid(g1_l[k])}\t{gid(g2_l[k])}"
+        for k in range(n)
+    )
+    return "\n".join(rows) + "\n"
+
+
+def trace(species_tree, rates, *, initial_size, transfers, max_family_size, seed):
+    """Simulate the full genealogy in Rust but return a :class:`~zombi2.GenomeTrace` — the raw
+    event columns + leaf genomes + profile, *without* building the per-event Python objects.
+    This is the built-in path behind ``simulate_genomes(..., output="trace")``: it uses the same
+    ``simulate_log`` engine as :func:`genomes`, then defers the (expensive) event-log
+    materialisation until something actually needs it."""
+    require()
+    d, t, l, o = _resolve_rates(rates)
+    nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
+    cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
+    rep, dec, aself = _transfer_params(transfers)
+
+    cols, leaves = _core.simulate_log(
+        len(nodes), parent, times, extant_leaf, root,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
+    )
+    leaf_genomes = {nodes[li]: _RustGenome(pairs) for li, pairs in leaves}
+    profs = ProfileMatrix.from_leaf_genomes(leaf_genomes)
+
+    from .simulation import GenomeTrace
+    return GenomeTrace(species_tree=species_tree, leaf_genomes=leaf_genomes,
+                       profiles=profs, _columns=cols, _nodes=nodes)
+
+
 def genomes(species_tree, rates, *, initial_size, transfers, max_family_size, seed):
     """Simulate the full genealogy in Rust and return a materialized :class:`~zombi2.Genomes`
     (event log, gene trees, profiles, write). This is the built-in path behind the default

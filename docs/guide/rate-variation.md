@@ -52,4 +52,84 @@ phylogram = z.RateVariation(bins=[0.5, 2.0], switch_rate=1.0).scale(gene_tree, s
 
 The same rate process can be applied independently to the species tree and to each gene
 tree, or you could drive them from a shared process — a natural building block for
-simulating realistic, non-clocklike branch lengths.
+simulating realistic, non-clocklike branch lengths. That shared-process version is
+`SequenceEvolution`, below.
+
+## Family sequence evolution
+
+The gene × lineage clock. `RateVariation` scales **one tree in isolation**. But in a real dataset every gene shares
+the same underlying lineage history: a fast-evolving clade is fast for *all* the genes
+passing through it. `SequenceEvolution` builds that in. It converts a whole
+[`simulate_genomes`](gene-families.md) result — all the reconciled gene trees at once —
+from time into substitutions/site under a **gene × lineage** clock:
+
+```
+rate(family g, species branch b) = R_b · s_g
+```
+
+- **`R_b`** — a lineage rate drawn **once on the species tree** and **shared by every
+  family**. Two clocks to choose from: an autocorrelated **lognormal** relaxed clock,
+  `R_child = R_parent · exp(N(0, σ·√branch_length))` (`branch_sigma`; `0` = strict clock), or
+  the **discrete-bin** within-branch `RateVariation` (the GTDB model; `lineage=`), which can
+  vary the rate *within* a branch.
+- **`s_g`** — each family's intrinsic speed, one constant drawn from a distribution
+  (`family_speed`), so some families are globally fast, others slow.
+
+A gene-tree branch on species branch `b` over `[t0, t1]` gets substitution length
+`s_g · R_b · (t1 − t0)`; because reconciliation is exact, a branch spanning several species
+branches (after pruning) just sums the pieces.
+
+```python
+import zombi2 as z
+
+tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
+genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.2,
+                             origination=0.5, seed=1)
+
+se = z.SequenceEvolution(branch_sigma=0.5,                    # shared lineage clock
+                         family_speed=z.LogNormal(0.0, 0.4))  # per-family speed
+phylo = se.scale(genomes, seed=2)
+
+phylo.extant["1"]        # family 1's extant tree, branch lengths in substitutions/site
+phylo.complete["1"]      # the complete tree (losses included)
+phylo.family_speed["1"]  # the drawn s_g
+phylo.branch_rate["i5"]  # the shared R_b for species branch i5
+```
+
+With `branch_sigma=0` and unit family speeds the phylogram is identical to the input
+chronogram — the two rate sources are clean multiplicative overlays. `branch_sigma=0` alone
+gives *gene-family speed only* (each family a constant multiple of time); `family_speed=1.0`
+alone gives a *shared lineage clock only*.
+
+To use the discrete-bin GTDB clock for the lineage part instead of the lognormal one, pass a
+`RateVariation` as `lineage=` (mutually exclusive with `branch_sigma`) — a branch may then
+carry several rate segments, integrated exactly under each gene branch:
+
+```python
+rv = z.RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0], switch_rate=1.0)  # slow -> fast
+phylo = z.SequenceEvolution(lineage=rv, family_speed=z.LogNormal(0.0, 0.4)).scale(genomes, seed=2)
+```
+
+### From the CLI
+
+Sequence evolution is a **separate command**, `zombi2 sequence`, run on a prior `genomes`
+result — so you can retune the clock without re-simulating gene content. `genomes` just has to
+have written the event trace (`trace` in `--output`):
+
+```bash
+zombi2 genomes  -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
+    --output trace profiles -o run/
+
+# lognormal lineage clock + per-family speed
+zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+
+# discrete-bin (GTDB) lineage clock instead of --branch-speed
+zombi2 sequence --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
+    --family-speed 0.5 -o run/
+```
+
+`sequence` replays `run/Events_trace.tsv`, rebuilds the reconciled gene trees, and writes
+`run/gene_trees/<family>_extant_subst.nwk` (and `_complete_subst.nwk`), plus
+`gene_family_speeds.tsv` and `branch_rates.tsv` recording the drawn `s_g` and `R_b` for
+reproducibility. `--branch-speed` **or** `--branch-bins` alone is a shared lineage clock;
+`--family-speed` alone is per-family speed; together they are the full gene × lineage model.

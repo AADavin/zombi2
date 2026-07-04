@@ -21,6 +21,8 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.rate_variation.RateVariation
 ::: zombi2.rate_variation.RateScaledTree
+::: zombi2.sequence_evolution.SequenceEvolution
+::: zombi2.sequence_evolution.GenePhylograms
 
 ## Trait evolution
 
