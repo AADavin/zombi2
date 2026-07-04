@@ -79,8 +79,44 @@ class UndatedDTL:
         return d / denom, t / denom, lo / denom, 1.0 / denom
 
 
-def extinction(sp: SpeciesTree, model: UndatedDTL) -> list[float]:
-    """Solve the coupled extinction fixed point ``E[e]`` for every species branch."""
+def _mean_over(vec: list[float], total: float, e: int, nb, n: int) -> float:
+    """Mean of ``vec`` over the transfer recipients of branch ``e``. ``nb is None`` = every
+    other branch (plain undated, ``(total - vec[e])/(n-1)``); otherwise the explicit
+    time-overlapping list (reldated)."""
+    if nb is None:
+        return (total - vec[e]) / (n - 1) if n > 1 else 0.0
+    lst = nb[e]
+    return math.fsum(vec[f] for f in lst) / len(lst) if lst else 0.0
+
+
+def _transfer_neighbors(sp: SpeciesTree, transfers: str):
+    """Per-branch transfer-recipient sets. ``"global"`` → ``None`` (any branch, plain undated);
+    ``"dated"`` → for each branch the branches whose time interval **overlaps** it (reldated:
+    transfers stay time-consistent, using the dates but no sub-branch integration)."""
+    if transfers == "global":
+        return None
+    if transfers != "dated":
+        raise ValueError(f"transfers must be 'global' or 'dated', got {transfers!r}")
+    n = sp.n
+    tol = 1e-9 * max((b.time for b in sp.branches), default=1.0)
+    nb: list[list[int]] = [[] for _ in range(n)]
+    for e in range(n):
+        be = sp.branches[e]
+        for f in range(n):
+            if f == e:
+                continue
+            bf = sp.branches[f]
+            overlap = min(be.time, bf.time) - max(be.parent_time, bf.parent_time)
+            if overlap > tol:
+                nb[e].append(f)
+    return nb
+
+
+def extinction(sp: SpeciesTree, model: UndatedDTL, nb=None) -> list[float]:
+    """Solve the coupled extinction fixed point ``E[e]`` for every species branch.
+
+    ``nb`` is the transfer neighborhood (``None`` = plain undated; a per-branch list =
+    reldated), controlling which branches a transfer's other copy can land on."""
     pD, pT, pL, pS = model.probs()
     n = sp.n
     E = [0.0] * n
@@ -89,7 +125,7 @@ def extinction(sp: SpeciesTree, model: UndatedDTL) -> list[float]:
         delta = 0.0
         for e in range(n):  # post-order: children before parents
             b = sp.branches[e]
-            ebar = (total - E[e]) / (n - 1) if n > 1 else 0.0
+            ebar = _mean_over(E, total, e, nb, n)
             child = 0.0 if b.is_leaf else E[b.left] * E[b.right]
             new = pL + pD * E[e] * E[e] + pT * E[e] * ebar + pS * child
             delta = max(delta, abs(new - E[e]))
@@ -101,17 +137,18 @@ def extinction(sp: SpeciesTree, model: UndatedDTL) -> list[float]:
 
 
 def _propagate(Pu: list[float], A: list[float], sp: SpeciesTree,
-               E: list[float], pD: float, pT: float, pS: float) -> None:
+               E: list[float], pD: float, pT: float, pS: float, nb=None) -> None:
     """In-place solve of the per-gene-node ``e``-recursion (SL/DL/TL fixed point) given the
-    event-independent accumulator ``A``. Overwrites ``Pu``."""
+    event-independent accumulator ``A``. Overwrites ``Pu``. ``nb`` = transfer neighborhood."""
     n = sp.n
+    total_E = math.fsum(E)
     for _ in range(_MAX_ITERS):
         total = math.fsum(Pu)
         delta = 0.0
         for e in range(n):
             b = sp.branches[e]
-            ebar = (total - E[e]) / (n - 1) if n > 1 else 0.0
-            pbar = (total - Pu[e]) / (n - 1) if n > 1 else 0.0
+            ebar = _mean_over(E, total_E, e, nb, n)
+            pbar = _mean_over(Pu, total, e, nb, n)
             sl = 0.0 if b.is_leaf else pS * (Pu[b.left] * E[b.right] + Pu[b.right] * E[b.left])
             denom = 1.0 - 2.0 * pD * E[e] - pT * ebar
             new = (A[e] + sl + pT * E[e] * pbar) / denom
@@ -123,16 +160,20 @@ def _propagate(Pu: list[float], A: list[float], sp: SpeciesTree,
 
 
 def undated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
-                   *, origination: str = "root") -> float:
+                   *, origination: str = "root", transfers: str = "global") -> float:
     """Log of the marginal reconciliation likelihood ``P(gene_tree | sp, model)``.
 
     Sums over every reconciliation of the (fixed) gene tree against the species tree under the
     undated DTL model. ``origination`` is ``"root"`` (family present on the root branch) or
-    ``"uniform"`` (root gene node averaged over all branches).
+    ``"uniform"`` (root gene node averaged over all branches). ``transfers`` is ``"global"``
+    (plain undated — a transfer may land on any branch) or ``"dated"`` (**reldated** — a
+    transfer may only land on a branch that overlaps the donor in time, using the species-tree
+    dates to stay time-consistent without full slicing; see :func:`reldated_loglik`).
     """
     pD, pT, pL, pS = model.probs()
     n = sp.n
-    E = extinction(sp, model)
+    nb = _transfer_neighbors(sp, transfers)
+    E = extinction(sp, model, nb)
 
     P: list[list[float]] = [None] * gene_tree.n  # type: ignore[list-item]
     for u in range(gene_tree.n):  # gene tree post-order: children before parents
@@ -152,13 +193,13 @@ def undated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
                 if not br.is_leaf:  # S
                     f, gg = br.left, br.right
                     term += pS * (a[f] * b[gg] + a[gg] * b[f])
-                if n > 1:  # T: one child transferred to a random other branch
-                    abar = (atot - a[e]) / (n - 1)
-                    bbar = (btot - b[e]) / (n - 1)
+                if pT > 0.0:  # T: one child transferred to a recipient branch
+                    abar = _mean_over(a, atot, e, nb, n)
+                    bbar = _mean_over(b, btot, e, nb, n)
                     term += pT * (a[e] * bbar + b[e] * abar)
                 A[e] = term
         Pu = [0.0] * n
-        _propagate(Pu, A, sp, E, pD, pT, pS)
+        _propagate(Pu, A, sp, E, pD, pT, pS, nb)
         P[u] = Pu
 
     root_P = P[gene_tree.root]
@@ -171,3 +212,18 @@ def undated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
     if like <= 0.0:
         return -math.inf
     return math.log(like)
+
+
+def reldated_loglik(gene_tree: GeneTree, sp: SpeciesTree, model: UndatedDTL,
+                    *, origination: str = "root") -> float:
+    """The **reldated** likelihood: the undated model with transfers restricted to branches
+    that overlap the donor in time.
+
+    This is the middle ground between :func:`undated_loglik` (transfers to any branch — cheap
+    but time-inconsistent) and the fully time-sliced :func:`~zombi2.alelite.dated_loglik`
+    (exact but costly). It reuses the undated per-branch recursion but forbids transfers to
+    non-contemporaneous branches, using the species-tree dates — the trick recent ALE versions
+    use to keep undated transfers consistent without sub-branch integration. Same
+    :class:`UndatedDTL` rates (per-branch odds).
+    """
+    return undated_loglik(gene_tree, sp, model, origination=origination, transfers="dated")

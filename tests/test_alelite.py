@@ -23,6 +23,7 @@ from zombi2.alelite import (
     dated_extinction,
     dated_joint_loglik,
     dated_loglik,
+    reldated_loglik,
     undated_loglik,
 )
 
@@ -153,6 +154,57 @@ def test_from_reconciliation_matches_extant_newick():
             assert a.n == b.n and a.species_set() == b.species_set()
             return
     pytest.fail("no extant family produced")
+
+
+# ============================================================ RELDATED (constrained undated)
+
+def test_transfer_neighbors_respect_time_overlap():
+    """Reldated transfer recipients = branches overlapping the donor in time: sibling leaves
+    overlap; a branch and its parent (adjacent, sharing an instant) do not."""
+    from zombi2.alelite.undated import _transfer_neighbors
+    sp = SpeciesTree.from_tree(read_newick("((A:1,B:1)i1:1,(C:1,D:1)i2:1)root;"))
+    nb = _transfer_neighbors(sp, "dated")
+    idx = {b.name: i for i, b in enumerate(sp.branches)}
+    # all four leaf branches span (1, 2] → mutually overlapping
+    assert set(nb[idx["A"]]) == {idx["B"], idx["C"], idx["D"]}
+    # i1 and i2 span (0, 1] → overlap each other but not the leaves (adjacent at t=1)
+    assert set(nb[idx["i1"]]) == {idx["i2"]}
+
+
+def test_reldated_equals_undated_without_transfers():
+    """With transfer=0 the recipient restriction is irrelevant, so the two agree exactly."""
+    sp = SpeciesTree.from_tree(read_newick("((A:1,B:1)i1:1,(C:1,D:1)i2:1)root;"))
+    gt = GeneTree.from_newick("((A|1,B|2)x,(C|3,D|4)y)r;")
+    m = UndatedDTL(dup=0.25, transfer=0.0, loss=0.3)
+    assert math.isclose(undated_loglik(gt, sp, m), reldated_loglik(gt, sp, m),
+                        rel_tol=1e-12, abs_tol=1e-12)
+
+
+def test_reldated_differs_from_undated_with_transfers():
+    """Once transfer>0, forbidding non-contemporaneous recipients changes the likelihood."""
+    sp = SpeciesTree.from_tree(read_newick("((A:1,B:1)i1:1,(C:1,D:1)i2:1)root;"))
+    gt = GeneTree.from_newick("((A|1,C|2)x,(B|3,D|4)y)r;")  # discordant with species
+    m = UndatedDTL(dup=0.1, transfer=0.4, loss=0.2)
+    u = undated_loglik(gt, sp, m, origination="uniform")
+    r = reldated_loglik(gt, sp, m, origination="uniform")
+    assert math.isfinite(u) and math.isfinite(r)
+    assert not math.isclose(u, r, rel_tol=1e-6)
+
+
+def test_reldated_scores_zombi_families_finite():
+    tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=5)
+    g = simulate_genomes(tree, duplication=0.3, transfer=0.25, loss=0.4,
+                         origination=0.0, initial_size=20, seed=5)
+    sp = SpeciesTree.from_tree(tree)
+    m = UndatedDTL(dup=0.3, transfer=0.25, loss=0.4)
+    scored = 0
+    for r in g.reconciliations().values():
+        if r.extant is None:
+            continue
+        ll = reldated_loglik(GeneTree.from_reconciliation(r), sp, m, origination="root")
+        assert math.isfinite(ll) and ll <= 1e-9
+        scored += 1
+    assert scored > 0
 
 
 # ==================================================================== DATED engine

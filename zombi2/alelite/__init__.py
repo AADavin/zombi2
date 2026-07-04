@@ -25,11 +25,11 @@ from __future__ import annotations
 
 from .species import SpeciesTree
 from .genetree import GeneTree
-from .undated import UndatedDTL, undated_loglik
+from .undated import UndatedDTL, undated_loglik, reldated_loglik
 from .dated import DatedDTL, dated_loglik, dated_extinction, dated_joint_loglik
 
 __all__ = [
     "SpeciesTree", "GeneTree",
-    "UndatedDTL", "undated_loglik",
+    "UndatedDTL", "undated_loglik", "reldated_loglik",
     "DatedDTL", "dated_loglik", "dated_extinction", "dated_joint_loglik",
 ]
