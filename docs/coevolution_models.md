@@ -53,7 +53,7 @@ and bidirectional coupling is simply *both* edges. `:` (not `->`) keeps it shell
 | `species:traits` | trait jumps *at* speciation | cladogenetic / speciational trait evolution | input (given tree) | **shipped** — `coevolve --couple species:traits` (both arrows = **ClaSSE**) |
 | `species:genes` | gene gain/loss bursts at speciation | cladogenetic genome upheaval | input (given tree) | **shipped** — `coevolve --couple species:genes` |
 | `traits:genes` | trait sets gene loss/gain | **trait-linked gene families** | input | **shipped** — [`coevolve-genetrait`](guide/trait-linked-genomes.md) |
-| `genes:traits` | gene presence enables a trait shift | gene-conditioned trait | input | proposed |
+| `genes:traits` | gene presence enables a trait shift | gene-conditioned trait | input (given tree) | **shipped** — `coevolve --couple genes:traits` |
 
 ## The one rule: complexity = arrows *into* S
 
@@ -192,7 +192,28 @@ extant tips) and `genome_sizes.tsv`. In Python:
 `z.simulate_cladogenetic_genome(tree, z.CladogeneticGenome(…))`. The signature of the model is that
 **sister tips differ** — change is injected at their split, not spread along the branches.
 
-The remaining `genes:traits` edge and the full three-way `--all` remain on the roadmap below.
+### Gene content shapes a trait — `genes:traits`
+
+The reverse of `traits:genes`: here gene content conditions a **trait**. A binary *modifier* gene comes
+and goes along the tree (gain/loss), and its presence sets a continuous trait's **OU optimum** — so a
+lineage that acquires the gene is pulled toward a new adaptive peak (`theta_present`), and one that
+loses it drifts back to `theta_absent`. "Gene presence enables a trait shift." Also an overlay on a
+given tree:
+
+```bash
+# a modifier gene that unlocks a phenotypic optimum at 5 (vs 0 without it)
+zombi2 coevolve --couple genes:traits -t species_tree.nwk \
+    --modifier-gain 0.6 --modifier-loss 0.6 --theta-absent 0 --theta-present 5 \
+    --trait-alpha 2.5 --trait-sigma2 0.4 --seed 2 -o genetrait/
+```
+
+It writes `traits.tsv` (per node: modifier presence 0/1 and the trait value) and `trait_tree.nwk`.
+`--trait-alpha` is the OU mean-reversion (0 = Brownian); the modifier's own dynamics are
+`--modifier-gain`/`--modifier-loss`/`--root-modifier`. In Python:
+`z.simulate_gene_conditioned_trait(tree, z.GeneConditionedTrait(…))`. The signal: **tips carrying the
+modifier sit near `theta_present`**, those without near `theta_absent`.
+
+Only the full three-way `--all` remains on the roadmap below.
 
 ## The engine: one generic per-lineage state
 
@@ -246,8 +267,18 @@ milestone once the individual edges each work.
   a genome is evolved down the tree with a founder-effect burst of gene loss/gain at each speciation
   (`CladogeneticGenome` / `simulate_cladogenetic_genome`, `coevolve --couple species:genes`). v1 scope:
   presence/absence genome, gain by origination (no HGT yet), runs on its own.
-- **Phase 4 — `--all` and the remaining overlay edge** (`genes:traits`) as additive
-  rate-functions/kernels, validated against the single-edge cases.
+- **Phase 4b — `genes:traits` (gene-conditioned trait). ✅ done.** An overlay on a given tree
+  ([`zombi2/gene_conditioned_trait.py`](https://github.com/AADavin/zombi2/blob/main/zombi2/gene_conditioned_trait.py)):
+  a binary modifier gene (a two-state Markov chain along the tree) switches a continuous trait's OU
+  optimum, so acquiring the gene pulls the trait to a new peak (`GeneConditionedTrait` /
+  `simulate_gene_conditioned_trait`, `coevolve --couple genes:traits`). **All six directed edges now
+  exist individually.**
+- **Phase 4 — `--all`.** The fully joint model: all six edges active at once (every pair
+  bidirectional = maximal mutual feedback). There is no single causal direction — forward time
+  resolves the mutual dependence (current states set next-event rates). Needs the generic
+  per-lineage-state forward loop carrying both trait and genome, plus stability guards on the
+  feedback loops (esp. trait↔gene). Best expressed by composing edges with `--couple`; `--all`
+  would be sugar for "all six".
 
 ## Caveats
 
