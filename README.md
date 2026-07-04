@@ -68,8 +68,7 @@ zombi2 coevolve-genetrait --tree out/species_tree.nwk --trait-model mk --states 
     --trait-center --panel 40 --responsive 0.3 --effect-loss 3 --seed 1 -o out/
 ```
 
-`zombi2 abc` also fits DTL rates to an empirical profile. Run `zombi2 <command> -h` or see
-[`docs/cli.md`](docs/cli.md).
+Run `zombi2 <command> -h` or see [`docs/cli.md`](docs/cli.md).
 
 ---
 
