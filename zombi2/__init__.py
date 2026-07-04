@@ -89,6 +89,9 @@ from .gene_diversification import (
 from .cladogenetic_genome import (
     CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
 )
+from .gene_conditioned_trait import (
+    GeneConditionedTrait, GeneConditionedTraitResult, simulate_gene_conditioned_trait,
+)
 from .simulation import simulate_genomes, Genomes, GenomeTrace, read_events_trace
 from .coupling import (
     CouplingSpec,
@@ -172,6 +175,8 @@ __all__ = [
     "GeneDiversification", "GeneDiversificationResult", "simulate_gene_diversification",
     # cladogenetic genome evolution (speciation drives gene content — coevolve species:genes)
     "CladogeneticGenome", "CladogeneticGenomeResult", "simulate_cladogenetic_genome",
+    # gene-conditioned trait (gene content drives a trait — coevolve genes:traits)
+    "GeneConditionedTrait", "GeneConditionedTraitResult", "simulate_gene_conditioned_trait",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
