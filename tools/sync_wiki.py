@@ -41,6 +41,7 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("guide/nucleotide-genomes.md",     "Nucleotide-Genomes",         "Nucleotide genomes",      "User guide"),
     ("guide/rate-variation.md",         "Rate-Variation",             "Rate variation",          "User guide"),
     ("guide/traits.md",                 "Trait-Evolution",            "Trait evolution",         "User guide"),
+    ("guide/trait-linked-genomes.md",   "Trait-Linked-Gene-Families", "Trait-linked gene families", "User guide"),
     ("guide/parallel.md",               "Running-in-Parallel",        "Running in parallel",     "User guide"),
     ("guide/rust-engine.md",            "Rust-Engine",                "Rust engine",             "User guide"),
     ("guide/extending.md",              "Extending-ZOMBI2",           "Extending ZOMBI2",        "User guide"),
