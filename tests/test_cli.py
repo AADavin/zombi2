@@ -716,3 +716,79 @@ def test_abc_smc(tmp_path):
                "--smc", "--rounds", "2", "--particles", "60", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "posterior.tsv").exists()
+
+
+# --------------------------------------------------------------------------- coevolve (traits:species = SSE)
+def test_coevolve_traits_species_bisse(tmp_path):
+    """`coevolve --couple traits:species` grows a tree jointly with a binary trait (BiSSE)."""
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--couple", "traits:species", "--sse-model", "bisse",
+               "--lambda0", "1", "--lambda1", "2", "--mu0", "0.2", "--mu1", "0.2",
+               "--q01", "0.1", "--q10", "0.1", "--tips", "20", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").read_text().strip().endswith(";")
+    assert (out / "trait_tree.nwk").exists()
+    assert (out / "coevolve.log").exists()
+    # traits.tsv covers every node (tips + ancestors), values in {0, 1}
+    rows = [ln.split("\t") for ln in (out / "traits.tsv").read_text().splitlines()[1:]]
+    assert rows and all(v in ("0", "1") for _, v in rows)
+
+
+def test_coevolve_default_edge_is_traits_species(tmp_path):
+    """With no --couple, the default edge is traits:species."""
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--age", "3", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").exists()
+
+
+def test_coevolve_quasse(tmp_path):
+    """--sse-model quasse grows a tree with a continuous trait; traits are floats."""
+    out = tmp_path / "cv"
+    rc = main(["coevolve", "--couple", "traits:species", "--sse-model", "quasse",
+               "--spec-low", "0.5", "--spec-high", "2", "--qmu", "0.2", "--diffusion", "0.5",
+               "--age", "3", "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert (out / "species_tree.nwk").exists()
+
+
+def test_coevolve_musse_needs_q_matrix(tmp_path):
+    """musse requires --birth/--death/--q-matrix."""
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:species", "--sse-model", "musse",
+              "--birth", "1", "1", "--death", "0.1", "0.1", "--tips", "10", "-o", str(tmp_path / "a")])
+
+
+def test_coevolve_reproducible(tmp_path):
+    """Same seed -> identical tree."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    args = ["coevolve", "--couple", "traits:species", "--tips", "15", "--seed", "7", "-o"]
+    main(args + [str(a)])
+    main(args + [str(b)])
+    assert (a / "species_tree.nwk").read_text() == (b / "species_tree.nwk").read_text()
+
+
+def test_coevolve_unbuilt_edge_errors(tmp_path):
+    """A planned-but-unbuilt edge errors clearly (does not silently run)."""
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "genes:species", "--age", "3", "-o", str(tmp_path / "a")])
+
+
+def test_coevolve_traits_genes_points_to_genetrait(tmp_path):
+    """traits:genes is not yet folded in; it errors toward coevolve-genetrait."""
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:genes", "--age", "3", "-o", str(tmp_path / "a")])
+
+
+def test_coevolve_needs_exactly_one_stop_condition(tmp_path):
+    """traits:species grows the tree: neither or both of --age/--tips is an error."""
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:species", "-o", str(tmp_path / "a")])
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:species", "--age", "3", "--tips", "10",
+              "-o", str(tmp_path / "b")])
+
+
+def test_coevolve_bad_edge_name_errors(tmp_path):
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "foo:bar", "--age", "3", "-o", str(tmp_path / "a")])

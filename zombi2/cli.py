@@ -660,6 +660,144 @@ def _run_coevolve(args: argparse.Namespace) -> str:
             f"{len(tree.extant_leaves())} tips) in {dt:.3g} s")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# coevolve: the directed-coupling umbrella (Phase 1: traits:species = SSE)
+# ═══════════════════════════════════════════════════════════════════════════════
+_COEVOLVE_NODES = ("species", "traits", "genes")
+# every directed edge in the coevolution design (docs/coevolution_models.md); Phase 1
+# implements only traits:species.
+_COEVOLVE_EDGES = {
+    "traits:species", "genes:species", "species:traits",
+    "species:genes", "traits:genes", "genes:traits",
+}
+
+
+def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--couple", action="append", metavar="DRIVER:TARGET", default=None,
+                   help="a directed coupling edge 'driver:target' over {species, traits, genes} — "
+                        "the driver's state modulates the target's rates. Phase 1 implements "
+                        "'traits:species' (SSE: a trait drives speciation/extinction); the tree is "
+                        "then an OUTPUT, grown forward. Repeatable; default traits:species. See "
+                        "docs/coevolution_models.md for the full edge set")
+    # traits:species grows the tree, so it takes a stopping condition (not an input -t tree)
+    p.add_argument("--age", type=float, default=None,
+                   help="[traits:species] crown age to grow for (the extant tip count is random)")
+    p.add_argument("--tips", type=int, default=None,
+                   help="[traits:species] stop when this many extant tips first coexist (age random)")
+    p.add_argument("--sse-model", dest="sse_model", choices=("bisse", "musse", "quasse"),
+                   default="bisse",
+                   help="[traits:species] which state-dependent model drives diversification: "
+                        "bisse (binary trait), musse (k-state), quasse (continuous trait) "
+                        "(default: bisse)")
+    # BiSSE — per-state speciation/extinction and asymmetric transitions
+    p.add_argument("--lambda0", type=float, default=1.0, help="[bisse] speciation in state 0")
+    p.add_argument("--lambda1", type=float, default=2.0, help="[bisse] speciation in state 1")
+    p.add_argument("--mu0", type=float, default=0.3, help="[bisse] extinction in state 0")
+    p.add_argument("--mu1", type=float, default=0.3, help="[bisse] extinction in state 1")
+    p.add_argument("--q01", type=float, default=0.1, help="[bisse] transition rate 0 -> 1")
+    p.add_argument("--q10", type=float, default=0.1, help="[bisse] transition rate 1 -> 0")
+    # MuSSE — general k-state
+    p.add_argument("--birth", type=float, nargs="+", default=None, metavar="RATE",
+                   help="[musse] per-state speciation rates (k values)")
+    p.add_argument("--death", type=float, nargs="+", default=None, metavar="RATE",
+                   help="[musse] per-state extinction rates (k values)")
+    p.add_argument("--q-matrix", default=None, metavar="FILE",
+                   help="[musse] path to a k x k anagenetic transition-rate matrix (same format as "
+                        "'zombi2 trait --q-matrix')")
+    p.add_argument("--root-state", type=int, default=None,
+                   help="[bisse/musse] root state index (default: the character's stationary "
+                        "distribution)")
+    # QuaSSE — continuous trait, sigmoidal speciation + constant extinction
+    p.add_argument("--spec-low", type=float, default=0.5,
+                   help="[quasse] speciation rate at low trait values")
+    p.add_argument("--spec-high", type=float, default=2.0,
+                   help="[quasse] speciation rate at high trait values")
+    p.add_argument("--spec-center", type=float, default=0.0,
+                   help="[quasse] trait value at the middle of the speciation sigmoid")
+    p.add_argument("--spec-slope", type=float, default=1.0,
+                   help="[quasse] steepness of the speciation sigmoid")
+    p.add_argument("--qmu", type=float, default=0.1, help="[quasse] constant extinction rate")
+    p.add_argument("--diffusion", type=float, default=1.0,
+                   help="[quasse] trait diffusion rate sigma^2 (Brownian motion)")
+    p.add_argument("--root-value", type=float, default=0.0, help="[quasse] root trait value x0")
+    p.add_argument("--seed", type=int, default=None, help="RNG seed for reproducibility")
+    p.add_argument("-o", "--out", required=True, help="output directory")
+
+
+def _build_sse_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
+    """Construct the traits:species (SSE) model selected by ``--sse-model`` from the CLI args."""
+    if args.sse_model == "bisse":
+        return BiSSE(args.lambda0, args.lambda1, args.mu0, args.mu1, args.q01, args.q10)
+    if args.sse_model == "musse":
+        if args.birth is None or args.death is None or args.q_matrix is None:
+            parser.error("--sse-model musse needs --birth and --death (k rates each) plus "
+                         "--q-matrix (a k x k transition-rate matrix file)")
+        return MuSSE(birth=args.birth, death=args.death, Q=_read_q_matrix(args.q_matrix))
+    # quasse: sigmoidal speciation in the trait + constant extinction (bounded for exact thinning)
+    spec = QuaSSE.sigmoid(args.spec_low, args.spec_high, args.spec_center, args.spec_slope)
+    bound = max(args.spec_low, args.spec_high) + args.qmu
+    return QuaSSE(spec, lambda x: args.qmu, sigma2=args.diffusion,
+                  rate_bound=bound, x0=args.root_value)
+
+
+def _sse_tip_signal(res: TraitResult) -> str:
+    """A short summary of the tip-state distribution — the diversification signal, for the log."""
+    vals = list(res.labeled_values().values())
+    if not vals:
+        return ""
+    if res.kind == "continuous":
+        return f", tip trait mean {sum(vals) / len(vals):.3g}"
+    from collections import Counter
+    counts = Counter(vals)
+    total = len(vals)
+    frac = " ".join(f"{k}:{100 * n / total:.0f}%"
+                    for k, n in sorted(counts.items(), key=lambda kv: str(kv[0])))
+    return f", tip states {frac}"
+
+
+def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """Run the ``coevolve`` umbrella. Phase 1: the ``traits:species`` edge (SSE) — a trait drives
+    speciation/extinction, so the tree is grown jointly with the trait and written out."""
+    edges = [e.strip().lower() for e in (args.couple or ["traits:species"])]
+    for e in edges:
+        if e not in _COEVOLVE_EDGES:
+            parser.error(f"unknown --couple edge {e!r}: expected 'driver:target' over "
+                         f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
+                         "docs/coevolution_models.md for the full edge set")
+    if edges != ["traits:species"]:
+        if edges == ["traits:genes"]:
+            parser.error("the traits:genes edge ships today as 'zombi2 coevolve-genetrait' — use "
+                         "that command (it will be folded in as 'coevolve --couple traits:genes')")
+        if len(edges) > 1:
+            parser.error("Phase 1 implements a single edge, traits:species; multi-edge (joint) "
+                         "scenarios are on the roadmap (see docs/coevolution_models.md)")
+        parser.error(f"--couple {edges[0]} is planned but not yet implemented; Phase 1 implements "
+                     "traits:species (SSE — a trait drives speciation/extinction). See "
+                     "docs/coevolution_models.md")
+
+    # traits:species points INTO the species process, so the tree is an OUTPUT: grow it forward
+    # with exactly one stopping condition (age or tips) — there is no input -t tree.
+    if (args.age is None) == (args.tips is None):
+        parser.error("traits:species grows the tree — give exactly one of --age or --tips")
+
+    model = _build_sse_model(args, parser)
+    t0 = time.perf_counter()
+    res = simulate_sse(model, age=args.age, n_tips=args.tips,
+                       root_state=args.root_state, seed=args.seed)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(res.tree.to_newick() + "\n")          # the tree the trait's rates shaped
+    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))              # every node: tips AND ancestral states
+    with open(os.path.join(args.out, "trait_tree.nwk"), "w") as f:
+        f.write(res.to_newick() + "\n")               # trait annotated on every node
+    n_extant = len(res.tree.extant_leaves())
+    return (f"wrote traits:species (SSE {args.sse_model}) to {args.out}/ "
+            f"({n_extant} extant tips{_sse_tip_signal(res)}) in {dt:.3g} s")
+
+
 def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -> None:
     """Emit the reduced profiles-only output: tree + copy-number/presence matrices.
 
@@ -1149,6 +1287,11 @@ def main(argv: list[str] | None = None) -> int:
         help="co-evolve a trait and gene families (trait-conditioned gene-family dynamics)")
     _add_coevolve_args(pce)
 
+    pcv = sub.add_parser(
+        "coevolve",
+        help="co-evolve coupled processes (Phase 1: --couple traits:species = SSE)")
+    _add_coevolve_mode_args(pcv)
+
     pq = sub.add_parser("sequence",
                         help="rescale a genomes run's gene trees into substitutions/site")
     _add_sequence_args(pq)
@@ -1242,6 +1385,12 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         summary = _run_coevolve(args)
         print(summary)
         _write_params_log(os.path.join(args.out, "coevolve-genetrait.log"), args, summary)
+        return 0
+
+    if args.command == "coevolve":
+        summary = _run_coevolve_mode(args, parser)
+        print(summary)
+        _write_params_log(os.path.join(args.out, "coevolve.log"), args, summary)
         return 0
 
     return 1
