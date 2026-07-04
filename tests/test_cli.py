@@ -617,6 +617,40 @@ def test_genomes_nucleotide_genes_reject_profiles_only(tmp_path):
     assert (out / "genes.tsv").exists() and (out / "atoms.tsv").exists()
 
 
+def test_genomes_nucleotide_from_gff(tmp_path):
+    """`--gff` starts genic mode from a real annotation: its length + (trimmed) gene coordinates."""
+    gff = tmp_path / "genome.gff"
+    gff.write_text("##gff-version 3\n##sequence-region c 1 600\n"
+                   "c\tx\tregion\t1\t600\t.\t+\t.\tID=c;Is_circular=true\n"
+                   "c\tx\tgene\t50\t150\t.\t+\t.\tlocus_tag=a\n"
+                   "c\tx\tgene\t140\t260\t.\t-\t.\tlocus_tag=b\n"       # overlaps a -> trimmed
+                   "c\tx\tgene\t400\t500\t.\t+\t.\tlocus_tag=d\n")
+    tree = _tree_file(tmp_path, tips=8)
+    out = tmp_path / "nt"
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--gff", str(gff),
+               "--loss", "0.003", "--dup", "0.002", "--pseudogenization", "0.3",
+               "--output", "profiles", "trees", "--seed", "5", "-o", str(out)])
+    assert rc == 0
+    genes_txt = (out / "genes.tsv").read_text()
+    for locus in ("a", "b", "d"):
+        assert locus in genes_txt
+    assert (out / "atoms.tsv").exists() and os.listdir(out / "Gene_trees")
+    assert "root_length\t600" in (out / "genomes.log").read_text()   # length came from the GFF
+
+
+def test_genomes_gff_and_genes_conflict(tmp_path, capsys):
+    """--gff and --genes both set the gene coordinates — giving both is a clean error."""
+    gff = tmp_path / "g.gff"
+    gff.write_text("##sequence-region c 1 100\nc\tx\tgene\t1\t10\t.\t+\t.\tlocus_tag=a\n")
+    genes = tmp_path / "genes.tsv"
+    genes.write_text("1 10 a\n")
+    tree = _tree_file(tmp_path, tips=6)
+    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--gff", str(gff),
+               "--genes", str(genes), "--loss", "0.002", "-o", str(tmp_path / "nt")])
+    assert rc == 1
+    assert "either --gff or --genes" in capsys.readouterr().err
+
+
 # --- abc: fit gene-family rates to an empirical profile by ABC inference --
 
 def _profile_file(tmp_path, tree, **rates):
