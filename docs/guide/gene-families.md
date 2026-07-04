@@ -13,6 +13,12 @@ over all co-existing branches, with four core events:
 Speciation is implicit: at each species-tree node a branch's genome is inherited by both
 children.
 
+<figure markdown="span">
+![A species tree with duplication, loss and transfer events on its branches](../img/species_tree_events.svg)
+<figcaption>One gene family evolving along a species tree: a duplication (□), a loss (○) and a
+transfer (curved arrow) placed on the branches where the Gillespie process fires them.</figcaption>
+</figure>
+
 ## Rate models
 
 Rates are supplied by a **rate model**. Two ship today; both are subclasses of `RateModel`.

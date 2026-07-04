@@ -17,6 +17,12 @@ complete, extant = trees["7"]
 
 The number of extant-tree leaves equals the family's total copy count across species.
 
+<figure markdown="span">
+![A reconstructed gene tree reconciled with the species tree](../img/gene_tree.svg)
+<figcaption>A reconstructed gene family: the gene tree (reconciled against the species tree)
+that the duplication, transfer and loss events imply.</figcaption>
+</figure>
+
 ## The profile matrix
 
 The key object for phylogenetic-profiling analyses — gene families × extant species:

@@ -5,6 +5,12 @@ copy numbers — all you need for phylogenetic profiles. When gene *order* matte
 operons, rearrangements) use **`OrderedGenome`**, the basic ZOMBI-1 model: a circular
 chromosome of genes, each carrying a strand orientation, with no intergenic regions.
 
+<figure markdown="span">
+![A circular chromosome of oriented genes](../img/genome_circular.svg)
+<figcaption>An ordered genome: a circular chromosome of genes, each with a strand
+orientation — the substrate for segment duplications, inversions and transpositions.</figcaption>
+</figure>
+
 ## Using it
 
 `OrderedGenome` takes an `extension` parameter (the segment-length knob), so you pass a
