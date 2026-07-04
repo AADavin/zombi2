@@ -117,6 +117,37 @@ where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `gene
 annotation, including originated genes), gene/intergene trees under `Gene_trees/` and
 `Intergene_trees/`, a `kind`/`gene_id` column in `atoms.tsv`, and `Pseudogenizations.tsv`.
 
+### Starting from a real genome (GFF)
+
+Instead of writing intervals by hand, point the model at a real annotation — e.g. a RefSeq
+bacterial chromosome — and it copies the genome's **length** and **gene coordinates** (the
+intergenes are the gaps). `read_gff` returns both; because bacterial genes sometimes overlap
+(shared start/stop codons, nested ORFs) and the genic model forbids breakpoints inside a gene,
+overlaps are removed by trimming — each gene's start is clipped to the previous gene's end, and a
+gene swallowed whole is dropped:
+
+```python
+g = z.read_gff("GCF_000005845.2_ASM584v2_genomic.gff")   # E. coli K-12 MG1655
+g.length, len(g.genes), g.n_trimmed, g.n_dropped         # 4641652, 4480, 768, 26
+
+result = z.simulate_nucleotide_genomes(
+    tree, root_length=g.length, gene_intervals=g.genes,
+    inversion=2e-6, loss=1.5e-6, extension=0.999, pseudogenization=0.3, seed=1)
+```
+
+On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`/`--root-length`):
+
+```bash
+zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+  --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
+  --output profiles trees -o out/
+```
+
+The GFF may be gzipped. For a multi-sequence file (chromosome + plasmids), the most-annotated
+sequence is used by default; `--gff-seqid ID` (or `read_gff(..., seqid=...)`) picks another. The
+genes keep their annotation names (locus tag / `Name`), so `genes.tsv` and the trees are labelled
+with real gene ids.
+
 ## The Rust fast path
 
 `output="profiles"` runs the compiled `zombi2_core` Rust engine over leaf segments only —

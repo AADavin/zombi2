@@ -34,6 +34,7 @@ from .ghosts import add_ghost_lineages
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from .nucleotide_genome import NucleotideGenome, Segment
 from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Atom
+from .gff import read_gff, GffGenome
 from .rates import (
     RateModel,
     UniformRates,
@@ -121,6 +122,7 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Atom",
+    "read_gff", "GffGenome",
     # rates & transfers
     "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
     "BranchRates", "EventWeight", "TransferModel",

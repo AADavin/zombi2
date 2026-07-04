@@ -170,11 +170,19 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="[nucleotide] geometric event-length parameter; mean event length is "
                         "1/(1-extension) nucleotides (default 0.99)")
     # --- genes & intergenes (nucleotide model) ---
+    p.add_argument("--gff", metavar="FILE", default=None,
+                   help="[nucleotide] a GFF3 annotation (optionally .gz) to start from a real "
+                        "genome: sets the chromosome length and the gene coordinates (intergenes "
+                        "are the gaps). Overlapping genes are trimmed to be disjoint. Enables "
+                        "genic mode; supersedes --genes/--root-length")
+    p.add_argument("--gff-seqid", metavar="ID", default=None,
+                   help="[nucleotide] which GFF sequence to read (default: the most-annotated "
+                        "one — the chromosome of a single-chromosome bacterium)")
     p.add_argument("--genes", metavar="FILE", default=None,
                    help="[nucleotide] BED/TSV of gene intervals on the root chromosome (columns: "
-                        "start end [name], 0-based half-open). Enables genic mode: event "
-                        "breakpoints fall only in intergene positions so genes are never split; "
-                        "genes and intergenes are recovered as separate tree sets")
+                        "start end [name], 0-based half-open) — an alternative to --gff. Enables "
+                        "genic mode: event breakpoints fall only in intergene positions so genes "
+                        "are never split; genes and intergenes are recovered as separate tree sets")
     p.add_argument("--pseudogenization", type=float, default=0.0,
                    help="[nucleotide, genic] probability a loss hitting a gene demotes it to "
                         "intergene (sequence retained, a state change) instead of deleting it "
@@ -732,7 +740,18 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                          "--output events/transfers/summary do not apply to it")
     initial_size = 1 if args.initial_size is None else args.initial_size
     args.initial_size = initial_size          # record the effective value in the params log
-    genes = _read_gene_intervals(args.genes) if args.genes else None
+    if args.gff and args.genes:
+        raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
+    gff_info = None
+    if args.gff:                              # start from a real genome: length + gene coordinates
+        from .gff import read_gff
+        gff_info = read_gff(args.gff, seqid=args.gff_seqid)
+        genes = gff_info.genes
+        args.root_length = gff_info.length    # GFF is authoritative for the chromosome length
+    elif args.genes:
+        genes = _read_gene_intervals(args.genes)
+    else:
+        genes = None
     genic = bool(genes)
     transfers = TransferModel(replacement=0.0) if genic else None  # homologous repl. is genome-side
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
@@ -777,6 +796,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         if genic:
             _write_pseudogenizations(args.out, result)
 
+    if gff_info is not None:
+        print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
+              f"-> {len(gff_info.genes)} after trimming ({gff_info.n_trimmed} trimmed, "
+              f"{gff_info.n_dropped} dropped as overlapping)")
     extra = f", {len(result.gene_atoms())} genes" if genic else ""
     return (f"wrote [{' '.join(sorted(want))}] (nucleotide{'/genic' if genic else ''}) to "
             f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.atoms)} atoms{extra}) "

@@ -297,6 +297,7 @@ with numeric values, as `zombi2 trait` writes). See
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
 | `--root-length` `--extension` | [nucleotide] root chromosome length (nt) / geometric event-length parameter (mean `1/(1-extension)`) |
+| `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies the chromosome length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. `--gff-seqid ID` picks a sequence in a multi-record file |
 | `--genes FILE` | [nucleotide] BED/TSV of gene intervals (`start end [name]`) on the root chromosome — enables *genic mode* (genes are never split; genes & intergenes recovered as separate tree sets) |
 | `--pseudogenization` `--replacement` | [nucleotide, genic] probability a loss demotes a gene to intergene (sequence retained) / a transfer is a homologous replacement |
 | `--output {profiles,trace,trees,events,transfers,summary,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the counts-only fast path; `trace` (± `profiles`) → the compact `Events_trace.tsv` fast path — see below |
@@ -454,6 +455,20 @@ adds `genes.tsv` (the annotation), `Gene_trees/` and `Intergene_trees/` (the two
 zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
     --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
     --inversion 0.001 --loss 0.0008 --output profiles trees -o out/
+```
+
+**Starting from a real genome.** `--gff FILE` copies a real annotation's chromosome length and
+gene coordinates (the intergenes are the gaps), so a simulation can start from an actual bacterium.
+Overlapping genes — common in bacteria — are trimmed to be disjoint (each gene's start clipped to
+the previous gene's end; a swallowed gene dropped), and the count is reported. The file may be
+gzipped; for a chromosome-plus-plasmids file the most-annotated sequence is used unless
+`--gff-seqid ID` selects another. Genes keep their annotation names (locus tag / `Name`).
+
+```bash
+# evolve the E. coli K-12 chromosome (from its RefSeq GFF) along a tree
+zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+    --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
+    --output profiles trees -o out/
 ```
 
 ## Scope
