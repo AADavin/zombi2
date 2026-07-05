@@ -41,10 +41,6 @@ the output format — while rebuilding the internals around clean interfaces.
 - **Ghost lineages.** `z.add_ghost_lineages` un-prunes the reconstructed tree, grafting back
   the extinct/unsampled lineages the backward process leaves out. See
   [ghost lineages](guide/ghost-lineages.md).
-- **Inference, not just simulation.** `z.match_profiles` / `z.match_profiles_smc` run the
-  model the other way round: given an empirical gene-family profile, they infer the
-  duplication/transfer/loss/origination rates that reproduce it, by Approximate Bayesian
-  Computation. See [matching empirical profiles](guide/matching.md).
 - **Scale.** The built-in model runs on a native **Rust** engine, making large trees
   (thousands to tens of thousands of tips) practical; `z.run_replicates` parallelises
   independent replicates across cores. See [the Rust engine](guide/rust-engine.md)

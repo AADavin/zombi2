@@ -14,6 +14,7 @@ import sys
 import numpy as np
 
 import zombi2 as z
+from zombi2 import matching  # ABC inference is withheld from the public v1 API
 
 TRUTH = dict(duplication=0.30, transfer=0.10, loss=0.50, origination=1.50)
 PRIORS = {"duplication": (0, 1.0), "transfer": (0, 0.5), "loss": (0, 1.2), "origination": (0, 3.0)}
@@ -29,7 +30,7 @@ def calibrate(n_tips):
     for r in range(N_REP):
         emp = z.simulate_genomes(tree, initial_families=15, seed=100 + r, output="profiles", **TRUTH)
         n_fam.append(emp.matrix.shape[0])
-        fit = z.match_profiles(tree, emp, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
+        fit = matching.match_profiles(tree, emp, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
         s = fit.summary()
         for p in TRUTH:
             rows[p]["err"].append(s[p]["median"] - TRUTH[p])

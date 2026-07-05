@@ -14,7 +14,6 @@ from . import __version__
 
 from .biogeography import DEC, simulate_biogeography
 from .ghosts import add_ghost_lineages
-from .matching import match_profiles, match_profiles_smc
 from .nucleotide_sim import simulate_nucleotide_genomes
 from .profiles import ProfileMatrix
 from .distributions import LogNormal
@@ -41,8 +40,8 @@ from .transfers import TransferModel
 from .tree import Tree, read_newick
 
 _DESCRIPTION = """\
-Simulate each level on its own, or couple them into joint models; or run the inverse and
-fit rates to data. Run 'zombi2 <command> -h' for a command's options, grouped by model.
+Simulate each level on its own, or couple them into joint models. Run
+'zombi2 <command> -h' for a command's options, grouped by model.
 
 Species trees
   species              simulate a dated species tree
@@ -54,10 +53,10 @@ Gene families & sequences
 Traits & coevolution
   trait                evolve a phenotypic trait along a given species tree
   coevolve             co-evolve coupled processes (--couple driver:target)
-
-Inference
-  abc                  fit gene-family rates to an empirical profile (ABC)
 """
+# NOTE: the ABC inference command ('abc') is present in-tree but withheld from v1's public
+# surface — the module is not yet documented/stabilised. See _run_abc/_add_abc_args below and
+# zombi2/matching.py; re-register it in _build_parser to bring it back.
 
 
 # ── house style: an IQ-TREE-like grouped, sectioned help ────────────────────────────
@@ -1802,7 +1801,13 @@ def _write_abc_outputs(out: str, fit, adjusted: bool = False) -> None:
 
 
 def _run_abc(args: argparse.Namespace) -> str:
-    """Fit gene-family rates to an empirical profile by ABC and write the posterior."""
+    """Fit gene-family rates to an empirical profile by ABC and write the posterior.
+
+    Retained in-tree but not wired to a subcommand in v1 (ABC is not yet stabilised/documented);
+    re-register 'abc' in _build_parser to expose it. The implementation import is local so the
+    module stays importable without the ABC surface on the public path.
+    """
+    from .matching import match_profiles, match_profiles_smc
     with open(args.tree) as f:
         tree = read_newick(f.read())
     empirical = ProfileMatrix.from_tsv(args.profiles)
@@ -2048,11 +2053,8 @@ def main(argv: list[str] | None = None) -> int:
         "Evolve a phenotypic trait along a species tree, writing tip and ancestral values.",
         "zombi2 trait -t FILE -o DIR [--model MODEL] [options]", _add_trait_args)
 
-    _add_subcommand(
-        sub, "abc", "fit gene-family rates to an empirical profile by ABC",
-        "Fit gene-family rates to an empirical copy-number profile by Approximate Bayesian "
-        "Computation (the inverse of 'genomes').",
-        "zombi2 abc -t FILE --profiles TSV -o DIR [--dup LOW HIGH ...] [options]", _add_abc_args)
+    # 'abc' (ABC inference) is intentionally not registered for v1 — see the note by _DESCRIPTION.
+    # To re-enable: _add_subcommand(sub, "abc", ..., _add_abc_args) and restore its dispatch below.
 
     _add_subcommand(
         sub, "coevolve", "co-evolve coupled processes (--couple driver:target)",
@@ -2142,12 +2144,6 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         summary = _run_trait(args)
         print(summary)
         _write_params_log(os.path.join(args.out, "trait.log"), args, summary)
-        return 0
-
-    if args.command == "abc":
-        summary = _run_abc(args)
-        print(summary)
-        _write_params_log(os.path.join(args.out, "abc.log"), args, summary)
         return 0
 
     if args.command == "sequence":

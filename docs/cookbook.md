@@ -300,7 +300,7 @@ summaries = z.run_replicates(
 
 The built-in model already runs on Rust automatically. When you only need the
 copy-number/presence matrix — not the event log or gene trees — pass `output="profiles"` to
-skip the genealogy entirely (much faster; the right path for large datasets and ABC):
+skip the genealogy entirely (much faster; the right path for large datasets):
 
 ```python
 pm = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
@@ -312,30 +312,6 @@ pm.matrix.shape                                # (n_families, n_extant_species)
 
 The default `output="genomes"` returns the full `Genomes`. Both require the compiled
 `zombi2_core` extension for the built-in model — see [the Rust engine](guide/rust-engine.md).
-
-## Fitting rates to an empirical profile (ABC)
-
-Run the model backwards: given an observed copy-number profile and the tree it was seen on,
-infer the D/T/L/O rates that reproduce it, by Approximate Bayesian Computation. Priors are
-given per rate as `(low, high)` (uniform), a fixed float, or any distribution; omitted rates
-are held at 0.
-
-```python
-empirical = z.ProfileMatrix.from_tsv("profiles.tsv")   # or any ProfileMatrix
-
-fit = z.match_profiles(tree, empirical, priors={
-    "duplication": (0, 1.0), "transfer": (0, 0.5),
-    "loss": (0, 1.5), "origination": (0, 3.0)}, n_sims=4000, accept=0.02, seed=1)
-
-fit.summary()       # {rate: {mean, median, lo95, hi95}} — read the intervals, not just a point
-fit.best            # the single closest-matching draw
-```
-
-For a sharper posterior with fewer simulations, use sequential Monte Carlo (uniform priors
-only): `z.match_profiles_smc(tree, empirical, priors=..., rounds=5, n_particles=200)`. Note
-that from copy number alone the gain rates (duplication/transfer/origination) are well
-identified but **loss sits on a ridge** — expect a wide loss interval. See
-[matching empirical profiles](guide/matching.md).
 
 ## From the command line
 

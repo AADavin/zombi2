@@ -15,6 +15,7 @@ import sys
 import numpy as np
 
 import zombi2 as z
+from zombi2 import matching  # ABC inference is withheld from the public v1 API
 
 TRUTH = dict(duplication=0.30, transfer=0.10, loss=0.50, origination=1.50)
 PRIORS = {"duplication": (0, 1.0), "transfer": (0, 0.5),
@@ -43,7 +44,7 @@ def main():
               f"{nwk[:70]}{'...' if len(nwk) > 70 else ''}")
 
     # (3) recover the rates from the profile alone
-    fit = z.match_profiles(tree, profile, priors=PRIORS, n_sims=4000, accept=0.02,
+    fit = matching.match_profiles(tree, profile, priors=PRIORS, n_sims=4000, accept=0.02,
                            initial_families=INITIAL_SIZE, seed=1)
     print("\nrecovered posterior (median [95% CI])  vs  truth:")
     s = fit.summary()
@@ -64,7 +65,7 @@ def main():
     for r in range(n_rep):
         emp_r = z.simulate_genomes(tree, **TRUTH, initial_families=INITIAL_SIZE, seed=100 + r,
                                    output="profiles")
-        fit_r = z.match_profiles(tree, emp_r, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
+        fit_r = matching.match_profiles(tree, emp_r, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
         sr = fit_r.summary()
         for p in TRUTH:
             medians[p].append(sr[p]["median"])

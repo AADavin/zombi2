@@ -1,4 +1,4 @@
-"""Rejection-ABC profile matching (:func:`zombi2.match_profiles`).
+"""Rejection-ABC profile matching (:func:`zombi2.matching.match_profiles`).
 
 The uniform (built-in) model that the plumbing and recovery tests exercise runs on the Rust
 engine, so the whole module is skipped when ``zombi2_core`` isn't built. ``match_profiles``
@@ -10,6 +10,9 @@ import numpy as np
 import pytest
 
 import zombi2 as z
+# ABC profile-matching inference is withheld from the top-level zombi2 namespace in v1 (it is not
+# part of the public surface); the implementation lives on and is exercised here via zombi2.matching.
+from zombi2 import matching as zm
 
 pytestmark = pytest.mark.skipif(not z.rust_available(),
                                 reason="zombi2_core (Rust extension) not built")
@@ -26,30 +29,30 @@ def _pm(matrix, species, families=None):
 def test_frequency_spectrum():
     pm = _pm([[1, 0, 0], [2, 1, 0], [1, 1, 3]], ["A", "B", "C"])
     # families present in 1, 2, 3 species respectively -> one each
-    assert np.array_equal(z.frequency_spectrum(pm, 3), [1, 1, 1])
+    assert np.array_equal(zm.frequency_spectrum(pm, 3), [1, 1, 1])
 
 
 def test_frequency_spectrum_empty():
     pm = _pm(np.zeros((0, 4), dtype=int), ["A", "B", "C", "D"], families=[])
-    assert np.array_equal(z.frequency_spectrum(pm, 4), [0, 0, 0, 0])
+    assert np.array_equal(zm.frequency_spectrum(pm, 4), [0, 0, 0, 0])
 
 
 def test_genome_sizes_align_and_missing():
     pm = _pm([[1, 0, 0], [2, 1, 0], [1, 1, 3]], ["A", "B", "C"])
     # column sums are A=4, B=2, C=3; requested order reshuffles and adds an absent species
-    assert np.array_equal(z.genome_sizes(pm, ["C", "A", "B"]), [3, 4, 2])
-    assert np.array_equal(z.genome_sizes(pm, ["A", "D"]), [4, 0])
+    assert np.array_equal(zm.genome_sizes(pm, ["C", "A", "B"]), [3, 4, 2])
+    assert np.array_equal(zm.genome_sizes(pm, ["A", "D"]), [4, 0])
 
 
 def test_copy_number_spectrum_lumps_tail():
     pm = _pm([[1, 0, 0], [2, 1, 0], [1, 1, 5]], ["A", "B", "C"])
     # present values: 1,2,1,1,1,5 -> copy 1:four, 2:one, 3:none, >=4:one
-    assert np.array_equal(z.copy_number_spectrum(pm, max_copies=4), [4, 1, 0, 1])
+    assert np.array_equal(zm.copy_number_spectrum(pm, max_copies=4), [4, 1, 0, 1])
 
 
 def test_default_summary_length():
     pm = _pm([[1, 0, 0], [2, 1, 0]], ["A", "B", "C"])
-    summarize = z.default_summary(["A", "B", "C"])
+    summarize = zm.default_summary(["A", "B", "C"])
     # frequency spectrum (S) + genome sizes (S) + copy spectrum (4)
     assert summarize(pm).shape == (3 + 3 + 4,)
 
@@ -83,21 +86,21 @@ def _cheap_fit(**kw):
                   priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
                   n_sims=15, accept=0.2, initial_families=10, seed=1)
     params.update(kw)
-    return z.match_profiles(**params)
+    return zm.match_profiles(**params)
 
 
 def test_unknown_parameter_rejected():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors={"speciation": (0, 1)}, n_sims=4)
+        zm.match_profiles(tree, emp, priors={"speciation": (0, 1)}, n_sims=4)
 
 
 def test_empty_priors_rejected():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors={}, n_sims=4)
+        zm.match_profiles(tree, emp, priors={}, n_sims=4)
 
 
 def test_fixed_float_prior_is_constant():
@@ -112,7 +115,7 @@ def test_bad_accept():
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
     priors = {"duplication": (0, 0.3), "origination": (0, 1.5)}
     with pytest.raises(ValueError):
-        z.match_profiles(tree, emp, priors=priors, accept=1.5, n_sims=4)
+        zm.match_profiles(tree, emp, priors=priors, accept=1.5, n_sims=4)
 
 
 # --- ABCFit plumbing -------------------------------------------------------------
@@ -159,7 +162,7 @@ def test_recover_injected_rates_43_leaves():
 
     priors = {"duplication": (0, 1), "transfer": (0, 0.5),
               "loss": (0, 1.5), "origination": (0, 3)}
-    fit = z.match_profiles(tree, emp, priors=priors, n_sims=800, accept=0.05,
+    fit = zm.match_profiles(tree, emp, priors=priors, n_sims=800, accept=0.05,
                            initial_families=20, seed=7)
 
     s = fit.summary()
@@ -196,8 +199,8 @@ def test_parallel_matches_serial():
                              initial_families=10, seed=3).profiles
     kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
               n_sims=40, accept=0.2, initial_families=10, seed=1)
-    serial = z.match_profiles(tree, emp, **kw)
-    parallel = z.match_profiles(tree, emp, processes=2, **kw)
+    serial = zm.match_profiles(tree, emp, **kw)
+    parallel = zm.match_profiles(tree, emp, processes=2, **kw)
     assert np.array_equal(serial.samples, parallel.samples)
     assert np.allclose(serial.distances, parallel.distances)
     assert np.array_equal(serial.accepted, parallel.accepted)
@@ -211,7 +214,7 @@ def test_custom_model_allows_arbitrary_param_names():
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
                              initial_families=10, seed=3).profiles
     model = lambda p: z.SharedRates(duplication=p["d"], loss=p["l"], origination=p["o"])
-    fit = z.match_profiles(tree, emp, priors={"d": (0, 0.3), "l": (0, 0.4), "o": (0, 1.5)},
+    fit = zm.match_profiles(tree, emp, priors={"d": (0, 0.3), "l": (0, 0.4), "o": (0, 1.5)},
                            model=model, n_sims=20, accept=0.2, initial_families=10, seed=1)
     assert set(fit.posterior) == {"d", "l", "o"}
 
@@ -225,10 +228,10 @@ def test_family_model_recovers_heterogeneous_rates():
 
     priors = {"duplication": (0, 0.6), "transfer": (0, 0.3),
               "loss": (0, 1.2), "origination": (0, 3)}
-    fit = z.match_profiles(tree, emp, priors=priors, model="family", family_shape=2.0,
+    fit = zm.match_profiles(tree, emp, priors=priors, model="family", family_shape=2.0,
                            n_sims=150, accept=0.15, initial_families=15, max_family_size=20,
                            seed=7, processes=2)
-    assert set(fit.posterior) == set(z.matching.RATE_PARAMS)
+    assert set(fit.posterior) == set(zm.RATE_PARAMS)
     s = fit.summary()
     # the identifiable means (duplication from copy number, origination from family count)
     assert s["duplication"]["lo95"] <= 0.30 <= s["duplication"]["hi95"]
@@ -247,7 +250,7 @@ def test_spectra_data_shapes_and_custom_guard():
     # a custom summary has no known spectrum slice -> the diagnostic refuses
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, origination=0.5, seed=1).profiles
-    fit2 = z.match_profiles(tree, emp, priors={"origination": (0, 1)},
+    fit2 = zm.match_profiles(tree, emp, priors={"origination": (0, 1)},
                             statistics=lambda pm: np.array([float(pm.matrix.sum())]),
                             n_sims=10, accept=0.3, seed=1)
     with pytest.raises(ValueError):
@@ -264,7 +267,7 @@ def _small_genomes(seed=3):
 def test_event_count_summary_matches_log():
     from collections import Counter
     _, g = _small_genomes()
-    ev = z.event_count_summary(g)
+    ev = zm.event_count_summary(g)
     c = Counter(r.event for r in g.event_log)
     assert ev.shape == (3,)
     assert ev[0] == c[z.EventType.DUPLICATION]
@@ -276,11 +279,11 @@ def test_gene_tree_summary_layout_and_weights():
     tree, g = _small_genomes()
     species = [n.name for n in tree.extant_leaves()]
     s = len(species)
-    summ = z.default_gene_tree_summary(species)
+    summ = zm.default_gene_tree_summary(species)
     vec = summ(g)
     assert vec.shape == (2 * s + 4 + 3,)
     # the frequency spectrum still leads the vector (so the spectrum diagnostic keeps working)
-    assert np.array_equal(vec[:s], z.frequency_spectrum(g.profiles, s))
+    assert np.array_equal(vec[:s], zm.frequency_spectrum(g.profiles, s))
     # weights: 1 for the profile block, one equal value > 1 for the three event counts
     w = summ.feature_weights
     assert (w[:2 * s + 4] == 1).all()
@@ -289,7 +292,7 @@ def test_gene_tree_summary_layout_and_weights():
 
 def test_gene_trees_path_runs_with_diagnostics():
     tree, g = _small_genomes()
-    fit = z.match_profiles(tree, g, priors={"duplication": (0, 0.4), "loss": (0, 0.5),
+    fit = zm.match_profiles(tree, g, priors={"duplication": (0, 0.4), "loss": (0, 0.5),
                                             "origination": (0, 1.5)},
                            gene_trees=True, n_sims=40, accept=0.25, initial_families=10, seed=1)
     assert set(fit.posterior) == {"duplication", "loss", "origination"}
@@ -300,7 +303,7 @@ def test_gene_trees_requires_genomes():
     tree, g = _small_genomes()
     pm = g.profiles
     with pytest.raises(TypeError):        # a bare profile lacks gene trees
-        z.match_profiles(tree, pm, priors={"origination": (0, 1)}, gene_trees=True, n_sims=4)
+        zm.match_profiles(tree, pm, priors={"origination": (0, 1)}, gene_trees=True, n_sims=4)
 
 
 def test_feature_weights_change_acceptance():
@@ -309,11 +312,11 @@ def test_feature_weights_change_acceptance():
                              initial_families=10, seed=3).profiles
     kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
               n_sims=60, accept=0.25, initial_families=10, seed=1)
-    base = z.match_profiles(tree, emp, **kw)
+    base = zm.match_profiles(tree, emp, **kw)
     s = len(emp.species)
     w = np.ones(2 * s + 4)
     w[:s] = 5.0                            # up-weight the frequency spectrum
-    weighted = z.match_profiles(tree, emp, feature_weights=w, **kw)
+    weighted = zm.match_profiles(tree, emp, feature_weights=w, **kw)
     # same draws, different distance -> generally a different accepted set
     assert not np.array_equal(base.accepted, weighted.accepted)
 
@@ -322,7 +325,7 @@ def _adjust_fit():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.12, loss=0.18, origination=0.7,
                              initial_families=10, seed=3).profiles
-    return z.match_profiles(tree, emp,
+    return zm.match_profiles(tree, emp,
                             priors={"duplication": (0, 0.4), "loss": (0, 0.5), "origination": (0, 2)},
                             n_sims=120, accept=0.25, initial_families=10, seed=1)
 
@@ -349,7 +352,7 @@ def test_adjusted_summary_is_ordered():
 def test_weighted_quantile_matches_numpy_when_uniform():
     v = np.array([3.0, 1.0, 2.0, 5.0, 4.0])
     w = np.ones_like(v)
-    assert z.matching._wquantile(v, w, 0.5) == pytest.approx(np.median(v))
+    assert zm._wquantile(v, w, 0.5) == pytest.approx(np.median(v))
 
 
 def test_plot_spectra_returns_axes():
@@ -375,7 +378,7 @@ def _smc_setup():
 
 def test_smc_runs_and_is_weighted():
     tree, emp = _smc_setup()
-    fit = z.match_profiles_smc(
+    fit = zm.match_profiles_smc(
         tree, emp, priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
         rounds=2, n_particles=25, initial_families=10, seed=1, max_attempts_factor=40)
     assert fit.sample_weights is not None
@@ -389,7 +392,7 @@ def test_smc_runs_and_is_weighted():
 def test_smc_requires_uniform_priors():
     tree, emp = _smc_setup()
     with pytest.raises(ValueError):
-        z.match_profiles_smc(tree, emp, priors={"duplication": z.Gamma(2, 0.1)},
+        zm.match_profiles_smc(tree, emp, priors={"duplication": z.Gamma(2, 0.1)},
                              rounds=2, n_particles=10, seed=1)
 
 
@@ -397,7 +400,7 @@ def test_smc_reproducible():
     tree, emp = _smc_setup()
     kw = dict(priors={"duplication": (0, 0.3), "origination": (0, 1.5)}, rounds=2,
               n_particles=20, initial_families=10, seed=1, max_attempts_factor=40)
-    a = z.match_profiles_smc(tree, emp, **kw)
-    b = z.match_profiles_smc(tree, emp, **kw)
+    a = zm.match_profiles_smc(tree, emp, **kw)
+    b = zm.match_profiles_smc(tree, emp, **kw)
     assert np.array_equal(a.samples, b.samples)
     assert np.allclose(a.sample_weights, b.sample_weights)
