@@ -195,7 +195,7 @@ hmm = HiddenStateMk(observed_rates=[slow, fast], hidden_rate=0.5,
                       observed_states=[0, 1], hidden_states=["slow", "fast"])
 res = simulate_traits(tree, hmm, seed=1)
 res.labeled_values()                   # observed 0/1 (hidden class collapsed)
-res.full_label(res.node_values[tree.extant_leaves()[0]])   # (observed, hidden), e.g. (1, 'fast')
+res.full_label(res.node_values[tree.extant_leaves()[0]])   # (observed, hidden)
 ```
 
 ### The threshold model
