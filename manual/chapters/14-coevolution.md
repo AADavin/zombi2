@@ -56,6 +56,12 @@ frozen tree. If an edge does point into S (`traits:species` or `genes:species`),
 depends on the coupled state and cannot be drawn first: the tree becomes an **output**, and those runs
 are forward-only and take no `-t`.
 
+Note the asymmetry: an arrow pointing *out* of S (`species:traits`, `species:genes`) does **not**
+trigger joint simulation. S drives the target but listens to nothing, so S can be drawn (or supplied
+via `-t`) first and the target overlaid on it — the tree stays an input. It is only an arrow *into* S
+that puts S downstream of its driver, breaks the pipeline factorisation, and forces the tree to be
+grown jointly as an output. So "touches S" is not the trigger; "points into S" is.
+
 The rest of the chapter takes the three node-pairs in turn — species and traits, species and genes,
 traits and genes — documenting both directions of each, and the combined model where both arrows are
 on. The overlay edges all run on a species tree you provide; the examples build one with
@@ -82,6 +88,8 @@ res = simulate_sse(BiSSE(lambda0=1, lambda1=3, mu0=0.2, mu1=0.2, q01=0.1, q10=0.
 res.tree               # the complete tree (extinct lineages kept; prune() for the reconstructed one)
 res.labeled_values()   # the trait at the extant tips
 ```
+
+![State-dependent diversification (BiSSE). **A**, the model: two states, the anagenetic transitions (arrow width = rate), and each state's speciation rate drawn as a fork (width = $\lambda$) — state 1 branches three times faster. **B**, one `simulate_sse` realization: branches are heavy where the lineage is in state 1 and light in state 0, lineages that go extinct end in a cross, and the extant tips carry chips. The fast (state-1) lineages proliferate and fill most of the standing tips — the diversification signal, written into the shape of the tree itself.](figures/sse.pdf){width=100%}
 
 `BiSSE` is the **binary** state-dependent birth–death process [@maddison2007bisse]; `MuSSE` the
 **k-state** variant [@fitzjohn2012diversitree]; `QuaSSE` the **continuous-trait** variant, whose
@@ -114,6 +122,8 @@ and a `--q-matrix` file; `--sse-model quasse` takes a sigmoidal speciation (`--s
 and Brownian `--diffusion`. **What it recovers:** the fast-speciating state accumulates lineages, so
 it dominates the standing tips — the diversification signal is written into the tree shape itself.
 
+![The continuous variant, QuaSSE. **A**, the model: the speciation rate is a rising function $\lambda(x)$ of the trait while extinction is flat, and the trait itself diffuses by Brownian motion (the axis is tinted with the viridis ramp used to paint the tree). **B**, one realization, each branch painted by its trait value: the high-value (yellow) lineages branch faster and proliferate, while the low-value (blue) lineages stay sparse and go extinct — the same "fast state fills the tips" signal as BiSSE, now on a continuous character.](figures/sse_quasse.pdf){width=100%}
+
 ### `species:traits` — cladogenetic trait jumps
 
 The reverse arrow makes the trait jump *at* each speciation rather than (or in addition to) drifting
@@ -140,6 +150,8 @@ zombi2 coevolve --couple species:traits -t species_tree.nwk \
 
 **What it recovers:** change concentrated at the nodes — closely related tips can differ sharply while
 long unbranched stretches stay constant, the signature a purely-gradual model cannot produce.
+
+![Where trait change happens: anagenetic (as in BiSSE) vs cladogenetic (the ClaSSE addition), drawn on **one shared tree** so that only the *location* of change differs. **A**, anagenetic — the trait changes *along* the branches (open circles); at a speciation the daughters inherit the parent, so the amount of change scales with elapsed time and sister tips are usually alike. **B**, cladogenetic — the trait changes *at* the splits (filled diamonds), each daughter drawn as part of the speciation event; change scales with the number of speciations, so sister tips can differ sharply while long unbranched lineages stay constant. Same Gillespie, same tree — only the consequence of a speciation event differs.](figures/sse_cladogenetic.pdf){width=100%}
 
 ### Both arrows: ClaSSE
 
@@ -201,6 +213,8 @@ dynamics. **What it recovers:** a successful key innovation both spreads across 
 (high `tip_prevalence`) and leaves the clades that carry it more speciose — a genomic cause of a
 diversification rate shift, rather than a trait one.
 
+![Key-innovation diversification. **A**, the model: a lineage carrying the driver (D+) speciates faster than one without it (D−, the fork width is the speciation rate); the driver is gained by origination and by frequency-dependent transfer, and lost. **B**, one realization: the driver *originates* on a single branch (the +), and from there the carrier (heavy) clade radiates into a speciose group while the non-carrier (light) lineages stay sparse. Here it reaches 69% of the extant tips — a genomic cause of a diversification-rate shift.](figures/key_innovation.pdf){width=100%}
+
 ### `species:genes` — punctuational genome
 
 The reverse of `genes:species`, and the genomic twin of `species:traits`: here gene content does *not*
@@ -229,6 +243,8 @@ mean number of families gained (Poisson); `--gene-loss`/`--gene-origination` add
 change (both `0` = pure punctuation). It writes `Profiles.tsv`/`Presence.tsv` and `genome_sizes.tsv`.
 **What it recovers:** the model's signature is that **sister tips differ** — change is injected at
 their split, not spread evenly along the branches.
+
+![The genomic twin of the cladogenetic-trait figure: a genome evolved down **one shared tree** two ways. **A**, gradual — families are lost and gained *along* the branches (circles at the branch midpoints), so gene-content turnover scales with time and sister genomes stay similar. **B**, punctuational — gene content changes only in a *burst at each speciation* (diamonds at the nodes), so sister tips can differ sharply in size and content. The tip bars are the extant genome sizes. Same marker grammar as the trait figure: change on a branch vs change at a node.](figures/punctuational_genome.pdf){width=100%}
 
 ## Traits and genes
 
@@ -277,6 +293,8 @@ downstream inference). **What it recovers:** responsive families are present whe
 them and absent where it does not, while inert families do not distinguish the states — the signal is
 entirely in the responsive panel, which is what an inference method should be able to pick out.
 
+![Trait-linked gene families. **A**, the mechanism: a responsive family's loss rate falls with the trait ($\text{loss} = \text{base\_loss}\cdot e^{-\text{effect\_loss}\,w\,s}$), while an inert family loses at the flat baseline. **B**, one realization — the tree painted by the trait (viridis), a per-tip trait chip, then the gene-presence matrix. The responsive block is filled in the high-trait (yellow) tips and empty in the low-trait (blue) ones, tracking the trait almost perfectly; the inert block carries no such pattern. The signal lives entirely in the responsive families — the null is built in.](figures/trait_linked_genes.pdf){width=100%}
+
 ### `genes:traits` — gene-conditioned trait
 
 The reverse: here gene content conditions a **trait**. A binary *modifier* gene is gained and lost
@@ -306,6 +324,8 @@ mean-reversion strength (`0` = Brownian) and `--trait-sigma2` the diffusion. **W
 carrying the modifier sit near `theta_present`, those without near `theta_absent` — a discrete genomic
 event reading out as a shift in a continuous phenotype.
 
+![Gene-conditioned trait. **A**, the mechanism: one lineage's trait sits near `theta_absent` while the modifier is absent (light), then the gene is gained (the +) and the trait climbs to the new OU optimum `theta_present` (heavy). **B**, one realization — the tree drawn heavy where the modifier is present, light where absent, and each tip's trait value as a dot on a shared axis. Carriers (filled) sit at `theta_present`, non-carriers (open) at `theta_absent`: a discrete genomic event reading out as a shift in a continuous phenotype.](figures/gene_conditioned_trait.pdf){width=100%}
+
 ## A note on inference
 
 ::: warning
@@ -317,3 +337,5 @@ coupling simply absent) as a control. Every edge in this chapter offers one: the
 model for `traits:species`, and the inert families that `traits:genes` leaves untouched. Generate the
 null alongside the signal and check that a method can tell them apart.
 :::
+
+![The `traits:species` null in action — HiSSE. **A**, the model: diversification is set by an *unobserved* class (a slow regime and a fast one; the fork width is the speciation rate), and it is the *same* in both observed columns, so the observed trait is neutral for diversification. **B**, one realization: branches heavy in the fast hidden class, light in the slow one. The bushy, speciose clades are the fast-hidden ones — but the observed tip states (the `obs` chips) are scattered across them and cannot explain the diversity. A raw BiSSE fit would wrongly read this as a trait effect; generating it is how you check that your inference does not.](figures/sse_hisse.pdf){width=100%}
