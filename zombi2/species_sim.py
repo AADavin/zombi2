@@ -12,10 +12,37 @@ TreeSim's ``sim.bd.taxa`` on identical (birth, death, N, age).
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from .species_model import BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent
 from .tree import Tree, TreeNode
+
+
+def _check_age(age: float) -> None:
+    """Common ``age`` validation (finite + positive). NaN silently passes ``age <= 0``."""
+    if not math.isfinite(age):
+        raise ValueError(f"age must be a finite number, got {age}")
+    if age <= 0:
+        raise ValueError(f"age must be > 0, got {age}")
+
+
+def _check_n_tips(n_tips, max_lineages: int) -> None:
+    """Common ``n_tips`` validation (whole number, >= 2, within the lineage cap)."""
+    if isinstance(n_tips, float):
+        if not n_tips.is_integer():
+            raise ValueError(f"n_tips must be a whole number, got {n_tips}")
+        n_tips = int(n_tips)
+    if not isinstance(n_tips, (int, np.integer)):
+        raise ValueError(f"n_tips must be an integer, got {n_tips!r}")
+    if n_tips < 2:
+        raise ValueError(f"n_tips must be >= 2, got {n_tips}")
+    if n_tips > max_lineages:
+        raise ValueError(
+            f"n_tips ({n_tips}) exceeds max_lineages ({max_lineages}); assembling a tree this "
+            "large would be extremely slow — lower n_tips or raise max_lineages"
+        )
 
 
 def simulate_species_tree(
@@ -85,10 +112,9 @@ def simulate_species_tree(
             "constant-rate backward sampling assumes complete sampling (ρ=1); use "
             "EpisodicBirthDeath for incomplete sampling, or direction='forward'"
         )
-    if n_tips < 2:
-        raise ValueError(f"n_tips must be >= 2, got {n_tips}")
-    if age <= 0:
-        raise ValueError(f"age must be > 0, got {age}")
+    _check_n_tips(n_tips, max_lineages)
+    _check_age(age)
+    n_tips = int(n_tips)
     if age_type not in ("crown", "stem"):
         raise ValueError(f"age_type must be 'crown' or 'stem', got {age_type!r}")
 

@@ -30,7 +30,7 @@ def _run_replicate(cfg: dict) -> dict:
         cfg["species_model"], n_tips=cfg["n_tips"], age=cfg["age"],
         age_type=cfg["age_type"], rng=rng,
     )
-    kwargs = {"initial_size": cfg["initial_size"], "rng": rng}
+    kwargs = {"initial_families": cfg["initial_size"], "rng": rng}
     if cfg["transfers"] is not None:
         kwargs["transfers"] = cfg["transfers"]
     if cfg["max_family_size"] is not None:
@@ -70,7 +70,7 @@ def run_replicates(
     transfer: float = 0.0,
     loss: float = 0.0,
     origination: float = 0.0,
-    initial_size: int = 20,
+    initial_families: int = 20,
     transfers=None,
     max_family_size=None,
     genome_factory=None,
@@ -78,6 +78,9 @@ def run_replicates(
     processes: int | None = None,
 ) -> list[dict]:
     """Run ``n_replicates`` independent simulations in parallel, writing each to disk.
+
+    ``initial_families`` is the number of gene families seeded at the root of each
+    replicate (default 20).
 
     Each replicate ``i`` is written to ``outdir/replicate_<i>/`` (the full ZOMBI-1-style
     output) and gets an independent seed derived from ``seed``, so the whole batch is
@@ -106,7 +109,7 @@ def run_replicates(
             "outdir": outdir, "species_model": species_model,
             "n_tips": n_tips, "age": age, "age_type": age_type,
             "rates": rates, "duplication": duplication, "transfer": transfer,
-            "loss": loss, "origination": origination, "initial_size": initial_size,
+            "loss": loss, "origination": origination, "initial_size": initial_families,
             "transfers": transfers, "max_family_size": max_family_size,
             "genome_factory": genome_factory,
         }

@@ -116,7 +116,7 @@ def test_zombi_reconciled_gene_tree_scores_finite():
     """Every extant ZOMBI2 family reconciled onto its species tree gets a finite log-lik <= 0."""
     tree = simulate_species_tree(Yule(1.0), n_tips=6, age=2.0, seed=7)
     g = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
-                         origination=0.0, initial_size=8, seed=7)
+                         origination=0.0, initial_families=8, seed=7)
     sp = SpeciesTree.from_tree(tree)
     model = UndatedDTL(dup=0.1, transfer=0.05, loss=0.15)
     scored = 0
@@ -134,7 +134,7 @@ def test_complete_tree_is_rejected():
     """Feeding the complete tree (which carries LOSS tips) is refused with a clear error."""
     tree = simulate_species_tree(Yule(1.0), n_tips=5, age=2.0, seed=1)
     g = simulate_genomes(tree, duplication=0.1, transfer=0.0, loss=0.4,
-                         origination=0.0, initial_size=8, seed=1)
+                         origination=0.0, initial_families=8, seed=1)
     for recon in g.reconciliations().values():
         if recon.complete and "LOSS" in recon.complete:
             with pytest.raises(ValueError, match="EXTANT"):
@@ -148,7 +148,7 @@ def test_from_reconciliation_matches_extant_newick():
     """The convenience constructor uses exactly the extant tree."""
     tree = simulate_species_tree(Yule(1.0), n_tips=6, age=2.0, seed=7)
     g = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
-                         origination=0.0, initial_size=8, seed=7)
+                         origination=0.0, initial_families=8, seed=7)
     for recon in g.reconciliations().values():
         if recon.extant is not None:
             a = GeneTree.from_reconciliation(recon)
@@ -200,7 +200,7 @@ def test_undated_reldated_rust_matches_python():
         pytest.skip("zombi2_core undated kernel not built")
     tree = simulate_species_tree(Yule(2.0), n_tips=8, age=1.0, seed=3)
     g = simulate_genomes(tree, duplication=0.3, transfer=0.25, loss=0.4,
-                         origination=0.0, initial_size=25, seed=3)
+                         origination=0.0, initial_families=25, seed=3)
     sp = SpeciesTree.from_tree(tree)
     trees, n_extinct = [], 0
     for r in g.reconciliations().values():
@@ -223,7 +223,7 @@ def test_undated_joint_matches_sum_of_singles():
     """The joint function (no extinct term) equals the sum of per-tree undated_loglik values."""
     tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=4)
     g = simulate_genomes(tree, duplication=0.2, transfer=0.15, loss=0.3,
-                         origination=0.0, initial_size=15, seed=4)
+                         origination=0.0, initial_families=15, seed=4)
     sp = SpeciesTree.from_tree(tree)
     trees = [GeneTree.from_reconciliation(r) for r in g.reconciliations().values()
              if r.extant is not None]
@@ -236,7 +236,7 @@ def test_undated_joint_matches_sum_of_singles():
 def test_reldated_scores_zombi_families_finite():
     tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=5)
     g = simulate_genomes(tree, duplication=0.3, transfer=0.25, loss=0.4,
-                         origination=0.0, initial_size=20, seed=5)
+                         origination=0.0, initial_families=20, seed=5)
     sp = SpeciesTree.from_tree(tree)
     m = UndatedDTL(dup=0.3, transfer=0.25, loss=0.4)
     scored = 0
@@ -256,7 +256,7 @@ def test_score_reconciliations_matches_single_tree_reference():
     validated single-tree reference functions for every model."""
     tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=6)
     g = simulate_genomes(tree, duplication=0.25, transfer=0.2, loss=0.35,
-                         origination=0.0, initial_size=15, seed=6)
+                         origination=0.0, initial_families=15, seed=6)
     sp = SpeciesTree.from_tree(tree)
     recons = g.reconciliations()
     rows = score_reconciliations(tree, recons, 0.25, 0.2, 0.35,
@@ -283,7 +283,7 @@ def test_genomes_reconciliation_likelihoods_api():
     """Genomes.reconciliation_likelihoods returns one FamilyScore per extant family."""
     tree = simulate_species_tree(Yule(2.0), n_tips=6, age=1.0, seed=8)
     g = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.3,
-                         origination=0.0, initial_size=10, seed=8)
+                         origination=0.0, initial_families=10, seed=8)
     rows = g.reconciliation_likelihoods(0.2, 0.1, 0.3, models=("dated", "undated"), n_steps=40)
     n_extant = sum(1 for r in g.reconciliations().values() if r.extant is not None)
     assert len(rows) == n_extant >= 1
@@ -358,7 +358,7 @@ def test_dated_inject_recover_prefers_true_rates():
     true = dict(dup=0.30, transfer=0.20, loss=0.45)
     tree = simulate_species_tree(Yule(2.0), n_tips=7, age=1.0, seed=11)
     g = simulate_genomes(tree, duplication=true["dup"], transfer=true["transfer"],
-                         loss=true["loss"], origination=0.0, initial_size=30, seed=11)
+                         loss=true["loss"], origination=0.0, initial_families=30, seed=11)
     sp = SpeciesTree.from_tree(tree)
     trees, n_extinct = [], 0
     for r in g.reconciliations().values():
@@ -387,7 +387,7 @@ def test_dated_rust_matches_python():
         pytest.skip("zombi2_core extension not built")
     tree = simulate_species_tree(Yule(2.0), n_tips=8, age=1.0, seed=3)
     g = simulate_genomes(tree, duplication=0.3, transfer=0.2, loss=0.4,
-                         origination=0.0, initial_size=25, seed=3)
+                         origination=0.0, initial_families=25, seed=3)
     sp = SpeciesTree.from_tree(tree)
     trees, n_extinct = [], 0
     for r in g.reconciliations().values():
@@ -408,7 +408,7 @@ def test_dated_rust_matches_python():
 def test_dated_zombi_families_score_finite():
     tree = simulate_species_tree(Yule(1.0), n_tips=6, age=2.0, seed=7)
     g = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
-                         origination=0.0, initial_size=8, seed=7)
+                         origination=0.0, initial_families=8, seed=7)
     sp = SpeciesTree.from_tree(tree)
     model = DatedDTL(dup=0.1, transfer=0.05, loss=0.15)
     scored = 0

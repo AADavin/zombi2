@@ -22,7 +22,7 @@ def _full_run(seed):
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=3.0, seed=seed)
     genomes = simulate_genomes(
         tree, duplication=0.15, transfer=0.1, loss=0.2, origination=0.4,
-        initial_size=8, seed=seed,
+        initial_families=8, seed=seed,
     )
     return tree, genomes
 
@@ -31,7 +31,7 @@ def test_transfer_time_consistency():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=15, age=4.0, seed=5)
     genomes = simulate_genomes(
         tree, duplication=0.1, transfer=0.3, loss=0.15, origination=0.3,
-        initial_size=15, seed=5,
+        initial_families=15, seed=5,
     )
     name2node = _name_to_node(tree)
     n_transfers = 0
@@ -50,7 +50,7 @@ def test_transfer_time_consistency():
 def test_profile_shape_and_binarization():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=1)
     genomes = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
-                               origination=0.3, initial_size=10, seed=1)
+                               origination=0.3, initial_families=10, seed=1)
     P = genomes.profiles
     assert P.matrix.shape == (len(P.families), len(P.species))
     assert len(P.species) == 10
@@ -79,7 +79,7 @@ def test_rate_model_or_shorthand_not_both():
 def test_conservation_at_speciation():
     """With only seed families (no events), every extant leaf inherits them exactly."""
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.0, seed=3)
-    genomes = simulate_genomes(tree, initial_size=7, seed=3)  # no rates -> only seeds
+    genomes = simulate_genomes(tree, initial_families=7, seed=3)  # no rates -> only seeds
     seeds = [r for r in genomes.event_log
              if r.event is EventType.ORIGINATION and r.branch == "root"]
     assert len(seeds) == 7

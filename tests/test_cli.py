@@ -156,7 +156,7 @@ def test_genomes_score_likelihoods_writes_table(tmp_path):
           "--seed", "5", "-o", str(sp)])
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
-               "--dup", "0.3", "--trans", "0.2", "--loss", "0.4", "--initial-size", "12",
+               "--dup", "0.3", "--trans", "0.2", "--loss", "0.4", "--initial-families", "12",
                "--seed", "5", "--write", "trees",
                "--score-likelihoods", "--score-model", "dated", "undated", "-o", str(gen)])
     assert rc == 0
@@ -435,6 +435,67 @@ def test_sequence_missing_trace_is_clean_error(tmp_path):
     assert rc == 1
 
 
+def _alignment_letters(aln_dir):
+    """Read every FASTA in a `sequence` run's alignments/ dir; return the set of all letters seen."""
+    from zombi2.sequence_sim import read_fasta
+    files = sorted(aln_dir.glob("*.fasta"))
+    letters = set()
+    for f in files:
+        for seq in read_fasta(str(f)).values():
+            letters |= set(seq)
+    return files, letters
+
+
+def test_sequence_command_dna_alignments(tmp_path):
+    """`zombi2 sequence --subst-model hky85` writes per-family FASTA over the ACGT alphabet."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequence", "--genomes", str(run), "--subst-model", "hky85",
+               "--seq-length", "60", "--branch-speed", "0.3", "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    files, letters = _alignment_letters(out / "alignments")
+    assert files                                            # at least one family alignment
+    assert letters <= set("ACGT") and letters                # only nucleotides
+    # the substitution-unit gene trees are still written alongside
+    assert list((out / "gene_trees").glob("*_extant_subst.nwk"))
+
+
+def test_sequence_command_protein_alignments(tmp_path):
+    """`zombi2 sequence --subst-model lg` writes per-family FASTA over the 20-AA alphabet."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequence", "--genomes", str(run), "--subst-model", "lg",
+               "--seq-length", "50", "--gamma-shape", "0.5", "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    files, letters = _alignment_letters(out / "alignments")
+    assert files
+    assert letters <= set("ARNDCQEGHILKMFPSTWYV")           # amino acids
+    assert not letters <= set("ACGT")                       # genuinely protein
+    # every sequence in a family alignment is --seq-length long
+    from zombi2.sequence_sim import read_fasta
+    recs = read_fasta(str(files[0]))
+    assert recs and all(len(s) == 50 for s in recs.values())
+
+
+def test_sequence_without_model_writes_no_alignments(tmp_path):
+    """Omitting --subst-model keeps the old rescale-only behaviour (no alignments/ dir)."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequence", "--genomes", str(run), "--branch-speed", "0.3",
+               "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    assert not (out / "alignments").exists()
+    assert list((out / "gene_trees").glob("*_extant_subst.nwk"))
+
+
+def test_sequence_gamma_without_model_rejected(tmp_path):
+    """--gamma-shape without --subst-model is a clean error (nothing to apply it to)."""
+    run = _genomes_run_with_trace(tmp_path)
+    rc = main(["sequence", "--genomes", str(run), "--gamma-shape", "0.5",
+               "-o", str(tmp_path / "seq")])
+    assert rc == 1
+
+
 @needs_rust
 def test_seed_makes_genomes_reproducible(tmp_path):
     sp = tmp_path / "sp"
@@ -573,7 +634,7 @@ def test_genomes_nucleotide_model(tmp_path):
         assert (out / f).exists()
     assert os.listdir(out / "gene_trees")                    # one gene tree per atom
     assert "rate_model\tnucleotide" in (out / "genomes.log").read_text()
-    assert "initial_size\t1" in (out / "genomes.log").read_text()   # nucleotide default = 1
+    assert "initial_chromosomes\t1" in (out / "genomes.log").read_text()   # nucleotide default = 1
 
 
 def test_genomes_nucleotide_profiles_only(tmp_path):
@@ -976,7 +1037,7 @@ def test_top_level_help_lists_commands_grouped(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])
     out = capsys.readouterr().out
-    assert "a phylogenetic simulator" in out          # banner
+    assert "a simulator of species trees, genomes, traits and sequences" in out   # banner
     assert "Species trees" in out and "Inference" in out
     for cmd in ("species", "genomes", "trait", "abc", "coevolve", "sequence"):
         assert cmd in out

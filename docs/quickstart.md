@@ -11,7 +11,7 @@ tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3),
 
 # 2. gene families (forward) along that tree
 genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_size=40, seed=42)
+                             origination=0.5, initial_families=40, seed=42)
 
 # results
 print(tree.to_newick())                 # timed Newick

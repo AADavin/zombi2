@@ -83,7 +83,7 @@ actually runs it, pushed to where each task stops being cheap.
 | `vs_zombi1`        | Same task in ZOMBI2 vs legacy ZOMBI 1 (opt-in)| >1000× faster; ZOMBI 1 ceiling ~1200 tips |
 
 All benchmarks share one regime (`config.py`): `BirthDeath(λ=1.0, μ=0.3)`, tree
-age 2.0, `D=0.2 T=0.1 L=0.25 O=0.5`, `initial_size=20`. Trees are built once per
+age 2.0, `D=0.2 T=0.1 L=0.25 O=0.5`, `initial_families=20`. Trees are built once per
 size and only the timed call sits inside the timer. (`vs_zombi1` uses a matched
 pure-birth Yule tree and rate regime so the two tools do comparable work — see
 [`vs_zombi1/NOTES.md`](vs_zombi1/NOTES.md); it is opt-in and needs the ZOMBI 1
