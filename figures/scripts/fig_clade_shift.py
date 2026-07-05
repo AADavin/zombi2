@@ -25,8 +25,8 @@ from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT = Path(__file__).resolve().parent.parent / "clade_shift"
 
-W, H = 1180, 760
-XL, XR = 96, 980
+W, H = 1400, 760
+XL, XR = 96, 1300
 TREE_TOP, TREE_H = 150, 500
 DASH = "6,5"
 GREY = "#9a9a9a"
@@ -170,7 +170,7 @@ def render():
                         close=True, fill=INK))                        # a little "play" mark = speeds up
     d.append(draw.Text("rate shift", FS_ANNOT, X(T_SHIFT), y0 - 24, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
-    d.append(draw.Text("this clade now diversifies fast", FS_ANNOT, X(T_SHIFT) + 20,
+    d.append(draw.Text("fast diversification", FS_ANNOT, X(T_SHIFT) + 20,
                        (y0 + y1) / 2 + 30, font_family=FONT, text_anchor="start", fill="#555",
                        font_style="italic"))
 

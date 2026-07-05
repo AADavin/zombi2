@@ -81,37 +81,26 @@
 <path d="M580.0,190.0 L580.0,413.25" stroke="#1a1a1a" stroke-width="2.4" />
 <text x="1020" y="164" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">X</text>
 <text x="1066" y="164" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">Y</text>
-<path d="M980.0,190.0 L1000,190.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="177.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="177.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,228.0 L1000,228.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="215.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="215.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,266.0 L1000,266.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="253.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="253.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,304.0 L1000,304.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="291.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="291.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,342.0 L1000,342.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="329.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="329.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,380.0 L1000,380.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="367.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="367.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,418.0 L1000,418.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="405.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="405.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,456.0 L1000,456.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="443.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="443.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,494.0 L1000,494.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="481.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="481.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,532.0 L1000,532.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="519.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="519.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M980.0,570.0 L1000,570.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1007" y="557.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1053" y="557.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M580.0,606 L980.0,606" stroke="#1a1a1a" stroke-width="1.6" />

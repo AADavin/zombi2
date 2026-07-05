@@ -27,8 +27,8 @@ OUT_STEM = Path(__file__).resolve().parent.parent / "model_episodic" / "model_ep
 # four rate epochs (present -> past), alternating fast / slow diversification
 BIRTH = [1.5, 0.7, 1.5, 0.6]
 DEATH = [0.15, 0.35, 0.15, 0.3]
-SHIFTS = [0.75, 1.5, 2.25]
-AGE, SEED = 3.0, 16
+SHIFTS = [1.0, 2.0, 3.0]
+AGE, SEED = 4.0, 22            # a densely populated tree (~200 tips)
 BAND = "#e9e9e9"          # grey for the alternating shaded epochs
 
 
@@ -50,13 +50,15 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    # extra top headroom leaves a clean band for a centered title above the epoch labels
-    style = species_style(width=940, height=max(720, 42 * n_leaves + 240), margin=118)
+    # Wide/short landscape canvas; a fixed height keeps the ~200-tip tree from
+    # exploding vertically, so the leaves pack tight and the branches thin out.
+    style = species_style(width=1320, height=840, margin=118,
+                          branch_stroke_width=0.9)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
     ys = [l.y_coord for l in tree.get_leaves()]
-    y0, y1 = min(ys) - 22, max(ys) + 22
+    y0, y1 = min(ys) - 10, max(ys) + 10
 
     # alternating white / grey rate-epoch bands + a one-line birth/death label on each
     # ("b" = birth/speciation rate, "d" = death/extinction rate; ASCII only)
@@ -91,7 +93,7 @@ def main():
                                font_family=style.font_family, text_anchor="start",
                                dominant_baseline="central", fill=INK))
     d.drawing.append(draw.Line(lx, ly + 32, lx + 34, ly + 32, stroke=INK,
-                               stroke_width=style.branch_stroke_width,
+                               stroke_width=2.2,
                                stroke_dasharray="6,5", stroke_linecap="butt"))
     d.drawing.append(draw.Text("extinct lineage", FS_LABEL, lx + 46, ly + 32,
                                font_family=style.font_family, text_anchor="start",

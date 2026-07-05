@@ -91,7 +91,7 @@ losses (leaves labelled `LOSS_<id>`). The *extant* tree is pruned to lineages wi
 copy, with unifurcations suppressed; its leaves are labelled `<species>_<geneid>`. The number of
 leaves in an extant tree equals the family's total copy count across all species.
 
-![A reconstructed gene family: the gene tree implied by its duplication, transfer and loss events, reconciled against the species tree.](figures/gene_tree.pdf)
+![A gene family's *complete* gene tree: every copy implied by its duplication, transfer, and loss events — including a copy that was later lost (the dashed lineage ending in a cross). The *extant* tree is this tree pruned to the surviving copies.](figures/gene_tree.pdf)
 
 ## Reading the results back in Python
 

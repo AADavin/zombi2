@@ -14,7 +14,7 @@ carries — from an unordered set of families to a real nucleotide sequence.
   lengths, genes and intergenes have real coordinates, and structural events act at nucleotide
   resolution.
 
-![The three models of genome evolution, in increasing structure: an unordered set of gene families; genes on an ordered chromosome (order matters, length does not); and a real nucleotide sequence with genes and intergenes at true coordinates.](figures/genome_models.pdf)
+![The three models of genome evolution, in increasing structure: an unordered set of gene families; genes on an ordered chromosome (order matters, length does not); and a real nucleotide sequence with genes and intergenes at true coordinates.](figures/genome_models.pdf){width=100%}
 
 This chapter covers the first and simplest — gene families as an unordered set, evolving by
 duplication, transfer, loss and origination. Ordered genomes are the subject of Chapter 10, and

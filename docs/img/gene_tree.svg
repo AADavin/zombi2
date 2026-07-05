@@ -79,7 +79,7 @@
 <path d="M339.9997280001088,346.0 L339.9997280001088,352.0" stroke="black" stroke-width="1.6" />
 <text x="339.9997280001088" y="370.0" font-size="18" text-anchor="middle" font-family="Helvetica">1.00</text>
 <text x="-7.0001359999455985" y="397.0" font-size="18" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
-<text x="0" y="-408.0" font-size="32" font-weight="bold" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a">The reconciled gene tree</text>
+<text x="0" y="-408.0" font-size="32" font-weight="bold" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a">The complete gene tree</text>
 <rect x="-427.0" y="-371.0" width="18.0" height="18.0" fill="#1a1a1a" opacity="1.0" />
 <text x="-385.0" y="-362.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">Duplication</text>
 <path d="M-418.0,-332.39230484541326 L-427.0,-316.80384757729337 L-409.0,-316.80384757729337 Z" fill="#1a1a1a" opacity="1.0" />

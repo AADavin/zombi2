@@ -49,7 +49,7 @@ the same number you get by summing that family's row of the profile matrix. Pass
 `annotate_species=True` additionally labels each internal gene node `<gid>|<species-branch>`, which
 is what lets the tree be drawn against the species tree.
 
-![A reconstructed gene family: the complete gene tree, reconciled against the species tree, that its duplication, transfer and loss events imply.](figures/gene_tree.pdf)
+![A gene family's *complete* gene tree: every copy its duplication, transfer, and loss events imply — including a lineage later lost (dashed, ending in a cross). The *reconciliation* (the same tree annotated with its species mapping) is the separate `reconciliations()` output described below.](figures/gene_tree.pdf)
 
 A fully annotated reconciliation is available separately. `reconciliations()` returns
 `{family: Reconciliation(complete, extant, events)}`, where `complete` and `extant` are the two

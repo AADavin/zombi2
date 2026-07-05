@@ -92,27 +92,16 @@
 <path d="M703.5579118317664,304.0 L703.5579118317664,522.5" stroke="#1a1a1a" stroke-width="2.4" />
 <path d="M580.0,190.0 L580.0,413.25" stroke="#1a1a1a" stroke-width="2.4" />
 <text x="1044" y="164" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">obs</text>
-<path d="M990.0,190.0 L1024,190.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="177.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,228.0 L1024,228.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="215.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,266.0 L1024,266.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="253.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,304.0 L1024,304.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="291.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,342.0 L1024,342.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="329.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,380.0 L1024,380.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="367.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,418.0 L1024,418.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="405.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,456.0 L1024,456.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="443.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,494.0 L1024,494.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="481.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,532.0 L1024,532.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="519.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<path d="M990.0,570.0 L1024,570.0" stroke="#9a9a9a" stroke-width="0.8" />
 <rect x="1031" y="557.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M580.0,606 L990.0,606" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M580.0,606 L580.0,612" stroke="#1a1a1a" stroke-width="1.6" />

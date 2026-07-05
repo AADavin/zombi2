@@ -25,8 +25,8 @@ from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT = Path(__file__).resolve().parent.parent / "clads"
 
-W, H = 1180, 760
-XL, XR = 100, 980
+W, H = 1400, 760
+XL, XR = 100, 1300
 TREE_TOP, TREE_H = 176, 496
 
 LAM0, ALPHA, SIGMA, TURN = 1.0, 0.9, 0.55, 0.1

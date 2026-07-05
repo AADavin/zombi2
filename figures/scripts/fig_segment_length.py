@@ -17,7 +17,7 @@ from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT = Path(__file__).resolve().parent.parent / "segment_length"
 
-W, H = 1180, 420
+W, H = 1580, 420
 EXTS = [0.3, 0.6, 0.8]
 KMAX = 12
 YMAX = 0.72
@@ -25,7 +25,7 @@ BARGREY = "#c9c9c9"
 
 PLOT_TOP, PLOT_H = 116, 224
 BASE = PLOT_TOP + PLOT_H
-PW, GAP, LEFT = 320, 55, 96
+PW, GAP, LEFT = 440, 64, 110
 
 
 def render():
@@ -46,7 +46,7 @@ def render():
             prob = (1 - ext) * ext ** (k - 1)
             cx = x0 + (k - 0.5) / KMAX * PW
             bh = prob / YMAX * PLOT_H
-            d.append(draw.Rectangle(cx - 9, BASE - bh, 18, bh, fill=BARGREY, stroke=INK, stroke_width=1.0))
+            d.append(draw.Rectangle(cx - 12, BASE - bh, 24, bh, fill=BARGREY, stroke=INK, stroke_width=1.0))
 
         mx = x0 + (mean - 0.5) / KMAX * PW
         d.append(draw.Line(mx, PLOT_TOP - 4, mx, BASE, stroke=INK, stroke_width=1.6, stroke_dasharray="6,4"))

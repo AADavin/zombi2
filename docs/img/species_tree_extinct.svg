@@ -58,20 +58,20 @@
 <path d="M-314.0,-180.0 L-300.0,-180.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-300.0,-180.0 L-300.0,-320.0" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
 <path d="M-300.0,-180.0 L-300.0,-39.999999999999986" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="-263.3705008535185" y="-320.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">x1</text>
-<text x="116.5671538993476" y="-270.7692307692308" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">x2</text>
+<text x="-263.3705008535185" y="-320.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e1</text>
+<text x="116.5671538993476" y="-270.7692307692308" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e2</text>
 <text x="311.9999999335714" y="-221.53846153846155" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">A</text>
 <text x="311.99999993357153" y="-172.3076923076923" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">B</text>
 <text x="311.99999993357153" y="-123.07692307692307" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">C</text>
 <text x="311.99999993142853" y="-73.84615384615384" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">D</text>
 <text x="311.9999999357143" y="-24.615384615384585" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">E</text>
-<text x="60.08821225027316" y="24.61538461538464" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">x3</text>
+<text x="60.08821225027316" y="24.61538461538464" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e3</text>
 <text x="311.9999999357143" y="73.84615384615387" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">F</text>
 <text x="311.9999999357143" y="123.0769230769231" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">G</text>
 <text x="312.0" y="172.30769230769232" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">H</text>
 <text x="312.0" y="221.53846153846155" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">I</text>
 <text x="312.0" y="270.76923076923083" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">J</text>
-<text x="180.6099222830557" y="320.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">x4</text>
+<text x="180.6099222830557" y="320.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e4</text>
 <path d="M-314.0,334.0 L299.9999999142857,334.0" stroke="black" stroke-width="1.6" />
 <path d="M-300.0,334.0 L-300.0,340.0" stroke="black" stroke-width="1.6" />
 <text x="-300.0" y="358.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.00</text>

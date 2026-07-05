@@ -126,7 +126,6 @@ def panel_realization(d, ox, oy, pw, ph):
                        fill=INK, font_weight="bold"))
     for n in tree.get_leaves():
         y = y_at(ys[n.name])
-        d.append(draw.Line(x_at(tfo[n.name]), y, colc - 20, y, stroke=GREY, stroke_width=0.8))
         chip(d, colc, y, obs_tip[n.name] == "1")
 
     base = oy + ph - 14

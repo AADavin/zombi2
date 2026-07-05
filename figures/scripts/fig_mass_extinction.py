@@ -23,8 +23,8 @@ from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT = Path(__file__).resolve().parent.parent / "mass_extinction"
 
-W, H = 1180, 780
-XL, XR = 100, 1000
+W, H = 1400, 780
+XL, XR = 100, 1320
 TREE_TOP, TREE_H = 150, 372
 LTT_TOP, LTT_H = 572, 128
 DASH = "6,5"

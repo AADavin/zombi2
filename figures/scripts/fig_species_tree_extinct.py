@@ -39,8 +39,8 @@ FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_extinct" / "species_tree.nwk"
 OUT_STEM = FIG_DIR / "species_tree_extinct" / "species_tree"
 
-# ASCII-only names for the extinct tips (x1, x2, ...); survivors keep Latin letters.
-EXTINCT_NAMES = [f"x{i}" for i in range(1, 25)]
+# ASCII-only names for the extinct tips (e1, e2, ...); survivors keep Latin letters.
+EXTINCT_NAMES = [f"e{i}" for i in range(1, 25)]
 DASH = "6,5"                 # dash pattern for extinct lineages
 PRESENT = "#c9c9c9"          # faint "today" reference line
 

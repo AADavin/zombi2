@@ -30,7 +30,7 @@ OUT_STEM = Path(__file__).resolve().parent.parent / "model_ghosts" / "model_ghos
 MODEL = BirthDeath(1.0, 0.7)
 N_TIPS, AGE, RECON_SEED = 12, 2.0, 11
 GHOST_SEEDS = (11, 13)          # two realizations for panels B and C
-PW, PH = 580, 760               # per-panel size
+PW, PH = 820, 560               # per-panel size (landscape: wide, height sized to content)
 PRESENT_LINE = "#c9c9c9"
 
 
