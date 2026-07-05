@@ -357,6 +357,215 @@ class CorrelatedBinary(Mk):
         return "CorrelatedBinary(Pagel 1994)"
 
 
+class CorrelatedBinaryK(Mk):
+    r"""Correlated evolution of **k binary characters** (Pagel 1994, generalized to ``k >= 2``).
+
+    ``k`` binary traits evolve jointly over the ``2**k`` states of ``{0,1}**k``, changing
+    **exactly one trait at a time** — every transition that would flip two or more bits at once
+    has rate 0 (Pagel's single-change constraint). Each single-bit flip may depend on the states
+    of the *other* traits, and that dependence is precisely *correlated evolution*: when a trait's
+    gain/loss rate is modulated by a partner's state, the two characters become associated across
+    the tree.
+
+    This is the ``k``-trait sibling of :class:`CorrelatedBinary` (which is the ``k == 2`` case).
+    It is a plain ``2**k``-state :class:`Mk` with all multi-bit off-diagonals zeroed, so it
+    simulates with :func:`simulate_traits` like any discrete trait. Each node's value is the
+    ``k``-tuple ``(t0, t1, ..., t_{k-1})`` in ``{0,1}**k``, read from
+    :meth:`~TraitResult.labeled_values` (or ``result.label(v)``); decompose with indexing,
+    e.g. ``state[i]`` for trait ``i``.
+
+    **State encoding.** State index and tuple map big-endian: trait 0 is the most-significant
+    bit, so ``index = sum(bit_i * 2**(k-1-i))``. For ``k == 2`` this is ``2*t0 + t1``, matching
+    :class:`CorrelatedBinary` exactly (``0:(0,0) 1:(0,1) 2:(1,0) 3:(1,1)``).
+
+    **Parameterization.** The most flexible entry point is the raw constructor, which takes a
+    single callable ``rate_fn(trait, direction, others)`` returning the flip rate of ``trait``
+    (an int in ``0..k-1``) in ``direction`` (``"gain"`` for ``0 -> 1`` or ``"loss"`` for
+    ``1 -> 0``) given ``others`` — the tuple of the **other** traits' current states, in trait
+    order with ``trait`` omitted (length ``k - 1``). This supports full generality
+    (``k * 2**(k-1)`` rates per direction) but the common cases are far more compact; use the
+    convenience constructors:
+
+    * :meth:`independent` — Pagel's **null model**: every trait evolves on its own, each rate
+      ignoring the others. The resulting ``Q`` is the Kronecker sum of ``k`` independent 2-state
+      chains, so the traits are statistically independent across the tree.
+    * :meth:`equal_rates` — one shared ``gain`` and one shared ``loss`` for all traits (still
+      independent; the simplest sub-model).
+    * :meth:`partner_coupling` — a compact **dependent** model: each trait has a baseline
+      gain/loss, multiplicatively boosted/damped by a single designated *partner* trait's state.
+      This is the ergonomic middle ground between "independent" and the full rate table.
+    * :meth:`from_table` — full generality via an explicit lookup table without writing a
+      closure.
+
+    Parameters
+    ----------
+    k:
+        Number of binary traits (``>= 2``).
+    rate_fn:
+        ``rate_fn(trait, direction, others) -> float >= 0``. See above.
+    root:
+        Root policy as in :class:`Mk`, or a length-``k`` ``0/1`` tuple pinning the root config.
+    """
+
+    kind = "discrete"
+
+    def __init__(self, k, rate_fn, root="uniform"):
+        if k < 2:
+            raise ValueError(f"CorrelatedBinaryK needs k >= 2 traits, got {k}")
+        n = 1 << k
+        states = [self.index_to_tuple(i, k) for i in range(n)]
+        Q = np.zeros((n, n))
+        for i in range(n):
+            src = states[i]
+            for trait in range(k):
+                bit = src[trait]
+                # flip this one trait: 0->1 is a gain, 1->0 is a loss
+                direction = "loss" if bit else "gain"
+                others = src[:trait] + src[trait + 1:]
+                rate = float(rate_fn(trait, direction, others))
+                if rate < 0:
+                    raise ValueError(
+                        f"rate for trait {trait} {direction} given others={others} "
+                        f"must be >= 0, got {rate}"
+                    )
+                j = i ^ (1 << (k - 1 - trait))   # toggle the trait-th (big-endian) bit
+                Q[i, j] = rate
+        if isinstance(root, (tuple, list)):
+            root = self.tuple_to_index(root)
+        self.n_traits = k
+        super().__init__(Q, states=states, root=root)
+
+    # --- state <-> tuple codec (big-endian: trait 0 is the top bit) -------
+    @staticmethod
+    def index_to_tuple(index, k):
+        """Decode a state ``index`` to its length-``k`` ``0/1`` tuple (trait 0 = top bit)."""
+        return tuple((int(index) >> (k - 1 - i)) & 1 for i in range(k))
+
+    @staticmethod
+    def tuple_to_index(config):
+        """Encode a ``0/1`` config tuple to its state index (trait 0 = top bit)."""
+        k = len(config)
+        idx = 0
+        for i, bit in enumerate(config):
+            if bit not in (0, 1):
+                raise ValueError(f"trait states must be 0 or 1, got {bit}")
+            idx |= (int(bit) & 1) << (k - 1 - i)
+        return idx
+
+    # --- convenience constructors ----------------------------------------
+    @classmethod
+    def independent(cls, gains, losses, root="uniform"):
+        """Pagel's **null model**: ``k`` traits evolve independently.
+
+        ``gains`` and ``losses`` are length-``k`` sequences giving each trait's ``0 -> 1`` and
+        ``1 -> 0`` rate; every rate ignores the other traits, so ``Q`` is the Kronecker sum of the
+        ``k`` per-trait 2-state chains. (A scalar is broadcast to all ``k`` traits.)
+        """
+        g = cls._as_vector(gains)
+        l = cls._as_vector(losses)
+        k = max(len(g), len(l))
+        g = cls._broadcast(g, k, "gains")
+        l = cls._broadcast(l, k, "losses")
+
+        def rate_fn(trait, direction, others):
+            return g[trait] if direction == "gain" else l[trait]
+
+        return cls(k, rate_fn, root=root)
+
+    @classmethod
+    def equal_rates(cls, k, gain=1.0, loss=None, root="uniform"):
+        """Simplest sub-model: one shared ``gain`` and one shared ``loss`` for all ``k`` traits,
+        each independent of the others. ``loss`` defaults to ``gain`` (a symmetric ER model)."""
+        if loss is None:
+            loss = gain
+        if gain < 0 or loss < 0:
+            raise ValueError("gain and loss must be >= 0")
+        return cls.independent([gain] * k, [loss] * k, root=root)
+
+    @classmethod
+    def partner_coupling(cls, gains, losses, partners, boost_gain=None,
+                         boost_loss=None, root="uniform"):
+        r"""Compact **dependent** model: each trait's rate is modulated by one *partner* trait.
+
+        Trait ``i`` has baseline rates ``gains[i]`` / ``losses[i]``. When its partner
+        ``partners[i]`` is in state 1, trait ``i``'s gain rate is multiplied by ``boost_gain[i]``
+        and its loss rate by ``boost_loss[i]`` (when the partner is 0 the baselines apply
+        unchanged). ``partners[i] = None`` (or ``i`` itself) leaves trait ``i`` independent.
+
+        This is the ergonomic middle ground: ``O(k)`` parameters instead of the full
+        ``k * 2**(k-1)`` table, yet it induces genuine pairwise correlated evolution. A boost
+        ``> 1`` makes the trait track its partner (co-gain, co-retain); ``< 1`` makes it avoid it.
+
+        Parameters
+        ----------
+        gains, losses:
+            Length-``k`` baseline ``0->1`` / ``1->0`` rates (scalars broadcast to all traits).
+        partners:
+            Length-``k``; ``partners[i]`` is the index of trait ``i``'s partner, or ``None``.
+        boost_gain, boost_loss:
+            Length-``k`` multipliers applied to trait ``i``'s gain/loss when its partner is 1
+            (scalars broadcast; default ``1.0`` = no effect).
+        """
+        g = cls._as_vector(gains)
+        l = cls._as_vector(losses)
+        k = max(len(g), len(l), len(partners))
+        g = cls._broadcast(g, k, "gains")
+        l = cls._broadcast(l, k, "losses")
+        if len(partners) != k:
+            raise ValueError(f"partners must have length {k}, got {len(partners)}")
+        bg = cls._broadcast(cls._as_vector(1.0 if boost_gain is None else boost_gain), k, "boost_gain")
+        bl = cls._broadcast(cls._as_vector(1.0 if boost_loss is None else boost_loss), k, "boost_loss")
+        partners = list(partners)
+        for i, p in enumerate(partners):
+            if p is not None and not (0 <= int(p) < k):
+                raise ValueError(f"partners[{i}]={p} out of range [0, {k - 1}]")
+
+        def rate_fn(trait, direction, others):
+            base = g[trait] if direction == "gain" else l[trait]
+            p = partners[trait]
+            if p is None or p == trait:
+                return base
+            # `others` omits `trait`; map partner index p to its position in `others`
+            pos = p if p < trait else p - 1
+            if others[pos] == 1:
+                base *= (bg[trait] if direction == "gain" else bl[trait])
+            return base
+
+        return cls(k, rate_fn, root=root)
+
+    @classmethod
+    def from_table(cls, k, table, root="uniform"):
+        r"""Full generality via an explicit lookup ``table`` (no closure needed).
+
+        ``table[(trait, direction, others)] = rate`` for every ``trait`` in ``0..k-1``,
+        ``direction`` in ``{"gain", "loss"}``, and ``others`` the length-``k-1`` tuple of the
+        other traits' states in trait order. Missing keys default to 0. This is the same
+        information as the raw ``rate_fn``, just materialized as a dict.
+        """
+        def rate_fn(trait, direction, others):
+            return table.get((trait, direction, tuple(others)), 0.0)
+
+        return cls(k, rate_fn, root=root)
+
+    # --- helpers ---------------------------------------------------------
+    @staticmethod
+    def _as_vector(v):
+        if np.isscalar(v):
+            return [float(v)]
+        return [float(x) for x in v]
+
+    @staticmethod
+    def _broadcast(v, k, name):
+        if len(v) == 1:
+            return v * k
+        if len(v) != k:
+            raise ValueError(f"{name} must have length {k} (or be a scalar), got {len(v)}")
+        return v
+
+    def __repr__(self) -> str:
+        return f"CorrelatedBinaryK(k={self.n_traits})"
+
+
 class HiddenStateMk(Mk):
     """A discrete character with hidden rate classes — a hidden Markov model (corHMM).
 
