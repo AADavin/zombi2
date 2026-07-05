@@ -1,5 +1,11 @@
 """Fit gene-family rates to an empirical profile table by rejection ABC.
 
+.. note::
+   **Experimental — withheld from the v1 public surface.** This ABC inference module is
+   in-tree and tested, but not exported from the top-level ``zombi2`` namespace, not exposed
+   as a CLI command, and not in the docs nav, pending stabilisation/documentation. Import it
+   explicitly (``from zombi2.matching import match_profiles``). The API may change.
+
 Given a fixed species tree and an **empirical copy-number profile** (families x extant
 species), :func:`match_profiles` searches for rates under which ZOMBI2's gene-family model
 reproduces that profile. It is a plain **Approximate Bayesian Computation** (ABC) rejection

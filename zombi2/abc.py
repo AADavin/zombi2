@@ -1,12 +1,17 @@
 """Approximate Bayesian Computation namespace (scikit-learn-style).
 
-Re-exports the profile-matching / ABC public API so users can write::
+.. note::
+   **Experimental — withheld from the v1 public surface.** ABC inference is not exported from
+   the top-level ``zombi2`` namespace, has no CLI command, and is not in the docs nav, pending
+   stabilisation/documentation. This namespace module still works for explicit use.
+
+Re-exports the profile-matching / ABC implementation so users can write::
 
     from zombi2.abc import match_profiles, cooccurrence_summary
 
-Every name here is the *same object* as the corresponding top-level
-``zombi2`` attribute -- this module is a thin, additive namespace over the
-implementation module :mod:`zombi2.matching`; it does not redefine anything.
+Every name here is the *same object* as the corresponding :mod:`zombi2.matching` attribute --
+this module is a thin, additive namespace over the implementation module; it does not redefine
+anything.
 """
 
 from __future__ import annotations

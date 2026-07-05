@@ -75,12 +75,10 @@ from .coevolve import (
     GeneConditionedTrait, GeneConditionedTraitResult, simulate_gene_conditioned_trait,
     BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
 )
-from .abc import (
-    match_profiles, match_profiles_smc, match_coupled, ABCFit,
-    default_summary, default_gene_tree_summary, cooccurrence_summary,
-    cooccurrence_features, event_count_summary, frequency_spectrum,
-    genome_sizes, copy_number_spectrum,
-)
+# NOTE: ABC profile-matching inference (zombi2.matching / zombi2.abc) is withheld from the v1
+# public surface — it is not yet documented/stabilised. The modules remain in-tree (import via
+# ``from zombi2.matching import match_profiles``) and fully tested; re-add the export here, the
+# 'abc' CLI command, and the docs nav entry to promote it back to the public API.
 
 __all__ = [
     "__version__",
@@ -109,10 +107,7 @@ __all__ = [
     # trait-conditioned gene families (trait <-> gene-family coupling)
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
     "simulate_trait_linked_genomes",
-    # profile matching (rejection ABC + SMC + coupled-model ABC)
-    "match_profiles", "match_profiles_smc", "match_coupled", "ABCFit", "default_summary",
-    "default_gene_tree_summary", "cooccurrence_summary", "cooccurrence_features",
-    "event_count_summary", "frequency_spectrum", "genome_sizes", "copy_number_spectrum",
+    # profile matching / ABC inference — withheld from the v1 public surface (see note above)
     # rate variation (relaxed clock)
     "RateVariation", "RateScaledTree",
     # family sequence evolution (gene x lineage substitution clock)
