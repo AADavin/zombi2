@@ -295,10 +295,11 @@ with numeric values, as `zombi2 trait` writes). See
 | Option | Meaning |
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
-| `--rate-model {uniform,genome-wise,nucleotide}` | `uniform` (default, Rust): same per-copy rates for all families; `genome-wise` (Python): constant per-genome rates, linear growth; `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-rate-model-nucleotide)) |
-| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--rate-model nucleotide`) |
-| `--initial-families` | number of gene families seeded at the root (default: 20) [`uniform`/`genome-wise`] |
-| `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `nucleotide`] |
+| `--genome-model {unordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
+| `--rate-model {shared,per-genome}` | rate heterogeneity for the unordered level: `shared` (default, Rust): same per-copy rates for all families; `per-genome` (Python): constant per-genome rates, linear growth |
+| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
+| `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
+| `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
 | `--initial-chromosomes` | [nucleotide] number of root chromosomes seeded at the root (default: 1) |
 | `--root-length` `--extension` | [nucleotide] root chromosome length (nt) / geometric event-length parameter (mean `1/(1-extension)`) |
@@ -421,9 +422,9 @@ From the Python API the same thing is `simulate_genomes(tree, ..., output="trace
 a `GenomeTrace` — a lazy handle whose `.profiles`, `.gene_trees()` and `.reconciliations()` build
 only what you ask for.
 
-## Nucleotide genomes (`--rate-model nucleotide`)
+## Nucleotide genomes (`--genome-model nucleotide`)
 
-`--rate-model nucleotide` switches `genomes` to a **nucleotide-resolution** model: each genome is
+`--genome-model nucleotide` switches `genomes` to a **nucleotide-resolution** model: each genome is
 a circular sequence that evolves by **variable-length structural events** — inversion, deletion,
 tandem duplication, transposition, HGT transfer and origination. Genes are not predefined; they
 **emerge** as *blocks* — maximal intervals of ancestral sequence with a single shared history — so
@@ -436,7 +437,7 @@ structural events, `--root-length` sets the starting chromosome length, and `--e
 event length (`1/(1-extension)` nt). `--initial-chromosomes` seeds root chromosomes (default `1`).
 
 ```bash
-zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
     --inversion 0.001 --dup 0.0006 --loss 0.0006 --root-length 1000 --seed 1 -o out/
 ```
 
@@ -458,7 +459,7 @@ adds `genes.tsv` (the annotation), `Gene_trees/` and `Intergene_trees/` (the two
 `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
 ```bash
-zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
     --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
     --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
@@ -472,7 +473,7 @@ gzipped; for a chromosome-plus-plasmids file the most-annotated sequence is used
 
 ```bash
 # evolve the E. coli K-12 chromosome (from its RefSeq GFF) along a tree
-zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
     --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
     --write profiles trees -o out/
 ```
@@ -487,13 +488,14 @@ FILE` seeds the root from the real genome DNA (so the reconstructed root is byte
 input); without it, root sequences are drawn at random.
 
 ```bash
-zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
     --gff ecoli.gff --genome-fasta ecoli.fna --subst-model hky85 --subst-rate 0.05 \
     --write ancestral -o out/
 ```
 
 ## Scope
 
-The CLI covers the common **uniform-rate** case. For family-sampled or genome-wise rates,
-custom transfer mechanics, ordered genomes, or replicate parallelism, use the Python API
-(see [gene families & rates](guide/gene-families.md) and the other guides).
+The CLI covers the common **shared-rate** case (and per-genome rates via `--rate-model
+per-genome`). For family-sampled rates, custom transfer mechanics, ordered genomes, or replicate
+parallelism, use the Python API (see [gene families & rates](guide/gene-families.md) and the
+other guides).

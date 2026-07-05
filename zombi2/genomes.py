@@ -20,7 +20,7 @@ from .nucleotide_genome import NucleotideGenome, Segment
 from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
 from .gff import read_gff, GffGenome
 from .rates import (
-    RateModel, UniformRates, GenomeWiseRates, FamilySampledRates, BranchRates,
+    RateModel, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
     EventWeight,
 )
 from .transfers import TransferModel
@@ -34,7 +34,7 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "GffGenome",
-    "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
+    "RateModel", "SharedRates", "PerGenomeRates", "FamilySampledRates",
     "BranchRates", "EventWeight", "TransferModel",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",
     "simulate_genomes", "Genomes", "GenomeTrace", "read_events_trace",

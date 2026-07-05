@@ -34,10 +34,10 @@ bit-identical. A given `seed` is reproducible **within** one engine.
 
 ### Do I need Rust to use ZOMBI2?
 
-For the **built-in** model (`UnorderedGenome` + `UniformRates`, plus the full
+For the **built-in** model (`UnorderedGenome` + `SharedRates`, plus the full
 `TransferModel`), yes — it runs on Rust with no silent Python fallback, so `simulate_genomes`
 raises a clear "build the extension" error if it isn't compiled. **Flexible** models
-(`FamilySampledRates`, `GenomeWiseRates`, `BranchRates`, soft `carrying_capacity`, ordered or
+(`FamilySampledRates`, `PerGenomeRates`, `BranchRates`, soft `carrying_capacity`, ordered or
 nucleotide genomes, a custom `sampler`) run on pure Python automatically and need no Rust. See
 [installation](installation.md) and [the Rust engine](guide/rust-engine.md).
 

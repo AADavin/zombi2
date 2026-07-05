@@ -28,12 +28,12 @@ Rates are supplied by a **rate model**. Two ship today; both are subclasses of `
 ```python
 import zombi2 as z
 
-rates = z.UniformRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+rates = z.SharedRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
 genomes = z.simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 D/T/L are **per gene copy** (the family-level rate scales with copy number); origination is
-**per branch**. There is a shorthand that builds `UniformRates` for you:
+**per branch**. There is a shorthand that builds `SharedRates` for you:
 
 ```python
 genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
@@ -66,13 +66,13 @@ Negative draws are clipped to 0.
 
 ### Genome-wise rates
 
-`UniformRates` is *gene-wise*: the total duplication/transfer/loss rate scales with the
-number of gene copies, so a family's size follows an exponential birth–death. `GenomeWiseRates`
+`SharedRates` is *gene-wise*: the total duplication/transfer/loss rate scales with the
+number of gene copies, so a family's size follows an exponential birth–death. `PerGenomeRates`
 instead fires each event at a **constant per-genome rate**, independent of genome size (a
 target copy is then chosen uniformly):
 
 ```python
-genomes = z.simulate_genomes(tree, z.GenomeWiseRates(duplication=1.0, transfer=0.3,
+genomes = z.simulate_genomes(tree, z.PerGenomeRates(duplication=1.0, transfer=0.3,
                                                      loss=0.5, origination=0.4),
                              initial_families=20, seed=1)
 ```
@@ -90,7 +90,7 @@ together; origination is left unscaled). It composes with the base model, so bra
 family heterogeneity combine. Choose one factor source:
 
 ```python
-base = z.UniformRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
+base = z.SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
 
 # 1. autocorrelated (relaxed clock): related lineages have similar rates
 z.simulate_genomes(tree, z.BranchRates(base, autocorr_sigma=0.5), seed=1)

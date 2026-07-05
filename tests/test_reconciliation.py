@@ -4,7 +4,7 @@ import numpy as np
 
 from zombi2 import (
     BirthDeath,
-    UniformRates,
+    SharedRates,
     Yule,
     simulate_genomes,
     simulate_species_tree,
@@ -47,7 +47,7 @@ def test_carrying_capacity_bounds_family_size():
     tree = simulate_species_tree(Yule(1.0), n_tips=8, age=3.0, seed=1)  # no extinction
     g = simulate_genomes(
         tree,
-        UniformRates(duplication=2.0, transfer=0.0, loss=0.1, origination=0.0, carrying_capacity=5),
+        SharedRates(duplication=2.0, transfer=0.0, loss=0.1, origination=0.0, carrying_capacity=5),
         initial_families=3, seed=1,
     )
     # duplication stops at n=K and there are no transfers, so no family exceeds K
@@ -57,7 +57,7 @@ def test_carrying_capacity_bounds_family_size():
 def test_max_family_size_caps_family_size():
     tree = simulate_species_tree(Yule(1.0), n_tips=8, age=3.0, seed=1)
     g = simulate_genomes(
-        tree, UniformRates(duplication=3.0, transfer=0.0, loss=0.05, origination=0.0),
+        tree, SharedRates(duplication=3.0, transfer=0.0, loss=0.05, origination=0.0),
         initial_families=3, max_family_size=4, seed=1,
     )
     assert g.profiles.matrix.max() <= 4

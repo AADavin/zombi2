@@ -2,7 +2,7 @@
 
 This module is **not** part of the public API. It is called by
 :func:`~zombi2.simulate_genomes` and :func:`~zombi2.simulate_nucleotide_genomes`, which
-route the *built-in* model (order-free ``UnorderedGenome`` + ``UniformRates``) to Rust
+route the *built-in* model (order-free ``UnorderedGenome`` + ``SharedRates``) to Rust
 automatically — there is no separate "fast" function and no engine switch. Flexible models
 (family/genome-wise/branch rates, ordered genomes, carrying capacity, custom samplers) run
 on the pure-Python engine instead.
@@ -28,7 +28,7 @@ from .events import EventLog, EventRecord, EventType, GeneOp
 from .genome_sim import resolve_max_family_size
 from .nucleotide_sim import NucleotideResult
 from .profiles import ProfileMatrix
-from .rates import UniformRates
+from .rates import SharedRates
 from .simulation import Genomes
 
 try:  # optional native extension
@@ -60,14 +60,14 @@ def require() -> None:
 
 def eligible(rates, genome_factory, sampler) -> bool:
     """True if this model is the built-in one the Rust engine implements: the default
-    ``UnorderedGenome``, a plain ``UniformRates`` (no soft carrying capacity, no
+    ``UnorderedGenome``, a plain ``SharedRates`` (no soft carrying capacity, no
     rearrangements), and no custom event sampler. Everything else runs on Python."""
     from .genome import UnorderedGenome
 
     return (
         genome_factory is UnorderedGenome
         and sampler is None
-        and type(rates) is UniformRates
+        and type(rates) is SharedRates
         and rates.carrying_capacity is None
         and not rates.inversion
         and not rates.transposition
@@ -93,10 +93,10 @@ class _FastNucleotideResult(NucleotideResult):
 # --- rate / tree / cap / transfer plumbing ---------------------------------------
 
 def _resolve_rates(rates):
-    """Return (d, t, l, o) from a UniformRates, rejecting features Rust does not implement."""
-    if type(rates) is not UniformRates:
+    """Return (d, t, l, o) from a SharedRates, rejecting features Rust does not implement."""
+    if type(rates) is not SharedRates:
         raise TypeError(
-            f"the Rust engine only supports UniformRates, not {type(rates).__name__}; "
+            f"the Rust engine only supports SharedRates, not {type(rates).__name__}; "
             f"use simulate_genomes for that model"
         )
     unsupported = []

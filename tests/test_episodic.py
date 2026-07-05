@@ -1,4 +1,4 @@
-"""EpisodicBirthDeath (skyline) and GenomeWiseRates."""
+"""EpisodicBirthDeath (skyline) and PerGenomeRates."""
 
 import numpy as np
 import pytest
@@ -6,8 +6,8 @@ import pytest
 from zombi2 import (
     BirthDeath,
     EpisodicBirthDeath,
-    GenomeWiseRates,
-    UniformRates,
+    PerGenomeRates,
+    SharedRates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -66,9 +66,9 @@ def test_episodic_validation():
 
 def test_genome_wise_rates_grow_slower_than_gene_wise():
     tree = simulate_species_tree(BirthDeath(1.0, 0.1), n_tips=12, age=3.0, seed=1)
-    gw = simulate_genomes(tree, GenomeWiseRates(duplication=1.0, loss=0.2, origination=0.3),
+    gw = simulate_genomes(tree, PerGenomeRates(duplication=1.0, loss=0.2, origination=0.3),
                           initial_families=10, seed=2)
-    uw = simulate_genomes(tree, UniformRates(duplication=0.3, loss=0.2, origination=0.3),
+    uw = simulate_genomes(tree, SharedRates(duplication=0.3, loss=0.2, origination=0.3),
                           initial_families=10, seed=2)
     assert gw.profiles.matrix.shape[1] == 12
     # genome-wise growth is linear, so families stay smaller than the exponential gene-wise case

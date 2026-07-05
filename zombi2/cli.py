@@ -19,7 +19,7 @@ from .nucleotide_sim import simulate_nucleotide_genomes
 from .profiles import ProfileMatrix
 from .distributions import LogNormal
 from .rate_variation import RateVariation
-from .rates import GenomeWiseRates
+from .rates import PerGenomeRates
 from .sequence_evolution import SequenceEvolution
 from .simulation import Genomes, simulate_genomes
 from .species_model import (
@@ -196,19 +196,25 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    g.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide"),
-                   default="uniform", metavar="MODEL",
-                   help="uniform: same per-copy rates for every family (Rust; default); "
-                        "genome-wise: constant per-genome rates, linear growth (Python); "
-                        "nucleotide: nucleotide-resolution genomes evolving by variable-length "
-                        "structural events, genes emerge as 'blocks' (see the nucleotide sections)")
+    g.add_argument("--genome-model", dest="genome_model",
+                   choices=("unordered", "nucleotide"), default="unordered", metavar="LEVEL",
+                   help="genome level: unordered (default) evolves gene families with no "
+                        "positional structure; nucleotide evolves nucleotide-resolution genomes "
+                        "by variable-length structural events, genes emerge as 'blocks' (see the "
+                        "nucleotide sections)")
+    g.add_argument("--rate-model", choices=("shared", "per-genome"),
+                   default="shared", metavar="MODEL",
+                   help="rate heterogeneity for the unordered genome level: shared: same per-copy "
+                        "rates for every family (Rust; default); per-genome: constant per-genome "
+                        "rates, linear growth (Python)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
 
     g = p.add_argument_group(
         "gene-family rates",
-        "per copy for uniform/genome-wise; per nucleotide for --rate-model nucleotide")
+        "per copy for --rate-model shared/per-genome; "
+        "per nucleotide for --genome-model nucleotide")
     g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
     g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
     g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
@@ -216,11 +222,11 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="origination rate (per branch)")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
-                   help="number of gene families seeded at the root, for --rate-model "
-                        "uniform/genome-wise (default: 20)")
+                   help="number of gene families seeded at the root, for the unordered genome "
+                        "level (--genome-model unordered) (default: 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
-                        "number of species (e.g. 0.5) [not used by --rate-model nucleotide]")
+                        "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="output", nargs="+", metavar="PART",
@@ -263,14 +269,14 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="where the family enters the tree: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
 
-    g = p.add_argument_group("nucleotide model", "with --rate-model nucleotide")
+    g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--inversion", type=float, default=0.001, metavar="RATE",
                    help="per-nucleotide inversion rate (default 0.001)")
     g.add_argument("--transposition", type=float, default=0.0, metavar="RATE",
                    help="per-nucleotide transposition rate (default 0)")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
-                   help="number of root chromosomes seeded at the root, for --rate-model "
+                   help="number of root chromosomes seeded at the root, for --genome-model "
                         "nucleotide (default: 1)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
@@ -279,7 +285,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "nucleotides (default 0.99)")
 
     g = p.add_argument_group("genes & intergenes",
-                             "nucleotide model; declare genes to enable genic mode")
+                             "--genome-model nucleotide; declare genes to enable genic mode")
     g.add_argument("--gff", metavar="FILE", default=None,
                    help="a GFF3 annotation (optionally .gz) to start from a real genome: sets the "
                         "chromosome length and the gene coordinates (intergenes are the gaps). "
@@ -301,7 +307,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "additive when no homolog) (default 0)")
 
     g = p.add_argument_group("sequences & ancestral genomes",
-                             "nucleotide model, with --write ancestral")
+                             "--genome-model nucleotide, with --write ancestral")
     g.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
                    metavar="MODEL",
                    help="nucleotide substitution model for the sequences (default hky85)")
@@ -1274,8 +1280,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                  parser: argparse.ArgumentParser) -> str:
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
 
-    The default ``uniform`` model runs on the Rust engine automatically (``simulate_genomes``
-    raises a build hint if the extension is missing); ``genome-wise`` runs on Python.
+    The default ``shared`` rate model runs on the Rust engine automatically (``simulate_genomes``
+    raises a build hint if the extension is missing); ``per-genome`` runs on Python.
     """
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
     if args.sparse and "profiles" not in parts:
@@ -1284,22 +1290,22 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
                          "exactly --write profiles")
 
-    if args.rate_model == "nucleotide":
+    if args.genome_model == "nucleotide":
         if args.initial_families is not None:
-            parser.error("--initial-families is for the gene-family models "
-                         "(--rate-model uniform/genome-wise); the nucleotide model uses "
+            parser.error("--initial-families is for the unordered genome level "
+                         "(--genome-model unordered); the nucleotide model uses "
                          "--initial-chromosomes")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
-        parser.error("--initial-chromosomes is only for --rate-model nucleotide; the "
-                     "gene-family models use --initial-families")
+        parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
+                     "unordered genome level uses --initial-families")
 
     initial_families = 20 if args.initial_families is None else args.initial_families
     args.initial_families = initial_families  # record the effective value in the params log
-    if args.rate_model == "genome-wise":
-        model_kw = dict(rates=GenomeWiseRates(args.dup, args.trans, args.loss, args.orig))
-    else:  # uniform
+    if args.rate_model == "per-genome":
+        model_kw = dict(rates=PerGenomeRates(args.dup, args.trans, args.loss, args.orig))
+    else:  # shared
         model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
                         origination=args.orig)
     rate_kw = dict(**model_kw, initial_families=initial_families,
@@ -1919,7 +1925,8 @@ def main(argv: list[str] | None = None) -> int:
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree.",
-        "zombi2 genomes -t FILE -o DIR [--rate-model MODEL] [--write PART ...] [options]",
+        "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-model MODEL] "
+        "[--write PART ...] [options]",
         _add_rate_args)
 
     _add_subcommand(

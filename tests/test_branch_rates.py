@@ -6,7 +6,7 @@ from zombi2 import (
     BirthDeath,
     BranchRates,
     LogNormal,
-    UniformRates,
+    SharedRates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -14,7 +14,7 @@ from zombi2.events import EventType
 
 
 def _base():
-    return UniformRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
+    return SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
 
 
 def test_explicit_map_boosts_its_branch():
@@ -36,7 +36,7 @@ def test_explicit_map_boosts_its_branch():
 
 def test_autocorr_zero_sigma_equals_base():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=3)
-    # A bare UniformRates is the built-in model (Rust engine); a BranchRates wrapper runs on
+    # A bare SharedRates is the built-in model (Rust engine); a BranchRates wrapper runs on
     # Python. To check the sigma=0 identity byte-for-byte, both must run on the same engine, so
     # run the base on the Python engine explicitly.
     from zombi2 import GenomeSimulator, ProfileMatrix

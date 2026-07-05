@@ -84,5 +84,5 @@ def test_threads_requires_profiles_output():
 def test_threads_requires_builtin_model():
     """The parallel path is the Rust built-in engine only; a Python-engine model rejects threads>1."""
     with pytest.raises(ValueError, match="requires the built-in model"):
-        z.simulate_genomes(_tree(), rates=z.GenomeWiseRates(0.2, 0.0, 0.3, 0.5),
+        z.simulate_genomes(_tree(), rates=z.PerGenomeRates(0.2, 0.0, 0.3, 0.5),
                            output="profiles", seed=1, threads=4)
