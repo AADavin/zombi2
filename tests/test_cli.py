@@ -377,14 +377,14 @@ def test_genomes_annotate_species(tmp_path):
 
 
 def test_genomes_genome_wise_rate_model(tmp_path):
-    """--rate-model genome-wise runs (Python engine) and is recorded in the log."""
+    """--rate-model per-genome runs (Python engine) and is recorded in the log."""
     sp = tmp_path / "sp"
     main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
     out = tmp_path / "gw"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--loss", "0.4",
-               "--orig", "0.5", "--rate-model", "genome-wise", "--seed", "1", "-o", str(out)])
+               "--orig", "0.5", "--rate-model", "per-genome", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert "rate_model\tgenome-wise" in (out / "genomes.log").read_text()
+    assert "rate_model\tper-genome" in (out / "genomes.log").read_text()
 
 
 def test_max_family_size_parses_int_and_fraction(tmp_path):
@@ -396,12 +396,12 @@ def test_max_family_size_parses_int_and_fraction(tmp_path):
 
 
 def _genomes_run_with_trace(tmp_path):
-    """A helper: species -> genomes (genome-wise, with a written Events_trace.tsv). No Rust."""
+    """A helper: species -> genomes (per-genome, with a written Events_trace.tsv). No Rust."""
     sp = tmp_path / "sp"
     main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
     run = tmp_path / "run"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.4", "--trans", "0.1",
-               "--loss", "0.3", "--orig", "0.6", "--rate-model", "genome-wise",
+               "--loss", "0.3", "--orig", "0.6", "--rate-model", "per-genome",
                "--write", "trace", "profiles", "--seed", "2", "-o", str(run)])
     assert rc == 0
     assert (run / "Events_trace.tsv").exists()
@@ -650,21 +650,21 @@ def test_trait_writes_log(tmp_path):
     assert "model\tbm" in log and "seed\t5" in log
 
 
-# --- nucleotide genome model (--rate-model nucleotide): structural events, atoms as genes --
+# --- nucleotide genome model (--genome-model nucleotide): structural events, blocks as genes --
 
 def test_genomes_nucleotide_model(tmp_path):
-    """`--rate-model nucleotide` evolves nucleotide genomes; profiles+trees writes the atom
-    table, the emergent profile, per-atom gene trees, and reconciliations (Python engine)."""
+    """`--genome-model nucleotide` evolves nucleotide genomes; profiles+trees writes the block
+    table, the emergent profile, per-block gene trees, and reconciliations (Python engine)."""
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide",
                "--dup", "0.0006", "--loss", "0.0006", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    for f in ("species_tree.nwk", "atoms.tsv", "Profiles.tsv", "Presence.tsv",
+    for f in ("species_tree.nwk", "blocks.tsv", "Profiles.tsv", "Presence.tsv",
               "Mosaics.tsv", "Reconciled_complete.nwk", "Reconciliation_events.tsv"):
         assert (out / f).exists()
-    assert os.listdir(out / "gene_trees")                    # one gene tree per atom
-    assert "rate_model\tnucleotide" in (out / "genomes.log").read_text()
+    assert os.listdir(out / "gene_trees")                    # one gene tree per block
+    assert "genome_model\tnucleotide" in (out / "genomes.log").read_text()
     assert "initial_chromosomes\t1" in (out / "genomes.log").read_text()   # nucleotide default = 1
 
 
@@ -672,11 +672,11 @@ def test_genomes_nucleotide_profiles_only(tmp_path):
     """Nucleotide `--output profiles` writes only the emergent profile — no gene trees."""
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide",
                "--dup", "0.0006", "--loss", "0.0006", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists() and (out / "atoms.tsv").exists()
+    assert (out / "Profiles.tsv").exists() and (out / "blocks.tsv").exists()
     assert not (out / "gene_trees").exists()
     assert not (out / "Reconciled_complete.nwk").exists()
 
@@ -685,7 +685,7 @@ def test_genomes_nucleotide_sparse(tmp_path):
     """Nucleotide profiles honour --sparse (single Profiles_sparse.tsv long table)."""
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--loss", "0.0008",
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide", "--loss", "0.0008",
                "--write", "profiles", "--sparse", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "Profiles_sparse.tsv").exists()
@@ -694,22 +694,22 @@ def test_genomes_nucleotide_sparse(tmp_path):
 
 def test_genomes_nucleotide_genic(tmp_path):
     """`--genes` enables genic mode: genes.tsv, split Gene/Intergene trees, Pseudogenizations,
-    and atoms.tsv carrying the gene/intergene classification."""
+    and blocks.tsv carrying the gene/intergene classification."""
     tree = _tree_file(tmp_path, tips=10)
     genes = tmp_path / "genes.tsv"
     genes.write_text("100\t180\tgeneA\n300\t360\tgeneB\n500\t620\tgeneC\n750\t800\tgeneD\n")
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide",
                "--inversion", "0.004", "--loss", "0.003", "--dup", "0.002", "--trans", "0.002",
                "--root-length", "1000", "--extension", "0.96", "--genes", str(genes),
                "--pseudogenization", "0.4", "--replacement", "0.6",
                "--write", "profiles", "trees", "--seed", "9", "-o", str(out)])
     assert rc == 0
-    for f in ("genes.tsv", "atoms.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
+    for f in ("genes.tsv", "blocks.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
         assert (out / f).exists()
     assert os.listdir(out / "Gene_trees") and os.listdir(out / "Intergene_trees")
-    # atoms.tsv carries the classification; the four seed genes are present in genes.tsv
-    assert "kind\tgene_id" in (out / "atoms.tsv").read_text()
+    # blocks.tsv carries the classification; the four seed genes are present in genes.tsv
+    assert "kind\tgene_id" in (out / "blocks.tsv").read_text()
     genes_txt = (out / "genes.tsv").read_text()
     for name in ("geneA", "geneB", "geneC", "geneD"):
         assert name in genes_txt
@@ -722,11 +722,11 @@ def test_genomes_nucleotide_genes_reject_profiles_only(tmp_path):
     genes = tmp_path / "genes.tsv"
     genes.write_text("100 200 g1\n400 500 g2\n")
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--loss", "0.002",
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide", "--loss", "0.002",
                "--root-length", "800", "--genes", str(genes), "--write", "profiles",
                "--seed", "2", "-o", str(out)])
     assert rc == 0
-    assert (out / "genes.tsv").exists() and (out / "atoms.tsv").exists()
+    assert (out / "genes.tsv").exists() and (out / "blocks.tsv").exists()
 
 
 def test_genomes_nucleotide_from_gff(tmp_path):
@@ -739,14 +739,14 @@ def test_genomes_nucleotide_from_gff(tmp_path):
                    "c\tx\tgene\t400\t500\t.\t+\t.\tlocus_tag=d\n")
     tree = _tree_file(tmp_path, tips=8)
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--gff", str(gff),
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide", "--gff", str(gff),
                "--loss", "0.003", "--dup", "0.002", "--pseudogenization", "0.3",
                "--write", "profiles", "trees", "--seed", "5", "-o", str(out)])
     assert rc == 0
     genes_txt = (out / "genes.tsv").read_text()
     for locus in ("a", "b", "d"):
         assert locus in genes_txt
-    assert (out / "atoms.tsv").exists() and os.listdir(out / "Gene_trees")
+    assert (out / "blocks.tsv").exists() and os.listdir(out / "Gene_trees")
     assert "root_length\t600" in (out / "genomes.log").read_text()   # length came from the GFF
 
 
@@ -757,7 +757,7 @@ def test_genomes_gff_and_genes_conflict(tmp_path, capsys):
     genes = tmp_path / "genes.tsv"
     genes.write_text("1 10 a\n")
     tree = _tree_file(tmp_path, tips=6)
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--gff", str(gff),
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide", "--gff", str(gff),
                "--genes", str(genes), "--loss", "0.002", "-o", str(tmp_path / "nt")])
     assert rc == 1
     assert "either --gff or --genes" in capsys.readouterr().err
@@ -775,7 +775,7 @@ def test_genomes_nucleotide_ancestral(tmp_path):
     fasta.write_text(">seq\n" + genome + "\n")
     tree = _tree_file(tmp_path, tips=6)
     out = tmp_path / "nt"
-    rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide", "--genes", str(genes),
+    rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide", "--genes", str(genes),
                "--root-length", "300", "--inversion", "0.01", "--loss", "0.006", "--dup", "0.005",
                "--subst-model", "hky85", "--subst-rate", "0.4", "--gamma-shape", "0.5",
                "--genome-fasta", str(fasta), "--write", "ancestral", "--seed", "5", "-o", str(out)])

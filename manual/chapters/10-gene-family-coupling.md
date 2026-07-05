@@ -1,5 +1,9 @@
 # Gene-family coupling
 
+This chapter is the fourth rate model of the unordered genome level (Chapter 8): **coupled** gene
+families, which gain and lose *non-independently*. Like the other unordered rate models it runs on a
+presence/absence genome, and only there.
+
 By default every gene family in ZOMBI2 evolves independently, so the phylogenetic profile
 correlates families *only* through the shared species tree. Real genomes correlate through
 **function**: families in the same pathway or complex tend to be present or absent together
@@ -8,8 +12,6 @@ coupling $J$ (and fields $h$) that makes families gain and lose non-independentl
 profiles carry a *known ground-truth* coupling. It is the forward, generative counterpart of the
 inverse-Potts and direct-coupling-analysis methods that infer functional linkage from profiles
 [@croce2019multiscale; @fukunaga2022ipm], and the benchmark those methods can be tested against.
-
-![The coupling model in four panels: a genome is a present/absent vector over a fixed family panel; couplings tie families into modules; the coupling enters through the loss rate; and blind horizontal gain plus selective retention is what writes J into the profiles.](figures/potts_mechanism.pdf)
 
 ## The model
 
@@ -22,12 +24,16 @@ $$f_i = h_i + \sum_j J_{ij}\,\sigma_j$$
 
 where the sum runs over present partners.
 
+![A genome is a present/absent vector $\sigma \in \{0,1\}^N$ over a fixed panel of gene families; colour marks which pathway module each present family belongs to.](figures/potts_genome.pdf)
+
 **Coupling enters through loss.** A present family is lost at a rate that is modulated by its local
 field:
 
 ```
 loss_i = base_loss * exp(-beta * f_i)
 ```
+
+![Coupling enters through the loss rate: a present family is lost at rate $\mathrm{base\_loss}\cdot e^{-\beta f}$, so a high local field (partners present) protects it while a low field lets it go quickly.](figures/potts_lossrate.pdf)
 
 So a present partner with $J_{ij} > 0$ raises $f_i$ and **lowers** family $i$'s loss: the two
 families protect each other and co-occur. A partner with $J_{ij} < 0$ **raises** the loss: the
@@ -68,6 +74,8 @@ spec = z.CouplingSpec.from_edges(6, {(0, 1): 3.0, (0, 2): 3.0,
                                      (0, 3): -2.0}, h=2.0)
 ```
 
+![The coupling graph: families are nodes and couplings are edges. Positive couplings (solid) tie families into co-occurring modules; a negative coupling (dashed) makes two modules mutually exclusive.](figures/potts_coupling.pdf)
+
 The parameters have direct interpretations:
 
 - **`within`** and **`between`** (in `pathway_blocks`) set the coupling *inside* a block — positive
@@ -100,9 +108,29 @@ res.profiles.presence()
 families absent from all extant species. Transfers default to `TransferModel(replacement=1.0)`; pass
 `transfers=` to customise them, for example with distance-weighted recipients.
 
+![Blind gain, selective retention: horizontal transfer re-acquires a family regardless of context, and the coupled loss then keeps it where its partners are present but purges it where they are absent — the differential retention that writes the coupling $J$ into the profiles.](figures/potts_retention.pdf)
+
 Because `PottsRates` is a custom rate model, a coupled simulation runs on the pure-Python engine: the
 coupling breaks the per-family independence that the Rust fast path assumes. The cost is
 $O(N + \mathrm{nnz}(J))$ per event, which is comfortable at benchmark scale.
+
+### From the command line
+
+The coupled model is a `--rate-model`, so a pathway-block coupling runs straight from the `genomes`
+command without building the spec by hand:
+
+```bash
+zombi2 genomes -t species_tree.nwk --rate-model coupled \
+    --pathways 4,4 --within 3 --between 0 --field 2 --base-loss 1 \
+    --seed 1 --write profiles -o out/
+```
+
+`--pathways` gives the block sizes (`4,4` = two blocks of four families); `--within` and `--between`
+set the coupling $J$ inside and across blocks; `--field` is the presence field $h$; and `--base-loss`
+is the baseline loss rate, the channel the coupling acts through
+($\mathrm{loss}_i = \texttt{base-loss}\cdot e^{-\beta f_i}$), with `--beta` scaling it.
+`--gain-coupling` additionally turns on field-biased transfer establishment (the gain-side coupling).
+The family panel is fixed by `--pathways` and seeded whole at the root.
 
 ## Two caveats worth knowing
 

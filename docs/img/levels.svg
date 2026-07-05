@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="336" viewBox="0 0 720 336" font-family="Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="720" height="336" fill="white"/>
+<defs>
+<marker id="ae" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0,0 L6.5,3 L0,6 z" fill="#1a1a1a"/></marker>
+</defs>
+
+<text x="190" y="34" text-anchor="middle" font-size="15" fill="#1a1a1a">Hierarchical: one level, then the next</text>
+<text x="530" y="34" text-anchor="middle" font-size="15" fill="#1a1a1a">Joint: coupled levels (coevolve)</text>
+
+<line x1="360" y1="24" x2="360" y2="284" stroke="#bbbbbb" stroke-width="1"/>
+
+<path d="M178,100 L129,138" stroke="#1a1a1a" stroke-width="1.6" fill="none" marker-end="url(#ae)"/>
+<path d="M202,100 L251,138" stroke="#1a1a1a" stroke-width="1.6" fill="none" marker-end="url(#ae)"/>
+<path d="M115,186 L115,222" stroke="#1a1a1a" stroke-width="1.6" fill="none" marker-end="url(#ae)"/>
+
+<line x1="518" y1="102" x2="470" y2="139" stroke="#777777" stroke-width="1.6" stroke-dasharray="4 3"/>
+<line x1="542" y1="102" x2="590" y2="139" stroke="#777777" stroke-width="1.6" stroke-dasharray="4 3"/>
+<line x1="512" y1="162" x2="543" y2="162" stroke="#777777" stroke-width="1.6" stroke-dasharray="4 3"/>
+<path d="M455,186 L455,222" stroke="#1a1a1a" stroke-width="1.6" fill="none" marker-end="url(#ae)"/>
+
+<g>
+<rect x="135" y="55" width="110" height="44" rx="8" fill="#f4f4f4" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="190" y="77" text-anchor="middle" font-size="14" fill="#1a1a1a">species</text>
+<text x="190" y="91" text-anchor="middle" font-size="12" fill="#555555">dated tree</text>
+<rect x="60" y="140" width="110" height="44" rx="8" fill="#f4f4f4" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="115" y="162" text-anchor="middle" font-size="14" fill="#1a1a1a">genomes</text>
+<text x="115" y="176" text-anchor="middle" font-size="12" fill="#555555">gene families</text>
+<rect x="205" y="140" width="110" height="44" rx="8" fill="#f4f4f4" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="260" y="162" text-anchor="middle" font-size="14" fill="#1a1a1a">traits</text>
+<text x="260" y="176" text-anchor="middle" font-size="12" fill="#555555">phenotypes</text>
+<rect x="60" y="225" width="110" height="44" rx="8" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="3 2"/>
+<text x="115" y="247" text-anchor="middle" font-size="14" fill="#1a1a1a">sequences</text>
+<text x="115" y="261" text-anchor="middle" font-size="12" fill="#555555">DNA / protein</text>
+</g>
+
+<g>
+<rect x="475" y="55" width="110" height="44" rx="8" fill="#f4f4f4" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="530" y="77" text-anchor="middle" font-size="14" fill="#1a1a1a">species</text>
+<text x="530" y="91" text-anchor="middle" font-size="12" fill="#555555">dated tree</text>
+<rect x="400" y="140" width="110" height="44" rx="8" fill="#f4f4f4" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="455" y="162" text-anchor="middle" font-size="14" fill="#1a1a1a">genomes</text>
+<text x="455" y="176" text-anchor="middle" font-size="12" fill="#555555">gene families</text>
+<rect x="545" y="140" width="110" height="44" rx="8" fill="#f4f4f4" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="600" y="162" text-anchor="middle" font-size="14" fill="#1a1a1a">traits</text>
+<text x="600" y="176" text-anchor="middle" font-size="12" fill="#555555">phenotypes</text>
+<rect x="400" y="225" width="110" height="44" rx="8" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="3 2"/>
+<text x="455" y="247" text-anchor="middle" font-size="14" fill="#1a1a1a">sequences</text>
+<text x="455" y="261" text-anchor="middle" font-size="12" fill="#555555">DNA / protein</text>
+</g>
+
+<line x1="150" y1="307" x2="182" y2="307" stroke="#1a1a1a" stroke-width="1.6" marker-end="url(#ae)"/>
+<text x="190" y="311" font-size="12" fill="#333333">conditioned on</text>
+<line x1="360" y1="307" x2="392" y2="307" stroke="#777777" stroke-width="1.6" stroke-dasharray="4 3"/>
+<text x="400" y="311" font-size="12" fill="#333333">coupled (coevolve)</text>
+</svg>

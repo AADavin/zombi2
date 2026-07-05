@@ -140,3 +140,65 @@ Because `sequence` reads only the event trace on disk, a single expensive `genom
 sequence-evolution runs. Sweep the clock parameters — different `--branch-speed`, different bins,
 different `--family-speed` — reusing the same gene content each time.
 :::
+
+## Simulating sequence alignments
+
+Rescaling turns each gene tree into a phylogram whose branch lengths *are* the expected number of
+substitutions per site. The natural next step is to draw an **actual alignment** down that tree — a
+sequence at every leaf, evolved base by base (or residue by residue) under a substitution model. Add
+`--subst-model` to the `sequence` command and it does exactly that, after the rescale step:
+
+```bash
+# DNA alignments (HKY85) along the rescaled gene trees
+zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
+    --subst-model hky85 --seq-length 600 -o run/
+
+# protein alignments under the LG model, with +Γ rate heterogeneity across sites
+zombi2 sequence --genomes run/ --branch-speed 0.4 \
+    --subst-model lg --seq-length 300 --gamma-shape 0.5 -o run/
+```
+
+DNA versus protein is **auto-detected** from the model name. One FASTA per gene family is written to
+`run/alignments/<family>.fasta`, containing the leaf sequences of that family's extant tree; each
+record is headed by the same `<species>_<gene-id>` label the leaf carries in
+`gene_trees/<family>_extant_subst.nwk`, so alignment and tree line up one-to-one. Omit `--subst-model`
+and `sequence` behaves exactly as before — it only rescales the trees and writes no alignments.
+
+### Available models
+
+A continuous-time Markov substitution model is a normalised rate matrix $Q$ (one expected
+substitution per site per unit branch length) plus its stationary frequencies. The transition matrix
+over a branch of length $t$ is $P(t) = e^{Qt}$; every model here is time-reversible, so $e^{Qt}$ is
+computed by eigendecomposition of the symmetric matrix $B = \operatorname{diag}(\sqrt{\pi})\, Q\,
+\operatorname{diag}(1/\sqrt{\pi})$.
+
+**Nucleotide (4 states, `ACGT`).**
+
+| model    | description                                                        | parameters |
+|----------|--------------------------------------------------------------------|------------|
+| `jc69`   | Jukes–Cantor: equal rates, equal base frequencies                  | —          |
+| `k80`    | Kimura 2-parameter: transition/transversion ratio `--kappa`        | `--kappa`  |
+| `hky85`  | HKY85: transition bias with unequal base frequencies               | `--kappa`, `--base-freqs` |
+| `gtr`    | general time-reversible: 6 exchangeabilities + frequencies         | `--gtr-rates`, `--base-freqs` |
+
+**Amino acid (20 states).** Empirical exchangeability matrices, transcribed byte-for-byte from the
+reference PAML data files (Ziheng Yang), plus a parameter-free Poisson model.
+
+| model     | description                                                       |
+|-----------|-------------------------------------------------------------------|
+| `poisson` | equal exchangeabilities, uniform frequencies (protein F81)        |
+| `lg`      | LG [@le2008improved] — the modern default                         |
+| `wag`     | WAG [@whelan2001general]                                          |
+| `jtt`     | JTT [@jones1992rapid]                                             |
+| `dayhoff` | Dayhoff [@dayhoff1978model] (PAML values)                         |
+
+The protein models are empirical and take no parameters. `--gamma-shape ALPHA` adds discrete-Gamma
+across-site rate heterogeneity (+Γ) for any model; `--seq-length N` sets the alignment length. To
+start each family from a chosen root sequence rather than a random draw from the stationary
+distribution, pass `--root-fasta FILE` — a FASTA keyed by family id, whose per-record length overrides
+`--seq-length` for that family.
+
+::: note
+The rescaled branch lengths already carry the gene $\times$ lineage clock, so `--subst-model` needs no
+extra rate: one unit of branch length is one expected substitution per site by construction.
+:::

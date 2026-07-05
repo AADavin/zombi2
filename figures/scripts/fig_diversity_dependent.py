@@ -6,7 +6,8 @@ fast when small and saturates as it fills its carrying capacity K. This figure d
 complete tree (survivors solid, extinct dashed) and the aligned lineages-through-time curve,
 which climbs and then plateaus near the equilibrium — the density-dependent signature.
 
-Monochrome (species-tree house style).  Run:  python figures/scripts/fig_diversity_dependent.py
+House style (readable fonts, one accent colour on the LTT curve).  Run:
+    python figures/scripts/fig_diversity_dependent.py
 """
 
 from __future__ import annotations
@@ -18,16 +19,17 @@ import drawsvg as draw
 
 from zombi2 import DiversityDependent, simulate_species_tree
 
-from zombi_style import FONT, INK
+from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT = Path(__file__).resolve().parent.parent / "diversity_dependent"
 
-W, H = 1180, 760
-XL, XR = 100, 1000
-TREE_TOP, TREE_H = 104, 388
-LTT_TOP, LTT_H = 566, 150
+W, H = 1400, 762
+XL, XR = 100, 1320
+TREE_TOP, TREE_H = 116, 372
+LTT_TOP, LTT_H = 548, 150
 DASH = "6,5"
 GREY = "#9a9a9a"
+DATA = "#2b6cb0"          # one accent colour: the lineages-through-time curve
 
 LAM0, DEATH, K, AGE, SEED = 1.5, 0.12, 24, 7.0, 3
 
@@ -69,19 +71,25 @@ def render():
 
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    d.append(draw.Text("The diversity-dependent model — diversification slows as the tree fills up", 20,
-                       40, 40, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    d.append(draw.Text("speciation rate falls with standing diversity: λ(n) = λ0·(1 − n/K).  ZOMBI2: "
-                       "DiversityDependent(λ0, death, carrying_capacity=K)", 13, 40, 64,
-                       font_family=FONT, text_anchor="start", fill="#777"))
+    d.append(draw.Text("The diversity-dependent model", FS_TITLE, W / 2, 48,
+                       font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
-    d.append(draw.Line(X(present), TREE_TOP - 12, X(present), LTT_TOP + LTT_H,
+    # legend, top-left, clear of the tree
+    lx = XL
+    d.append(draw.Line(lx, 86, lx + 34, 86, stroke=INK, stroke_width=2.4, stroke_linecap="round"))
+    d.append(draw.Text("surviving lineage", FS_LABEL, lx + 44, 86, font_family=FONT,
+                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Line(lx + 250, 86, lx + 284, 86, stroke=GREY, stroke_width=1.7, stroke_dasharray=DASH))
+    d.append(draw.Text("extinct lineage", FS_LABEL, lx + 294, 86, font_family=FONT,
+                       text_anchor="start", dominant_baseline="central", fill=INK))
+
+    d.append(draw.Line(X(present), TREE_TOP - 8, X(present), LTT_TOP + LTT_H,
                        stroke="#cccccc", stroke_width=1.0, stroke_dasharray="2,4"))
 
     def seg(x1, y1, x2, y2, dashed):
-        kw = dict(stroke=INK, stroke_width=2.0, stroke_linecap="round")
+        kw = dict(stroke=INK, stroke_width=2.2, stroke_linecap="round")
         if dashed:
-            kw = dict(stroke=GREY, stroke_width=1.5, stroke_dasharray=DASH, stroke_linecap="butt")
+            kw = dict(stroke=GREY, stroke_width=1.6, stroke_dasharray=DASH, stroke_linecap="butt")
         d.append(draw.Line(x1, y1, x2, y2, **kw))
 
     for n in tree.nodes():
@@ -106,38 +114,30 @@ def render():
     d.append(draw.Line(XL, LTT_TOP, XL, LTT_TOP + LTT_H, stroke="#bdbdbd", stroke_width=1.2))
     # carrying capacity K
     d.append(draw.Line(XL, LY(K), XR, LY(K), stroke=INK, stroke_width=1.4, stroke_dasharray="7,4"))
-    d.append(draw.Text("carrying capacity K", 12, XR - 4, LY(K) - 7, font_family=FONT,
-                       text_anchor="end", font_weight="bold", fill=INK))
+    d.append(draw.Text("carrying capacity K", FS_LABEL, XL + 6, LY(K) - 10, font_family=FONT,
+                       text_anchor="start", font_weight="bold", fill=INK))
     pts = []
     for t, c in zip(grid, counts):
         pts += [X(t), LY(c)]
-    d.append(draw.Lines(*pts, close=False, fill="none", stroke=INK, stroke_width=2.0, stroke_linejoin="round"))
+    d.append(draw.Lines(*pts, close=False, fill="none", stroke=INK, stroke_width=2.8, stroke_linejoin="round"))
     for c in (0, K):
-        d.append(draw.Text(str(c), 11, XL - 8, LY(c), font_family=FONT, text_anchor="end",
+        d.append(draw.Text(str(c), FS_TICK, XL - 10, LY(c), font_family=FONT, text_anchor="end",
                            dominant_baseline="central", fill="#777"))
-    d.append(draw.Text("lineages", 12.5, XL - 32, LTT_TOP + LTT_H / 2, font_family=FONT,
-                       text_anchor="middle", fill="#777",
-                       transform=f"rotate(-90 {XL - 32} {LTT_TOP + LTT_H / 2})"))
-    d.append(draw.Text("fast growth while small, then a plateau near K", 12.5, X(present * 0.55),
-                       LTT_TOP + LTT_H - 16, font_family=FONT, text_anchor="middle", fill="#555",
+    d.append(draw.Text("lineages", FS_LABEL, XL - 40, LTT_TOP + LTT_H / 2, font_family=FONT,
+                       text_anchor="middle", fill="#555",
+                       transform=f"rotate(-90 {XL - 40} {LTT_TOP + LTT_H / 2})"))
+    d.append(draw.Text("fast growth while small, then a plateau near K", FS_ANNOT, X(present * 0.55),
+                       LTT_TOP + LTT_H - 18, font_family=FONT, text_anchor="middle", fill="#555",
                        font_style="italic"))
 
     ya = LTT_TOP + LTT_H
     for i in range(6):
         t = present * i / 5
-        d.append(draw.Line(X(t), ya, X(t), ya + 5, stroke=INK, stroke_width=1.2))
-        d.append(draw.Text(f"{t:.0f}" if t == int(t) else f"{t:.1f}", 11, X(t), ya + 18,
+        d.append(draw.Line(X(t), ya, X(t), ya + 6, stroke=INK, stroke_width=1.2))
+        d.append(draw.Text(f"{t:.0f}" if t == int(t) else f"{t:.1f}", FS_TICK, X(t), ya + 22,
                            font_family=FONT, text_anchor="middle", fill="#777"))
-    d.append(draw.Text("time (root -> present)", 12.5, (XL + XR) / 2, ya + 38, font_family=FONT,
-                       text_anchor="middle", fill="#777"))
-
-    lx, ly = XR - 250, TREE_TOP + 4
-    d.append(draw.Line(lx, ly, lx + 26, ly, stroke=INK, stroke_width=2.0, stroke_linecap="round"))
-    d.append(draw.Text("surviving lineage", 12, lx + 32, ly, font_family=FONT, text_anchor="start",
-                       dominant_baseline="central", fill=INK))
-    d.append(draw.Line(lx, ly + 20, lx + 26, ly + 20, stroke=GREY, stroke_width=1.5, stroke_dasharray=DASH))
-    d.append(draw.Text("extinct lineage", 12, lx + 32, ly + 20, font_family=FONT, text_anchor="start",
-                       dominant_baseline="central", fill=INK))
+    d.append(draw.Text("time (root to present)", FS_LABEL, (XL + XR) / 2, ya + 46, font_family=FONT,
+                       text_anchor="middle", fill="#555"))
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "diversity_dependent.svg").write_text(d.as_svg(), encoding="utf-8")

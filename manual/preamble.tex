@@ -13,11 +13,11 @@
   {\chaptertitlename\ \thechapter}{6pt}{\Huge}
 \titlespacing*{\chapter}{0pt}{0pt}{18pt}
 
-% Let figures sit with the surrounding text instead of being banished to a near-blank page.
-\renewcommand{\topfraction}{0.9}
-\renewcommand{\bottomfraction}{0.85}
-\renewcommand{\textfraction}{0.08}
-\renewcommand{\floatpagefraction}{0.75}
+% Pin figures in place: they render exactly where they appear in the source, instead of
+% floating forward into a later section (the float package's [H] placement, set as the
+% default for every figure). \intextsep still controls the space around them.
+\usepackage{float}
+\floatplacement{figure}{H}
 \setlength{\intextsep}{10pt plus 2pt minus 2pt}
 
 \usepackage{xcolor}

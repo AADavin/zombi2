@@ -152,7 +152,7 @@ z.match_profiles(tree, emp, priors=priors, model="family", family_shape=2.0,
 
 # any custom builder params -> RateModel
 z.match_profiles(tree, emp, priors={"d": (0, 1), "l": (0, 1)},
-                 model=lambda p: z.UniformRates(duplication=p["d"], loss=p["l"]), seed=1)
+                 model=lambda p: z.SharedRates(duplication=p["d"], loss=p["l"]), seed=1)
 ```
 
 !!! tip "Cap growth on the Python engine"

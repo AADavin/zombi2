@@ -22,7 +22,7 @@ copy"; a specific family means "weight the target by this family's own rate".
 import zombi2 as z
 from zombi2.events import EventType
 
-class GenomeWiseRates(z.RateModel):
+class PerGenomeRates(z.RateModel):
     """D/T/L totals independent of genome size."""
     def __init__(self, dup, trans, loss, orig):
         self.d, self.t, self.l, self.o = dup, trans, loss, orig
@@ -35,7 +35,7 @@ class GenomeWiseRates(z.RateModel):
         out.append(z.EventWeight(EventType.ORIGINATION, None, self.o))
         return out
 
-genomes = z.simulate_genomes(tree, GenomeWiseRates(0.5, 0.2, 0.5, 0.4), seed=1)
+genomes = z.simulate_genomes(tree, PerGenomeRates(0.5, 0.2, 0.5, 0.4), seed=1)
 ```
 
 `RateModel.bind(rng, max_family_size)` is called once per run — override it for stateful

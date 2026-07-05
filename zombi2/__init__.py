@@ -40,9 +40,9 @@ from .species import (
 )
 from .genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
-    NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Atom,
+    NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, GffGenome,
-    RateModel, UniformRates, GenomeWiseRates, FamilySampledRates, BranchRates,
+    RateModel, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
     EventWeight, TransferModel,
     GenomeSimulator, GenomeResult, ProfileMatrix,
     simulate_genomes, Genomes, GenomeTrace, read_events_trace,
@@ -94,10 +94,10 @@ __all__ = [
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)
-    "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Atom",
+    "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Block",
     "read_gff", "GffGenome",
     # rates & transfers
-    "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
+    "RateModel", "SharedRates", "PerGenomeRates", "FamilySampledRates",
     "BranchRates", "EventWeight", "TransferModel",
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",

@@ -104,7 +104,7 @@ ZOMBI2 ships a broad range of models, all reachable from the Python API.
 - Family-sampled rates — each family draws its own DTL from distributions (ZOMBI-1 style)
 - Genome-wise rates
 - Ordered chromosomes with inversions and transpositions
-- Nucleotide-resolution genomes, where genes emerge as *atoms* from structural events
+- Nucleotide-resolution genomes, where genes emerge as *blocks* from structural events
 - Gene-family coupling (a Potts model of non-independence)
 - Trait-linked gene families — loss/gain conditioned on a phenotypic trait (`coevolve --couple traits:genes`)
 

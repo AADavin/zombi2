@@ -156,13 +156,13 @@ def main():
             pseudogenes=len(pseud),
         )
 
-    # --- profile (copy number of each atom per species) + pangenome ---
-    atom_ids, sp_names, M = res.profile_matrix()
-    kind = {a.atom_id: a.kind for a in res.atoms}
-    gid = {a.atom_id: a.gene_id for a in res.atoms}
+    # --- profile (copy number of each block per species) + pangenome ---
+    block_ids, sp_names, M = res.profile_matrix()
+    kind = {a.block_id: a.kind for a in res.blocks}
+    gid = {a.block_id: a.gene_id for a in res.blocks}
     order = [sp_names.index(nm) for nm in names]          # column order = leaf order
     M = M[:, order]
-    gene_rows = np.array([i for i, aid in enumerate(atom_ids) if kind[aid] == "gene"])
+    gene_rows = np.array([i for i, aid in enumerate(block_ids) if kind[aid] == "gene"])
     Mg = M[gene_rows]
     prevalence = (Mg > 0).sum(axis=1)                     # in how many of 12 species present
     ancestral_genes = len(gff.genes)
@@ -201,8 +201,8 @@ def main():
 
     # per-species genome dynamics (relative to the ancestral E. coli gene set)
     anc_names = {nm for _a, _b, nm in gff.genes}
-    anc_rows = np.array([i for i in range(len(gene_rows)) if gid[atom_ids[gene_rows[i]]] in anc_names])
-    nov_rows = np.array([i for i in range(len(gene_rows)) if gid[atom_ids[gene_rows[i]]] not in anc_names])
+    anc_rows = np.array([i for i in range(len(gene_rows)) if gid[block_ids[gene_rows[i]]] in anc_names])
+    nov_rows = np.array([i for i in range(len(gene_rows)) if gid[block_ids[gene_rows[i]]] not in anc_names])
     lost = np.array([(Mg[anc_rows, j] == 0).sum() for j in range(N_TIPS)])
     gained = np.array([(Mg[nov_rows, j] > 0).sum() if len(nov_rows) else 0 for j in range(N_TIPS)])
     dup_sp = np.array([(Mg[:, j] > 1).sum() for j in range(N_TIPS)])
@@ -286,7 +286,7 @@ def main():
     # Fig 6 — an example gene tree discordant with the species tree (a duplicated family)
     gene_trees = res.gene_trees()
     # pick a gene family with paralogs (max copy >=2) and present in several species
-    cand = [(atom_ids[gene_rows[i]], prevalence[i], Mg[i].max())
+    cand = [(block_ids[gene_rows[i]], prevalence[i], Mg[i].max())
             for i in range(len(gene_rows))
             if Mg[i].max() >= 2 and 4 <= prevalence[i] <= N_TIPS]
     example = None
@@ -324,8 +324,8 @@ def main():
         "EcChromLen": f"{gff.length:,}", "EcRawGenes": gff.n_features,
         "EcGenes": len(gff.genes), "EcTrimmed": gff.n_trimmed, "EcDropped": gff.n_dropped,
         "EcGenicFrac": f"{genic_frac:.1f}",
-        "EcAtoms": len(res.atoms), "EcGeneAtoms": len(res.gene_atoms()),
-        "EcInterAtoms": len(res.intergene_atoms()),
+        "EcBlocks": len(res.blocks), "EcGeneBlocks": len(res.gene_blocks()),
+        "EcInterBlocks": len(res.intergene_blocks()),
         "EcNfamilies": n_gene_families, "EcCore": core, "EcAccessory": accessory,
         "EcUnique": unique, "EcDuplicated": duplicated,
         "EcMeanGenes": f"{mean_genes:.0f}", "EcMeanPseud": f"{mean_pseud:.0f}",

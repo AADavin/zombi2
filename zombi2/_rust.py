@@ -2,7 +2,7 @@
 
 This module is **not** part of the public API. It is called by
 :func:`~zombi2.simulate_genomes` and :func:`~zombi2.simulate_nucleotide_genomes`, which
-route the *built-in* model (order-free ``UnorderedGenome`` + ``UniformRates``) to Rust
+route the *built-in* model (order-free ``UnorderedGenome`` + ``SharedRates``) to Rust
 automatically — there is no separate "fast" function and no engine switch. Flexible models
 (family/genome-wise/branch rates, ordered genomes, carrying capacity, custom samplers) run
 on the pure-Python engine instead.
@@ -28,7 +28,7 @@ from .events import EventLog, EventRecord, EventType, GeneOp
 from .genome_sim import resolve_max_family_size
 from .nucleotide_sim import NucleotideResult
 from .profiles import ProfileMatrix
-from .rates import UniformRates
+from .rates import SharedRates
 from .simulation import Genomes
 
 try:  # optional native extension
@@ -60,14 +60,14 @@ def require() -> None:
 
 def eligible(rates, genome_factory, sampler) -> bool:
     """True if this model is the built-in one the Rust engine implements: the default
-    ``UnorderedGenome``, a plain ``UniformRates`` (no soft carrying capacity, no
+    ``UnorderedGenome``, a plain ``SharedRates`` (no soft carrying capacity, no
     rearrangements), and no custom event sampler. Everything else runs on Python."""
     from .genome import UnorderedGenome
 
     return (
         genome_factory is UnorderedGenome
         and sampler is None
-        and type(rates) is UniformRates
+        and type(rates) is SharedRates
         and rates.carrying_capacity is None
         and not rates.inversion
         and not rates.transposition
@@ -77,26 +77,26 @@ def eligible(rates, genome_factory, sampler) -> bool:
 class _FastNucleotideResult(NucleotideResult):
     """A NucleotideResult from the Rust profile path (no event log → no gene trees)."""
 
-    def atom_gene_trees(self):
+    def block_gene_trees(self):
         raise NotImplementedError(
             "the Rust nucleotide profile path emits only leaf segments (profile / mosaic / "
-            "trace-back); per-atom gene trees need the event log — use "
+            "trace-back); per-block gene trees need the event log — use "
             "simulate_nucleotide_genomes(...) (the default) for those."
         )
 
-    def atom_histories(self):
+    def block_histories(self):
         raise NotImplementedError(
-            "atom_histories needs the event log; use simulate_nucleotide_genomes(...)."
+            "block_histories needs the event log; use simulate_nucleotide_genomes(...)."
         )
 
 
 # --- rate / tree / cap / transfer plumbing ---------------------------------------
 
 def _resolve_rates(rates):
-    """Return (d, t, l, o) from a UniformRates, rejecting features Rust does not implement."""
-    if type(rates) is not UniformRates:
+    """Return (d, t, l, o) from a SharedRates, rejecting features Rust does not implement."""
+    if type(rates) is not SharedRates:
         raise TypeError(
-            f"the Rust engine only supports UniformRates, not {type(rates).__name__}; "
+            f"the Rust engine only supports SharedRates, not {type(rates).__name__}; "
             f"use simulate_genomes for that model"
         )
     unsupported = []
@@ -396,7 +396,7 @@ def genomes(species_tree, rates, *, initial_size, transfers, max_family_size, se
                    event_log=event_log, profiles=profs)
 
 
-# --- nucleotide-genome profile path (leaf segments -> atoms/profile/mosaics) ------
+# --- nucleotide-genome profile path (leaf segments -> blocks/profile/mosaics) ------
 
 class _FastNucGenome:
     """Minimal leaf genome exposing just what NucleotideResult reads (segments + to_cells)."""
@@ -431,7 +431,7 @@ def nucleotide(species_tree, *, inversion, loss, duplication, transfer, transpos
     require()
     from .events import EventLog
     from .nucleotide_genome import Segment, SegmentRegistry
-    from .nucleotide_sim import _build_atoms
+    from .nucleotide_sim import _build_blocks
 
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     _, seed_val = _cap_and_seed(None, sum(extant_leaf), seed)
@@ -450,8 +450,8 @@ def nucleotide(species_tree, *, inversion, loss, duplication, transfer, transpos
                 for (src, start, end, strand) in segs]
         leaf_genomes[nodes[leaf_idx]] = _FastNucGenome(objs)
 
-    atoms = _build_atoms(leaf_genomes, root_length)
+    blocks = _build_blocks(leaf_genomes, root_length)
     return _FastNucleotideResult(
         species_tree=species_tree, leaf_genomes=leaf_genomes,
-        event_log=EventLog(), registry=SegmentRegistry(), atoms=atoms, root_length=root_length,
+        event_log=EventLog(), registry=SegmentRegistry(), blocks=blocks, root_length=root_length,
     )

@@ -23,8 +23,8 @@ def model() -> "z.BirthDeath":
     return z.BirthDeath(BIRTH, DEATH)
 
 
-def rate_model() -> "z.UniformRates":
-    return z.UniformRates(**RATES)
+def rate_model() -> "z.SharedRates":
+    return z.SharedRates(**RATES)
 
 
 def label() -> str:

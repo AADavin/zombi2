@@ -12,6 +12,15 @@ import phylustrator as ph
 # --- Typography -----------------------------------------------------------
 FONT = "Helvetica"          # falls back gracefully to Arial on systems without it
 
+# Figure font sizes, in drawsvg user units, tuned so text stays readable once a
+# ~1000-1180px-wide canvas is scaled down to roughly full text width in the
+# manual (~9-11pt on the page). Bump these once to rescale text across every
+# drawsvg figure that imports them.
+FS_TITLE = 32               # figure title (bold)
+FS_LABEL = 22               # axis titles, legend entries, curve labels
+FS_ANNOT = 20               # inline annotations
+FS_TICK  = 18               # tick numbers and other small numeric labels
+
 # --- Core palette ---------------------------------------------------------
 # A restrained, print-friendly set. Branches are near-black (not pure #000,
 # which reads harsh at small sizes); accents come from ColorBrewer Set1, the

@@ -21,7 +21,7 @@ import drawsvg as draw
 import phylustrator as ph
 from phylustrator.io import read_newick
 
-from zombi_style import INK, PANEL, species_style
+from zombi_style import INK, PANEL, species_style, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_10" / "species_tree.nwk"
@@ -33,7 +33,15 @@ DUPLICATIONS = [("I", 0.5965)]                              # duplication in spe
 LOSSES = [("J", 0.7128)]                                    # loss in species J
 TRANSFERS = [{"from": "F", "to": "G", "time": 0.4233}]      # transfer F -> G
 
-MARKER_R = 8.0
+MARKER_R = 9.0
+
+
+def draw_cross(d, x, y, r, stroke_width=3.0):
+    """A solid black cross (two crossing segments) marking a loss."""
+    d.drawing.append(draw.Line(x - r, y - r, x + r, y + r, stroke=INK,
+                               stroke_width=stroke_width, stroke_linecap="round"))
+    d.drawing.append(draw.Line(x - r, y + r, x + r, y - r, stroke=INK,
+                               stroke_width=stroke_width, stroke_linecap="round"))
 
 
 def annotate_times(tree) -> float:
@@ -67,49 +75,50 @@ def _branch_point(d, node, t):
     return x_p + (x_c - x_p) * frac, y_c
 
 
-def draw_events(d, tree, hatch):
+def draw_events(d, tree):
+    """Solid-black event glyphs: filled square = duplication, cross = loss,
+    black arc with arrowhead = transfer."""
     name2node = {n.name: n for n in tree.traverse()}
-    marker = dict(r=MARKER_R, stroke=INK, stroke_width=2.0)
     for br, t in DUPLICATIONS:
-        d._draw_shape_at(*_branch_point(d, name2node[br], t), "square", hatch, **marker)
+        d._draw_shape_at(*_branch_point(d, name2node[br], t), "square", INK, r=MARKER_R)
     for br, t in LOSSES:
-        d._draw_shape_at(*_branch_point(d, name2node[br], t), "circle", hatch, **marker)
+        x, y = _branch_point(d, name2node[br], t)
+        draw_cross(d, x, y, MARKER_R)
     d.plot_transfers(TRANSFERS, mode="time", use_gradient=False, color=INK,
                      stroke_width=2.6, arc_intensity=38.0, opacity=1.0,
                      arrowhead=True, arrow_size=12.0, donor_dot=True)
 
 
-def add_legend(d, hatch, x, y, font_size=15):
+def add_legend(d, x, y):
+    """Symbol legend (solid-black glyphs), a single vertical column in the top-left:
+    one row per event, ordered Duplication, Transfer, Loss."""
     r = MARKER_R
     fam = d.style.font_family
-    d.drawing.append(draw.Text("Gene-family events", font_size + 2, x, y, font_weight="bold",
-                               font_family=fam, text_anchor="start"))
-    label_x = x + 2 * r + 14
-    cy = y + font_size * 1.9
+    gap = 24                                     # symbol-to-label gap
+    row = 40                                      # vertical spacing between rows
 
-    d._draw_shape_at(x + r, cy, "square", hatch, r=r, stroke=INK, stroke_width=2.0)
-    d.drawing.append(draw.Text("Duplication", font_size, label_x, cy, font_family=fam,
-                               text_anchor="start", dominant_baseline="middle"))
-    cy += font_size * 1.9
+    # duplication: filled square
+    cy = y
+    d._draw_shape_at(x, cy, "square", INK, r=r)
+    d.drawing.append(draw.Text("Duplication", FS_LABEL, x + r + gap, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
 
-    d._draw_shape_at(x + r, cy, "circle", hatch, r=r, stroke=INK, stroke_width=2.0)
-    d.drawing.append(draw.Text("Loss", font_size, label_x, cy, font_family=fam,
-                               text_anchor="start", dominant_baseline="middle"))
-    cy += font_size * 1.9
-
-    # transfer glyph: donor dot -> arc -> arrowhead tip touching a short branch tick
-    bx0, bx1 = x, x + 2 * r
-    by = cy + 7
-    mid = (bx0 + bx1) / 2
-    base = by - 9
-    d.drawing.append(draw.Line(bx0, by, bx1, by, stroke=INK, stroke_width=2.4))       # branch
-    d.drawing.append(draw.Circle(bx0 + 2, cy - 8, 2.6, fill=INK))                      # donor dot
-    p = draw.Path(stroke=INK, stroke_width=2.4, fill="none", stroke_linecap="round")
-    p.M(bx0 + 2, cy - 8).C(bx0 - 5, cy - 8, mid, base - 8, mid, base)
+    # transfer: donor dot -> black arc -> arrowhead
+    cy = y + row
+    d.drawing.append(draw.Circle(x - r, cy, 3.2, fill=INK))                             # donor dot
+    p = draw.Path(stroke=INK, stroke_width=2.6, fill="none", stroke_linecap="round")
+    p.M(x - r, cy).C(x - r, cy - 12, x + r, cy - 12, x + r, cy)
     d.drawing.append(p)
-    d.drawing.append(draw.Lines(mid, by, mid - 5, base, mid + 5, base, close=True, fill=INK))
-    d.drawing.append(draw.Text("Transfer", font_size, label_x, cy, font_family=fam,
-                               text_anchor="start", dominant_baseline="middle"))
+    d.drawing.append(draw.Lines(x + r, cy + 1, x + r - 5, cy - 8, x + r + 5, cy - 8,
+                                close=True, fill=INK))                                  # arrowhead
+    d.drawing.append(draw.Text("Transfer", FS_LABEL, x + r + gap, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
+
+    # loss: black cross
+    cy = y + 2 * row
+    draw_cross(d, x, cy, r)
+    d.drawing.append(draw.Text("Loss", FS_LABEL, x + r + gap, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
 
 
 def main():
@@ -118,19 +127,28 @@ def main():
     for leaf, letter in zip(tree.get_leaves(), string.ascii_uppercase):
         leaf.name = letter
 
-    style = species_style()
+    # taller canvas + generous top margin gives a clean header band (title + legend row)
+    # that sits entirely above the tree.
+    style = species_style(width=920, height=760, margin=120, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d.draw()
     d.add_leaf_names(color=INK, padding=12)
 
-    hatch = make_hatch(d)
-    draw_events(d, tree, hatch)
+    draw_events(d, tree)
 
     ticks = [round(present * i / 4, 6) for i in range(5)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
-                    label="Time (root to present)", tick_size=6.0, padding=14.0,
+                    label="Time (root to present)", tick_size=6.0, padding=16.0,
                     stroke_width=1.6)
-    add_legend(d, hatch, x=-style.width / 2 + 34, y=-style.height / 2 + 40)
+
+    # title centered at the top; symbol legend as a vertical column in the top-left,
+    # both clear of the tree
+    left = -style.width / 2 + 30
+    d.drawing.append(draw.Text("Gene-family events on the species tree", FS_TITLE, 0,
+                               -style.height / 2 + 42, font_weight="bold",
+                               font_family=style.font_family, text_anchor="middle",
+                               dominant_baseline="central", fill=INK))
+    add_legend(d, x=left + 12, y=-style.height / 2 + 88)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)

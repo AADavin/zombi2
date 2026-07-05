@@ -19,7 +19,7 @@ small factory:
 ```python
 import zombi2 as z
 
-rates = z.UniformRates(
+rates = z.SharedRates(
     duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
     inversion=0.3, transposition=0.3,      # rearrangement rates (ordered genomes only)
 )
@@ -52,7 +52,7 @@ and in the final chromosome order.
 
 ## How events reach the genome
 
-Inversion and transposition rates are emitted by `UniformRates` as candidate events. A
+Inversion and transposition rates are emitted by `SharedRates` as candidate events. A
 genome only undergoes the events it declares in `supported_events()`:
 
 - `UnorderedGenome` supports `{O, D, T, L}` — it silently ignores inversion/transposition

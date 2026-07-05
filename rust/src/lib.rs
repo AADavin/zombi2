@@ -1445,7 +1445,7 @@ fn simulate_and_write(
 }
 
 // ============ nucleotide genome (structural events at nucleotide resolution) ============
-// Increment 1: forward sim emitting the extant leaf segments. Atoms, the phylogenetic
+// Increment 1: forward sim emitting the extant leaf segments. Blocks, the phylogenetic
 // profile, per-leaf mosaics and the position trace-back are all derivable from those, so
 // this needs no event log, seg-ids or provenance. Container is a Vec (O(S) per op, but in
 // Rust); an order-statistics rope (O(log S)) is a later increment.

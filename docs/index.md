@@ -29,7 +29,7 @@ genomes.write("out/")                   # trees, event tables, transfers, profil
   extant tips; a [roadmap](species_tree_models.md) of further models (episodic/skyline,
   diversity-dependent, fossilized birth–death).
 - **Gene families** — duplication / transfer / loss / origination along the tree, with
-  two rate models: the same rates for every family (`UniformRates`) or **per-family rates
+  two rate models: the same rates for every family (`SharedRates`) or **per-family rates
   drawn from distributions** (`FamilySampledRates`, ZOMBI-1 style).
 - **Transfers** — additive or **replacement**, **phylogenetic-distance-weighted**
   recipient choice, and optional **self-transfer** (= duplication).

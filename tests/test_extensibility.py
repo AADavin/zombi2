@@ -14,7 +14,7 @@ from zombi2 import (
     Gamma,
     GenomeSimulator,
     RateModel,
-    UniformRates,
+    SharedRates,
     UnorderedGenome,
     simulate_genomes,
     simulate_species_tree,
@@ -23,7 +23,7 @@ from zombi2.events import EventType
 
 
 # --- axis 1: a new RateModel (genome-wise, size-independent totals) ----------
-class GenomeWiseRates(RateModel):
+class PerGenomeRates(RateModel):
     def __init__(self, duplication, transfer, loss, origination):
         self.d, self.t, self.l, self.o = duplication, transfer, loss, origination
 
@@ -41,7 +41,7 @@ class GenomeWiseRates(RateModel):
 
 def test_genome_wise_rate_model_swap():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=4)
-    genomes = simulate_genomes(tree, GenomeWiseRates(0.5, 0.2, 0.5, 0.4),
+    genomes = simulate_genomes(tree, PerGenomeRates(0.5, 0.2, 0.5, 0.4),
                                initial_families=10, seed=4)
     assert genomes.profiles.matrix.shape[1] == 10
     assert len(genomes.event_log) > 0
@@ -100,7 +100,7 @@ class OrderedListGenome(UnorderedGenome):
 def test_alternative_genome_representation_swap():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=0)
     gr = GenomeSimulator().simulate(
-        tree, UniformRates(0.15, 0.1, 0.2, 0.4),
+        tree, SharedRates(0.15, 0.1, 0.2, 0.4),
         np.random.default_rng(1), initial_size=8, genome_factory=OrderedListGenome,
     )
     assert gr.leaf_genomes

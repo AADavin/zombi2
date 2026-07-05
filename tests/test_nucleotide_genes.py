@@ -1,7 +1,7 @@
 """Genes & intergenes in the nucleotide model.
 
 Genes are user-supplied, non-overlapping intervals on the root chromosome that structural
-events may never break — so each gene is exactly one atom (one genealogy). Losses may
+events may never break — so each gene is exactly one block (one genealogy). Losses may
 *pseudogenize* a gene (retain the sequence, flip it to intergene); replacement transfers are
 *homologous* (the copy replaces the recipient's syntenic locus, found via flanking genes).
 These tests pin the never-cut invariant, the pseudogenization state machine, the homologous
@@ -97,15 +97,15 @@ def test_dense_genes_with_heavy_transposition(seed):
         tree, inversion=0.02, loss=0.01, duplication=0.008, transfer=0.008,
         transposition=0.02, origination=0.4, root_length=200, extension=0.9,
         gene_intervals=genes, pseudogenization=0.6, replacement=0.7, seed=seed)
-    for a in res.atoms:                            # gene integrity still holds under stress
+    for a in res.blocks:                            # gene integrity still holds under stress
         if a.kind == "gene":
             assert a.gene_id is not None
-    res.atom_reconciliations()                     # trees build cleanly
+    res.block_reconciliations()                     # trees build cleanly
 
 
 @pytest.mark.parametrize("seed", range(30))
 def test_genes_are_never_split_by_any_event(seed):
-    """Full simulation: every gene atom is a whole gene; no atom straddles a gene boundary."""
+    """Full simulation: every gene block is a whole gene; no block straddles a gene boundary."""
     tree = _tree(seed=seed)
     genes = [(50, 90, "a"), (140, 200, "b"), (300, 340, "c"), (600, 660, "d")]
     res = simulate_nucleotide_genomes(
@@ -114,11 +114,11 @@ def test_genes_are_never_split_by_any_event(seed):
         gene_intervals=genes, pseudogenization=0.5, replacement=0.6, seed=seed * 7 + 1)
     gene_iv = {(gi.source, gi.start, gi.end): gi.gene_id
                for gis in res.registry.genes.values() for gi in gis}
-    for a in res.atoms:
+    for a in res.blocks:
         if a.kind == "gene":
             assert (a.source, a.start, a.end) in gene_iv
             assert a.gene_id == gene_iv[(a.source, a.start, a.end)]
-        for (src, s, e) in gene_iv:                 # no atom straddles a gene boundary
+        for (src, s, e) in gene_iv:                 # no block straddles a gene boundary
             if a.source == src and not (a.end <= s or a.start >= e):
                 assert a.start >= s and a.end <= e
     # and per-leaf: each gene copy's ancestral positions form a contiguous run in the trace-back
@@ -168,15 +168,15 @@ def test_pseudogenization_lineage_specific_and_in_tree():
         gene_intervals=genes, pseudogenization=0.6, seed=5)
     ps = res.pseudogenizations()
     assert ps, "expected at least one pseudogenization with these settings"
-    # every flip is on a gene atom, and it surfaces as a `G` node in that atom's complete tree
+    # every flip is on a gene block, and it surfaces as a `G` node in that block's complete tree
     gene_trees = res.gene_trees()
-    for atom_id, gene_id, species, t, gid in ps:
-        assert res._atom_by_id[atom_id].kind == "gene"
-        complete, _extant = gene_trees[atom_id]
+    for block_id, gene_id, species, t, gid in ps:
+        assert res._block_by_id[block_id].kind == "gene"
+        complete, _extant = gene_trees[block_id]
         assert "|G" in complete
-    # no new family/source was minted for a pseudogene (genealogy count == gene-atom count logic):
-    # every gene atom's source is one of the original gene sources (or an originated gene)
-    assert {a.gene_id for a in res.gene_atoms()} >= {p[1] for p in ps}
+    # no new family/source was minted for a pseudogene (genealogy count == gene-block count logic):
+    # every gene block's source is one of the original gene sources (or an originated gene)
+    assert {a.gene_id for a in res.gene_blocks()} >= {p[1] for p in ps}
 
 
 # --------------------------------------------------------------------------- #
@@ -234,10 +234,10 @@ def test_replacement_transfers_run_and_reconcile(tmp_path):
         gene_intervals=genes, replacement=1.0, seed=4)
     # replacement transfers log recipient losses; the full reconciliation still builds cleanly
     summary = res.write_reconciliations(tmp_path)
-    assert summary["n_atoms"] >= 1
+    assert summary["n_blocks"] >= 1
     # every reconciliation-event species branch is a real node in the tree
     nodes = {n.name for n in tree.nodes_preorder()}
-    for _atom_id, rec in res.atom_reconciliations().items():
+    for _block_id, rec in res.block_reconciliations().items():
         for e in rec.events:
             assert e.species in nodes
 
@@ -245,21 +245,21 @@ def test_replacement_transfers_run_and_reconcile(tmp_path):
 # --------------------------------------------------------------------------- #
 # Gene + intergene trees recovered, classification
 # --------------------------------------------------------------------------- #
-def test_gene_and_intergene_trees_partition_all_atoms():
+def test_gene_and_intergene_trees_partition_all_blocks():
     tree = _tree(n_tips=6, seed=2)
     genes = [(100, 180, "a"), (300, 360, "b"), (500, 620, "c"), (750, 800, "d")]
     res = simulate_nucleotide_genomes(
         tree, inversion=0.003, loss=0.002, duplication=0.001, transfer=0.001,
         root_length=1000, extension=0.97, gene_intervals=genes, seed=7)
-    gene_ids = {a.atom_id for a in res.gene_atoms()}
-    inter_ids = {a.atom_id for a in res.intergene_atoms()}
+    gene_ids = {a.block_id for a in res.gene_blocks()}
+    inter_ids = {a.block_id for a in res.intergene_blocks()}
     assert gene_ids.isdisjoint(inter_ids)
-    assert gene_ids | inter_ids == {a.atom_id for a in res.atoms}
+    assert gene_ids | inter_ids == {a.block_id for a in res.blocks}
     assert set(res.gene_trees()) == gene_ids
     assert set(res.intergene_trees()) == inter_ids
     assert res.gene_trees() and res.intergene_trees()
-    # each gene atom is a full user gene interval (or an originated gene)
-    for a in res.gene_atoms():
+    # each gene block is a full user gene interval (or an originated gene)
+    for a in res.gene_blocks():
         assert a.gene_id is not None
 
 
@@ -269,7 +269,7 @@ def _n_leaves(newick):
 
 @pytest.mark.parametrize("seed", range(12))
 def test_genic_reconciliation_invariant(seed):
-    """An atom's extant tree has one leaf per surviving copy — gene, intergene, and pseudogene
+    """A block's extant tree has one leaf per surviving copy — gene, intergene, and pseudogene
     tips alike — even with pseudogenization (unary `G` nodes) and homologous replacement."""
     tree = _tree(n_tips=6, seed=seed)
     genes = [(80, 140, "a"), (250, 300, "b"), (450, 540, "c"), (700, 760, "d")]
@@ -279,8 +279,8 @@ def test_genic_reconciliation_invariant(seed):
         pseudogenization=0.5, replacement=0.5, seed=seed * 5 + 2)
     ids, _species, M = res.profile_matrix()
     rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
-    for aid, (_complete, extant) in res.atom_gene_trees().items():
-        if extant is not None:                     # some atoms may survive in no extant leaf
+    for aid, (_complete, extant) in res.block_gene_trees().items():
+        if extant is not None:                     # some blocks may survive in no extant leaf
             assert _n_leaves(extant) == rowsum[aid]
 
 
@@ -307,8 +307,8 @@ def test_origination_creates_a_new_gene():
         gene_intervals=[(50, 100, "seed")], seed=3)
     ids = {gi.gene_id for gis in res.registry.genes.values() for gi in gis}
     assert "seed" in ids and len(ids) > 1            # novel originated genes appeared
-    # every originated gene is a whole gene atom (never split)
-    assert all(a.gene_id is not None for a in res.gene_atoms())
+    # every originated gene is a whole gene block (never split)
+    assert all(a.gene_id is not None for a in res.gene_blocks())
 
 
 def test_profiles_output_rejects_genes():

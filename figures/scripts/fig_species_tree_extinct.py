@@ -33,13 +33,14 @@ import drawsvg as draw
 import phylustrator as ph
 from phylustrator.io import read_newick
 
-from zombi_style import INK, species_style
+from zombi_style import INK, species_style, FS_TITLE, FS_LABEL, FS_TICK
 
 FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_extinct" / "species_tree.nwk"
 OUT_STEM = FIG_DIR / "species_tree_extinct" / "species_tree"
 
-GREEK = list("αβγδεζηθικλμνξοπρστυφχψω")
+# ASCII-only names for the extinct tips (e1, e2, ...); survivors keep Latin letters.
+EXTINCT_NAMES = [f"e{i}" for i in range(1, 25)]
 DASH = "6,5"                 # dash pattern for extinct lineages
 PRESENT = "#c9c9c9"          # faint "today" reference line
 
@@ -93,23 +94,25 @@ def draw_skeleton(d, tree) -> None:
                 _seg(d, x, y, x, c.coordinates[1], dashed=not c.has_survivor)
 
 
-def add_legend(d, x, y, font_size=15) -> None:
-    """Line-swatch legend: solid = extant lineage, dashed = extinct lineage."""
+def add_legend(d, x, y) -> None:
+    """Line-swatch legend (single column, shared font scale): solid = surviving
+    lineage, grey dashed = extinct lineage — the fig_diversity_dependent convention."""
     sw = d.style.branch_stroke_width
-    L = 30
-    d.drawing.append(draw.Text("Lineages", font_size + 2, x, y, font_weight="bold",
-                               font_family=d.style.font_family, text_anchor="start"))
-    rows = [("Extant lineage", False), ("Extinct lineage", True)]
-    cy = y + font_size * 1.7
+    L = 34
+    d.drawing.append(draw.Text("Lineages", FS_LABEL, x, y, font_weight="bold",
+                               font_family=d.style.font_family, text_anchor="start",
+                               dominant_baseline="central", fill=INK))
+    rows = [("surviving lineage", False), ("extinct lineage", True)]
+    cy = y + FS_LABEL * 1.8
     for label, dashed in rows:
-        kw = dict(stroke=INK, stroke_width=sw)
-        kw.update(stroke_dasharray=DASH, stroke_linecap="butt") if dashed else \
-            kw.update(stroke_linecap="round")
+        kw = dict(stroke=INK, stroke_width=sw, stroke_linecap="round")
+        if dashed:
+            kw = dict(stroke=INK, stroke_width=sw, stroke_dasharray=DASH, stroke_linecap="butt")
         d.drawing.append(draw.Line(x, cy, x + L, cy, **kw))
-        d.drawing.append(draw.Text(label, font_size, x + L + 10, cy,
+        d.drawing.append(draw.Text(label, FS_LABEL, x + L + 12, cy,
                                    font_family=d.style.font_family, text_anchor="start",
-                                   dominant_baseline="middle"))
-        cy += font_size * 1.7
+                                   dominant_baseline="central", fill=INK))
+        cy += FS_LABEL * 1.8
 
 
 def main() -> None:
@@ -121,13 +124,14 @@ def main() -> None:
     extant = [l for l in leaves if l.is_extant]
     extinct = [l for l in leaves if not l.is_extant]
 
-    # Names: survivors get Latin letters, extinct tips get Greek letters.
+    # Names: survivors get Latin letters, extinct tips get ASCII x1, x2, ...
     for leaf, letter in zip(extant, string.ascii_uppercase):
         leaf.name = letter
-    for leaf, g in zip(extinct, GREEK):
-        leaf.name = g
+    for leaf, name in zip(extinct, EXTINCT_NAMES):
+        leaf.name = name
 
-    style = species_style(height=800)
+    # generous top margin gives a clean band for the centered title above the tree
+    style = species_style(height=860, margin=110, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
@@ -145,8 +149,14 @@ def main() -> None:
                     label="Time (root to present)", tick_size=6.0, padding=14.0,
                     stroke_width=1.6)
 
-    # lower-left is the open quadrant here; keeps clear of the basal extinct tip α
-    add_legend(d, x=-style.width / 2 + 34, y=style.height / 2 - 150)
+    # title: one short bold line, horizontally centered at the top
+    d.drawing.append(draw.Text("A species tree with extinct lineages", FS_TITLE, 0,
+                               -style.height / 2 + 44, font_weight="bold",
+                               font_family=style.font_family, text_anchor="middle",
+                               dominant_baseline="central", fill=INK))
+
+    # lower-left is the open quadrant here; lifted clear of the time axis below it
+    add_legend(d, x=-style.width / 2 + 34, y=style.height / 2 - 250)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)

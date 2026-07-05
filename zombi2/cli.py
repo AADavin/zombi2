@@ -19,7 +19,8 @@ from .nucleotide_sim import simulate_nucleotide_genomes
 from .profiles import ProfileMatrix
 from .distributions import LogNormal
 from .rate_variation import RateVariation
-from .rates import GenomeWiseRates
+from .genome import OrderedGenome
+from .rates import PerGenomeRates, SharedRates
 from .sequence_evolution import SequenceEvolution
 from .simulation import Genomes, simulate_genomes
 from .species_model import (
@@ -197,21 +198,31 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    g.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide", "coupled"),
-                   default="uniform", metavar="MODEL",
-                   help="uniform: same per-copy rates for every family (Rust; default); "
-                        "genome-wise: constant per-genome rates, linear growth (Python); "
-                        "nucleotide: nucleotide-resolution genomes evolving by variable-length "
-                        "structural events, genes emerge as 'atoms' (see the nucleotide sections); "
-                        "coupled: non-independent families (Potts/Ising) whose presence/absence "
-                        "co-varies by pathway (see the coupled model section)")
+    g.add_argument("--genome-model", dest="genome_model",
+                   choices=("unordered", "ordered", "nucleotide"), default="unordered",
+                   metavar="LEVEL",
+                   help="genome level: unordered (default) evolves gene families with no "
+                        "positional structure; ordered places genes on a chromosome where order "
+                        "matters (adds inversion/transposition on gene segments; distance counted "
+                        "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
+                        "genomes by variable-length structural events, genes emerge as 'blocks' "
+                        "(see the nucleotide sections)")
+    g.add_argument("--rate-model", choices=("shared", "per-genome", "coupled"),
+                   default="shared", metavar="MODEL",
+                   help="rate heterogeneity within the unordered/ordered genome levels: shared: "
+                        "same per-copy rates for every family (Rust for unordered; default); "
+                        "per-genome: constant per-genome rates, linear growth (Python); coupled: "
+                        "non-independent families (Potts/Ising) whose presence/absence co-varies by "
+                        "pathway (see the coupled model section; unordered only). Rearrangements "
+                        "(--inversion/--transposition on ordered genomes) need shared")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
 
     g = p.add_argument_group(
         "gene-family rates",
-        "per copy for uniform/genome-wise; per nucleotide for --rate-model nucleotide")
+        "per copy for --rate-model shared/per-genome; "
+        "per nucleotide for --genome-model nucleotide")
     g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
     g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
     g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
@@ -219,11 +230,11 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="origination rate (per branch)")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
-                   help="number of gene families seeded at the root, for --rate-model "
-                        "uniform/genome-wise (default: 20)")
+                   help="number of gene families seeded at the root, for the unordered and ordered "
+                        "genome levels (--genome-model unordered/ordered) (default: 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
-                        "number of species (e.g. 0.5) [not used by --rate-model nucleotide]")
+                        "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="output", nargs="+", metavar="PART",
@@ -266,23 +277,40 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="where the family enters the tree: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
 
-    g = p.add_argument_group("nucleotide model", "with --rate-model nucleotide")
-    g.add_argument("--inversion", type=float, default=0.001, metavar="RATE",
-                   help="per-nucleotide inversion rate (default 0.001)")
-    g.add_argument("--transposition", type=float, default=0.0, metavar="RATE",
-                   help="per-nucleotide transposition rate (default 0)")
+    g = p.add_argument_group("structural events (rearrangements)",
+                             "--genome-model ordered/nucleotide")
+    g.add_argument("--inversion", type=float, default=None, metavar="RATE",
+                   help="inversion rate — per gene copy for --genome-model ordered (default 0), "
+                        "per nucleotide for nucleotide (default 0.001)")
+    g.add_argument("--transposition", type=float, default=None, metavar="RATE",
+                   help="transposition rate — per gene copy for --genome-model ordered, per "
+                        "nucleotide for nucleotide (default 0)")
+    g.add_argument("--extension", type=float, default=None, metavar="P",
+                   help="geometric event-length parameter (mean length 1/(1-extension)): counted "
+                        "in genes for --genome-model ordered (default None = single-gene events), "
+                        "in nucleotides for nucleotide (default 0.99)")
+
+    g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
-                   help="number of root chromosomes seeded at the root, for --rate-model "
+                   help="number of root chromosomes seeded at the root, for --genome-model "
                         "nucleotide (default: 1)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
-    g.add_argument("--extension", type=float, default=0.99, metavar="P",
-                   help="geometric event-length parameter; mean event length is 1/(1-extension) "
-                        "nucleotides (default 0.99)")
+    g.add_argument("--insertion", type=float, default=0.0, metavar="RATE",
+                   help="per-nucleotide intergenic insertion rate: lay down a run of novel "
+                        "nucleotides (a fresh block) inside an intergene (default 0)")
+    g.add_argument("--deletion", type=float, default=0.0, metavar="RATE",
+                   help="per-nucleotide intergenic deletion rate: remove a run from within a single "
+                        "intergene, never touching a gene, never below the min-genome floor "
+                        "(default 0)")
+    g.add_argument("--indel-mean-length", type=float, default=10.0, metavar="L",
+                   dest="indel_mean_length",
+                   help="mean length (in nucleotides) of an insertion/deletion run — geometric, a "
+                        "separate knob from --extension (default 10)")
 
     g = p.add_argument_group("genes & intergenes",
-                             "nucleotide model; declare genes to enable genic mode")
+                             "--genome-model nucleotide; declare genes to enable genic mode")
     g.add_argument("--gff", metavar="FILE", default=None,
                    help="a GFF3 annotation (optionally .gz) to start from a real genome: sets the "
                         "chromosome length and the gene coordinates (intergenes are the gaps). "
@@ -304,7 +332,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "additive when no homolog) (default 0)")
 
     g = p.add_argument_group("sequences & ancestral genomes",
-                             "nucleotide model, with --write ancestral")
+                             "--genome-model nucleotide, with --write ancestral")
     g.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
                    metavar="MODEL",
                    help="nucleotide substitution model for the sequences (default hky85)")
@@ -1305,8 +1333,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                  parser: argparse.ArgumentParser) -> str:
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
 
-    The default ``uniform`` model runs on the Rust engine automatically (``simulate_genomes``
-    raises a build hint if the extension is missing); ``genome-wise`` runs on Python.
+    The default ``shared`` rate model runs on the Rust engine automatically (``simulate_genomes``
+    raises a build hint if the extension is missing); ``per-genome`` runs on Python.
     """
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
     if args.sparse and "profiles" not in parts:
@@ -1316,41 +1344,57 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                          "exactly --write profiles")
 
     if args.rate_model == "coupled":
+        if args.genome_model != "unordered":
+            parser.error("--rate-model coupled is an unordered-genome model and cannot combine "
+                         f"with --genome-model {args.genome_model}")
         return _run_coupled(tree, args, parser, parts)
 
-    if args.rate_model == "nucleotide":
+    if args.genome_model == "nucleotide":
         if args.initial_families is not None:
-            parser.error("--initial-families is for the gene-family models "
-                         "(--rate-model uniform/genome-wise); the nucleotide model uses "
+            parser.error("--initial-families is for the unordered genome level "
+                         "(--genome-model unordered); the nucleotide model uses "
                          "--initial-chromosomes")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
-        parser.error("--initial-chromosomes is only for --rate-model nucleotide; the "
-                     "gene-family models use --initial-families")
+        parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
+                     "unordered and ordered genome levels use --initial-families")
 
+    ordered = args.genome_model == "ordered"
     initial_families = 20 if args.initial_families is None else args.initial_families
     args.initial_families = initial_families  # record the effective value in the params log
-    if args.rate_model == "genome-wise":
-        model_kw = dict(rates=GenomeWiseRates(args.dup, args.trans, args.loss, args.orig))
-    else:  # uniform
+    if args.rate_model == "per-genome":
+        if ordered and (args.inversion is not None or args.transposition is not None):
+            parser.error("rearrangements (--inversion/--transposition) need --rate-model shared; "
+                         "per-genome rates do not carry them")
+        model_kw = dict(rates=PerGenomeRates(args.dup, args.trans, args.loss, args.orig))
+    elif ordered:  # shared per-copy rates + rearrangements on an ordered chromosome
+        inv = 0.0 if args.inversion is None else args.inversion
+        tps = 0.0 if args.transposition is None else args.transposition
+        args.inversion, args.transposition = inv, tps  # record effective values in the params log
+        model_kw = dict(rates=SharedRates(args.dup, args.trans, args.loss, args.orig,
+                                          inversion=inv, transposition=tps))
+    else:  # shared (unordered)
         model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
                         origination=args.orig)
     rate_kw = dict(**model_kw, initial_families=initial_families,
                    max_family_size=args.max_family_size, seed=args.seed)
+    if ordered:
+        ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
+        rate_kw["genome_factory"] = lambda ids, _e=ext: OrderedGenome(ids, extension=_e)
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the
     # full path (the fast counts-only / trace paths don't reconstruct gene trees).
     score = getattr(args, "score_likelihoods", False)
 
     t0 = time.perf_counter()
-    if parts == {"profiles"} and not score:
+    if parts == {"profiles"} and not score and not ordered:
         # counts-only Rust fast path: no genealogy reconstructed (parallel when --threads > 1)
         profiles = simulate_genomes(tree, output="profiles", threads=args.threads, **rate_kw)
         dt = time.perf_counter() - t0
         _write_profiles_only(args.out, tree, profiles, sparse=args.sparse)
         n_families = len(profiles.families)
-    elif "trace" in parts and parts <= {"trace", "profiles"} and not score:
+    elif "trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered:
         # event-trace fast path: compact Events_trace.tsv (+ profile), no per-event objects,
         # no gene-tree reconstruction — near counts-only speed, trees reconstructable later
         trace = simulate_genomes(tree, output="trace", **rate_kw)
@@ -1421,9 +1465,9 @@ def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
-    Genes are not atomic here — they emerge as **atoms** (maximal intervals with one shared
-    history). ``profiles`` writes the emergent atom-by-species profile (plus ``atoms.tsv`` and
-    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-atom gene trees and their
+    Genes are not atomic here — they emerge as **blocks** (maximal intervals with one shared
+    history). ``profiles`` writes the emergent block-by-species profile (plus ``blocks.tsv`` and
+    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-block gene trees and their
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
@@ -1434,6 +1478,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     ancestral = "ancestral" in want
     initial_chromosomes = 1 if args.initial_chromosomes is None else args.initial_chromosomes
     args.initial_chromosomes = initial_chromosomes  # record the effective value in the params log
+    # the structural knobs are shared with the ordered level, so their defaults are resolved here
+    args.inversion = 0.001 if args.inversion is None else args.inversion
+    args.transposition = 0.0 if args.transposition is None else args.transposition
+    args.extension = 0.99 if args.extension is None else args.extension
     if args.gff and args.genes:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None
@@ -1448,15 +1496,17 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         genes = None
     genic = bool(genes)
     transfers = TransferModel(replacement=0.0) if genic else None  # homologous repl. is genome-side
+    indels = bool(args.insertion or args.deletion)
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
                   transfer=args.trans, transposition=args.transposition,
-                  origination=args.orig, root_length=args.root_length,
+                  origination=args.orig, insertion=args.insertion, deletion=args.deletion,
+                  indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
                   gene_intervals=genes, pseudogenization=args.pseudogenization,
                   replacement=args.replacement, transfers=transfers, retain_internal=ancestral)
 
     t0 = time.perf_counter()
-    if "trees" in want or genic or ancestral:  # genealogy / genic / ancestral need the Python engine
+    if "trees" in want or genic or ancestral or indels:  # these need the Python engine
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -1472,9 +1522,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         _write_genes_table(args.out, result.registry)
 
     if "profiles" in want:
-        _write_atoms_table(args.out, result.atoms)
-        atom_ids, species, matrix = result.profile_matrix()
-        pm = ProfileMatrix([f"atom{a}" for a in atom_ids], species, matrix)
+        _write_blocks_table(args.out, result.blocks)
+        block_ids, species, matrix = result.profile_matrix()
+        pm = ProfileMatrix([f"block{a}" for a in block_ids], species, matrix)
         if args.sparse:
             with open(os.path.join(args.out, "Profiles_sparse.tsv"), "w") as f:
                 f.write(pm.to_coo_tsv())
@@ -1485,7 +1535,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                 f.write(pm.to_tsv(presence=True))
         _write_mosaics(args.out, result)
     if "trees" in want:
-        _write_atom_gene_trees(args.out, result, genic=genic)
+        _write_block_gene_trees(args.out, result, genic=genic)
         result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
         if genic:
             _write_pseudogenizations(args.out, result)
@@ -1496,9 +1546,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
               f"-> {len(gff_info.genes)} after trimming ({gff_info.n_trimmed} trimmed, "
               f"{gff_info.n_dropped} dropped as overlapping)")
-    extra = f", {len(result.gene_atoms())} genes" if genic else ""
+    extra = f", {len(result.gene_blocks())} genes" if genic else ""
     return (f"wrote [{' '.join(sorted(want))}] (nucleotide{'/genic' if genic else ''}) to "
-            f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.atoms)} atoms{extra}) "
+            f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.blocks)} blocks{extra}) "
             f"in {dt:.3g} s")
 
 
@@ -1531,10 +1581,10 @@ def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
     os.makedirs(gdir, exist_ok=True)
     for node in tree.nodes_preorder():
         name = node.name
-        lines = ["order\tatom\tkind\tgene_id\tstrand\tlength"]
+        lines = ["order\tblock\tkind\tgene_id\tstrand\tlength"]
         for i, (aid, strand) in enumerate(result.node_mosaic(node)):
-            a = result._atom_by_id[aid]
-            lines.append(f"{i}\tatom{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
+            a = result._block_by_id[aid]
+            lines.append(f"{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
                          f"{'+' if strand > 0 else '-'}\t{a.length}")
         with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
             f.write("\n".join(lines) + "\n")
@@ -1583,58 +1633,58 @@ def _write_genes_table(out: str, registry) -> None:
 
 def _write_pseudogenizations(out: str, result) -> None:
     """Write ``Pseudogenizations.tsv`` — every gene->intergene state flip (branch, time, lineage)."""
-    lines = ["atom\tgene\tspecies_branch\ttime\tgene_lineage"]
-    for atom_id, gene_id, species, t, gid in result.pseudogenizations():
-        lines.append(f"atom{atom_id}\t{gene_id}\t{species}\t{t:.10g}\t{gid}")
+    lines = ["block\tgene\tspecies_branch\ttime\tgene_lineage"]
+    for block_id, gene_id, species, t, gid in result.pseudogenizations():
+        lines.append(f"block{block_id}\t{gene_id}\t{species}\t{t:.10g}\t{gid}")
     with open(os.path.join(out, "Pseudogenizations.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
-def _write_atoms_table(out: str, atoms) -> None:
-    """Write ``atoms.tsv`` — the emergent gene families (uncut ancestral intervals).
+def _write_blocks_table(out: str, blocks) -> None:
+    """Write ``blocks.tsv`` — the emergent gene families (uncut ancestral intervals).
 
     Carries the ``kind`` (gene/intergene) and ``gene_id`` classification (``-`` for intergene).
     """
-    lines = ["atom\tsource\tstart\tend\tlength\tkind\tgene_id"]
-    for a in atoms:
-        lines.append(f"atom{a.atom_id}\t{a.source}\t{a.start}\t{a.end}\t{a.length}\t"
+    lines = ["block\tsource\tstart\tend\tlength\tkind\tgene_id"]
+    for a in blocks:
+        lines.append(f"block{a.block_id}\t{a.source}\t{a.start}\t{a.end}\t{a.length}\t"
                      f"{a.kind}\t{a.gene_id or '-'}")
-    with open(os.path.join(out, "atoms.tsv"), "w") as f:
+    with open(os.path.join(out, "blocks.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
 def _write_mosaics(out: str, result) -> None:
-    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of atoms."""
+    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of blocks."""
     lines = ["leaf\tmosaic"]
     for leaf in sorted(result.leaf_genomes, key=lambda n: n.name):
-        seq = " ".join(("+" if s > 0 else "-") + f"atom{aid}"
+        seq = " ".join(("+" if s > 0 else "-") + f"block{aid}"
                        for aid, s in result.leaf_mosaic(leaf))
         lines.append(f"{leaf.name}\t{seq}")
     with open(os.path.join(out, "Mosaics.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
-def _write_atom_gene_trees(out: str, result, genic: bool = False) -> None:
-    """Write per-atom trees to ``atom<id>_complete.nwk`` / ``_extant.nwk``.
+def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
+    """Write per-block trees to ``block<id>_complete.nwk`` / ``_extant.nwk``.
 
-    Plain nucleotide model: everything under ``gene_trees/``. Genic mode: gene atoms under
-    ``Gene_trees/`` and intergene atoms under ``Intergene_trees/`` (both tree sets recovered).
+    Plain nucleotide model: everything under ``gene_trees/``. Genic mode: gene blocks under
+    ``Gene_trees/`` and intergene blocks under ``Intergene_trees/`` (both tree sets recovered).
     """
     def dump(tdir: str, trees: dict) -> None:
         os.makedirs(tdir, exist_ok=True)
-        for atom_id, (complete, extant) in trees.items():
+        for block_id, (complete, extant) in trees.items():
             if complete:
-                with open(os.path.join(tdir, f"atom{atom_id}_complete.nwk"), "w") as f:
+                with open(os.path.join(tdir, f"block{block_id}_complete.nwk"), "w") as f:
                     f.write(complete + "\n")
             if extant:
-                with open(os.path.join(tdir, f"atom{atom_id}_extant.nwk"), "w") as f:
+                with open(os.path.join(tdir, f"block{block_id}_extant.nwk"), "w") as f:
                     f.write(extant + "\n")
 
     if genic:
         dump(os.path.join(out, "Gene_trees"), result.gene_trees())
         dump(os.path.join(out, "Intergene_trees"), result.intergene_trees())
     else:
-        dump(os.path.join(out, "gene_trees"), result.atom_gene_trees())
+        dump(os.path.join(out, "gene_trees"), result.block_gene_trees())
 
 
 def _add_abc_args(p: argparse.ArgumentParser) -> None:
@@ -1989,7 +2039,8 @@ def main(argv: list[str] | None = None) -> int:
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree.",
-        "zombi2 genomes -t FILE -o DIR [--rate-model MODEL] [--write PART ...] [options]",
+        "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-model MODEL] "
+        "[--write PART ...] [options]",
         _add_rate_args)
 
     _add_subcommand(
