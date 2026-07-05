@@ -38,7 +38,7 @@ from ._traits_impl import (
     Cladogenesis, simulate_traits,
 )
 from .transfers import TransferModel
-from .tree import Tree, read_newick
+from .tree import Tree, prune, read_newick
 
 _DESCRIPTION = """\
 Simulate each level on its own, or couple them into joint models; or run the inverse and
@@ -2070,8 +2070,7 @@ def main(argv: list[str] | None = None) -> int:
         "[--branch-speed SIGMA|--branch-bins ...] [options]",
         _add_sequence_args)
 
-    args = parser.parse_args(argv)
-    print(_banner(), file=sys.stderr)          # a banner on each run (stderr keeps stdout clean)
+    args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
     try:
         return _dispatch(args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
@@ -2120,13 +2119,23 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
         os.makedirs(args.out, exist_ok=True)
         with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
-            f.write(tree.to_newick() + "\n")
+            f.write(tree.to_newick() + "\n")               # the complete tree (extinct/ghost tips kept)
         leaves = tree.leaves()
         n_extant = sum(1 for n in leaves if n.is_extant)
-        dead = len(leaves) - n_extant
-        extra = f" + {dead} extinct" if dead else ""
-        summary = f"{n_extant} extant{extra} tips"
-        print(f"wrote {args.out}/species_tree.nwk ({summary}) in {dt:.3g} s")
+        n_unsampled = sum(1 for n in leaves if n.name.startswith("u"))   # ghost tips (u*), from ρ<1
+        n_extinct = len(leaves) - n_extant - n_unsampled
+        wrote = "species_tree.nwk"
+        if n_extant and n_extant < len(leaves):            # dead tips present: also the pruned tree
+            with open(os.path.join(args.out, "species_tree_extant.nwk"), "w") as f:
+                f.write(prune(tree, keep="extant").to_newick() + "\n")
+            wrote += " + species_tree_extant.nwk"
+        parts = [f"{n_extant} extant"]
+        if n_extinct:
+            parts.append(f"{n_extinct} extinct")
+        if n_unsampled:
+            parts.append(f"{n_unsampled} unsampled")
+        summary = " + ".join(parts) + " tips"
+        print(f"wrote {args.out}/{wrote} ({summary}) in {dt:.3g} s")
         _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
         return 0
 

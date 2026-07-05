@@ -303,8 +303,9 @@ def test_forward_extinction_returns_clean_error(tmp_path, capsys):
                "--max-attempts", "5", "-o", str(tmp_path / "x")])
     assert rc == 1
     err = capsys.readouterr().err
-    # the run banner is printed to stderr first; the clean one-line error follows it
+    # a clean one-line error on stderr, no traceback (and no run banner — that shows on --help only)
     assert "zombi2: error:" in err and "extinct" in err
+    assert "a simulator of species trees" not in err   # the banner does not print on a normal run
 
 
 def test_genomes_missing_tree_file_returns_clean_error(tmp_path, capsys):
