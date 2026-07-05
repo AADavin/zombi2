@@ -1,10 +1,12 @@
 # Nucleotide genomes
 
-The standard gene-family model treats each gene as an indivisible token. The **nucleotide genome**
-model works one level down: a genome is a sequence of individual nucleotides, and structural events
-act on **variable-length segments** of them. This resolves paralogy, xenology, and gene order and
-orientation at nucleotide resolution, and reconstructs a gene tree for every stretch of shared
-ancestry.
+Chapter 7 introduced three models of genome evolution. The first two — independent gene families
+(Chapter 7) and ordered gene families (Chapter 10) — treat each gene as an indivisible token. This
+chapter covers the third and most detailed: the **nucleotide genome** model, where a genome is a
+real sequence of base pairs and structural events act on **variable-length segments** of
+nucleotides. This resolves paralogy, xenology, and gene order and orientation at nucleotide
+resolution, and reconstructs a gene tree for every stretch of shared ancestry — the *blocks* of the
+sections below.
 
 ## The model
 
