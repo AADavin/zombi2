@@ -46,6 +46,8 @@ A genome model is defined as much by *what can happen to a genome* as by what a 
 levels form a hierarchy: each one inherits every event of the level below and adds its own, acting on
 the extra structure that level introduces.
 
+![The event sets nest — unordered $\subset$ ordered $\subset$ nucleotide. The four gene-family events act on any genome; a richer level only ever *adds* events, never removes them: gene order brings the two rearrangements, and real sequence brings the base-pair events.](figures/event_levels.pdf){width=80%}
+
 - **Unordered** — the four gene-family events. **Origination (O)** seeds a brand-new family;
   **duplication (D)** copies a gene within a genome; **transfer (T)** copies a gene into another
   lineage alive at the same time; **loss (L)** removes a copy. These four act on gene *content*

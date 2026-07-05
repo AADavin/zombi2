@@ -124,14 +124,16 @@ def main() -> None:
     extant = [l for l in leaves if l.is_extant]
     extinct = [l for l in leaves if not l.is_extant]
 
-    # Names: survivors get Latin letters, extinct tips get ASCII x1, x2, ...
-    for leaf, letter in zip(extant, string.ascii_uppercase):
-        leaf.name = letter
+    # Only the extinct tips carry a name (e1, e2, ...): they are the point of the
+    # figure and the caption references them. Extant tips are left unlabelled so a
+    # dense tree stays legible (matching the trait-tree aesthetic).
+    for leaf in extant:
+        leaf.name = ""
     for leaf, name in zip(extinct, EXTINCT_NAMES):
         leaf.name = name
 
-    # generous top margin gives a clean band for the centered title above the tree
-    style = species_style(height=860, margin=110, font_size=FS_TICK)
+    # wide, dense canvas (landscape ~1.6:1) with a generous top margin for the title
+    style = species_style(width=1180, height=740, margin=110, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
@@ -155,8 +157,8 @@ def main() -> None:
                                font_family=style.font_family, text_anchor="middle",
                                dominant_baseline="central", fill=INK))
 
-    # lower-left is the open quadrant here; lifted clear of the time axis below it
-    add_legend(d, x=-style.width / 2 + 34, y=style.height / 2 - 250)
+    # top-left open band, just under the title and left of where the crown spreads
+    add_legend(d, x=-style.width / 2 + 40, y=-style.height / 2 + 150)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)

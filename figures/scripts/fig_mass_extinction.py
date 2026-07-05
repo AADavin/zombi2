@@ -142,7 +142,7 @@ def render():
     d.append(draw.Text("lineages", FS_LABEL, XL - 40, LTT_TOP + LTT_H / 2, font_family=FONT,
                        text_anchor="middle", fill="#555",
                        transform=f"rotate(-90 {XL - 40} {LTT_TOP + LTT_H / 2})"))
-    d.append(draw.Text("crash, then recovery", FS_ANNOT,
+    d.append(draw.Text("mass extinction", FS_ANNOT,
                        X(pulse_t) + 16, LTT_TOP + 22, font_family=FONT,
                        text_anchor="start", fill="#555", font_style="italic"))
 
