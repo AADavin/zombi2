@@ -224,8 +224,14 @@ species-output `e`/`u` naming code pass.
   event marks on branches, tip range cells). Added after the DEC schematic. Full-width.
 - **Ch12 FIGURES COMPLETE** (12 figures, all house style). All held uncommitted for Adrián's review.
 
-## Ch13 — Coevolution (KNOWN: needs full rewrite)
-- [ ] Rewrite; **one section per joint model**, etc. Currently early-stage. (Already on the backlog.)
+## Ch13 — Coevolution  [REWRITTEN 2026-07-05]
+- [x] Full rewrite (Adrián: 3 node-pair sections, equal depth). Kept the strong intro (pipeline-vs-
+  coupled, six-edge table, "arrows into S" rule) + NEW `coevolve_modes` figure (S/T/G triangle, into-S
+  edges heavy). Sections: 13.2 Species&Traits (traits:species SSE / species:traits cladogenetic /
+  both=ClaSSE), 13.3 Species&Genes (genes:species key-innovation / species:genes punctuational),
+  13.4 Traits&Genes (traits:genes trait-linked / genes:traits gene-conditioned), 13.5 inference caveat.
+  ALL SIX edges documented at equal depth (model → Python → CLI → what-it-recovers). Every snippet
+  agent-verified + smoke-tested (all 6 drivers run). Full manual = 85pp.
 
 ## Ch14 — Sequences (CODE + design)
 - [ ] Add the **molecular-clock models from PhyloBayes** for phylogram creation: **white noise,
