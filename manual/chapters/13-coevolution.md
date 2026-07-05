@@ -28,13 +28,25 @@ On the command line the coupling is one repeatable flag, `--couple driver:target
 reads as the arrow (driver first):
 
 ```bash
-zombi2 coevolve --couple traits:species  ...   # T->S : the trait sets speciation/extinction (SSE)
-zombi2 coevolve --couple species:traits  ...   # S->T : speciation drives the trait (cladogenetic)
-zombi2 coevolve --couple traits:species --couple species:traits  ...   # both arrows = ClaSSE
+zombi2 coevolve --couple traits:species ...   # T->S: trait sets speciation (SSE)
+zombi2 coevolve --couple species:traits ...   # S->T: speciation drives the trait
+# both arrows at once = ClaSSE:
+zombi2 coevolve --couple traits:species --couple species:traits ...
 ```
 
 So `--couple species:traits` and `--couple traits:species` are deliberately **different models**, and
 a bidirectional coupling is simply *both* edges. The `:` (rather than `->`) keeps the flag shell-safe.
+
+The three processes give six directed edges, each a distinct model:
+
+| Edge (`--couple`) | Direction | Model |
+|---|---|---|
+| `traits:species` | T $\to$ S | state-dependent diversification (SSE / ClaSSE) |
+| `species:traits` | S $\to$ T | cladogenetic trait jumps at speciation |
+| `traits:genes` | T $\to$ G | trait-linked gene families |
+| `genes:traits` | G $\to$ T | gene-conditioned trait (a modifier gene shifts an OU optimum) |
+| `genes:species` | G $\to$ S | key-innovation diversification |
+| `species:genes` | S $\to$ G | punctuational (cladogenetic) genome evolution |
 
 The one rule that governs their difficulty is: **does any active edge point into S?** If no edge
 points into S, the tree is fixed — it is read from `-t/--tree` and every coupling is an *overlay* on a
@@ -45,7 +57,7 @@ are forward-only and take no `-t`.
 The remainder of this chapter documents the coupling with the most developed workflow — trait-linked
 gene families — in depth, then summarises the state-dependent diversification edge.
 
-## Trait-linked gene families
+## Traits $\to$ genes: trait-linked gene families
 
 Gene families and phenotypic traits do not evolve independently. A lineage that becomes aerobic
 retains and acquires oxygen-using gene families; one that reverts to anaeroby sheds them. ZOMBI2
@@ -58,14 +70,19 @@ This is the `traits:genes` edge. It runs on a **given** tree, and is exposed bot
 `simulate_trait_linked_genomes` and as the command `zombi2 coevolve --couple traits:genes`.
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath, simulate_species_tree, prune
+from zombi2.traits import Mk
+from zombi2.coevolve import (
+    TraitGeneCoupling, simulate_trait_linked_genomes,
+    BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
+)
 
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=60, age=6.0, seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=60, age=6.0, seed=1)
 
 # a binary aerobic(1)/anaerobic(0) trait, then genes conditioned on it
-coupling = z.TraitGeneCoupling.build(n_families=40, responsive=0.3, weight=1.0,
+coupling = TraitGeneCoupling.build(n_families=40, responsive=0.3, weight=1.0,
                                      effect_loss=3.0, base_loss=0.5, transfer=1.0, seed=1)
-res = z.simulate_trait_linked_genomes(tree, z.Mk.equal_rates(2, 0.4), coupling, seed=2)
+res = simulate_trait_linked_genomes(tree, Mk.equal_rates(2, 0.4), coupling, seed=2)
 
 res.profiles.presence()        # panel families × extant species (0/1) — the trait-linked data
 res.trait.labeled_values()     # the trait at the tips, from the same run
@@ -106,10 +123,10 @@ retention channel already makes net gene content track the trait.
 selector is the flexible part:
 
 ```python
-z.TraitGeneCoupling.build(50, 8)                 # 8 families, chosen at random
-z.TraitGeneCoupling.build(50, 0.3)               # a random 30% of the panel
-z.TraitGeneCoupling.build(50, ["F3", "F7", 12])  # exactly these families (id or index)
-z.TraitGeneCoupling.build(50, 10, signed=True)   # half favoured by a high trait value,
+TraitGeneCoupling.build(50, 8)                 # 8 families, chosen at random
+TraitGeneCoupling.build(50, 0.3)               # a random 30% of the panel
+TraitGeneCoupling.build(50, ["F3", "F7", 12])  # exactly these families (id or index)
+TraitGeneCoupling.build(50, 10, signed=True)   # half favoured by a high trait value,
                                                  # half by a low one
 ```
 
@@ -135,7 +152,7 @@ and *down* in the other — a symmetric, two-sided coupling — rather than only
 "on" state:
 
 ```python
-coupling = z.TraitGeneCoupling.build(40, 0.3, weight=1.0, effect_loss=3.0,
+coupling = TraitGeneCoupling.build(40, 0.3, weight=1.0, effect_loss=3.0,
                                      base_loss=0.5, transfer=1.0,
                                      state_values=[-1.0, 1.0], seed=1)
 ```
@@ -148,8 +165,8 @@ effect sizes, and `.genomes()` a promotion to a standard `Genomes` for gene tree
 
 ### From the command line
 
-`zombi2 coevolve-genetrait` runs the whole thing on a species tree you provide. It simulates the
-trait (`--trait-model`, reusing every `zombi2 trait` model), builds the coupling (`--panel`,
+`zombi2 coevolve --couple traits:genes` runs the whole thing on a species tree you provide. It
+simulates the trait (`--trait-model`, reusing every `zombi2 trait` model), builds the coupling (`--panel`,
 `--responsive`, `--weight`, `--effect-loss`), and writes the gene-family output plus the trait and a
 coupling manifest:
 
@@ -157,7 +174,7 @@ coupling manifest:
 T=species_tree.nwk
 
 # a binary aerobic/anaerobic trait; 30% of a 40-family panel respond to it
-zombi2 coevolve-genetrait -t $T \
+zombi2 coevolve --couple traits:genes -t $T \
     --trait-model mk --states 2 --rate 0.3 --trait-center \
     --panel 40 --responsive 0.3 --weight 1 --effect-loss 3 \
     --loss 0.4 --trans 1.0 --write all --seed 7 -o out/
@@ -187,7 +204,7 @@ over-large `base_loss`, an unprotected family — having only the field-blind in
 lost tree-wide and the inert rows go all-zero.
 :::
 
-## State-dependent diversification
+## Traits $\to$ species: state-dependent diversification
 
 The reverse direction of coupling — a trait shaping the **species tree** — is the `traits:species`
 edge. A discrete or continuous trait drives speciation and extinction, and the tree is grown *jointly*
@@ -209,12 +226,12 @@ variant [@fitzjohn2012diversitree]; and `quasse` the **continuous-trait** varian
 From Python the driver is `simulate_sse`:
 
 ```python
-res = z.simulate_sse(z.BiSSE(1, 3, 0.2, 0.2, 0.1, 0.1), n_tips=200, seed=1)
-res.tree              # complete tree (extinct lineages kept; z.prune() for the reconstructed one)
+res = simulate_sse(BiSSE(1, 3, 0.2, 0.2, 0.1, 0.1), n_tips=200, seed=1)
+res.tree              # complete tree (extinct lineages kept; prune() for the reconstructed one)
 res.labeled_values()  # the trait at the extant tips
 ```
 
-`z.BiSSE`, `z.MuSSE`, `z.QuaSSE` and `z.HiSSE` (hidden-state SSE) are all on the public API. `HiSSE`
+`BiSSE`, `MuSSE`, `QuaSSE` and `HiSSE` (hidden-state SSE) are all on the public API. `HiSSE`
 is the honest null: it lets diversification-rate variation be driven by an unobserved state rather
 than the focal trait [@beaulieu2016hisse]. The trait can also be made to jump *at* speciation
 (cladogenetic evolution) with the `species:traits` edge; turning on **both** `traits:species` and
