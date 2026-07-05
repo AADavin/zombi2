@@ -5,10 +5,10 @@ a species tree, evolve gene families along it, look at everything the simulator 
 and finally load two of those results back into Python. By the end you will have a full
 simulated dataset in a folder called `out/` and a clear picture of what each file means.
 
-ZOMBI2 works in two stages. First it grows a *species tree* backward in time. Then it evolves
-*gene families* forward along the branches of that tree, gaining and losing copies through
-duplication, transfer and loss. Every stage is seeded, so the same `seed` always gives
-byte-identical results — your run will match the numbers you see here.
+This is the simplest use of ZOMBI2: a *hierarchical* run over the first two levels from the
+previous chapter — a species tree, then gene families evolved along it. Each stage is seeded, so
+the same `seed` always gives byte-identical results, and your run will match the numbers you see
+here.
 
 ## Simulating a species tree
 
@@ -35,11 +35,6 @@ The result is a timed tree with 20 surviving tips. `BirthDeath` is the model; `b
 
 ![A simulated species tree with the duplication, loss and transfer events of one gene family marked on its branches.](figures/species_tree_events.pdf)
 
-::: tip
-Because everything is seeded, `seed=1` here reproduces exactly the tree shown. Change the seed
-to draw a different tree from the same model.
-:::
-
 ## Evolving gene families along the tree
 
 Now evolve gene families forward along that tree. Each family starts as a single copy at its
@@ -48,7 +43,7 @@ you supply.
 
 ```python
 genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_size=40, seed=42)
+                             origination=0.5, initial_families=40, seed=42)
 
 print(genomes.profiles.matrix.shape)   # (n_families, n_species) copy numbers
 ```
@@ -60,7 +55,7 @@ zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 \
                --loss 0.25 --orig 0.5 -o out/
 ```
 
-Here `initial_size=40` seeds the root genome with 40 families; `origination=0.5` is the rate at
+Here `initial_families=40` seeds the root genome with 40 families; `origination=0.5` is the rate at
 which new families appear along branches. The four core rates — duplication, transfer, loss,
 origination — drive the whole forward process. The built-in model runs on the Rust engine
 automatically.
@@ -105,7 +100,7 @@ leaves in an extant tree equals the family's total copy count across all species
 `gene_trees()` returns, for each family id, a pair of Newick strings — complete and extant.
 
 ```python
-trees = genomes.gene_trees()          # {family_id: (complete_newick, extant_newick)}
+trees = genomes.gene_trees()          # {fid: (complete, extant) newick}
 complete, extant = trees["7"]
 ```
 
@@ -151,4 +146,5 @@ would rather not walk the log in code.
 You now have a complete simulated dataset: a timed species tree, gene families evolved along it,
 reconstructed gene trees, and the profile matrix — all reproducible from a pair of seeds. The
 following chapters unpack each stage: species-tree models and conditioning, uniform versus
-per-family rates, transfers, and bounding genome growth.
+per-family rates, transfers, and bounding genome growth — before the later parts add the
+remaining levels (traits and sequences) and the joint coevolution models.

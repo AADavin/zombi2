@@ -21,13 +21,13 @@ import cairosvg
 import drawsvg as draw
 import numpy as np
 
-from zombi_style import FONT, INK
+from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT = Path(__file__).resolve().parent.parent / "clade_shift"
 
-W, H = 1180, 720
+W, H = 1180, 760
 XL, XR = 96, 980
-TREE_TOP, TREE_H = 130, 500
+TREE_TOP, TREE_H = 150, 500
 DASH = "6,5"
 GREY = "#9a9a9a"
 
@@ -137,12 +137,8 @@ def render():
 
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    d.append(draw.Text("The clade-shift model — one clade switches to a new rate regime", 20, 40, 40,
-                       font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    d.append(draw.Text("at a set age, a random lineage and all its descendants adopt new "
-                       "(birth, death) rates — here a burst of speciation.  ZOMBI2: "
-                       "CladeShiftBirthDeath(b, d, clade_shifts=[(age, b, d)])", 13, 40, 64,
-                       font_family=FONT, text_anchor="start", fill="#777"))
+    d.append(draw.Text("The clade-shift model", FS_TITLE, W / 2, 48,
+                       font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
     alln = nodes(root)
     shifted_tip_ys = [ys[n] for n in _leaves(root) if n.shifted]
@@ -172,30 +168,33 @@ def render():
     d.append(draw.Circle(X(T_SHIFT), sy, 6.5, fill="white", stroke=INK, stroke_width=2.2))
     d.append(draw.Lines(X(T_SHIFT) - 3, sy, X(T_SHIFT) + 2, sy - 3.5, X(T_SHIFT) + 2, sy + 3.5,
                         close=True, fill=INK))                        # a little "play" mark = speeds up
-    d.append(draw.Text("rate shift", 13, X(T_SHIFT), y0 - 22, font_family=FONT, text_anchor="middle",
+    d.append(draw.Text("rate shift", FS_ANNOT, X(T_SHIFT), y0 - 24, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
-    d.append(draw.Text("this clade now diversifies fast", 12, X(T_SHIFT) + 14, y1 + 26,
-                       font_family=FONT, text_anchor="start", fill="#555", font_style="italic"))
+    d.append(draw.Text("this clade now diversifies fast", FS_ANNOT, X(T_SHIFT) + 20,
+                       (y0 + y1) / 2 + 30, font_family=FONT, text_anchor="start", fill="#555",
+                       font_style="italic"))
 
-    # legend
-    lx, ly = XL + 6, TREE_TOP - 44
-    d.append(draw.Line(lx, ly, lx + 26, ly, stroke=GREY, stroke_width=1.6, stroke_linecap="round"))
-    d.append(draw.Text("background rate", 12, lx + 32, ly, font_family=FONT, text_anchor="start",
+    # legend: single top-left column, clear of the tree
+    lx, ly = XL + 6, TREE_TOP - 58
+    row = 30
+    d.append(draw.Line(lx, ly, lx + 34, ly, stroke=GREY, stroke_width=1.7, stroke_linecap="round"))
+    d.append(draw.Text("background rate", FS_LABEL, lx + 44, ly, font_family=FONT, text_anchor="start",
                        dominant_baseline="central", fill=INK))
-    d.append(draw.Line(lx + 180, ly, lx + 206, ly, stroke=INK, stroke_width=2.4, stroke_linecap="round"))
-    d.append(draw.Text("shifted clade", 12, lx + 212, ly, font_family=FONT, text_anchor="start",
+    d.append(draw.Line(lx, ly + row, lx + 34, ly + row, stroke=INK, stroke_width=2.6, stroke_linecap="round"))
+    d.append(draw.Text("shifted clade", FS_LABEL, lx + 44, ly + row, font_family=FONT, text_anchor="start",
                        dominant_baseline="central", fill=INK))
-    d.append(draw.Line(lx + 350, ly, lx + 376, ly, stroke=GREY, stroke_width=1.4, stroke_dasharray=DASH))
-    d.append(draw.Text("extinct", 12, lx + 382, ly, font_family=FONT, text_anchor="start",
+    d.append(draw.Line(lx, ly + 2 * row, lx + 34, ly + 2 * row, stroke=GREY, stroke_width=1.5,
+                       stroke_dasharray=DASH))
+    d.append(draw.Text("extinct lineage", FS_LABEL, lx + 44, ly + 2 * row, font_family=FONT, text_anchor="start",
                        dominant_baseline="central", fill=INK))
 
-    ya = top + dy * (nleaf - 1) + 26
+    ya = top + dy * (nleaf - 1) + 28
     for i in range(6):
         t = present * i / 5
-        d.append(draw.Line(X(t), ya, X(t), ya + 5, stroke=INK, stroke_width=1.2))
-        d.append(draw.Text(f"{t:.1f}", 11, X(t), ya + 18, font_family=FONT, text_anchor="middle", fill="#777"))
-    d.append(draw.Text("time (root -> present)", 12.5, (XL + XR) / 2, ya + 38, font_family=FONT,
-                       text_anchor="middle", fill="#777"))
+        d.append(draw.Line(X(t), ya, X(t), ya + 6, stroke=INK, stroke_width=1.2))
+        d.append(draw.Text(f"{t:.1f}", FS_TICK, X(t), ya + 24, font_family=FONT, text_anchor="middle", fill="#777"))
+    d.append(draw.Text("time (root to present)", FS_LABEL, (XL + XR) / 2, ya + 52, font_family=FONT,
+                       text_anchor="middle", fill="#555"))
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "clade_shift.svg").write_text(d.as_svg(), encoding="utf-8")

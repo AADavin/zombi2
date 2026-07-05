@@ -24,7 +24,7 @@ from zombi2 import BirthDeath, simulate_species_tree
 
 from model_common import (annotate_depths, draw_fossils, draw_skeleton, fossil_nodes,
                           mark_observed, zombi_to_ete3)
-from zombi_style import INK, PANEL, species_style
+from zombi_style import INK, PANEL, species_style, FS_TITLE, FS_LABEL, FS_TICK
 
 OUT_STEM = Path(__file__).resolve().parent.parent / "model_fbd" / "model_fbd"
 
@@ -34,27 +34,26 @@ AGE, SEED = 2.2, 24
 PRESENT_LINE = "#c9c9c9"
 
 
-def add_legend(d, x, y, font_size=15):
+def add_legend(d, x, y):
+    """Single-column key (shared font scale): solid extant / fossil diamond / dashed unsampled."""
     fam = d.style.font_family
     sw = d.style.branch_stroke_width
-    d.drawing.append(draw.Text("Fossilized birth–death", font_size + 2, x, y,
-                               font_weight="bold", font_family=fam, text_anchor="start"))
-    L, cy = 30, y + font_size * 1.9
+    L, cy, row = 34, y, FS_LABEL * 1.9
     # extant (solid)
     d.drawing.append(draw.Line(x, cy, x + L, cy, stroke=INK, stroke_width=sw, stroke_linecap="round"))
-    d.drawing.append(draw.Text("Extant lineage", font_size, x + L + 12, cy, font_family=fam,
-                               text_anchor="start", dominant_baseline="middle"))
-    cy += font_size * 1.9
+    d.drawing.append(draw.Text("extant lineage", FS_LABEL, x + L + 14, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
+    cy += row
     # fossil (diamond)
-    d._draw_shape_at(x + L / 2, cy, "square", INK, r=6.5, stroke=PANEL, stroke_width=1.1, rotation=45.0)
-    d.drawing.append(draw.Text("Fossil sample", font_size, x + L + 12, cy, font_family=fam,
-                               text_anchor="start", dominant_baseline="middle"))
-    cy += font_size * 1.9
+    d._draw_shape_at(x + L / 2, cy, "square", INK, r=7.0, stroke=PANEL, stroke_width=1.1, rotation=45.0)
+    d.drawing.append(draw.Text("fossil sample", FS_LABEL, x + L + 14, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
+    cy += row
     # unsampled/extinct (dashed)
     d.drawing.append(draw.Line(x, cy, x + L, cy, stroke=INK, stroke_width=sw,
                                stroke_dasharray="6,5", stroke_linecap="butt"))
-    d.drawing.append(draw.Text("Extinct / unsampled", font_size, x + L + 12, cy, font_family=fam,
-                               text_anchor="start", dominant_baseline="middle"))
+    d.drawing.append(draw.Text("extinct / unsampled", FS_LABEL, x + L + 14, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
 
 
 def main():
@@ -64,7 +63,8 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    style = species_style(height=max(680, 52 * n_leaves + 180))
+    # extra top headroom leaves a clean band for the centered title above the legend
+    style = species_style(height=max(760, 52 * n_leaves + 240), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
@@ -79,7 +79,14 @@ def main():
     ticks = [round(present * i / 4, 6) for i in range(5)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
                     label="Time (root to present)", tick_size=6.0, padding=14.0, stroke_width=1.6)
-    add_legend(d, x=-style.width / 2 + 34, y=-style.height / 2 + 40)
+
+    # title: one short bold line, horizontally centered at the top
+    d.drawing.append(draw.Text("The fossilized birth-death model", FS_TITLE, 0,
+                               -style.height / 2 + 44, font_weight="bold",
+                               font_family=style.font_family, text_anchor="middle",
+                               dominant_baseline="central", fill=INK))
+    # legend: single top-left column, below the title and clear of the tree
+    add_legend(d, x=-style.width / 2 + 34, y=-style.height / 2 + 96)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)

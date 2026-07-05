@@ -1,4 +1,4 @@
-# Diversification models
+# Species trees (advanced models)
 
 ZOMBI2's default species-tree sampler runs **backward in time**: it draws internal-node ages
 i.i.d. from the reconstructed birth–death CDF and assembles a ranked ultrametric tree by uniform
@@ -14,9 +14,12 @@ Every forward model is invoked through the same entry point, differing only in t
 passed and the conditioning:
 
 ```python
-import zombi2 as z
+from zombi2.species import (
+    simulate_species_tree, BirthDeath, EpisodicBirthDeath,
+    ClaDS, DiversityDependent, CladeShiftBirthDeath, prune,
+)
 
-tree = z.simulate_species_tree(
+tree = simulate_species_tree(
     model,               # a diversification model object
     age=5.0,             # crown age (a fixed present); or n_tips=…
     direction="forward", # forward growth, extinct lineages retained
@@ -25,7 +28,7 @@ tree = z.simulate_species_tree(
 ```
 
 A forward run returns the **complete** tree (extinct leaves carry `is_extant=False` at their death
-times). `z.prune(tree)` extracts the survivors-only reconstructed counterpart. Any complete tree
+times). `prune(tree)` extracts the survivors-only reconstructed counterpart. Any complete tree
 feeds `simulate_genomes` unchanged, and extinct lineages become ghost transfer partners
 automatically.
 
@@ -45,8 +48,8 @@ the present:
 
 ```python
 # a gradual extinction spike: normal extinction recently, high extinction older than age 1
-epi = z.EpisodicBirthDeath(birth=[1.0, 1.0], death=[0.2, 3.0], shifts=[1.0])
-tree = z.simulate_species_tree(epi, n_tips=30, age=4.0, seed=1)
+epi = EpisodicBirthDeath(birth=[1.0, 1.0], death=[0.2, 3.0], shifts=[1.0])
+tree = simulate_species_tree(epi, n_tips=30, age=4.0, seed=1)
 ```
 
 `birth[i]` and `death[i]` apply to epoch `i`; `shifts` has one fewer entry than `birth` (the
@@ -64,7 +67,7 @@ Real phylogenies rarely include every living species. Pass `sampling_fraction`, 
 $\rho$ that an extant species is sampled:
 
 ```python
-z.EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25)
+EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25)
 ```
 
 In a forward run, unsampled extant tips are marked `is_extant=False`. Incomplete sampling keeps the
@@ -88,11 +91,11 @@ model a `mass_extinctions` list of `(age, fraction)` pulses:
 
 ```python
 # a radiation punctuated by two cataclysms (75% then 50% die), grown forward:
-m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(1.0, 0.75), (2.5, 0.5)])
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
+m = BirthDeath(1.0, 0.3, mass_extinctions=[(1.0, 0.75), (2.5, 0.5)])
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 
 # pulses compose with an episodic background, too:
-m = z.EpisodicBirthDeath(birth=[1.0, 1.4], death=[0.2, 0.3], shifts=[2.0],
+m = EpisodicBirthDeath(birth=[1.0, 1.4], death=[0.2, 0.3], shifts=[2.0],
                          mass_extinctions=[(1.0, 0.8)])
 ```
 
@@ -127,8 +130,8 @@ molecular clock, and captures the heavy among-clade rate variation real phylogen
 
 ```python
 # alpha<1 = speciation slows toward the present; sigma = jump spread; turnover = mu/lambda
-m = z.ClaDS(lambda_0=1.0, alpha=0.9, sigma=0.2, turnover=0.1)
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n_tips=…
+m = ClaDS(lambda_0=1.0, alpha=0.9, sigma=0.2, turnover=0.1)
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n_tips=…
 ```
 
 `alpha` is the trend (`alpha<1` reproduces the empirically typical slow-down of speciation toward
@@ -154,8 +157,8 @@ diversity brake, and the macroevolutionary analogue of the per-family `carrying_
 already offers for genes.
 
 ```python
-m = z.DiversityDependent(lambda_0=2.0, death=0.2, carrying_capacity=50)
-tree = z.simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or n_tips <= K
+m = DiversityDependent(lambda_0=2.0, death=0.2, carrying_capacity=50)
+tree = simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or n_tips <= K
 ```
 
 With $\mu=0$ the tree saturates at exactly $K$; with $\mu>0$ it settles near the equilibrium
@@ -180,8 +183,8 @@ the present, a uniformly chosen lineage then alive (and all its descendants) ado
 
 ```python
 # a slow background; at age 3 one clade starts diversifying fast
-m = z.CladeShiftBirthDeath(0.6, 0.4, clade_shifts=[(3.0, 2.0, 0.1)])
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
+m = CladeShiftBirthDeath(0.6, 0.4, clade_shifts=[(3.0, 2.0, 0.1)])
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 ```
 
 The shifted lineage is drawn at random: you cannot name an unborn clade in a forward run, and
@@ -205,8 +208,8 @@ with probability $\rho$ (`sampling_fraction`). Because fossils are sampled point
 surviving lineages, this is a **forward** feature that requires retaining the extinct lineages.
 
 ```python
-m = z.BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
-tree = z.simulate_species_tree(m, age=6.0, direction="forward", seed=1)  # complete tree + fossils
+m = BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
+tree = simulate_species_tree(m, age=6.0, direction="forward", seed=1)  # complete tree + fossils
 ```
 
 Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times; sampled extant

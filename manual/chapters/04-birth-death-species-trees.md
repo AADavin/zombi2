@@ -1,6 +1,6 @@
-# Birth–death species trees
+# Species trees (basic models)
 
-Every ZOMBI2 simulation begins with a species tree: the branching history of the species onto
+Every ZOMBI2 simulation has a species tree: the branching history of the species onto
 which gene families, traits, and sequences are later layered. This chapter covers the
 constant-rate birth–death process and its pure-birth (Yule) special case, how to condition a
 simulation on the number of tips and on the tree's age, the two ways ZOMBI2 can generate a tree
@@ -29,10 +29,10 @@ probability.
 The two models are constructed by naming their rates:
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath, Yule, simulate_species_tree
 
-z.BirthDeath(birth=1.0, death=0.3)   # speciation lambda, extinction mu
-z.Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
+BirthDeath(birth=1.0, death=0.3)   # speciation lambda, extinction mu
+Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
 ```
 
 ## Simulating a tree
@@ -40,8 +40,8 @@ z.Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
 `simulate_species_tree` takes a model and the conditioning that pins down its size and timescale:
 
 ```python
-tree = z.simulate_species_tree(
-    z.BirthDeath(1.0, 0.3),
+tree = simulate_species_tree(
+    BirthDeath(1.0, 0.3),
     n_tips=20,          # condition on the number of extant species (>= 2)
     age=5.0,            # tree age
     age_type="crown",   # "crown": age of the root; "stem": time of origin
@@ -79,8 +79,8 @@ time, retaining every lineage — extant and extinct alike:
 
 ```python
 # grow the full tree forward, keeping extinct lineages
-tree = z.simulate_species_tree(
-    z.BirthDeath(1.0, 0.3),
+tree = simulate_species_tree(
+    BirthDeath(1.0, 0.3),
     age=5.0,
     direction="forward",
     seed=1,

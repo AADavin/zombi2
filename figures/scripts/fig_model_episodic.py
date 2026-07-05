@@ -20,7 +20,7 @@ import phylustrator as ph
 from zombi2 import EpisodicBirthDeath, simulate_species_tree
 
 from model_common import annotate_depths, draw_skeleton, mark_observed, zombi_to_ete3
-from zombi_style import INK, MUTED, species_style
+from zombi_style import INK, MUTED, species_style, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_STEM = Path(__file__).resolve().parent.parent / "model_episodic" / "model_episodic"
 
@@ -50,20 +50,22 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    style = species_style(width=920, height=max(680, 42 * n_leaves + 200))
+    # extra top headroom leaves a clean band for a centered title above the epoch labels
+    style = species_style(width=940, height=max(720, 42 * n_leaves + 240), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
     ys = [l.y_coord for l in tree.get_leaves()]
     y0, y1 = min(ys) - 22, max(ys) + 22
 
-    # alternating white / grey rate-epoch bands + a one-line λ/μ label on each
+    # alternating white / grey rate-epoch bands + a one-line birth/death label on each
+    # ("b" = birth/speciation rate, "d" = death/extinction rate; ASCII only)
     for i, (t_lo, t_hi, lam, mu) in enumerate(epoch_bounds(present)):
         x_lo = d.root_x + t_lo * d.sf
         x_hi = d.root_x + t_hi * d.sf
         if i % 2 == 1:                                      # shade every other epoch
             d.drawing.append(draw.Rectangle(x_lo, y0, x_hi - x_lo, y1 - y0, fill=BAND))
-        d.drawing.append(draw.Text(f"λ = {lam:g},  μ = {mu:g}", 14, (x_lo + x_hi) / 2, y0 - 12,
+        d.drawing.append(draw.Text(f"b = {lam:g},  d = {mu:g}", FS_ANNOT, (x_lo + x_hi) / 2, y0 - 14,
                                    font_family=style.font_family, text_anchor="middle", fill=INK))
     # shift line(s)
     for s in SHIFTS:
@@ -71,14 +73,29 @@ def main():
         d.drawing.append(draw.Line(xs, y0, xs, y1, stroke=MUTED, stroke_width=1.2,
                                    stroke_dasharray="3,4"))
 
-    d.add_text("Episodic (skyline) birth–death", x=-style.width / 2 + 34, y=y0 - 36,
-               font_size=16, color=INK, weight="bold")
-
     draw_skeleton(d, tree)
 
     ticks = [round(present * i / 4, 6) for i in range(5)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
                     label="Time (root to present)", tick_size=6.0, padding=14.0, stroke_width=1.6)
+
+    # title: one short bold line, horizontally centered at the top
+    d.drawing.append(draw.Text("Episodic (skyline) birth-death", FS_TITLE, 0,
+                               -style.height / 2 + 44, font_weight="bold",
+                               font_family=style.font_family, text_anchor="middle",
+                               dominant_baseline="central", fill=INK))
+    # legend, single column in the open lower-left quadrant (the tree radiates right):
+    # a gloss for the per-epoch b/d labels + the dashed = extinct convention
+    lx, ly = -style.width / 2 + 34, style.height / 2 - 168
+    d.drawing.append(draw.Text("b = birth rate,  d = death rate", FS_LABEL, lx, ly,
+                               font_family=style.font_family, text_anchor="start",
+                               dominant_baseline="central", fill=INK))
+    d.drawing.append(draw.Line(lx, ly + 32, lx + 34, ly + 32, stroke=INK,
+                               stroke_width=style.branch_stroke_width,
+                               stroke_dasharray="6,5", stroke_linecap="butt"))
+    d.drawing.append(draw.Text("extinct lineage", FS_LABEL, lx + 46, ly + 32,
+                               font_family=style.font_family, text_anchor="start",
+                               dominant_baseline="central", fill=INK))
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)
