@@ -4,7 +4,7 @@ The engine (substitution models + :func:`evolve_on_tree`) is checked against ana
 (stationarity, JC distance recovery, t=0 identity); the nucleotide-model integration is checked by
 reconstructing the genome at every node — most importantly that a FASTA-seeded root reproduces the
 input genome exactly, and that at zero divergence every node's DNA is the strand-correct assembly of
-its atom sequences.
+its block sequences.
 """
 
 from collections import Counter
@@ -225,11 +225,11 @@ def test_node_genomes_kept_for_every_node():
 def test_root_architecture_is_the_input_tiling():
     tree, res = _run()
     mosaic = res.node_mosaic(tree.root)
-    atoms = [res._atom_by_id[aid] for aid, _ in mosaic]
+    blocks = [res._block_by_id[aid] for aid, _ in mosaic]
     assert all(s == 1 for _, s in mosaic)                   # seed is all forward strand
-    assert atoms[0].start == 0 and atoms[-1].end == 300     # tiles the whole chromosome
-    assert sum(a.length for a in atoms) == 300
-    genes = [(a.start, a.end) for a in atoms if a.kind == "gene"]
+    assert blocks[0].start == 0 and blocks[-1].end == 300     # tiles the whole chromosome
+    assert sum(a.length for a in blocks) == 300
+    genes = [(a.start, a.end) for a in blocks if a.kind == "gene"]
     assert genes == [(20, 60), (90, 130), (160, 200), (230, 280)]   # genes intact, in order
 
 
@@ -239,11 +239,11 @@ def test_node_sequence_lengths_and_zero_divergence_assembly():
     for n in tree.nodes_preorder():
         assert len(res.node_sequence(n)) == res.node_genomes[n].size()
 
-    # at zero divergence every node's DNA is the strand-correct concatenation of its atoms
+    # at zero divergence every node's DNA is the strand-correct concatenation of its blocks
     res.simulate_sequences(jc69(), subst_rate=0.0, seed=7)
-    atom_seq = {aid: next(iter(d.values())) for aid, d in res._atom_seqs.items() if d}
+    block_seq = {aid: next(iter(d.values())) for aid, d in res._block_seqs.items() if d}
     for n in tree.nodes_preorder():
-        expect = "".join(reverse_complement(atom_seq[aid]) if s == -1 else atom_seq[aid]
+        expect = "".join(reverse_complement(block_seq[aid]) if s == -1 else block_seq[aid]
                          for aid, s in res.node_mosaic(n))
         assert res.node_sequence(n) == expect
 
@@ -266,7 +266,7 @@ def test_gene_alignments_shape():
     lengths = {"gA": 40, "gB": 40, "gC": 40, "gD": 50}      # from the gene intervals
     for gene, aln in ga.items():
         assert all(len(s) == lengths[gene] for s in aln.values())   # every copy is the gene length
-    assert res.intergene_alignments()                       # intergene atoms too
+    assert res.intergene_alignments()                       # intergene blocks too
 
 
 def test_node_sequence_needs_simulate_first():

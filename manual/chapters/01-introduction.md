@@ -20,7 +20,7 @@ can:
 - evolve gene families along any tree by duplication, transfer, loss and origination, recovering
   their gene trees, reconciliations, and copy-number profiles;
 - descend to nucleotide resolution — structural rearrangements from which genes emerge as
-  conserved "atoms", and real DNA sequences under standard substitution models;
+  conserved "blocks", and real DNA sequences under standard substitution models;
 - evolve phenotypic traits (Brownian motion, Ornstein–Uhlenbeck, Mk, threshold, biogeographic
   ranges) along the same tree;
 - couple these processes into models of *coevolution* — gene content that shapes traits, traits

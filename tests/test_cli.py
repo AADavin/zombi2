@@ -619,20 +619,20 @@ def test_trait_writes_log(tmp_path):
     assert "model\tbm" in log and "seed\t5" in log
 
 
-# --- nucleotide genome model (--rate-model nucleotide): structural events, atoms as genes --
+# --- nucleotide genome model (--rate-model nucleotide): structural events, blocks as genes --
 
 def test_genomes_nucleotide_model(tmp_path):
-    """`--rate-model nucleotide` evolves nucleotide genomes; profiles+trees writes the atom
-    table, the emergent profile, per-atom gene trees, and reconciliations (Python engine)."""
+    """`--rate-model nucleotide` evolves nucleotide genomes; profiles+trees writes the block
+    table, the emergent profile, per-block gene trees, and reconciliations (Python engine)."""
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--rate-model", "nucleotide",
                "--dup", "0.0006", "--loss", "0.0006", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    for f in ("species_tree.nwk", "atoms.tsv", "Profiles.tsv", "Presence.tsv",
+    for f in ("species_tree.nwk", "blocks.tsv", "Profiles.tsv", "Presence.tsv",
               "Mosaics.tsv", "Reconciled_complete.nwk", "Reconciliation_events.tsv"):
         assert (out / f).exists()
-    assert os.listdir(out / "gene_trees")                    # one gene tree per atom
+    assert os.listdir(out / "gene_trees")                    # one gene tree per block
     assert "rate_model\tnucleotide" in (out / "genomes.log").read_text()
     assert "initial_chromosomes\t1" in (out / "genomes.log").read_text()   # nucleotide default = 1
 
@@ -645,7 +645,7 @@ def test_genomes_nucleotide_profiles_only(tmp_path):
                "--dup", "0.0006", "--loss", "0.0006", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists() and (out / "atoms.tsv").exists()
+    assert (out / "Profiles.tsv").exists() and (out / "blocks.tsv").exists()
     assert not (out / "gene_trees").exists()
     assert not (out / "Reconciled_complete.nwk").exists()
 
@@ -663,7 +663,7 @@ def test_genomes_nucleotide_sparse(tmp_path):
 
 def test_genomes_nucleotide_genic(tmp_path):
     """`--genes` enables genic mode: genes.tsv, split Gene/Intergene trees, Pseudogenizations,
-    and atoms.tsv carrying the gene/intergene classification."""
+    and blocks.tsv carrying the gene/intergene classification."""
     tree = _tree_file(tmp_path, tips=10)
     genes = tmp_path / "genes.tsv"
     genes.write_text("100\t180\tgeneA\n300\t360\tgeneB\n500\t620\tgeneC\n750\t800\tgeneD\n")
@@ -674,11 +674,11 @@ def test_genomes_nucleotide_genic(tmp_path):
                "--pseudogenization", "0.4", "--replacement", "0.6",
                "--write", "profiles", "trees", "--seed", "9", "-o", str(out)])
     assert rc == 0
-    for f in ("genes.tsv", "atoms.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
+    for f in ("genes.tsv", "blocks.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
         assert (out / f).exists()
     assert os.listdir(out / "Gene_trees") and os.listdir(out / "Intergene_trees")
-    # atoms.tsv carries the classification; the four seed genes are present in genes.tsv
-    assert "kind\tgene_id" in (out / "atoms.tsv").read_text()
+    # blocks.tsv carries the classification; the four seed genes are present in genes.tsv
+    assert "kind\tgene_id" in (out / "blocks.tsv").read_text()
     genes_txt = (out / "genes.tsv").read_text()
     for name in ("geneA", "geneB", "geneC", "geneD"):
         assert name in genes_txt
@@ -695,7 +695,7 @@ def test_genomes_nucleotide_genes_reject_profiles_only(tmp_path):
                "--root-length", "800", "--genes", str(genes), "--write", "profiles",
                "--seed", "2", "-o", str(out)])
     assert rc == 0
-    assert (out / "genes.tsv").exists() and (out / "atoms.tsv").exists()
+    assert (out / "genes.tsv").exists() and (out / "blocks.tsv").exists()
 
 
 def test_genomes_nucleotide_from_gff(tmp_path):
@@ -715,7 +715,7 @@ def test_genomes_nucleotide_from_gff(tmp_path):
     genes_txt = (out / "genes.tsv").read_text()
     for locus in ("a", "b", "d"):
         assert locus in genes_txt
-    assert (out / "atoms.tsv").exists() and os.listdir(out / "Gene_trees")
+    assert (out / "blocks.tsv").exists() and os.listdir(out / "Gene_trees")
     assert "root_length\t600" in (out / "genomes.log").read_text()   # length came from the GFF
 
 

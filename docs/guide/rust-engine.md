@@ -74,7 +74,7 @@ Python engine within Monte-Carlo error.
   `removal < 1` — are routed to the Python engine (which passes genomes through such nodes).
   You do not need to do anything; the correct engine is selected per tree.
 * **The nucleotide model.** [`simulate_nucleotide_genomes`](nucleotide-genomes.md) runs on
-  Python by default (it emits the full event log and per-atom gene trees). Pass
+  Python by default (it emits the full event log and per-block gene trees). Pass
   `output="profiles"` for the Rust path over leaf segments — much faster, enough for
   `profile_matrix()` / `leaf_mosaic()` / `trace_back()`, but with no event log.
 

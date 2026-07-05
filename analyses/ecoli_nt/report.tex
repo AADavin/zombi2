@@ -66,9 +66,9 @@ pseudogenises it --- keeping the sequence but marking it non-functional --- with
 \EcPseudoP; a transfer is a homologous replacement with probability \EcReplP{} (seed \EcSimSeed).
 
 Because genes are never cut, each of the \EcGenes~genes stays a single indivisible unit (an
-\emph{atom}) wherever it survives, while intergenic DNA fragments freely. The run yields
-\EcAtoms~atoms in total: \EcGeneAtoms~gene atoms (the \EcGenes~ancestral genes plus \EcOrig{}
-originated \emph{de novo}) and \EcInterAtoms~intergene atoms.
+\emph{block}) wherever it survives, while intergenic DNA fragments freely. The run yields
+\EcBlocks~blocks in total: \EcGeneBlocks~gene blocks (the \EcGenes~ancestral genes plus \EcOrig{}
+originated \emph{de novo}) and \EcInterBlocks~intergene blocks.
 
 \begin{figure}[H]
 \centering
@@ -125,7 +125,7 @@ split. \textbf{Right:} copy number of the 60 most variable gene families across 
 The whole history is one event log (Fig.~\ref{fig:genetree}, left): \EcLoss~losses, \EcPseudo{}
 pseudogenisations, \EcDup~duplications, \EcTrans~transfers, \EcInv~inversions,
 \EcTransp~transpositions and \EcOrig~originations. Because the model re-mints lineages at every
-event, ZOMBI2 reconstructs a gene tree for each gene atom. Duplications and transfers make these gene
+event, ZOMBI2 reconstructs a gene tree for each gene block. Duplications and transfers make these gene
 trees disagree with the species tree: Fig.~\ref{fig:genetree} contrasts the species tree with the
 reconstructed tree of gene \texttt{\EcExampleGene}, whose duplication history gives it several
 paralogous copies per lineage --- a topology no strictly-vertical model could produce.

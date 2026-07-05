@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from .nucleotide_genome import NucleotideGenome, Segment
-from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Atom
+from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
 from .gff import read_gff, GffGenome
 from .rates import (
     RateModel, UniformRates, GenomeWiseRates, FamilySampledRates, BranchRates,
@@ -33,7 +33,7 @@ from .parallel import run_replicates
 __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
-    "NucleotideResult", "Atom", "read_gff", "GffGenome",
+    "NucleotideResult", "Block", "read_gff", "GffGenome",
     "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
     "BranchRates", "EventWeight", "TransferModel",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",

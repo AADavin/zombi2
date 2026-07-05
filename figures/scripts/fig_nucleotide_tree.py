@@ -3,20 +3,20 @@
 A 12-base root genome descends a species tree ((A,B),C). One event falls on each leaf
 branch: a duplication on A, an inversion on B, a loss on C. Read straight from a real
 ``simulate_nucleotide_genomes`` run (seed 2706); each event happens to act on exactly
-one atom, so the story is clean.
+one block, so the story is clean.
 
 Three panels, top to bottom:
 
   A  SEGMENTS ARE CREATED. The initial (root) genome is one smooth gradient with no
      divisions. Each leaf keeps only the segment its own event carved out.
-  B  SEGMENTS PROPAGATE. The same tree again, but now the genome is cut into its atoms
+  B  SEGMENTS PROPAGATE. The same tree again, but now the genome is cut into its blocks
      (each a gradient slice of the initial genome) and every leaf is a mosaic of them —
      duplicated on A, reversed on B, one missing on C.
-  C  A TREE PER SEGMENT. Each atom carries its own genealogy: duplication adds a tip,
+  C  A TREE PER SEGMENT. Each block carries its own genealogy: duplication adds a tip,
      loss prunes one, inversion leaves the tree (only the strand flips), the rest are the
      species tree.
 
-Rendered gradient (each segment a gradient slice), colour and B&W (solid per-atom hues).
+Rendered gradient (each segment a gradient slice), colour and B&W (solid per-block hues).
 Run:  python figures/scripts/fig_nucleotide_tree.py
 """
 
@@ -40,11 +40,11 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 W, H = 1080, 862
 TITLE_X = 40
 
-ATOM_COL = {0: "#6b8fb0", 1: "#7ba884", 2: "#c8a75c", 3: "#b47d6e", 4: "#8f7bb0"}
-ATOM_BW = {0: "#3a3a3a", 1: "#5f5f5f", 2: "#838383", 3: "#a6a6a6", 4: "#c8c8c8"}
+BLOCK_COL = {0: "#6b8fb0", 1: "#7ba884", 2: "#c8a75c", 3: "#b47d6e", 4: "#8f7bb0"}
+BLOCK_BW = {0: "#3a3a3a", 1: "#5f5f5f", 2: "#838383", 3: "#a6a6a6", 4: "#c8c8c8"}
 
-ATOM: dict = {}
-ATOM_LEN: dict = {}
+BLOCK: dict = {}
+BLOCK_LEN: dict = {}
 ROOT_L = 12
 
 
@@ -70,34 +70,34 @@ def classify(ext, inverted):
 def simulate():
     r = simulate_nucleotide_genomes(build_tree(), inversion=0.02, duplication=0.02,
                                     loss=0.02, root_length=12, extension=0.6, seed=2706)
-    atoms = {a.atom_id: a for a in r.atoms}
-    gt, hist = r.atom_gene_trees(), r.atom_histories()
-    kind = {aid: classify(gt[aid][1], bool(hist[aid])) for aid in atoms}
+    blocks = {a.block_id: a for a in r.blocks}
+    gt, hist = r.block_gene_trees(), r.block_histories()
+    kind = {aid: classify(gt[aid][1], bool(hist[aid])) for aid in blocks}
 
-    L = max(a.end for a in atoms.values())
+    L = max(a.end for a in blocks.values())
     prov = r.registry.provenance
-    atom_leaf = {aid: None for aid in atoms}
+    block_leaf = {aid: None for aid in blocks}
     leaf_event, leaf_breaks = {}, {}
     for rec in r.event_log:
         if rec.event.name not in ("DUPLICATION", "LOSS", "INVERSION"):
             continue
         segs = [prov[op.gid] for op in rec.genes if op.gid in prov]
         ss, se = min(s[1] for s in segs), max(s[2] for s in segs)
-        aff = next(aid for aid, a in atoms.items() if ss <= a.start and a.end <= se)
-        atom_leaf[aff] = rec.branch
+        aff = next(aid for aid, a in blocks.items() if ss <= a.start and a.end <= se)
+        block_leaf[aff] = rec.branch
         leaf_event[rec.branch] = (kind[aff], aff)
         leaf_breaks[rec.branch] = sorted(b for b in (ss, se) if 0 < b < L)
     mosaics = {leaf.name: r.leaf_mosaic(leaf) for leaf in r.leaf_genomes}
-    return atoms, kind, atom_leaf, mosaics, leaf_event, leaf_breaks, L
+    return blocks, kind, block_leaf, mosaics, leaf_event, leaf_breaks, L
 
 
 # --------------------------------------------------------------------------- colour
 def col(aid, mode):
     if mode == "color":
-        return ATOM_COL[aid]
+        return BLOCK_COL[aid]
     if mode == "bw":
-        return ATOM_BW[aid]
-    a = ATOM[aid]
+        return BLOCK_BW[aid]
+    a = BLOCK[aid]
     return pos_color(((a.start + a.end) / 2) / ROOT_L, True)
 
 
@@ -148,8 +148,8 @@ def flip_mark(d, cx, cy, w=11):
 
 # --------------------------------------------------------------------------- segment / genome strips
 def draw_slice(d, x, y, w, h, aid, mode, rev=False, faded=False):
-    """One atom's content: a gradient slice of the initial genome (or a solid hue)."""
-    a = ATOM[aid]
+    """One block's content: a gradient slice of the initial genome (or a solid hue)."""
+    a = BLOCK[aid]
     if mode == "gradient":
         sub = w / a.length
         for k in range(a.length):
@@ -180,23 +180,23 @@ def div_line(d, x, y, h):
     d.append(draw.Line(x, y, x, y + h, stroke="white", stroke_width=1.3))
 
 
-def _atom_lines(d, x0, y, w, h, breaks):
+def _block_lines(d, x0, y, w, h, breaks):
     for bp in breaks:
         div_line(d, x0 + (bp / ROOT_L) * w, y, h)
 
 
 def ancestral_genome(d, x0, y, w, mode, divided, h=18):
-    """The initial genome: smooth (divided=False) or cut into its atom squares."""
+    """The initial genome: smooth (divided=False) or cut into its block squares."""
     if not divided:
         if mode == "gradient":
             _smooth_gradient(d, x0, y, w, h)
         else:
             d.append(draw.Rectangle(x0, y, w, h, fill="#d8cebd" if mode == "color" else "#dcdcdc"))
     else:
-        for aid in sorted(ATOM):
-            a = ATOM[aid]
+        for aid in sorted(BLOCK):
+            a = BLOCK[aid]
             draw_slice(d, x0 + (a.start / ROOT_L) * w, y, (a.length / ROOT_L) * w, h, aid, mode)
-        _atom_lines(d, x0, y, w, h, [a.start for a in ATOM.values() if a.start > 0])
+        _block_lines(d, x0, y, w, h, [a.start for a in BLOCK.values() if a.start > 0])
     d.append(draw.Rectangle(x0, y, w, h, fill="none", stroke=INK, stroke_width=1.1))
 
 
@@ -208,10 +208,10 @@ def native_genome(d, cx, y, mode, breaks, seg_aid, h=18):
         _smooth_gradient(d, x0, y, w, h)
     else:
         d.append(draw.Rectangle(x0, y, w, h, fill="#d8cebd" if mode == "color" else "#dcdcdc"))
-        a = ATOM[seg_aid]                                        # colour just the carved segment
+        a = BLOCK[seg_aid]                                        # colour just the carved segment
         draw_slice(d, x0 + (a.start / ROOT_L) * w, y, (a.length / ROOT_L) * w, h, seg_aid, mode)
-    _atom_lines(d, x0, y, w, h, breaks)
-    a = ATOM[seg_aid]                                            # bracket marks "their" segment
+    _block_lines(d, x0, y, w, h, breaks)
+    a = BLOCK[seg_aid]                                            # bracket marks "their" segment
     ux0, ux1, yb = x0 + (a.start / ROOT_L) * w, x0 + (a.end / ROOT_L) * w, y + h + 5
     d.append(draw.Line(ux0, yb, ux1, yb, stroke=INK, stroke_width=2))
     d.append(draw.Line(ux0, yb, ux0, yb - 4, stroke=INK, stroke_width=2))
@@ -220,20 +220,20 @@ def native_genome(d, cx, y, mode, breaks, seg_aid, h=18):
 
 
 def mosaic_bar(d, cx, y, cells, mode, h=22, unit=9.0):
-    """A leaf genome: its atoms in order, each a gradient slice (reversed if inverted).
+    """A leaf genome: its blocks in order, each a gradient slice (reversed if inverted).
 
-    White lines are drawn at every atom limit (the propagated breakpoints)."""
-    total = sum(ATOM_LEN[aid] for aid, _ in cells) * unit
+    White lines are drawn at every block limit (the propagated breakpoints)."""
+    total = sum(BLOCK_LEN[aid] for aid, _ in cells) * unit
     x = cx - total / 2
     edges = [x]
     for aid, strand in cells:
-        w = ATOM_LEN[aid] * unit
+        w = BLOCK_LEN[aid] * unit
         draw_slice(d, x, y, w, h, aid, mode, rev=strand < 0)
         if strand < 0:
             flip_mark(d, x + w / 2, y + h + 8, w=min(10, w / 2 - 1))
         x += w
         edges.append(x)
-    for bx in edges[1:-1]:                                       # every atom limit -> division line
+    for bx in edges[1:-1]:                                       # every block limit -> division line
         div_line(d, bx, y, h)
     d.append(draw.Rectangle(cx - total / 2, y, total, h, fill="none", stroke=INK, stroke_width=1.0))
 
@@ -253,7 +253,7 @@ def species_tree(d, y0, th):
 
 
 # --------------------------------------------------------------------------- panel A
-def panel_a(d, atoms, leaf_event, leaf_breaks, mode, hatch):
+def panel_a(d, blocks, leaf_event, leaf_breaks, mode, hatch):
     y0 = 130
     gw = ROOT_L * 9.0
     d.append(draw.Line(RX, 84, RX, y0, stroke=INK, stroke_width=1.1, stroke_dasharray="3,3"))
@@ -274,15 +274,15 @@ def panel_a(d, atoms, leaf_event, leaf_breaks, mode, hatch):
 
 
 # --------------------------------------------------------------------------- panel B
-def panel_b(d, atoms, mosaics, mode):
+def panel_b(d, blocks, mosaics, mode):
     d.append(draw.Line(TITLE_X, 306, W - 50, 306, stroke="#dcdcdc", stroke_width=1.2))
-    d.append(draw.Text("B — the segments propagate: every genome is a mosaic of the same atoms", 16,
+    d.append(draw.Text("B — the segments propagate: every genome is a mosaic of the same blocks", 16,
                        TITLE_X, 326, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
     y0 = 434
     gw = ROOT_L * 9.0
     d.append(draw.Line(RX, 378, RX, y0, stroke=INK, stroke_width=1.1, stroke_dasharray="3,3"))
     ancestral_genome(d, RX - gw / 2, 356, gw, mode, divided=True)
-    d.append(draw.Text("initial genome — now cut into its atoms (gradient squares)", 13.5, RX, 346,
+    d.append(draw.Text("initial genome — now cut into its blocks (gradient squares)", 13.5, RX, 346,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
     yl, yn2 = species_tree(d, y0, 112)
@@ -332,32 +332,32 @@ def mini_tree(d, cx, aid, kind, leaf, mode, hatch):
                            font_weight="bold", fill=INK))
 
 
-def panel_c(d, atoms, kind, atom_leaf, mode, hatch):
+def panel_c(d, blocks, kind, block_leaf, mode, hatch):
     d.append(draw.Line(TITLE_X, 626, W - 50, 626, stroke="#dcdcdc", stroke_width=1.2))
     d.append(draw.Text("C — reconstruct a tree for every segment", 16, TITLE_X, 646,
                        font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    for cx, aid in zip(CENTERS, sorted(atoms)):
-        a = atoms[aid]
+    for cx, aid in zip(CENTERS, sorted(blocks)):
+        a = blocks[aid]
         d.append(draw.Rectangle(cx - 74, 668, 22, 13, fill="none", stroke=INK, stroke_width=0.8))
-        draw_slice(d, cx - 74, 668, 22, 13, aid, mode)              # the atom's own gradient chip
-        d.append(draw.Text(f"atom {aid}", 13.5, cx - 46, 675, font_family=FONT, text_anchor="start",
+        draw_slice(d, cx - 74, 668, 22, 13, aid, mode)              # the block's own gradient chip
+        d.append(draw.Text(f"block {aid}", 13.5, cx - 46, 675, font_family=FONT, text_anchor="start",
                            dominant_baseline="central", font_weight="bold", fill=INK))
         d.append(draw.Text(f"[{a.start},{a.end})", 11, cx + 28, 675, font_family=FONT,
                            text_anchor="start", dominant_baseline="central", fill="#888"))
-        mini_tree(d, cx, aid, kind[aid], atom_leaf[aid], mode, hatch)
+        mini_tree(d, cx, aid, kind[aid], block_leaf[aid], mode, hatch)
 
 
 # --------------------------------------------------------------------------- render
-def render(atoms, kind, atom_leaf, mosaics, leaf_event, leaf_breaks, mode):
-    global ATOM, ATOM_LEN
-    ATOM = atoms
-    ATOM_LEN = {aid: a.length for aid, a in atoms.items()}
+def render(blocks, kind, block_leaf, mosaics, leaf_event, leaf_breaks, mode):
+    global BLOCK, BLOCK_LEN
+    BLOCK = blocks
+    BLOCK_LEN = {aid: a.length for aid, a in blocks.items()}
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     hatch = make_hatch(d)
-    panel_a(d, atoms, leaf_event, leaf_breaks, mode, hatch)
-    panel_b(d, atoms, mosaics, mode)
-    panel_c(d, atoms, kind, atom_leaf, mode, hatch)
+    panel_a(d, blocks, leaf_event, leaf_breaks, mode, hatch)
+    panel_b(d, blocks, mosaics, mode)
+    panel_c(d, blocks, kind, block_leaf, mode, hatch)
 
     name = {"gradient": "nucleotide_tree_gradient", "color": "nucleotide_tree",
             "bw": "nucleotide_tree_bw"}[mode]
@@ -369,11 +369,11 @@ def render(atoms, kind, atom_leaf, mosaics, leaf_event, leaf_breaks, mode):
 
 
 def main():
-    atoms, kind, atom_leaf, mosaics, leaf_event, leaf_breaks, L = simulate()
+    blocks, kind, block_leaf, mosaics, leaf_event, leaf_breaks, L = simulate()
     global ROOT_L
     ROOT_L = L
     for mode in ("gradient", "color", "bw"):
-        render(atoms, kind, atom_leaf, mosaics, leaf_event, leaf_breaks, mode)
+        render(blocks, kind, block_leaf, mosaics, leaf_event, leaf_breaks, mode)
     print("wrote nucleotide_tree {gradient,color,bw}  leaf_event=", leaf_event,
           " leaf_breaks=", leaf_breaks)
 
