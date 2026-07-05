@@ -29,7 +29,7 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1160, 520
+W, H = 1160, 380
 
 # a small fixed 4-tip ultrametric tree, node times normalized 0 (crown) .. 1 (present)
 TIP_T = 1.0
@@ -81,36 +81,37 @@ def age_bracket(d, x0, x1, y, label):
 def render():
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    d.append(draw.Text("What `age` measures: crown vs stem", FS_TITLE, W / 2, 46, font_family=FONT,
-                       text_anchor="middle", font_weight="bold", fill=INK))
 
-    ytop, ybot = 150, 350
-    ybase = 392                                            # age-bracket baseline
+    ytop, ybot = 108, 300
+    ybase = 340                                            # age-bracket baseline
+    ylab = 58                                              # panel header baseline
     # --- Panel A: crown ---
     ax0, ax1 = 90, 520                                     # crown ... present (full age)
-    d.append(draw.Text("age_type = 'crown'", FS_LABEL, (ax0 + ax1) / 2, 108, font_family=FONT,
+    d.append(draw.Text("age_type = 'crown'", FS_LABEL, (ax0 + ax1) / 2, ylab, font_family=FONT,
                        text_anchor="middle", font_weight="bold", fill=INK))
     yC, _ = draw_tree(d, ax0, ax1, ytop, ybot)
-    node_dot(d, ax0, yC, "crown = root")
+    node_dot(d, ax0, yC, "crown")
     age_bracket(d, ax0, ax1, ybase, "age")
-    d.append(draw.Text("the whole age is the crown's depth", FS_TICK, (ax0 + ax1) / 2, ybase + 52,
-                       font_family=FONT, text_anchor="middle", fill=MUTED))
 
     # --- Panel B: stem ---
     bx0, bx1 = 640, 1070                                   # origin ... present (same total age)
     stem = 0.30 * (bx1 - bx0)                              # part of the age is the stem
     xcrown = bx0 + stem
-    d.append(draw.Text("age_type = 'stem'", FS_LABEL, (bx0 + bx1) / 2, 108, font_family=FONT,
+    d.append(draw.Text("age_type = 'stem'", FS_LABEL, (bx0 + bx1) / 2, ylab, font_family=FONT,
                        text_anchor="middle", font_weight="bold", fill=INK))
     yC2, _ = draw_tree(d, xcrown, bx1, ytop, ybot)
     d.append(draw.Line(bx0, yC2, xcrown, yC2, stroke=INK, stroke_width=2.6))   # stem branch
-    d.append(draw.Text("stem", FS_TICK, (bx0 + xcrown) / 2, yC2 - 12, font_family=FONT,
+    # origin / stem / crown share one baseline above the branch (consistent letter size)
+    yrow = yC2 - 14
+    d.append(draw.Circle(bx0, yC2, 5.5, fill=INK))
+    d.append(draw.Text("origin", FS_TICK, bx0, yrow, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
+    d.append(draw.Text("stem", FS_TICK, (bx0 + xcrown) / 2, yrow, font_family=FONT,
                        text_anchor="middle", fill=MUTED, font_style="italic"))
-    node_dot(d, bx0, yC2, "origin")
-    node_dot(d, xcrown, yC2, "crown", below=True)
+    d.append(draw.Circle(xcrown, yC2, 5.5, fill=INK))
+    d.append(draw.Text("crown", FS_TICK, xcrown + 10, yrow, font_family=FONT,
+                       text_anchor="start", fill=INK, font_weight="bold"))
     age_bracket(d, bx0, bx1, ybase, "age")
-    d.append(draw.Text("a stem precedes the crown, so the crown subtree is shorter", FS_TICK,
-                       (bx0 + bx1) / 2, ybase + 52, font_family=FONT, text_anchor="middle", fill=MUTED))
 
     name = "age_crown"
     out = OUT_DIR / name

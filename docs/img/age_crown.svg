@@ -1,46 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1160" height="520" viewBox="0 0 1160 520">
+     width="1160" height="380" viewBox="0 0 1160 380">
 <defs>
 </defs>
-<rect x="0" y="0" width="1160" height="520" fill="white" />
-<text x="580.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">What `age` measures: crown vs stem</text>
-<text x="305.0" y="108" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">age_type = 'crown'</text>
-<path d="M90.0,183.33333333333334 L90.0,316.6666666666667" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M90.0,183.33333333333334 L287.8,183.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M90.0,316.6666666666667 L339.4,316.6666666666667" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M287.8,150.0 L287.8,216.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M339.4,283.33333333333337 L339.4,350.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M287.8,150.0 L520.0,150.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M287.8,216.66666666666669 L520.0,216.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M339.4,283.33333333333337 L520.0,283.33333333333337" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M339.4,350.0 L520.0,350.0" stroke="#1a1a1a" stroke-width="2.6" />
-<circle cx="90" cy="250.0" r="5.5" fill="#1a1a1a" />
-<text x="90" y="236.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">crown = root</text>
-<path d="M90,392 L520,392" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M90,385 L90,399" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M520,385 L520,399" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="305.0" y="418" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">age</text>
-<text x="305.0" y="444" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the whole age is the crown's depth</text>
-<text x="855.0" y="108" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">age_type = 'stem'</text>
-<path d="M769.0,183.33333333333334 L769.0,316.6666666666667" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M769.0,183.33333333333334 L907.46,183.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M769.0,316.6666666666667 L943.5799999999999,316.6666666666667" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M907.46,150.0 L907.46,216.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M943.5799999999999,283.33333333333337 L943.5799999999999,350.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M907.46,150.0 L1070.0,150.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M907.46,216.66666666666669 L1070.0,216.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M943.5799999999999,283.33333333333337 L1070.0,283.33333333333337" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M943.5799999999999,350.0 L1070.0,350.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M640,250.0 L769.0,250.0" stroke="#1a1a1a" stroke-width="2.6" />
-<text x="704.5" y="238.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">stem</text>
-<circle cx="640" cy="250.0" r="5.5" fill="#1a1a1a" />
-<text x="640" y="236.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">origin</text>
-<circle cx="769.0" cy="250.0" r="5.5" fill="#1a1a1a" />
-<text x="769.0" y="276.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">crown</text>
-<path d="M640,392 L1070,392" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M640,385 L640,399" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M1070,385 L1070,399" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="855.0" y="418" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">age</text>
-<text x="855.0" y="444" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">a stem precedes the crown, so the crown subtree is shorter</text>
+<rect x="0" y="0" width="1160" height="380" fill="white" />
+<text x="305.0" y="58" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">age_type = 'crown'</text>
+<path d="M90.0,140.0 L90.0,268.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M90.0,140.0 L287.8,140.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M90.0,268.0 L339.4,268.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M287.8,108.0 L287.8,172.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M339.4,236.0 L339.4,300.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M287.8,108.0 L520.0,108.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M287.8,172.0 L520.0,172.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M339.4,236.0 L520.0,236.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M339.4,300.0 L520.0,300.0" stroke="#1a1a1a" stroke-width="2.6" />
+<circle cx="90" cy="204.0" r="5.5" fill="#1a1a1a" />
+<text x="90" y="190.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">crown</text>
+<path d="M90,340 L520,340" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M90,333 L90,347" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M520,333 L520,347" stroke="#1a1a1a" stroke-width="1.8" />
+<text x="305.0" y="366" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">age</text>
+<text x="855.0" y="58" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">age_type = 'stem'</text>
+<path d="M769.0,140.0 L769.0,268.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M769.0,140.0 L907.46,140.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M769.0,268.0 L943.5799999999999,268.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M907.46,108.0 L907.46,172.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M943.5799999999999,236.0 L943.5799999999999,300.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M907.46,108.0 L1070.0,108.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M907.46,172.0 L1070.0,172.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M943.5799999999999,236.0 L1070.0,236.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M943.5799999999999,300.0 L1070.0,300.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M640,204.0 L769.0,204.0" stroke="#1a1a1a" stroke-width="2.6" />
+<circle cx="640" cy="204.0" r="5.5" fill="#1a1a1a" />
+<text x="640" y="190.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">origin</text>
+<text x="704.5" y="190.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">stem</text>
+<circle cx="769.0" cy="204.0" r="5.5" fill="#1a1a1a" />
+<text x="779.0" y="190.0" font-size="18" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">crown</text>
+<path d="M640,340 L1070,340" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M640,333 L640,347" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M1070,333 L1070,347" stroke="#1a1a1a" stroke-width="1.8" />
+<text x="855.0" y="366" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">age</text>
 </svg>
