@@ -23,14 +23,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))   # zombi_style
 import cairosvg
 import drawsvg as draw
 
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import FONT, INK, MUTED, MODULE_COLORS, COOCCUR, AVOID, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 NAME = "potts_retention"
 
 W, H = 1120, 640
-MODA = "#4477AA"
-POS, NEG = "#2f8f4e", "#cc4b3c"                   # kept / purged
+MODA = MODULE_COLORS[0]                           # module 1 (same palette as the panel)
+POS, NEG = COOCCUR, AVOID                         # kept / purged
 
 CELL = 62
 GAP = 26
@@ -63,22 +63,22 @@ def cross(d, x, y, color):
 
 def scene(d, x0, y0, partners_present, kept, label):
     """Three-cell genome F0 [F1 arrives by HGT] F2 with an outcome marker on the right."""
-    # F0
+    # family 1
     cell(d, x0, y0, partners_present, MODA)
-    d.append(draw.Text("F0", FS_TICK, x0 + CELL / 2, y0 + CELL + 26, font_family=FONT,
+    d.append(draw.Text("1", FS_TICK, x0 + CELL / 2, y0 + CELL + 26, font_family=FONT,
                        text_anchor="middle", fill=INK))
-    # F1 (the transferred family)
+    # family 2 (the transferred family)
     xm = x0 + CELL + GAP
     if kept:
         cell(d, xm, y0, True, MODA)
     else:
         ghost(d, xm, y0, MODA)
-    d.append(draw.Text("F1", FS_TICK, xm + CELL / 2, y0 + CELL + 26, font_family=FONT,
+    d.append(draw.Text("2", FS_TICK, xm + CELL / 2, y0 + CELL + 26, font_family=FONT,
                        text_anchor="middle", fill=INK))
-    # F2
+    # family 3
     x2 = x0 + 2 * (CELL + GAP)
     cell(d, x2, y0, partners_present, MODA)
-    d.append(draw.Text("F2", FS_TICK, x2 + CELL / 2, y0 + CELL + 26, font_family=FONT,
+    d.append(draw.Text("3", FS_TICK, x2 + CELL / 2, y0 + CELL + 26, font_family=FONT,
                        text_anchor="middle", fill=INK))
 
     # HGT arrow into F1 from above
@@ -115,9 +115,9 @@ def render():
 
     x0 = 300
     scene(d, x0, 220, True, True,
-          "partners F0, F2 present: large field, F1 is retained")
+          "module complete (partners 1, 3 present): large field, gene 2 is retained")
     scene(d, x0, 420, False, False,
-          "partners F0, F2 absent: no field, F1 is lost fast")
+          "module incomplete (partners 1, 3 absent): no field, gene 2 is lost fast")
 
     d.append(draw.Text("differential retention of transferred genes writes the coupling J into the profiles",
                        FS_TICK, W / 2, 588, font_family=FONT, text_anchor="middle", fill=MUTED))
