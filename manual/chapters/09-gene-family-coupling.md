@@ -1,5 +1,9 @@
 # Gene-family coupling
 
+This chapter is the fourth rate model of the unordered genome level (Chapter 7): **coupled** gene
+families, which gain and lose *non-independently*. Like the other unordered rate models it runs on a
+presence/absence genome, and only there.
+
 By default every gene family in ZOMBI2 evolves independently, so the phylogenetic profile
 correlates families *only* through the shared species tree. Real genomes correlate through
 **function**: families in the same pathway or complex tend to be present or absent together

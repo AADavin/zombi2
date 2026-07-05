@@ -19,9 +19,9 @@ You select the representation by passing a `genome_factory` to `simulate_genomes
 that builds one from the gene ids:
 
 ```python
-from zombi2.genomes import UniformRates, OrderedGenome, simulate_genomes
+from zombi2.genomes import SharedRates, OrderedGenome, simulate_genomes
 
-rates = UniformRates(
+rates = SharedRates(
     duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
     inversion=0.3, transposition=0.3,      # rearrangement rates (ordered genomes only)
 )
@@ -80,7 +80,7 @@ unchanged. They appear only in the event log and in the final chromosome order.
 
 ## How events reach the genome
 
-Inversion and transposition rates are emitted by `UniformRates` as candidate events, but a genome
+Inversion and transposition rates are emitted by `SharedRates` as candidate events, but a genome
 only undergoes the events it declares in `supported_events()`:
 
 - `UnorderedGenome` supports `{O, D, T, L}`. It silently ignores inversion and transposition rates.
