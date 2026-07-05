@@ -736,12 +736,15 @@ class NucleotideGenome(Genome):
                                right_flank=right_flank, arc_sources=tuple(arc_sources))
 
     def _nearest_flank_gene(self, start_idx: int, step: int) -> tuple | None:
-        """``(source, gene_id)`` of the nearest gene outward from ``start_idx`` (no wrap), else None."""
+        """``(source, gene_id, strand)`` of the nearest gene outward from ``start_idx`` (no wrap),
+        else None. The strand is part of the homology anchor: a homologous locus in the recipient
+        must carry the flank gene in the **same orientation**, so a flank that has since been
+        inverted no longer anchors the replacement (it falls back to additive insertion)."""
         i = start_idx
         while 0 <= i < len(self._segments):
             seg = self._segments[i]
             if seg.gene_id is not None:
-                return (seg.source, seg.gene_id)
+                return (seg.source, seg.gene_id, seg.strand)
             i += step
         return None
 
@@ -750,7 +753,9 @@ class NucleotideGenome(Genome):
 
         "Search on the sides": locate the left-flank gene, then the next right-flank gene after
         it; the segments strictly between them are the homologous locus to replace (an empty span
-        means the flanks are adjacent — the copy is inserted homologously with no removal).
+        means the flanks are adjacent — the copy is inserted homologously with no removal). Both
+        anchors must match the donor's ``(source, gene_id, strand)`` — same gene **and** same
+        orientation — so an inverted flank breaks synteny and no homolog is found.
         """
         lf, rf = segment.left_flank, segment.right_flank
         if lf is None or rf is None:
@@ -759,9 +764,9 @@ class NucleotideGenome(Genome):
         for idx, seg in enumerate(self._segments):
             if seg.gene_id is None:
                 continue
-            if li is None and (seg.source, seg.gene_id) == lf:
+            if li is None and (seg.source, seg.gene_id, seg.strand) == lf:
                 li = idx
-            elif li is not None and (seg.source, seg.gene_id) == rf:
+            elif li is not None and (seg.source, seg.gene_id, seg.strand) == rf:
                 ri = idx
                 break
         if li is None or ri is None or ri <= li:

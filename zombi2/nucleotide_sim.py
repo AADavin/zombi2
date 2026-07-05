@@ -558,8 +558,9 @@ def simulate_nucleotide_genomes(
     probability that a loss hitting a gene *demotes* it to intergene (sequence retained, a
     ``G`` state-change edge in its tree) rather than deleting it. ``replacement`` in ``[0, 1]``
     is the probability that a transfer is a *homologous* replacement: the copy replaces the
-    recipient's syntenic material (located via flanking genes), falling back to additive
-    insertion when the recipient has no homolog. See :meth:`NucleotideResult.gene_trees` /
+    recipient's syntenic material (located via flanking genes of matching identity **and**
+    orientation), falling back to additive insertion when the recipient has no such homolog.
+    See :meth:`NucleotideResult.gene_trees` /
     :meth:`~NucleotideResult.intergene_trees` / :meth:`~NucleotideResult.pseudogenizations`.
 
     Duplication and additive transfer grow the genome with no cap, so keep them at or below

@@ -101,9 +101,10 @@ mode:
   gene stays functional in sister lineages.
 - **Homologous replacement transfer.** With probability `replacement`, a transfer replaces the
   recipient's syntenic copy instead of adding a new one. The homologous locus is found by the genes
-  flanking the transferred segment; the recipient material between those flank genes is replaced (and
-  logged as recipient losses). When the recipient has no such homolog, the transfer falls back to
-  additive insertion.
+  flanking the transferred segment — the recipient must carry the same flank genes in the **same
+  orientation** (an inverted flank breaks synteny) — and the recipient material between those flank
+  genes is replaced (and logged as recipient losses). When the recipient has no such homolog, the
+  transfer falls back to additive insertion.
 - **Origination** mints a brand-new gene (its own gene tree), as in the base model.
 
 ```python
