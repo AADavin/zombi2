@@ -497,3 +497,23 @@ def test_match_coupled_recovers_coupling_strength():
         return fit.summary()["within"]["median"]
 
     assert fit_median(1.0) > fit_median(0.0) + 0.2           # coupling strength is identified
+
+
+def test_match_coupled_threads_origins_through():
+    """origins= reaches the simulator: fitting the same target with families born at an internal
+    clade vs all-at-root explores different simulations (different accepted summaries)."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.5), n_tips=24, age=1.0, seed=1)
+    spec = pathway_blocks([3, 3], within=1.0, **_ABC_COMMON)
+    node = next(n for n in tree.internal_nodes() if n is not tree.root)
+    origins = {f: node for f in spec.panel_ids}
+    emp = simulate_coupled(tree, spec, seed=5, origins=origins).profiles
+
+    def builder(p):
+        return pathway_blocks([3, 3], within=p["within"], **_ABC_COMMON)
+
+    common = dict(n_sims=25, accept=0.2, seed=1)
+    at_root = match_coupled(tree, emp, builder, {"within": (0.0, 1.5)}, **common)
+    at_node = match_coupled(tree, emp, builder, {"within": (0.0, 1.5)}, origins=origins, **common)
+    # same empirical target, but the origins run simulates a different (clade-restricted) process
+    assert np.array_equal(at_root.empirical_summary, at_node.empirical_summary)
+    assert not np.array_equal(at_root.accepted_summaries, at_node.accepted_summaries)
