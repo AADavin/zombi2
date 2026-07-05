@@ -791,71 +791,8 @@ def test_genomes_nucleotide_ancestral(tmp_path):
     assert arch.count("\tgene\t") == 4
 
 
-# --- abc: fit gene-family rates to an empirical profile by ABC inference --
-
-def _profile_file(tmp_path, tree, **rates):
-    """Simulate an empirical profile with known rates (uniform model) -> its Profiles.tsv."""
-    dest = tmp_path / "truth"
-    args = ["genomes", "-t", tree, "--write", "profiles", "--seed", "7", "-o", str(dest)]
-    for k, v in rates.items():
-        args += [f"--{k}", str(v)]
-    main(args)
-    return str(dest / "Profiles.tsv")
-
-
-@needs_rust
-def test_abc_fits_and_writes_posterior(tmp_path):
-    """`abc` fits the rates given as priors and writes posterior + summary + spectra + log."""
-    tree = _tree_file(tmp_path, tips=25)
-    prof = _profile_file(tmp_path, tree, dup=0.3, loss=0.6, orig=2.0)
-    out = tmp_path / "fit"
-    rc = main(["abc", "-t", tree, "--profiles", prof,
-               "--dup", "0", "1", "--loss", "0", "1.5", "--orig", "0", "4",
-               "--n-sims", "200", "--seed", "1", "-o", str(out)])
-    assert rc == 0
-    for f in ("posterior.tsv", "summary.tsv", "spectra.tsv", "abc.log"):
-        assert (out / f).exists()
-    summ = (out / "summary.tsv").read_text()
-    assert "duplication" in summ and "loss" in summ and "origination" in summ
-    assert "transfer" not in summ                          # not given a prior -> not fitted
-    header = (out / "posterior.tsv").read_text().splitlines()[0].split("\t")
-    assert header == ["duplication", "loss", "origination"]
-    assert len((out / "posterior.tsv").read_text().splitlines()) > 1     # >= 1 accepted draw
-
-
-def test_abc_requires_a_range_to_fit(tmp_path, capsys):
-    """All-fixed priors (no range) is a clean error, exit 1 — nothing to fit."""
-    tree = _tree_file(tmp_path, tips=15)
-    prof = tmp_path / "p.tsv"
-    prof.write_text("family\tn1\tn2\nf1\t1\t0\n")
-    rc = main(["abc", "-t", tree, "--profiles", str(prof), "--dup", "0.3",
-               "-o", str(tmp_path / "o")])
-    assert rc == 1
-    assert "range" in capsys.readouterr().err
-
-
-@needs_rust
-def test_abc_regression_adjust(tmp_path):
-    """--regression-adjust adds adjusted rows to summary.tsv."""
-    tree = _tree_file(tmp_path, tips=25)
-    prof = _profile_file(tmp_path, tree, dup=0.3, loss=0.6, orig=2.0)
-    out = tmp_path / "ra"
-    main(["abc", "-t", tree, "--profiles", prof, "--dup", "0", "1", "--loss", "0", "1.5",
-          "--orig", "0", "4", "--n-sims", "200", "--regression-adjust", "--seed", "1",
-          "-o", str(out)])
-    assert "duplication_adj" in (out / "summary.tsv").read_text()
-
-
-@needs_rust
-def test_abc_smc(tmp_path):
-    """--smc runs the sequential sampler and writes a posterior."""
-    tree = _tree_file(tmp_path, tips=25)
-    prof = _profile_file(tmp_path, tree, dup=0.3, loss=0.6)
-    out = tmp_path / "smc"
-    rc = main(["abc", "-t", tree, "--profiles", prof, "--dup", "0", "1", "--loss", "0", "1.5",
-               "--smc", "--rounds", "2", "--particles", "60", "--seed", "1", "-o", str(out)])
-    assert rc == 0
-    assert (out / "posterior.tsv").exists()
+# NOTE: the `abc` CLI command is withheld from v1 (see zombi2/cli.py); its command-level tests
+# were removed with it. The ABC implementation itself stays covered by tests/test_matching.py.
 
 
 # --------------------------------------------------------------------------- coevolve (traits:species = SSE)
@@ -1069,9 +1006,10 @@ def test_top_level_help_lists_commands_grouped(capsys):
         main(["--help"])
     out = capsys.readouterr().out
     assert "a simulator of species trees, genomes, traits and sequences" in out   # banner
-    assert "Species trees" in out and "Inference" in out
-    for cmd in ("species", "genomes", "trait", "abc", "coevolve", "sequence"):
+    assert "Species trees" in out and "Traits & coevolution" in out
+    for cmd in ("species", "genomes", "trait", "coevolve", "sequence"):
         assert cmd in out
+    assert "abc" not in out                             # ABC inference is withheld from v1
     assert "==SUPPRESS==" not in out                   # the auto command dump is hidden
 
 
