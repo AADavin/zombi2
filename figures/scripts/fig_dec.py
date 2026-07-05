@@ -20,20 +20,21 @@ from pathlib import Path
 import cairosvg
 import drawsvg as draw
 
-from zombi_style import FONT, INK
+from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1210, 700
+W, H = 1210, 720
+# Areas are categorical identities, so they are the one place this figure uses colour
+# (Adrian's call): a distinct, colour-blind-safe hue per area (Paul Tol 'bright').
 AREA_COLOR = {"A": "#4477AA", "B": "#EE6677", "C": "#228833"}
-AREA_BW = {"A": "#4a4a4a", "B": "#9a9a9a", "C": "#cfcfcf"}
-CELL = 24
-MODE = "color"
-DISP = EXT = INK                                          # set per mode in render()
+CELL = 26
+DISP = "#2f8f4e"                                          # dispersal (gain) arrowhead — green
+EXT = "#cc4b3c"                                           # local-extinction (loss) arrowhead — red
 
 
 def _acol(a):
-    return (AREA_BW if MODE == "bw" else AREA_COLOR)[a]
+    return AREA_COLOR[a]
 
 
 def _lum(h):
@@ -48,7 +49,7 @@ def range_chip(d, cx, cy, areas):
     for i, a in enumerate(areas):
         x, fill = x0 + i * CELL, _acol(a)
         d.append(draw.Rectangle(x, cy - CELL / 2, CELL, CELL, fill=fill, stroke=INK, stroke_width=1.3))
-        d.append(draw.Text(a, 14, x + CELL / 2, cy, font_family=FONT, text_anchor="middle",
+        d.append(draw.Text(a, FS_TICK, x + CELL / 2, cy, font_family=FONT, text_anchor="middle",
                            dominant_baseline="central", fill="white" if _lum(fill) < 150 else INK,
                            font_weight="bold"))
     d.append(draw.Rectangle(x0, cy - CELL / 2, total, CELL, fill="none", stroke=INK, stroke_width=1.3))
@@ -76,12 +77,9 @@ def lattice_edge(d, lower, upper):
 
 # --------------------------------------------------------------------------- panel A: anagenesis
 def panel_a(d):
-    d.append(draw.Text("Along a branch — dispersal & extinction", 17, 60, 112,
+    d.append(draw.Text("A   along a branch: dispersal & extinction", FS_LABEL, 60, 150,
                        font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    d.append(draw.Text("a Markov chain over ranges (subsets of areas)", 13, 60, 132,
-                       font_family=FONT, text_anchor="start", fill="#777"))
-
-    yl0, yl1, yl2 = 560, 400, 240
+    yl0, yl1, yl2 = 580, 420, 260
     pos = {
         "A": (170, yl0), "B": (330, yl0), "C": (490, yl0),
         "AB": (170, yl1), "AC": (330, yl1), "BC": (490, yl1),
@@ -94,15 +92,16 @@ def panel_a(d):
     for name, (x, y) in pos.items():
         range_chip(d, x, y, name)
 
-    # legend
-    lx, ly = 60, 636
+    # legend (two stacked rows, kept within panel A)
+    lx, ly = 60, 648
     d.append(draw.Line(lx, ly, lx + 26, ly, stroke="#b7b7b7", stroke_width=1.8))
     _head(d, lx + 26, ly, 0.0, DISP)
-    d.append(draw.Text("dispersal — gain an area (rate d)", 12.5, lx + 34, ly, font_family=FONT,
+    d.append(draw.Text("dispersal: gain an area (rate d)", FS_TICK, lx + 36, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Line(lx + 300, ly, lx + 326, ly, stroke="#b7b7b7", stroke_width=1.8))
-    _head(d, lx + 300, ly, math.pi, EXT)
-    d.append(draw.Text("local extinction — lose an area (rate e)", 12.5, lx + 334, ly,
+    ly2 = ly + 30
+    d.append(draw.Line(lx, ly2, lx + 26, ly2, stroke="#b7b7b7", stroke_width=1.8))
+    _head(d, lx, ly2, math.pi, EXT)
+    d.append(draw.Text("local extinction: lose an area (rate e)", FS_TICK, lx + 36, ly2,
                        font_family=FONT, text_anchor="start", dominant_baseline="central", fill=INK))
 
 
@@ -117,45 +116,35 @@ def clado(d, cx, cy, anc, d1, d2, name, desc):
     d.append(draw.Line(x2, ybar, x2, yd - CELL / 2, stroke=INK, stroke_width=2))
     range_chip(d, x1, yd, d1)
     range_chip(d, x2, yd, d2)
-    d.append(draw.Text(name, 14.5, cx + 150, cy, font_family=FONT, text_anchor="start",
+    d.append(draw.Text(name, FS_ANNOT, cx + 160, cy - 8, font_family=FONT, text_anchor="start",
                        dominant_baseline="central", font_weight="bold", fill=INK))
-    d.append(draw.Text(desc, 12, cx + 150, cy + 20, font_family=FONT, text_anchor="start",
-                       dominant_baseline="central", fill="#777"))
+    d.append(draw.Text(desc, FS_TICK, cx + 160, cy + 16, font_family=FONT, text_anchor="start",
+                       dominant_baseline="central", fill=MUTED))
 
 
 def panel_b(d):
     x0 = 700
-    d.append(draw.Line(x0 - 30, 100, x0 - 30, 660, stroke="#e2e2e2", stroke_width=1.2))
-    d.append(draw.Text("At a speciation — cladogenesis", 17, x0, 112, font_family=FONT,
+    d.append(draw.Line(x0 - 30, 130, x0 - 30, 690, stroke="#e2e2e2", stroke_width=1.2))
+    d.append(draw.Text("B   at a speciation: cladogenesis", FS_LABEL, x0, 150, font_family=FONT,
                        text_anchor="start", font_weight="bold", fill=INK))
-    d.append(draw.Text("the ancestral range is split between the two daughters", 13, x0, 132,
-                       font_family=FONT, text_anchor="start", fill="#777"))
     cx = x0 + 70
-    clado(d, cx, 210, "A", "A", "A", "Narrow sympatry",
+    clado(d, cx, 250, "A", "A", "A", "Narrow sympatry",
           "both daughters keep the range")
-    clado(d, cx, 380, "AB", "A", "AB", "Subset sympatry",
-          "one area  +  the full range")
-    clado(d, cx, 550, "AB", "A", "B", "Vicariance",
+    clado(d, cx, 430, "AB", "A", "AB", "Subset sympatry",
+          "one area, and the full range")
+    clado(d, cx, 600, "AB", "A", "B", "Vicariance",
           "range splits into complements")
 
 
 # --------------------------------------------------------------------------- render
-def render(mode):
-    global MODE, DISP, EXT
-    MODE = mode
-    DISP, EXT = (INK, "#8a8a8a") if mode == "bw" else ("#2f8f4e", "#cc4b3c")
+def render():
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    cells = "grey cells" if mode == "bw" else "coloured cells"
-    d.append(draw.Text("The DEC model — geographic ranges evolve by dispersal, extinction "
-                       "& cladogenesis", 20, 40, 44, font_family=FONT, text_anchor="start",
-                       font_weight="bold", fill=INK))
-    d.append(draw.Text(f"a range is a set of areas ({cells}); ZOMBI2: "
-                       "DEC(areas=['A','B','C'], dispersal=d, extinction=e)", 13, 40, 68,
-                       font_family=FONT, text_anchor="start", fill="#777"))
+    d.append(draw.Text("The DEC model of geographic-range evolution", FS_TITLE, W / 2, 52,
+                       font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     panel_a(d)
     panel_b(d)
-    name = "dec" if mode == "color" else "dec_bw"
+    name = "dec"
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
@@ -163,9 +152,8 @@ def render(mode):
 
 
 def main():
-    for mode in ("color", "bw"):
-        render(mode)
-    print("wrote dec (+_bw)")
+    render()
+    print("wrote dec")
 
 
 if __name__ == "__main__":

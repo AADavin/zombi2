@@ -1,129 +1,126 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1210" height="700" viewBox="0 0 1210 700">
+     width="1210" height="720" viewBox="0 0 1210 720">
 <defs>
 </defs>
-<rect x="0" y="0" width="1210" height="700" fill="white" />
-<text x="40" y="44" font-size="20" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">The DEC model — geographic ranges evolve by dispersal, extinction &amp; cladogenesis</text>
-<text x="40" y="68" font-size="13" font-family="Helvetica" text-anchor="start" fill="#777">a range is a set of areas (coloured cells); ZOMBI2: DEC(areas=['A','B','C'], dispersal=d, extinction=e)</text>
-<text x="60" y="112" font-size="17" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Along a branch — dispersal &amp; extinction</text>
-<text x="60" y="132" font-size="13" font-family="Helvetica" text-anchor="start" fill="#777">a Markov chain over ranges (subsets of areas)</text>
-<path d="M170.0,540.0 L170.0,420.0" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M170.0,420.0 L173.46596385100634,427.76125599265464 L166.53403614899366,427.76125599265464 Z" fill="#2f8f4e" />
-<path d="M170.0,540.0 L166.53403614899366,532.2387440073454 L173.46596385100634,532.2387440073454 Z" fill="#cc4b3c" />
-<path d="M184.14213562373095,545.857864376269 L315.85786437626905,414.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M315.85786437626905,414.14213562373095 L312.82063417573227,422.0809789090558 L307.9190210909442,417.17936582426773 Z" fill="#2f8f4e" />
-<path d="M184.14213562373095,545.857864376269 L187.17936582426773,537.9190210909442 L192.0809789090558,542.8206341757323 Z" fill="#cc4b3c" />
-<path d="M315.85786437626905,545.857864376269 L184.14213562373095,414.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M184.14213562373095,414.14213562373095 L192.0809789090558,417.17936582426773 L187.17936582426773,422.0809789090558 Z" fill="#2f8f4e" />
-<path d="M315.85786437626905,545.857864376269 L307.9190210909442,542.8206341757323 L312.82063417573227,537.9190210909442 Z" fill="#cc4b3c" />
-<path d="M344.14213562373095,545.857864376269 L475.85786437626905,414.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M475.85786437626905,414.14213562373095 L472.82063417573227,422.0809789090558 L467.9190210909442,417.17936582426773 Z" fill="#2f8f4e" />
-<path d="M344.14213562373095,545.857864376269 L347.17936582426773,537.9190210909442 L352.0809789090558,542.8206341757323 Z" fill="#cc4b3c" />
-<path d="M475.85786437626905,545.857864376269 L344.14213562373095,414.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M344.14213562373095,414.14213562373095 L352.0809789090558,417.17936582426773 L347.17936582426773,422.0809789090558 Z" fill="#2f8f4e" />
-<path d="M475.85786437626905,545.857864376269 L467.9190210909442,542.8206341757323 L472.82063417573227,537.9190210909442 Z" fill="#cc4b3c" />
-<path d="M490.0,540.0 L490.0,420.0" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M490.0,420.0 L493.46596385100634,427.76125599265464 L486.53403614899366,427.76125599265464 Z" fill="#2f8f4e" />
-<path d="M490.0,540.0 L486.53403614899366,532.2387440073454 L493.46596385100634,532.2387440073454 Z" fill="#cc4b3c" />
-<path d="M184.14213562373095,385.85786437626905 L315.85786437626905,254.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M315.85786437626905,254.14213562373095 L312.82063417573227,262.0809789090558 L307.9190210909442,257.17936582426773 Z" fill="#2f8f4e" />
-<path d="M184.14213562373095,385.85786437626905 L187.17936582426773,377.9190210909442 L192.0809789090558,382.82063417573227 Z" fill="#cc4b3c" />
-<path d="M330.0,380.0 L330.0,260.0" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M330.0,260.0 L333.46596385100634,267.76125599265464 L326.53403614899366,267.76125599265464 Z" fill="#2f8f4e" />
-<path d="M330.0,380.0 L326.53403614899366,372.23874400734536 L333.46596385100634,372.23874400734536 Z" fill="#cc4b3c" />
-<path d="M475.85786437626905,385.85786437626905 L344.14213562373095,254.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M344.14213562373095,254.14213562373095 L352.0809789090558,257.17936582426773 L347.17936582426773,262.0809789090558 Z" fill="#2f8f4e" />
-<path d="M475.85786437626905,385.85786437626905 L467.9190210909442,382.82063417573227 L472.82063417573227,377.9190210909442 Z" fill="#cc4b3c" />
-<rect x="158.0" y="548.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="170.0" y="560" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="158.0" y="548.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="318.0" y="548.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="330.0" y="560" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="318.0" y="548.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="478.0" y="548.0" width="24" height="24" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="490.0" y="560" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<rect x="478.0" y="548.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="146.0" y="388.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="158.0" y="400" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="170.0" y="388.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="182.0" y="400" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="146.0" y="388.0" width="48" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="306.0" y="388.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="318.0" y="400" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="330.0" y="388.0" width="24" height="24" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="342.0" y="400" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<rect x="306.0" y="388.0" width="48" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="466.0" y="388.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="478.0" y="400" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="490.0" y="388.0" width="24" height="24" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="502.0" y="400" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<rect x="466.0" y="388.0" width="48" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="294.0" y="228.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="306.0" y="240" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="318.0" y="228.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="330.0" y="240" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="342.0" y="228.0" width="24" height="24" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="354.0" y="240" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<rect x="294.0" y="228.0" width="72" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<path d="M60,636 L86,636" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M86,636 L78.23874400734537,639.4659638510063 L78.23874400734537,632.5340361489937 Z" fill="#2f8f4e" />
-<text x="94" y="636" font-size="12.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">dispersal — gain an area (rate d)</text>
-<path d="M360,636 L386,636" stroke="#b7b7b7" stroke-width="1.8" />
-<path d="M360,636 L367.76125599265464,632.5340361489937 L367.76125599265464,639.4659638510063 Z" fill="#cc4b3c" />
-<text x="394" y="636" font-size="12.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">local extinction — lose an area (rate e)</text>
-<path d="M670,100 L670,660" stroke="#e2e2e2" stroke-width="1.2" />
-<text x="700" y="112" font-size="17" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">At a speciation — cladogenesis</text>
-<text x="700" y="132" font-size="13" font-family="Helvetica" text-anchor="start" fill="#777">the ancestral range is split between the two daughters</text>
-<rect x="758.0" y="198.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="770.0" y="210" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="758.0" y="198.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<path d="M770,222.0 L770,240" stroke="#1a1a1a" stroke-width="2" />
-<path d="M704,240 L836,240" stroke="#1a1a1a" stroke-width="2" />
-<path d="M704,240 L704,268.0" stroke="#1a1a1a" stroke-width="2" />
-<path d="M836,240 L836,268.0" stroke="#1a1a1a" stroke-width="2" />
-<rect x="692.0" y="268.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="704.0" y="280" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="692.0" y="268.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="824.0" y="268.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="836.0" y="280" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="824.0" y="268.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="920" y="210" font-size="14.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">Narrow sympatry</text>
-<text x="920" y="230" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#777">both daughters keep the range</text>
-<rect x="746.0" y="368.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="758.0" y="380" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="770.0" y="368.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="782.0" y="380" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="746.0" y="368.0" width="48" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<path d="M770,392.0 L770,410" stroke="#1a1a1a" stroke-width="2" />
-<path d="M704,410 L836,410" stroke="#1a1a1a" stroke-width="2" />
-<path d="M704,410 L704,438.0" stroke="#1a1a1a" stroke-width="2" />
-<path d="M836,410 L836,438.0" stroke="#1a1a1a" stroke-width="2" />
-<rect x="692.0" y="438.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="704.0" y="450" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="692.0" y="438.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="812.0" y="438.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="824.0" y="450" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="836.0" y="438.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="848.0" y="450" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="812.0" y="438.0" width="48" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="920" y="380" font-size="14.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">Subset sympatry</text>
-<text x="920" y="400" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#777">one area  +  the full range</text>
-<rect x="746.0" y="538.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="758.0" y="550" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="770.0" y="538.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="782.0" y="550" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="746.0" y="538.0" width="48" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<path d="M770,562.0 L770,580" stroke="#1a1a1a" stroke-width="2" />
-<path d="M704,580 L836,580" stroke="#1a1a1a" stroke-width="2" />
-<path d="M704,580 L704,608.0" stroke="#1a1a1a" stroke-width="2" />
-<path d="M836,580 L836,608.0" stroke="#1a1a1a" stroke-width="2" />
-<rect x="692.0" y="608.0" width="24" height="24" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="704.0" y="620" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<rect x="692.0" y="608.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<rect x="824.0" y="608.0" width="24" height="24" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="836.0" y="620" font-size="14" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
-<rect x="824.0" y="608.0" width="24" height="24" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
-<text x="920" y="550" font-size="14.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">Vicariance</text>
-<text x="920" y="570" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#777">range splits into complements</text>
+<rect x="0" y="0" width="1210" height="720" fill="white" />
+<text x="605.0" y="52" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The DEC model of geographic-range evolution</text>
+<text x="60" y="150" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">A   along a branch: dispersal &amp; extinction</text>
+<path d="M170.0,560.0 L170.0,440.0" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M170.0,440.0 L173.46596385100634,447.76125599265464 L166.53403614899366,447.76125599265464 Z" fill="#2f8f4e" />
+<path d="M170.0,560.0 L166.53403614899366,552.2387440073454 L173.46596385100634,552.2387440073454 Z" fill="#cc4b3c" />
+<path d="M184.14213562373095,565.857864376269 L315.85786437626905,434.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M315.85786437626905,434.14213562373095 L312.82063417573227,442.0809789090558 L307.9190210909442,437.17936582426773 Z" fill="#2f8f4e" />
+<path d="M184.14213562373095,565.857864376269 L187.17936582426773,557.9190210909442 L192.0809789090558,562.8206341757323 Z" fill="#cc4b3c" />
+<path d="M315.85786437626905,565.857864376269 L184.14213562373095,434.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M184.14213562373095,434.14213562373095 L192.0809789090558,437.17936582426773 L187.17936582426773,442.0809789090558 Z" fill="#2f8f4e" />
+<path d="M315.85786437626905,565.857864376269 L307.9190210909442,562.8206341757323 L312.82063417573227,557.9190210909442 Z" fill="#cc4b3c" />
+<path d="M344.14213562373095,565.857864376269 L475.85786437626905,434.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M475.85786437626905,434.14213562373095 L472.82063417573227,442.0809789090558 L467.9190210909442,437.17936582426773 Z" fill="#2f8f4e" />
+<path d="M344.14213562373095,565.857864376269 L347.17936582426773,557.9190210909442 L352.0809789090558,562.8206341757323 Z" fill="#cc4b3c" />
+<path d="M475.85786437626905,565.857864376269 L344.14213562373095,434.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M344.14213562373095,434.14213562373095 L352.0809789090558,437.17936582426773 L347.17936582426773,442.0809789090558 Z" fill="#2f8f4e" />
+<path d="M475.85786437626905,565.857864376269 L467.9190210909442,562.8206341757323 L472.82063417573227,557.9190210909442 Z" fill="#cc4b3c" />
+<path d="M490.0,560.0 L490.0,440.0" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M490.0,440.0 L493.46596385100634,447.76125599265464 L486.53403614899366,447.76125599265464 Z" fill="#2f8f4e" />
+<path d="M490.0,560.0 L486.53403614899366,552.2387440073454 L493.46596385100634,552.2387440073454 Z" fill="#cc4b3c" />
+<path d="M184.14213562373095,405.85786437626905 L315.85786437626905,274.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M315.85786437626905,274.14213562373095 L312.82063417573227,282.0809789090558 L307.9190210909442,277.17936582426773 Z" fill="#2f8f4e" />
+<path d="M184.14213562373095,405.85786437626905 L187.17936582426773,397.9190210909442 L192.0809789090558,402.82063417573227 Z" fill="#cc4b3c" />
+<path d="M330.0,400.0 L330.0,280.0" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M330.0,280.0 L333.46596385100634,287.76125599265464 L326.53403614899366,287.76125599265464 Z" fill="#2f8f4e" />
+<path d="M330.0,400.0 L326.53403614899366,392.23874400734536 L333.46596385100634,392.23874400734536 Z" fill="#cc4b3c" />
+<path d="M475.85786437626905,405.85786437626905 L344.14213562373095,274.14213562373095" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M344.14213562373095,274.14213562373095 L352.0809789090558,277.17936582426773 L347.17936582426773,282.0809789090558 Z" fill="#2f8f4e" />
+<path d="M475.85786437626905,405.85786437626905 L467.9190210909442,402.82063417573227 L472.82063417573227,397.9190210909442 Z" fill="#cc4b3c" />
+<rect x="157.0" y="567.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="170.0" y="580" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="157.0" y="567.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="317.0" y="567.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="330.0" y="580" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="317.0" y="567.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="477.0" y="567.0" width="26" height="26" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="490.0" y="580" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
+<rect x="477.0" y="567.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="144.0" y="407.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="157.0" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="170.0" y="407.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="183.0" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="144.0" y="407.0" width="52" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="304.0" y="407.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="317.0" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="330.0" y="407.0" width="26" height="26" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="343.0" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
+<rect x="304.0" y="407.0" width="52" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="464.0" y="407.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="477.0" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="490.0" y="407.0" width="26" height="26" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="503.0" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
+<rect x="464.0" y="407.0" width="52" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="291.0" y="247.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="304.0" y="260" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="317.0" y="247.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="330.0" y="260" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="343.0" y="247.0" width="26" height="26" fill="#228833" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="356.0" y="260" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
+<rect x="291.0" y="247.0" width="78" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<path d="M60,648 L86,648" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M86,648 L78.23874400734537,651.4659638510063 L78.23874400734537,644.5340361489937 Z" fill="#2f8f4e" />
+<text x="96" y="648" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">dispersal: gain an area (rate d)</text>
+<path d="M60,678 L86,678" stroke="#b7b7b7" stroke-width="1.8" />
+<path d="M60,678 L67.76125599265463,674.5340361489937 L67.76125599265463,681.4659638510063 Z" fill="#cc4b3c" />
+<text x="96" y="678" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">local extinction: lose an area (rate e)</text>
+<path d="M670,130 L670,690" stroke="#e2e2e2" stroke-width="1.2" />
+<text x="700" y="150" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">B   at a speciation: cladogenesis</text>
+<rect x="757.0" y="237.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="770.0" y="250" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="757.0" y="237.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<path d="M770,263.0 L770,280" stroke="#1a1a1a" stroke-width="2" />
+<path d="M704,280 L836,280" stroke="#1a1a1a" stroke-width="2" />
+<path d="M704,280 L704,307.0" stroke="#1a1a1a" stroke-width="2" />
+<path d="M836,280 L836,307.0" stroke="#1a1a1a" stroke-width="2" />
+<rect x="691.0" y="307.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="704.0" y="320" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="691.0" y="307.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="823.0" y="307.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="836.0" y="320" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="823.0" y="307.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="930" y="242" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">Narrow sympatry</text>
+<text x="930" y="266" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a">both daughters keep the range</text>
+<rect x="744.0" y="417.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="757.0" y="430" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="770.0" y="417.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="783.0" y="430" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="744.0" y="417.0" width="52" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<path d="M770,443.0 L770,460" stroke="#1a1a1a" stroke-width="2" />
+<path d="M704,460 L836,460" stroke="#1a1a1a" stroke-width="2" />
+<path d="M704,460 L704,487.0" stroke="#1a1a1a" stroke-width="2" />
+<path d="M836,460 L836,487.0" stroke="#1a1a1a" stroke-width="2" />
+<rect x="691.0" y="487.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="704.0" y="500" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="691.0" y="487.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="810.0" y="487.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="823.0" y="500" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="836.0" y="487.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="849.0" y="500" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="810.0" y="487.0" width="52" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="930" y="422" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">Subset sympatry</text>
+<text x="930" y="446" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a">one area, and the full range</text>
+<rect x="744.0" y="587.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="757.0" y="600" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="770.0" y="587.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="783.0" y="600" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="744.0" y="587.0" width="52" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<path d="M770,613.0 L770,630" stroke="#1a1a1a" stroke-width="2" />
+<path d="M704,630 L836,630" stroke="#1a1a1a" stroke-width="2" />
+<path d="M704,630 L704,657.0" stroke="#1a1a1a" stroke-width="2" />
+<path d="M836,630 L836,657.0" stroke="#1a1a1a" stroke-width="2" />
+<rect x="691.0" y="657.0" width="26" height="26" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="704.0" y="670" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
+<rect x="691.0" y="657.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<rect x="823.0" y="657.0" width="26" height="26" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="836.0" y="670" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">B</text>
+<rect x="823.0" y="657.0" width="26" height="26" fill="none" stroke="#1a1a1a" stroke-width="1.3" />
+<text x="930" y="592" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">Vicariance</text>
+<text x="930" y="616" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a">range splits into complements</text>
 </svg>

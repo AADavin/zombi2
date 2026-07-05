@@ -28,8 +28,13 @@ The agreed style for every manual figure. The reference implementations are
 - Default is black & white: near-black `INK` branches/curves, grey dashed for
   extinct/secondary lineages.
 - **Lineage-through-time / skyline curves are BLACK** (no accent colour).
-- The one place colour is used: a **continuous quantity painted along branches** →
+- The main place colour is used: a **continuous quantity painted along branches** →
   **viridis** gradient (e.g. the OU trait). ClaDS per-lineage rates stay grayscale.
+- **Categorical exception (Adrián's call):** where a small set of *categorical identities* must
+  be told apart and grey genuinely fails, use a distinct colour-blind-safe hue per category
+  (Paul Tol 'bright': `#4477AA` / `#EE6677` / `#228833`). Applied to the **DEC** areas (and the
+  gain=green / loss=red dispersal-extinction arrows). Do NOT do this for binary states (open vs
+  filled reads fine) or where 2–3 greys suffice (e.g. the Mk 3-state map).
 
 ## Symbol conventions (gene-family event figures)
 - Event markers are **solid black**: filled square = duplication, filled triangle (or a
