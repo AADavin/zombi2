@@ -84,6 +84,27 @@ zombi2-free window.
 - [x] §7.2 closed with a **rate-models overview table**.
 - [x] Examples converted to `from zombi2.genomes import ...` / `from zombi2.distributions import ...`.
 
+### Ch7 RE-SPLIT (2026-07-05, Adrián's correction) — DONE, verified, built
+The clarity refactor wrongly fused the genome OVERVIEW into the unordered chapter. Re-split per
+Adrián: a generalities overview chapter, then per-level chapters. **New numbering (everything below
+the genome block shifted +1):**
+- **Ch7 `07-genome-evolution-overview.md` "Genome evolution"** — generalities: 3 levels, the
+  level×rate two-axes framing, levels table + rate-model table, and a new **"Events, by level"**
+  section (Adrián's key point — explicit per-level events + the "each level adds to the one below"
+  nesting, with a summary table). Fixed accuracy: **`--genome-model` exposes only `unordered` /
+  `nucleotide`; ordered is Python-only** (`OrderedGenome` factory) — the levels table now says so.
+- **Ch8 `08-unordered-genomes.md` "Unordered genomes"** — the four events (heading renamed
+  **"The four unordered events"**), rates (shared/per-genome/family), transfers, growth. Rate-model
+  table moved up to Ch7; Rates section back-references it.
+- **Ch9** gene-trees-and-output (was 8) · **Ch10** coupling (was 9) · **Ch11** ordered (was 10) ·
+  **Ch12** nucleotide (was 11) · **Ch13** trait (was 12) · **Ch14** coevolution (was 13) ·
+  **Ch15** sequences (was 14).
+- All inter-chapter refs updated; level naming standardized to **unordered/ordered/nucleotide**
+  (dropped "independent gene families" in prose AND in the `genome_models.svg` row-1 label);
+  Ch3 roadmap "uniform versus per-family" → "shared versus per-family" (post-rename). Full manual
+  rebuilds = **87pp**. Level naming, output-chapter placement (after Unordered, before Coupling)
+  both **confirmed by Adrián** via AskUserQuestion. NOT pushed — holding for Adrián's review.
+
 ## Ch9 — Coupling
 - [?] Feedback deferred (Adrián doesn't understand the model yet).
 

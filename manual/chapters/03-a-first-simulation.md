@@ -145,6 +145,6 @@ would rather not walk the log in code.
 
 You now have a complete simulated dataset: a timed species tree, gene families evolved along it,
 reconstructed gene trees, and the profile matrix — all reproducible from a pair of seeds. The
-following chapters unpack each stage: species-tree models and conditioning, uniform versus
+following chapters unpack each stage: species-tree models and conditioning, shared versus
 per-family rates, transfers, and bounding genome growth — before the later parts add the
 remaining levels (traits and sequences) and the joint coevolution models.

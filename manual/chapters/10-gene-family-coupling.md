@@ -1,6 +1,6 @@
 # Gene-family coupling
 
-This chapter is the fourth rate model of the unordered genome level (Chapter 7): **coupled** gene
+This chapter is the fourth rate model of the unordered genome level (Chapter 8): **coupled** gene
 families, which gain and lose *non-independently*. Like the other unordered rate models it runs on a
 presence/absence genome, and only there.
 
