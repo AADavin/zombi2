@@ -114,6 +114,24 @@ Because `PottsRates` is a custom rate model, a coupled simulation runs on the pu
 coupling breaks the per-family independence that the Rust fast path assumes. The cost is
 $O(N + \mathrm{nnz}(J))$ per event, which is comfortable at benchmark scale.
 
+### From the command line
+
+The coupled model is a `--rate-model`, so a pathway-block coupling runs straight from the `genomes`
+command without building the spec by hand:
+
+```bash
+zombi2 genomes -t species_tree.nwk --rate-model coupled \
+    --pathways 4,4 --within 3 --between 0 --field 2 --base-loss 1 \
+    --seed 1 --write profiles -o out/
+```
+
+`--pathways` gives the block sizes (`4,4` = two blocks of four families); `--within` and `--between`
+set the coupling $J$ inside and across blocks; `--field` is the presence field $h$; and `--base-loss`
+is the baseline loss rate, the channel the coupling acts through
+($\mathrm{loss}_i = \texttt{base-loss}\cdot e^{-\beta f_i}$), with `--beta` scaling it.
+`--gain-coupling` additionally turns on field-biased transfer establishment (the gain-side coupling).
+The family panel is fixed by `--pathways` and seeded whole at the root.
+
 ## Two caveats worth knowing
 
 ::: note

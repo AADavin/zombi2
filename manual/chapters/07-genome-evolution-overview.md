@@ -71,9 +71,9 @@ loss and rearrangement — but now they have real lengths and can split or fuse 
 ## Rate models
 
 Within the unordered level, a second axis controls **how the four rates vary across gene families**.
-This is the `--rate-model` flag (a `RateModel` object in Python). Two are available on the command
-line — `shared` (the default) and `per-genome`; per-family rates and the coupled model are reached
-through the Python API.
+This is the `--rate-model` flag (a `RateModel` object in Python). Three are available on the command
+line — `shared` (the default), `per-genome`, and `coupled` (Chapter 10); per-family rates are
+reached through the Python API.
 
 | `--rate-model` | The rate is… | Family size grows | Object |
 |---|---|---|---|
