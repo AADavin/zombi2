@@ -99,6 +99,13 @@ the genome block shifted +1):**
 - **Ch9** gene-trees-and-output (was 8) · **Ch10** coupling (was 9) · **Ch11** ordered (was 10) ·
   **Ch12** nucleotide (was 11) · **Ch13** trait (was 12) · **Ch14** coevolution (was 13) ·
   **Ch15** sequences (was 14).
+- **Ordered is now a CLI level too (2026-07-05):** `--genome-model ordered` added (was Python-only).
+  Wires `SharedRates(inversion=,transposition=)` + `genome_factory=OrderedGenome(ids, extension=)`;
+  reuses `--inversion/--transposition` (per gene copy for ordered, per nt for nucleotide) and
+  `--extension` (in genes; None=single-gene). Those three flags now default `None` and resolve
+  per-level. Rearrangements need `--rate-model shared` (PerGenomeRates carries none → clean error).
+  Ordered always uses the Python engine (Rust counts-only/trace paths gated off). Ch7 overview
+  de-flagged ("Python API only" removed); Ch11 got a "From the command line" subsection. 1113 tests.
 - All inter-chapter refs updated; level naming standardized to **unordered/ordered/nucleotide**
   (dropped "independent gene families" in prose AND in the `genome_models.svg` row-1 label);
   Ch3 roadmap "uniform versus per-family" → "shared versus per-family" (post-rename). Full manual
