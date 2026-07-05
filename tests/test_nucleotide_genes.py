@@ -193,7 +193,7 @@ def test_replacement_transfer_lands_at_homolog_and_logs_losses():
     # extract the middle gene M [30,40); flanks resolve to genes L and R
     ts = donor.extract_segment(Selection(genes=(), region=Region(0, 30, 10)),
                                np.random.default_rng(2))
-    assert ts.replacement and ts.left_flank == ("1", "L") and ts.right_flank == ("1", "R")
+    assert ts.replacement and ts.left_flank == ("1", "L", 1) and ts.right_flank == ("1", "R", 1)
     at = recipient.choose_insertion_point(ts, np.random.default_rng(3))
     assert isinstance(at, tuple) and at[0] == "homolog"
     recipient.insert_segment(ts, at, np.random.default_rng(3))
@@ -201,6 +201,22 @@ def test_replacement_transfer_lands_at_homolog_and_logs_losses():
     # the recipient locus between L and R (intergene, gene M, intergene) was replaced by the copy
     assert any(s.gene_id == "M" for s in removed)
     assert {s.gene_id for s in recipient._segments if s.gene_id} == {"L", "M", "R"}
+
+
+def test_replacement_requires_matching_flank_orientation():
+    """A homologous locus must carry the flank genes in the SAME orientation. If a flank has been
+    inverted in the recipient, synteny is broken and the transfer falls back to additive."""
+    donor, recipient = _donor_recipient([(10, 20, "L"), (30, 40, "M"), (50, 60, "R")])
+    for seg in recipient._segments:                  # invert the recipient's left flank L (+1 -> -1)
+        if seg.gene_id == "L":
+            seg.strand = -1
+    ts = donor.extract_segment(Selection(genes=(), region=Region(0, 30, 10)),
+                               np.random.default_rng(2))
+    assert ts.left_flank == ("1", "L", 1)            # donor's flank is forward; recipient's is now -1
+    at = recipient.choose_insertion_point(ts, np.random.default_rng(3))
+    assert isinstance(at, int)                        # orientation mismatch -> additive, not a homolog
+    recipient.insert_segment(ts, at, np.random.default_rng(3))
+    assert recipient.pop_replaced_segments() == []    # nothing replaced
 
 
 def test_replacement_falls_back_to_additive_without_homolog():

@@ -455,7 +455,7 @@ positions, so **genes are never split** — each gene is one block, each interge
 into intergene blocks. `--pseudogenization P` makes a loss that hits a gene demote it to intergene
 with probability `P` (sequence retained, a state change in the gene's tree); `--replacement P`
 makes a transfer a homologous replacement (the copy replaces the recipient's syntenic locus, found
-via flanking genes; additive when there is no homolog). Genic mode runs on the Python engine and
+via flanking genes of matching identity and orientation; additive when there is no homolog). Genic mode runs on the Python engine and
 adds `genes.tsv` (the annotation), `Gene_trees/` and `Intergene_trees/` (the two tree sets), a
 `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
