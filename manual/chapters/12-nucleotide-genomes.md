@@ -4,9 +4,9 @@ Chapter 7 introduced three models of genome evolution. The first two — unorder
 (Chapter 8) and ordered gene families (Chapter 11) — treat each gene as an indivisible token. This
 chapter covers the third and most detailed: the **nucleotide genome** model, where a genome is a
 real sequence of base pairs and structural events act on **variable-length segments** of
-nucleotides. This resolves paralogy, xenology, and gene order and orientation at nucleotide
-resolution, and reconstructs a gene tree for every stretch of shared ancestry — the *blocks* of the
-sections below.
+nucleotides. This resolves duplication, lateral gene transfer, and gene order and orientation at
+nucleotide resolution, and reconstructs a gene tree for every stretch of shared ancestry — the
+*blocks* of the sections below.
 
 ## The model
 
@@ -15,8 +15,8 @@ sections below.
 
 | Event | Effect |
 |---|---|
-| `duplication` | copy a segment elsewhere (tandem / paralog) |
-| `transfer` | copy a segment into another lineage (xenolog) |
+| `duplication` | copy a segment elsewhere (a tandem duplicate) |
+| `transfer` | copy a segment into another lineage (a laterally transferred copy) |
 | `loss` | delete a segment |
 | `inversion` | reverse a segment's orientation |
 | `transposition` | move a segment |
@@ -39,12 +39,7 @@ result = z.simulate_nucleotide_genomes(
     inversion=1e-3, transposition=5e-5, origination=0.2, seed=1)
 ```
 
-::: warning
-Duplication and additive transfer grow the genome without a cap. Over long ages keep `duplication`
-and `transfer` at or below `loss` to avoid runaway growth.
-:::
-
-![An inversion reverses a segment's orientation and a tandem duplication lengthens it, each acting on a variable-length stretch of nucleotides.](figures/nucleotide_events.pdf)
+![An inversion reverses a segment's orientation and a tandem duplication lengthens it, each acting on a variable-length stretch of nucleotides.](figures/nucleotide_events.pdf){width=90%}
 
 ## Blocks: units of shared ancestry
 
@@ -56,7 +51,7 @@ single gene tree is meaningful. Results are expressed over blocks:
 block_ids, species, matrix = result.profile_matrix()   # copy number of each block per extant leaf
 ```
 
-![Each structural event carves out a segment; the same breakpoints partition every genome into shared blocks, and each block has its own reconstructed gene tree.](figures/nucleotide_tree.pdf)
+![Each structural event carves out a segment; the same breakpoints partition every genome into shared blocks (left, panels A and B), and each block has its own reconstructed gene tree (right, panel C).](figures/nucleotide_tree.pdf){width=100%}
 
 A duplication adds a tip to the block's tree, a loss prunes one, and an inversion leaves the genealogy
 unchanged.

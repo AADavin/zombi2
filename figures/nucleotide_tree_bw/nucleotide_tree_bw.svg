@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1080" height="862" viewBox="0 0 1080 862">
+     width="1180" height="680" viewBox="0 0 1180 680">
 <defs>
 <pattern width="4.5" height="4.5" patternUnits="userSpaceOnUse" id="ev_hatch">
 <rect x="0" y="0" width="4.5" height="4.5" fill="white" />
@@ -9,12 +9,13 @@
 <path d="M4.5,4.5 L9.0,0" stroke="#1a1a1a" stroke-width="1.1" />
 </pattern>
 </defs>
-<rect x="0" y="0" width="1080" height="862" fill="white" />
+<rect x="0" y="0" width="1180" height="680" fill="white" />
+<path d="M788,22 L788,664" stroke="#dcdcdc" stroke-width="1.2" />
 <use xlink:href="#ev_hatch" />
 <path d="M515.0,84 L515.0,130" stroke="#1a1a1a" stroke-width="1.1" stroke-dasharray="3,3" />
 <rect x="461.0" y="64" width="108.0" height="18" fill="#dcdcdc" />
 <rect x="461.0" y="64" width="108.0" height="18" fill="none" stroke="#1a1a1a" stroke-width="1.1" />
-<text x="515.0" y="56" font-size="13.5" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">initial genome — one piece, a smooth gradient (no segments yet)</text>
+<text x="515.0" y="56" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">initial genome — one piece, a smooth gradient (no segments yet)</text>
 <path d="M330.0,130 L700,130" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M330.0,130 L330.0,174.8" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M700,130 L700,242" stroke="#1a1a1a" stroke-width="2.6" />
@@ -33,7 +34,7 @@
 <path d="M257.0,278 L257.0,274" stroke="#1a1a1a" stroke-width="2" />
 <path d="M275.0,278 L275.0,274" stroke="#1a1a1a" stroke-width="2" />
 <rect x="176.0" y="255" width="108.0" height="18" fill="none" stroke="#1a1a1a" stroke-width="1" />
-<text x="230" y="292" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="230" y="292" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
 <path d="M436,211.4 C438,202.4,422,202.4,424,211.4" fill="none" stroke="#1a1a1a" stroke-width="2.2" />
 <path d="M424,211.4 L421,206.4 L428,206.4 Z" fill="#1a1a1a" />
 <rect x="376.0" y="255" width="108.0" height="18" fill="#dcdcdc" />
@@ -45,7 +46,7 @@
 <path d="M475.0,278 L475.0,274" stroke="#1a1a1a" stroke-width="2" />
 <path d="M484.0,278 L484.0,274" stroke="#1a1a1a" stroke-width="2" />
 <rect x="376.0" y="255" width="108.0" height="18" fill="none" stroke="#1a1a1a" stroke-width="1" />
-<text x="430" y="292" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<text x="430" y="292" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
 <circle cx="700" cy="186.0" r="6" fill="url(#ev_hatch)" stroke="#1a1a1a" stroke-width="1.5" />
 <rect x="646.0" y="255" width="108.0" height="18" fill="#dcdcdc" />
 <rect x="655.0" y="255" width="18.0" height="18" fill="#5f5f5f" />
@@ -58,10 +59,10 @@
 <path d="M655.0,278 L655.0,274" stroke="#1a1a1a" stroke-width="2" />
 <path d="M673.0,278 L673.0,274" stroke="#1a1a1a" stroke-width="2" />
 <rect x="646.0" y="255" width="108.0" height="18" fill="none" stroke="#1a1a1a" stroke-width="1" />
-<text x="700" y="292" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
-<text x="40" y="34" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">A — each event carves out one segment (only its own cut shown)</text>
-<path d="M40,306 L1030,306" stroke="#dcdcdc" stroke-width="1.2" />
-<text x="40" y="326" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">B — the segments propagate: every genome is a mosaic of the same blocks</text>
+<text x="700" y="292" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
+<text x="40" y="34" font-size="18" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">A — each event carves out one segment (only its own cut shown)</text>
+<path d="M40,306 L760,306" stroke="#dcdcdc" stroke-width="1.2" />
+<text x="40" y="326" font-size="18" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">B — the segments propagate: every genome is a mosaic of the same blocks</text>
 <path d="M515.0,378 L515.0,434" stroke="#1a1a1a" stroke-width="1.1" stroke-dasharray="3,3" />
 <rect x="461.0" y="356" width="9.0" height="18" fill="#3a3a3a" />
 <rect x="461.0" y="356" width="9.0" height="18" fill="none" stroke="white" stroke-width="1.0" />
@@ -82,7 +83,7 @@
 <path d="M560.0,356 L560.0,374" stroke="#4a4a4a" stroke-width="2.6" />
 <path d="M560.0,356 L560.0,374" stroke="white" stroke-width="1.3" />
 <rect x="461.0" y="356" width="108.0" height="18" fill="none" stroke="#1a1a1a" stroke-width="1.1" />
-<text x="515.0" y="346" font-size="13.5" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">initial genome — now cut into its blocks (gradient squares)</text>
+<text x="515.0" y="346" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">initial genome — now cut into its blocks (gradient squares)</text>
 <path d="M330.0,434 L700,434" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M330.0,434 L330.0,478.8" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M700,434 L700,546" stroke="#1a1a1a" stroke-width="2.6" />
@@ -113,7 +114,7 @@
 <path d="M284.0,560 L284.0,582" stroke="#4a4a4a" stroke-width="2.6" />
 <path d="M284.0,560 L284.0,582" stroke="white" stroke-width="1.3" />
 <rect x="167.0" y="560" width="126.0" height="22" fill="none" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="230" y="600" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="230" y="600" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
 <path d="M430,546 L430,560" stroke="#1a1a1a" stroke-width="1.2" />
 <rect x="376.0" y="560" width="9.0" height="22" fill="#3a3a3a" />
 <rect x="376.0" y="560" width="9.0" height="22" fill="none" stroke="white" stroke-width="1.0" />
@@ -137,7 +138,7 @@
 <path d="M475.0,560 L475.0,582" stroke="#4a4a4a" stroke-width="2.6" />
 <path d="M475.0,560 L475.0,582" stroke="white" stroke-width="1.3" />
 <rect x="376.0" y="560" width="108.0" height="22" fill="none" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="430" y="600" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<text x="430" y="600" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
 <path d="M700,546 L700,560" stroke="#1a1a1a" stroke-width="1.2" />
 <rect x="655.0" y="560" width="9.0" height="22" fill="#3a3a3a" />
 <rect x="655.0" y="560" width="9.0" height="22" fill="none" stroke="white" stroke-width="1.0" />
@@ -154,82 +155,81 @@
 <path d="M736.0,560 L736.0,582" stroke="#4a4a4a" stroke-width="2.6" />
 <path d="M736.0,560 L736.0,582" stroke="white" stroke-width="1.3" />
 <rect x="655.0" y="560" width="90.0" height="22" fill="none" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="700" y="600" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
-<path d="M40,626 L1030,626" stroke="#dcdcdc" stroke-width="1.2" />
-<text x="40" y="646" font-size="16" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">C — reconstruct a tree for every segment</text>
-<rect x="56" y="668" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
-<rect x="56" y="668" width="22" height="13" fill="#3a3a3a" />
-<rect x="56" y="668" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
-<text x="84" y="675" font-size="13.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 0</text>
-<text x="158" y="675" font-size="11" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[0,1)</text>
-<path d="M100.0,704 L176,704" stroke="#3a3a3a" stroke-width="3" />
-<path d="M100.0,704 L100.0,746.4" stroke="#3a3a3a" stroke-width="3" />
-<path d="M84,746.4 L116,746.4" stroke="#3a3a3a" stroke-width="3" />
-<path d="M84,746.4 L84,810" stroke="#3a3a3a" stroke-width="3" />
-<path d="M116,746.4 L116,810" stroke="#3a3a3a" stroke-width="3" />
-<path d="M176,704 L176,810" stroke="#3a3a3a" stroke-width="3" />
-<text x="84" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="116" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
-<text x="176" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
-<rect x="266" y="668" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
-<rect x="266" y="668" width="22" height="13" fill="#5f5f5f" />
-<rect x="266" y="668" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
-<text x="294" y="675" font-size="13.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 1</text>
-<text x="368" y="675" font-size="11" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[1,3)</text>
-<path d="M310.0,704 L386,704" stroke="#5f5f5f" stroke-width="3" />
-<path d="M310.0,704 L310.0,746.4" stroke="#5f5f5f" stroke-width="3" />
-<path d="M294,746.4 L326,746.4" stroke="#5f5f5f" stroke-width="3" />
-<path d="M294,746.4 L294,810" stroke="#5f5f5f" stroke-width="3" />
-<path d="M326,746.4 L326,810" stroke="#5f5f5f" stroke-width="3" />
-<path d="M386,704 L386,734.04" stroke="#1a1a1a" stroke-width="2" stroke-dasharray="4,3" />
-<circle cx="386" cy="740.04" r="6" fill="url(#ev_hatch)" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="294" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="326" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
-<rect x="476" y="668" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
-<rect x="476" y="668" width="22" height="13" fill="#838383" />
-<rect x="476" y="668" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
-<text x="504" y="675" font-size="13.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 2</text>
-<text x="578" y="675" font-size="11" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[3,9)</text>
-<path d="M520.0,704 L596,704" stroke="#838383" stroke-width="3" />
-<path d="M520.0,704 L520.0,746.4" stroke="#838383" stroke-width="3" />
-<path d="M504,746.4 L536,746.4" stroke="#838383" stroke-width="3" />
-<path d="M504,746.4 L504,810" stroke="#838383" stroke-width="3" />
-<path d="M536,746.4 L536,810" stroke="#838383" stroke-width="3" />
-<path d="M596,704 L596,810" stroke="#838383" stroke-width="3" />
-<text x="504" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="536" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
-<text x="596" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
-<rect x="686" y="668" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
-<rect x="686" y="668" width="22" height="13" fill="#a6a6a6" />
-<rect x="686" y="668" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
-<text x="714" y="675" font-size="13.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 3</text>
-<text x="788" y="675" font-size="11" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[9,11)</text>
-<path d="M730.0,704 L806,704" stroke="#a6a6a6" stroke-width="3" />
-<path d="M730.0,704 L730.0,746.4" stroke="#a6a6a6" stroke-width="3" />
-<path d="M714,746.4 L746,746.4" stroke="#a6a6a6" stroke-width="3" />
-<path d="M714,746.4 L714,765.48" stroke="#a6a6a6" stroke-width="3" />
-<path d="M705,765.48 L723,765.48" stroke="#a6a6a6" stroke-width="3" />
-<path d="M705,765.48 L705,810" stroke="#a6a6a6" stroke-width="3" />
-<path d="M723,765.48 L723,810" stroke="#a6a6a6" stroke-width="3" />
-<rect x="708" y="759.48" width="12" height="12" fill="url(#ev_hatch)" stroke="#1a1a1a" stroke-width="1.5" />
-<path d="M746,746.4 L746,810" stroke="#a6a6a6" stroke-width="3" />
-<path d="M806,704 L806,810" stroke="#a6a6a6" stroke-width="3" />
-<text x="705" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="723" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="746" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
-<text x="806" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
-<rect x="896" y="668" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
-<rect x="896" y="668" width="22" height="13" fill="#c8c8c8" />
-<rect x="896" y="668" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
-<text x="924" y="675" font-size="13.5" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 4</text>
-<text x="998" y="675" font-size="11" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[11,12)</text>
-<path d="M940.0,704 L1016,704" stroke="#c8c8c8" stroke-width="3" />
-<path d="M940.0,704 L940.0,746.4" stroke="#c8c8c8" stroke-width="3" />
-<path d="M924,746.4 L956,746.4" stroke="#c8c8c8" stroke-width="3" />
-<path d="M924,746.4 L924,810" stroke="#c8c8c8" stroke-width="3" />
-<path d="M956,746.4 L956,810" stroke="#c8c8c8" stroke-width="3" />
-<path d="M1016,704 L1016,810" stroke="#c8c8c8" stroke-width="3" />
-<text x="924" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="956" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
-<text x="1016" y="825" font-size="14" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
+<text x="700" y="600" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
+<text x="808" y="34" font-size="17" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">C — reconstruct a tree for every block</text>
+<rect x="896" y="79" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
+<rect x="896" y="79" width="22" height="13" fill="#3a3a3a" />
+<rect x="896" y="79" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
+<text x="926" y="88" font-size="14" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 0</text>
+<text x="1010" y="88" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[0,1)</text>
+<path d="M960.5,104 L1040,104" stroke="#3a3a3a" stroke-width="3" />
+<path d="M960.5,104 L960.5,129.6" stroke="#3a3a3a" stroke-width="3" />
+<path d="M944,129.6 L977,129.6" stroke="#3a3a3a" stroke-width="3" />
+<path d="M944,129.6 L944,168" stroke="#3a3a3a" stroke-width="3" />
+<path d="M977,129.6 L977,168" stroke="#3a3a3a" stroke-width="3" />
+<path d="M1040,104 L1040,168" stroke="#3a3a3a" stroke-width="3" />
+<text x="944" y="184" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="977" y="184" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<text x="1040" y="184" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
+<rect x="896" y="197" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
+<rect x="896" y="197" width="22" height="13" fill="#5f5f5f" />
+<rect x="896" y="197" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
+<text x="926" y="206" font-size="14" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 1</text>
+<text x="1010" y="206" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[1,3)</text>
+<path d="M960.5,222 L1040,222" stroke="#5f5f5f" stroke-width="3" />
+<path d="M960.5,222 L960.5,247.6" stroke="#5f5f5f" stroke-width="3" />
+<path d="M944,247.6 L977,247.6" stroke="#5f5f5f" stroke-width="3" />
+<path d="M944,247.6 L944,286" stroke="#5f5f5f" stroke-width="3" />
+<path d="M977,247.6 L977,286" stroke="#5f5f5f" stroke-width="3" />
+<path d="M1040,222 L1040,237.76" stroke="#1a1a1a" stroke-width="2" stroke-dasharray="4,3" />
+<circle cx="1040" cy="243.76" r="6" fill="url(#ev_hatch)" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="944" y="302" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="977" y="302" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<rect x="896" y="315" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
+<rect x="896" y="315" width="22" height="13" fill="#838383" />
+<rect x="896" y="315" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
+<text x="926" y="324" font-size="14" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 2</text>
+<text x="1010" y="324" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[3,9)</text>
+<path d="M960.5,340 L1040,340" stroke="#838383" stroke-width="3" />
+<path d="M960.5,340 L960.5,365.6" stroke="#838383" stroke-width="3" />
+<path d="M944,365.6 L977,365.6" stroke="#838383" stroke-width="3" />
+<path d="M944,365.6 L944,404" stroke="#838383" stroke-width="3" />
+<path d="M977,365.6 L977,404" stroke="#838383" stroke-width="3" />
+<path d="M1040,340 L1040,404" stroke="#838383" stroke-width="3" />
+<text x="944" y="420" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="977" y="420" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<text x="1040" y="420" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
+<rect x="896" y="433" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
+<rect x="896" y="433" width="22" height="13" fill="#a6a6a6" />
+<rect x="896" y="433" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
+<text x="926" y="442" font-size="14" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 3</text>
+<text x="1010" y="442" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[9,11)</text>
+<path d="M960.5,458 L1040,458" stroke="#a6a6a6" stroke-width="3" />
+<path d="M960.5,458 L960.5,483.6" stroke="#a6a6a6" stroke-width="3" />
+<path d="M944,483.6 L977,483.6" stroke="#a6a6a6" stroke-width="3" />
+<path d="M944,483.6 L944,495.12" stroke="#a6a6a6" stroke-width="3" />
+<path d="M935,495.12 L953,495.12" stroke="#a6a6a6" stroke-width="3" />
+<path d="M935,495.12 L935,522" stroke="#a6a6a6" stroke-width="3" />
+<path d="M953,495.12 L953,522" stroke="#a6a6a6" stroke-width="3" />
+<rect x="938" y="489.12" width="12" height="12" fill="url(#ev_hatch)" stroke="#1a1a1a" stroke-width="1.5" />
+<path d="M977,483.6 L977,522" stroke="#a6a6a6" stroke-width="3" />
+<path d="M1040,458 L1040,522" stroke="#a6a6a6" stroke-width="3" />
+<text x="935" y="538" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="953" y="538" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="977" y="538" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<text x="1040" y="538" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
+<rect x="896" y="551" width="22" height="13" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
+<rect x="896" y="551" width="22" height="13" fill="#c8c8c8" />
+<rect x="896" y="551" width="22" height="13" fill="none" stroke="white" stroke-width="1.0" />
+<text x="926" y="560" font-size="14" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">block 4</text>
+<text x="1010" y="560" font-size="12" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#888">[11,12)</text>
+<path d="M960.5,576 L1040,576" stroke="#c8c8c8" stroke-width="3" />
+<path d="M960.5,576 L960.5,601.6" stroke="#c8c8c8" stroke-width="3" />
+<path d="M944,601.6 L977,601.6" stroke="#c8c8c8" stroke-width="3" />
+<path d="M944,601.6 L944,640" stroke="#c8c8c8" stroke-width="3" />
+<path d="M977,601.6 L977,640" stroke="#c8c8c8" stroke-width="3" />
+<path d="M1040,576 L1040,640" stroke="#c8c8c8" stroke-width="3" />
+<text x="944" y="656" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="977" y="656" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">B</text>
+<text x="1040" y="656" font-size="15" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">C</text>
 </svg>
