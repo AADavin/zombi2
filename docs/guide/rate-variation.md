@@ -2,8 +2,17 @@
 
 Species trees and gene trees in ZOMBI2 are **timetrees** — branch lengths are time. To get
 the branch lengths you would infer from *sequence evolution*, overlay a substitution rate
-that varies across the tree. `RateVariation` implements the discrete-bin, Markov-switching
-model from the GTDB archaea study, turning a chronogram into a **phylogram**.
+that varies across the tree — a **relaxed molecular clock**, which turns a chronogram into a
+**phylogram**.
+
+ZOMBI2 provides a whole family of these clocks in the `zombi2.clocks` namespace, all sharing one
+`Clock` interface (`scale(tree, seed=...)` returns the phylogram): the strict clock (`StrictClock`),
+the *uncorrelated* clocks (`UncorrelatedLogNormalClock`, `UncorrelatedGammaClock`, `WhiteNoiseClock`
+— each branch draws an i.i.d. rate), and the *autocorrelated* clocks (`AutocorrelatedLogNormalClock`,
+`CIRClock`, and `RateVariation` — a branch's rate is anchored to its parent's). This page focuses on
+**`RateVariation`**, the discrete-bin, Markov-switching model from the GTDB archaea study; the rest of
+the family is covered in the manual's *Relaxed molecular clocks* chapter and used exactly the same
+way.
 
 ## The model
 
@@ -68,10 +77,10 @@ rate(family g, species branch b) = R_b · s_g
 ```
 
 - **`R_b`** — a lineage rate drawn **once on the species tree** and **shared by every
-  family**. Two clocks to choose from: an autocorrelated **lognormal** relaxed clock,
-  `R_child = R_parent · exp(N(0, σ·√branch_length))` (`branch_sigma`; `0` = strict clock), or
-  the **discrete-bin** within-branch `RateVariation` (the GTDB model; `lineage=`), which can
-  vary the rate *within* a branch.
+  family**. This is any relaxed clock from the family: the autocorrelated **lognormal** walk
+  `R_child = R_parent · exp(N(0, σ·√branch_length))` via `branch_sigma` (`0` = strict clock), or
+  **any `Clock`** passed as `lineage=` — the **discrete-bin** `RateVariation` (the GTDB model), an
+  uncorrelated clock, `CIRClock`, and so on.
 - **`s_g`** — each family's intrinsic speed, one constant drawn from a distribution
   (`family_speed`), so some families are globally fast, others slow.
 
@@ -120,19 +129,29 @@ have written the event trace (`trace` in `--write`):
 zombi2 genomes  -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
 
-# lognormal lineage clock + per-family speed
-zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+# any clock in the family via --clock (here an uncorrelated lognormal)
+zombi2 sequence --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
+    --family-speed 0.5 -o run/
 
-# discrete-bin (GTDB) lineage clock instead of --branch-speed
+# the autocorrelated lognormal and the discrete-bin GTDB clock also have shorthands
+zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
 zombi2 sequence --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
     --family-speed 0.5 -o run/
 ```
 
+`--clock` selects any model in the family —
+`{strict, autocorrelated-lognormal, uncorrelated-lognormal, uncorrelated-gamma, white-noise, cir,
+discrete-bin}` — with its parameter given by `--clock-sigma` (lognormal / white-noise / CIR spread),
+`--clock-shape` (gamma), `--clock-theta` (CIR mean-reversion), or `--clock-mean` (the target/strict
+rate). `--branch-speed` and `--branch-bins` remain as shorthands for the autocorrelated-lognormal and
+discrete-bin clocks.
+
 `sequence` replays `run/Events_trace.tsv`, rebuilds the reconciled gene trees, and writes
 `run/gene_trees/<family>_extant_subst.nwk` (and `_complete_subst.nwk`), plus
 `gene_family_speeds.tsv` and `branch_rates.tsv` recording the drawn `s_g` and `R_b` for
-reproducibility. `--branch-speed` **or** `--branch-bins` alone is a shared lineage clock;
-`--family-speed` alone is per-family speed; together they are the full gene × lineage model.
+reproducibility. A lineage clock alone (any `--clock`, `--branch-speed`, or `--branch-bins`) is a
+shared lineage clock; `--family-speed` alone is per-family speed; together they are the full
+gene × lineage model.
 
 ### Simulating alignments (DNA and protein)
 
