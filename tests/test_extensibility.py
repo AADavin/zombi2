@@ -42,7 +42,7 @@ class GenomeWiseRates(RateModel):
 def test_genome_wise_rate_model_swap():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=4)
     genomes = simulate_genomes(tree, GenomeWiseRates(0.5, 0.2, 0.5, 0.4),
-                               initial_size=10, seed=4)
+                               initial_families=10, seed=4)
     assert genomes.profiles.matrix.shape[1] == 10
     assert len(genomes.event_log) > 0
 
@@ -69,8 +69,8 @@ def test_family_sampled_full_run_reproducible():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=1)
     make = lambda: FamilySampledRates(duplication=Exponential(0.2), transfer=Exponential(0.1),
                                       loss=Exponential(0.25), origination=0.5)
-    a = simulate_genomes(tree, make(), initial_size=15, seed=2)
-    b = simulate_genomes(tree, make(), initial_size=15, seed=2)
+    a = simulate_genomes(tree, make(), initial_families=15, seed=2)
+    b = simulate_genomes(tree, make(), initial_families=15, seed=2)
     assert np.array_equal(a.profiles.matrix, b.profiles.matrix)
     assert a.profiles.matrix.shape[1] == 10
 

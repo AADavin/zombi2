@@ -78,10 +78,10 @@ def _cheap_fit(**kw):
     """A tiny fit for plumbing checks (uniform model -> Rust engine)."""
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
-                             initial_size=10, seed=3).profiles
+                             initial_families=10, seed=3).profiles
     params = dict(tree=tree, empirical=emp,
                   priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-                  n_sims=15, accept=0.2, initial_size=10, seed=1)
+                  n_sims=15, accept=0.2, initial_families=10, seed=1)
     params.update(kw)
     return z.match_profiles(**params)
 
@@ -155,12 +155,12 @@ def test_determinism_same_seed():
 def test_recover_injected_rates_43_leaves():
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=43, age=5.0, seed=1)
     truth = dict(duplication=0.3, transfer=0.1, loss=0.6, origination=2.0)
-    emp = z.simulate_genomes(tree, initial_size=20, seed=101, output="profiles", **truth)
+    emp = z.simulate_genomes(tree, initial_families=20, seed=101, output="profiles", **truth)
 
     priors = {"duplication": (0, 1), "transfer": (0, 0.5),
               "loss": (0, 1.5), "origination": (0, 3)}
     fit = z.match_profiles(tree, emp, priors=priors, n_sims=800, accept=0.05,
-                           initial_size=20, seed=7)
+                           initial_families=20, seed=7)
 
     s = fit.summary()
     # The well-identified rates: truth inside the 95% credible interval...
@@ -193,9 +193,9 @@ def test_parallel_matches_serial():
     # results depend only on the seed, not the process count (draws are pre-generated)
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
-                             initial_size=10, seed=3).profiles
+                             initial_families=10, seed=3).profiles
     kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-              n_sims=40, accept=0.2, initial_size=10, seed=1)
+              n_sims=40, accept=0.2, initial_families=10, seed=1)
     serial = z.match_profiles(tree, emp, **kw)
     parallel = z.match_profiles(tree, emp, processes=2, **kw)
     assert np.array_equal(serial.samples, parallel.samples)
@@ -209,10 +209,10 @@ def test_custom_model_allows_arbitrary_param_names():
     # a callable model params->RateModel may use any parameter names (runs on Python engine)
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
-                             initial_size=10, seed=3).profiles
+                             initial_families=10, seed=3).profiles
     model = lambda p: z.UniformRates(duplication=p["d"], loss=p["l"], origination=p["o"])
     fit = z.match_profiles(tree, emp, priors={"d": (0, 0.3), "l": (0, 0.4), "o": (0, 1.5)},
-                           model=model, n_sims=20, accept=0.2, initial_size=10, seed=1)
+                           model=model, n_sims=20, accept=0.2, initial_families=10, seed=1)
     assert set(fit.posterior) == {"d", "l", "o"}
 
 
@@ -221,12 +221,12 @@ def test_family_model_recovers_heterogeneous_rates():
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=20, age=5.0, seed=1)
     truth = z.FamilySampledRates(duplication=z.Gamma(2, 0.15), transfer=z.Gamma(2, 0.05),
                                  loss=z.Gamma(2, 0.30), origination=2.0)
-    emp = z.simulate_genomes(tree, truth, initial_size=15, max_family_size=20, seed=101).profiles
+    emp = z.simulate_genomes(tree, truth, initial_families=15, max_family_size=20, seed=101).profiles
 
     priors = {"duplication": (0, 0.6), "transfer": (0, 0.3),
               "loss": (0, 1.2), "origination": (0, 3)}
     fit = z.match_profiles(tree, emp, priors=priors, model="family", family_shape=2.0,
-                           n_sims=150, accept=0.15, initial_size=15, max_family_size=20,
+                           n_sims=150, accept=0.15, initial_families=15, max_family_size=20,
                            seed=7, processes=2)
     assert set(fit.posterior) == set(z.matching.RATE_PARAMS)
     s = fit.summary()
@@ -257,7 +257,7 @@ def test_spectra_data_shapes_and_custom_guard():
 def _small_genomes(seed=3):
     tree = _small_tree()
     g = z.simulate_genomes(tree, duplication=0.12, transfer=0.05, loss=0.18, origination=0.7,
-                           initial_size=10, seed=seed)
+                           initial_families=10, seed=seed)
     return tree, g
 
 
@@ -291,7 +291,7 @@ def test_gene_trees_path_runs_with_diagnostics():
     tree, g = _small_genomes()
     fit = z.match_profiles(tree, g, priors={"duplication": (0, 0.4), "loss": (0, 0.5),
                                             "origination": (0, 1.5)},
-                           gene_trees=True, n_sims=40, accept=0.25, initial_size=10, seed=1)
+                           gene_trees=True, n_sims=40, accept=0.25, initial_families=10, seed=1)
     assert set(fit.posterior) == {"duplication", "loss", "origination"}
     assert fit.spectra_data()["accepted"].shape[1] == fit.n_species
 
@@ -306,9 +306,9 @@ def test_gene_trees_requires_genomes():
 def test_feature_weights_change_acceptance():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
-                             initial_size=10, seed=3).profiles
+                             initial_families=10, seed=3).profiles
     kw = dict(priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-              n_sims=60, accept=0.25, initial_size=10, seed=1)
+              n_sims=60, accept=0.25, initial_families=10, seed=1)
     base = z.match_profiles(tree, emp, **kw)
     s = len(emp.species)
     w = np.ones(2 * s + 4)
@@ -321,10 +321,10 @@ def test_feature_weights_change_acceptance():
 def _adjust_fit():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.12, loss=0.18, origination=0.7,
-                             initial_size=10, seed=3).profiles
+                             initial_families=10, seed=3).profiles
     return z.match_profiles(tree, emp,
                             priors={"duplication": (0, 0.4), "loss": (0, 0.5), "origination": (0, 2)},
-                            n_sims=120, accept=0.25, initial_size=10, seed=1)
+                            n_sims=120, accept=0.25, initial_families=10, seed=1)
 
 
 def test_regression_adjust_shapes_and_nonneg():
@@ -369,7 +369,7 @@ def test_plot_spectra_returns_axes():
 def _smc_setup():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
-                             initial_size=10, seed=3).profiles
+                             initial_families=10, seed=3).profiles
     return tree, emp
 
 
@@ -377,7 +377,7 @@ def test_smc_runs_and_is_weighted():
     tree, emp = _smc_setup()
     fit = z.match_profiles_smc(
         tree, emp, priors={"duplication": (0, 0.3), "loss": (0, 0.4), "origination": (0, 1.5)},
-        rounds=2, n_particles=25, initial_size=10, seed=1, max_attempts_factor=40)
+        rounds=2, n_particles=25, initial_families=10, seed=1, max_attempts_factor=40)
     assert fit.sample_weights is not None
     assert len(fit.accepted) == 25                 # population size stays fixed
     assert set(fit.posterior) == {"duplication", "loss", "origination"}
@@ -396,7 +396,7 @@ def test_smc_requires_uniform_priors():
 def test_smc_reproducible():
     tree, emp = _smc_setup()
     kw = dict(priors={"duplication": (0, 0.3), "origination": (0, 1.5)}, rounds=2,
-              n_particles=20, initial_size=10, seed=1, max_attempts_factor=40)
+              n_particles=20, initial_families=10, seed=1, max_attempts_factor=40)
     a = z.match_profiles_smc(tree, emp, **kw)
     b = z.match_profiles_smc(tree, emp, **kw)
     assert np.array_equal(a.samples, b.samples)

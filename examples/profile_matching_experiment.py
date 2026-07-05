@@ -29,7 +29,7 @@ def main():
     print(f"species tree: {len(tree.extant_leaves())} extant tips\n")
 
     # (2) the empirical dataset: a distribution of gene families / gene trees along the tree
-    emp_genomes = z.simulate_genomes(tree, **TRUTH, initial_size=INITIAL_SIZE, seed=1)
+    emp_genomes = z.simulate_genomes(tree, **TRUTH, initial_families=INITIAL_SIZE, seed=1)
     profile = emp_genomes.profiles
     trees = emp_genomes.gene_trees()
     surviving = {f: t for f, (c, t) in trees.items() if t}
@@ -44,7 +44,7 @@ def main():
 
     # (3) recover the rates from the profile alone
     fit = z.match_profiles(tree, profile, priors=PRIORS, n_sims=4000, accept=0.02,
-                           initial_size=INITIAL_SIZE, seed=1)
+                           initial_families=INITIAL_SIZE, seed=1)
     print("\nrecovered posterior (median [95% CI])  vs  truth:")
     s = fit.summary()
     for p in z.matching.RATE_PARAMS:
@@ -62,7 +62,7 @@ def main():
     medians = {p: [] for p in TRUTH}
     covered = {p: 0 for p in TRUTH}
     for r in range(n_rep):
-        emp_r = z.simulate_genomes(tree, **TRUTH, initial_size=INITIAL_SIZE, seed=100 + r,
+        emp_r = z.simulate_genomes(tree, **TRUTH, initial_families=INITIAL_SIZE, seed=100 + r,
                                    output="profiles")
         fit_r = z.match_profiles(tree, emp_r, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
         sr = fit_r.summary()

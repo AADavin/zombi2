@@ -24,7 +24,7 @@ rates = z.UniformRates(
     inversion=0.3, transposition=0.3,      # rearrangement rates (ordered genomes only)
 )
 genomes = z.simulate_genomes(
-    tree, rates, initial_size=30, seed=1,
+    tree, rates, initial_families=30, seed=1,
     genome_factory=lambda ids: z.OrderedGenome(ids, extension=0.5),
 )
 

@@ -32,4 +32,4 @@ def label() -> str:
     r = RATES
     return (f"BirthDeath(λ={BIRTH}, μ={DEATH}), age {TREE_AGE}; "
             f"D={r['duplication']} T={r['transfer']} L={r['loss']} O={r['origination']}, "
-            f"initial_size={INITIAL_SIZE}")
+            f"initial_families={INITIAL_SIZE}")
