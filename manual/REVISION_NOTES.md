@@ -101,20 +101,34 @@ zombi2-free window.
 - [ ] GFF multi-contig behaviour.
 
 ## Ch12 — Trait evolution (lots of figures)
-- [ ] §12.1 two-panel figure: continuous vs discrete models.
-- [ ] §12.2 overview table of models.
-- [ ] §12.2.3 needs a figure.
-- [ ] §12.2.4 code block overflow.
-- [ ] figure: two panels, two coevolved traits.
-- [ ] §12.3.1 code block overflows.
-- [ ] §12.4 figure: two panels (Markov chain + simulated trait on phylogeny).
-- [ ] §12.3.2 figure of the Pagel matrix; support >2 correlated traits (code).
-- [ ] §12.3.3 illustrative two-panel figure.
-- [ ] §12.3.4 the term "liability" — is it Felsenstein's? dislikes it; dislikes the
-  phenogram — want a different figure.
-- [ ] §12.4 code blocks overflow.
-- [?] §12.5 move tree-transformation out of sequence module (design above).
-- [ ] §12.6 needs figures; a figure is MISPLACED (the §12.6 figure is under §12.7) — fix.
+Section §-numbers below are the OLD numbering (pre-restructure); mapped to live sections.
+- [x] continuous vs discrete: chapter-opener two-panel figure (`fig_trait_overlay.py` →
+  `trait_overlay`). At "The shared overlay engine". Full-width. NOT committed.
+- [x] §12.2 overview table of models (committed: "Trait models at a glance").
+- [x] **Pagel figure DONE** — `fig_trait_pagel.py` → `docs/img/trait_pagel.svg`, two-panel
+  (state square with rate-width arrows + a realization on a tree). Adrián APPROVED; folds in
+  BOTH the "Pagel matrix" and the "two coevolved traits" asks (he confirmed one figure is fine).
+  Full-width in the "Correlated binary characters (Pagel)" section. NOT committed yet.
+- [x] **Threshold figure DONE** — replaced the disliked phenogram: rewrote `fig_trait_threshold.py`
+  as an OU-style painted tree (branches = liability viridis, threshold marked on the colour bar,
+  tip chips = discrete 0/1). Adrián approved the proposal. Caption rewritten, full-width. NOT committed.
+- [x] "liability" term: KEEP with a gloss (Adrián's call). Gloss still to add to the prose.
+- [x] Mk: two-panel (`fig_trait_mk.py` rewritten) — 3-state chain diagram + grayscale stochastic
+  map on a tree. 3 categorical states = 3 greys (dark/mid/light). Full-width. NOT committed.
+- [x] corHMM / hidden rate classes (`fig_trait_hiddenmk.py` rewritten): Pagel-style two-panel —
+  4-state (obs x hidden) width-coded diagram + realization (branches by hidden class, observed-
+  change marks, obs tip chips). Full-width. NOT committed.
+- [x] DEC (`fig_dec.py` restyled to house B&W): centered title, no subtitle, FS_* fonts, grey area
+  cells, stacked legend. Full-width. NOT committed.
+- **ALL 6 Ch12 figures DONE** (pagel, threshold, overlay, mk, hiddenmk, dec) + wired into
+  ch12 + full manual rebuilt (78pp). Batch built in the locked style; Adrián to review the whole
+  Ch12 PDF at once. Nothing committed.
+- [ ] code-block overflows: re-verify against the current PDF (earlier overflow pass may cover).
+- [?] §12.5 move tree-transformation out of sequence module — Adrián: DON'T move yet.
+- [x] misplaced float (§12.6 fig under §12.7): fixed globally by the figure-float pin in preamble.tex.
+- [x] Pagel >2 correlated traits (CODE): `CorrelatedBinaryK` DONE by agent on branch
+  `feature/pagel-k-traits` (1152 tests). NOT merged — awaiting Adrián. Manual snippet drafted,
+  held out of the manual until merge (every-snippet-must-run rule).
 
 ## Ch13 — Coevolution
 - [ ] §13.1 code block overflow.

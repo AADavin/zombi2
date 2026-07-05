@@ -38,6 +38,8 @@ families differ only in how a branch is traversed:
   chain, drawing waiting times and transitions, so the realized history along each branch, a
   *stochastic character map*, comes for free rather than being sampled after the fact.
 
+![Two ways a branch is traversed. **A**, continuous models draw the branch endpoint in one step — the change over a branch of length $t$ is a single Normal draw, and the path in between is never simulated. **B**, discrete models simulate the Markov jumps exactly, so the realized history along the branch (a stochastic character map) comes for free.](figures/trait_overlay.pdf){width=100%}
+
 `simulate_traits` returns a `TraitResult`. Its accessors expose the process at whatever granularity
 you need:
 
@@ -148,7 +150,7 @@ Mk.ordered(4, 0.5)   # ordered: adjacent-only chain
 Mk([[0, 1, 2], [3, 0, 1], [1, 1, 0]])   # ARD: any user-supplied Q
 ```
 
-![A discrete character under an Mk model: the state jumps along the branches (the exact stochastic character map), and each tip inherits the state it ends in.](figures/trait_mk.pdf)
+![A discrete character under the Mk model. **A**, the model — an equal-rates chain over three states (all the transition structure lives in the rate matrix $Q$). **B**, a realization: the exact stochastic character map, each branch painted in the state it is in and switching at the instant of a transition; the tip chips give each lineage's observed state.](figures/trait_mk.pdf){width=100%}
 
 The transition structure lives entirely in the `Q` you pass. `equal_rates` is all-to-all at one
 rate, `symmetric` makes $i\to j$ and $j\to i$ equal, `ordered` is the tridiagonal nearest-neighbour
@@ -181,6 +183,8 @@ res.labeled_values()                   # {extant leaf: (X, Y)}
 null = CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
 ```
 
+![Correlated binary characters. **A**, the joint state space $\{00, 01, 10, 11\}$: horizontal edges flip Y, vertical edges flip X, and each arrow's width is its rate. With these rates Y is gained fast only when X = 1 and lost fast when X = 0, so Y is driven toward X. **B**, one realization on a tree: branches are drawn heavy where X = 1 and light where X = 0, and the two tip columns give each leaf's $(X, Y)$ — the clades where X switches on are exactly the clades where Y is present.](figures/trait_pagel.pdf){width=100%}
+
 ### Hidden rate classes (corHMM)
 
 `HiddenStateMk` gives the observed character *hidden rate classes*: its transition rates depend on an
@@ -198,6 +202,8 @@ res.labeled_values()                   # observed 0/1 (hidden class collapsed)
 res.full_label(res.node_values[tree.extant_leaves()[0]])   # (observed, hidden)
 ```
 
+![Hidden rate classes. **A**, the four joint states, (observed 0/1) $\times$ (hidden slow/fast): the observed character flips slowly in the slow class and quickly in the fast class (arrow width = rate), while the hidden class itself switches along the tree. **B**, a realization — branches are heavy where the hidden class is fast and light where it is slow, small circles mark observed-state changes, and the tip chips give the observed state. The observed changes cluster on the fast (heavy) branches, the signature of hidden rate classes.](figures/trait_hiddenmk.pdf){width=100%}
+
 ### The threshold model
 
 In the threshold model an unobserved continuous *liability* evolves by Brownian motion, and the
@@ -212,7 +218,7 @@ th.values                              # liabilities (continuous, latent)
 th.labeled_values()                    # observed 0/1 states
 ```
 
-![The threshold model: a latent liability evolves by Brownian motion, and the observed discrete state is whichever interval it falls in.](figures/trait_threshold.pdf)
+![The threshold model. A latent liability evolves by Brownian motion — the branches are painted by its value (viridis) — and the observed discrete state at each tip is which side of the threshold the liability ends on: open square = below (state 0), filled = above (state 1). The threshold is marked on the colour bar, so colours to its left are below and to its right above. The continuous gradient flowing into a binary tip pattern is the model's point.](figures/trait_threshold.pdf){width=100%}
 
 Discrete simulation, whether Mk, correlated-binary, hidden-rate, or the DEC ranges below, always
 yields a full stochastic character map [@nielsen2002mapping; @huelsenbeck2003stochastic]; `history`
@@ -270,7 +276,7 @@ res.ancestral_states()                 # ancestral ranges at every internal node
 res.changes()                          # anagenetic dispersal / extinction events along branches
 ```
 
-![Historical biogeography (DEC): a lineage's range gains and loses discrete areas along branches, and the ancestral range is split between daughters at each speciation.](figures/dec.pdf)
+![The DEC model of geographic-range evolution. **A**, along a branch a range gains areas by dispersal and loses them by local extinction — a Markov chain over the lattice of ranges (subsets of areas). **B**, at each speciation the ancestral range is split between the two daughters by narrow sympatry, subset sympatry, or vicariance.](figures/dec.pdf){width=100%}
 
 `dispersal` may be a scalar or an area-by-area matrix, `extinction` a scalar or a per-area vector, and
 `max_range_size` caps how many areas a range may span.
