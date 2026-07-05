@@ -30,7 +30,7 @@ OUT_STEM = Path(__file__).resolve().parent.parent / "model_fbd" / "model_fbd"
 
 # forward FBD: psi = fossil sampling rate, removal < 1 keeps sampled ancestors
 MODEL = BirthDeath(0.9, 0.35, fossilization=0.6, removal=0.5)
-AGE, SEED = 2.2, 24
+AGE, SEED = 2.8, 31
 PRESENT_LINE = "#c9c9c9"
 
 

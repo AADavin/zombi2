@@ -28,7 +28,7 @@ from zombi_style import INK, PANEL, species_style, FS_TITLE, FS_LABEL, FS_TICK
 OUT_STEM = Path(__file__).resolve().parent.parent / "model_sampling" / "model_sampling"
 
 MODEL = BirthDeath(1.0, 0.35, sampling_fraction=0.6)     # rho = 0.6
-AGE, SEED = 2.2, 8
+AGE, SEED = 2.8, 5
 PRESENT_LINE = "#c9c9c9"
 CIRCLE_R = 6.0
 
@@ -70,8 +70,9 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    # extra top headroom leaves a clean band for the centered title above the legend
-    style = species_style(height=max(760, 44 * n_leaves + 240), margin=118)
+    # wide, dense landscape canvas (fixed width, height capped so the tree stays
+    # wider than it is tall); extra top headroom for the centered title + legend
+    style = species_style(width=1180, height=min(820, 30 * n_leaves + 240), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
