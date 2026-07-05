@@ -19,7 +19,7 @@ def _n_leaves(newick: str) -> int:
 def test_extant_tree_leaf_count_matches_profile():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=2)
     g = simulate_genomes(tree, duplication=0.15, transfer=0.1, loss=0.2,
-                         origination=0.5, initial_size=10, seed=2)
+                         origination=0.5, initial_families=10, seed=2)
     trees = g.gene_trees()
     fam_row = {f: i for i, f in enumerate(g.profiles.families)}
     checked = 0
@@ -36,7 +36,7 @@ def test_extant_tree_leaf_count_matches_profile():
 def test_complete_tree_has_more_or_equal_leaves_than_extant():
     tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=12, age=4.0, seed=3)
     g = simulate_genomes(tree, duplication=0.2, transfer=0.05, loss=0.3,
-                         origination=0.5, initial_size=12, seed=3)
+                         origination=0.5, initial_families=12, seed=3)
     for complete, extant in g.gene_trees().values():
         assert complete  # always produced
         if extant is not None:
@@ -48,7 +48,7 @@ def test_carrying_capacity_bounds_family_size():
     g = simulate_genomes(
         tree,
         UniformRates(duplication=2.0, transfer=0.0, loss=0.1, origination=0.0, carrying_capacity=5),
-        initial_size=3, seed=1,
+        initial_families=3, seed=1,
     )
     # duplication stops at n=K and there are no transfers, so no family exceeds K
     assert g.profiles.matrix.max() <= 5
@@ -58,7 +58,7 @@ def test_max_family_size_caps_family_size():
     tree = simulate_species_tree(Yule(1.0), n_tips=8, age=3.0, seed=1)
     g = simulate_genomes(
         tree, UniformRates(duplication=3.0, transfer=0.0, loss=0.05, origination=0.0),
-        initial_size=3, max_family_size=4, seed=1,
+        initial_families=3, max_family_size=4, seed=1,
     )
     assert g.profiles.matrix.max() <= 4
 
@@ -66,7 +66,7 @@ def test_max_family_size_caps_family_size():
 def test_write_outputs(tmp_path):
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=5)
     g = simulate_genomes(tree, duplication=0.15, transfer=0.1, loss=0.2,
-                         origination=0.5, initial_size=8, seed=5)
+                         origination=0.5, initial_families=8, seed=5)
     g.write(tmp_path)
     assert (tmp_path / "species_tree.nwk").exists()
     assert (tmp_path / "Profiles.tsv").exists()

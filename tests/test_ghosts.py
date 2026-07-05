@@ -215,7 +215,7 @@ def test_forward_sim_runs_on_augmented_tree():
     z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.6), seed=8)
     ghost_branches = {n.name for n in tree.nodes() if not n.is_extant}
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.4, loss=0.15,
-                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=30, max_family_size=0.5, seed=42)
     # profiles only over sampled (extant) species
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
     # with transfers on a ghost-laden tree, at least one transfer should involve a ghost branch

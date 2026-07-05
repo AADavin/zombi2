@@ -396,7 +396,7 @@ def simulate_genomes(
     transfer: float = 0.0,
     loss: float = 0.0,
     origination: float = 0.0,
-    initial_size: int = 20,
+    initial_families: int = 20,
     transfers=None,
     max_family_size=None,
     seed: int | None = None,
@@ -407,6 +407,8 @@ def simulate_genomes(
     threads: int = 1,
 ):
     """Simulate gene families forward along ``species_tree``.
+
+    ``initial_families`` is the number of gene families seeded at the root (default 20).
 
     Provide either a rate model (``rates=z.UniformRates(...)`` /
     ``z.FamilySampledRates(...)``) or the convenience shorthand
@@ -464,7 +466,7 @@ def simulate_genomes(
     binary_tree = all(len(n.children) != 1 for n in species_tree.nodes_preorder())
     if _rust.eligible(rates, genome_factory, sampler) and binary_tree:
         _rust.require()  # one engine for the built-in model on a binary tree; no Python fallback
-        kw = dict(initial_size=initial_size, transfers=transfers,
+        kw = dict(initial_size=initial_families, transfers=transfers,
                   max_family_size=max_family_size, seed=seed)
         if output == "profiles":
             if threads > 1:
@@ -482,7 +484,7 @@ def simulate_genomes(
     if rng is None:
         rng = np.random.default_rng(seed)
     result = GenomeSimulator(sampler).simulate(
-        species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
+        species_tree, rates, rng, initial_size=initial_families, transfers=transfers,
         max_family_size=max_family_size, genome_factory=genome_factory,
     )
     profiles = ProfileMatrix.from_leaf_genomes(result.leaf_genomes)

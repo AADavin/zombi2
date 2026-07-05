@@ -444,10 +444,12 @@ def simulate_forward(
             f"DiversityDependent and CladeShiftBirthDeath, not {type(model).__name__}"
         )
     model.validate()
-    if age is not None and age <= 0:
-        raise ValueError(f"age must be > 0, got {age}")
-    if n_tips is not None and n_tips < 2:
-        raise ValueError(f"n_tips must be >= 2, got {n_tips}")
+    from .species_sim import _check_age, _check_n_tips
+    if age is not None:
+        _check_age(age)
+    if n_tips is not None:
+        _check_n_tips(n_tips, max_lineages)
+        n_tips = int(n_tips)
     if isinstance(model, DiversityDependent) and n_tips is not None and n_tips > model.K:
         raise ValueError(
             f"n_tips ({n_tips}) exceeds the carrying capacity K ({model.K:g}); a diversity-"

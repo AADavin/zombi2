@@ -13,6 +13,18 @@ import math
 import numpy as np
 
 
+def _finite(name: str, value: float) -> float:
+    """Reject NaN / infinite parameters up front.
+
+    NaN silently passes every ``> 0`` / ``>= 0`` comparison, so a plain range check lets it
+    through and the process then produces a tree with NaN branch lengths. Infinities produce
+    degenerate (inf/zero) trees. Catch both here with a clear message.
+    """
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number, got {value}")
+    return value
+
+
 def _normalize_mass_extinctions(mass_extinctions):
     """Normalize ``mass_extinctions`` into a sorted list of ``(age, fraction)`` float pairs.
 
@@ -30,6 +42,9 @@ def _normalize_mass_extinctions(mass_extinctions):
 
 
 def _validate_mass_extinctions(mes) -> None:
+    for a, frac in mes:
+        _finite("mass-extinction age", a)
+        _finite("mass-extinction fraction", frac)
     ages = [a for a, _ in mes]
     if any(a <= 0 for a in ages):
         raise ValueError("mass-extinction times must be positive ages before the present")
@@ -65,6 +80,11 @@ class BirthDeath:
         self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
 
     def validate(self) -> None:
+        _finite("birth rate", self.birth)
+        _finite("death rate", self.death)
+        _finite("fossilization rate", self.fossilization)
+        _finite("sampling_fraction", self.sampling_fraction)
+        _finite("removal", self.removal)
         if self.birth <= 0:
             raise ValueError(f"birth rate must be > 0, got {self.birth}")
         if self.death < 0:
@@ -173,6 +193,10 @@ class EpisodicBirthDeath:
         self._cdf = None
 
     def validate(self) -> None:
+        for x in (*self.birth, *self.death, *self.fossilization, *self.shifts):
+            _finite("episodic rate/shift", x)
+        _finite("sampling_fraction", self.rho)
+        _finite("removal", self.removal)
         k = len(self.birth)
         if len(self.death) != k:
             raise ValueError("birth and death must have the same length")
@@ -268,6 +292,11 @@ class ClaDS:
         self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
 
     def validate(self) -> None:
+        _finite("lambda_0 (root speciation rate)", self.lambda_0)
+        _finite("alpha (rate-shift trend)", self.alpha)
+        _finite("sigma (rate-shift spread)", self.sigma)
+        _finite("turnover (ε = μ/λ)", self.turnover)
+        _finite("sampling_fraction", self.sampling_fraction)
         if self.lambda_0 <= 0:
             raise ValueError(f"lambda_0 (root speciation rate) must be > 0, got {self.lambda_0}")
         if self.alpha <= 0:
@@ -307,6 +336,10 @@ class DiversityDependent:
         self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
 
     def validate(self) -> None:
+        _finite("lambda_0 (speciation rate)", self.lambda_0)
+        _finite("death rate", self.death)
+        _finite("carrying_capacity K", self.K)
+        _finite("sampling_fraction", self.sampling_fraction)
         if self.lambda_0 <= 0:
             raise ValueError(f"lambda_0 (speciation rate) must be > 0, got {self.lambda_0}")
         if self.death < 0:
@@ -350,6 +383,9 @@ class CladeShiftBirthDeath:
         self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
 
     def validate(self) -> None:
+        _finite("birth rate", self.birth)
+        _finite("death rate", self.death)
+        _finite("sampling_fraction", self.sampling_fraction)
         if self.birth <= 0:
             raise ValueError(f"birth rate must be > 0, got {self.birth}")
         if self.death < 0:
@@ -357,6 +393,9 @@ class CladeShiftBirthDeath:
         if not self.clade_shifts:
             raise ValueError("CladeShiftBirthDeath needs at least one (age, birth, death) shift")
         for a, b, d in self.clade_shifts:
+            _finite("clade-shift age", a)
+            _finite("clade-shift birth rate", b)
+            _finite("clade-shift death rate", d)
             if a <= 0:
                 raise ValueError(f"clade-shift age must be a positive age before the present, got {a}")
             if b <= 0:

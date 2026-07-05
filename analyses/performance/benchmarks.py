@@ -160,14 +160,14 @@ def gene_families(profile: str) -> Result:
 
     def genomes_fn(n, i):
         return z.simulate_genomes(trees[n], rates=rates,
-                                  initial_size=config.INITIAL_SIZE, seed=7000 + i)
+                                  initial_families=config.INITIAL_SIZE, seed=7000 + i)
 
     def trace_fn(n, i):
-        return z.simulate_genomes(trees[n], rates=rates, initial_size=config.INITIAL_SIZE,
+        return z.simulate_genomes(trees[n], rates=rates, initial_families=config.INITIAL_SIZE,
                                   output="trace", seed=7000 + i)
 
     def profiles_fn(n, i):
-        return z.simulate_genomes(trees[n], rates=rates, initial_size=config.INITIAL_SIZE,
+        return z.simulate_genomes(trees[n], rates=rates, initial_families=config.INITIAL_SIZE,
                                   output="profiles", seed=7000 + i)
 
     points = _timed_grid(profile, sizes, genomes_fn, "Rust · full genomes",
@@ -269,7 +269,7 @@ def _par_work(args: tuple[int, int]) -> int:
     tree = z.simulate_species_tree(config.model(), n_tips=n_tips,
                                    age=config.TREE_AGE, seed=seed)
     g = z.simulate_genomes(tree, rates=config.rate_model(),
-                           initial_size=config.INITIAL_SIZE, seed=seed + 1)
+                           initial_families=config.INITIAL_SIZE, seed=seed + 1)
     return len(g.profiles.families)
 
 
@@ -343,7 +343,7 @@ def write_output(profile: str) -> Result:
     try:
         for n in sizes:
             genomes = z.simulate_genomes(trees[n], rates=rates,
-                                         initial_size=config.INITIAL_SIZE, seed=9000 + n)
+                                         initial_families=config.INITIAL_SIZE, seed=9000 + n)
             outdir = tmp / f"n{n}"
 
             def call():
@@ -426,7 +426,7 @@ def vs_zombi1(profile: str) -> Result:
                                         direction="forward", seed=200 + n) for n in z2_sizes}
 
     def z2_fn(n, i):
-        return z.simulate_genomes(trees[n], rates=rates, initial_size=config.INITIAL_SIZE,
+        return z.simulate_genomes(trees[n], rates=rates, initial_families=config.INITIAL_SIZE,
                                   transfers=transfers, seed=8000 + i)
 
     points = _timed_grid(profile, z2_sizes, z2_fn, "ZOMBI2 · Rust",

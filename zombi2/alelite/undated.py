@@ -46,7 +46,7 @@ Two exact limits pin the S / SL / loss / extinction machinery (see ``tests/test_
   ``P = pS²·pL = l/(1+l)³`` (root speciates, A sampled, the B copy is lost).
 
 Origination (where the family enters the tree): ``"root"`` conditions on the family being
-present on the root branch — exact for ZOMBI2's root-seeded ``initial_size`` families;
+present on the root branch — exact for ZOMBI2's root-seeded ``initial_families`` families;
 ``"uniform"`` averages the root gene node over all branches.
 """
 

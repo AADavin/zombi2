@@ -64,17 +64,17 @@ def _child(task: str, n: int) -> None:
         info["nodes"] = len(tree.leaves())
     elif task == "profiles":
         tree = z.simulate_species_tree(model, n_tips=n, age=config.TREE_AGE, seed=1)
-        pm = z.simulate_genomes(tree, rates=rates, initial_size=config.INITIAL_SIZE,
+        pm = z.simulate_genomes(tree, rates=rates, initial_families=config.INITIAL_SIZE,
                                 output="profiles", seed=3)
         info["families"] = len(pm.families)
     elif task == "genomes":
         tree = z.simulate_species_tree(model, n_tips=n, age=config.TREE_AGE, seed=1)
-        g = z.simulate_genomes(tree, rates=rates, initial_size=config.INITIAL_SIZE, seed=3)
+        g = z.simulate_genomes(tree, rates=rates, initial_families=config.INITIAL_SIZE, seed=3)
         info["families"] = len(g.profiles.families)
         info["events"] = sum(1 for _ in g.event_log)
     elif task == "trace":
         tree = z.simulate_species_tree(model, n_tips=n, age=config.TREE_AGE, seed=1)
-        tr = z.simulate_genomes(tree, rates=rates, initial_size=config.INITIAL_SIZE,
+        tr = z.simulate_genomes(tree, rates=rates, initial_families=config.INITIAL_SIZE,
                                 output="trace", seed=3)
         info["families"] = len(tr.profiles.families)
     else:  # pragma: no cover

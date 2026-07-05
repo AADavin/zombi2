@@ -474,7 +474,7 @@ def _simulate(tree, vals, *, builder, initial_size, max_family_size, transfers,
     full result (needed for the gene-tree summary)."""
     from .simulation import simulate_genomes
 
-    kw = dict(initial_size=initial_size, max_family_size=max_family_size,
+    kw = dict(initial_families=initial_size, max_family_size=max_family_size,
               transfers=transfers, seed=seed,
               output="genomes" if return_genomes else "profiles")
     if builder is None:
@@ -517,13 +517,16 @@ def match_profiles(
     feature_weights=None,
     n_sims: int = 1000,
     accept=0.05,
-    initial_size: int = 20,
+    initial_families: int = 20,
     max_family_size=None,
     transfers=None,
     processes: int | None = None,
     seed: int | None = None,
 ) -> ABCFit:
     """Fit gene-family rates to an empirical profile by rejection ABC.
+
+    ``initial_families`` is the number of gene families seeded at the root of each
+    simulation (default 20).
 
     Parameters
     ----------
@@ -612,7 +615,7 @@ def match_profiles(
         draws.append((vals, sim_seed))
         samples[i] = [vals[n] for n in names]
 
-    cfg = (tree, builder, initial_size, max_family_size, transfers, summarize, gene_trees)
+    cfg = (tree, builder, initial_families, max_family_size, transfers, summarize, gene_trees)
     if processes is None or processes == 1:
         summaries = np.array([_simulate_and_summarize(d, *cfg) for d in draws])
     else:
@@ -828,13 +831,16 @@ def match_profiles_smc(
     statistics=None,
     gene_trees: bool = False,
     feature_weights=None,
-    initial_size: int = 20,
+    initial_families: int = 20,
     max_family_size=None,
     transfers=None,
     seed: int | None = None,
     max_attempts_factor: int = 100,
 ) -> ABCFit:
     """Fit gene-family rates by **sequential Monte Carlo** ABC (Toni et al. 2009).
+
+    ``initial_families`` is the number of gene families seeded at the root of each
+    simulation (default 20).
 
     Plain rejection wastes most simulations far from the data. SMC instead evolves a
     population of ``n_particles`` over ``rounds`` with a shrinking tolerance: round 0 samples
@@ -861,7 +867,7 @@ def match_profiles_smc(
 
     def sim_summ(theta):
         vals = {n: max(0.0, float(v)) for n, v in zip(names, theta)}
-        out = _simulate(tree, vals, builder=builder, initial_size=initial_size,
+        out = _simulate(tree, vals, builder=builder, initial_size=initial_families,
                         max_family_size=max_family_size, transfers=transfers,
                         seed=int(rng.integers(1, 2**63 - 1)), return_genomes=return_genomes)
         return summarize(out)

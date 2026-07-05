@@ -297,9 +297,10 @@ with numeric values, as `zombi2 trait` writes). See
 | `--tree` / `-t` | input species tree in Newick format |
 | `--rate-model {uniform,genome-wise,nucleotide}` | `uniform` (default, Rust): same per-copy rates for all families; `genome-wise` (Python): constant per-genome rates, linear growth; `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-rate-model-nucleotide)) |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--rate-model nucleotide`) |
-| `--initial-size` | genomes seeded at the root (default: 20 gene families; `1` root chromosome for `nucleotide`) |
+| `--initial-families` | number of gene families seeded at the root (default: 20) [`uniform`/`genome-wise`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
+| `--initial-chromosomes` | [nucleotide] number of root chromosomes seeded at the root (default: 1) |
 | `--root-length` `--extension` | [nucleotide] root chromosome length (nt) / geometric event-length parameter (mean `1/(1-extension)`) |
 | `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies the chromosome length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. `--gff-seqid ID` picks a sequence in a multi-record file |
 | `--genes FILE` | [nucleotide] BED/TSV of gene intervals (`start end [name]`) on the root chromosome — enables *genic mode* (genes are never split; genes & intergenes recovered as separate tree sets) |
@@ -341,7 +342,7 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--processes` | [rejection] parallel worker processes (default: serial) |
 | `--smc` `--rounds` `--particles` `--quantile` | run ABC-SMC instead of rejection, with these controls |
 | `--regression-adjust` | also write the regression-adjusted posterior (Beaumont 2002) |
-| `--initial-size` / `--max-family-size` | families seeded per sim / growth cap (advised for `--rate-model family`) |
+| `--initial-families` / `--max-family-size` | families seeded per sim / growth cap (advised for `--rate-model family`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
 ### `sequence`
@@ -432,7 +433,7 @@ structure rather than an atomic gene-family model.
 The shared `--dup` / `--trans` / `--loss` / `--orig` flags become **per-nucleotide** rates here
 (so use small values, on the order of `1e-3`); `--inversion` and `--transposition` are the extra
 structural events, `--root-length` sets the starting chromosome length, and `--extension` the mean
-event length (`1/(1-extension)` nt). `--initial-size` seeds root chromosomes (default `1`).
+event length (`1/(1-extension)` nt). `--initial-chromosomes` seeds root chromosomes (default `1`).
 
 ```bash
 zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \

@@ -109,7 +109,7 @@ The keyword shorthand builds a `UniformRates` for you:
 
 ```python
 genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_size=40, seed=42)
+                             origination=0.5, initial_families=40, seed=42)
 ```
 
 ### Per-family rates drawn from distributions (ZOMBI-1 style)
@@ -119,7 +119,7 @@ Each family samples its own D/T/L once, from the given distributions:
 ```python
 genomes = z.simulate_genomes(tree, z.FamilySampledRates(
     duplication=z.Gamma(2, 0.06), transfer=z.Exponential(0.08),
-    loss=z.Gamma(2, 0.07), origination=0.5), initial_size=40, seed=42)
+    loss=z.Gamma(2, 0.07), origination=0.5), initial_families=40, seed=42)
 ```
 
 ### Genome-wise (per-genome) rates

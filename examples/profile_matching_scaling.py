@@ -27,7 +27,7 @@ def calibrate(n_tips):
     rows = {p: {"err": [], "width": [], "cov": 0} for p in TRUTH}
     n_fam = []
     for r in range(N_REP):
-        emp = z.simulate_genomes(tree, initial_size=15, seed=100 + r, output="profiles", **TRUTH)
+        emp = z.simulate_genomes(tree, initial_families=15, seed=100 + r, output="profiles", **TRUTH)
         n_fam.append(emp.matrix.shape[0])
         fit = z.match_profiles(tree, emp, priors=PRIORS, n_sims=2000, accept=0.03, seed=7)
         s = fit.summary()

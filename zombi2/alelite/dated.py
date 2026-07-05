@@ -38,7 +38,7 @@ speciation-loss term ``f_{u,left}·E_right+f_{u,right}·E_left`` enter as bounda
 leaves seed ``f_{u,s}(T)=1`` at their species' leaf branch.
 
 Origination: ``"root"`` places the family as one lineage on the root branch at ``t=0`` (exact
-for ZOMBI2's root-seeded ``initial_size`` families); ``"uniform"`` averages the root gene node
+for ZOMBI2's root-seeded ``initial_families`` families); ``"uniform"`` averages the root gene node
 over the tops of all branches.
 
 The integration is an explicit backward Euler-style sweep on a per-slice sub-grid; ``n_steps``

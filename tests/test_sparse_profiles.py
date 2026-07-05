@@ -85,7 +85,7 @@ def test_profiles_path_is_sparse():
     """output='profiles' returns a sparse ProfileMatrix; stored cells << dense size."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=300, age=2.0, seed=1)
     pm = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                            origination=0.5, initial_size=20, output="profiles", seed=3)
+                            origination=0.5, initial_families=20, output="profiles", seed=3)
     dense_cells = pm.shape[0] * pm.shape[1]
     assert pm.nnz < dense_cells                       # genuinely sparse
     # sparse reductions agree with a densified cross-check at this (small) size
@@ -99,7 +99,7 @@ def test_write_sparse_replaces_dense_profile(tmp_path):
     """Genomes.write(sparse=True) emits one Profiles_sparse.tsv instead of the dense pair."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=40, age=2.0, seed=5)
     g = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                           origination=0.5, initial_size=20, seed=9)
+                           origination=0.5, initial_families=20, seed=9)
 
     dense_dir, sparse_dir = tmp_path / "dense", tmp_path / "sparse"
     g.write(dense_dir)                 # default
@@ -124,7 +124,7 @@ def test_write_include_selects_components(tmp_path):
     """write(include=...) writes only the requested components (+ the always-on tree files)."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=40, age=2.0, seed=6)
     g = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                           origination=0.5, initial_size=20, seed=8)
+                           origination=0.5, initial_families=20, seed=8)
 
     # profiles-only: no gene trees / event tables / transfers / summary
     p = tmp_path / "prof"
@@ -165,7 +165,7 @@ def test_full_genomes_profile_is_sparse_and_consistent():
     """The full-genealogy path also builds its ProfileMatrix sparsely, self-consistently."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=60, age=2.0, seed=7)
     g = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                           origination=0.5, initial_size=20, seed=11)
+                           origination=0.5, initial_families=20, seed=11)
     pm = g.profiles
     assert pm.nnz <= pm.shape[0] * pm.shape[1]
     # reconciliation invariant: each family's stored copies == its leaf-genome copy sum

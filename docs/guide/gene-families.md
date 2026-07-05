@@ -29,7 +29,7 @@ Rates are supplied by a **rate model**. Two ship today; both are subclasses of `
 import zombi2 as z
 
 rates = z.UniformRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
-genomes = z.simulate_genomes(tree, rates, initial_size=40, seed=42)
+genomes = z.simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 D/T/L are **per gene copy** (the family-level rate scales with copy number); origination is
@@ -37,7 +37,7 @@ D/T/L are **per gene copy** (the family-level rate scales with copy number); ori
 
 ```python
 genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_size=40, seed=42)
+                             origination=0.5, initial_families=40, seed=42)
 ```
 
 ### Per-family sampled rates — ZOMBI-1 style
@@ -52,7 +52,7 @@ rates = z.FamilySampledRates(
     loss=z.Gamma(2, 0.07),
     origination=0.5,                   # per-branch (a single rate)
 )
-genomes = z.simulate_genomes(tree, rates, initial_size=40, seed=42)
+genomes = z.simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 Distribution arguments accept:
@@ -74,7 +74,7 @@ target copy is then chosen uniformly):
 ```python
 genomes = z.simulate_genomes(tree, z.GenomeWiseRates(duplication=1.0, transfer=0.3,
                                                      loss=0.5, origination=0.4),
-                             initial_size=20, seed=1)
+                             initial_families=20, seed=1)
 ```
 
 A useful consequence: family sizes grow *linearly* rather than exponentially, so
@@ -107,7 +107,7 @@ the drift accumulates with time and `σ = 0` recovers the base model.
 
 ## Seeding the root genome
 
-`initial_size` sets how many gene families the root genome starts with (each originated at
+`initial_families` sets how many gene families the root genome starts with (each originated at
 time 0). Additional families appear over time at the origination rate.
 
 ## The result

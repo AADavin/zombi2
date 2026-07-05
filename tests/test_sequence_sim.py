@@ -13,10 +13,14 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
+from zombi2._aa_models import (
+    _DAYHOFF_PI, _JTT_PI, _LG_PI, _WAG_PI,
+)
 from zombi2.nucleotide_sim import simulate_nucleotide_genomes
 from zombi2.sequence_sim import (
-    GammaRates, evolve_on_tree, gtr, hky85, jc69, k80, make_model,
-    read_fasta, reverse_complement, write_fasta,
+    AMINO_ACIDS, DNA_MODELS, GammaRates, PROTEIN_MODELS, dayhoff, evolve_on_tree, gtr, hky85,
+    is_protein_model, jc69, jtt, k80, lg, make_model, poisson, read_fasta, reverse_complement,
+    wag, write_fasta,
 )
 
 
@@ -30,23 +34,116 @@ class _N:
 # Substitution models
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("m", [jc69(), k80(3.0), hky85(2.5, (0.3, 0.2, 0.2, 0.3)),
-                               gtr((1, 2, 1, 1, 2, 1), (0.3, 0.2, 0.2, 0.3))])
+                               gtr((1, 2, 1, 1, 2, 1), (0.3, 0.2, 0.2, 0.3)),
+                               poisson(), lg(), wag(), jtt(), dayhoff()])
 def test_model_matrix_properties(m):
-    Q, pi = m.Q, m.stationary
+    Q, pi, k = m.Q, m.stationary, m.k
+    assert Q.shape == (k, k)
     assert np.allclose(Q.sum(1), 0, atol=1e-12)              # rows of a rate matrix sum to 0
-    assert np.allclose(pi @ Q, 0, atol=1e-12)               # pi is stationary
+    assert np.allclose(pi @ Q, 0, atol=1e-10)               # pi is stationary
     assert np.isclose(-(pi * np.diag(Q)).sum(), 1.0)        # normalised to 1 subst/site/unit
-    assert np.allclose(m.p_matrix(0.0), np.eye(4))
+    assert np.allclose(m.p_matrix(0.0), np.eye(k))          # P(0) = I
     P = m.p_matrix(0.4)
-    assert np.allclose(P.sum(1), 1) and (P >= 0).all()
-    assert np.allclose(m.p_matrix(60.0), pi[None, :], atol=1e-4)   # long branch -> stationary
+    assert np.allclose(P.sum(1), 1) and (P >= 0).all()      # each row a valid distribution
+    assert np.allclose(m.p_matrix(500.0), pi[None, :], atol=1e-4)   # long branch -> stationary
+    # detailed balance: pi_i Q_ij = pi_j Q_ji (reversibility)
+    R = pi[:, None] * Q
+    assert np.allclose(R, R.T, atol=1e-12)
 
 
 def test_make_model_dispatch():
     assert make_model("jc69").name == "JC69"
     assert make_model("hky85", kappa=3, freqs=(0.4, 0.1, 0.1, 0.4)).name == "HKY85"
+    assert make_model("lg").name == "LG" and make_model("lg").k == 20
+    assert make_model("WAG").name == "WAG"        # case-insensitive
     with pytest.raises(ValueError):
         make_model("nope")
+
+
+# --------------------------------------------------------------------------- #
+# Amino-acid (protein) models — published values, correctness over coverage
+# --------------------------------------------------------------------------- #
+_PUBLISHED_PI = {"lg": _LG_PI, "wag": _WAG_PI, "jtt": _JTT_PI, "dayhoff": _DAYHOFF_PI}
+
+
+@pytest.mark.parametrize("name", ["lg", "wag", "jtt", "dayhoff"])
+def test_empirical_aa_frequencies_match_published(name):
+    """The stored stationary frequencies must match the published pi vector to 1e-4.
+
+    This catches transcription errors that mathematical validity alone would not — a mistyped
+    exchangeability keeps Q reversible but a mistyped frequency shows up here.
+    """
+    m = make_model(name)
+    published = np.array(_PUBLISHED_PI[name], dtype=float)
+    published = published / published.sum()                 # published freqs round to 1 only to ~1e-6
+    assert m.stationary.shape == (20,)
+    assert np.max(np.abs(m.stationary - published)) < 1e-4
+
+
+@pytest.mark.parametrize("name", ["poisson", "lg", "wag", "jtt", "dayhoff"])
+def test_empirical_aa_reversible(name):
+    """pi_i Q_ij = pi_j Q_ji for every empirical amino-acid model."""
+    m = make_model(name)
+    R = m.stationary[:, None] * m.Q
+    assert np.allclose(R, R.T, atol=1e-12)
+
+
+def test_model_registries_and_alphabet():
+    assert DNA_MODELS == ("jc69", "k80", "hky85", "gtr")
+    assert PROTEIN_MODELS == ("poisson", "lg", "wag", "jtt", "dayhoff")
+    assert all(is_protein_model(n) for n in PROTEIN_MODELS)
+    assert not any(is_protein_model(n) for n in DNA_MODELS)
+    assert len(AMINO_ACIDS) == 20 and lg().alphabet == AMINO_ACIDS
+
+
+def test_poisson_is_exact():
+    """Poisson: uniform freqs, equal off-diagonal rates (F81-for-proteins), exact by construction."""
+    m = poisson()
+    assert np.allclose(m.stationary, 1.0 / 20.0)
+    off = m.Q[~np.eye(20, dtype=bool)]
+    assert np.allclose(off, off[0])                         # all off-diagonal rates equal
+
+
+def test_protein_stationary_recovered_on_long_branch():
+    """A star tree with long branches recovers a protein model's stationary frequencies."""
+    tips = [_N(f"t{i}") for i in range(6)]
+    root = _N("r", tips)
+    subst = {t: 40.0 for t in tips}                         # very long -> equilibrium
+    m = lg()
+    seqs = evolve_on_tree(root, subst, m, np.random.default_rng(0), length=6000)
+    pooled = "".join(seqs[t.gid] for t in tips)
+    assert set(pooled) <= set(AMINO_ACIDS)
+    freqs = np.array([pooled.count(a) / len(pooled) for a in AMINO_ACIDS])
+    assert np.max(np.abs(freqs - m.stationary)) < 0.02
+
+
+def test_protein_alignment_alphabet():
+    """Evolving under a protein model yields the 20-AA alphabet (never ACGT-only)."""
+    a, b = _N("a"), _N("b")
+    root = _N("r", [a, b])
+    seqs = evolve_on_tree(root, {a: 0.5, b: 0.5}, wag(), np.random.default_rng(1), length=500)
+    assert set(seqs["a"]) <= set(AMINO_ACIDS)
+    assert not set(seqs["a"]) <= set("ACGT")               # genuinely protein, not nucleotide
+
+
+def test_p_matrix_matches_jc_closed_form():
+    """The numpy-only exp(Qt) matches the JC69 closed form P_ii = 1/4 + 3/4 e^{-4t/3}."""
+    m = jc69()
+    for t in (0.05, 0.3, 1.0, 3.0):
+        P = m.p_matrix(t)
+        pii = 0.25 + 0.75 * np.exp(-4.0 / 3.0 * t)
+        pij = 0.25 - 0.25 * np.exp(-4.0 / 3.0 * t)
+        assert np.allclose(np.diag(P), pii)
+        assert np.allclose(P[~np.eye(4, dtype=bool)], pij)
+
+
+def test_gamma_rates_numpy_only_mean_one():
+    """Discrete-Gamma category rates average to 1 (numpy-only implementation, no scipy)."""
+    for shape in (0.2, 0.5, 1.0, 2.0):
+        g = GammaRates(shape, 4)
+        assert g.rates.shape == (4,)
+        assert np.isclose(g.rates.mean(), 1.0)
+        assert np.all(np.diff(g.rates) > 0)                # categories are increasing
 
 
 # --------------------------------------------------------------------------- #

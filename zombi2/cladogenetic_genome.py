@@ -22,7 +22,7 @@ which the extant presence/absence profile is built.
 
     import zombi2 as z
     tree = z.simulate_species_tree(z.BirthDeath(1, 0.3), n_tips=40, age=5, seed=1)
-    m = z.CladogeneticGenome(initial_size=30, cladogenetic_loss=0.15, cladogenetic_gain=3)
+    m = z.CladogeneticGenome(initial_families=30, cladogenetic_loss=0.15, cladogenetic_gain=3)
     res = z.simulate_cladogenetic_genome(tree, m, seed=2)
     res.profile_matrix().to_tsv(presence=True)   # families x extant species (0/1)
 """
@@ -42,7 +42,7 @@ class CladogeneticGenome:
 
     Parameters
     ----------
-    initial_size:
+    initial_families:
         Number of distinct families in the root genome (``>= 0``).
     loss:
         Anagenetic per-family loss rate along a branch (``>= 0``).
@@ -55,24 +55,24 @@ class CladogeneticGenome:
         Mean number of brand-new families a daughter gains **at speciation** (Poisson; ``>= 0``).
     """
 
-    def __init__(self, initial_size: int = 30, *, loss: float = 0.0, origination: float = 0.0,
+    def __init__(self, initial_families: int = 30, *, loss: float = 0.0, origination: float = 0.0,
                  cladogenetic_loss: float = 0.1, cladogenetic_gain: float = 2.0):
-        if initial_size < 0:
-            raise ValueError(f"initial_size must be >= 0, got {initial_size}")
+        if initial_families < 0:
+            raise ValueError(f"initial_families must be >= 0, got {initial_families}")
         if loss < 0 or origination < 0:
             raise ValueError("loss and origination must be >= 0")
         if not (0.0 <= cladogenetic_loss <= 1.0):
             raise ValueError(f"cladogenetic_loss must be a probability in [0, 1], got {cladogenetic_loss}")
         if cladogenetic_gain < 0:
             raise ValueError(f"cladogenetic_gain must be >= 0, got {cladogenetic_gain}")
-        self.initial_size = int(initial_size)
+        self.initial_families = int(initial_families)
         self.loss = float(loss)
         self.origination = float(origination)
         self.cladogenetic_loss = float(cladogenetic_loss)
         self.cladogenetic_gain = float(cladogenetic_gain)
 
     def __repr__(self):
-        return (f"CladogeneticGenome(initial_size={self.initial_size}, "
+        return (f"CladogeneticGenome(initial_families={self.initial_families}, "
                 f"cladogenetic_loss={self.cladogenetic_loss:g}, "
                 f"cladogenetic_gain={self.cladogenetic_gain:g})")
 
@@ -168,8 +168,8 @@ def simulate_cladogenetic_genome(
         rng = np.random.default_rng(seed)
 
     root = tree.root
-    next_id = [model.initial_size]                              # next fresh family id
-    node_genomes = {root: frozenset(range(model.initial_size))}
+    next_id = [model.initial_families]                          # next fresh family id
+    node_genomes = {root: frozenset(range(model.initial_families))}
     for node in tree.nodes_preorder():
         if node.parent is None:
             continue

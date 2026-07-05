@@ -24,9 +24,9 @@ def _mrca_time(a, b):
 def test_replacement_transfers_curb_growth():
     tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=10, age=3.0, seed=1)
     # one seed family, present in every lineage (no loss); transfers only.
-    add = simulate_genomes(tree, transfer=1.0, initial_size=1, seed=2,
+    add = simulate_genomes(tree, transfer=1.0, initial_families=1, seed=2,
                            transfers=TransferModel(replacement=0.0))
-    rep = simulate_genomes(tree, transfer=1.0, initial_size=1, seed=2,
+    rep = simulate_genomes(tree, transfer=1.0, initial_families=1, seed=2,
                            transfers=TransferModel(replacement=1.0))
     # additive transfers accumulate copies; replacement keeps every recipient at 1
     assert add.profiles.matrix.max() >= 2
@@ -37,7 +37,7 @@ def test_replacement_transfers_curb_growth():
 
 def test_max_family_size_fraction_of_species_bounds_transfers():
     tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=20, age=4.0, seed=1)
-    g = simulate_genomes(tree, transfer=1.0, duplication=0.5, initial_size=2,
+    g = simulate_genomes(tree, transfer=1.0, duplication=0.5, initial_families=2,
                          max_family_size=0.25, seed=3)  # cap = round(0.25 * 20) = 5
     assert g.profiles.matrix.max() <= 5
 
@@ -47,7 +47,7 @@ def test_distance_decay_favors_close_recipients():
     name2node = {n.name: n for n in tree.nodes_preorder()}
 
     def mean_transfer_distance(decay):
-        g = simulate_genomes(tree, transfer=0.8, initial_size=20, seed=5,
+        g = simulate_genomes(tree, transfer=0.8, initial_families=20, seed=5,
                              transfers=TransferModel(distance_decay=decay))
         d = [2.0 * (r.time - _mrca_time(name2node[r.donor], name2node[r.recipient]))
              for r in g.event_log if r.event is EventType.TRANSFER]
@@ -62,7 +62,7 @@ def test_distance_decay_favors_close_recipients():
 def test_self_transfer_acts_as_duplication():
     tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=10, age=3.0, seed=1)
     # no duplication at all; growth within a lineage must come from self-transfers
-    g = simulate_genomes(tree, transfer=1.0, duplication=0.0, initial_size=3, seed=4,
+    g = simulate_genomes(tree, transfer=1.0, duplication=0.0, initial_families=3, seed=4,
                          transfers=TransferModel(allow_self=True))
     self_transfers = [r for r in g.event_log
                       if r.event is EventType.TRANSFER and r.donor == r.recipient]

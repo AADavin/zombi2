@@ -112,7 +112,7 @@ counts**, which pin the gain-side rates sharply. Simulations then return the ful
 
 ```python
 emp = z.simulate_genomes(tree, duplication=0.3, transfer=0.1, loss=0.5,
-                         origination=1.5, initial_size=15, seed=1)   # a Genomes
+                         origination=1.5, initial_families=15, seed=1)   # a Genomes
 fit = z.match_profiles(tree, emp, priors=priors, gene_trees=True, n_sims=2000, seed=1)
 ```
 
