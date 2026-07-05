@@ -14,7 +14,7 @@ the extinct and unsampled ("ghost") lineages back on, so the tree again reflects
 rather than only its survivors. The result is an ordinary `Tree`; the extra tips are just leaves
 marked `is_extant=False`.
 
-![The reconstructed tree of survivors (solid) with the extinct and unsampled ghost lineages grafted back on (dashed), recovering the full diversification history.](figures/model_ghosts.pdf)
+![The reconstructed tree of survivors (solid) with the extinct and unsampled ghost lineages grafted back on (dashed), recovering the full diversification history.](figures/model_ghosts.pdf){width=100%}
 
 ## Un-pruning versus simulating forward
 
@@ -38,7 +38,7 @@ The function mutates the tree in place and also returns it.
 model = z.BirthDeath(birth=1.0, death=0.5)
 tree = z.simulate_species_tree(model, n_tips=50, age=5.0, seed=1)
 
-z.add_ghost_lineages(tree, model, seed=7)   # grafts ghosts in place, returns the tree
+z.add_ghost_lineages(tree, model, seed=7)   # grafts ghosts in place
 ```
 
 Each grafted ghost attaches along an edge and roots a birth–death subtree that leaves no sampled
@@ -48,8 +48,8 @@ are left untouched, so pruning back to the extant tips recovers the original rec
 exactly.
 
 ```python
-extant = [n for n in tree.leaves() if n.is_extant]        # original sampled tips (n*)
-ghosts = [n for n in tree.leaves() if not n.is_extant]    # grafted dead tips (e*)
+extant = [n for n in tree.leaves() if n.is_extant]      # sampled tips (n*)
+ghosts = [n for n in tree.leaves() if not n.is_extant]  # dead tips (e*)
 print(len(extant), "extant +", len(ghosts), "ghost leaves")
 ```
 
@@ -63,7 +63,8 @@ On the command line, add ghosts with the `--ghosts` flag, which un-prunes the tr
 layer runs (`--ghost-method` picks the sampler):
 
 ```bash
-zombi2 species --birth 1.0 --death 0.5 --tips 50 --age 5.0 --ghosts --seed 7 -o run/
+zombi2 species --birth 1.0 --death 0.5 --tips 50 --age 5.0 \
+    --ghosts --seed 7 -o run/
 ```
 
 ## When do ghosts appear?

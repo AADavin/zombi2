@@ -59,7 +59,7 @@ from the numerically inverted piecewise CDF and assembles exactly as for the con
 the tree stays ultrametric. This is the one time-varying model that still runs through the
 **backward** sampler; it also runs forward in age mode.
 
-![Piecewise-constant speciation and extinction rates across skyline epochs, with boundaries at fixed ages before the present.](figures/model_episodic.pdf)
+![Piecewise-constant speciation and extinction rates across skyline epochs, with boundaries at fixed ages before the present.](figures/model_episodic.pdf){width=100%}
 
 ### Incomplete extant sampling
 
@@ -117,9 +117,9 @@ zombi2 species --mode forward --age 5 \
   --mass-extinction 1.0 0.75 --mass-extinction 2.5 0.5 -o out/
 ```
 
-![A mass extinction: at one instant a fraction of the standing diversity is pruned, driving a sharp drop in the lineages-through-time curve.](figures/mass_extinction.pdf)
+![A mass extinction: at one instant a fraction of the standing diversity is pruned, driving a sharp drop in the lineages-through-time curve.](figures/mass_extinction.pdf){width=100%}
 
-## Per-lineage rates: ClaDS
+## Per-lineage rates
 
 In the models so far, every lineage shares the same rates at any instant. **ClaDS**
 [@maliet2019clads] instead gives each lineage its *own* speciation rate: at each speciation the two
@@ -145,7 +145,7 @@ reconstructed CDF — and runs in either `age` or `n_tips` mode. It accepts `sam
 zombi2 species --mode forward --diversification clads --birth 1.0 --age 5 -o out/
 ```
 
-![A ClaDS tree, branches shaded by their per-lineage speciation rate: some clades radiate, others stall.](figures/clads.pdf)
+![A ClaDS tree, branches shaded by their per-lineage speciation rate: some clades radiate, others stall.](figures/clads.pdf){width=100%}
 
 ## Diversity-dependent diversification
 
@@ -171,7 +171,7 @@ zombi2 species --mode forward --diversification diversity-dependent \
   --birth 2 --death 0.2 -K 50 --age 15 -o out/
 ```
 
-![Diversity-dependent diversification: a fast early radiation flattening into a plateau as the lineage count approaches the carrying capacity K.](figures/diversity_dependent.pdf)
+![Diversity-dependent diversification: a fast early radiation flattening into a plateau as the lineage count approaches the carrying capacity K.](figures/diversity_dependent.pdf){width=100%}
 
 ## Clade-specific rate shifts
 
@@ -193,10 +193,11 @@ clades. This model is **forward-only** and **age mode only** (the shifts are sch
 before a fixed present); it accepts `sampling_fraction` and `mass_extinctions` overlays.
 
 ```bash
-zombi2 species --mode forward --age 5 --birth 0.6 --death 0.4 --clade-shift 3.0 2.0 0.1 -o out/
+zombi2 species --mode forward --age 5 --birth 0.6 --death 0.4 \
+    --clade-shift 3.0 2.0 0.1 -o out/
 ```
 
-![A clade-specific shift: at a scheduled age one lineage and all its descendants adopt a new speciation/extinction regime, sparking a fast-diversifying clade.](figures/clade_shift.pdf)
+![A clade-specific shift: at a scheduled age one lineage and all its descendants adopt a new speciation/extinction regime, sparking a fast-diversifying clade.](figures/clade_shift.pdf){width=100%}
 
 ## Fossilized birth–death
 
@@ -209,7 +210,8 @@ surviving lineages, this is a **forward** feature that requires retaining the ex
 
 ```python
 m = BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
-tree = simulate_species_tree(m, age=6.0, direction="forward", seed=1)  # complete tree + fossils
+# the complete tree, with dated fossils along the branches
+tree = simulate_species_tree(m, age=6.0, direction="forward", seed=1)
 ```
 
 Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times; sampled extant
@@ -219,10 +221,11 @@ represented as a degree-two node that the gene simulator passes genomes straight
 simulation runs unchanged on such trees.
 
 ```bash
-zombi2 species --mode forward --age 6 --fossilization 0.5 --sampling-fraction 0.9 --removal 0.5 -o out/
+zombi2 species --mode forward --age 6 --fossilization 0.5 \
+    --sampling-fraction 0.9 --removal 0.5 -o out/
 ```
 
-![Fossilized birth–death: dated fossil tips (sampled through time along extinct and surviving lineages, as diamonds) alongside sampled extant tips.](figures/model_fbd.pdf)
+![Fossilized birth–death: dated fossil tips (sampled through time along extinct and surviving lineages, as diamonds) alongside sampled extant tips.](figures/model_fbd.pdf){width=100%}
 
 ::: warning
 The occurrence birth–death process [@andreoletti2022occurrence], which mixes fossil, occurrence,

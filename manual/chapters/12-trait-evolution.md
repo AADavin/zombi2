@@ -81,7 +81,7 @@ is the shared-path-length matrix, so more closely related tips are more strongly
 simulate_traits(tree, BrownianMotion(sigma2=0.5, x0=0.0, trend=0.0), seed=1)
 ```
 
-![A continuous trait wanders down the branches by Brownian motion; each tip value is the endpoint of its root-to-tip random walk.](figures/trait_bm.pdf)
+![A continuous trait wanders down the branches by Brownian motion; each tip value is the endpoint of its root-to-tip random walk. Branches are painted by the trait value (viridis).](figures/trait_bm.pdf){width=100%}
 
 `sigma2` is the diffusion rate, `x0` the root value, and `trend` a directional drift added per unit
 time.
@@ -97,7 +97,7 @@ bounds the variance, so lineages cluster around `theta` instead of wandering fre
 simulate_traits(tree, OrnsteinUhlenbeck(sigma2=0.4, alpha=2.0, theta=10.0), seed=1)
 ```
 
-![Ornstein–Uhlenbeck: the trait diffuses but is pulled back toward an optimum, so lineages cluster around it.](figures/trait_ou.pdf)
+![Ornstein–Uhlenbeck: the trait diffuses but is pulled back toward an optimum, so lineages cluster around it.](figures/trait_ou.pdf){width=100%}
 
 ### Early burst / ACDC
 
@@ -109,6 +109,8 @@ radiation; a positive `rate` accelerates through time; `rate = 0` recovers plain
 ```python
 simulate_traits(tree, EarlyBurst(sigma2=1.0, rate=-0.8), seed=1)
 ```
+
+![A trait under early burst (ACDC). The rate decays through time (grey strip: fast early, slow late), so most change happens early — the deep branches carry big divergences (clades split apart) while young clades stay similar. Branches are painted by the trait value (viridis).](figures/trait_earlyburst.pdf){width=100%}
 
 ### Correlated continuous traits
 
@@ -126,7 +128,7 @@ simulate_traits(tree, MultivariateBrownian(R), seed=1)
 simulate_traits(tree, MultivariateOU(R, alpha=1.5, theta=[0.0, 5.0]), seed=1)
 ```
 
-![Two correlated continuous traits: the rate matrix R correlates the dimensions, so they tend to move together down the tree.](figures/trait_multivariate.pdf)
+![Multivariate Brownian motion. Two traits diffuse jointly under a rate matrix $R$; each dot is one simulated endpoint, the ring is the 95% covariance ellipse, and the lines are sample paths. **Left**, a correlated $R$ tilts the cloud so the traits move together; **right**, an independent $R$ gives an upright circle.](figures/trait_multivariate.pdf){width=100%}
 
 ## Discrete traits
 
@@ -240,6 +242,8 @@ simulate_traits(tree, mou, seed=2)                                       # tips 
 This is the natural way to model a shift in selective regime: a discrete character paints where the
 optimum changes, and the continuous trait chases whichever optimum its lineage currently sits under.
 
+![Multi-optimum OU. A discrete character paints two regimes on the tree (the tip bars: regime A dark, regime B light); the continuous trait then evolves under OU with a different optimum per regime. Branches are painted by the trait value (viridis) — regime-A lineages are pulled toward the low optimum, regime-B lineages toward the high one, so the tips split into two clusters.](figures/trait_multioptimum.pdf){width=100%}
+
 ## Pagel's tree transforms
 
 Pagel's $\lambda$, $\kappa$ and $\delta$ transform the tree's branch and node lengths
@@ -280,6 +284,8 @@ res.changes()                          # anagenetic dispersal / extinction event
 
 `dispersal` may be a scalar or an area-by-area matrix, `extinction` a scalar or a per-area vector, and
 `max_range_size` caps how many areas a range may span.
+
+![A DEC history simulated on a tree. The root begins in area A; along the branches the range gains areas by dispersal (green triangles) and loses them by local extinction (red crosses), and at each speciation the ancestral range is passed to the daughters. Each tip's realized range is drawn as a row of area cells.](figures/dec_tree.pdf){width=100%}
 
 ## From the command line
 

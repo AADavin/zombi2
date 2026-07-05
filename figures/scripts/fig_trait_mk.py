@@ -36,7 +36,7 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 W, H = 1200, 660
 STATES = ["A", "B", "C"]
 SHADE = {"A": "#1f1f1f", "B": "#8a8a8a", "C": "#cccccc"}     # dark / mid / light
-Q_RATE, N_TIPS, AGE, TREE_SEED, TRAIT_SEED = 0.7, 12, 1.0, 1, 2
+Q_RATE, N_TIPS, AGE, TREE_SEED, TRAIT_SEED = 0.7, 12, 1.0, 4, 5
 NR = 34
 
 
@@ -114,7 +114,6 @@ def panel_realization(d, ox, oy, pw, ph):
     colc = ox + pw - 70
     for n in tree.get_leaves():
         y = y_at(ys[n.name])
-        d.append(draw.Line(x_at(tfo[n.name]), y, colc - 18, y, stroke="#c8c8c8", stroke_width=0.8))
         state_chip(d, colc, y, state_of[n.name])
 
     base = oy + ph - 14

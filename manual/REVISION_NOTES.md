@@ -140,3 +140,96 @@ Section §-numbers below are the OLD numbering (pre-restructure); mapped to live
 
 ## Ch14 — Sequences
 - (see §12.5 design: sequence module = simulate sequences only.)
+
+---
+
+# ROUND 4 FEEDBACK (2026-07-05, from Adrián reading the current full PDF)
+
+Figure numbers below are the FULL-manual numbering he saw. Status: [ ] todo · [x] done.
+**Cross-cutting:** many figures are too tall/narrow — need to be WIDER. Committed checkpoint = `be39ced`.
+
+**LANDED (2026-07-05, 3 parallel figure agents + my prose lane; NOT yet committed):**
+Ch12 all figure fixes + 3 new figures · Ch5 figs 5.1/5.3/5.4/5.5/5.6/5.7 widened (5.1 → ~210 tips)
++ "fast diversification" label + drop "ClaDS" from §5.3 title + 5.5/5.6 code overflows fixed ·
+Ch6 fig 6.1 widened + §6.2 overflows · Ch7 fig 7.1 nucleotide-row gene letters (edited the hand-SVG
+`docs/img/genome_models.svg` — no generator exists) · Ch10 fig 10.2 widened · Ch9 removed the dense
+9.1 4-panel figure, split into 4 standalone figs (`potts_genome`/`potts_coupling`/`potts_lossrate`/
+`potts_retention`) placed across The model / Building / Running sections · Ch3 & Ch8 "reconciled"→
+"complete" gene tree (figure title + both captions) · Ch4 fig 4.1 caption (ten not twenty tips),
+removed v1-age note + backward-mode tip box, extinct tips `x*`→`e*` in fig_species_tree_extinct.
+Ch4 **age-vs-crown** two-panel figure DONE (`fig_age_crown.py` → `age_crown`, placed after the
+age_type explanation). Full manual rebuilt = 83pp. STILL TODO: Ch13 rewrite, Ch14 clock code,
+species-output `e`/`u` naming code pass.
+
+## Ch3
+- [ ] **Fig 3.2 caption is WRONG** — it shows a **complete** gene tree, NOT a *reconciled*
+  gene tree. Fix the terminology (complete vs reconciled vs pruned). Same error recurs in Ch8.
+
+## Ch4
+- [ ] Section 4.2 deserves a NEW figure: the meaning of **age** vs **crown** when you set the
+  age (imagine two side-by-side panels).
+- [ ] **Fig 4.1 caption wrong** — the tree does NOT have 20 tips; fix the caption to match.
+- [ ] Remove the note about **version 1 requiring an explicit age**.
+- [ ] **Fig 4.2: dead lineages must be `e1, e2, …` not `x1, x2`** (extinct = e). Ties to the
+  reverted `u` vs `e` leaf-naming code pass — do it for real (extinct `e<n>`, unsampled `u<n>`).
+- [ ] Remove the tip box "Use the default backward mode when you want a clean reconstructed phylogeny."
+
+## Ch5
+- [ ] **Fig 5.1**: good, but WIDER (too tall/narrow) and much denser tree (~200 tips).
+- [ ] **Fig 5.3**: much wider (full page width).
+- [ ] Section 5.3: **remove "ClaDS" from the section title**.
+- [ ] **Fig 5.4**: wider.
+- [ ] **Fig 5.5**: wider.
+- [ ] Section 5.5: **code-block overflow**.
+- [ ] **Fig 5.6**: wider; rename the annotation "this clade diversifies now fast" → **"fast diversification"**.
+- [ ] Section 5.6: **multiple code overflows**.
+- [ ] **Fig 5.7**: too tall/narrow → wider.
+
+## Ch6
+- [ ] **Fig 6.1**: wider.
+- [ ] Section 6.2: **code overflows**.
+
+## Ch7
+- [ ] **Fig 7.1**: great, but the **genes in the nucleotide-genome row should carry letters
+  (A, B, C, D…)** like the other two rows.
+
+## Ch8
+- [ ] A figure is captioned/presented as a **reconciled gene tree but it is NOT** (same terminology
+  bug as Fig 3.2). Fix.
+
+## Ch9 — Coupling
+- [ ] **Fig 9.1: remove it** — too small, barely readable, overkill.
+- [ ] **Cut its panels into independent figures** and use them to illustrate the model in the
+  corresponding sections. (Adrián now understands the coupling model.)
+
+## Ch10
+- [ ] **Fig 10.2** (genes-affected-per-event): very good — just WIDER.
+
+## Ch12 (my new figures — feedback)  [DONE items landed this round; not yet committed]
+- [x] **Fig 12.2 (BM)**: rewrote `fig_trait_bm.py` to house style (wide, FS_*, centered title,
+  colour bar) + seed search for an even value spread → good contrast, chips match branches. Full-width.
+- [x] **Fig 12.3 (OU)**: made full-width (already house-style). (Tips cluster at the optimum by
+  nature — that IS the OU signal; left as-is otherwise.)
+- [x] Section 12.3.3 **Early burst** figure: modernized `fig_trait_earlyburst.py` (was broken by the
+  color_bar signature change) → house-style painted tree + rate-decay strip. Full-width.
+- [x] **Fig 12.4 (multivariate)**: rewrote `fig_trait_multivariate.py` — B&W, larger, full-width,
+  ASCII "rho", centered title.
+- [x] **Fig 12.5 (Mk)**: removed the fine tip→chip lines; new tree seed (no polytomy-like branch).
+- [x] **Fig 12.6 (Pagel)**: removed the fine tip→chip lines.
+- [x] **Fig 12.7 (corHMM)**: removed the fine tip→chip lines.
+- [x] **Fig 12.8 (threshold)**: state legend moved to the bottom-left.
+- [x] **Multi-optimum OU** figure: new `fig_trait_multioptimum.py` — painted tree + regime tip bars;
+  regime-A lineages pull to the low optimum, regime-B to the high. Full-width.
+- [x] **DEC tree**: new `fig_dec_tree.py` — a DEC history on a tree (root range A, dispersal/extinction
+  event marks on branches, tip range cells). Added after the DEC schematic. Full-width.
+- **Ch12 FIGURES COMPLETE** (12 figures, all house style). All held uncommitted for Adrián's review.
+
+## Ch13 — Coevolution (KNOWN: needs full rewrite)
+- [ ] Rewrite; **one section per joint model**, etc. Currently early-stage. (Already on the backlog.)
+
+## Ch14 — Sequences (CODE + design)
+- [ ] Add the **molecular-clock models from PhyloBayes** for phylogram creation: **white noise,
+  log-normal, gamma multipliers** (+ any others). These relax the clock (chronogram → phylogram).
+- [?] DESIGN: should the clock models live in the **trait-evolution module** (Adrián leans yes),
+  perhaps as a **separate chapter**? Note: today this is `rate_variation.py` (see [[zombi2-rate-modules]]
+  which said "leave alone" — now SUPERSEDED: Adrián wants it expanded).

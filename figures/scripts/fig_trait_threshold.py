@@ -109,14 +109,14 @@ def main():
     d.drawing.append(draw.Text("threshold", FS_TICK, tx, bar_y + bar_h + 22, font_family=style.font_family,
                                text_anchor="middle", fill=INK))
 
-    # tip-state legend (discrete readout), clear of the tree
-    lx, ly = bar_x, bar_y + bar_h + 58
+    # tip-state legend (discrete readout), bottom-left where the tree leaves space
+    lx, ly = bar_x, style.height / 2 - 168
     fam = style.font_family
     d.drawing.append(draw.Rectangle(lx, ly, 16, 16, fill=INK, stroke=INK, stroke_width=1.3))
     d.drawing.append(draw.Text("state 1  (above)", FS_ANNOT, lx + 26, ly + 8, font_family=fam,
                                text_anchor="start", dominant_baseline="central", fill=INK))
-    d.drawing.append(draw.Rectangle(lx + 190, ly, 16, 16, fill="white", stroke=INK, stroke_width=1.3))
-    d.drawing.append(draw.Text("state 0  (below)", FS_ANNOT, lx + 216, ly + 8, font_family=fam,
+    d.drawing.append(draw.Rectangle(lx, ly + 30, 16, 16, fill="white", stroke=INK, stroke_width=1.3))
+    d.drawing.append(draw.Text("state 0  (below)", FS_ANNOT, lx + 26, ly + 38, font_family=fam,
                                text_anchor="start", dominant_baseline="central", fill=INK))
 
     d.save_svg(f"{OUT_STEM}.svg")

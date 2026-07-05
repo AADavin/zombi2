@@ -214,7 +214,6 @@ def panel_realization(d, ox, oy, pw, ph):
     for n in tree.get_leaves():
         y = y_at(ys[n.name])
         x, yv = labeled[n.name]
-        d.append(draw.Line(x_at(tfo[n.name]), y, colx - 20, y, stroke=GREY, stroke_width=0.8))
         chip(d, colx, y, x)
         chip(d, coly, y, yv)
 

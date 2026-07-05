@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="620" viewBox="0 0 1080 620">
+<defs>
+</defs>
+<rect x="0" y="0" width="1080" height="620" fill="white" />
+<text x="540.0" y="52" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Couplings J tie families into modules</text>
+<path d="M240.0,104 L278.0,104" stroke="#2f8f4e" stroke-width="4.5" />
+<text x="288.0" y="104" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &gt; 0  (partners co-occur)</text>
+<path d="M600.0,104 L638.0,104" stroke="#cc4b3c" stroke-width="4.0" stroke-dasharray="9,6" />
+<text x="648.0" y="104" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &lt; 0  (partners avoid)</text>
+<path d="M300,260 L230,380" stroke="#2f8f4e" stroke-width="4.5" />
+<path d="M300,260 L390,378" stroke="#2f8f4e" stroke-width="4.5" />
+<path d="M230,380 L390,378" stroke="#2f8f4e" stroke-width="4.5" />
+<path d="M850,260 L780,380" stroke="#2f8f4e" stroke-width="4.5" />
+<path d="M850,260 L940,378" stroke="#2f8f4e" stroke-width="4.5" />
+<path d="M780,380 L940,378" stroke="#2f8f4e" stroke-width="4.5" />
+<path d="M390,378 L780,380" stroke="#cc4b3c" stroke-width="4.0" stroke-dasharray="9,6" />
+<circle cx="300" cy="260" r="34" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.2" />
+<text x="300" y="260" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F0</text>
+<circle cx="230" cy="380" r="34" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.2" />
+<text x="230" y="380" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F1</text>
+<circle cx="390" cy="378" r="34" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.2" />
+<text x="390" y="378" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F2</text>
+<circle cx="850" cy="260" r="34" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.2" />
+<text x="850" y="260" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F3</text>
+<circle cx="780" cy="380" r="34" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.2" />
+<text x="780" y="380" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F4</text>
+<circle cx="940" cy="378" r="34" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.2" />
+<text x="940" y="378" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">F5</text>
+<text x="310" y="460" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4477AA" font-weight="bold">module A</text>
+<text x="860" y="460" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E08A3C" font-weight="bold">module B</text>
+<text x="540.0" y="540" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">families are nodes, couplings are edges; mutually positive J form a module</text>
+<text x="540.0" y="568" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">a weak J &lt; 0 between modules keeps them apart</text>
+</svg>

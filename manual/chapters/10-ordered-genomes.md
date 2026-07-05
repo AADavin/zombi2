@@ -47,7 +47,7 @@ $(1-\texttt{extension})\,\texttt{extension}^{\,k-1}$, and the mean length is
 $1/(1-\texttt{extension})$: `extension=None` (or 0) gives single-gene events, and values closer to
 1 give longer segments.
 
-![The number of genes an event affects is geometric in `extension`. Small values keep events local (mostly single genes); larger values give longer segments with a heavier tail. The dashed line marks the mean, $1/(1-\texttt{extension})$.](figures/segment_length.pdf)
+![The number of genes an event affects is geometric in `extension`. Small values keep events local (mostly single genes); larger values give longer segments with a heavier tail. The dashed line marks the mean, $1/(1-\texttt{extension})$.](figures/segment_length.pdf){width=100%}
 
 | Event | Effect on the segment |
 |---|---|

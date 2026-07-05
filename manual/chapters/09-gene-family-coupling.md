@@ -9,8 +9,6 @@ profiles carry a *known ground-truth* coupling. It is the forward, generative co
 inverse-Potts and direct-coupling-analysis methods that infer functional linkage from profiles
 [@croce2019multiscale; @fukunaga2022ipm], and the benchmark those methods can be tested against.
 
-![The coupling model in four panels: a genome is a present/absent vector over a fixed family panel; couplings tie families into modules; the coupling enters through the loss rate; and blind horizontal gain plus selective retention is what writes J into the profiles.](figures/potts_mechanism.pdf)
-
 ## The model
 
 Presence or absence of a fixed panel of `N` families inside one genome is an Ising vector
@@ -22,12 +20,16 @@ $$f_i = h_i + \sum_j J_{ij}\,\sigma_j$$
 
 where the sum runs over present partners.
 
+![A genome is a present/absent vector $\sigma \in \{0,1\}^N$ over a fixed panel of gene families; colour marks which pathway module each present family belongs to.](figures/potts_genome.pdf)
+
 **Coupling enters through loss.** A present family is lost at a rate that is modulated by its local
 field:
 
 ```
 loss_i = base_loss * exp(-beta * f_i)
 ```
+
+![Coupling enters through the loss rate: a present family is lost at rate $\mathrm{base\_loss}\cdot e^{-\beta f}$, so a high local field (partners present) protects it while a low field lets it go quickly.](figures/potts_lossrate.pdf)
 
 So a present partner with $J_{ij} > 0$ raises $f_i$ and **lowers** family $i$'s loss: the two
 families protect each other and co-occur. A partner with $J_{ij} < 0$ **raises** the loss: the
@@ -68,6 +70,8 @@ spec = z.CouplingSpec.from_edges(6, {(0, 1): 3.0, (0, 2): 3.0,
                                      (0, 3): -2.0}, h=2.0)
 ```
 
+![The coupling graph: families are nodes and couplings are edges. Positive couplings (solid) tie families into co-occurring modules; a negative coupling (dashed) makes two modules mutually exclusive.](figures/potts_coupling.pdf)
+
 The parameters have direct interpretations:
 
 - **`within`** and **`between`** (in `pathway_blocks`) set the coupling *inside* a block — positive
@@ -99,6 +103,8 @@ res.profiles.presence()
 `.leaf_genomes`, `.event_log`, and `.spec`. Every panel row is kept in the profile matrix, including
 families absent from all extant species. Transfers default to `TransferModel(replacement=1.0)`; pass
 `transfers=` to customise them, for example with distance-weighted recipients.
+
+![Blind gain, selective retention: horizontal transfer re-acquires a family regardless of context, and the coupled loss then keeps it where its partners are present but purges it where they are absent — the differential retention that writes the coupling $J$ into the profiles.](figures/potts_retention.pdf)
 
 Because `PottsRates` is a custom rate model, a coupled simulation runs on the pure-Python engine: the
 coupling breaks the per-family independence that the Rust fast path assumes. The cost is

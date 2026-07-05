@@ -1,4 +1,4 @@
-"""Figure: a gene tree produced by ZOMBI2, with its reconciliation events marked.
+"""Figure: the COMPLETE gene tree produced by ZOMBI2 (all copies, including lost lineages).
 
 This is the gene tree of one family (family 9 from the genome run in
 ``fig_species_tree_events``) evolving along the 10-species tree. The tips are gene
@@ -100,7 +100,7 @@ def main():
     # title centered at the top; symbol legend as a vertical column in the top-left,
     # both clear of the tree
     left = -style.width / 2 + 30
-    d.drawing.append(draw.Text("The reconciled gene tree", FS_TITLE, 0,
+    d.drawing.append(draw.Text("The complete gene tree", FS_TITLE, 0,
                                -style.height / 2 + 42, font_weight="bold",
                                font_family=style.font_family, text_anchor="middle",
                                dominant_baseline="central", fill=INK))

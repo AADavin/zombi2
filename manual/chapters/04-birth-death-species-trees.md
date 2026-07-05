@@ -58,12 +58,9 @@ The two knobs fix the two quantities the reconstructed process needs:
   *origin* time, and a stem branch precedes the crown (the first speciation)
   [@stadler2009incomplete].
 
-![A reconstructed birth–death tree conditioned on twenty extant tips.](figures/species_tree.pdf)
+![What `age` measures. With `age_type="crown"` (left) the age is the depth from the crown — the root of the reconstructed tree — to the present. With `age_type="stem"` (right) it is measured from the origin instead, so a stem branch precedes the crown and the crown subtree is correspondingly shorter.](figures/age_crown.pdf){width=100%}
 
-::: note
-Version 1 requires an explicit `age`. Conditioning on `n_tips` alone — integrating over the tree
-age under a prior on the origin — is on the roadmap.
-:::
+![A reconstructed birth–death tree conditioned on ten extant tips.](figures/species_tree.pdf)
 
 ## Backward versus forward simulation
 
@@ -93,13 +90,7 @@ The result keeps the extinct leaves — conventionally named `e*` — so a linea
 the present is still a tip of the complete tree. The run is conditioned to leave at least two
 survivors; a realization in which every lineage dies is rejected and redrawn.
 
-![A complete forward tree that keeps its extinct lineages, drawn dashed.](figures/species_tree_extinct.pdf)
-
-::: tip
-Use the default backward mode when you want a clean reconstructed phylogeny. Choose
-`direction="forward"` when downstream simulation needs the extinct lineages — for example, so
-that gene transfers can originate from ghost donors.
-:::
+![A complete forward tree that keeps its extinct lineages, drawn dashed and named `e1, e2, …`.](figures/species_tree_extinct.pdf)
 
 The complete-versus-reconstructed distinction is the same one drawn analytically for these
 processes: the reconstructed tree is the complete tree with its extinct subtrees pruned away

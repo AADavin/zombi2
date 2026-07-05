@@ -63,8 +63,10 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    # extra top headroom leaves a clean band for the centered title above the legend
-    style = species_style(height=max(760, 52 * n_leaves + 240), margin=118)
+    # Wide/short landscape canvas: fixed width, height sized to the tip count with
+    # a cap so the tree stays wider than it is tall (extra top headroom leaves a
+    # clean band for the centered title above the legend).
+    style = species_style(width=1300, height=min(760, 44 * n_leaves + 300), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
