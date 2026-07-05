@@ -31,7 +31,7 @@ from .gene_diversification import GeneDiversification, simulate_gene_diversifica
 from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
 from .gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
-from .traits import (
+from ._traits_impl import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
     Cladogenesis, simulate_traits,
 )

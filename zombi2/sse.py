@@ -32,7 +32,7 @@ import numpy as np
 
 from .tree import Tree, TreeNode
 from .species_forward import _name
-from .traits import Cladogenesis, TraitResult
+from ._traits_impl import Cladogenesis, TraitResult
 
 
 # --------------------------------------------------------------------------- models
