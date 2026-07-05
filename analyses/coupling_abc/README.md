@@ -11,11 +11,12 @@ teases apart *how* it works — coupling is entangled with prevalence, so the ma
 spectrum recovers `J` in ordinary regimes; when prevalence is held fixed the marginal goes blind
 and **gene-family co-occurrence (module) structure** becomes essential, roughly halving the error.
 
-It also includes a **first empirical test** on a real eggNOG dataset (`ZOMBI2_DATA`): orthologous
-groups sharing a COG functional category co-occur significantly more than groups in different
-categories (p≈0.002 vs a phylogeny-controlled null), concentrated in mobile/accessory functions
-(motility, carbohydrate metabolism, secretion). This supports **using COG categories to scaffold
-the coupling structure** J — turning "infer which families couple" into a principled prior.
+It also includes an **empirical test** on a real 43-genome eggNOG dataset (`ZOMBI2_DATA`):
+**17 of 18 functional COG categories are significant co-occurrence modules** (cell motility most of
+all), and same-category groups co-occur more than different-category ones (p≈0.002 vs a
+phylogeny-controlled null) once the "function unknown" catch-all (S, ~60% of variable groups, not a
+module) is excluded. This supports **scaffolding the coupling structure J on *functional* COG
+categories** — turning "infer which families couple" into a principled prior.
 
 ## Regenerate
 

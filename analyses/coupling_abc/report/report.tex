@@ -45,11 +45,11 @@ alone already recovers~$J$ in ordinary regimes. We then stress-test the method b
 prevalence fixed, where the marginal is \emph{blind}: there, gene-family \emph{co-occurrence}
 structure becomes essential and roughly halves the error ($0.35\!\to\!0.16$--$0.21$). This
 co-occurrence signal is the phylogenetic-profiling (Pellegrini) signal, and it stands clearly
-above the phylogenetic confound on a realistic tree. Finally, on a real eggNOG-annotated dataset we
-find that orthologous groups sharing a COG functional category co-occur significantly more than
-groups in different categories ($p\approx0.002$ against a phylogeny-controlled null), with
-mobile/accessory functions the most cohesive --- support for using COG categories to scaffold the
-coupling structure.
+above the phylogenetic confound on a realistic tree. Finally, on a real $43$-genome eggNOG dataset,
+nearly every functional COG category is a significant co-occurrence module (cell motility most of
+all), and same-category groups co-occur more than different-category ones ($p\approx0.002$) once the
+``function unknown'' catch-all is excluded --- support for scaffolding the coupling structure on
+\emph{functional} COG categories.
 \end{abstract}
 
 \section{The question}
@@ -162,44 +162,46 @@ idea: \emph{could the coupling structure be scaffolded by function} --- families
 functional category coupled to each other? That would turn the hardest open problem (inferring
 \emph{which} families couple) into a principled prior.
 
-\textbf{Data and parser.} We parse an eggNOG-mapper annotation of a set of bacterial genomes,
-collapsing genes to orthologous groups (the broadest, root-level OG) to build a profile of
-$4346$ groups, and recording each group's COG category. Its pangenome spectrum has the familiar
-U-shape --- many genome-specific groups, a smaller universal core (Fig.~\ref{fig:emp}a). One
-caveat sets the ceiling on power here: the mini annotation covers only $8$ genomes, so per-pair
-co-occurrence is noisy; we therefore test only \emph{aggregate} signals, averaged over thousands of
-group pairs.
-
-\textbf{Same-category groups co-occur more.} Orthologous groups sharing a COG category co-occur
-more than groups in different categories. To guard against the phylogenetic confound, we compare
-against a \emph{label-permutation null}: we keep every group's real presence pattern (so any
-tree-driven co-occurrence is present in both observed and null) and only shuffle the category
-labels. The observed within-minus-between gap ($+0.009$) sits far outside the null
-($p\approx0.002$, $z\approx3.6$; Fig.~\ref{fig:emp}b) --- evidence for \emph{functional} structure
-beyond the tree.
+\textbf{Data and parser.} We parse an eggNOG-mapper annotation of the full \textbf{$43$ bacterial
+genomes}, collapsing genes to orthologous groups (the broadest, root-level OG) to build a profile
+of $12{,}282$ groups, and recording each group's COG category. Its pangenome spectrum has the
+familiar shape --- a large genome-specific tail, a small universal core (Fig.~\ref{fig:emp}a).
 
 \begin{figure}[h]\centering
 \includegraphics[width=\linewidth]{fig5_empirical.pdf}
-\caption{Empirical eggNOG profile. (a) Pangenome spectrum. (b) Groups in the same COG category
-co-occur more than under shuffled category labels (phylogeny-controlled null).}
+\caption{Empirical eggNOG profile ($43$ genomes). (a) Pangenome spectrum. (b) Functional-category
+groups co-occur far more than under shuffled category labels (S and R excluded; the null keeps each
+group's real presence pattern, so it is phylogeny-controlled).}
 \label{fig:emp}
 \end{figure}
 
-\textbf{Which functions are modular.} The signal is concentrated in the \emph{accessory / mobile}
-functions (Fig.~\ref{fig:coh}): cell motility is by far the most cohesive category (flagellar genes
-are a textbook co-inherited module), followed by carbohydrate metabolism, secretion, secondary
-metabolites, and defense --- precisely the functions known to be gained and lost as units. Core
-housekeeping (translation, replication, energy) shows near-zero or negative cohesion, as expected:
-those genes are near-universal, so they barely co-vary. Functional categories thus capture real
-co-occurrence modules, and the biology of \emph{which} ones is sensible --- a strong hint that COG
-categories are a usable scaffold for the coupling matrix.
+\textbf{Functional categories are co-occurrence modules.} For each COG category we ask whether its
+groups co-occur more than a \emph{random same-size} set of groups --- a permutation null that keeps
+every group's real presence pattern, so any tree-driven co-occurrence is present in both observed
+and null. \textbf{$17$ of $18$ functional categories are significantly cohesive} ($p<0.05$;
+Fig.~\ref{fig:coh}), and the biology of \emph{which} is exactly right: \emph{cell motility} is by
+far the most cohesive (excess $+0.22$ --- flagellar genes are a textbook co-inherited module),
+followed by nucleotide, coenzyme, inorganic-ion, secretion, carbohydrate and cell-wall metabolism.
+The one functional exception is replication/repair --- near-universal essential genes that barely
+co-vary.
 
 \begin{figure}[h]\centering
-\includegraphics[width=0.86\linewidth]{fig6_cohesion.pdf}
-\caption{Internal co-occurrence cohesion per COG category (within-category minus global-between).
-Accessory/mobile functions are the cohesive modules; core housekeeping is not.}
+\includegraphics[width=0.82\linewidth]{fig6_cohesion.pdf}
+\caption{Per-category internal cohesion (within-category minus random same-size groups). Nearly
+every functional category is a significant co-occurrence module (blue), cell motility dominating;
+replication is not (grey). The huge ``function unknown'' catch-all (S, orange) is \emph{not} a
+module and is excluded from the scaffold.}
 \label{fig:coh}
 \end{figure}
+
+\textbf{Exclude the catch-all.} One category needs care. ``Function unknown'' (S) is $4{,}025$ of
+the ${\sim}6{,}800$ variable groups --- $60\%$ --- and, being a functional grab-bag, is \emph{not}
+cohesive; a naive within-vs-between-category test is dominated by, and even inverted by, this one
+bucket. Restricting to \emph{functional} categories (excluding S and the ``general prediction''
+bucket R), same-category groups clearly co-occur more than different-category ones: gap $+0.024$,
+far outside the permutation null ($p\approx0.002$, $z\approx31$; Fig.~\ref{fig:emp}b). With the
+full $43$ genomes the effect is unambiguous --- and it says the scaffold should use the
+\emph{functional} COG categories, not the unknown/prediction catch-alls.
 
 \section{Takeaways and next steps}
 
@@ -216,17 +218,17 @@ summaries are close, with the histogram marginally ahead here).
 intrinsically hard --- weak modules against finite-species estimation noise --- so expect wide
 posteriors at low $J$. And the phylogenetic confound is \emph{tree-dependent}: mild here, it must
 be re-checked on a real (deeper, clumpier) eggNOG tree.
-\item \textbf{Real data shows functional co-occurrence.} An eggNOG dataset already carries a
-significant same-COG-category co-occurrence signal, concentrated in the mobile/accessory functions.
-The \emph{effect is small} at this sample size (only $8$ genomes annotated) --- enough to detect
-that the structure exists, not to fit strong per-category coupling. A larger annotation is the
-first ask.
+\item \textbf{Real data supports the COG scaffold.} On the full $43$-genome eggNOG dataset,
+$17$ of $18$ functional COG categories are significant co-occurrence modules --- cell motility
+overwhelmingly --- and functional same-category groups co-occur more than different-category ones
+($p\approx0.002$). The lesson: scaffold on \emph{functional} categories and drop the
+``function unknown'' catch-all ($60\%$ of the variable groups, and not a module).
 \item \textbf{The path forward: COG categories as the coupling scaffold.} This resolves the
 structure problem cheaply --- rather than inferring which families couple, take same-category
 groups as coupling blocks and fit the \emph{strength} per category with \texttt{match\_coupled}
 (exactly the setup this report validates). The library pieces are in place
-(\texttt{cooccurrence\_summary}, \texttt{match\_coupled}, the eggNOG parser); a coupled fit on a
-fully-annotated tree is the next milestone.
+(\texttt{cooccurrence\_summary}, \texttt{match\_coupled}, the eggNOG parser), and the $43$-genome
+tree is now fully annotated: a coupled fit with COG-defined blocks is the immediate next milestone.
 \end{itemize}
 
 \end{document}
