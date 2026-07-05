@@ -64,11 +64,12 @@ NAMESPACES = {
         "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
         "TraitLinkedResult", "simulate_trait_linked_genomes",
         "GeneDiversification", "GeneDiversificationResult",
-        "simulate_gene_diversification",
+        "simulate_gene_diversification", "simulate_co_diversification",
         "CladogeneticGenome", "CladogeneticGenomeResult",
         "simulate_cladogenetic_genome",
         "GeneConditionedTrait", "GeneConditionedTraitResult",
         "simulate_gene_conditioned_trait",
+        "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
         "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     ],
     # NOTE: "abc" (ABC inference) is intentionally NOT a public namespace in v1 — it is withheld
@@ -139,7 +140,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 128   # 133 - 12 ABC names (withheld in v1) + 7 relaxed-clock names
+    assert len(z.__all__) == 132   # 128 + 4 species<->genes / trait<->genes joint-model names
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 

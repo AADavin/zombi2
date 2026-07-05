@@ -273,6 +273,17 @@ milestone once the individual edges each work.
   optimum, so acquiring the gene pulls the trait to a new peak (`GeneConditionedTrait` /
   `simulate_gene_conditioned_trait`, `coevolve --couple genes:traits`). **All six directed edges now
   exist individually.**
+- **Phase 5 — the pairwise *joint* (both-arrow) models. ✅ done for all three pairs.** Each node-pair's
+  two edges can be switched on together (`--couple A:B --couple B:A`), giving a bidirectional model
+  where the *same* coupled object drives both directions — as ClaSSE (`traits:species` +
+  `species:traits`) already did. Now also: **co-diversification** (`genes:species` + `species:genes`) —
+  the driver panel both sets λ/μ *and* is reshuffled by a cladogenetic burst at each speciation, so
+  speciation itself seeds rate heterogeneity (one arrow into S → tree is an output;
+  `cladogenetic_loss`/`cladogenetic_gain` on `GeneDiversification`, `simulate_co_diversification`); and
+  **trait–gene feedback** (`traits:genes` + `genes:traits`) — a trait and a coupled panel modulate each
+  other, integrated jointly along each branch, so the tips end up correlated with no single edge imposed
+  (overlay; [`zombi2/trait_gene_feedback.py`](https://github.com/AADavin/zombi2/blob/main/zombi2/trait_gene_feedback.py),
+  `TraitGeneFeedback` / `simulate_trait_gene_feedback`). Each contains its two single edges as limits.
 - **Phase 4 — `--all`.** The fully joint model: all six edges active at once (every pair
   bidirectional = maximal mutual feedback). There is no single causal direction — forward time
   resolves the mutual dependence (current states set next-event rates). Needs the generic

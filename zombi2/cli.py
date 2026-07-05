@@ -30,11 +30,14 @@ from .species_model import (
 )
 from .species_sim import simulate_species_tree
 from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
-from .gene_diversification import GeneDiversification, simulate_gene_diversification
+from .gene_diversification import (
+    GeneDiversification, simulate_gene_diversification, simulate_co_diversification,
+)
 from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
 from .gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
 from .coupling import pathway_blocks, simulate_coupled
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
+from .trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
 from ._traits_impl import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
     Cladogenesis, simulate_traits,
@@ -739,6 +742,12 @@ def _add_traits_genes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--effect-gain", type=float, default=0.0, metavar="B",
                    help="optional HGT-activity coupling: a lineage's transfer rate scales by "
                         "exp(effect_gain * trait) (default 0 = field-blind gain, as in the Potts model)")
+    g.add_argument("--panel-root-fraction", dest="panel_root_fraction", type=float, default=0.5,
+                   metavar="F",
+                   help="[traits:genes + genes:traits JOINT model only] fraction of the panel present "
+                        "at the root (default 0.5). In the joint model --theta-absent/--theta-present "
+                        "are the trait's optima at an empty/full panel, and --trait-alpha/--trait-sigma2 "
+                        "its OU dynamics")
 
     g = p.add_argument_group("traits:genes output")
     g.add_argument("--write", dest="output", nargs="+", metavar="PART",
@@ -984,6 +993,15 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--root-drivers", dest="root_drivers", type=int, default=0, metavar="M",
                    help="number of drivers present at the root (the first m; default 0 = drivers "
                         "enter by origination)")
+    g.add_argument("--driver-clado-loss", dest="driver_clado_loss", type=float, default=0.0,
+                   metavar="P",
+                   help="probability a daughter drops each driver it carries AT each speciation. "
+                        ">0 adds the species:genes burst, making this the species<->genes JOINT "
+                        "model (--couple genes:species --couple species:genes; default 0)")
+    g.add_argument("--driver-clado-gain", dest="driver_clado_gain", type=float, default=0.0,
+                   metavar="P",
+                   help="probability a daughter gains each absent driver AT each speciation "
+                        "(the species:genes burst; default 0)")
 
     g = p.add_argument_group("cladogenetic genome",
                              "--couple species:genes (on a GIVEN tree; needs -t)")
@@ -1089,8 +1107,11 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
     """Run the ``coevolve`` umbrella over the six directed edges (``--couple``): ``traits:species``
     (SSE), ``species:traits`` (cladogenetic) and their combination = **ClaSSE**; ``genes:species``
     (key innovations); ``species:genes`` (cladogenetic genome); ``genes:traits`` (gene-conditioned
-    trait); and ``traits:genes`` (trait-conditioned genes). Whether the tree is grown (an arrow into
-    species) or read from ``-t`` follows the arrows-into-S rule."""
+    trait); and ``traits:genes`` (trait-conditioned genes). Each node-pair's two edges can also be
+    combined: ``genes:species``+``species:genes`` = **co-diversification** and
+    ``traits:genes``+``genes:traits`` = **trait-gene feedback** (as ``traits:species``+
+    ``species:traits`` = ClaSSE). Whether the tree is grown (an arrow into species) or read from
+    ``-t`` follows the arrows-into-S rule."""
     # --couple accepts both repeated flags and space-separated lists (append + nargs); flatten
     raw = args.couple or [["traits:species"]]
     edges = [e.strip().lower() for group in raw for e in group]
@@ -1110,36 +1131,51 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                      "species:genes (cladogenetic genome), genes:traits (gene-conditioned trait), "
                      "and traits:genes (trait-conditioned genes). See docs/coevolution_models.md")
 
+    # ---- joint (both-arrow) models: a node-pair with BOTH its directed edges on ----
+    # species<->genes: driver gene content drives diversification AND bursts at each speciation
+    # (one arrow into S -> the tree is an OUTPUT), the genomic analogue of ClaSSE.
+    if eset == {"genes:species", "species:genes"}:
+        return _run_co_diversification(args, parser)
+
+    # traits<->genes: the trait and a coupled panel modulate each other (no arrow into S -> an
+    # overlay on a given tree). The closed feedback loop writes a trait<->gene tip association.
+    if eset == {"traits:genes", "genes:traits"}:
+        return _run_trait_gene_feedback(args, parser)
+
     # traits:genes — a trait conditions a gene-family panel's loss/gain (formerly the standalone
     # 'coevolve-genetrait' command). An overlay edge (no arrow into S), so the tree is an INPUT.
     if "traits:genes" in eset:
         if eset != {"traits:genes"}:
-            parser.error("traits:genes runs on its own in this phase; combining it with other "
-                         "edges is future work — see docs/coevolution_models.md")
+            parser.error("traits:genes combines only with genes:traits (the trait-gene feedback "
+                         "joint model); other combinations are future work — see "
+                         "docs/coevolution_models.md")
         return _run_traits_genes(args, parser)
 
-    # genes:species — gene content drives diversification (its own forward joint loop, v1 stands
-    # alone; combining it with other edges is the full joint model, still on the roadmap).
+    # genes:species — gene content drives diversification (a forward joint loop). Combines with
+    # species:genes above (co-diversification); other combinations are still on the roadmap.
     if "genes:species" in eset:
         if eset != {"genes:species"}:
-            parser.error("genes:species runs on its own in this phase; combining it with other "
-                         "edges (the fully joint model) is future work — see docs/coevolution_models.md")
+            parser.error("genes:species combines only with species:genes (the co-diversification "
+                         "joint model); other combinations are future work — see "
+                         "docs/coevolution_models.md")
         return _run_genes_species(args, parser)
 
     # genes:traits — gene content conditions a trait (a modifier gene switches the trait's OU
     # optimum). An overlay edge (no arrow into S), so the tree is an INPUT; runs on a given -t tree.
     if "genes:traits" in eset:
         if eset != {"genes:traits"}:
-            parser.error("genes:traits runs on its own in this phase; combining it with other "
-                         "edges is future work — see docs/coevolution_models.md")
+            parser.error("genes:traits combines only with traits:genes (the trait-gene feedback "
+                         "joint model); other combinations are future work — see "
+                         "docs/coevolution_models.md")
         return _run_genes_traits(args, parser)
 
     # species:genes — speciation drives gene content (cladogenetic genome). An overlay edge (no
     # arrow into S), so the tree is an INPUT; runs on a given -t tree.
     if "species:genes" in eset:
         if eset != {"species:genes"}:
-            parser.error("species:genes runs on its own in this phase; combining it with other "
-                         "edges is future work — see docs/coevolution_models.md")
+            parser.error("species:genes combines only with genes:species (the co-diversification "
+                         "joint model); other combinations are future work — see "
+                         "docs/coevolution_models.md")
         return _run_species_genes(args, parser)
 
     traits_species = "traits:species" in eset      # SSE arrow (trait -> diversification), into S
@@ -1236,6 +1272,46 @@ def _run_genes_species(args: argparse.Namespace, parser: argparse.ArgumentParser
             f"in {dt:.3g} s")
 
 
+def _run_co_diversification(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """The species<->genes JOINT model (``genes:species`` + ``species:genes``): the same driver
+    families both drive diversification AND are reshuffled by a cladogenetic burst at every
+    speciation. One arrow points into S, so the tree is an OUTPUT (grown jointly)."""
+    if args.tree:
+        parser.error("genes:species+species:genes grows the tree (it is an OUTPUT); give "
+                     "--age/--tips, not an input -t tree")
+    if (args.age is None) == (args.tips is None):
+        parser.error("the species<->genes joint model grows the tree — give exactly one of "
+                     "--age or --tips")
+    if args.driver_clado_loss <= 0.0 and args.driver_clado_gain <= 0.0:
+        parser.error("the species:genes arrow needs a cladogenetic burst on the drivers: set "
+                     "--driver-clado-loss and/or --driver-clado-gain > 0 (with both 0 there is no "
+                     "species:genes coupling — that is plain genes:species)")
+
+    model = GeneDiversification(
+        args.drivers, lambda0=args.lambda0, mu0=args.mu0,
+        driver_speciation=args.driver_speciation, driver_extinction=args.driver_extinction,
+        loss=args.driver_loss, origination=args.driver_origination,
+        transfer=args.driver_transfer, root_drivers=args.root_drivers,
+        cladogenetic_loss=args.driver_clado_loss, cladogenetic_gain=args.driver_clado_gain)
+    t0 = time.perf_counter()
+    res = simulate_co_diversification(model, age=args.age, n_tips=args.tips, seed=args.seed)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(res.tree.to_newick() + "\n")          # the tree the drivers shaped and burst
+    with open(os.path.join(args.out, "drivers.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))              # per-node driver presence (0/1 columns)
+    _write_drivers_manifest(args.out, model)
+    n_extant = len(res.tree.extant_leaves())
+    prev = " ".join(f"D{i}:{100 * p:.0f}%" for i, p in enumerate(res.tip_prevalence()))
+    print(f"  overlay the neutral genome with: zombi2 genomes -t {args.out}/species_tree.nwk "
+          f"--trans 1 --loss 0.5 --write profiles trees -o {args.out}")
+    return (f"wrote genes:species+species:genes (co-diversification) to {args.out}/ "
+            f"({n_extant} extant tips, {model.n_drivers} drivers, tip prevalence {prev}) "
+            f"in {dt:.3g} s")
+
+
 def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
     """Evolve a genome down a GIVEN tree with a cladogenetic ('punctuational') burst of gene loss
     and gain at every speciation (the ``species:genes`` edge — speciation drives gene content)."""
@@ -1309,6 +1385,44 @@ def _run_genes_traits(args: argparse.Namespace, parser: argparse.ArgumentParser)
     non_m = f"{sum(non) / len(non):.2g}" if non else "-"
     return (f"wrote genes:traits (gene-conditioned trait) to {args.out}/ "
             f"({len(tips)} tips; carrier trait mean {car_m} vs non-carrier {non_m}) in {dt:.3g} s")
+
+
+def _run_trait_gene_feedback(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """The traits<->genes JOINT model (``traits:genes`` + ``genes:traits``): the trait and a coupled
+    panel evolve together, each modulating the other. An overlay (no arrow into S), so it needs a
+    given ``-t`` tree. Reuses --panel/--effect-loss/--loss/--trans for the panel and
+    --theta-absent/--theta-present/--trait-alpha/--trait-sigma2 for the trait (see --panel-root-fraction)."""
+    if not args.tree:
+        parser.error("traits:genes+genes:traits runs on a GIVEN tree — pass -t/--tree (neither "
+                     "arrow points into S, so there is nothing to grow)")
+    if args.age is not None or args.tips is not None:
+        parser.error("the traits<->genes joint model uses the given -t tree; --age/--tips only "
+                     "apply to the into-species edges that grow a tree")
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    model = TraitGeneFeedback(
+        n_families=args.panel, effect_loss=args.effect_loss, base_loss=args.loss, gain=args.trans,
+        theta_low=args.theta_absent, theta_high=args.theta_present,
+        alpha=args.trait_alpha, sigma2=args.trait_sigma2, x0=args.trait_x0,
+        root_fraction=args.panel_root_fraction, steps=args.trait_steps)
+    t0 = time.perf_counter()
+    res = simulate_trait_gene_feedback(tree, model, seed=args.seed)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick() + "\n")                  # the given tree, for provenance
+    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+        f.write(res.profiles.to_tsv(presence=True))       # panel presence at the extant tips
+    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
+        f.write("node\ttrait\tpanel_occupancy\n")         # the coupled trait + panel at every node
+        for n in tree.nodes():
+            f.write(f"{n.name}\t{res.node_trait[n]:.6g}\t{res.node_presence[n].mean():.6g}\n")
+
+    corr = res.trait_gene_correlation()
+    corr_s = f"{corr:.2f}" if corr == corr else "n/a"
+    return (f"wrote traits:genes+genes:traits (trait-gene feedback) to {args.out}/ "
+            f"({len(tree.extant_leaves())} tips; tip trait-panel corr {corr_s}) in {dt:.3g} s")
 
 
 def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -> None:

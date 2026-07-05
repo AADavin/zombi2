@@ -37,7 +37,7 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1220, 700
+W, H = 1220, 664
 GREY = "#9a9a9a"
 N_TIPS, AGE, TREE_SEED = 11, 1.0, 3
 INIT = 24
@@ -134,9 +134,6 @@ def render():
            "A   gradual: gene content drifts along branches")
     _panel(d, 660, 158, 520, 470, tree, punc, "punc",
            "B   punctuational: gene content bursts at each split")
-
-    d.append(draw.Text("same tree -- gradual gives similar sister genomes; punctuation makes them differ",
-                       FS_TICK, W / 2, H - 20, font_family=FONT, text_anchor="middle", fill=MUTED))
 
     name = "punctuational_genome"
     out = OUT_DIR / name
