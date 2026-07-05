@@ -303,8 +303,15 @@ class GenomeSimulator:
             if recipient is None:
                 return ()
             selection = genome.draw_target(EventType.TRANSFER, rng, params, family=family)
-            segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
             rec_genome = alive[recipient]
+            # Field-biased establishment (coupled models only): the copy comes from a real
+            # donor, then establishes with a probability set by the recipient's local field —
+            # putting part of the coupling on the gain channel while staying donor-limited.
+            # Default models return 1.0 and the draw is skipped, so their RNG stream is intact.
+            p = rate_model.establishment_probability(selection, rec_genome, t)
+            if p < 1.0 and rng.random() >= p:
+                return ()  # transfer fired but the copy did not establish — no-op
+            segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
             at = rec_genome.choose_insertion_point(segment, rng)
             rec_genome.insert_segment(segment, at, rng)
             for old, cont, g in zip(segment.donor_old_gids, segment.donor_cont_gids, segment.genes):
