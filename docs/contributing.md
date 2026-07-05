@@ -22,7 +22,7 @@ The library is organised so each subsystem is a small, focused module:
 | `species_model.py` | species-tree models (`BirthDeath`, `Yule`, `EpisodicBirthDeath`) |
 | `species_sim.py` | backward, conditioned species-tree simulation |
 | `tree.py` | `Tree` / `TreeNode`, Newick read/write |
-| `rates.py` | rate models (`UniformRates`, `FamilySampledRates`, `GenomeWiseRates`, `BranchRates`) |
+| `rates.py` | rate models (`SharedRates`, `FamilySampledRates`, `PerGenomeRates`, `BranchRates`) |
 | `rate_variation.py` | substitution-rate variation across one tree (relaxed clock) |
 | `sequence_evolution.py` | gene × lineage substitution clock over reconciled gene trees (`SequenceEvolution`) |
 | `distributions.py` | distribution helpers (`Gamma`, `Exponential`, `as_distribution`, …) |

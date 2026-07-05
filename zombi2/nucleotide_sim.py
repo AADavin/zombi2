@@ -28,7 +28,7 @@ from ._sampling import EventSampler
 from .events import EventType, EventRecord, GeneOp
 from .genome_sim import GenomeSimulator
 from .nucleotide_genome import NucleotideGenome, SegmentRegistry
-from .rates import UniformRates
+from .rates import SharedRates
 from .reconciliation import build_gene_trees, reconcile
 from .tree import Tree, TreeNode
 
@@ -589,7 +589,7 @@ def simulate_nucleotide_genomes(
 
     if rng is None:
         rng = np.random.default_rng(seed)
-    rates = UniformRates(inversion=inversion, loss=loss, duplication=duplication,
+    rates = SharedRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
                          origination=origination)
     registry = SegmentRegistry(pending_genes=pending_genes)

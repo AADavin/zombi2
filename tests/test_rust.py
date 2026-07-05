@@ -1,7 +1,7 @@
 """The built-in gene-family model runs on the compiled Rust engine (``zombi2_core``).
 
 There is no separate "fast" function: ``simulate_genomes`` routes the built-in model
-(``UnorderedGenome`` + ``UniformRates``) to Rust automatically — ``output="profiles"`` for
+(``UnorderedGenome`` + ``SharedRates``) to Rust automatically — ``output="profiles"`` for
 the counts-only path, the default ``output="genomes"`` for the full genealogy. Flexible
 models (genome-wise rates, soft carrying capacity, …) fall through to the Python engine.
 Skipped entirely if the extension isn't built.
@@ -41,7 +41,7 @@ def _python_profiles(tree, seed, *, initial_families, max_family_size, **rates):
     from zombi2.genome_sim import GenomeSimulator
 
     rng = np.random.default_rng(seed)
-    res = GenomeSimulator().simulate(tree, z.UniformRates(**rates), rng,
+    res = GenomeSimulator().simulate(tree, z.SharedRates(**rates), rng,
                                      initial_size=initial_families, max_family_size=max_family_size)
     return z.ProfileMatrix.from_leaf_genomes(res.leaf_genomes)
 
@@ -74,7 +74,7 @@ def test_profiles_hard_cap_respected():
 
 def test_profiles_accepts_uniform_rates_object():
     tree = _tree()
-    obj = z.simulate_genomes(tree, z.UniformRates(0.15, 0.1, 0.2, 0.5),
+    obj = z.simulate_genomes(tree, z.SharedRates(0.15, 0.1, 0.2, 0.5),
                              initial_families=20, max_family_size=0.5, seed=7, output="profiles")
     kw = z.simulate_genomes(tree, seed=7, output="profiles", **RATES)
     assert np.array_equal(obj.matrix, kw.matrix)
@@ -84,9 +84,9 @@ def test_flexible_models_route_to_python_for_profiles():
     # These are no longer "rejected" — simulate_genomes runs them on the Python engine and
     # still returns a ProfileMatrix for output="profiles".
     tree = _tree()
-    a = z.simulate_genomes(tree, z.UniformRates(0.2, 0, 0.1, 0.3, carrying_capacity=10),
+    a = z.simulate_genomes(tree, z.SharedRates(0.2, 0, 0.1, 0.3, carrying_capacity=10),
                            seed=1, output="profiles")
-    b = z.simulate_genomes(tree, z.GenomeWiseRates(0.2, 0.1, 0.2, 0.5), seed=1, output="profiles")
+    b = z.simulate_genomes(tree, z.PerGenomeRates(0.2, 0.1, 0.2, 0.5), seed=1, output="profiles")
     for pm in (a, b):
         assert isinstance(pm, z.ProfileMatrix)
         assert pm.matrix.shape[1] == len(tree.extant_leaves())
@@ -131,9 +131,9 @@ def test_full_log_gene_ids_are_g_prefixed():
 
 
 def test_flexible_model_full_log_runs_on_python():
-    # GenomeWiseRates is not the built-in model → Python engine, full Genomes (no raise).
+    # PerGenomeRates is not the built-in model → Python engine, full Genomes (no raise).
     tree = _tree()
-    g = z.simulate_genomes(tree, z.GenomeWiseRates(0.2, 0.1, 0.2, 0.5), seed=1)
+    g = z.simulate_genomes(tree, z.PerGenomeRates(0.2, 0.1, 0.2, 0.5), seed=1)
     assert isinstance(g, z.Genomes)
     assert len(g.event_log) > 0
 

@@ -210,7 +210,7 @@ def test_custom_model_allows_arbitrary_param_names():
     tree = _small_tree()
     emp = z.simulate_genomes(tree, duplication=0.1, loss=0.15, origination=0.6,
                              initial_families=10, seed=3).profiles
-    model = lambda p: z.UniformRates(duplication=p["d"], loss=p["l"], origination=p["o"])
+    model = lambda p: z.SharedRates(duplication=p["d"], loss=p["l"], origination=p["o"])
     fit = z.match_profiles(tree, emp, priors={"d": (0, 0.3), "l": (0, 0.4), "o": (0, 1.5)},
                            model=model, n_sims=20, accept=0.2, initial_families=10, seed=1)
     assert set(fit.posterior) == {"d", "l", "o"}

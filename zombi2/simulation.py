@@ -13,7 +13,7 @@ from .genome import UnorderedGenome
 from .genome_sim import GenomeSimulator
 from .profiles import ProfileMatrix
 from .reconciliation import build_gene_trees
-from .rates import RateModel, UniformRates
+from .rates import RateModel, SharedRates
 from .tree import Tree
 
 
@@ -410,17 +410,17 @@ def simulate_genomes(
 
     ``initial_families`` is the number of gene families seeded at the root (default 20).
 
-    Provide either a rate model (``rates=z.UniformRates(...)`` /
+    Provide either a rate model (``rates=z.SharedRates(...)`` /
     ``z.FamilySampledRates(...)``) or the convenience shorthand
     (``duplication=..., transfer=..., loss=..., origination=...``), which builds a
-    :class:`~zombi2.UniformRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
+    :class:`~zombi2.SharedRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
     transfer mechanics; ``max_family_size`` (int absolute, or float as a multiple of the
     number of species) bounds family growth across duplication and transfer.
 
     Engine (automatic, not a user choice): the **built-in** model — the default
-    ``UnorderedGenome`` with a plain :class:`~zombi2.UniformRates` — runs on the compiled
+    ``UnorderedGenome`` with a plain :class:`~zombi2.SharedRates` — runs on the compiled
     ``zombi2_core`` Rust extension and **requires** it (a clear error asks you to build it if
-    it is missing). Flexible models (``FamilySampledRates`` / ``GenomeWiseRates`` /
+    it is missing). Flexible models (``FamilySampledRates`` / ``PerGenomeRates`` /
     ``BranchRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
     pure-Python engine.
 
@@ -447,7 +447,7 @@ def simulate_genomes(
 
     shorthand = any((duplication, transfer, loss, origination))
     if rates is None:
-        rates = UniformRates(duplication, transfer, loss, origination)
+        rates = SharedRates(duplication, transfer, loss, origination)
     elif shorthand:
         raise ValueError(
             "pass a rate model OR the duplication/transfer/loss/origination shorthand, not both"
@@ -478,7 +478,7 @@ def simulate_genomes(
 
     if threads > 1:
         raise ValueError("threads>1 (parallel profiles) requires the built-in model "
-                         "(UnorderedGenome + UniformRates) on a binary species tree")
+                         "(UnorderedGenome + SharedRates) on a binary species tree")
 
     # --- flexible models: pure-Python engine -----------------------------------
     if rng is None:

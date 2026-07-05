@@ -86,7 +86,7 @@ class RateModel(ABC):
         self._max_family_size = max_family_size
 
 
-class UniformRates(RateModel):
+class SharedRates(RateModel):
     """Every gene family shares the same per-copy D/T/L rates (v1 default)."""
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
@@ -142,11 +142,11 @@ class UniformRates(RateModel):
         return out
 
 
-class GenomeWiseRates(RateModel):
+class PerGenomeRates(RateModel):
     """Genome-wise rates: each event type fires at a **constant per-genome rate**,
     independent of how many gene copies the genome holds.
 
-    Contrast :class:`UniformRates`, where the total duplication/transfer/loss rate scales
+    Contrast :class:`SharedRates`, where the total duplication/transfer/loss rate scales
     with genome size (per-copy rates). Here the totals are fixed, so when an event fires a
     target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
     rather than exponentially, so genome-wise models are intrinsically far less prone to
@@ -232,7 +232,7 @@ class FamilySampledRates(RateModel):
 class BranchRates(RateModel):
     """Make rates vary per species-tree branch by scaling a base rate model.
 
-    Wraps any base rate model (``UniformRates``, ``FamilySampledRates``, ...) and
+    Wraps any base rate model (``SharedRates``, ``FamilySampledRates``, ...) and
     multiplies its duplication/transfer/loss weights on each branch by a per-branch
     factor (a single scalar scaling D/T/L together; origination is left unscaled). This
     composes with the base model, so branch heterogeneity and family/uniform rates
