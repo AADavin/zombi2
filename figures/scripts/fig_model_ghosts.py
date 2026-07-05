@@ -30,7 +30,10 @@ OUT_STEM = Path(__file__).resolve().parent.parent / "model_ghosts" / "model_ghos
 MODEL = BirthDeath(1.0, 0.7)
 N_TIPS, AGE, RECON_SEED = 12, 2.0, 11
 GHOST_SEEDS = (11, 13)          # two realizations for panels B and C
-PW, PH = 820, 560               # per-panel size (landscape: wide, height sized to content)
+PW, PH = 820, 680               # per-panel size (landscape: wide, height sized to content)
+# The three panels compose into one very wide (~4:1) figure, so on the page every
+# label is scaled down hard. Fonts are therefore set MUCH larger than a single-panel
+# figure would use, so the axis, panel headers, and legend stay readable in the manual.
 PRESENT_LINE = "#c9c9c9"
 
 
@@ -46,7 +49,7 @@ def panel(label, subtitle, ghost_seed=None):
     present = annotate_depths(tree)
     mark_observed(tree)
 
-    style = species_style(width=PW, height=PH, margin=54, font_size=13)
+    style = species_style(width=PW, height=PH, margin=118, font_size=34)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
@@ -58,28 +61,28 @@ def panel(label, subtitle, ghost_seed=None):
 
     ticks = [round(present * i / 2, 6) for i in range(3)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.1f}" for t in ticks],
-                    label="Time", tick_size=5.0, padding=12.0, stroke_width=1.4)
+                    label="Time", tick_size=8.0, padding=16.0, stroke_width=1.6)
 
-    d.add_text(label, x=-PW / 2 + 20, y=-PH / 2 + 26, font_size=22, color=INK, weight="bold")
-    d.add_text(subtitle, x=-PW / 2 + 46, y=-PH / 2 + 26, font_size=14, color=INK)
+    d.add_text(label, x=-PW / 2 + 24, y=-PH / 2 + 60, font_size=54, color=INK, weight="bold")
+    d.add_text(subtitle, x=-PW / 2 + 82, y=-PH / 2 + 60, font_size=38, color=INK)
     return d
 
 
-FOOTER = 48                     # strip below the panels for a shared legend
+FOOTER = 110                    # strip below the panels for a shared legend
 
 
 def _footer_legend(cx, y):
     """Raw-SVG one-line solid/dashed key centred at x = cx."""
     items = [("reconstructed lineage", False), ("ghost lineage", True)]
     out = []
-    x = cx - 210
+    x = cx - 470
     for lab, dash in items:
-        dash_attr = ' stroke-dasharray="6,5" stroke-linecap="butt"' if dash else ' stroke-linecap="round"'
-        out.append(f'<line x1="{x}" y1="{y}" x2="{x + 30}" y2="{y}" stroke="{INK}" '
-                   f'stroke-width="2.6"{dash_attr} />')
-        out.append(f'<text x="{x + 38}" y="{y}" font-size="15" font-family="Helvetica" '
+        dash_attr = ' stroke-dasharray="8,6" stroke-linecap="butt"' if dash else ' stroke-linecap="round"'
+        out.append(f'<line x1="{x}" y1="{y}" x2="{x + 54}" y2="{y}" stroke="{INK}" '
+                   f'stroke-width="4.2"{dash_attr} />')
+        out.append(f'<text x="{x + 66}" y="{y}" font-size="38" font-family="Helvetica" '
                    f'text-anchor="start" dominant-baseline="middle" fill="{INK}">{lab}</text>')
-        x += 230
+        x += 560
     return "\n".join(out)
 
 
