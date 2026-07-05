@@ -436,6 +436,34 @@ def test_sequence_command_discrete_bins(tmp_path):
     assert (out / "branch_rates.tsv").exists()
 
 
+@pytest.mark.parametrize("flags", [
+    ["--clock", "strict"],
+    ["--clock", "autocorrelated-lognormal", "--clock-sigma", "0.4"],
+    ["--clock", "uncorrelated-lognormal", "--clock-sigma", "0.4"],
+    ["--clock", "uncorrelated-gamma", "--clock-shape", "2.0"],
+    ["--clock", "white-noise", "--clock-sigma", "0.5"],
+    ["--clock", "cir", "--clock-theta", "1.0", "--clock-sigma", "0.4"],
+    ["--clock", "discrete-bin", "--branch-bins", "0.5,1,2"],
+])
+def test_sequence_command_relaxed_clocks(tmp_path, flags):
+    """Each --clock model rescales the gene trees and writes per-branch rates."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+               *flags, "--seed", "7", "-o", str(out)])
+    assert rc == 0
+    assert list((out / "gene_trees").glob("*_extant_subst.nwk"))
+    assert (out / "branch_rates.tsv").read_text().startswith("species_branch\trate")
+
+
+def test_sequence_clock_discrete_bin_without_bins_errors(tmp_path):
+    """`--clock discrete-bin` needs the ordered bin list."""
+    run = _genomes_run_with_trace(tmp_path)
+    rc = main(["sequence", "--genomes", str(run), "--clock", "discrete-bin",
+               "-o", str(tmp_path / "seq")])
+    assert rc == 1
+
+
 def test_sequence_command_reproducible(tmp_path):
     """Same genomes run + same seed -> identical phylograms."""
     run = _genomes_run_with_trace(tmp_path)
