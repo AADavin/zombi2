@@ -22,7 +22,7 @@ def _tree(seed=1, tips=40):
 # --------------------------------------------------------------------------- validation
 def test_cladogenetic_genome_validation():
     with pytest.raises(ValueError):
-        z.CladogeneticGenome(initial_size=-1)
+        z.CladogeneticGenome(initial_families=-1)
     with pytest.raises(ValueError):
         z.CladogeneticGenome(30, loss=-0.1)
     with pytest.raises(ValueError):

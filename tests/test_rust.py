@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(not z.rust_available(),
                                 reason="zombi2_core (Rust extension) not built")
 
 RATES = dict(duplication=0.15, transfer=0.1, loss=0.2, origination=0.5,
-             initial_size=20, max_family_size=0.5)
+             initial_families=20, max_family_size=0.5)
 FULL = dict(RATES)
 
 
@@ -35,14 +35,14 @@ def _read_profiles(path):
     return rows[0][1:], {r[0]: list(map(int, r[1:])) for r in rows[1:]}
 
 
-def _python_profiles(tree, seed, *, initial_size, max_family_size, **rates):
+def _python_profiles(tree, seed, *, initial_families, max_family_size, **rates):
     """Reference profiles from the pure-Python engine (the built-in model otherwise routes
     to Rust), for the cross-engine statistical-equivalence check."""
     from zombi2.genome_sim import GenomeSimulator
 
     rng = np.random.default_rng(seed)
     res = GenomeSimulator().simulate(tree, z.UniformRates(**rates), rng,
-                                     initial_size=initial_size, max_family_size=max_family_size)
+                                     initial_size=initial_families, max_family_size=max_family_size)
     return z.ProfileMatrix.from_leaf_genomes(res.leaf_genomes)
 
 
@@ -67,7 +67,7 @@ def test_profiles_hard_cap_respected():
     tree = _tree(n=40)
     cap = 5
     pm = z.simulate_genomes(tree, duplication=0.6, transfer=0.2, loss=0.05,
-                            origination=0.4, initial_size=20, max_family_size=cap,
+                            origination=0.4, initial_families=20, max_family_size=cap,
                             seed=11, output="profiles")
     assert pm.matrix.max() <= cap
 
@@ -75,7 +75,7 @@ def test_profiles_hard_cap_respected():
 def test_profiles_accepts_uniform_rates_object():
     tree = _tree()
     obj = z.simulate_genomes(tree, z.UniformRates(0.15, 0.1, 0.2, 0.5),
-                             initial_size=20, max_family_size=0.5, seed=7, output="profiles")
+                             initial_families=20, max_family_size=0.5, seed=7, output="profiles")
     kw = z.simulate_genomes(tree, seed=7, output="profiles", **RATES)
     assert np.array_equal(obj.matrix, kw.matrix)
 
@@ -142,10 +142,10 @@ def test_profiles_vs_genomes_family_counts_agree():
     # the two Rust paths run the same model; mean family count should agree
     tree = _tree(n=60, seed=2)
     a = np.mean([len(z.simulate_genomes(tree, duplication=0.2, loss=0.1, origination=0.4,
-                                        initial_size=30, max_family_size=0.5,
+                                        initial_families=30, max_family_size=0.5,
                                         seed=100 + s).profiles.families) for s in range(8)])
     b = np.mean([z.simulate_genomes(tree, duplication=0.2, loss=0.1, origination=0.4,
-                                    initial_size=30, max_family_size=0.5, seed=200 + s,
+                                    initial_families=30, max_family_size=0.5, seed=200 + s,
                                     output="profiles").matrix.shape[0] for s in range(8)])
     assert abs(a - b) / b < 0.2
 
@@ -205,7 +205,7 @@ def _self_transfer_rows(path):
 def test_transfer_self(tmp_path):
     tree = _tree(n=30, seed=2)
     base = dict(duplication=0.0, transfer=0.4, loss=0.1, origination=0.4,
-                initial_size=25, max_family_size=0.9, seed=5)
+                initial_families=25, max_family_size=0.9, seed=5)
     z.simulate_genomes(tree, transfers=z.TransferModel(allow_self=False), **base).write(tmp_path / "no")
     z.simulate_genomes(tree, transfers=z.TransferModel(allow_self=True), **base).write(tmp_path / "yes")
     assert _self_transfer_rows(tmp_path / "no" / "Transfers.tsv") == 0
@@ -214,7 +214,7 @@ def test_transfer_self(tmp_path):
 
 def test_transfer_replacement_reduces_growth():
     tree = _tree(n=30, seed=2)
-    base = dict(transfer=0.4, loss=0.02, origination=0.4, initial_size=25, max_family_size=0.9)
+    base = dict(transfer=0.4, loss=0.02, origination=0.4, initial_families=25, max_family_size=0.9)
     add = np.mean([z.simulate_genomes(tree, seed=200 + s, output="profiles",
                    transfers=z.TransferModel(replacement=0.0), **base).matrix.sum() for s in range(4)])
     rep = np.mean([z.simulate_genomes(tree, seed=200 + s, output="profiles",
@@ -249,7 +249,7 @@ def test_transfer_distance_decay_prefers_close(tmp_path):
                 ds.append(2 * (t - tm[n]))
         return sum(ds) / len(ds) if ds else 0.0
 
-    base = dict(transfer=0.4, loss=0.1, origination=0.4, initial_size=40, max_family_size=0.9, seed=11)
+    base = dict(transfer=0.4, loss=0.1, origination=0.4, initial_families=40, max_family_size=0.9, seed=11)
     z.simulate_genomes(tree, **base).write(tmp_path / "u")
     z.simulate_genomes(tree, transfers=z.TransferModel(distance_decay=5.0), **base).write(tmp_path / "d")
     assert mean_dist(tmp_path / "d" / "Transfers.tsv") < mean_dist(tmp_path / "u" / "Transfers.tsv")
@@ -259,7 +259,7 @@ def test_transfer_mechanics_invariant():
     # full-log invariant still holds with replacement + distance decay + self combined
     tree = _tree(n=40, seed=3)
     g = z.simulate_genomes(tree, duplication=0.05, transfer=0.25, loss=0.15, origination=0.5,
-                           initial_size=30, max_family_size=0.5, seed=7,
+                           initial_families=30, max_family_size=0.5, seed=7,
                            transfers=z.TransferModel(replacement=0.3, distance_decay=2.0, allow_self=True))
     fr = {f: i for i, f in enumerate(g.profiles.families)}
     for fam, (_c, e) in g.gene_trees().items():
@@ -271,7 +271,7 @@ def test_transfer_mechanics_invariant():
 def test_rust_matches_python_engine():
     # the Rust engine should match the pure-Python reference within Monte-Carlo error
     tree = _tree(n=60, seed=2)
-    kw = dict(duplication=0.2, loss=0.1, origination=0.4, initial_size=30, max_family_size=0.5)
+    kw = dict(duplication=0.2, loss=0.1, origination=0.4, initial_families=30, max_family_size=0.5)
     r = np.mean([z.simulate_genomes(tree, seed=1000 + s, output="profiles", **kw).matrix.mean()
                  for s in range(15)])
     p = np.mean([_python_profiles(tree, seed=2000 + s, **kw).matrix.mean() for s in range(15)])

@@ -15,7 +15,7 @@ pytestmark = pytest.mark.skipif(not z.rust_available(),
                                 reason="zombi2_core (Rust extension) not built")
 
 RATES = dict(duplication=0.2, transfer=0.15, loss=0.3, origination=0.6,
-             initial_size=20, max_family_size=0.5)
+             initial_families=20, max_family_size=0.5)
 
 
 def _tree(n=300, seed=1):
@@ -64,7 +64,7 @@ def test_parallel_matches_serial_in_distribution():
     standard errors (statistical, not bit-identical)."""
     tree = _tree(n=250, seed=11)
     kw = dict(duplication=0.2, transfer=0.1, loss=0.3, origination=0.5,
-              initial_size=20, max_family_size=0.5)
+              initial_families=20, max_family_size=0.5)
 
     def totals(threads):
         return np.array([z.simulate_genomes(tree, output="profiles", seed=2000 + s,

@@ -14,7 +14,7 @@ summaries = z.run_replicates(
     z.BirthDeath(birth=1.0, death=0.3),   # species-tree model
     n_tips=50, age=8.0,
     duplication=0.1, transfer=0.05, loss=0.15, origination=0.5,  # or rates=z.UniformRates(...)
-    initial_size=100, max_family_size=0.5,
+    initial_families=100, max_family_size=0.5,
     seed=42,                              # base seed -> reproducible, independent per replicate
     processes=None,                       # default: all cores; processes=1 = serial
 )

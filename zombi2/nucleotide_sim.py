@@ -511,7 +511,7 @@ def simulate_nucleotide_genomes(
     origination: float = 0.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
-    initial_size: int = 1,
+    initial_chromosomes: int = 1,
     transfers=None,
     gene_intervals=None,
     pseudogenization: float = 0.0,
@@ -528,7 +528,9 @@ def simulate_nucleotide_genomes(
     **per-nucleotide** rates (total genome rate = ``rate * current_length``);
     ``origination`` is a **per-branch** rate that inserts a novel gene under a fresh source.
     ``extension`` sets the geometric event-length model (mean ``1/(1-extension)``
-    nucleotides). ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
+    nucleotides). ``initial_chromosomes`` is the number of root chromosomes seeded at the
+    root of the tree (default 1); each is an independent copy of the root chromosome.
+    ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
     additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
     carrying the extant leaf genomes, the event log, the segment registry, and the atom
     partition (over the surviving ancestral material).
@@ -581,7 +583,7 @@ def simulate_nucleotide_genomes(
         return _rust.nucleotide(
             species_tree, inversion=inversion, loss=loss, duplication=duplication,
             transfer=transfer, transposition=transposition, origination=origination,
-            root_length=root_length, extension=extension, initial_size=initial_size,
+            root_length=root_length, extension=extension, initial_size=initial_chromosomes,
             transfers=transfers, seed=seed,
         )
 
@@ -598,7 +600,7 @@ def simulate_nucleotide_genomes(
                                 replacement=replacement)
 
     result = GenomeSimulator(sampler).simulate(
-        species_tree, rates, rng, initial_size=initial_size, transfers=transfers,
+        species_tree, rates, rng, initial_size=initial_chromosomes, transfers=transfers,
         genome_factory=factory, retain_internal=retain_internal,
     )
     # For ancestral reconstruction, atoms must tile every node's segments (not just the leaves'):

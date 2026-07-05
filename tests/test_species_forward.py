@@ -211,7 +211,7 @@ def test_gene_sim_passes_through_sampled_ancestors():
         z.BirthDeath(1.0, 0.4, fossilization=0.6, removal=0.0), age=6.0, seed=1)
     assert _sampled_ancestors(tree)  # the tree really has degree-two nodes
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
-                           origination=0.5, initial_size=20, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=20, max_family_size=0.5, seed=42)
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
 
 
@@ -360,7 +360,7 @@ def test_mass_extinction_feeds_gene_sim():
     tree = _fwd(z.BirthDeath(1.2, 0.3, mass_extinctions=[(2.5, 0.8)]), age=5.0, seed=4)
     assert _dead_names(tree)  # the tree has a dead part
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
-                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=30, max_family_size=0.5, seed=42)
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
 
 
@@ -427,7 +427,7 @@ def test_clads_composes_with_mass_extinction():
 def test_clads_feeds_gene_sim():
     tree = _fwd(z.ClaDS(1.2, sigma=0.2, turnover=0.2), age=5.0, seed=4)
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
-                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=30, max_family_size=0.5, seed=42)
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
 
 
@@ -483,7 +483,7 @@ def test_diversity_dependent_validation(kw):
 def test_diversity_dependent_feeds_gene_sim():
     tree = _fwd(z.DiversityDependent(3.0, 0.3, carrying_capacity=40), age=12.0, seed=4)
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
-                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=30, max_family_size=0.5, seed=42)
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
 
 
@@ -555,7 +555,7 @@ def test_clade_shift_composes_with_mass_extinction():
 def test_clade_shift_feeds_gene_sim():
     tree = _fwd(z.CladeShiftBirthDeath(1.0, 0.3, clade_shifts=[(3.5, 1.6, 0.2)]), age=4.0, seed=4)
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.3, loss=0.15,
-                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=30, max_family_size=0.5, seed=42)
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
 
 
@@ -564,7 +564,7 @@ def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
     dead = _dead_names(tree)
     assert dead  # forward tree has a dead part
     g = z.simulate_genomes(tree, duplication=0.1, transfer=0.4, loss=0.15,
-                           origination=0.5, initial_size=30, max_family_size=0.5, seed=42)
+                           origination=0.5, initial_families=30, max_family_size=0.5, seed=42)
     # profiles only over extant species
     assert set(g.profiles.species) == {n.name for n in tree.extant_leaves()}
     # at least one transfer should involve a dead (extinct) branch — transfer from the dead,

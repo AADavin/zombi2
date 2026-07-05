@@ -9,7 +9,7 @@ resolution, and reconstructs a gene tree for every stretch of shared ancestry.
 ## The model
 
 `simulate_nucleotide_genomes` evolves a genome forward along a fixed species tree. It starts
-from `initial_size` gene(s) of `root_length` nucleotides at the root, and these events fire:
+from `initial_chromosomes` chromosome(s) of `root_length` nucleotides at the root, and these events fire:
 
 | Event | Effect |
 |---|---|
