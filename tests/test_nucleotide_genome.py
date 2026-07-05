@@ -5,7 +5,7 @@ literal circular slice-reverse over one cell per nucleotide. It is obviously cor
 hopelessly slow; running it against the efficient segment structure on the *same*
 (s, length) stream pins down every circular-geometry bug. On top of that we assert the
 strong invariants inversion gives us (content conservation, bijection, involution) and
-that the trace-back / atom decomposition is self-consistent.
+that the trace-back / block decomposition is self-consistent.
 """
 
 import numpy as np
@@ -179,28 +179,28 @@ def test_reproducible():
 
 
 # --------------------------------------------------------------------------- #
-# Trace-back / atoms
+# Trace-back / blocks
 # --------------------------------------------------------------------------- #
-def test_atoms_tile_the_root():
+def test_blocks_tile_the_root():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=3)
     res = simulate_nucleotide_genomes(tree, inversion=0.03, root_length=150, seed=4)
-    atoms = sorted((a for a in res.atoms if a.source == "1"), key=lambda a: a.start)
-    assert atoms[0].start == 0 and atoms[-1].end == 150
-    for x, y in zip(atoms, atoms[1:]):
+    blocks = sorted((a for a in res.blocks if a.source == "1"), key=lambda a: a.start)
+    assert blocks[0].start == 0 and blocks[-1].end == 150
+    for x, y in zip(blocks, blocks[1:]):
         assert x.end == y.start                # contiguous, no gaps/overlaps
     n_inv = sum(1 for r in res.event_log if r.event is EventType.INVERSION)
-    assert len(atoms) <= 2 * n_inv + 1         # each inversion adds <= 2 breakpoints
+    assert len(blocks) <= 2 * n_inv + 1         # each inversion adds <= 2 breakpoints
 
 
 def test_mosaic_reassembles_each_leaf():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=5)
     res = simulate_nucleotide_genomes(tree, inversion=0.03, root_length=150,
                                       extension=0.9, seed=6)
-    amap = {a.atom_id: a for a in res.atoms}
+    amap = {a.block_id: a for a in res.blocks}
     for leaf, genome in res.leaf_genomes.items():
         mosaic = res.leaf_mosaic(leaf)
-        # every atom appears exactly once per leaf (inversion loses nothing)
-        assert sorted(aid for aid, _ in mosaic) == sorted(a.atom_id for a in res.atoms)
+        # every block appears exactly once per leaf (inversion loses nothing)
+        assert sorted(aid for aid, _ in mosaic) == sorted(a.block_id for a in res.blocks)
         cells = []
         for aid, strand in mosaic:
             a = amap[aid]
@@ -211,15 +211,15 @@ def test_mosaic_reassembles_each_leaf():
         assert cells == genome.to_cells()      # mosaic reconstructs the leaf exactly
 
 
-def test_atom_histories_track_inversions():
+def test_block_histories_track_inversions():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=8)
     res = simulate_nucleotide_genomes(tree, inversion=0.05, root_length=120,
                                       extension=0.9, seed=8)
-    histories = res.atom_histories()
+    histories = res.block_histories()
     branches = {n.name for n in tree.nodes_preorder()}
     n_inv = sum(1 for r in res.event_log if r.event is EventType.INVERSION)
     if n_inv:
-        assert any(histories[a.atom_id] for a in res.atoms)  # something recorded
+        assert any(histories[a.block_id] for a in res.blocks)  # something recorded
     for events in histories.values():
         for branch, _t in events:
             assert branch in branches           # every entry is a real branch
@@ -277,30 +277,30 @@ def test_deletion_removes_content_but_stays_bijective():
     assert any(g.size() < 300 for g in res.leaf_genomes.values())
 
 
-def test_atoms_cover_exactly_the_surviving_positions():
+def test_blocks_cover_exactly_the_surviving_positions():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=12)
     res = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200,
                                       extension=0.95, seed=12)
-    atoms = sorted((a for a in res.atoms if a.source == "1"), key=lambda a: a.start)
-    for x, y in zip(atoms, atoms[1:]):
+    blocks = sorted((a for a in res.blocks if a.source == "1"), key=lambda a: a.start)
+    for x, y in zip(blocks, blocks[1:]):
         assert x.end <= y.start                       # disjoint (gaps allowed)
-    atom_positions = {p for a in atoms for p in range(a.start, a.end)}
+    block_positions = {p for a in blocks for p in range(a.start, a.end)}
     surviving = set()
     for genome in res.leaf_genomes.values():
         surviving.update(p for (_src, p, _st) in genome.to_cells())
-    assert atom_positions == surviving                # atoms == union of survivors
+    assert block_positions == surviving                # blocks == union of survivors
 
 
 def test_profile_matrix_matches_leaf_coverage():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=7, age=3.0, seed=13)
     res = simulate_nucleotide_genomes(tree, inversion=0.02, loss=0.03, root_length=200,
                                       extension=0.95, seed=13)
-    atom_ids, species, matrix = res.profile_matrix()
-    assert matrix.shape == (len(res.atoms), len(res.leaf_genomes))
+    block_ids, species, matrix = res.profile_matrix()
+    assert matrix.shape == (len(res.blocks), len(res.leaf_genomes))
     assert set(matrix.flatten()) <= {0, 1}            # loss only -> presence/absence
-    # not every atom is universal, and none is everywhere-absent (that isn't an atom)
+    # not every block is universal, and none is everywhere-absent (that isn't a block)
     assert matrix.min() == 0 and matrix.max() == 1
-    assert matrix.sum(axis=1).min() >= 1              # each atom present in >= 1 leaf
+    assert matrix.sum(axis=1).min() >= 1              # each block present in >= 1 leaf
 
 
 def test_loss_reproducible():
@@ -402,50 +402,50 @@ def test_all_events_reproducible():
 
 
 # --------------------------------------------------------------------------- #
-# Per-atom gene trees — reconstruct the "gene" of each segment (steps 6-7)
+# Per-block gene trees — reconstruct the "gene" of each segment (steps 6-7)
 # --------------------------------------------------------------------------- #
 def _n_leaves(newick):
     return newick.count(",") + 1
 
 
-def test_atom_gene_trees_match_profile_counts():
-    """The reconciliation invariant: an atom's extant tree has one leaf per surviving copy."""
+def test_block_gene_trees_match_profile_counts():
+    """The reconciliation invariant: a block's extant tree has one leaf per surviving copy."""
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=31)
     res = simulate_nucleotide_genomes(tree, inversion=0.004, duplication=0.005, loss=0.004,
                                       root_length=300, extension=0.95, seed=31)
     ids, _species, M = res.profile_matrix()
     rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
-    trees = res.atom_gene_trees()
+    trees = res.block_gene_trees()
     assert set(trees) == set(ids)
     for aid, (_complete, extant) in trees.items():
-        assert extant is not None                 # atoms always survive in >= 1 leaf
+        assert extant is not None                 # blocks always survive in >= 1 leaf
         assert _n_leaves(extant) == rowsum[aid]    # leaves == total copies across species
 
 
-def test_inversion_only_atom_trees_span_every_species():
+def test_inversion_only_block_trees_span_every_species():
     tree = simulate_species_tree(BirthDeath(1.0, 0.0), n_tips=6, age=2.0, seed=32)  # Yule: all extant
     res = simulate_nucleotide_genomes(tree, inversion=0.03, root_length=150, extension=0.9, seed=32)
     n_species = len(res.leaf_genomes)
-    trees = res.atom_gene_trees()
-    assert trees                                   # some atoms exist
+    trees = res.block_gene_trees()
+    assert trees                                   # some blocks exist
     for _aid, (_complete, extant) in trees.items():
         assert _n_leaves(extant) == n_species      # present exactly once per species
 
 
-def test_atom_gene_trees_record_losses_in_complete_tree():
+def test_block_gene_trees_record_losses_in_complete_tree():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=3.0, seed=33)
     res = simulate_nucleotide_genomes(tree, inversion=0.005, loss=0.02, root_length=300,
                                       extension=0.95, seed=33)
     assert any(r.event is EventType.LOSS for r in res.event_log)
-    completes = [c for c, _e in res.atom_gene_trees().values() if c]
+    completes = [c for c, _e in res.block_gene_trees().values() if c]
     assert any("LOSS" in c for c in completes)     # lost lineages appear in the complete tree
 
 
-def test_atom_gene_trees_are_reproducible():
+def test_block_gene_trees_are_reproducible():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=34)
     kw = dict(inversion=0.004, duplication=0.005, loss=0.004, root_length=250, extension=0.95)
-    a = simulate_nucleotide_genomes(tree, **kw, seed=35).atom_gene_trees()
-    b = simulate_nucleotide_genomes(tree, **kw, seed=35).atom_gene_trees()
+    a = simulate_nucleotide_genomes(tree, **kw, seed=35).block_gene_trees()
+    b = simulate_nucleotide_genomes(tree, **kw, seed=35).block_gene_trees()
     assert a == b
 
 
@@ -482,7 +482,7 @@ def test_transfer_fires_and_reconciliation_invariant_holds():
         assert r.donor and r.recipient and r.donor != r.recipient
     ids, _sp, M = res.profile_matrix()
     rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
-    for aid, (_c, extant) in res.atom_gene_trees().items():
+    for aid, (_c, extant) in res.block_gene_trees().items():
         assert extant is not None and _n_leaves(extant) == rowsum[aid]  # xenologs counted
 
 
@@ -499,7 +499,7 @@ def test_transfer_reproducible():
     a = simulate_nucleotide_genomes(tree, **kw, seed=44)
     b = simulate_nucleotide_genomes(tree, **kw, seed=44)
     assert len(a.event_log) == len(b.event_log)
-    assert a.atom_gene_trees() == b.atom_gene_trees()
+    assert a.block_gene_trees() == b.block_gene_trees()
     for leaf, ga in a.leaf_genomes.items():
         assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
 
@@ -542,12 +542,12 @@ def test_origination_creates_new_sources_with_their_own_trees():
     res = simulate_nucleotide_genomes(tree, origination=0.8, loss=0.001, root_length=200,
                                       extension=0.95, seed=61)
     assert sum(1 for r in res.event_log if r.event is EventType.ORIGINATION) > 1  # + the seed
-    sources = {a.source for a in res.atoms}
+    sources = {a.source for a in res.blocks}
     assert len(sources) > 1                         # novel sources beyond the root chromosome
-    # every source's atoms reconstruct correctly (reconciliation invariant across sources)
+    # every source's blocks reconstruct correctly (reconciliation invariant across sources)
     ids, _sp, M = res.profile_matrix()
     rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
-    for aid, (_c, extant) in res.atom_gene_trees().items():
+    for aid, (_c, extant) in res.block_gene_trees().items():
         assert extant is not None and _n_leaves(extant) == rowsum[aid]
 
 
@@ -558,7 +558,7 @@ def test_novel_gene_is_absent_from_lineages_that_predate_it():
     # a source born mid-tree cannot be present in every species (unlike the root chromosome)
     by_source = {}
     for i, aid in enumerate(ids):
-        a = next(x for x in res.atoms if x.atom_id == aid)
+        a = next(x for x in res.blocks if x.block_id == aid)
         by_source.setdefault(a.source, []).append(M[i])
     non_root = [s for s in by_source if s != "1"]
     assert non_root                                 # some novel sources exist
@@ -580,11 +580,11 @@ def test_full_event_set_fires_and_reconstructs():
                EventType.LOSS, EventType.DUPLICATION, EventType.TRANSFER,
                EventType.TRANSPOSITION):
         assert ev in kinds, f"{ev} never fired — the test isn't exercising it"
-    assert len({a.source for a in res.atoms}) > 1          # root chromosome + novel genes
-    # the reconciliation invariant must hold for EVERY atom with all events interacting
+    assert len({a.source for a in res.blocks}) > 1          # root chromosome + novel genes
+    # the reconciliation invariant must hold for EVERY block with all events interacting
     ids, _sp, M = res.profile_matrix()
     rowsum = {aid: int(M[i].sum()) for i, aid in enumerate(ids)}
-    for aid, (_c, extant) in res.atom_gene_trees().items():
+    for aid, (_c, extant) in res.block_gene_trees().items():
         assert extant is not None and _n_leaves(extant) == rowsum[aid]
 
 
@@ -593,7 +593,7 @@ def test_full_event_set_reproducible():
     a = simulate_nucleotide_genomes(tree, **_FULL, seed=73)
     b = simulate_nucleotide_genomes(tree, **_FULL, seed=73)
     assert len(a.event_log) == len(b.event_log)
-    assert a.atom_gene_trees() == b.atom_gene_trees()
+    assert a.block_gene_trees() == b.block_gene_trees()
     for leaf, ga in a.leaf_genomes.items():
         assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
 
@@ -635,13 +635,13 @@ def test_reconcile_transfer_appears_in_complete():
     assert "AB|T>C" in rec.complete
 
 
-def test_atom_reconciliation_extant_tips_match_copy_number():
+def test_block_reconciliation_extant_tips_match_copy_number():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=51)
     res = simulate_nucleotide_genomes(tree, inversion=0.003, duplication=0.005, transfer=0.004,
                                       loss=0.004, root_length=200, extension=0.9, seed=51)
     ids, _sp, M = res.profile_matrix()
     row = {aid: i for i, aid in enumerate(ids)}
-    for aid, rec in res.atom_reconciliations().items():
+    for aid, rec in res.block_reconciliations().items():
         assert rec.extant is not None and "LOSS" not in rec.extant      # cherries, no losses
         assert rec.extant.count(",") + 1 == int(M[row[aid]].sum())      # tips == copies
         assert "LOSS|" in rec.complete or int(M[row[aid]].sum()) >= len(res.leaf_genomes)
@@ -653,7 +653,7 @@ def test_reconciliation_events_reference_real_species_and_have_losses():
                                       extension=0.9, seed=52)
     names = {n.name for n in tree.nodes_preorder()}
     saw_loss = False
-    for _aid, rec in res.atom_reconciliations().items():
+    for _aid, rec in res.block_reconciliations().items():
         for e in rec.events:
             assert e.species in names
             if e.recipient is not None:
@@ -666,8 +666,8 @@ def test_reconciliation_reproducible():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.5, seed=53)
     kw = dict(inversion=0.004, duplication=0.004, transfer=0.004, loss=0.004,
               root_length=200, extension=0.9)
-    a = simulate_nucleotide_genomes(tree, **kw, seed=54).atom_reconciliations()
-    b = simulate_nucleotide_genomes(tree, **kw, seed=54).atom_reconciliations()
+    a = simulate_nucleotide_genomes(tree, **kw, seed=54).block_reconciliations()
+    b = simulate_nucleotide_genomes(tree, **kw, seed=54).block_reconciliations()
     assert a == b
 
 
@@ -679,5 +679,5 @@ def test_write_reconciliations(tmp_path):
     assert (tmp_path / "Reconciled_complete.nwk").exists()
     assert (tmp_path / "Reconciled_extant.nwk").exists()
     events_file = tmp_path / "Reconciliation_events.tsv"
-    assert events_file.read_text().splitlines()[0] == "atom\tevent\tspecies\trecipient\ttime\tgene"
-    assert summary["n_atoms"] > 0 and summary["n_events"] > 0
+    assert events_file.read_text().splitlines()[0] == "block\tevent\tspecies\trecipient\ttime\tgene"
+    assert summary["n_blocks"] > 0 and summary["n_events"] > 0

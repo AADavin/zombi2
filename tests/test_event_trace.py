@@ -153,7 +153,7 @@ def test_python_engine_supports_trace():
     """A flexible model routes to the Python engine; output="trace" still yields a GenomeTrace
     (wrapping the log it already built) and writes the same trace file."""
     tree = _tree(n=60)
-    tr = z.simulate_genomes(tree, rates=z.GenomeWiseRates(0.2, 0.0, 0.3, 1.0),
+    tr = z.simulate_genomes(tree, rates=z.PerGenomeRates(0.2, 0.0, 0.3, 1.0),
                             output="trace", seed=2)
     assert isinstance(tr, GenomeTrace)
     assert tr._columns is None and tr._event_log is not None  # Python path: prebuilt log

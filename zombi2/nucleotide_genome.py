@@ -33,13 +33,19 @@ import numpy as np
 from .events import EventType, GeneOp, Region, Selection, TransferSegment
 from .genome import Gene, Genome, IdManager
 
+#: Smallest a chromosome may shrink to under deletion — the min-genome floor. A deletion is
+#: clamped so the genome never drops below this many nucleotides (guards against emptying the
+#: chromosome, which would stall the size-proportional event process). One base, effectively
+#: "never delete the last nucleotide"; insertions have no floor.
+MIN_GENOME_LENGTH = 1
+
 
 @dataclass(frozen=True)
 class GeneInterval:
     """A gene as a half-open ancestral interval ``[start, end)`` on one ``source``.
 
     Genes are *indivisible*: no event breakpoint ever falls strictly inside one, so a gene
-    is exactly one atom wherever it survives — one genealogy per gene. ``gene_id`` is the
+    is exactly one block wherever it survives — one genealogy per gene. ``gene_id`` is the
     immutable identity (kept even after pseudogenization).
     """
 
@@ -57,7 +63,7 @@ class SegmentRegistry:
     """Provenance shared across all genomes of one simulation (clones share one instance).
 
     ``provenance`` maps every segment id ever minted to its ancestral interval
-    ``(source, src_start, src_end)`` — enough to attribute an event to atoms. ``split_parent``
+    ``(source, src_start, src_end)`` — enough to attribute an event to blocks. ``split_parent``
     maps a segment born from a :meth:`NucleotideGenome._split_segment` to the segment it was
     cut from; those births are the only ones *not* in the event log (a split is a degree-2
     node), so recording them here keeps the segment genealogy connected for gene-tree
@@ -101,7 +107,7 @@ class SegmentRegistry:
         return out
 
     def gene_id_at(self, source: str, start: int, end: int) -> str | None:
-        """The gene whose interval contains ``[start, end)`` (else ``None``) — atom classifier."""
+        """The gene whose interval contains ``[start, end)`` (else ``None``) — block classifier."""
         for gi in self.genes.get(source, ()):  # sorted by start
             if gi.start <= start and end <= gi.end:
                 return gi.gene_id
@@ -122,7 +128,7 @@ class Segment:
     ``is_gene`` is the *functional* state on this lineage (``True`` = functional gene,
     ``False`` = pseudogene — a gene demoted to intergene by pseudogenization, sequence
     retained). A block with ``gene_id is not None`` is never cut internally (functional or
-    pseudogenized), which is what keeps a gene to exactly one atom.
+    pseudogenized), which is what keeps a gene to exactly one block.
     """
 
     seg_id: str
@@ -159,7 +165,8 @@ class NucleotideGenome(Genome):
 
     def __init__(self, ids: IdManager, root_length: int = 1000,
                  extension: float | None = 0.99, registry: SegmentRegistry | None = None,
-                 pseudogenization: float = 0.0, replacement: float = 0.0):
+                 pseudogenization: float = 0.0, replacement: float = 0.0,
+                 indel_mean_length: float = 10.0):
         self.ids = ids
         self.root_length = int(root_length)
         self.extension = extension
@@ -169,6 +176,9 @@ class NucleotideGenome(Genome):
         # genic-model parameters (0 in the plain nucleotide model); inherited by clones
         self.pseudogenization = pseudogenization  # P(a loss on genes demotes instead of deletes)
         self.replacement = replacement            # P(a transfer is a homologous replacement)
+        # intergenic indels: mean length of an insertion/deletion run (geometric, own parameter —
+        # independent of `extension`, which drives the structural events). Inherited by clones.
+        self.indel_mean_length = float(indel_mean_length)
         self._last_replaced: list[Segment] | None = None  # recipient homolog removed by a transfer
 
     # --- minting ------------------------------------------------------------
@@ -204,7 +214,8 @@ class NucleotideGenome(Genome):
 
     def supported_events(self) -> frozenset[EventType]:
         return frozenset((EventType.ORIGINATION, EventType.INVERSION, EventType.LOSS,
-                          EventType.DUPLICATION, EventType.TRANSFER, EventType.TRANSPOSITION))
+                          EventType.DUPLICATION, EventType.TRANSFER, EventType.TRANSPOSITION,
+                          EventType.INSERTION, EventType.DELETION))
 
     # --- trace-back view: one cell per nucleotide, in physical order --------
     def to_cells(self) -> list[tuple[str, int, int]]:
@@ -229,7 +240,7 @@ class NucleotideGenome(Genome):
         The first call (empty genome, the seed) lays down the full-length root chromosome —
         tiled into gene / intergene segments when a gene annotation was supplied. Later calls
         insert a *novel* gene of geometric length at a random position — it descends from no
-        ancestral position, so it opens its own source and its own atoms (in genic mode it is a
+        ancestral position, so it opens its own source and its own blocks (in genic mode it is a
         whole gene), with the gene tree rooted at this origination time.
         """
         source = self.ids.new_family()
@@ -264,7 +275,7 @@ class NucleotideGenome(Genome):
     def _seed_with_genes(self, source: str, pending: list[GeneInterval]) -> list[GeneOp]:
         """Tile the root chromosome into intergene / gene segments (genes get their own block).
 
-        One ORIGINATION row per seed segment, so each becomes the root of the atoms it covers.
+        One ORIGINATION row per seed segment, so each becomes the root of the blocks it covers.
         """
         ops: list[GeneOp] = []
         cursor = 0
@@ -328,7 +339,7 @@ class NucleotideGenome(Genome):
         ``direction`` picks the boundary when ``c`` is inside a gene: ``-1`` = the gene's
         physical start, ``+1`` = its end, ``0`` = the nearer of the two. Positions in intergene
         (or on an existing boundary) are returned unchanged — cutting there is legal and is how
-        intergene atoms form. Walks the segment list (O(n), like :meth:`_split_at`) using the
+        intergene blocks form. Walks the segment list (O(n), like :meth:`_split_at`) using the
         accumulated positions, so it stays correct mid-mutation.
         """
         pos = 0
@@ -363,7 +374,7 @@ class NucleotideGenome(Genome):
         **wrapping** arc has no origin-fixed representation without inventing a spurious
         breakpoint at position 0, so the ring is first rotated to bring the arc to the
         front — the origin drifts to a real breakpoint. This is harmless: a circular
-        genome has no privileged origin, atoms live in origin-independent *source*
+        genome has no privileged origin, blocks live in origin-independent *source*
         coordinates, and the invariants are rotation-invariant.
         """
         L = self._length
@@ -547,12 +558,106 @@ class NucleotideGenome(Genome):
         # truncated geometric (mean 1/(1-ext)); drawn in one shot instead of a Python loop
         return min(int(rng.geometric(1.0 - ext)), n)
 
+    # --- intergenic indels --------------------------------------------------
+    def _draw_indel_length(self, rng) -> int:
+        """Geometric indel length with mean ``indel_mean_length`` (own parameter, not ``extension``).
+
+        ``rng.geometric(p)`` has mean ``1/p``, so ``p = 1/mean`` gives the requested mean and a
+        per-step continuation probability ``1 - 1/mean``. Always at least 1 nucleotide.
+        """
+        m = self.indel_mean_length
+        if not (m > 1.0):                       # mean <= 1 -> always a single nucleotide
+            return 1
+        return max(1, int(rng.geometric(1.0 / m)))
+
+    def _intergene_run_at(self, phys: int) -> tuple[int, int] | None:
+        """Physical bounds ``[lo, hi)`` of the maximal intergene run covering position ``phys``.
+
+        A "run" is a contiguous stretch whose segments are all intergene (``gene_id is None``),
+        bounded by genes (or the chromosome ends — runs do **not** wrap the origin, so an indel
+        stays within one physical stretch). Returns ``None`` when ``phys`` lands inside a gene.
+        Used to clamp an intergenic deletion so it never reaches into a neighbouring gene.
+        """
+        pos, run_lo, cur = 0, 0, None
+        for seg in self._segments:
+            nxt = pos + seg.length
+            if seg.gene_id is None:
+                if cur is None:
+                    run_lo = pos            # a new intergene run opens here
+                cur = nxt                   # ...and extends to here
+            else:
+                if cur is not None and run_lo <= phys < cur:
+                    return (run_lo, cur)    # phys was in the run just closed by this gene
+                cur = None
+            if pos <= phys < nxt and seg.gene_id is not None:
+                return None                 # phys is strictly inside a gene
+            pos = nxt
+        if cur is not None and run_lo <= phys < cur:
+            return (run_lo, cur)            # trailing intergene run to the chromosome end
+        return None
+
+    def _apply_insertion(self, rng) -> list[GeneOp]:
+        """Insert a run of novel nucleotides (a fresh source) at an intergene position.
+
+        The insertion lengthens the intergene stretch it lands in — it is its own block, with an
+        independent genealogy rooted at this event (like an intergenic origination of new
+        sequence). In genic mode the insertion point is snapped out of any gene interior, so a
+        gene is never split; with no genes it may land anywhere. Returns the log op-group.
+        """
+        source = self.ids.new_family()
+        length = self._draw_indel_length(rng)
+        seg = self._new_segment(source, 0, length, 1)   # intergene (gene_id None) novel sequence
+        at = int(rng.integers(self._length + 1))
+        if self._registry.has_genes():
+            at = self._snap(at)                         # never inside a gene interior
+        if at >= self._length:
+            self._segments.append(seg)
+        else:
+            self._split_at(at)
+            self._segments.insert(self._index_at(at), seg)
+        self._length += seg.length
+        return [GeneOp(seg.seg_id, source, "origin")]
+
+    def _apply_deletion(self, rng) -> list[Segment]:
+        """Delete a run of nucleotides from *within a single intergene* stretch.
+
+        Picks a physical start, snaps it out of any gene, then clamps the arc to the intergene run
+        containing it (so the deletion can never reach into, span, or remove a gene) and to the
+        min-genome floor (:data:`MIN_GENOME_LENGTH`). Returns the removed segments (possibly empty
+        — e.g. no room to delete without touching a gene / hitting the floor). Never wraps.
+        """
+        L = self._length
+        if L <= MIN_GENOME_LENGTH:
+            return []
+        s = int(rng.integers(L))
+        ell = self._draw_indel_length(rng)
+        if self._registry.has_genes():
+            s = self._snap(s)                           # move a gene-interior start to a boundary
+            run = self._intergene_run_at(s)
+            if run is None:                             # snapped onto a gene start/boundary with
+                run = self._intergene_run_at(s - 1) if s > 0 else None  # gene to the right: look left
+            if run is None:
+                return []                               # nowhere legal to delete near s
+            lo, hi = run
+            s = min(max(s, lo), hi)                     # keep the start inside the run
+            ell = min(ell, hi - s)                      # ...and the arc entirely inside it
+        # honour the min-genome floor: never shrink below MIN_GENOME_LENGTH
+        ell = min(ell, L - MIN_GENOME_LENGTH)
+        if ell <= 0:
+            return []
+        return self._apply_loss(s, ell)
+
     _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION,
-                             EventType.TRANSFER, EventType.TRANSPOSITION))
+                             EventType.TRANSFER, EventType.TRANSPOSITION,
+                             EventType.INSERTION, EventType.DELETION))
 
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if event not in self._TARGETABLE:
             raise ValueError(f"NucleotideGenome does not target {event!r}")
+        if event in (EventType.INSERTION, EventType.DELETION):
+            # indels self-draw their position + length inside apply() (intergene-clamped), so the
+            # selection is a placeholder — no arc is chosen up front and no RNG is consumed here.
+            return Selection(genes=(), region=Region(chromosome=0, start=0, length=0))
         L = self._length
         s = int(rng.integers(L))
         ell = self._draw_length(rng, params)
@@ -591,6 +696,11 @@ class NucleotideGenome(Genome):
             dest = int(rng.integers(self._length))
             arc = self._apply_transposition(region.start, region.length, dest)
             return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
+        if event is EventType.INSERTION:
+            return [self._apply_insertion(rng)]         # one op-group: the novel intergene block
+        if event is EventType.DELETION:
+            removed = self._apply_deletion(rng)
+            return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in removed]
         raise ValueError(f"NucleotideGenome does not handle {event!r}")
 
     # --- transfer handoff ---------------------------------------------------
@@ -599,8 +709,8 @@ class NucleotideGenome(Genome):
 
         Each arc segment ``g`` forks into a continuation (stays in the donor) and a copy
         (travels to the recipient). The driver logs ``g -> [continuation, copy]`` as a
-        TRANSFER, a bifurcation the atom's gene tree reads as a transfer node. The copy
-        keeps the arc's ancestral coordinates, so it is a xenolog of the same atom.
+        TRANSFER, a bifurcation the block's gene tree reads as a transfer node. The copy
+        keeps the arc's ancestral coordinates, so it is a xenolog of the same block.
         """
         region = selection.region
         i_s, i_e = self._arc_range(region.start, region.length)
@@ -716,7 +826,8 @@ class NucleotideGenome(Genome):
     # --- speciation ---------------------------------------------------------
     def clone_reminting(self) -> tuple["NucleotideGenome", list[tuple[str, str, str]]]:
         child = NucleotideGenome(self.ids, self.root_length, self.extension, self._registry,
-                                 self.pseudogenization, self.replacement)
+                                 self.pseudogenization, self.replacement,
+                                 self.indel_mean_length)
         child._length = self._length
         mapping: list[tuple[str, str, str]] = []
         for seg in self._segments:

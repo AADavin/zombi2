@@ -28,7 +28,7 @@ rate is scaled by `max(0, 1 − n/K)`, so family size settles *around* `K` with 
 stationary distribution.
 
 ```python
-z.UniformRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+z.SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 !!! note "Which to use?"

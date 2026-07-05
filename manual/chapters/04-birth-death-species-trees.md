@@ -1,6 +1,6 @@
-# Birth–death species trees
+# Species trees (basic models)
 
-Every ZOMBI2 simulation begins with a species tree: the branching history of the species onto
+Every ZOMBI2 simulation has a species tree: the branching history of the species onto
 which gene families, traits, and sequences are later layered. This chapter covers the
 constant-rate birth–death process and its pure-birth (Yule) special case, how to condition a
 simulation on the number of tips and on the tree's age, the two ways ZOMBI2 can generate a tree
@@ -29,10 +29,10 @@ probability.
 The two models are constructed by naming their rates:
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath, Yule, simulate_species_tree
 
-z.BirthDeath(birth=1.0, death=0.3)   # speciation lambda, extinction mu
-z.Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
+BirthDeath(birth=1.0, death=0.3)   # speciation lambda, extinction mu
+Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
 ```
 
 ## Simulating a tree
@@ -40,8 +40,8 @@ z.Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
 `simulate_species_tree` takes a model and the conditioning that pins down its size and timescale:
 
 ```python
-tree = z.simulate_species_tree(
-    z.BirthDeath(1.0, 0.3),
+tree = simulate_species_tree(
+    BirthDeath(1.0, 0.3),
     n_tips=20,          # condition on the number of extant species (>= 2)
     age=5.0,            # tree age
     age_type="crown",   # "crown": age of the root; "stem": time of origin
@@ -58,12 +58,9 @@ The two knobs fix the two quantities the reconstructed process needs:
   *origin* time, and a stem branch precedes the crown (the first speciation)
   [@stadler2009incomplete].
 
-![A reconstructed birth–death tree conditioned on twenty extant tips.](figures/species_tree.pdf)
+![What `age` measures. With `age_type="crown"` (left) the age is the depth from the crown — the root of the reconstructed tree — to the present. With `age_type="stem"` (right) it is measured from the origin instead, so a stem branch precedes the crown and the crown subtree is correspondingly shorter.](figures/age_crown.pdf){width=100%}
 
-::: note
-Version 1 requires an explicit `age`. Conditioning on `n_tips` alone — integrating over the tree
-age under a prior on the origin — is on the roadmap.
-:::
+![A reconstructed birth–death tree conditioned on ten extant tips.](figures/species_tree.pdf)
 
 ## Backward versus forward simulation
 
@@ -79,8 +76,8 @@ time, retaining every lineage — extant and extinct alike:
 
 ```python
 # grow the full tree forward, keeping extinct lineages
-tree = z.simulate_species_tree(
-    z.BirthDeath(1.0, 0.3),
+tree = simulate_species_tree(
+    BirthDeath(1.0, 0.3),
     age=5.0,
     direction="forward",
     seed=1,
@@ -93,13 +90,7 @@ The result keeps the extinct leaves — conventionally named `e*` — so a linea
 the present is still a tip of the complete tree. The run is conditioned to leave at least two
 survivors; a realization in which every lineage dies is rejected and redrawn.
 
-![A complete forward tree that keeps its extinct lineages, drawn dashed.](figures/species_tree_extinct.pdf)
-
-::: tip
-Use the default backward mode when you want a clean reconstructed phylogeny. Choose
-`direction="forward"` when downstream simulation needs the extinct lineages — for example, so
-that gene transfers can originate from ghost donors.
-:::
+![A complete forward tree that keeps its extinct lineages, drawn dashed and named `e1, e2, …`.](figures/species_tree_extinct.pdf)
 
 The complete-versus-reconstructed distinction is the same one drawn analytically for these
 processes: the reconstructed tree is the complete tree with its extinct subtrees pruned away

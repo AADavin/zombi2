@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1180" height="790" viewBox="0 0 1180 790">
+<defs>
+</defs>
+<rect x="0" y="0" width="1180" height="790" fill="white" />
+<text x="590.0" y="48" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The six couplings of coevolve mode</text>
+<path d="M313.8501209079487,558.3446073998068 Q406.59270949592695,396.3651795679374,552.4823363927894,279.9403560008259" fill="none" stroke="#1a1a1a" stroke-width="5.0" stroke-linecap="round" />
+<path d="M552.4823363927894,279.9403560008259 L546.5108756111287,291.4877217667955 L539.8979418336453,283.2011861987636 Z" fill="#1a1a1a" />
+<text x="380.7779850155069" y="374.23827287043446" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">SSE</text>
+<path d="M566.1498790920514,291.6553926001932 Q473.40729050407305,453.6348204320626,327.5176636072105,570.0596439991741" fill="none" stroke="#8a8a8a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M327.5176636072105,570.0596439991741 L333.48912438887135,558.5122782332045 L340.1020581663547,566.7988138012364 Z" fill="#8a8a8a" />
+<text x="499.2220149844931" y="475.76172712956554" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">cladogenetic</text>
+<path d="M852.4823363927894,570.0596439991741 Q706.592709495927,453.6348204320626,613.8501209079486,291.6553926001932" fill="none" stroke="#1a1a1a" stroke-width="5.0" stroke-linecap="round" />
+<path d="M613.8501209079486,291.6553926001932 L624.3483530747704,299.32266860745335 L615.1479162886297,304.59045066538494 Z" fill="#1a1a1a" />
+<text x="680.7779850155069" y="475.76172712956554" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">key innovation</text>
+<path d="M627.5176636072106,279.9403560008259 Q773.407290504073,396.3651795679374,866.1498790920513,558.3446073998068" fill="none" stroke="#8a8a8a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M866.1498790920513,558.3446073998068 L855.6516469252294,550.6773313925466 L864.8520837113701,545.409549334615 Z" fill="#8a8a8a" />
+<text x="799.2220149844931" y="374.23827287043446" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">punctuational</text>
+<path d="M337.6195058728453,593.9681959227729 Q590.0,562.0,842.3804941271547,593.9681959227729" fill="none" stroke="#8a8a8a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M842.3804941271547,593.9681959227729 L829.9383091449449,597.7354273821435 L831.2705551917306,587.2176954338354 Z" fill="#8a8a8a" />
+<text x="590.0" y="528.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">trait-linked</text>
+<path d="M842.3804941271547,606.0318040772271 Q590.0,638.0,337.6195058728453,606.0318040772271" fill="none" stroke="#8a8a8a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M337.6195058728453,606.0318040772271 L350.0616908550552,602.2645726178565 L348.7294448082695,612.7823045661646 Z" fill="#8a8a8a" />
+<text x="590.0" y="672.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">gene-conditioned</text>
+<circle cx="590.0" cy="250" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="590.0" y="246" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">S</text>
+<text x="590.0" y="274" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">species</text>
+<circle cx="290.0" cy="600" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="290.0" y="596" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">T</text>
+<text x="290.0" y="624" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">traits</text>
+<circle cx="890.0" cy="600" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="890.0" y="596" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">G</text>
+<text x="890.0" y="624" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">genes</text>
+<path d="M60,110 L104,110" stroke="#1a1a1a" stroke-width="5.0" stroke-linecap="round" />
+<text x="116" y="110" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">into S: the tree is an output (forward-only)</text>
+<path d="M60,140 L104,140" stroke="#8a8a8a" stroke-width="2.6" stroke-linecap="round" />
+<text x="116" y="140" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a">overlay: runs on a given tree</text>
+<text x="590.0" y="766" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">each arrow driver -&gt; target = one model (--couple driver:target)</text>
+</svg>

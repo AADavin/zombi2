@@ -1,14 +1,21 @@
-# Gene-family evolution
+# Unordered genomes
 
-Once the species tree is fixed, ZOMBI2 populates it with genes. It runs a single forward
-continuous-time (Gillespie) process over every branch that co-exists at a given moment, firing
-discrete events that create, move, and remove gene copies. The result is a set of gene families,
-each with its own history, threaded through the species tree.
+The **unordered** level is the simplest and fastest of the three genome models (Chapter 7): a genome
+is an unordered *set* of gene families, each present in some copy number, with no position, no
+neighbours and no length. It is the right model whenever what you care about is gene *content* —
+presence/absence profiles, copy number, reconciliations, family sizes — and it is the only level
+that supports coupling between families (Chapter 10).
 
-## The DTL(O) process
+Once the species tree is fixed, ZOMBI2 populates it with genes: a single forward continuous-time
+(Gillespie) process runs over every branch alive at a given moment, firing discrete events that
+create, move, and remove gene copies. The result is a set of gene families, each with its own
+history, threaded through the species tree.
+
+## The four unordered events
 
 The genome of a lineage is a collection of gene copies. As simulated time advances, four kinds of
-event can fire on any living branch:
+event can fire on any living branch — the four events of the unordered level (the ordered and
+nucleotide levels add more; see Chapter 7 and their own chapters):
 
 | Event | Effect |
 |---|---|
@@ -18,7 +25,7 @@ event can fire on any living branch:
 | **Loss (L)** | a copy is removed |
 
 Speciation is implicit: at each species-tree node the branch's genome is inherited, intact, by
-both children. No gene event is attached to the node itself; the DTL(O) events fire only along the
+both children. No gene event is attached to the node itself; the four events fire only along the
 branches between nodes.
 
 The process is a Gillespie simulation over all branches alive at once. Duplication, transfer, and
@@ -28,68 +35,73 @@ over time independently of what is already present.
 
 ![One gene family evolving along a species tree: a duplication, a loss, and a transfer, each placed on the branch where the Gillespie process fired it.](figures/species_tree_events.pdf)
 
-## Rate models
+## Rates
 
-Rates are supplied by a *rate model*, a subclass of `RateModel`. The choice of rate model is where
-per-copy, per-genome, per-family, and per-branch heterogeneity enters.
+Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
+four rates vary across gene families**. Chapter 7 summarises the four rate models in a table; this
+section works through them. Two of them are available on the command line, `shared` (the default)
+and `per-genome`, as is the coupled model (`--rate-model coupled`, Chapter 10); per-family rates are
+Python-API for now.
 
-### Uniform rates
+### Shared rates
 
-`UniformRates` gives every family the same per-copy D/T/L rates and a shared per-branch origination
+`SharedRates` gives every family the same per-copy D/T/L rates and a shared per-branch origination
 rate:
 
 ```python
-import zombi2 as z
+from zombi2.genomes import (
+    SharedRates, PerGenomeRates, FamilySampledRates, TransferModel, simulate_genomes,
+)
+from zombi2.distributions import Gamma, Exponential, LogNormal, Uniform, Fixed
 
-rates = z.UniformRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
-genomes = z.simulate_genomes(tree, rates, initial_size=40, seed=42)
+rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 Because the family-level rate scales with copy number, this is a gene-wise model: bigger families
-experience more events. There is a shorthand that builds `UniformRates` for you from the same
+experience more events. There is a shorthand that builds `SharedRates` for you from the same
 keywords:
 
 ```python
-genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_size=40, seed=42)
+genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                             origination=0.5, initial_families=40, seed=42)
 ```
 
-### Genome-wise rates
+### Per-genome rates
 
-`GenomeWiseRates` fires each event at a **constant per-genome rate**, independent of genome size; a
+`PerGenomeRates` fires each event at a **constant per-genome rate**, independent of genome size; a
 target copy is then chosen uniformly among the copies present:
 
 ```python
-genomes = z.simulate_genomes(tree, z.GenomeWiseRates(duplication=1.0, transfer=0.3,
+genomes = simulate_genomes(tree, PerGenomeRates(duplication=1.0, transfer=0.3,
                                                      loss=0.5, origination=0.4),
-                             initial_size=20, seed=1)
+                             initial_families=20, seed=1)
 ```
 
 Because the rate no longer scales with copy number, family sizes grow *linearly* rather than
-exponentially, which makes genome-wise models far less prone to runaway growth than gene-wise ones.
+exponentially, which makes per-genome models far less prone to runaway growth than gene-wise ones.
 
 ### Per-family sampled rates
 
 `FamilySampledRates` gives each family its **own** D/T/L rates, drawn from distributions the first
-time the family appears and kept fixed for its lifetime. This reproduces the ZOMBI-1 style of
-heterogeneity:
+time the family appears and kept fixed for its lifetime:
 
 ```python
-rates = z.FamilySampledRates(
-    duplication=z.Gamma(2, 0.06),      # built-in distribution
-    transfer=z.Exponential(0.08),
-    loss=z.Gamma(2, 0.07),
+rates = FamilySampledRates(
+    duplication=Gamma(2, 0.06),      # built-in distribution
+    transfer=Exponential(0.08),
+    loss=Gamma(2, 0.07),
     origination=0.5,                   # per-branch, a single rate
 )
-genomes = z.simulate_genomes(tree, rates, initial_size=40, seed=42)
+genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
-Each distribution argument accepts a built-in (`z.Gamma(shape, scale)`, `z.Exponential(mean)`,
-`z.LogNormal(mu, sigma)`, `z.Uniform(low, high)`, `z.Fixed(value)`), any `scipy.stats` frozen
+Each distribution argument accepts a built-in (`Gamma(shape, scale)`, `Exponential(mean)`,
+`LogNormal(mu, sigma)`, `Uniform(low, high)`, `Fixed(value)`), any `scipy.stats` frozen
 distribution, or a callable `rng -> float`. Negative draws are clipped to 0.
 
 ::: note
-`initial_size` sets how many families the root genome starts with, each originated at time 0.
+`initial_families` sets how many families the root genome starts with, each originated at time 0.
 Additional families continue to appear over the run at the origination rate.
 :::
 
@@ -100,12 +112,15 @@ The same four rates drive the `genomes` command:
 ```bash
 zombi2 genomes --tree species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 \
-    --initial-size 40 --seed 42 -o out/
+    --initial-families 40 --seed 42 -o out/
 ```
 
 `simulate_genomes` returns a `Genomes` object exposing the input `species_tree`, the `profiles`
 matrix (families $\times$ extant species), the chronological `event_log`, the per-family
 `gene_families` records, and `gene_trees()`; `genomes.write("out/")` serialises them.
+
+All the rate models take the same four rates (duplication, transfer, loss per copy or per genome;
+origination per branch) and compose with the growth caps below.
 
 ## Transfers
 
@@ -113,9 +128,9 @@ The rate model decides *how often* a transfer fires; a `TransferModel` decides *
 does* — who receives the copy, and whether it adds to or overwrites the recipient's genome:
 
 ```python
-genomes = z.simulate_genomes(
+genomes = simulate_genomes(
     tree, transfer=0.3,
-    transfers=z.TransferModel(
+    transfers=TransferModel(
         replacement=0.2,      # additive vs replacement
         distance_decay=2.0,   # recipient choice by phylogenetic distance
         allow_self=False,     # self-transfer would act as a duplication
@@ -149,8 +164,8 @@ copy in the same genome, which is mechanically a duplication. This lets you drop
 duplications and run a transfer/loss-only model:
 
 ```python
-z.simulate_genomes(tree, transfer=1.0, duplication=0.0,
-                   transfers=z.TransferModel(allow_self=True),
+simulate_genomes(tree, transfer=1.0, duplication=0.0,
+                   transfers=TransferModel(allow_self=True),
                    max_family_size=0.5, seed=1)
 ```
 
@@ -170,7 +185,7 @@ copies, so both must be reined in. ZOMBI2 offers a hard cap and a soft cap, whic
 A single ceiling on family size, enforced across **all** copy-creating events:
 
 ```python
-z.simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.3,
+simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.3,
                    max_family_size=0.5)     # cap = round(0.5 * N_species)
 ```
 
@@ -186,7 +201,7 @@ is scaled by $\max(0,\, 1 - n/K)$, so family size settles *around* $K$ with a pr
 distribution:
 
 ```python
-z.UniformRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 ::: note

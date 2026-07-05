@@ -97,16 +97,18 @@ class RateModel(ABC):
         self._max_family_size = max_family_size
 
 
-class UniformRates(RateModel):
+class SharedRates(RateModel):
     """Every gene family shares the same per-copy D/T/L rates (v1 default)."""
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
                  *, inversion: float = 0.0, transposition: float = 0.0,
+                 insertion: float = 0.0, deletion: float = 0.0,
                  carrying_capacity: float | None = None):
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
-                 ("transposition", transposition))
+                 ("transposition", transposition), ("insertion", insertion),
+                 ("deletion", deletion))
         for name, value in rates:
             if value < 0:
                 raise ValueError(f"{name} rate must be >= 0, got {value}")
@@ -117,6 +119,9 @@ class UniformRates(RateModel):
         # rearrangements: only fired by genomes that support them (e.g. OrderedGenome)
         self.inversion = float(inversion)
         self.transposition = float(transposition)
+        # intergenic indels: only fired by the nucleotide genome (per-nucleotide rate)
+        self.insertion = float(insertion)
+        self.deletion = float(deletion)
         self.carrying_capacity = carrying_capacity
 
     def _regulated(self) -> bool:
@@ -148,16 +153,20 @@ class UniformRates(RateModel):
                 out.append(EventWeight(EventType.INVERSION, None, self.inversion * n))
             if self.transposition > 0:
                 out.append(EventWeight(EventType.TRANSPOSITION, None, self.transposition * n))
+            if self.insertion > 0:
+                out.append(EventWeight(EventType.INSERTION, None, self.insertion * n))
+            if self.deletion > 0:
+                out.append(EventWeight(EventType.DELETION, None, self.deletion * n))
         if self.origination > 0:
             out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
         return out
 
 
-class GenomeWiseRates(RateModel):
+class PerGenomeRates(RateModel):
     """Genome-wise rates: each event type fires at a **constant per-genome rate**,
     independent of how many gene copies the genome holds.
 
-    Contrast :class:`UniformRates`, where the total duplication/transfer/loss rate scales
+    Contrast :class:`SharedRates`, where the total duplication/transfer/loss rate scales
     with genome size (per-copy rates). Here the totals are fixed, so when an event fires a
     target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
     rather than exponentially, so genome-wise models are intrinsically far less prone to
@@ -243,7 +252,7 @@ class FamilySampledRates(RateModel):
 class BranchRates(RateModel):
     """Make rates vary per species-tree branch by scaling a base rate model.
 
-    Wraps any base rate model (``UniformRates``, ``FamilySampledRates``, ...) and
+    Wraps any base rate model (``SharedRates``, ``FamilySampledRates``, ...) and
     multiplies its duplication/transfer/loss weights on each branch by a per-branch
     factor (a single scalar scaling D/T/L together; origination is left unscaled). This
     composes with the base model, so branch heterogeneity and family/uniform rates

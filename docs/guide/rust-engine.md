@@ -6,12 +6,12 @@ the built-in model to Rust automatically, and flexible models to Python. The eng
 by the model, so a given `seed` is always reproducible against a single engine.
 
 * **Built-in model → Rust (required).** The default `UnorderedGenome` with a plain
-  `UniformRates` (per-copy duplication / transfer / loss, per-branch origination, optional
+  `SharedRates` (per-copy duplication / transfer / loss, per-branch origination, optional
   hard `max_family_size`) — plus the **full `TransferModel`** (replacement, distance-weighted
   recipients, self-transfers) — runs on Rust. If the extension isn't built, `simulate_genomes`
   raises a clear error telling you to build it (there is no silent Python fallback for the
   built-in model, which is what keeps results reproducible against one engine).
-* **Flexible models → Python.** `FamilySampledRates`, `GenomeWiseRates`, `BranchRates`, soft
+* **Flexible models → Python.** `FamilySampledRates`, `PerGenomeRates`, `BranchRates`, soft
   `carrying_capacity`, ordered genomes, rearrangements, or a custom `sampler` run on the
   pure-Python engine automatically.
 
@@ -74,7 +74,7 @@ Python engine within Monte-Carlo error.
   `removal < 1` — are routed to the Python engine (which passes genomes through such nodes).
   You do not need to do anything; the correct engine is selected per tree.
 * **The nucleotide model.** [`simulate_nucleotide_genomes`](nucleotide-genomes.md) runs on
-  Python by default (it emits the full event log and per-atom gene trees). Pass
+  Python by default (it emits the full event log and per-block gene trees). Pass
   `output="profiles"` for the Rust path over leaf segments — much faster, enough for
   `profile_matrix()` / `leaf_mosaic()` / `trace_back()`, but with no event log.
 

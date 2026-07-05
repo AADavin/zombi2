@@ -45,21 +45,21 @@ orientation (the reversed colour gradient), a tandem duplication lengthens it �
 a variable-length stretch of nucleotides.</figcaption>
 </figure>
 
-## Atoms: units of shared ancestry
+## Blocks: units of shared ancestry
 
-The simulator partitions the surviving material into **atoms** — maximal segments that share
-one unbroken ancestry. Every event boundary splits atoms, so an atom is the finest unit for
-which a single gene tree is meaningful. Results are expressed over atoms:
+The simulator partitions the surviving material into **blocks** — maximal segments that share
+one unbroken ancestry. Every event boundary splits blocks, so a block is the finest unit for
+which a single gene tree is meaningful. Results are expressed over blocks:
 
 ```python
-atom_ids, species, matrix = result.profile_matrix()   # copy number of each atom per extant leaf
+block_ids, species, matrix = result.profile_matrix()   # copy number of each block per extant leaf
 ```
 
 <figure markdown="span">
-![Events partition a genome into atoms, each with its own reconstructed tree](../img/nucleotide_tree.svg)
-<figcaption>From events to atoms to gene trees: each structural event carves out a segment
-(left); the same breakpoints partition every genome into shared <strong>atoms</strong>
-(middle); and each atom has its own reconstructed gene tree (right) — a duplication adds a tip,
+![Events partition a genome into blocks, each with its own reconstructed tree](../img/nucleotide_tree.svg)
+<figcaption>From events to blocks to gene trees: each structural event carves out a segment
+(left); the same breakpoints partition every genome into shared <strong>blocks</strong>
+(middle); and each block has its own reconstructed gene tree (right) — a duplication adds a tip,
 a loss prunes one, an inversion leaves the genealogy unchanged.</figcaption>
 </figure>
 
@@ -67,11 +67,11 @@ a loss prunes one, an inversion leaves the genealogy unchanged.</figcaption>
 
 ```python
 leaf = tree.leaves()[0]
-result.leaf_mosaic(leaf)   # the genome as ordered, signed atoms: [(atom_id, strand), ...]
+result.leaf_mosaic(leaf)   # the genome as ordered, signed blocks: [(block_id, strand), ...]
 result.trace_back(leaf)    # every nucleotide's ancestral origin: [(source, src_pos, strand), ...]
 ```
 
-`leaf_mosaic` gives the leaf as a sequence of atoms with orientation; `trace_back` resolves
+`leaf_mosaic` gives the leaf as a sequence of blocks with orientation; `trace_back` resolves
 each nucleotide to where it came from.
 
 <figure markdown="span">
@@ -81,27 +81,27 @@ position; the bottom bar is a leaf, each nucleotide coloured by where it came fr
 stretches keep the gradient, an inversion shows it reversed.</figcaption>
 </figure>
 
-## Per-atom gene trees & reconciliation
+## Per-block gene trees & reconciliation
 
 With the default `output="genomes"` (pure-Python engine), the result also carries the full
-event log and a reconstructed gene tree per atom:
+event log and a reconstructed gene tree per block:
 
 ```python
-trees = result.atom_gene_trees()        # {atom_id: (complete_newick, extant_newick)}
+trees = result.block_gene_trees()        # {block_id: (complete_newick, extant_newick)}
 result.write_reconciliations("out/")    # reconciled trees + the events table on disk
 ```
 
 ## Genes & intergenes
 
 By default a genome is an unstructured sequence and "genes" are only recovered *post hoc* as
-atoms. Pass `gene_intervals` — non-overlapping `(start, end)` (or `(start, end, name)`)
+blocks. Pass `gene_intervals` — non-overlapping `(start, end)` (or `(start, end, name)`)
 intervals on the root chromosome — to declare **genes** up front. Everything else is
 **intergene**. In this *genic mode*:
 
 - **Genes are never split.** Event breakpoints fall only in intergene positions, so every
   event moves, copies, inverts, or deletes a gene *as a whole*. Each gene is therefore exactly
-  one atom (one genealogy) wherever it survives; intergene stretches still fragment into many
-  intergene atoms. (A short event drawn entirely inside a gene is promoted to the whole gene.)
+  one block (one genealogy) wherever it survives; intergene stretches still fragment into many
+  intergene blocks. (A short event drawn entirely inside a gene is promoted to the whole gene.)
 - **Pseudogenization.** With probability `pseudogenization`, a loss that hits a gene *demotes*
   it to intergene — the sequence is retained, but the gene loses function. It is a state change
   on the continuing lineage (a `G` node in that gene's tree), not a deletion, and it is
@@ -120,24 +120,24 @@ result = z.simulate_nucleotide_genomes(
     root_length=1000, extension=0.97, gene_intervals=genes,
     pseudogenization=0.3, replacement=0.4, seed=1)
 
-result.gene_trees()          # {atom_id: (complete, extant)} for the gene atoms
-result.intergene_trees()     # …and for the intergene atoms
-result.pseudogenizations()   # [(atom_id, gene_id, species_branch, time, gene_lineage), …]
+result.gene_trees()          # {block_id: (complete, extant)} for the gene blocks
+result.intergene_trees()     # …and for the intergene blocks
+result.pseudogenizations()   # [(block_id, gene_id, species_branch, time, gene_lineage), …]
 ```
 
-Atoms carry their classification (`atom.kind` is `"gene"`/`"intergene"`, `atom.gene_id`), so
-`gene_atoms()` / `intergene_atoms()` partition the atom set. Genic mode runs on the Python
+Blocks carry their classification (`block.kind` is `"gene"`/`"intergene"`, `block.gene_id`), so
+`gene_blocks()` / `intergene_blocks()` partition the block set. Genic mode runs on the Python
 engine only (the Rust `profiles` path does not model genes). On the CLI:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
 
 where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
 annotation, including originated genes), gene/intergene trees under `Gene_trees/` and
-`Intergene_trees/`, a `kind`/`gene_id` column in `atoms.tsv`, and `Pseudogenizations.tsv`.
+`Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
 ### Starting from a real genome (GFF)
 
@@ -160,7 +160,7 @@ result = z.simulate_nucleotide_genomes(
 On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`/`--root-length`):
 
 ```bash
-zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
   --write profiles trees -o out/
 ```
@@ -173,7 +173,7 @@ with real gene ids.
 ## Sequences and ancestral genomes
 
 The model can also evolve the **DNA sequences** and reconstruct the **genome at every node** of the
-tree — with the root being the input genome. Each atom's gene tree is scaled to substitutions/site
+tree — with the root being the input genome. Each block's gene tree is scaled to substitutions/site
 and a sequence is evolved down it under a nucleotide substitution model (`jc69`, `k80`, `hky85`,
 `gtr`, optionally with a discrete-Gamma). The genome at any node is then assembled by concatenating,
 in genome order, the sequence of each segment's lineage (reverse-complemented on the − strand):
@@ -186,7 +186,7 @@ res.simulate_sequences(z.hky85(2.0), subst_rate=0.05,
 
 res.node_sequence(tree.root)     # == the input genome, exactly
 res.node_sequence(leaf)          # the evolved genome at any node
-res.node_mosaic(node)            # its architecture: ordered, oriented gene/intergene atoms
+res.node_mosaic(node)            # its architecture: ordered, oriented gene/intergene blocks
 res.gene_alignments()            # {gene_id: {species_gid: sequence}} extant alignments
 ```
 
@@ -197,7 +197,7 @@ substrings, so the reconstructed root genome is byte-identical to the input.
 On the CLI, `--write ancestral`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --gff ecoli.gff --genome-fasta ecoli.fna \
   --subst-model hky85 --kappa 2 --subst-rate 0.05 --write ancestral -o out/
 ```
@@ -213,7 +213,7 @@ few seconds).
 
 `output="profiles"` runs the compiled `zombi2_core` Rust engine over leaf segments only —
 much faster, and enough for `profile_matrix()`, `leaf_mosaic()`, and `trace_back()`. It emits
-**no event log**, so `atom_gene_trees()` / `atom_histories()` are unavailable, and it
+**no event log**, so `block_gene_trees()` / `block_histories()` are unavailable, and it
 **requires** the built extension (see [the Rust engine](rust-engine.md)):
 
 ```python

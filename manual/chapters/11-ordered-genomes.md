@@ -1,5 +1,10 @@
 # Ordered genomes
 
+Chapter 7 introduced three models of genome evolution. The first — unordered gene families
+(Chapter 8) — treats a genome as an unordered *set*. This chapter covers the second, **ordered gene
+families**: genes sit on a chromosome and their order matters, but distance is still counted in
+genes, not nucleotides. (The third model, nucleotide genomes, is Chapter 12.)
+
 By default a genome in ZOMBI2 is *order-free* (`UnorderedGenome`): a multiset of gene families with
 copy numbers, which is all you need for phylogenetic profiles. When gene *order* matters — synteny,
 operons, rearrangements — use `OrderedGenome`, the classic ZOMBI-1 model. An ordered genome is a
@@ -14,15 +19,15 @@ You select the representation by passing a `genome_factory` to `simulate_genomes
 that builds one from the gene ids:
 
 ```python
-import zombi2 as z
+from zombi2.genomes import SharedRates, OrderedGenome, simulate_genomes
 
-rates = z.UniformRates(
+rates = SharedRates(
     duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
     inversion=0.3, transposition=0.3,      # rearrangement rates (ordered genomes only)
 )
-genomes = z.simulate_genomes(
-    tree, rates, initial_size=30, seed=1,
-    genome_factory=lambda ids: z.OrderedGenome(ids, extension=0.5),
+genomes = simulate_genomes(
+    tree, rates, initial_families=30, seed=1,
+    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),
 )
 
 leaf = next(iter(genomes.leaf_genomes.values()))
@@ -32,11 +37,35 @@ leaf.chromosome     # list of OrderedGene(gid, family, orientation=±1), in orde
 Each leaf genome exposes its `chromosome` as an ordered list of `OrderedGene` records, every one
 tagged with its family and a strand orientation of $+1$ or $-1$.
 
+### From the command line
+
+The ordered level is also a `--genome-model`, so the same run is available from the `genomes`
+command:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model ordered \
+    --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
+    --inversion 0.3 --transposition 0.2 --extension 0.5 \
+    --initial-families 25 --seed 1 --write profiles trees events -o out/
+```
+
+Here `--inversion` and `--transposition` are the rearrangement rates (**per gene copy**, unlike the
+per-nucleotide rates of the nucleotide model), and `--extension` is the segment-length knob counted
+**in genes** ($0.5$ gives a mean of two genes per event; omit it for single-gene events). Because
+rearrangements live on the shared per-copy rate model, they require the default `--rate-model
+shared`; `--rate-model per-genome` runs an ordered genome with duplication, transfer and loss only.
+
 ## Segment events
 
 Events act on a *contiguous segment* of the circular chromosome rather than a single gene. The
-segment length is drawn using the `extension` parameter, a per-step continuation probability:
-`extension=None` produces single-gene events, while higher values produce longer segments.
+number of genes in a segment is **geometric**, controlled by the `extension` parameter — a
+per-step continuation probability. Every segment starts with one gene; each further gene is added
+with probability `extension`. A segment of $k$ genes therefore has probability
+$(1-\texttt{extension})\,\texttt{extension}^{\,k-1}$, and the mean length is
+$1/(1-\texttt{extension})$: `extension=None` (or 0) gives single-gene events, and values closer to
+1 give longer segments.
+
+![The number of genes an event affects is geometric in `extension`. Small values keep events local (mostly single genes); larger values give longer segments with a heavier tail. The dashed line marks the mean, $1/(1-\texttt{extension})$.](figures/segment_length.pdf){width=100%}
 
 | Event | Effect on the segment |
 |---|---|
@@ -69,7 +98,7 @@ unchanged. They appear only in the event log and in the final chromosome order.
 
 ## How events reach the genome
 
-Inversion and transposition rates are emitted by `UniformRates` as candidate events, but a genome
+Inversion and transposition rates are emitted by `SharedRates` as candidate events, but a genome
 only undergoes the events it declares in `supported_events()`:
 
 - `UnorderedGenome` supports `{O, D, T, L}`. It silently ignores inversion and transposition rates.

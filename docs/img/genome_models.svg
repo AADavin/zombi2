@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="366" viewBox="0 0 720 366" font-family="Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="720" height="366" fill="white"/>
+
+<line x1="212" y1="30" x2="212" y2="342" stroke="#dddddd" stroke-width="1"/>
+
+<!-- Row 1: unordered gene families (an unordered set) -->
+<text x="30" y="70" font-size="16" font-weight="bold" fill="#1a1a1a">Unordered</text>
+<text x="30" y="90" font-size="16" font-weight="bold" fill="#1a1a1a">gene families</text>
+<text x="30" y="112" font-size="12" fill="#666666">a set; no order</text>
+<rect x="244" y="42" width="356" height="78" rx="10" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-dasharray="5 4"/>
+<g fill="white" stroke="#1a1a1a" stroke-width="1.6">
+<rect x="270" y="54" width="46" height="24" rx="4"/>
+<rect x="372" y="52" width="46" height="24" rx="4"/>
+<rect x="474" y="56" width="46" height="24" rx="4"/>
+<rect x="322" y="86" width="46" height="24" rx="4"/>
+<rect x="426" y="86" width="46" height="24" rx="4"/>
+</g>
+<g font-size="13" fill="#1a1a1a" text-anchor="middle">
+<text x="293" y="70">A</text><text x="395" y="68">B</text><text x="497" y="72">C</text>
+<text x="345" y="102">D</text><text x="449" y="102">E</text>
+</g>
+
+<!-- Row 2: ordered gene families (order matters, no scale) -->
+<text x="30" y="178" font-size="16" font-weight="bold" fill="#1a1a1a">Ordered</text>
+<text x="30" y="198" font-size="16" font-weight="bold" fill="#1a1a1a">gene families</text>
+<text x="30" y="220" font-size="12" fill="#666666">order, not length</text>
+<g fill="white" stroke="#1a1a1a" stroke-width="1.6">
+<rect x="246" y="176" width="60" height="26" rx="4"/>
+<rect x="308" y="176" width="60" height="26" rx="4"/>
+<rect x="370" y="176" width="60" height="26" rx="4"/>
+<rect x="432" y="176" width="60" height="26" rx="4"/>
+<rect x="494" y="176" width="60" height="26" rx="4"/>
+<rect x="556" y="176" width="60" height="26" rx="4"/>
+</g>
+<g font-size="13" fill="#1a1a1a" text-anchor="middle">
+<text x="276" y="193">A</text><text x="338" y="193">B</text><text x="400" y="193">C</text>
+<text x="462" y="193">D</text><text x="524" y="193">E</text><text x="586" y="193">F</text>
+</g>
+
+<!-- Row 3: nucleotide genomes (real coordinates) -->
+<text x="30" y="286" font-size="16" font-weight="bold" fill="#1a1a1a">Nucleotide</text>
+<text x="30" y="306" font-size="16" font-weight="bold" fill="#1a1a1a">genomes</text>
+<text x="30" y="328" font-size="12" fill="#666666">real distances</text>
+<line x1="244" y1="284" x2="664" y2="284" stroke="#1a1a1a" stroke-width="1.4"/>
+<g fill="white" stroke="#1a1a1a" stroke-width="1.6">
+<rect x="254" y="271" width="60" height="26" rx="3"/>
+<rect x="344" y="271" width="90" height="26" rx="3"/>
+<rect x="474" y="271" width="40" height="26" rx="3"/>
+<rect x="564" y="271" width="90" height="26" rx="3"/>
+</g>
+<g font-size="13" fill="#1a1a1a" text-anchor="middle">
+<text x="284" y="288">A</text><text x="389" y="288">B</text><text x="494" y="288">C</text><text x="609" y="288">D</text>
+</g>
+<text x="299" y="263" font-size="11" fill="#666666" text-anchor="middle">gene</text>
+<text x="454" y="311" font-size="11" fill="#666666" text-anchor="middle">intergene</text>
+<g stroke="#9a9a9a" stroke-width="1">
+<line x1="244" y1="316" x2="244" y2="322"/>
+<line x1="344" y1="316" x2="344" y2="322"/>
+<line x1="444" y1="316" x2="444" y2="322"/>
+<line x1="544" y1="316" x2="544" y2="322"/>
+<line x1="644" y1="316" x2="644" y2="322"/>
+</g>
+<g font-size="11" fill="#777777" text-anchor="middle">
+<text x="244" y="336">0</text><text x="344" y="336">500</text><text x="444" y="336">1000</text>
+<text x="544" y="336">1500</text><text x="644" y="336">2000</text>
+</g>
+<text x="454" y="356" font-size="12" fill="#666666" text-anchor="middle">nucleotides</text>
+</svg>

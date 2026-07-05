@@ -106,7 +106,7 @@ def test_gff_feeds_the_genic_simulation(tmp_path):
         tree, inversion=0.003, loss=0.003, duplication=0.002, transfer=0.002,
         root_length=g.length, gene_intervals=g.genes, extension=0.95,
         pseudogenization=0.3, replacement=0.3, seed=2)
-    # the GFF genes are recovered as gene atoms named by their locus tags
-    gene_ids = {a.gene_id for a in res.gene_atoms()}
+    # the GFF genes are recovered as gene blocks named by their locus tags
+    gene_ids = {a.gene_id for a in res.gene_blocks()}
     assert {"g1", "g2", "g3"} <= gene_ids
     assert res.gene_trees() and res.intergene_trees()
