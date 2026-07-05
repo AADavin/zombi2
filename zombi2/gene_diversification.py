@@ -73,7 +73,8 @@ class GeneDiversification:
 
     def __init__(self, n_drivers, *, lambda0=1.0, mu0=0.2,
                  driver_speciation=1.0, driver_extinction=0.0,
-                 loss=0.1, origination=0.05, transfer=0.5, root_drivers=0):
+                 loss=0.1, origination=0.05, transfer=0.5, root_drivers=0,
+                 cladogenetic_loss=0.0, cladogenetic_gain=0.0):
         k = int(n_drivers)
         if k < 1:
             raise ValueError(f"n_drivers must be >= 1, got {n_drivers}")
@@ -81,6 +82,8 @@ class GeneDiversification:
             raise ValueError("lambda0 and mu0 must be >= 0")
         if loss < 0 or origination < 0 or transfer < 0:
             raise ValueError("loss, origination and transfer must be >= 0")
+        if not (0.0 <= cladogenetic_loss <= 1.0) or not (0.0 <= cladogenetic_gain <= 1.0):
+            raise ValueError("cladogenetic_loss and cladogenetic_gain must be probabilities in [0, 1]")
         self.n_drivers = k
         self.lambda0 = float(lambda0)
         self.mu0 = float(mu0)
@@ -89,6 +92,13 @@ class GeneDiversification:
         self.loss = float(loss)
         self.origination = float(origination)
         self.transfer = float(transfer)
+        # cladogenetic burst on the drivers at each speciation (the species:genes arrow). With both
+        # > 0 this is the species<->genes JOINT model ("co-diversification"): the same drivers set
+        # the rates AND are reshuffled at every split, so a burst can hand one daughter a key
+        # innovation and not its sister. Default 0 = pure genes:species (drivers change only along
+        # branches).
+        self.cladogenetic_loss = float(cladogenetic_loss)
+        self.cladogenetic_gain = float(cladogenetic_gain)
         if np.isscalar(root_drivers):
             m = int(root_drivers)
             if not (0 <= m <= k):
@@ -109,6 +119,11 @@ class GeneDiversification:
         else:
             lam, mu = self.lambda0, self.mu0
         return lam, mu
+
+    @property
+    def is_co_diversification(self) -> bool:
+        """True when a cladogenetic burst is active — the species<->genes joint model."""
+        return self.cladogenetic_loss > 0.0 or self.cladogenetic_gain > 0.0
 
     def __repr__(self):
         return f"GeneDiversification(n_drivers={self.n_drivers}, transfer={self.transfer:g})"
@@ -172,6 +187,20 @@ class _Lineage:
         self.drivers = set(drivers)
 
 
+def _burst_drivers(present, k, clado_loss, clado_gain, rng):
+    """A daughter's driver set after a cladogenetic burst at speciation (the ``species:genes``
+    arrow over a fixed binary panel): drop each *present* driver with probability ``clado_loss``,
+    and gain each *absent* driver with probability ``clado_gain``."""
+    out = set()
+    for d in range(k):
+        if d in present:
+            if clado_loss <= 0.0 or rng.random() >= clado_loss:
+                out.add(d)                            # retained through the burst
+        elif clado_gain > 0.0 and rng.random() < clado_gain:
+            out.add(d)                                # gained at the burst
+    return out
+
+
 def _simulate_once(model, age, n_tips, rng, max_lineages):
     """One forward trial from a crown of two lineages sharing the root driver set.
 
@@ -182,6 +211,8 @@ def _simulate_once(model, age, n_tips, rng, max_lineages):
     lam0, mu0 = model.lambda0, model.mu0
     beta_l, beta_m = model.beta_lambda, model.beta_mu
     loss, orig, tr = model.loss, model.origination, model.transfer
+    clado_loss, clado_gain = model.cladogenetic_loss, model.cladogenetic_gain
+    bursts = clado_loss > 0.0 or clado_gain > 0.0            # species:genes arrow active = co-div
     root_set = model.root_set
 
     carriers = [0] * k                            # how many live lineages carry each driver
@@ -272,10 +303,11 @@ def _simulate_once(model, age, n_tips, rng, max_lineages):
             drop(lin)
             live[idx] = live[-1]
             live.pop()
-            for _ in range(2):
-                d = TreeNode(name="", time=t)
-                lin.node.add_child(d)
-                add(d, S)
+            for _ in range(2):                     # each daughter: burst the drivers, then live on
+                child = TreeNode(name="", time=t)
+                lin.node.add_child(child)
+                child_S = _burst_drivers(S, k, clado_loss, clado_gain, rng) if bursts else set(S)
+                add(child, child_S)
         elif e < lam + mu:                         # extinction
             lin.node.time = t
             lin.node.is_extant = False
@@ -347,3 +379,38 @@ def simulate_gene_diversification(
     raise RuntimeError(
         f"gene-diversification produced no surviving tree in {max_attempts} attempts "
         "(the clade kept going extinct); raise max_attempts or lower the extinction rates")
+
+
+def simulate_co_diversification(
+    model: GeneDiversification,
+    *,
+    age: float | None = None,
+    n_tips: int | None = None,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+    max_attempts: int = 10_000,
+    max_lineages: int = 1_000_000,
+) -> GeneDiversificationResult:
+    """The **species<->genes joint model** — ``genes:species`` *and* ``species:genes`` at once.
+
+    The same panel of driver families both **sets the diversification rates** (``genes:species``:
+    a lineage carrying key innovations speciates faster) *and* is **reshuffled by a cladogenetic
+    burst at every speciation** (``species:genes``: at each split a daughter drops each driver it
+    carries with probability ``cladogenetic_loss`` and gains each absent one with probability
+    ``cladogenetic_gain``). Because a burst can hand one daughter a key innovation and not its
+    sister, speciation *itself* seeds diversification-rate heterogeneity — the genomic analogue of
+    ClaSSE. One arrow points into S, so the tree is an **output** (grown jointly; take ``age`` or
+    ``n_tips``, not a ``-t`` tree).
+
+    ``model`` must have ``cladogenetic_loss > 0`` or ``cladogenetic_gain > 0`` (otherwise the
+    ``species:genes`` arrow is off and this is plain :func:`simulate_gene_diversification`). Returns
+    the same :class:`GeneDiversificationResult`; overlay the neutral bulk genome afterward with
+    :func:`~zombi2.simulate_genomes` on ``.tree`` as usual.
+    """
+    if not model.is_co_diversification:
+        raise ValueError(
+            "simulate_co_diversification is the species<->genes joint model — set "
+            "cladogenetic_loss and/or cladogenetic_gain > 0 (the species:genes burst); with both 0 "
+            "this reduces to genes:species, so call simulate_gene_diversification instead")
+    return simulate_gene_diversification(model, age=age, n_tips=n_tips, seed=seed, rng=rng,
+                                         max_attempts=max_attempts, max_lineages=max_lineages)

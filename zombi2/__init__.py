@@ -75,8 +75,10 @@ from .coevolve import (
     TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
     simulate_trait_linked_genomes,
     GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
+    simulate_co_diversification,
     CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
     GeneConditionedTrait, GeneConditionedTraitResult, simulate_gene_conditioned_trait,
+    TraitGeneFeedback, TraitGeneFeedbackResult, simulate_trait_gene_feedback,
     BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
 )
 # NOTE: ABC profile-matching inference (zombi2.matching / zombi2.abc) is withheld from the v1
@@ -132,12 +134,16 @@ __all__ = [
     "DEC", "simulate_biogeography",
     # state-dependent diversification (trait drives the tree — coevolve traits:species)
     "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
-    # gene-content-dependent diversification (genes drive the tree — coevolve genes:species)
+    # gene-content-dependent diversification (genes drive the tree — coevolve genes:species,
+    # + species:genes = the co-diversification joint model)
     "GeneDiversification", "GeneDiversificationResult", "simulate_gene_diversification",
+    "simulate_co_diversification",
     # cladogenetic genome evolution (speciation drives gene content — coevolve species:genes)
     "CladogeneticGenome", "CladogeneticGenomeResult", "simulate_cladogenetic_genome",
     # gene-conditioned trait (gene content drives a trait — coevolve genes:traits)
     "GeneConditionedTrait", "GeneConditionedTraitResult", "simulate_gene_conditioned_trait",
+    # trait<->genes joint model (trait-gene feedback — coevolve traits:genes + genes:traits)
+    "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)

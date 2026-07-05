@@ -24,6 +24,7 @@ from .trait_coupling import (
 )
 from .gene_diversification import (
     GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
+    simulate_co_diversification,
 )
 from .cladogenetic_genome import (
     CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
@@ -31,6 +32,9 @@ from .cladogenetic_genome import (
 from .gene_conditioned_trait import (
     GeneConditionedTrait, GeneConditionedTraitResult,
     simulate_gene_conditioned_trait,
+)
+from .trait_gene_feedback import (
+    TraitGeneFeedback, TraitGeneFeedbackResult, simulate_trait_gene_feedback,
 )
 from .sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
 
@@ -40,10 +44,11 @@ __all__ = [
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
     "TraitLinkedResult", "simulate_trait_linked_genomes",
     "GeneDiversification", "GeneDiversificationResult",
-    "simulate_gene_diversification",
+    "simulate_gene_diversification", "simulate_co_diversification",
     "CladogeneticGenome", "CladogeneticGenomeResult",
     "simulate_cladogenetic_genome",
     "GeneConditionedTrait", "GeneConditionedTraitResult",
     "simulate_gene_conditioned_trait",
+    "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
     "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
 ]

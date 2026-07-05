@@ -48,7 +48,15 @@ The three processes give six directed edges, each a distinct model:
 | `traits:genes` | T $\to$ G | trait-linked gene families |
 | `genes:traits` | G $\to$ T | gene-conditioned trait |
 
-![The six couplings of `coevolve` mode. Each directed arrow driver $\to$ target is one model, selected with `--couple driver:target`. The two edges that point *into* S are drawn heavy: an arrow into S makes the tree depend on the coupled state, so the tree becomes an output (forward-only). The other four are overlays on a tree you supply.](figures/coevolve_modes.pdf){width=100%}
+These six are the *building blocks*. They are not the whole story, because each node-pair's two edges
+can be switched on **together**, giving a **joint (bidirectional) model** — three more: **ClaSSE**
+(traits $\leftrightarrow$ species), **co-diversification** (species $\leftrightarrow$ genes) and
+**trait–gene feedback** (traits $\leftrightarrow$ genes), each documented in the "Both arrows" section
+under its pair. (And the named literature models are choices *within* an edge: BiSSE, MuSSE and QuaSSE
+are three flavours of the single `traits:species` edge, picked with `--sse-model`.) So there are more
+models than arrows.
+
+![The couplings of `coevolve` mode. Each **directed** arrow driver $\to$ target is one model, coloured to match its label and selected with `--couple driver:target`; the two that point *into* S are drawn heavy, because an arrow into S makes the tree depend on the coupled state, so the tree becomes an output (the other four are overlays on a tree you supply). The straight **double-headed** arrow between each pair is that pair's *joint* model — both edges at once: ClaSSE (traits $\leftrightarrow$ species), co-diversification (species $\leftrightarrow$ genes) and trait–gene feedback (traits $\leftrightarrow$ genes).](figures/coevolve_modes.pdf){width=100%}
 
 The one rule that governs their difficulty is: **does any active edge point into S?** If no edge
 points into S, the tree is fixed — it is read from `-t/--tree` and every coupling is an *overlay* on a
@@ -246,6 +254,37 @@ their split, not spread evenly along the branches.
 
 ![The genomic twin of the cladogenetic-trait figure: a genome evolved down **one shared tree** two ways. **A**, gradual — families are lost and gained *along* the branches (circles at the branch midpoints), so gene-content turnover scales with time and sister genomes stay similar. **B**, punctuational — gene content changes only in a *burst at each speciation* (diamonds at the nodes), so sister tips can differ sharply in size and content. The tip bars are the extant genome sizes. Same marker grammar as the trait figure: change on a branch vs change at a node.](figures/punctuational_genome.pdf){width=100%}
 
+### Both arrows: co-diversification
+
+Turn on **both** `genes:species` and `species:genes` and the *same* driver families both set the
+diversification rates *and* are reshuffled by a cladogenetic burst at every speciation — the genomic
+twin of ClaSSE. Because a burst can hand one daughter a key innovation and not its sister, speciation
+*itself* seeds the rate heterogeneity that then plays out along the branches. One arrow points into S,
+so the tree is again an output:
+
+```python
+from zombi2.coevolve import GeneDiversification, simulate_co_diversification
+
+res = simulate_co_diversification(
+    GeneDiversification(3, lambda0=1.0, mu0=0.15, driver_speciation=1.0,
+                        loss=0.0, origination=0.0, transfer=0.0, root_drivers=1,
+                        cladogenetic_loss=0.15, cladogenetic_gain=0.2),
+    n_tips=200, seed=5)
+res.tip_prevalence()   # the drivers still spread — the genes:species signal survives the bursts
+```
+
+```bash
+zombi2 coevolve --couple genes:species --couple species:genes \
+    --drivers 3 --lambda0 1 --mu0 0.15 --driver-speciation 1.0 \
+    --driver-loss 0 --driver-origination 0 --driver-transfer 0 --root-drivers 1 \
+    --driver-clado-loss 0.15 --driver-clado-gain 0.2 --tips 200 --seed 5 -o out/
+```
+
+`--driver-clado-loss`/`--driver-clado-gain` are the per-driver drop/gain probabilities of the burst;
+with both `0` the `species:genes` arrow is off and this is plain `genes:species`. **What it recovers:**
+the diversification signal (a key innovation over-represented among the tips) *and* the punctuational
+signal (sisters differing where a burst split them) at once.
+
 ## Traits and genes
 
 ### `traits:genes` — trait-linked gene families
@@ -325,6 +364,38 @@ carrying the modifier sit near `theta_present`, those without near `theta_absent
 event reading out as a shift in a continuous phenotype.
 
 ![Gene-conditioned trait. **A**, the mechanism: one lineage's trait sits near `theta_absent` while the modifier is absent (light), then the gene is gained (the +) and the trait climbs to the new OU optimum `theta_present` (heavy). **B**, one realization — the tree drawn heavy where the modifier is present, light where absent, and each tip's trait value as a dot on a shared axis. Carriers (filled) sit at `theta_present`, non-carriers (open) at `theta_absent`: a discrete genomic event reading out as a shift in a continuous phenotype.](figures/gene_conditioned_trait.pdf){width=100%}
+
+### Both arrows: trait–gene feedback
+
+Turn on **both** `traits:genes` and `genes:traits` and the trait and a coupled gene panel modulate
+*each other*: the trait sets the panel's retention while the panel sets the trait's optimum. Neither
+arrow points into S, so this stays an **overlay** on a given tree — but because each depends on the
+other's *current* value, the two are integrated together along each branch rather than one after the
+other. The loop is self-reinforcing (carrying the panel pulls the trait up; a high trait keeps the
+panel), so a lineage settles into a panel-rich/high-trait or a panel-poor/low-trait regime, and the
+tips end up with the trait and the panel **correlated even though neither was imposed**:
+
+```python
+from zombi2.coevolve import TraitGeneFeedback, simulate_trait_gene_feedback
+
+res = simulate_trait_gene_feedback(
+    tree, TraitGeneFeedback(n_families=24, effect_loss=1.5, base_loss=1.0, gain=1.0,
+                            theta_low=-3.0, theta_high=3.0, alpha=1.0, sigma2=0.5), seed=2)
+res.trait_gene_correlation()   # the emergent trait-gene association the feedback writes
+```
+
+```bash
+zombi2 coevolve --couple traits:genes --couple genes:traits -t species_tree.nwk \
+    --panel 24 --effect-loss 1.5 --loss 1.0 --trans 1.0 \
+    --theta-absent -3 --theta-present 3 --trait-alpha 1 --trait-sigma2 0.5 --seed 2 -o out/
+```
+
+Here `--theta-absent`/`--theta-present` are the trait's optima at an empty/full panel and `--loss`/
+`--trans` the panel's base loss/gain. Setting `--effect-loss 0` recovers pure `genes:traits`, and
+setting `--theta-present` equal to `--theta-absent` recovers pure `traits:genes` — the joint model
+contains both single edges as limits. **What it recovers:** a trait–gene-content association that is
+*emergent* rather than built in; the decoupled control (`--effect-loss 0` with equal thetas) shows
+none.
 
 ## A note on inference
 

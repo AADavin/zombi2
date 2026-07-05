@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1220" height="700" viewBox="0 0 1220 700">
+     width="1220" height="664" viewBox="0 0 1220 664">
 <defs>
 </defs>
-<rect x="0" y="0" width="1220" height="700" fill="white" />
+<rect x="0" y="0" width="1220" height="664" fill="white" />
 <text x="610.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Gradual vs punctuational genome (species to genes)</text>
 <circle cx="360.0" cy="82" r="6.5" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
 <text x="374.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">gene turnover along a branch</text>
@@ -167,5 +167,4 @@
 <path d="M941.5,620 L941.5,626" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M1024.0,620 L1024.0,626" stroke="#1a1a1a" stroke-width="1.4" />
 <text x="859.0" y="644" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (root to present)</text>
-<text x="610.0" y="680" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">same tree -- gradual gives similar sister genomes; punctuation makes them differ</text>
 </svg>
