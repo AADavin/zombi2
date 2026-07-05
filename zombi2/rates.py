@@ -77,6 +77,17 @@ class RateModel(ABC):
         only at events, so no extra refresh points are needed."""
         return []
 
+    def establishment_probability(self, selection, recipient_genome, time: float) -> float:
+        """Probability that a horizontally transferred ``selection`` *establishes* in
+        ``recipient_genome`` — rolled once per transfer, *after* a real donor is found, so gain
+        stays donor-limited. Default ``1.0``: every transfer establishes, the caller skips the
+        RNG draw, and this default never inspects ``selection`` (whose ``genes`` are only
+        populated at extraction for some genome types) — so existing models keep byte-identical
+        streams. A coupled model (see :class:`~zombi2.coupling.PottsRates`) overrides this to
+        bias establishment by the recipient's local field, putting part of the coupling on the
+        *gain* channel."""
+        return 1.0
+
     def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
         """Called once at the start of a simulation with the RNG, the resolved hard
         family-size cap (or ``None``), and the species ``tree`` (some models, e.g.

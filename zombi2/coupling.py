@@ -32,7 +32,10 @@ profiles.
 Glauber gain), this is an *approximate* Potts generator: recovered couplings track the
 injected ``J`` in **sign and rank**, not as an exact Boltzmann constant. That is the
 deliberate price of keeping regain mechanistic — a lost family returns only from a donor
-that still has it, exactly as in real genomes.
+that still has it, exactly as in real genomes. Setting ``gain_coupling > 0`` additionally
+moves part of the coupling onto the gain channel by field-biasing HGT *establishment* (a
+transferred copy sticks preferentially where its partners are present) — sharper recovery,
+still donor-limited and still not exact Boltzmann.
 
 **Architecture.** :class:`PottsRates` is an ordinary :class:`~zombi2.RateModel`: the
 simulator already hands it the whole genome via ``event_weights(genome, branch, time)``, so
@@ -91,6 +94,10 @@ class CouplingSpec:
     base_loss  : baseline per-family loss rate (the loss at ``f_i = 0``).
     transfer   : per-copy HGT rate — the (field-blind) gain channel.
     origination: background rate of brand-new, *uncoupled* families (0 → closed panel).
+    gain_coupling: strength ``g`` of field-biased HGT *establishment* (design-note option b).
+                 ``0`` → field-blind gain (default, unchanged behaviour); ``>0`` biases a
+                 transferred copy's chance of establishing by the recipient's local field,
+                 adding donor-limited gain coupling on top of the loss coupling.
     prefix     : family-id prefix; family ``i`` is ``f"{prefix}{i}"``.
     """
 
@@ -101,6 +108,7 @@ class CouplingSpec:
     base_loss: float = 1.0
     transfer: float = 0.5
     origination: float = 0.0
+    gain_coupling: float = 0.0
     prefix: str = "F"
 
     def __post_init__(self) -> None:
@@ -109,11 +117,16 @@ class CouplingSpec:
         self.h = np.asarray(self.h, dtype=float)
         if self.h.shape != (self.n_families,):
             raise ValueError(f"h must have shape ({self.n_families},), got {self.h.shape}")
-        for name in ("beta", "base_loss", "transfer", "origination"):
+        for name in ("beta", "base_loss", "transfer", "origination", "gain_coupling"):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must be >= 0")
         self.panel_ids: list[str] = [f"{self.prefix}{i}" for i in range(self.n_families)]
         self.index: dict[str, int] = {fam: i for i, fam in enumerate(self.panel_ids)}
+        # Best-possible local field per family (all positive-J partners present). The field
+        # "deficit" f_max - f_i (>= 0) drives gain-side establishment coupling; see PottsRates.
+        self.f_max: np.ndarray = self.h.copy()
+        for i, nbrs in enumerate(self.adjacency):
+            self.f_max[i] += sum(j_ij for _, j_ij in nbrs if j_ij > 0.0)
 
     # --- constructors ------------------------------------------------------
     @classmethod
@@ -220,6 +233,35 @@ class PottsRates(RateModel):
         expo = max(-_MAX_EXPONENT, min(_MAX_EXPONENT, -s.beta * f_i))
         return s.base_loss * math.exp(expo)
 
+    # --- gain-side coupling: field-biased HGT establishment (design-note option b) ---------
+    def establishment_probability(self, selection, recipient_genome, time):
+        """Probability the transferred ``selection`` establishes in ``recipient_genome``:
+
+            p = exp(-β · g · (f_maxᵢ - f_i(recipient))),     g = spec.gain_coupling,
+
+        for the transferred family ``i = selection.genes[0].family``. The deficit
+        ``f_maxᵢ - f_i`` is the gap between the recipient's current field and its best-possible
+        field (all supportive partners present), so a well-supported recipient establishes
+        freely (``p → 1``) and a bare one is exponentially resisted. ``g = 0`` (default) →
+        ``p = 1``: field-blind, donor-limited HGT exactly as before (and ``selection`` is not
+        inspected). Non-panel families are uncoupled (``p = 1``). Gain stays donor-limited —
+        this only gates a copy a real donor already transferred, so it never manufactures a
+        globally-extinct family."""
+        s = self.spec
+        if s.gain_coupling <= 0.0:
+            return 1.0
+        idx = s.index.get(selection.genes[0].family)
+        if idx is None:
+            return 1.0
+        present = {s.index[f] for f in recipient_genome.families() if f in s.index}
+        f_i = s.h[idx]
+        for j, j_ij in s.adjacency[idx]:
+            if j in present:
+                f_i += j_ij
+        deficit = s.f_max[idx] - f_i  # >= 0 by construction
+        expo = max(-_MAX_EXPONENT, min(_MAX_EXPONENT, -s.beta * s.gain_coupling * deficit))
+        return math.exp(expo)
+
     def event_weights(self, genome, branch, time):
         s = self.spec
         index = s.index
@@ -291,11 +333,20 @@ def _panel_profile(leaf_genomes, spec: CouplingSpec) -> ProfileMatrix:
 
 def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
                      transfers: TransferModel | None = None,
-                     initial_presence=None) -> CoupledResult:
+                     initial_presence=None, origins=None) -> CoupledResult:
     """Simulate coupled gene families along ``tree`` under ``spec``.
 
-    The root genome is seeded with the panel (all families present by default; pass
-    ``initial_presence`` as a length-``N`` 0/1 mask to start from a chosen configuration).
+    By default the whole panel is seeded at the **root** (all families present); pass
+    ``initial_presence`` as a length-``N`` 0/1 mask to start from a chosen root configuration.
+
+    ``origins`` gives each family its **own birth node** instead of the root — a
+    ``{family_id: node}`` map where ``node`` is a :class:`~zombi2.tree.TreeNode` or its name.
+    A family is then absent above its origin node and evolves normally within that clade
+    (loss/transfer). Families omitted from ``origins`` default to the root; map a family to
+    ``None`` to keep it absent everywhere. This removes the *seed-everything-at-the-root*
+    (Dollo-like) bias when fitting real data — seed each family at, e.g., its Count-lite origin.
+    ``origins`` and ``initial_presence`` are mutually exclusive.
+
     Transfers default to full **replacement** (``TransferModel(replacement=1.0)``) so a
     re-acquired family does not stack copies — keeping the state cleanly presence/absence.
 
@@ -304,7 +355,26 @@ def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
     if rng is None:
         rng = np.random.default_rng(seed)
 
-    if initial_presence is None:
+    if origins is not None and initial_presence is not None:
+        raise ValueError("pass either initial_presence or origins, not both")
+
+    seed_map: dict[str, list[str]] | None = None
+    if origins is not None:
+        panel = set(spec.panel_ids)
+        stray = set(origins) - panel
+        if stray:
+            raise ValueError(f"origins references non-panel families: {sorted(stray)}")
+        root_name = tree.root.name
+        root_families: list[str] = []
+        seed_map = {}
+        for fam in spec.panel_ids:
+            origin = origins.get(fam, root_name)  # unlisted → born at the root
+            if origin is None:
+                continue  # explicitly absent everywhere
+            name = origin.name if hasattr(origin, "name") else origin
+            (root_families if name == root_name else seed_map.setdefault(name, [])).append(fam)
+        seed_families = root_families
+    elif initial_presence is None:
         seed_families = list(spec.panel_ids)
     else:
         mask = np.asarray(initial_presence)
@@ -316,6 +386,8 @@ def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
     result = GenomeSimulator().simulate(
         tree, PottsRates(spec), rng,
         initial_size=0, transfers=tm, genome_factory=_panel_factory(seed_families),
+        log_seed_originations=True,  # root-seeded panel families → log their root births
+        seed_originations=seed_map,  # internal-node births (per-family origins)
     )
     return CoupledResult(
         profiles=_panel_profile(result.leaf_genomes, spec),

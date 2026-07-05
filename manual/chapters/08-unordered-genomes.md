@@ -39,8 +39,9 @@ over time independently of what is already present.
 
 Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
 four rates vary across gene families**. Chapter 7 summarises the four rate models in a table; this
-section works through them. Two are available on the command line, `shared` (the default) and
-`per-genome`; per-family rates and the coupled model (Chapter 10) are Python-API for now.
+section works through them. Two of them are available on the command line, `shared` (the default)
+and `per-genome`, as is the coupled model (`--rate-model coupled`, Chapter 10); per-family rates are
+Python-API for now.
 
 ### Shared rates
 
