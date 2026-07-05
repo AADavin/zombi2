@@ -302,7 +302,7 @@ with numeric values, as `zombi2 trait` writes). See
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
 | `--initial-chromosomes` | [nucleotide] number of root chromosomes seeded at the root (default: 1) |
-| `--root-length` `--extension` | [nucleotide] root chromosome length (nt) / geometric event-length parameter (mean `1/(1-extension)`) |
+| `--root-length` `--mean-length` | [ordered/nucleotide] root chromosome length (nt) / mean inversion–transposition segment length (geometric; genes for ordered, nt for nucleotide) |
 | `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies the chromosome length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. `--gff-seqid ID` picks a sequence in a multi-record file |
 | `--genes FILE` | [nucleotide] BED/TSV of gene intervals (`start end [name]`) on the root chromosome — enables *genic mode* (genes are never split; genes & intergenes recovered as separate tree sets) |
 | `--pseudogenization` `--replacement` | [nucleotide, genic] probability a loss demotes a gene to intergene (sequence retained) / a transfer is a homologous replacement |
@@ -433,8 +433,9 @@ structure rather than an atomic gene-family model.
 
 The shared `--dup` / `--trans` / `--loss` / `--orig` flags become **per-nucleotide** rates here
 (so use small values, on the order of `1e-3`); `--inversion` and `--transposition` are the extra
-structural events, `--root-length` sets the starting chromosome length, and `--extension` the mean
-event length (`1/(1-extension)` nt). `--initial-chromosomes` seeds root chromosomes (default `1`).
+structural events, `--root-length` sets the starting chromosome length, and `--mean-length` the mean
+segment length of an inversion/transposition (in nt). `--initial-chromosomes` seeds root chromosomes
+(default `1`).
 
 ```bash
 zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
