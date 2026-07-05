@@ -21,7 +21,7 @@ import numpy as np
 
 from ._sampling import EventSampler, Fenwick, NumpyEventSampler
 from .events import EventLog, EventRecord, EventType, GeneOp, Selection
-from .genome import Genome, IdManager, UnorderedGenome
+from .genome import Gene, Genome, IdManager, UnorderedGenome
 from .rates import RateModel
 from .transfers import TransferModel
 from .tree import Tree, TreeNode
@@ -69,6 +69,7 @@ class GenomeSimulator:
         genome_factory=UnorderedGenome,
         retain_internal: bool = False,
         log_seed_originations: bool = False,
+        seed_originations: dict[str, list[str]] | None = None,
     ) -> GenomeResult:
         """Simulate gene families on ``tree``.
 
@@ -83,6 +84,14 @@ class GenomeSimulator:
         and gene-tree reconstruction (which starts from the origination) yields nothing. The
         default ``False`` leaves every existing caller (empty factory + ``initial_size`` loop,
         or the nucleotide chromosome factory) byte-identical.
+
+        ``seed_originations`` maps a node *name* to a list of family ids to originate *at that
+        node* — one fresh copy each, logged as an ORIGINATION, injected into the node's genome
+        the moment the walk reaches it (before it speciates), so the family is absent above that
+        node and evolves normally within its subtree. This lets a family be born at an internal
+        clade instead of only the root (the coupling panel seeds each family at its inferred
+        origin). No RNG is drawn, so the default ``None`` leaves every existing caller
+        byte-identical. Requires a multiset genome (one exposing ``_add``).
         """
         self._transfers = transfers or TransferModel()
         n_species = len(tree.extant_leaves())
@@ -101,6 +110,9 @@ class GenomeSimulator:
             for gene in list(root_genome.genes()):
                 log.add(EventRecord(EventType.ORIGINATION, root.name, root.time,
                                     [GeneOp(gene.gid, gene.family, "origin")]))
+        # families a caller asks to be born *at the root* (internal-node births are injected
+        # during the walk below, when each node is reached).
+        self._seed_at_node(root_genome, root, seed_originations, ids, log)
         for _ in range(initial_size):
             params = rate_model.target_params(EventType.ORIGINATION, root_genome, root.name, root.time)
             ops = root_genome.originate(rng, params)
@@ -116,6 +128,11 @@ class GenomeSimulator:
         nodes_by_index = list(tree.nodes_preorder())
         index = {node: i for i, node in enumerate(nodes_by_index)}
         name_to_node = {node.name: node for node in nodes_by_index}
+        if seed_originations:
+            unknown = set(seed_originations) - set(name_to_node)
+            if unknown:
+                raise ValueError(
+                    f"seed_originations references unknown node name(s): {sorted(unknown)}")
         fenwick = Fenwick(len(nodes_by_index))
 
         def activate(branch):
@@ -144,6 +161,8 @@ class GenomeSimulator:
             genome = alive.pop(node)
             cache.pop(node, None)
             fenwick.set(index[node], 0.0)  # this branch ends here
+            # families born at this node join the genome before it speciates onward
+            self._seed_at_node(genome, node, seed_originations, ids, log)
             if retain_internal:
                 node_genomes[node] = genome         # the ancestral genome at this node
             if node.is_leaf():
@@ -162,6 +181,29 @@ class GenomeSimulator:
 
         return GenomeResult(event_log=log, leaf_genomes=leaf_genomes, ids=ids,
                             node_genomes=node_genomes)
+
+    # --- per-node origin seeding: born-at-this-node families join the genome ----
+    @staticmethod
+    def _seed_at_node(genome, node, seed_originations, ids, log):
+        """Originate each family scheduled to be *born at* ``node`` (per ``seed_originations``)
+        into ``genome`` as one fresh copy, logging an ORIGINATION so the genealogy carries its
+        birth. No RNG is drawn (ids are deterministic), so ``seed_originations=None`` is a no-op
+        for every existing caller. Requires a multiset genome exposing ``_add(Gene)``."""
+        if not seed_originations:
+            return
+        families = seed_originations.get(node.name)
+        if not families:
+            return
+        add = getattr(genome, "_add", None)
+        if add is None:
+            raise TypeError(
+                f"seed_originations requires a multiset genome supporting _add(Gene); "
+                f"{type(genome).__name__} does not")
+        for fam in families:
+            gene = Gene(ids.new_gene(), fam)
+            add(gene)
+            log.add(EventRecord(EventType.ORIGINATION, node.name, node.time,
+                                [GeneOp(gene.gid, fam, "origin")]))
 
     # --- speciation: re-mint lineage ids into both children, log it --------
     @staticmethod

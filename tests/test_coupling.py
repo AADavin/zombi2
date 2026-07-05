@@ -263,6 +263,89 @@ def test_runs_on_realistic_tree():
     assert len(res.event_log) > 0
 
 
+# ── 3b. per-family internal-node origin seeding (``origins=``) ────────────────
+def two_clade_tree(age: float = 1.0) -> Tree:
+    """``root → {cladeA → (a0,a1)}, {cladeB → (b0,b1)}`` — cladeA's subtree is exactly
+    ``{a0, a1}``, so a family born at cladeA must appear only there when nothing erases it."""
+    root = TreeNode(name="root", time=0.0)
+    a = TreeNode(name="cladeA", time=0.5 * age)
+    b = TreeNode(name="cladeB", time=0.5 * age)
+    root.add_child(a)
+    root.add_child(b)
+    for parent, names in ((a, ("a0", "a1")), (b, ("b0", "b1"))):
+        for nm in names:
+            leaf = TreeNode(name=nm, time=age, is_extant=True)
+            parent.add_child(leaf)
+    return Tree(root, age)
+
+
+def _presence_by_leaf(res, family):
+    """Leaf names where ``family`` is present (queries the genomes, not the natkey column order)."""
+    return {node.name for node, g in res.leaf_genomes.items() if g.copy_number(family) > 0}
+
+
+_FROZEN = dict(base_loss=0.0, transfer=0.0, h=0.0)  # no loss, no gain → seeds are frozen at the tips
+
+
+def test_origin_at_internal_node_confines_family_to_that_clade():
+    tree = two_clade_tree()
+    spec = pathway_blocks([2, 2], within=2.0, **_FROZEN)  # panel F0..F3
+    node_a = next(n for n in tree.nodes_preorder() if n.name == "cladeA")
+    res = simulate_coupled(tree, spec, seed=1, origins={"F0": node_a})  # F0 born at cladeA
+    assert _presence_by_leaf(res, "F0") == {"a0", "a1"}                 # confined to the clade
+    for fam in ("F1", "F2", "F3"):                                      # the rest default to root
+        assert _presence_by_leaf(res, fam) == {"a0", "a1", "b0", "b1"}
+
+
+def test_origin_logs_origination_at_the_birth_node():
+    tree = two_clade_tree()
+    spec = pathway_blocks([2, 2], within=2.0, **_FROZEN)
+    res = simulate_coupled(tree, spec, seed=1, origins={"F0": "cladeA"})  # by node name
+    origins = [(r.branch, r.family) for r in res.event_log.records
+               if r.event is EventType.ORIGINATION]
+    assert ("cladeA", "F0") in origins           # F0's birth is recorded at cladeA
+    assert ("root", "F0") not in origins         # and not at the root
+
+
+def test_origins_all_at_root_matches_default():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=15, age=2.0, seed=9)
+    spec = pathway_blocks([2, 2], within=2.0, **_REGIME)
+    default = simulate_coupled(tree, spec, seed=4).profiles
+    at_root = simulate_coupled(tree, spec, seed=4,
+                               origins={f: "root" for f in spec.panel_ids}).profiles
+    assert np.array_equal(default.matrix, at_root.matrix)
+
+
+def test_origin_none_keeps_family_absent_everywhere():
+    tree = two_clade_tree()
+    spec = pathway_blocks([2, 2], within=2.0, **_FROZEN)
+    res = simulate_coupled(tree, spec, seed=1, origins={"F0": None})
+    assert _presence_by_leaf(res, "F0") == set()          # never seeded
+    assert _presence_by_leaf(res, "F1") == {"a0", "a1", "b0", "b1"}
+
+
+def test_origins_unknown_node_rejected():
+    tree = two_clade_tree()
+    spec = pathway_blocks([2, 2], within=2.0, **_FROZEN)
+    with pytest.raises(ValueError, match="unknown node name"):
+        simulate_coupled(tree, spec, seed=1, origins={"F0": "no_such_node"})
+
+
+def test_origins_non_panel_family_rejected():
+    tree = two_clade_tree()
+    spec = pathway_blocks([2, 2], within=2.0, **_FROZEN)
+    with pytest.raises(ValueError, match="non-panel families"):
+        simulate_coupled(tree, spec, seed=1, origins={"F9": "cladeA"})
+
+
+def test_origins_and_initial_presence_mutually_exclusive():
+    tree = two_clade_tree()
+    spec = pathway_blocks([2, 2], within=2.0, **_FROZEN)
+    with pytest.raises(ValueError, match="not both"):
+        simulate_coupled(tree, spec, seed=1,
+                         initial_presence=np.ones(4), origins={"F0": "cladeA"})
+
+
 # ── 4. gain-side coupling: field-biased HGT establishment (option b) ──────────
 def _sel(family):
     """A minimal stand-in for a transfer selection: the hook reads ``selection.genes[0].family``."""
@@ -414,3 +497,23 @@ def test_match_coupled_recovers_coupling_strength():
         return fit.summary()["within"]["median"]
 
     assert fit_median(1.0) > fit_median(0.0) + 0.2           # coupling strength is identified
+
+
+def test_match_coupled_threads_origins_through():
+    """origins= reaches the simulator: fitting the same target with families born at an internal
+    clade vs all-at-root explores different simulations (different accepted summaries)."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.5), n_tips=24, age=1.0, seed=1)
+    spec = pathway_blocks([3, 3], within=1.0, **_ABC_COMMON)
+    node = next(n for n in tree.internal_nodes() if n is not tree.root)
+    origins = {f: node for f in spec.panel_ids}
+    emp = simulate_coupled(tree, spec, seed=5, origins=origins).profiles
+
+    def builder(p):
+        return pathway_blocks([3, 3], within=p["within"], **_ABC_COMMON)
+
+    common = dict(n_sims=25, accept=0.2, seed=1)
+    at_root = match_coupled(tree, emp, builder, {"within": (0.0, 1.5)}, **common)
+    at_node = match_coupled(tree, emp, builder, {"within": (0.0, 1.5)}, origins=origins, **common)
+    # same empirical target, but the origins run simulates a different (clade-restricted) process
+    assert np.array_equal(at_root.empirical_summary, at_node.empirical_summary)
+    assert not np.array_equal(at_root.accepted_summaries, at_node.accepted_summaries)
