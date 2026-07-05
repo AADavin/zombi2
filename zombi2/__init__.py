@@ -24,107 +24,63 @@ from __future__ import annotations
 
 __version__ = "0.2.0.dev0"
 
+# Low-level primitives (kept at top level only; no scikit-style namespace).
 from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
-from .tree import Tree, TreeNode, read_newick, prune
-from .species_model import (
-    BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent, CladeShiftBirthDeath,
+from ._rust import available as rust_available
+
+# scikit-learn-style namespaces are the single source of truth for the
+# public API: importing from them here guarantees that, e.g.,
+# ``zombi2.BirthDeath is zombi2.species.BirthDeath`` (same object). The
+# namespace modules are thin re-exports over the implementation modules and do
+# not redefine anything; see zombi2/species.py, zombi2/genomes.py, etc.
+from .species import (
+    Tree, TreeNode, read_newick, prune,
+    BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent,
+    CladeShiftBirthDeath, simulate_species_tree, add_ghost_lineages,
 )
-from .species_sim import simulate_species_tree
-from .ghosts import add_ghost_lineages
-from .genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
-from .nucleotide_genome import NucleotideGenome, Segment
-from .nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Atom
-from .gff import read_gff, GffGenome
-from .rates import (
-    RateModel,
-    UniformRates,
-    GenomeWiseRates,
-    FamilySampledRates,
-    BranchRates,
-    EventWeight,
+from .genomes import (
+    Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
+    NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Atom,
+    read_gff, GffGenome,
+    RateModel, UniformRates, GenomeWiseRates, FamilySampledRates, BranchRates,
+    EventWeight, TransferModel,
+    GenomeSimulator, GenomeResult, ProfileMatrix,
+    simulate_genomes, Genomes, GenomeTrace, read_events_trace,
+    build_gene_trees, run_replicates,
 )
-from .transfers import TransferModel
 from .distributions import (
-    Distribution,
-    Fixed,
-    Exponential,
-    Gamma,
-    LogNormal,
-    Uniform,
-    as_distribution,
+    Distribution, Fixed, Exponential, Gamma, LogNormal, Uniform, as_distribution,
 )
-from .genome_sim import GenomeSimulator, GenomeResult
-from .profiles import ProfileMatrix
-from .reconciliation import build_gene_trees
-from .rate_variation import RateVariation, RateScaledTree
-from .sequence_evolution import SequenceEvolution, GenePhylograms
-from .sequence_sim import (
+from .sequences import (
+    RateVariation, RateScaledTree,
+    SequenceEvolution, GenePhylograms,
     SubstitutionModel, GammaRates, jc69, k80, hky85, gtr,
     poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model,
     DNA_MODELS, PROTEIN_MODELS, AMINO_ACIDS,
     evolve_on_tree, read_fasta, write_fasta,
 )
 from .traits import (
-    BrownianMotion,
-    OrnsteinUhlenbeck,
-    MultivariateBrownian,
-    MultivariateOU,
-    MultiOptimumOU,
-    ThresholdModel,
-    EarlyBurst,
-    Mk,
-    CorrelatedBinary,
-    HiddenStateMk,
-    Cladogenesis,
-    simulate_traits,
-    replicate_traits,
-    TraitResult,
-    pagel_lambda,
-    pagel_delta,
-    pagel_kappa,
+    BrownianMotion, OrnsteinUhlenbeck, MultivariateBrownian, MultivariateOU,
+    MultiOptimumOU, ThresholdModel, EarlyBurst, Mk, CorrelatedBinary,
+    HiddenStateMk, Cladogenesis, simulate_traits, replicate_traits, TraitResult,
+    pagel_lambda, pagel_delta, pagel_kappa,
+    DEC, simulate_biogeography,
 )
-from .biogeography import DEC, simulate_biogeography
-from .sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
-from .gene_diversification import (
-    GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
-)
-from .cladogenetic_genome import (
-    CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
-)
-from .gene_conditioned_trait import (
-    GeneConditionedTrait, GeneConditionedTraitResult, simulate_gene_conditioned_trait,
-)
-from .simulation import simulate_genomes, Genomes, GenomeTrace, read_events_trace
-from .coupling import (
-    CouplingSpec,
-    PottsRates,
-    pathway_blocks,
-    simulate_coupled,
-    CoupledResult,
-)
-from .trait_coupling import (
-    TraitGeneCoupling,
-    TraitTrajectory,
-    TraitLinkedRates,
-    TraitLinkedResult,
+from .coevolve import (
+    CouplingSpec, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
+    TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
     simulate_trait_linked_genomes,
+    GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
+    CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
+    GeneConditionedTrait, GeneConditionedTraitResult, simulate_gene_conditioned_trait,
+    BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
 )
-from .matching import (
-    match_profiles,
-    match_profiles_smc,
-    match_coupled,
-    ABCFit,
-    default_summary,
-    default_gene_tree_summary,
-    cooccurrence_summary,
-    cooccurrence_features,
-    event_count_summary,
-    frequency_spectrum,
-    genome_sizes,
-    copy_number_spectrum,
+from .abc import (
+    match_profiles, match_profiles_smc, match_coupled, ABCFit,
+    default_summary, default_gene_tree_summary, cooccurrence_summary,
+    cooccurrence_features, event_count_summary, frequency_spectrum,
+    genome_sizes, copy_number_spectrum,
 )
-from .parallel import run_replicates
-from ._rust import available as rust_available
 
 __all__ = [
     "__version__",

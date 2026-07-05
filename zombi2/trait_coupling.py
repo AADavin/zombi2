@@ -51,7 +51,7 @@ from .genome import Gene, UnorderedGenome
 from .genome_sim import GenomeSimulator
 from .profiles import ProfileMatrix, _natkey
 from .rates import EventWeight, RateModel
-from .traits import TraitResult, simulate_traits
+from ._traits_impl import TraitResult, simulate_traits
 from .transfers import TransferModel
 from .tree import Tree
 
