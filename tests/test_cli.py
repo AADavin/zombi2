@@ -702,7 +702,7 @@ def test_genomes_nucleotide_genic(tmp_path):
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide",
                "--inversion", "0.004", "--loss", "0.003", "--dup", "0.002", "--trans", "0.002",
-               "--root-length", "1000", "--extension", "0.96", "--genes", str(genes),
+               "--root-length", "1000", "--mean-length", "25", "--genes", str(genes),
                "--pseudogenization", "0.4", "--replacement", "0.6",
                "--write", "profiles", "trees", "--seed", "9", "-o", str(out)])
     assert rc == 0

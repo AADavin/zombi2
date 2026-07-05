@@ -27,7 +27,7 @@ rates = SharedRates(
 )
 genomes = simulate_genomes(
     tree, rates, initial_families=30, seed=1,
-    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),
+    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),   # continuation prob; mean 2 genes
 )
 
 leaf = next(iter(genomes.leaf_genomes.values()))
@@ -45,27 +45,30 @@ command:
 ```bash
 zombi2 genomes -t species_tree.nwk --genome-model ordered \
     --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
-    --inversion 0.3 --transposition 0.2 --extension 0.5 \
+    --inversion 0.3 --transposition 0.2 --mean-length 2 \
     --initial-families 25 --seed 1 --write profiles trees events -o out/
 ```
 
 Here `--inversion` and `--transposition` are the rearrangement rates (**per gene copy**, unlike the
-per-nucleotide rates of the nucleotide model), and `--extension` is the segment-length knob counted
-**in genes** ($0.5$ gives a mean of two genes per event; omit it for single-gene events). Because
+per-nucleotide rates of the nucleotide model), and `--mean-length` is the segment-length knob: the
+**mean number of genes** an event spans (`2` here; omit it for single-gene events), with the lengths
+drawn geometrically around that mean. Because
 rearrangements live on the shared per-copy rate model, they require the default `--rate-model
 shared`; `--rate-model per-genome` runs an ordered genome with duplication, transfer and loss only.
 
 ## Segment events
 
 Events act on a *contiguous segment* of the circular chromosome rather than a single gene. The
-number of genes in a segment is **geometric**, controlled by the `extension` parameter — a
-per-step continuation probability. Every segment starts with one gene; each further gene is added
-with probability `extension`. A segment of $k$ genes therefore has probability
-$(1-\texttt{extension})\,\texttt{extension}^{\,k-1}$, and the mean length is
-$1/(1-\texttt{extension})$: `extension=None` (or 0) gives single-gene events, and values closer to
-1 give longer segments.
+number of genes in a segment is **geometric**, set by its **mean length** — on the command line the
+`--mean-length` knob (in genes), and in the Python API the equivalent per-step continuation
+probability `extension` of `OrderedGenome`, the two related by
+$\texttt{extension} = 1 - 1/\texttt{mean length}$. Every segment starts with one gene and each
+further gene is added with probability `extension`, so a segment of $k$ genes has probability
+$(1-\texttt{extension})\,\texttt{extension}^{\,k-1}$ and mean $1/(1-\texttt{extension})$. A mean of
+one gene (`extension=None` or 0) gives single-gene events; larger means give longer segments with a
+heavier tail.
 
-![The number of genes an event affects is geometric in `extension`. Small values keep events local (mostly single genes); larger values give longer segments with a heavier tail. The dashed line marks the mean, $1/(1-\texttt{extension})$.](figures/segment_length.pdf){width=100%}
+![The number of genes an event affects is geometric, with the mean set by `--mean-length` (equivalently the continuation probability `extension` $= 1 - 1/\text{mean}$). Small means keep events local (mostly single genes); larger means give longer segments with a heavier tail. The dashed line marks the mean.](figures/segment_length.pdf){width=100%}
 
 | Event | Effect on the segment |
 |---|---|
