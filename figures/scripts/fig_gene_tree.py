@@ -25,9 +25,9 @@ import drawsvg as draw
 import phylustrator as ph
 from phylustrator.io import read_newick
 
-from fig_species_tree_events import make_hatch
+from fig_species_tree_events import draw_cross
 from fig_species_tree_extinct import annotate_depths, draw_skeleton, mark_survival
-from zombi_style import INK, MUTED, species_style
+from zombi_style import INK, MUTED, species_style, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "gene_tree" / "gene_tree.nwk"
@@ -42,7 +42,7 @@ DUP_NODES = {"g477"}                                # duplication in species I
 TRANSFER_INFO = {"g314": {"remaining": "n1_g554",   # transfer F -> G: donor copy stays (F),
                           "leaving": "n6_g555"}}     #   transferred copy leaves (to G)
 
-MARKER_R = 8.0
+MARKER_R = 9.0
 
 
 def species_of(tip_name: str) -> str:
@@ -70,51 +70,69 @@ def main():
             copies[sp] = copies.get(sp, 0) + 1
             lf.name = f"{sp}_{copies[sp]}"
 
-    style = species_style(height=820)
+    # taller canvas + generous top margin gives a clean header band (title + legend row).
+    style = species_style(width=920, height=900, margin=120, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
     draw_skeleton(d, tree)               # solid survivors, dashed lost lineage
     d.add_leaf_names(color=INK, padding=12)
 
-    hatch = make_hatch(d)
-    glyph = dict(r=MARKER_R, stroke=INK, stroke_width=2.0)
+    # solid-black event glyphs: filled square = duplication, filled triangle = transfer,
+    # cross = loss.
     for gid in DUP_NODES:
-        d._draw_shape_at(*name2node[gid].coordinates, "square", hatch, **glyph)
+        d._draw_shape_at(*name2node[gid].coordinates, "square", INK, r=MARKER_R)
     for tnode, info in TRANSFER_INFO.items():
         node = name2node[tnode]
-        d._draw_shape_at(*node.coordinates, "triangle", hatch, **glyph)
+        d._draw_shape_at(*node.coordinates, "triangle", INK, r=MARKER_R)
         xn = node.coordinates[0]
-        for role, child in (("remaining branch", info["remaining"]),
-                            ("leaving branch", info["leaving"])):
+        for role, child in (("remaining copy", info["remaining"]),
+                            ("transferred copy", info["leaving"])):
             cy = name2node[child].coordinates[1]
-            d.add_text(role, xn + 15, cy - 9, font_size=13, color=MUTED)
-    for lf in loss_tips:                 # hatched circle at the dead-end, no label
-        d._draw_shape_at(*lf.coordinates, "circle", hatch, **glyph)
+            d.add_text(role, xn + 18, cy - 12, font_size=FS_ANNOT, color=MUTED)
+    for lf in loss_tips:                 # cross at the dead-end, no label
+        draw_cross(d, *lf.coordinates, MARKER_R)
 
     ticks = [round(present * i / 4, 6) for i in range(5)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
-                    label="Time (root to present)", tick_size=6.0, padding=14.0,
+                    label="Time (root to present)", tick_size=6.0, padding=16.0,
                     stroke_width=1.6)
-    add_legend(d, hatch, x=-style.width / 2 + 34, y=-style.height / 2 + 40)
+
+    # title centered at the top; symbol legend as a vertical column in the top-left,
+    # both clear of the tree
+    left = -style.width / 2 + 30
+    d.drawing.append(draw.Text("The reconciled gene tree", FS_TITLE, 0,
+                               -style.height / 2 + 42, font_weight="bold",
+                               font_family=style.font_family, text_anchor="middle",
+                               dominant_baseline="central", fill=INK))
+    add_legend(d, x=left + 12, y=-style.height / 2 + 88)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)
     print(f"wrote {OUT_STEM}.svg / .png  ({len(tree.get_leaves())} gene copies)")
 
 
-def add_legend(d, hatch, x, y, font_size=15):
+def add_legend(d, x, y):
+    """Symbol legend (solid-black glyphs), a single vertical column in the top-left:
+    one row per event, ordered Duplication, Transfer, Loss."""
     r = MARKER_R
     fam = d.style.font_family
-    label_x = x + 2 * r + 14
-    d.drawing.append(draw.Text("Gene-tree events", font_size + 2, x, y, font_weight="bold",
-                               font_family=fam, text_anchor="start"))
-    rows = [("square", "Duplication"), ("triangle", "Transfer"), ("circle", "Loss")]
-    cy = y + font_size * 1.9
-    for shape, label in rows:
-        d._draw_shape_at(x + r, cy, shape, hatch, r=r, stroke=INK, stroke_width=2.0)
-        d.drawing.append(draw.Text(label, font_size, label_x, cy, font_family=fam,
-                                   text_anchor="start", dominant_baseline="middle"))
-        cy += font_size * 1.9
+    gap = 24
+    row = 40                                      # vertical spacing between rows
+
+    cy = y
+    d._draw_shape_at(x, cy, "square", INK, r=r)
+    d.drawing.append(draw.Text("Duplication", FS_LABEL, x + r + gap, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
+
+    cy = y + row
+    d._draw_shape_at(x, cy, "triangle", INK, r=r)
+    d.drawing.append(draw.Text("Transfer", FS_LABEL, x + r + gap, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
+
+    cy = y + 2 * row
+    draw_cross(d, x, cy, r)
+    d.drawing.append(draw.Text("Loss", FS_LABEL, x + r + gap, cy, font_family=fam,
+                               text_anchor="start", dominant_baseline="central", fill=INK))
 
 
 if __name__ == "__main__":

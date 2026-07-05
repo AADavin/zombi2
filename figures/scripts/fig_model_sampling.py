@@ -23,7 +23,7 @@ import phylustrator as ph
 from zombi2 import BirthDeath, simulate_species_tree
 
 from model_common import annotate_depths, draw_skeleton, mark_observed, zombi_to_ete3
-from zombi_style import INK, PANEL, species_style
+from zombi_style import INK, PANEL, species_style, FS_TITLE, FS_LABEL, FS_TICK
 
 OUT_STEM = Path(__file__).resolve().parent.parent / "model_sampling" / "model_sampling"
 
@@ -39,30 +39,28 @@ def unsampled_extant(tree, present, tol):
             if not l.is_extant and not l.sampled and abs(l.depth - present) <= tol]
 
 
-def add_legend(d, x, y, font_size=14):
-    """Compact two-line key in the top strip (title, then a horizontal row of items)."""
+def add_legend(d, x, y):
+    """Single-column key (shared font scale): sampled / unsampled-extant (open circle) / extinct."""
     fam, sw = d.style.font_family, d.style.branch_stroke_width
-    d.drawing.append(draw.Text("Incomplete sampling (ρ = 0.6)", font_size + 3, x, y,
-                               font_weight="bold", font_family=fam, text_anchor="start"))
-    ky, cx, L = y + 28, x, 26
+    L, row, cy = 34, FS_LABEL * 1.9, y
 
     def item(label, dashed, circle=False):
-        nonlocal cx
-        kw = dict(stroke=INK, stroke_width=sw)
-        kw.update(stroke_dasharray="6,5", stroke_linecap="butt") if dashed else kw.update(stroke_linecap="round")
-        d.drawing.append(draw.Line(cx, ky, cx + L, ky, **kw))
-        cx += L
+        nonlocal cy
+        kw = dict(stroke=INK, stroke_width=sw, stroke_linecap="round")
+        if dashed:
+            kw = dict(stroke=INK, stroke_width=sw, stroke_dasharray="6,5", stroke_linecap="butt")
+        d.drawing.append(draw.Line(x, cy, x + L, cy, **kw))
+        tx = x + L + 14
         if circle:
-            cx += 6
-            d.drawing.append(draw.Circle(cx, ky, 5.5, fill=PANEL, stroke=INK, stroke_width=2))
-            cx += 6
-        d.drawing.append(draw.Text(label, font_size, cx + 8, ky, font_family=fam,
-                                   text_anchor="start", dominant_baseline="middle"))
-        cx += 8 + int(len(label) * font_size * 0.56) + 26
+            d.drawing.append(draw.Circle(x + L + 8, cy, 6.0, fill=PANEL, stroke=INK, stroke_width=2))
+            tx = x + L + 22
+        d.drawing.append(draw.Text(label, FS_LABEL, tx, cy, font_family=fam,
+                                   text_anchor="start", dominant_baseline="central", fill=INK))
+        cy += row
 
-    item("Sampled", False)
-    item("Unsampled extant", True, circle=True)
-    item("Extinct", True)
+    item("sampled", False)
+    item("unsampled extant", True, circle=True)
+    item("extinct", True)
 
 
 def main():
@@ -72,7 +70,8 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    style = species_style(height=max(680, 44 * n_leaves + 180))
+    # extra top headroom leaves a clean band for the centered title above the legend
+    style = species_style(height=max(760, 44 * n_leaves + 240), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
@@ -91,7 +90,15 @@ def main():
     ticks = [round(present * i / 4, 6) for i in range(5)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
                     label="Time (root to present)", tick_size=6.0, padding=14.0, stroke_width=1.6)
-    add_legend(d, x=-style.width / 2 + 34, y=-style.height / 2 + 26)
+
+    # title: one short bold line, horizontally centered at the top (ASCII "rho")
+    d.drawing.append(draw.Text("Incomplete sampling (rho = 0.6)", FS_TITLE, 0,
+                               -style.height / 2 + 44, font_weight="bold",
+                               font_family=style.font_family, text_anchor="middle",
+                               dominant_baseline="central", fill=INK))
+    # legend: single column in the open left quadrant, clear of the basal dashed
+    # lineages in the top strip and of the crown (which sits to the right)
+    add_legend(d, x=-style.width / 2 + 34, y=54)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)

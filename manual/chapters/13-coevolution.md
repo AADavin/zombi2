@@ -42,12 +42,6 @@ frozen tree. If an edge does point into S (`traits:species` or `genes:species`),
 depends on the coupled state and cannot be drawn first: the tree becomes an **output**, and those runs
 are forward-only and take no `-t`.
 
-::: note
-Each `--couple` edge is a distinct model, not a switch on one monolithic engine. Overlay edges (no
-arrow into S) reuse the existing trait and gene-family engines unchanged; only the into-S edges leave
-the fast paths.
-:::
-
 The remainder of this chapter documents the coupling with the most developed workflow — trait-linked
 gene families — in depth, then summarises the state-dependent diversification edge.
 
@@ -58,11 +52,10 @@ retains and acquires oxygen-using gene families; one that reverts to anaeroby sh
 simulates that link directly: it evolves a trait down the tree, then evolves a panel of gene families
 whose **loss and gain depend on the local trait value**. The resulting phylogenetic profile carries a
 *known*, trait-linked signal — the forward generator behind studies that read gene content as a
-record of a trait's history, such as timing the bacterial tree from the Great Oxidation Event
-[@davin2025goe].
+record of a trait's history.
 
 This is the `traits:genes` edge. It runs on a **given** tree, and is exposed both as the Python driver
-`simulate_trait_linked_genomes` and as the command `zombi2 coevolve-genetrait`.
+`simulate_trait_linked_genomes` and as the command `zombi2 coevolve --couple traits:genes`.
 
 ```python
 import zombi2 as z

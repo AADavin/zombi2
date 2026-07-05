@@ -28,13 +28,6 @@ cd rust && maturin build --release -i python3 && pip install --force-reinstall t
 This compiles the engine in release mode and installs the resulting wheel over the editable
 package, wiring the compiled backend into `zombi2`.
 
-::: warning
-The compiled engine is not optional for gene-family simulation. Commands and APIs that evolve
-genomes (`zombi2 genomes` and everything built on it) fail to import the backend until the wheel
-above is built and installed. A working Rust toolchain (`rustc` and `cargo`, e.g. via rustup)
-must be present for `maturin build` to succeed.
-:::
-
 ## Development extras
 
 To run the test suite and the statistical checks, install the optional `dev` dependencies:
