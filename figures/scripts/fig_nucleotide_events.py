@@ -22,11 +22,11 @@ from zombi_style import FONT, INK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-CW, CH = 1040, 560
+CW, CH = 1040, 700                             # taller aspect (~20% larger on the page)
 XL, XR = 150, 980
 LMAX = 115                                     # longest bar (after the duplication)
-BAR_H = 30
-YA, YB, YC = 96, 268, 440                      # bar tops
+BAR_H = 40
+YA, YB, YC = 120, 360, 590                     # bar tops
 INV_A, INV_B = 30, 55                          # inverted segment [a,b)
 DUP_A, DUP_B = 10, 25                          # duplicated segment [c,d)
 
@@ -58,7 +58,7 @@ def outline(d, q0, q1, y, w=2.4):
 def down_arrow(d, cx, y0, y1, label):
     d.append(draw.Line(cx, y0, cx, y1 - 9, stroke=INK, stroke_width=2.4))
     d.append(draw.Lines(cx, y1, cx - 6, y1 - 10, cx + 6, y1 - 10, close=True, fill=INK))
-    d.append(draw.Text(label, 17, cx + 16, (y0 + y1) / 2, font_family=FONT, text_anchor="start",
+    d.append(draw.Text(label, 22, cx + 20, (y0 + y1) / 2, font_family=FONT, text_anchor="start",
                        dominant_baseline="middle", font_weight="bold", fill=INK))
 
 
@@ -81,7 +81,7 @@ def render(mono):
     # state labels on the left
     for y, txt in ((YA, "start"), (YB, "after inversion"), (YC, "after inversion\n+ duplication")):
         for k, line in enumerate(txt.split("\n")):
-            d.append(draw.Text(line, 13, XL - 12, y + BAR_H / 2 - 8 + k * 15, font_family=FONT,
+            d.append(draw.Text(line, 17, XL - 14, y + BAR_H / 2 - 10 + k * 20, font_family=FONT,
                                text_anchor="end", dominant_baseline="middle", fill=INK))
 
     paint_bar(d, start, YA, mono)
@@ -99,11 +99,13 @@ def render(mono):
     down_arrow(d, x_of((INV_A + INV_B) / 2), YA + BAR_H + 6, YB - 6, "Inversion")
     down_arrow(d, x_of((DUP_A + DUP_B) / 2), YB + BAR_H + 6, YC - 6, "Duplication")
 
-    d.append(draw.Text("Nucleotide-level events  (100-base genome, drawn linearly)", 16, XL - 40,
-                       36, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    d.append(draw.Text("bars painted by ancestral position:  inversion = reversed gradient + "
-                       "flipped strand;  duplication = repeated colours, longer genome", 13, XL - 40,
-                       CH - 20, font_family=FONT, text_anchor="start", fill="#555"))
+    d.append(draw.Text("Nucleotide-level events  (100-base genome, drawn linearly)", 22, XL - 40,
+                       42, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
+    d.append(draw.Text("bars painted by ancestral position;  inversion = reversed gradient + "
+                       "flipped strand;", 17, XL - 40, CH - 48, font_family=FONT,
+                       text_anchor="start", fill="#555"))
+    d.append(draw.Text("duplication = repeated colours, longer genome", 17, XL - 40, CH - 22,
+                       font_family=FONT, text_anchor="start", fill="#555"))
 
     stem = OUT_DIR / ("nucleotide_events_bw" if mono else "nucleotide_events")
     stem.mkdir(parents=True, exist_ok=True)

@@ -37,8 +37,10 @@ from zombi_style import FONT, INK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1080, 862
+# Panels A and B stack on the LEFT (x < 780); panel C is a vertical column on the RIGHT.
+W, H = 1180, 680
 TITLE_X = 40
+SPLIT_X = 788                                  # divider between the A/B column and panel C
 
 BLOCK_COL = {0: "#6b8fb0", 1: "#7ba884", 2: "#c8a75c", 3: "#b47d6e", 4: "#8f7bb0"}
 BLOCK_BW = {0: "#3a3a3a", 1: "#5f5f5f", 2: "#838383", 3: "#a6a6a6", 4: "#c8c8c8"}
@@ -258,7 +260,7 @@ def panel_a(d, blocks, leaf_event, leaf_breaks, mode, hatch):
     gw = ROOT_L * 9.0
     d.append(draw.Line(RX, 84, RX, y0, stroke=INK, stroke_width=1.1, stroke_dasharray="3,3"))
     ancestral_genome(d, RX - gw / 2, 64, gw, mode, divided=False)
-    d.append(draw.Text("initial genome — one piece, a smooth gradient (no segments yet)", 13.5, RX, 56,
+    d.append(draw.Text("initial genome — one piece, a smooth gradient (no segments yet)", 15, RX, 56,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
     yl, yn2 = species_tree(d, y0, 112)
@@ -267,84 +269,85 @@ def panel_a(d, blocks, leaf_event, leaf_breaks, mode, hatch):
         sy = yn2 + 0.5 * (yl - yn2) if name in ("A", "B") else y0 + 0.5 * (yl - y0)
         draw_glyph(d, kind, lx, sy, hatch)
         native_genome(d, lx, yl + 13, mode, leaf_breaks[name], aid)
-        d.append(draw.Text(name, 18, lx, yl + 50, font_family=FONT, text_anchor="middle",
+        d.append(draw.Text(name, 20, lx, yl + 50, font_family=FONT, text_anchor="middle",
                            font_weight="bold", fill=INK))
-    d.append(draw.Text("A — each event carves out one segment (only its own cut shown)", 16, TITLE_X, 34,
+    d.append(draw.Text("A — each event carves out one segment (only its own cut shown)", 18, TITLE_X, 34,
                        font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
 
 
 # --------------------------------------------------------------------------- panel B
 def panel_b(d, blocks, mosaics, mode):
-    d.append(draw.Line(TITLE_X, 306, W - 50, 306, stroke="#dcdcdc", stroke_width=1.2))
-    d.append(draw.Text("B — the segments propagate: every genome is a mosaic of the same blocks", 16,
+    d.append(draw.Line(TITLE_X, 306, 760, 306, stroke="#dcdcdc", stroke_width=1.2))
+    d.append(draw.Text("B — the segments propagate: every genome is a mosaic of the same blocks", 18,
                        TITLE_X, 326, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
     y0 = 434
     gw = ROOT_L * 9.0
     d.append(draw.Line(RX, 378, RX, y0, stroke=INK, stroke_width=1.1, stroke_dasharray="3,3"))
     ancestral_genome(d, RX - gw / 2, 356, gw, mode, divided=True)
-    d.append(draw.Text("initial genome — now cut into its blocks (gradient squares)", 13.5, RX, 346,
+    d.append(draw.Text("initial genome — now cut into its blocks (gradient squares)", 15, RX, 346,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
     yl, yn2 = species_tree(d, y0, 112)
     for name, lx in (("A", AX), ("B", BX), ("C", CX)):
         d.append(draw.Line(lx, yl, lx, yl + 14, stroke=INK, stroke_width=1.2))
         mosaic_bar(d, lx, yl + 14, mosaics[name], mode)
-        d.append(draw.Text(name, 18, lx, yl + 54, font_family=FONT, text_anchor="middle",
+        d.append(draw.Text(name, 20, lx, yl + 54, font_family=FONT, text_anchor="middle",
                            font_weight="bold", fill=INK))
 
 
 # --------------------------------------------------------------------------- panel C
-CENTERS = [130, 340, 550, 760, 970]
-MTOP, MH = 704, 106
-MLEAF, MN2 = MTOP + MH, MTOP + 0.4 * MH
-LEAF_X = {"A": -46, "B": -14, "C": 46}
+# Panel C is a vertical column on the right: one mini gene-tree per block, stacked.
+CX_C = 992                                      # tree centre in the right column
+SLOT0, SLOT_H, MH = 88, 118, 64                 # first header y, row pitch, tree height
+LEAF_X = {"A": -48, "B": -15, "C": 48}
 
 
-def mini_tree(d, cx, aid, kind, leaf, mode, hatch):
+def mini_tree(d, cx, top, aid, kind, leaf, mode, hatch):
     c = col(aid, mode)
+    mleaf, mn2 = top + MH, top + 0.4 * MH
     xA, xB, xC = cx + LEAF_X["A"], cx + LEAF_X["B"], cx + LEAF_X["C"]
     n2 = (xA + xB) / 2
-    d.append(draw.Line(n2, MTOP, xC, MTOP, stroke=c, stroke_width=3))
-    d.append(draw.Line(n2, MTOP, n2, MN2, stroke=c, stroke_width=3))
-    d.append(draw.Line(xA, MN2, xB, MN2, stroke=c, stroke_width=3))
-    starts = {"A": (xA, MN2), "B": (xB, MN2), "C": (xC, MTOP)}
+    d.append(draw.Line(n2, top, xC, top, stroke=c, stroke_width=3))
+    d.append(draw.Line(n2, top, n2, mn2, stroke=c, stroke_width=3))
+    d.append(draw.Line(xA, mn2, xB, mn2, stroke=c, stroke_width=3))
+    starts = {"A": (xA, mn2), "B": (xB, mn2), "C": (xC, top)}
     tips = []
     for nm, (x, sy) in starts.items():
         if nm == leaf and kind == "loss":
-            yl = sy + 0.34 * (MLEAF - sy)
+            yl = sy + 0.34 * (mleaf - sy)
             d.append(draw.Line(x, sy, x, yl - 6, stroke=INK, stroke_width=2, stroke_dasharray="4,3"))
             gl_loss(d, x, yl, hatch, r=6)
         elif nm == leaf and kind == "dup":
-            yd = sy + 0.30 * (MLEAF - sy)
+            yd = sy + 0.30 * (mleaf - sy)
             x1, x2 = x - 9, x + 9
             d.append(draw.Line(x, sy, x, yd, stroke=c, stroke_width=3))
             d.append(draw.Line(x1, yd, x2, yd, stroke=c, stroke_width=3))
-            d.append(draw.Line(x1, yd, x1, MLEAF, stroke=c, stroke_width=3))
-            d.append(draw.Line(x2, yd, x2, MLEAF, stroke=c, stroke_width=3))
+            d.append(draw.Line(x1, yd, x1, mleaf, stroke=c, stroke_width=3))
+            d.append(draw.Line(x2, yd, x2, mleaf, stroke=c, stroke_width=3))
             gl_dup(d, x, yd, hatch, r=6)
             tips += [(x1, nm), (x2, nm)]
         else:
-            d.append(draw.Line(x, sy, x, MLEAF, stroke=c, stroke_width=3))
+            d.append(draw.Line(x, sy, x, mleaf, stroke=c, stroke_width=3))
             tips.append((x, nm))
             # inversions do not change the genealogy -> no mark on the gene tree
     for tx, tn in tips:
-        d.append(draw.Text(tn, 14, tx, MLEAF + 15, font_family=FONT, text_anchor="middle",
+        d.append(draw.Text(tn, 15, tx, mleaf + 16, font_family=FONT, text_anchor="middle",
                            font_weight="bold", fill=INK))
 
 
 def panel_c(d, blocks, kind, block_leaf, mode, hatch):
-    d.append(draw.Line(TITLE_X, 626, W - 50, 626, stroke="#dcdcdc", stroke_width=1.2))
-    d.append(draw.Text("C — reconstruct a tree for every segment", 16, TITLE_X, 646,
+    d.append(draw.Text("C — reconstruct a tree for every block", 17, SPLIT_X + 20, 34,
                        font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    for cx, aid in zip(CENTERS, sorted(blocks)):
+    for i, aid in enumerate(sorted(blocks)):
         a = blocks[aid]
-        d.append(draw.Rectangle(cx - 74, 668, 22, 13, fill="none", stroke=INK, stroke_width=0.8))
-        draw_slice(d, cx - 74, 668, 22, 13, aid, mode)              # the block's own gradient chip
-        d.append(draw.Text(f"block {aid}", 13.5, cx - 46, 675, font_family=FONT, text_anchor="start",
+        hy = SLOT0 + i * SLOT_H                                     # header baseline for this block
+        d.append(draw.Rectangle(CX_C - 96, hy - 9, 22, 13, fill="none", stroke=INK, stroke_width=0.8))
+        draw_slice(d, CX_C - 96, hy - 9, 22, 13, aid, mode)         # the block's own gradient chip
+        d.append(draw.Text(f"block {aid}", 14, CX_C - 66, hy, font_family=FONT, text_anchor="start",
                            dominant_baseline="central", font_weight="bold", fill=INK))
-        d.append(draw.Text(f"[{a.start},{a.end})", 11, cx + 28, 675, font_family=FONT,
+        d.append(draw.Text(f"[{a.start},{a.end})", 12, CX_C + 18, hy, font_family=FONT,
                            text_anchor="start", dominant_baseline="central", fill="#888"))
-        mini_tree(d, cx, aid, kind[aid], block_leaf[aid], mode, hatch)
+        mini_tree(d, CX_C, hy + 16, aid, kind[aid], block_leaf[aid], mode, hatch)
 
 
 # --------------------------------------------------------------------------- render
@@ -354,6 +357,7 @@ def render(blocks, kind, block_leaf, mosaics, leaf_event, leaf_breaks, mode):
     BLOCK_LEN = {aid: a.length for aid, a in blocks.items()}
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
+    d.append(draw.Line(SPLIT_X, 22, SPLIT_X, H - 16, stroke="#dcdcdc", stroke_width=1.2))
     hatch = make_hatch(d)
     panel_a(d, blocks, leaf_event, leaf_breaks, mode, hatch)
     panel_b(d, blocks, mosaics, mode)
