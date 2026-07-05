@@ -22,7 +22,8 @@ from __future__ import annotations
 from ._traits_impl import (
     BrownianMotion, OrnsteinUhlenbeck, MultivariateBrownian, MultivariateOU,
     MultiOptimumOU, ThresholdModel, EarlyBurst, Mk, CorrelatedBinary,
-    HiddenStateMk, Cladogenesis, simulate_traits, replicate_traits, TraitResult,
+    CorrelatedBinaryK, HiddenStateMk, Cladogenesis, simulate_traits,
+    replicate_traits, TraitResult,
     pagel_lambda, pagel_delta, pagel_kappa,
     _expm,
 )
@@ -31,7 +32,8 @@ from .biogeography import DEC, simulate_biogeography
 __all__ = [
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian",
     "MultivariateOU", "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk",
-    "CorrelatedBinary", "HiddenStateMk", "simulate_traits", "replicate_traits",
+    "CorrelatedBinary", "CorrelatedBinaryK", "HiddenStateMk", "simulate_traits",
+    "replicate_traits",
     "TraitResult", "pagel_lambda", "pagel_delta", "pagel_kappa",
     "DEC", "simulate_biogeography", "Cladogenesis",
 ]
