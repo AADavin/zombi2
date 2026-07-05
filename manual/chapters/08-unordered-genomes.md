@@ -1,46 +1,21 @@
-# Genome evolution
+# Unordered genomes
 
-ZOMBI2 offers three models of genome evolution, differing in how much structure a genome
-carries — from an unordered set of families to a real nucleotide sequence.
-
-- **Independent gene families** — a genome is an unordered *set* of gene copies. Families have
-  no position, no neighbours, no length; each evolves on its own. This is the fastest model, and
-  the right one when what you care about is gene content and copy number: presence/absence
-  profiles, reconciliations, family sizes.
-- **Ordered gene families** — genes sit on an *ordered chromosome*. Position now matters:
-  rearrangements shuffle neighbourhoods, and a transfer can land beside a syntenic locus. But
-  distance is counted in *genes*, not nucleotides — length stays abstract.
-- **Nucleotide genomes** — the chromosome is a real sequence of base pairs. Events have real
-  lengths, genes and intergenes have real coordinates, and structural events act at nucleotide
-  resolution.
-
-![The three models of genome evolution, in increasing structure: an unordered set of gene families; genes on an ordered chromosome (order matters, length does not); and a real nucleotide sequence with genes and intergenes at true coordinates.](figures/genome_models.pdf){width=100%}
-
-Two independent choices define a genome run. The **level** — unordered, ordered, or nucleotide —
-is what a genome *is*, and therefore which events can act on it; each level *adds* events to the one
-below. Orthogonal to it, and meaningful only within the unordered level, is how the four rates
-*vary across families* (the *Rates* section below). On the command line these are two separate
-flags: `--genome-model` picks the level, `--rate-model` the rate variation.
-
-| Level (`--genome-model`) | A genome is… | Events | Coupling? | Chapter |
-|---|---|---|---|---|
-| **unordered** | a *set* of gene families (presence/absence) | origination, duplication, transfer, loss | **yes** | this chapter (coupling: Chapter 9) |
-| **ordered** | genes ordered on a chromosome (order matters, length does not) | + inversion, transposition | no | Chapter 10 |
-| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | + pseudogenization, homologous replacement, substitution | no | Chapter 11 |
-
-The rest of this chapter is the **unordered** level: gene families as a set, evolving by
-origination, duplication, transfer and loss.
+The **unordered** level is the simplest and fastest of the three genome models (Chapter 7): a genome
+is an unordered *set* of gene families, each present in some copy number, with no position, no
+neighbours and no length. It is the right model whenever what you care about is gene *content* —
+presence/absence profiles, copy number, reconciliations, family sizes — and it is the only level
+that supports coupling between families (Chapter 10).
 
 Once the species tree is fixed, ZOMBI2 populates it with genes: a single forward continuous-time
 (Gillespie) process runs over every branch alive at a given moment, firing discrete events that
 create, move, and remove gene copies. The result is a set of gene families, each with its own
 history, threaded through the species tree.
 
-## The four events
+## The four unordered events
 
 The genome of a lineage is a collection of gene copies. As simulated time advances, four kinds of
-event can fire on any living branch (the ordered and nucleotide levels add more — see their
-chapters):
+event can fire on any living branch — the four events of the unordered level (the ordered and
+nucleotide levels add more; see Chapter 7 and their own chapters):
 
 | Event | Effect |
 |---|---|
@@ -63,15 +38,9 @@ over time independently of what is already present.
 ## Rates
 
 Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
-four rates vary across gene families**. Two are on the command line, `shared` (the default) and
-`per-genome`; per-family rates and the coupled model are Python-API for now.
-
-| `--rate-model` | The rate is… | Family size grows | Object |
-|---|---|---|---|
-| **shared** (default) | one per-copy rate, the same for every family | exponentially | `SharedRates` |
-| **per-genome** | one per-genome rate, size-independent | linearly | `PerGenomeRates` |
-| *per-family* | each family draws its own rates | exponentially, per family | `FamilySampledRates` |
-| *coupled* | loss depends on which partner families are present | — | Chapter 9 (`PottsRates`) |
+four rates vary across gene families**. Chapter 7 summarises the four rate models in a table; this
+section works through them. Two are available on the command line, `shared` (the default) and
+`per-genome`; per-family rates and the coupled model (Chapter 10) are Python-API for now.
 
 ### Shared rates
 

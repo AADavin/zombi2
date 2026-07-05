@@ -1,9 +1,9 @@
 # Ordered genomes
 
-Chapter 7 introduced three models of genome evolution. The first — independent gene families —
-treats a genome as an unordered *set*. This chapter covers the second, **ordered gene families**:
-genes sit on a chromosome and their order matters, but distance is still counted in genes, not
-nucleotides. (The third model, nucleotide genomes, is Chapter 11.)
+Chapter 7 introduced three models of genome evolution. The first — unordered gene families
+(Chapter 8) — treats a genome as an unordered *set*. This chapter covers the second, **ordered gene
+families**: genes sit on a chromosome and their order matters, but distance is still counted in
+genes, not nucleotides. (The third model, nucleotide genomes, is Chapter 12.)
 
 By default a genome in ZOMBI2 is *order-free* (`UnorderedGenome`): a multiset of gene families with
 copy numbers, which is all you need for phylogenetic profiles. When gene *order* matters — synteny,

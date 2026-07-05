@@ -1,7 +1,7 @@
 # Nucleotide genomes
 
-Chapter 7 introduced three models of genome evolution. The first two — independent gene families
-(Chapter 7) and ordered gene families (Chapter 10) — treat each gene as an indivisible token. This
+Chapter 7 introduced three models of genome evolution. The first two — unordered gene families
+(Chapter 8) and ordered gene families (Chapter 11) — treat each gene as an indivisible token. This
 chapter covers the third and most detailed: the **nucleotide genome** model, where a genome is a
 real sequence of base pairs and structural events act on **variable-length segments** of
 nucleotides. This resolves paralogy, xenology, and gene order and orientation at nucleotide
