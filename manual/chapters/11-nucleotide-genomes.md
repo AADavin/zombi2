@@ -41,54 +41,54 @@ and `transfer` at or below `loss` to avoid runaway growth.
 
 ![An inversion reverses a segment's orientation and a tandem duplication lengthens it, each acting on a variable-length stretch of nucleotides.](figures/nucleotide_events.pdf)
 
-## Atoms: units of shared ancestry
+## Blocks: units of shared ancestry
 
-The simulator partitions the surviving material into **atoms** — maximal segments that share one
-unbroken ancestry. Every event boundary splits atoms, so an atom is the finest unit for which a
-single gene tree is meaningful. Results are expressed over atoms:
+The simulator partitions the surviving material into **blocks** — maximal segments that share one
+unbroken ancestry. Every event boundary splits blocks, so a block is the finest unit for which a
+single gene tree is meaningful. Results are expressed over blocks:
 
 ```python
-atom_ids, species, matrix = result.profile_matrix()   # copy number of each atom per extant leaf
+block_ids, species, matrix = result.profile_matrix()   # copy number of each block per extant leaf
 ```
 
-![Each structural event carves out a segment; the same breakpoints partition every genome into shared atoms, and each atom has its own reconstructed gene tree.](figures/nucleotide_tree.pdf)
+![Each structural event carves out a segment; the same breakpoints partition every genome into shared blocks, and each block has its own reconstructed gene tree.](figures/nucleotide_tree.pdf)
 
-A duplication adds a tip to the atom's tree, a loss prunes one, and an inversion leaves the genealogy
+A duplication adds a tip to the block's tree, a loss prunes one, and an inversion leaves the genealogy
 unchanged.
 
 ## Reading a leaf genome
 
 ```python
 leaf = tree.leaves()[0]
-result.leaf_mosaic(leaf)   # the genome as ordered, signed atoms: [(atom_id, strand), ...]
+result.leaf_mosaic(leaf)   # the genome as ordered, signed blocks: [(block_id, strand), ...]
 result.trace_back(leaf)    # every nucleotide's ancestral origin: [(source, src_pos, strand), ...]
 ```
 
-`leaf_mosaic` gives the leaf as a sequence of atoms with orientation; `trace_back` resolves each
+`leaf_mosaic` gives the leaf as a sequence of blocks with orientation; `trace_back` resolves each
 nucleotide to where it came from.
 
 ![A leaf genome (bottom) traced back to its ancestral coordinates (top): collinear stretches keep the gradient, an inversion shows it reversed.](figures/nucleotide_segments.pdf)
 
-## Per-atom gene trees and reconciliation
+## Per-block gene trees and reconciliation
 
 With the default `output="genomes"` (the pure-Python engine), the result also carries the full event
-log and a reconstructed gene tree per atom:
+log and a reconstructed gene tree per block:
 
 ```python
-trees = result.atom_gene_trees()        # {atom_id: (complete_newick, extant_newick)}
+trees = result.block_gene_trees()        # {block_id: (complete_newick, extant_newick)}
 result.write_reconciliations("out/")    # reconciled trees + the events table on disk
 ```
 
 ## Genes and intergenes
 
-By default a genome is an unstructured sequence and "genes" are only recovered *post hoc* as atoms.
+By default a genome is an unstructured sequence and "genes" are only recovered *post hoc* as blocks.
 Pass `gene_intervals` — non-overlapping `(start, end)` (or `(start, end, name)`) intervals on the
 root chromosome — to declare **genes** up front. Everything else is **intergene**. In this genic
 mode:
 
 - **Genes are never split.** Event breakpoints fall only in intergene positions, so every event
-  moves, copies, inverts, or deletes a gene *as a whole*. Each gene is therefore exactly one atom
-  (one genealogy) wherever it survives; intergene stretches still fragment into many intergene atoms.
+  moves, copies, inverts, or deletes a gene *as a whole*. Each gene is therefore exactly one block
+  (one genealogy) wherever it survives; intergene stretches still fragment into many intergene blocks.
   A short event drawn entirely inside a gene is promoted to the whole gene.
 - **Pseudogenization.** With probability `pseudogenization`, a loss that hits a gene *demotes* it to
   intergene — the sequence is retained, but the gene loses function. It is a state change on the
@@ -108,13 +108,13 @@ result = z.simulate_nucleotide_genomes(
     root_length=1000, extension=0.97, gene_intervals=genes,
     pseudogenization=0.3, replacement=0.4, seed=1)
 
-result.gene_trees()          # {atom_id: (complete, extant)} for the gene atoms
-result.intergene_trees()     # ...and for the intergene atoms
-result.pseudogenizations()   # [(atom_id, gene_id, species_branch, time, gene_lineage), ...]
+result.gene_trees()          # {block_id: (complete, extant)} for the gene blocks
+result.intergene_trees()     # ...and for the intergene blocks
+result.pseudogenizations()   # [(block_id, gene_id, species_branch, time, gene_lineage), ...]
 ```
 
-Atoms carry their classification (`atom.kind` is `"gene"` or `"intergene"`, plus `atom.gene_id`), so
-`gene_atoms()` / `intergene_atoms()` partition the atom set. Genic mode runs on the Python engine only
+Blocks carry their classification (`block.kind` is `"gene"` or `"intergene"`, plus `block.gene_id`), so
+`gene_blocks()` / `intergene_blocks()` partition the block set. Genic mode runs on the Python engine only
 (the Rust `profiles` path does not model genes). On the CLI:
 
 ```bash
@@ -125,7 +125,7 @@ zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
 
 where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
 annotation, including originated genes), gene and intergene trees under `Gene_trees/` and
-`Intergene_trees/`, a `kind`/`gene_id` column in `atoms.tsv`, and `Pseudogenizations.tsv`.
+`Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
 ### Starting from a real genome (GFF)
 
@@ -167,7 +167,7 @@ raise `extension` toward `0.999` for realistically long segments.
 
 `output="profiles"` runs the compiled `zombi2_core` Rust engine over leaf segments only — much
 faster, and enough for `profile_matrix()`, `leaf_mosaic()`, and `trace_back()`. It emits **no event
-log**, so `atom_gene_trees()` is unavailable, and it **requires** the built extension:
+log**, so `block_gene_trees()` is unavailable, and it **requires** the built extension:
 
 ```python
 result = z.simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,

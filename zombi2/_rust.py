@@ -77,16 +77,16 @@ def eligible(rates, genome_factory, sampler) -> bool:
 class _FastNucleotideResult(NucleotideResult):
     """A NucleotideResult from the Rust profile path (no event log → no gene trees)."""
 
-    def atom_gene_trees(self):
+    def block_gene_trees(self):
         raise NotImplementedError(
             "the Rust nucleotide profile path emits only leaf segments (profile / mosaic / "
-            "trace-back); per-atom gene trees need the event log — use "
+            "trace-back); per-block gene trees need the event log — use "
             "simulate_nucleotide_genomes(...) (the default) for those."
         )
 
-    def atom_histories(self):
+    def block_histories(self):
         raise NotImplementedError(
-            "atom_histories needs the event log; use simulate_nucleotide_genomes(...)."
+            "block_histories needs the event log; use simulate_nucleotide_genomes(...)."
         )
 
 
@@ -396,7 +396,7 @@ def genomes(species_tree, rates, *, initial_size, transfers, max_family_size, se
                    event_log=event_log, profiles=profs)
 
 
-# --- nucleotide-genome profile path (leaf segments -> atoms/profile/mosaics) ------
+# --- nucleotide-genome profile path (leaf segments -> blocks/profile/mosaics) ------
 
 class _FastNucGenome:
     """Minimal leaf genome exposing just what NucleotideResult reads (segments + to_cells)."""
@@ -431,7 +431,7 @@ def nucleotide(species_tree, *, inversion, loss, duplication, transfer, transpos
     require()
     from .events import EventLog
     from .nucleotide_genome import Segment, SegmentRegistry
-    from .nucleotide_sim import _build_atoms
+    from .nucleotide_sim import _build_blocks
 
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     _, seed_val = _cap_and_seed(None, sum(extant_leaf), seed)
@@ -450,8 +450,8 @@ def nucleotide(species_tree, *, inversion, loss, duplication, transfer, transpos
                 for (src, start, end, strand) in segs]
         leaf_genomes[nodes[leaf_idx]] = _FastNucGenome(objs)
 
-    atoms = _build_atoms(leaf_genomes, root_length)
+    blocks = _build_blocks(leaf_genomes, root_length)
     return _FastNucleotideResult(
         species_tree=species_tree, leaf_genomes=leaf_genomes,
-        event_log=EventLog(), registry=SegmentRegistry(), atoms=atoms, root_length=root_length,
+        event_log=EventLog(), registry=SegmentRegistry(), blocks=blocks, root_length=root_length,
     )

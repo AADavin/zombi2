@@ -37,7 +37,7 @@ class EventType(Enum):
     # --- gene / intergene state change (nucleotide genic model only) ---
     # A pseudogenization: a gene loses function but keeps its sequence, so the lineage
     # continues as intergene. It is a *sub-outcome of LOSS* (never sampled on its own, so
-    # it is not in STOCHASTIC_EVENTS); it surfaces only in the post-processed per-atom
+    # it is not in STOCHASTIC_EVENTS); it surfaces only in the post-processed per-block
     # records, where a LOSS row with role "pseudogenized" is rewritten to this event.
     PSEUDOGENIZATION = "G"
     # --- structural markers (logged, never sampled) ---

@@ -45,6 +45,21 @@ you need:
 | `result.changes()` | Realized transitions `(node, time, from, to)` (discrete only) |
 | `result.to_tsv()` / `result.to_newick()` | Tip table / annotated Newick (`[&trait=…]`) |
 
+## Trait models at a glance
+
+| Model | Kind | What it captures |
+|---|---|---|
+| `BrownianMotion` | continuous | neutral random walk |
+| `OrnsteinUhlenbeck` | continuous | stabilizing selection toward an optimum |
+| `EarlyBurst` | continuous | a rate that changes through time (adaptive radiation) |
+| `MultivariateBrownian` / `MultivariateOU` | continuous | correlated multi-trait evolution |
+| `Mk` | discrete | a $k$-state Markov character |
+| `CorrelatedBinary` | discrete | two binary characters evolving jointly (Pagel) |
+| `HiddenStateMk` | discrete | hidden rate classes (corHMM) |
+| `ThresholdModel` | discrete | a discrete state from a latent continuous liability |
+| `MultiOptimumOU` | continuous | OU with a different optimum per regime |
+| `DEC` | range | geographic-range evolution (dispersal / extinction / cladogenesis) |
+
 ## Continuous traits
 
 ### Brownian motion

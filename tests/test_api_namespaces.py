@@ -32,7 +32,7 @@ NAMESPACES = {
     "genomes": [
         "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
         "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
-        "NucleotideResult", "Atom", "read_gff", "GffGenome",
+        "NucleotideResult", "Block", "read_gff", "GffGenome",
         "RateModel", "UniformRates", "GenomeWiseRates", "FamilySampledRates",
         "BranchRates", "EventWeight", "TransferModel",
         "GenomeSimulator", "GenomeResult", "ProfileMatrix",

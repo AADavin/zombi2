@@ -39,7 +39,7 @@ class GeneInterval:
     """A gene as a half-open ancestral interval ``[start, end)`` on one ``source``.
 
     Genes are *indivisible*: no event breakpoint ever falls strictly inside one, so a gene
-    is exactly one atom wherever it survives — one genealogy per gene. ``gene_id`` is the
+    is exactly one block wherever it survives — one genealogy per gene. ``gene_id`` is the
     immutable identity (kept even after pseudogenization).
     """
 
@@ -57,7 +57,7 @@ class SegmentRegistry:
     """Provenance shared across all genomes of one simulation (clones share one instance).
 
     ``provenance`` maps every segment id ever minted to its ancestral interval
-    ``(source, src_start, src_end)`` — enough to attribute an event to atoms. ``split_parent``
+    ``(source, src_start, src_end)`` — enough to attribute an event to blocks. ``split_parent``
     maps a segment born from a :meth:`NucleotideGenome._split_segment` to the segment it was
     cut from; those births are the only ones *not* in the event log (a split is a degree-2
     node), so recording them here keeps the segment genealogy connected for gene-tree
@@ -101,7 +101,7 @@ class SegmentRegistry:
         return out
 
     def gene_id_at(self, source: str, start: int, end: int) -> str | None:
-        """The gene whose interval contains ``[start, end)`` (else ``None``) — atom classifier."""
+        """The gene whose interval contains ``[start, end)`` (else ``None``) — block classifier."""
         for gi in self.genes.get(source, ()):  # sorted by start
             if gi.start <= start and end <= gi.end:
                 return gi.gene_id
@@ -122,7 +122,7 @@ class Segment:
     ``is_gene`` is the *functional* state on this lineage (``True`` = functional gene,
     ``False`` = pseudogene — a gene demoted to intergene by pseudogenization, sequence
     retained). A block with ``gene_id is not None`` is never cut internally (functional or
-    pseudogenized), which is what keeps a gene to exactly one atom.
+    pseudogenized), which is what keeps a gene to exactly one block.
     """
 
     seg_id: str
@@ -229,7 +229,7 @@ class NucleotideGenome(Genome):
         The first call (empty genome, the seed) lays down the full-length root chromosome —
         tiled into gene / intergene segments when a gene annotation was supplied. Later calls
         insert a *novel* gene of geometric length at a random position — it descends from no
-        ancestral position, so it opens its own source and its own atoms (in genic mode it is a
+        ancestral position, so it opens its own source and its own blocks (in genic mode it is a
         whole gene), with the gene tree rooted at this origination time.
         """
         source = self.ids.new_family()
@@ -264,7 +264,7 @@ class NucleotideGenome(Genome):
     def _seed_with_genes(self, source: str, pending: list[GeneInterval]) -> list[GeneOp]:
         """Tile the root chromosome into intergene / gene segments (genes get their own block).
 
-        One ORIGINATION row per seed segment, so each becomes the root of the atoms it covers.
+        One ORIGINATION row per seed segment, so each becomes the root of the blocks it covers.
         """
         ops: list[GeneOp] = []
         cursor = 0
@@ -328,7 +328,7 @@ class NucleotideGenome(Genome):
         ``direction`` picks the boundary when ``c`` is inside a gene: ``-1`` = the gene's
         physical start, ``+1`` = its end, ``0`` = the nearer of the two. Positions in intergene
         (or on an existing boundary) are returned unchanged — cutting there is legal and is how
-        intergene atoms form. Walks the segment list (O(n), like :meth:`_split_at`) using the
+        intergene blocks form. Walks the segment list (O(n), like :meth:`_split_at`) using the
         accumulated positions, so it stays correct mid-mutation.
         """
         pos = 0
@@ -363,7 +363,7 @@ class NucleotideGenome(Genome):
         **wrapping** arc has no origin-fixed representation without inventing a spurious
         breakpoint at position 0, so the ring is first rotated to bring the arc to the
         front — the origin drifts to a real breakpoint. This is harmless: a circular
-        genome has no privileged origin, atoms live in origin-independent *source*
+        genome has no privileged origin, blocks live in origin-independent *source*
         coordinates, and the invariants are rotation-invariant.
         """
         L = self._length
@@ -599,8 +599,8 @@ class NucleotideGenome(Genome):
 
         Each arc segment ``g`` forks into a continuation (stays in the donor) and a copy
         (travels to the recipient). The driver logs ``g -> [continuation, copy]`` as a
-        TRANSFER, a bifurcation the atom's gene tree reads as a transfer node. The copy
-        keeps the arc's ancestral coordinates, so it is a xenolog of the same atom.
+        TRANSFER, a bifurcation the block's gene tree reads as a transfer node. The copy
+        keeps the arc's ancestral coordinates, so it is a xenolog of the same block.
         """
         region = selection.region
         i_s, i_e = self._arc_range(region.start, region.length)

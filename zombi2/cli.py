@@ -201,7 +201,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="uniform: same per-copy rates for every family (Rust; default); "
                         "genome-wise: constant per-genome rates, linear growth (Python); "
                         "nucleotide: nucleotide-resolution genomes evolving by variable-length "
-                        "structural events, genes emerge as 'atoms' (see the nucleotide sections)")
+                        "structural events, genes emerge as 'blocks' (see the nucleotide sections)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -1351,9 +1351,9 @@ def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
-    Genes are not atomic here — they emerge as **atoms** (maximal intervals with one shared
-    history). ``profiles`` writes the emergent atom-by-species profile (plus ``atoms.tsv`` and
-    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-atom gene trees and their
+    Genes are not atomic here — they emerge as **blocks** (maximal intervals with one shared
+    history). ``profiles`` writes the emergent block-by-species profile (plus ``blocks.tsv`` and
+    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-block gene trees and their
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
@@ -1402,9 +1402,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         _write_genes_table(args.out, result.registry)
 
     if "profiles" in want:
-        _write_atoms_table(args.out, result.atoms)
-        atom_ids, species, matrix = result.profile_matrix()
-        pm = ProfileMatrix([f"atom{a}" for a in atom_ids], species, matrix)
+        _write_blocks_table(args.out, result.blocks)
+        block_ids, species, matrix = result.profile_matrix()
+        pm = ProfileMatrix([f"block{a}" for a in block_ids], species, matrix)
         if args.sparse:
             with open(os.path.join(args.out, "Profiles_sparse.tsv"), "w") as f:
                 f.write(pm.to_coo_tsv())
@@ -1415,7 +1415,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                 f.write(pm.to_tsv(presence=True))
         _write_mosaics(args.out, result)
     if "trees" in want:
-        _write_atom_gene_trees(args.out, result, genic=genic)
+        _write_block_gene_trees(args.out, result, genic=genic)
         result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
         if genic:
             _write_pseudogenizations(args.out, result)
@@ -1426,9 +1426,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
               f"-> {len(gff_info.genes)} after trimming ({gff_info.n_trimmed} trimmed, "
               f"{gff_info.n_dropped} dropped as overlapping)")
-    extra = f", {len(result.gene_atoms())} genes" if genic else ""
+    extra = f", {len(result.gene_blocks())} genes" if genic else ""
     return (f"wrote [{' '.join(sorted(want))}] (nucleotide{'/genic' if genic else ''}) to "
-            f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.atoms)} atoms{extra}) "
+            f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.blocks)} blocks{extra}) "
             f"in {dt:.3g} s")
 
 
@@ -1461,10 +1461,10 @@ def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
     os.makedirs(gdir, exist_ok=True)
     for node in tree.nodes_preorder():
         name = node.name
-        lines = ["order\tatom\tkind\tgene_id\tstrand\tlength"]
+        lines = ["order\tblock\tkind\tgene_id\tstrand\tlength"]
         for i, (aid, strand) in enumerate(result.node_mosaic(node)):
-            a = result._atom_by_id[aid]
-            lines.append(f"{i}\tatom{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
+            a = result._block_by_id[aid]
+            lines.append(f"{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
                          f"{'+' if strand > 0 else '-'}\t{a.length}")
         with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
             f.write("\n".join(lines) + "\n")
@@ -1513,58 +1513,58 @@ def _write_genes_table(out: str, registry) -> None:
 
 def _write_pseudogenizations(out: str, result) -> None:
     """Write ``Pseudogenizations.tsv`` — every gene->intergene state flip (branch, time, lineage)."""
-    lines = ["atom\tgene\tspecies_branch\ttime\tgene_lineage"]
-    for atom_id, gene_id, species, t, gid in result.pseudogenizations():
-        lines.append(f"atom{atom_id}\t{gene_id}\t{species}\t{t:.10g}\t{gid}")
+    lines = ["block\tgene\tspecies_branch\ttime\tgene_lineage"]
+    for block_id, gene_id, species, t, gid in result.pseudogenizations():
+        lines.append(f"block{block_id}\t{gene_id}\t{species}\t{t:.10g}\t{gid}")
     with open(os.path.join(out, "Pseudogenizations.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
-def _write_atoms_table(out: str, atoms) -> None:
-    """Write ``atoms.tsv`` — the emergent gene families (uncut ancestral intervals).
+def _write_blocks_table(out: str, blocks) -> None:
+    """Write ``blocks.tsv`` — the emergent gene families (uncut ancestral intervals).
 
     Carries the ``kind`` (gene/intergene) and ``gene_id`` classification (``-`` for intergene).
     """
-    lines = ["atom\tsource\tstart\tend\tlength\tkind\tgene_id"]
-    for a in atoms:
-        lines.append(f"atom{a.atom_id}\t{a.source}\t{a.start}\t{a.end}\t{a.length}\t"
+    lines = ["block\tsource\tstart\tend\tlength\tkind\tgene_id"]
+    for a in blocks:
+        lines.append(f"block{a.block_id}\t{a.source}\t{a.start}\t{a.end}\t{a.length}\t"
                      f"{a.kind}\t{a.gene_id or '-'}")
-    with open(os.path.join(out, "atoms.tsv"), "w") as f:
+    with open(os.path.join(out, "blocks.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
 def _write_mosaics(out: str, result) -> None:
-    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of atoms."""
+    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of blocks."""
     lines = ["leaf\tmosaic"]
     for leaf in sorted(result.leaf_genomes, key=lambda n: n.name):
-        seq = " ".join(("+" if s > 0 else "-") + f"atom{aid}"
+        seq = " ".join(("+" if s > 0 else "-") + f"block{aid}"
                        for aid, s in result.leaf_mosaic(leaf))
         lines.append(f"{leaf.name}\t{seq}")
     with open(os.path.join(out, "Mosaics.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
-def _write_atom_gene_trees(out: str, result, genic: bool = False) -> None:
-    """Write per-atom trees to ``atom<id>_complete.nwk`` / ``_extant.nwk``.
+def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
+    """Write per-block trees to ``block<id>_complete.nwk`` / ``_extant.nwk``.
 
-    Plain nucleotide model: everything under ``gene_trees/``. Genic mode: gene atoms under
-    ``Gene_trees/`` and intergene atoms under ``Intergene_trees/`` (both tree sets recovered).
+    Plain nucleotide model: everything under ``gene_trees/``. Genic mode: gene blocks under
+    ``Gene_trees/`` and intergene blocks under ``Intergene_trees/`` (both tree sets recovered).
     """
     def dump(tdir: str, trees: dict) -> None:
         os.makedirs(tdir, exist_ok=True)
-        for atom_id, (complete, extant) in trees.items():
+        for block_id, (complete, extant) in trees.items():
             if complete:
-                with open(os.path.join(tdir, f"atom{atom_id}_complete.nwk"), "w") as f:
+                with open(os.path.join(tdir, f"block{block_id}_complete.nwk"), "w") as f:
                     f.write(complete + "\n")
             if extant:
-                with open(os.path.join(tdir, f"atom{atom_id}_extant.nwk"), "w") as f:
+                with open(os.path.join(tdir, f"block{block_id}_extant.nwk"), "w") as f:
                     f.write(extant + "\n")
 
     if genic:
         dump(os.path.join(out, "Gene_trees"), result.gene_trees())
         dump(os.path.join(out, "Intergene_trees"), result.intergene_trees())
     else:
-        dump(os.path.join(out, "gene_trees"), result.atom_gene_trees())
+        dump(os.path.join(out, "gene_trees"), result.block_gene_trees())
 
 
 def _add_abc_args(p: argparse.ArgumentParser) -> None:

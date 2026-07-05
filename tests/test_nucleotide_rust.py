@@ -1,5 +1,5 @@
 """Rust engine for the nucleotide model, reached via ``simulate_nucleotide_genomes(...,
-output="profiles")`` (leaf segments -> atoms / profile / mosaic / trace-back).
+output="profiles")`` (leaf segments -> blocks / profile / mosaic / trace-back).
 
 Skipped if zombi2_core isn't built. Validates internal consistency (the same invariants the
 pure-Python tests assert) on the Rust result; cross-engine equivalence is statistical (the
@@ -30,7 +30,7 @@ def test_reproducible_same_seed():
     tree = _tree()
     a = _sim(tree, seed=7, **FULL)
     b = _sim(tree, seed=7, **FULL)
-    assert [a2.atom_id for a2 in a.atoms] == [b2.atom_id for b2 in b.atoms]
+    assert [a2.block_id for a2 in a.blocks] == [b2.block_id for b2 in b.blocks]
     for leaf, ga in a.leaf_genomes.items():
         assert ga.to_cells() == b.leaf_genomes[leaf].to_cells()
 
@@ -46,7 +46,7 @@ def test_species_are_extant_leaves():
 def test_mosaic_reassembles_each_leaf():
     tree = _tree(n=8)
     res = _sim(tree, seed=2, **FULL)
-    amap = {a.atom_id: a for a in res.atoms}
+    amap = {a.block_id: a for a in res.blocks}
     for leaf, g in res.leaf_genomes.items():
         cells = []
         for aid, strand in res.leaf_mosaic(leaf):
@@ -58,14 +58,14 @@ def test_mosaic_reassembles_each_leaf():
         assert cells == g.to_cells()
 
 
-def test_atoms_cover_exactly_surviving_positions():
+def test_blocks_cover_exactly_surviving_positions():
     tree = _tree(n=8)
     res = _sim(tree, seed=4, **FULL)
-    atom_positions = {(a.source, p) for a in res.atoms for p in range(a.start, a.end)}
+    block_positions = {(a.source, p) for a in res.blocks for p in range(a.start, a.end)}
     surviving = set()
     for g in res.leaf_genomes.values():
         surviving.update((src, p) for src, p, _st in g.to_cells())
-    assert atom_positions == surviving
+    assert block_positions == surviving
 
 
 def test_profile_matches_leaf_coverage_and_grows():
@@ -74,16 +74,16 @@ def test_profile_matches_leaf_coverage_and_grows():
     _ids, _sp, M = res.profile_matrix()
     assert M.max() >= 2                         # duplication/transfer -> paralogs
     assert M.min() == 0                         # loss / patchy novel sources
-    assert len({a.source for a in res.atoms}) > 1  # origination made novel sources
+    assert len({a.source for a in res.blocks}) > 1  # origination made novel sources
 
 
 def test_gene_trees_unavailable_on_profiles_path():
     tree = _tree(n=6)
     res = _sim(tree, seed=1, **FULL)
     with pytest.raises(NotImplementedError):
-        res.atom_gene_trees()
+        res.block_gene_trees()
     with pytest.raises(NotImplementedError):
-        res.atom_histories()
+        res.block_histories()
 
 
 def test_profiles_requires_numeric_extension():

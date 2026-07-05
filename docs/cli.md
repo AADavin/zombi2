@@ -426,8 +426,8 @@ only what you ask for.
 `--rate-model nucleotide` switches `genomes` to a **nucleotide-resolution** model: each genome is
 a circular sequence that evolves by **variable-length structural events** — inversion, deletion,
 tandem duplication, transposition, HGT transfer and origination. Genes are not predefined; they
-**emerge** as *atoms* — maximal intervals of ancestral sequence with a single shared history — so
-you still get a phylogenetic profile and per-atom gene trees, but derived from real sequence
+**emerge** as *blocks* — maximal intervals of ancestral sequence with a single shared history — so
+you still get a phylogenetic profile and per-block gene trees, but derived from real sequence
 structure rather than an atomic gene-family model.
 
 The shared `--dup` / `--trans` / `--loss` / `--orig` flags become **per-nucleotide** rates here
@@ -440,22 +440,22 @@ zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
     --inversion 0.001 --dup 0.0006 --loss 0.0006 --root-length 1000 --seed 1 -o out/
 ```
 
-`--write profiles` writes the emergent atom profile (`Profiles.tsv` / `Presence.tsv`, atoms ×
-species) plus `atoms.tsv` and the per-leaf `Mosaics.tsv`, taking the fast Rust path; the default
-`profiles trees` also writes the per-atom `gene_trees/` and their reconciliations
+`--write profiles` writes the emergent block profile (`Profiles.tsv` / `Presence.tsv`, blocks ×
+species) plus `blocks.tsv` and the per-leaf `Mosaics.tsv`, taking the fast Rust path; the default
+`profiles trees` also writes the per-block `gene_trees/` and their reconciliations
 (`Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv`). `--sparse`
 applies to the profile as usual. (The family-model `events` / `transfers` / `summary` outputs do
 not apply to this model.)
 
 **Genes & intergenes.** Pass `--genes genes.tsv` (a BED/TSV of `start end [name]` intervals on the
 root chromosome) to declare genes explicitly. Event breakpoints then fall only in intergene
-positions, so **genes are never split** — each gene is one atom, each intergene stretch fragments
-into intergene atoms. `--pseudogenization P` makes a loss that hits a gene demote it to intergene
+positions, so **genes are never split** — each gene is one block, each intergene stretch fragments
+into intergene blocks. `--pseudogenization P` makes a loss that hits a gene demote it to intergene
 with probability `P` (sequence retained, a state change in the gene's tree); `--replacement P`
 makes a transfer a homologous replacement (the copy replaces the recipient's syntenic locus, found
 via flanking genes; additive when there is no homolog). Genic mode runs on the Python engine and
 adds `genes.tsv` (the annotation), `Gene_trees/` and `Intergene_trees/` (the two tree sets), a
-`kind`/`gene_id` column in `atoms.tsv`, and `Pseudogenizations.tsv`.
+`kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
 ```bash
 zombi2 genomes -t out/species_tree.nwk --rate-model nucleotide \
