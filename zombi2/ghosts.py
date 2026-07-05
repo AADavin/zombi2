@@ -282,14 +282,15 @@ def add_ghost_lineages(
             junction.add_child(ghost)  # the dead sibling
             parent = junction          # next ghost on this edge sits above `node`, below M
 
-    # Name the new nodes with the shared convention (extant leaves n*, extinct leaves e*,
-    # internal nodes i*), continuing past the indices already used on the reconstructed tree.
+    # Name the new nodes with the shared convention (sampled-extant n*, unsampled-extant ghosts u*,
+    # extinct e*, internal i*), continuing past the indices already used on the reconstructed tree.
     def _max_index(prefix: str) -> int:
         used = [int(n.name[len(prefix):]) for n in tree.nodes_preorder()
                 if n.name.startswith(prefix) and n.name[len(prefix):].isdigit()]
         return max(used, default=0)
 
-    n_ctr, e_ctr, i_ctr = _max_index("n"), _max_index("e"), _max_index("i")
+    n_ctr, u_ctr, e_ctr, i_ctr = _max_index("n"), _max_index("u"), _max_index("e"), _max_index("i")
+    present = tree.total_age
     for node in tree.nodes_preorder():
         if node.name:
             continue
@@ -297,6 +298,9 @@ def add_ghost_lineages(
             if node.is_extant:
                 n_ctr += 1
                 node.name = f"n{n_ctr}"
+            elif not node.sampled and abs(node.time - present) <= 1e-9 * max(1.0, abs(present)):
+                u_ctr += 1
+                node.name = f"u{u_ctr}"
             else:
                 e_ctr += 1
                 node.name = f"e{e_ctr}"

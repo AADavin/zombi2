@@ -376,9 +376,17 @@ def _grow_gillespie(view, age, n_tips, rng, max_lineages):
     return root, end
 
 
+def _at_present(t: float, present: float) -> bool:
+    """True if a leaf reached the present (an unsampled-extant *ghost*), rather than dying before it."""
+    return abs(t - present) <= 1e-9 * max(1.0, abs(present))
+
+
 def _name(tree: Tree) -> None:
-    # Shared naming convention: extant leaves n*, extinct/fossil leaves e*, internal nodes i*.
-    extant = extinct = internal = 0
+    # Naming convention: sampled-extant leaves n*, unsampled-extant "ghost" leaves u* (alive at the
+    # present but not sampled under ρ<1), extinct/fossil leaves e* (gone before the present),
+    # internal nodes i*. Extinct and unsampled are different fates, so they get different letters.
+    present = tree.total_age
+    extant = unsampled = extinct = internal = 0
     for node in tree.nodes_preorder():
         if node is tree.root:
             node.name = "root"
@@ -386,6 +394,9 @@ def _name(tree: Tree) -> None:
             if node.is_extant:
                 extant += 1
                 node.name = f"n{extant}"
+            elif not node.sampled and _at_present(node.time, present):
+                unsampled += 1
+                node.name = f"u{unsampled}"
             else:
                 extinct += 1
                 node.name = f"e{extinct}"

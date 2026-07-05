@@ -37,7 +37,7 @@ from ._traits_impl import (
     Cladogenesis, simulate_traits,
 )
 from .transfers import TransferModel
-from .tree import Tree, read_newick
+from .tree import Tree, prune, read_newick
 
 _DESCRIPTION = """\
 Simulate each level on its own, or couple them into joint models. Run
@@ -284,10 +284,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--transposition", type=float, default=None, metavar="RATE",
                    help="transposition rate — per gene copy for --genome-model ordered, per "
                         "nucleotide for nucleotide (default 0)")
-    g.add_argument("--extension", type=float, default=None, metavar="P",
-                   help="geometric event-length parameter (mean length 1/(1-extension)): counted "
-                        "in genes for --genome-model ordered (default None = single-gene events), "
-                        "in nucleotides for nucleotide (default 0.99)")
+    g.add_argument("--mean-length", type=float, default=None, metavar="L", dest="mean_length",
+                   help="mean length of an inversion/transposition segment (geometric): in genes "
+                        "for --genome-model ordered (default 1 = single-gene events), in "
+                        "nucleotides for nucleotide (default 100)")
 
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
@@ -306,7 +306,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--indel-mean-length", type=float, default=10.0, metavar="L",
                    dest="indel_mean_length",
                    help="mean length (in nucleotides) of an insertion/deletion run — geometric, a "
-                        "separate knob from --extension (default 10)")
+                        "separate knob from --mean-length (default 10)")
 
     g = p.add_argument_group("genes & intergenes",
                              "--genome-model nucleotide; declare genes to enable genic mode")
@@ -1328,6 +1328,17 @@ def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -
         f.write(profiles.to_tsv(presence=True))
 
 
+def _extension_from_mean_length(mean_length: float | None) -> float | None:
+    """User-facing knob → engine parameter. The user gives the *mean* segment length L (genes or
+    nucleotides); the engine wants the geometric continuation probability. ``None`` keeps the
+    per-level default; otherwise ``extension = 1 - 1/L`` (L=1 → single-element events)."""
+    if mean_length is None:
+        return None
+    if mean_length < 1.0:
+        raise ValueError(f"--mean-length must be >= 1 (a segment spans at least one unit), got {mean_length}")
+    return 1.0 - 1.0 / mean_length
+
+
 def _run_genomes(tree: Tree, args: argparse.Namespace,
                  parser: argparse.ArgumentParser) -> str:
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
@@ -1335,6 +1346,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     The default ``shared`` rate model runs on the Rust engine automatically (``simulate_genomes``
     raises a build hint if the extension is missing); ``per-genome`` runs on Python.
     """
+    args.extension = _extension_from_mean_length(args.mean_length)   # mean-length knob → engine p
     parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
@@ -2072,8 +2084,7 @@ def main(argv: list[str] | None = None) -> int:
         "[--branch-speed SIGMA|--branch-bins ...] [options]",
         _add_sequence_args)
 
-    args = parser.parse_args(argv)
-    print(_banner(), file=sys.stderr)          # a banner on each run (stderr keeps stdout clean)
+    args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
     try:
         return _dispatch(args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
@@ -2122,13 +2133,23 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
         os.makedirs(args.out, exist_ok=True)
         with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
-            f.write(tree.to_newick() + "\n")
+            f.write(tree.to_newick() + "\n")               # the complete tree (extinct/ghost tips kept)
         leaves = tree.leaves()
         n_extant = sum(1 for n in leaves if n.is_extant)
-        dead = len(leaves) - n_extant
-        extra = f" + {dead} extinct" if dead else ""
-        summary = f"{n_extant} extant{extra} tips"
-        print(f"wrote {args.out}/species_tree.nwk ({summary}) in {dt:.3g} s")
+        n_unsampled = sum(1 for n in leaves if n.name.startswith("u"))   # ghost tips (u*), from ρ<1
+        n_extinct = len(leaves) - n_extant - n_unsampled
+        wrote = "species_tree.nwk"
+        if n_extant and n_extant < len(leaves):            # dead tips present: also the pruned tree
+            with open(os.path.join(args.out, "species_tree_extant.nwk"), "w") as f:
+                f.write(prune(tree, keep="extant").to_newick() + "\n")
+            wrote += " + species_tree_extant.nwk"
+        parts = [f"{n_extant} extant"]
+        if n_extinct:
+            parts.append(f"{n_extinct} extinct")
+        if n_unsampled:
+            parts.append(f"{n_unsampled} unsampled")
+        summary = " + ".join(parts) + " tips"
+        print(f"wrote {args.out}/{wrote} ({summary}) in {dt:.3g} s")
         _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
         return 0
 
