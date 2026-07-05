@@ -333,11 +333,20 @@ def _panel_profile(leaf_genomes, spec: CouplingSpec) -> ProfileMatrix:
 
 def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
                      transfers: TransferModel | None = None,
-                     initial_presence=None) -> CoupledResult:
+                     initial_presence=None, origins=None) -> CoupledResult:
     """Simulate coupled gene families along ``tree`` under ``spec``.
 
-    The root genome is seeded with the panel (all families present by default; pass
-    ``initial_presence`` as a length-``N`` 0/1 mask to start from a chosen configuration).
+    By default the whole panel is seeded at the **root** (all families present); pass
+    ``initial_presence`` as a length-``N`` 0/1 mask to start from a chosen root configuration.
+
+    ``origins`` gives each family its **own birth node** instead of the root — a
+    ``{family_id: node}`` map where ``node`` is a :class:`~zombi2.tree.TreeNode` or its name.
+    A family is then absent above its origin node and evolves normally within that clade
+    (loss/transfer). Families omitted from ``origins`` default to the root; map a family to
+    ``None`` to keep it absent everywhere. This removes the *seed-everything-at-the-root*
+    (Dollo-like) bias when fitting real data — seed each family at, e.g., its Count-lite origin.
+    ``origins`` and ``initial_presence`` are mutually exclusive.
+
     Transfers default to full **replacement** (``TransferModel(replacement=1.0)``) so a
     re-acquired family does not stack copies — keeping the state cleanly presence/absence.
 
@@ -346,7 +355,26 @@ def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
     if rng is None:
         rng = np.random.default_rng(seed)
 
-    if initial_presence is None:
+    if origins is not None and initial_presence is not None:
+        raise ValueError("pass either initial_presence or origins, not both")
+
+    seed_map: dict[str, list[str]] | None = None
+    if origins is not None:
+        panel = set(spec.panel_ids)
+        stray = set(origins) - panel
+        if stray:
+            raise ValueError(f"origins references non-panel families: {sorted(stray)}")
+        root_name = tree.root.name
+        root_families: list[str] = []
+        seed_map = {}
+        for fam in spec.panel_ids:
+            origin = origins.get(fam, root_name)  # unlisted → born at the root
+            if origin is None:
+                continue  # explicitly absent everywhere
+            name = origin.name if hasattr(origin, "name") else origin
+            (root_families if name == root_name else seed_map.setdefault(name, [])).append(fam)
+        seed_families = root_families
+    elif initial_presence is None:
         seed_families = list(spec.panel_ids)
     else:
         mask = np.asarray(initial_presence)
@@ -358,7 +386,8 @@ def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
     result = GenomeSimulator().simulate(
         tree, PottsRates(spec), rng,
         initial_size=0, transfers=tm, genome_factory=_panel_factory(seed_families),
-        log_seed_originations=True,  # panel families are pre-seeded → log their root births
+        log_seed_originations=True,  # root-seeded panel families → log their root births
+        seed_originations=seed_map,  # internal-node births (per-family origins)
     )
     return CoupledResult(
         profiles=_panel_profile(result.leaf_genomes, spec),
