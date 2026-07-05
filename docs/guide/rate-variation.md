@@ -133,3 +133,37 @@ zombi2 sequence --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate
 `gene_family_speeds.tsv` and `branch_rates.tsv` recording the drawn `s_g` and `R_b` for
 reproducibility. `--branch-speed` **or** `--branch-bins` alone is a shared lineage clock;
 `--family-speed` alone is per-family speed; together they are the full gene × lineage model.
+
+### Simulating alignments (DNA and protein)
+
+Add `--subst-model` and `sequence` goes one step further: it evolves an **actual sequence
+alignment** down each rescaled gene tree (the rescaled branch lengths *are* the expected
+substitutions per site). One FASTA per family is written to `run/alignments/<family>.fasta`,
+its records headed by the same `<species>_<gene-id>` labels the leaves carry in the
+`_extant_subst.nwk` tree. DNA versus protein is auto-detected from the model name.
+
+```bash
+# DNA alignments (HKY85), 600 bp
+zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
+    --subst-model hky85 --seq-length 600 -o run/
+
+# protein alignments under LG, 300 aa, with +Γ across-site rate heterogeneity
+zombi2 sequence --genomes run/ --branch-speed 0.4 \
+    --subst-model lg --seq-length 300 --gamma-shape 0.5 -o run/
+```
+
+Available models:
+
+- **DNA (4 states, `ACGT`):** `jc69`, `k80` (`--kappa`), `hky85` (`--kappa`, `--base-freqs`),
+  `gtr` (`--gtr-rates`, `--base-freqs`).
+- **Amino acid (20 states):** `poisson` (equal rates, uniform frequencies) and the empirical
+  matrices `lg` (Le & Gascuel 2008, the modern default), `wag` (Whelan & Goldman 2001), `jtt`
+  (Jones et al. 1992), and `dayhoff` (Dayhoff et al. 1978) — exchangeabilities and frequencies
+  transcribed byte-for-byte from the reference PAML data files. The protein models take no
+  parameters.
+
+`--gamma-shape ALPHA` adds discrete-Gamma (+Γ) across-site rate heterogeneity for any model;
+`--seq-length N` sets the alignment length; `--root-fasta FILE` seeds each family's root from a
+FASTA keyed by family id instead of a random draw from the stationary distribution. Omit
+`--subst-model` and `sequence` only rescales the trees, exactly as before — no alignments are
+written.
