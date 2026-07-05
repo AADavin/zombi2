@@ -29,13 +29,13 @@ whichever lineage clock you choose.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
 
 from .distributions import as_distribution
 from .profiles import _natkey
+from .rate_variation import AutocorrelatedLogNormalClock, Clock
 from .reconciliation import _Node, _node_tree
 
 
@@ -66,11 +66,16 @@ class SequenceEvolution:
     branch_sigma:
         Drift of the autocorrelated **lognormal** lineage clock on the species tree, per
         ``sqrt(time)`` (``>= 0``): ``R_child = R_parent · exp(N(0, branch_sigma·sqrt(L)))``,
-        one rate per branch. ``0`` is a strict clock (all branches share ``root_rate``).
+        one rate per branch. ``0`` is a strict clock (all branches share ``root_rate``). This
+        is a convenience for ``lineage=AutocorrelatedLogNormalClock(branch_sigma, root_rate)``.
     lineage:
-        A :class:`~zombi2.RateVariation` — the **discrete-bin** within-branch clock (the GTDB
-        model), used as an alternative to ``branch_sigma``. It is run once on the species tree,
-        so a branch may carry several rate segments. Mutually exclusive with ``branch_sigma``.
+        Any :class:`~zombi2.Clock` — the shared lineage clock, run once on the species tree.
+        Use this to pick a different relaxed clock (e.g. :class:`~zombi2.UncorrelatedLogNormalClock`,
+        :class:`~zombi2.UncorrelatedGammaClock`, :class:`~zombi2.WhiteNoiseClock`,
+        :class:`~zombi2.CIRClock`, or the discrete-bin :class:`~zombi2.RateVariation`). A
+        within-branch clock may carry several rate segments per branch. Mutually exclusive with
+        ``branch_sigma``; the clock's own ``root_rate`` then governs, not the ``root_rate``
+        argument below.
     family_speed:
         The per-**family** speed distribution (``Distribution`` / float / scipy frozen dist /
         callable — see :func:`~zombi2.as_distribution`). Each family draws one constant, clamped
@@ -83,7 +88,9 @@ class SequenceEvolution:
                  root_rate: float = 1.0):
         if lineage is not None and branch_sigma:
             raise ValueError("give either branch_sigma (lognormal per-branch clock) OR "
-                             "lineage=RateVariation (discrete-bin clock), not both")
+                             "lineage=<Clock> (a relaxed clock), not both")
+        if lineage is not None and not isinstance(lineage, Clock):
+            raise TypeError(f"lineage must be a zombi2 Clock, got {type(lineage).__name__}")
         if branch_sigma < 0:
             raise ValueError(f"branch_sigma must be >= 0, got {branch_sigma}")
         if root_rate <= 0:
@@ -92,44 +99,19 @@ class SequenceEvolution:
         self.lineage = lineage
         self.family_speed = as_distribution(family_speed)
         self.root_rate = float(root_rate)
+        # resolve to a single shared lineage Clock: an explicit one, or the branch_sigma
+        # convenience (an autocorrelated lognormal walk anchored at root_rate).
+        self._clock = (lineage if lineage is not None
+                       else AutocorrelatedLogNormalClock(self.branch_sigma, root_rate=self.root_rate))
 
     def _lineage_segments(self, tree, rng):
         """Resolve the lineage clock to ``({branch: [(rate, lo_abs, hi_abs), ...]}, {branch: avg})``.
 
-        ``segments`` is what the integrator consumes; ``avg`` is the time-averaged rate per
-        branch, reported as ``branch_rate`` (for the lognormal clock this is exactly ``R_b``).
+        Delegates to the shared :class:`~zombi2.Clock` (:attr:`_clock`): ``segments`` is what the
+        integrator consumes; ``avg`` is the time-averaged rate per branch, reported as
+        ``branch_rate`` (for a constant-per-branch clock this is exactly ``R_b``).
         """
-        segments: dict = {}
-        avg: dict = {}
-        if self.lineage is not None:
-            scaled = self.lineage.scale(tree, rng=rng)      # RateScaledTree (within-branch bins)
-            bins = self.lineage.bins
-            for node in tree.nodes_preorder():
-                if node.parent is None:
-                    segments[node.name], avg[node.name] = [], self.root_rate
-                    continue
-                start = node.parent.time
-                pieces = []
-                for b, dur in scaled.segments[node]:
-                    pieces.append((bins[b], start, start + dur))
-                    start += dur
-                segments[node.name] = pieces
-                length = node.branch_length()
-                avg[node.name] = (scaled.branch_lengths[node] / length if length > 0
-                                  else bins[scaled.end_bin[node]])
-            return segments, avg
-
-        # lognormal per-branch clock: one constant-rate segment spanning the whole branch
-        for node in tree.nodes_preorder():
-            if node.parent is None:
-                segments[node.name], avg[node.name] = [], self.root_rate
-                continue
-            scale = self.branch_sigma * math.sqrt(max(node.branch_length(), 0.0))
-            drift = math.exp(rng.normal(0.0, scale)) if scale > 0 else 1.0
-            r = avg[node.parent.name] * drift
-            segments[node.name] = [(r, node.parent.time, node.time)]
-            avg[node.name] = r
-        return segments, avg
+        return self._clock.lineage_segments(tree, rng)
 
     def scale(self, genomes, *, rng: np.random.Generator | None = None,
               seed: int | None = None) -> GenePhylograms:

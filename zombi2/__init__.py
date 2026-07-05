@@ -51,8 +51,12 @@ from .genomes import (
 from .distributions import (
     Distribution, Fixed, Exponential, Gamma, LogNormal, Uniform, as_distribution,
 )
+from .clocks import (
+    Clock, RateScaledTree, StrictClock, UncorrelatedLogNormalClock,
+    UncorrelatedGammaClock, WhiteNoiseClock, AutocorrelatedLogNormalClock,
+    CIRClock, RateVariation,
+)
 from .sequences import (
-    RateVariation, RateScaledTree,
     SequenceEvolution, GenePhylograms,
     SubstitutionModel, GammaRates, jc69, k80, hky85, gtr,
     poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model,
@@ -108,8 +112,10 @@ __all__ = [
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
     "simulate_trait_linked_genomes",
     # profile matching / ABC inference — withheld from the v1 public surface (see note above)
-    # rate variation (relaxed clock)
-    "RateVariation", "RateScaledTree",
+    # relaxed molecular clocks (chronogram -> phylogram; the shared lineage clock family)
+    "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
+    "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",
+    "CIRClock", "RateVariation",
     # family sequence evolution (gene x lineage substitution clock)
     "SequenceEvolution", "GenePhylograms",
     # sequence simulation (evolve DNA or protein along a gene tree; ancestral genome reconstruction)
