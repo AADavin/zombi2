@@ -16,10 +16,10 @@
 <circle cx="393.6363636363636" cy="479.5238095238095" r="5" fill="#999" />
 <text x="405.6363636363636" y="465.5238095238095" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">base_loss</text>
 <circle cx="248.18181818181816" cy="324.06021552037214" r="8" fill="#cc4b3c" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="268.18181818181813" y="312.06021552037214" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">no partners present:</text>
-<text x="268.18181818181813" y="336.06021552037214" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">small field, fast loss</text>
+<text x="268.18181818181813" y="312.06021552037214" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">module incomplete</text>
+<text x="268.18181818181813" y="336.06021552037214" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">(partners absent): fast loss</text>
 <circle cx="684.5454545454545" cy="557.755379135735" r="8" fill="#2f8f4e" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="684.5454545454545" y="513.755379135735" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">partners present:</text>
-<text x="684.5454545454545" y="537.755379135735" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">large field, protected</text>
-<text x="510.0" y="666" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">more present partners  =&gt;  lower loss, so coupled families stay together</text>
+<text x="684.5454545454545" y="513.755379135735" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">module complete</text>
+<text x="684.5454545454545" y="537.755379135735" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">(partners present): protected</text>
+<text x="510.0" y="666" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">more present partners  =&gt;  lower loss, so a complete module stays together</text>
 </svg>

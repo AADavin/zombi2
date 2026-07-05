@@ -38,6 +38,15 @@ ACCENT = {
     "highlight":   "#FDBF6F",   # warm sand, for clade shading
 }
 
+# --- Coupled / Potts figures ---------------------------------------------
+# Categorical palette for the pathway MODULES of the coupled (Potts) chapter, where a
+# few module identities must be told apart (the STYLE.md "categorical exception").
+# Colour-blind-safe and deliberately distinct from the green/red used below for the
+# co-occur/avoid (and protected/lost) *semantics*, so the two never get confused.
+MODULE_COLORS = ["#4477AA", "#E08A3C", "#7B5EA7", "#4C9AA6"]   # blue, orange, purple, teal
+COOCCUR = "#2f8f4e"         # J>0 / partners present / kept / protected  (green)
+AVOID   = "#cc4b3c"         # J<0 / partners absent / purged / fast loss (red)
+
 # --- Stroke weights (px) --------------------------------------------------
 BRANCH_W = 2.6
 

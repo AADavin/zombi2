@@ -24,15 +24,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))   # zombi_style
 import cairosvg
 import drawsvg as draw
 
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import (FONT, INK, MUTED, MODULE_COLORS, COOCCUR, AVOID,
+                         FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 NAME = "potts_coupling"
 
 W, H = 1080, 620
-MODA, MODB = "#4477AA", "#E08A3C"                 # two pathway modules
-POS, NEG = "#2f8f4e", "#cc4b3c"                   # J>0 co-occur, J<0 avoid
+MODA, MODB = MODULE_COLORS[0], MODULE_COLORS[1]   # module 1 / module 2 (same palette as panel)
+POS, NEG = COOCCUR, AVOID                          # J>0 co-occur, J<0 avoid
 COL = {0: MODA, 1: MODA, 2: MODA, 3: MODB, 4: MODB, 5: MODB}
+LBL = {0: "1", 1: "2", 2: "3", 3: "1", 4: "2", 5: "3"}   # within-module family number
 
 NR = 34                                            # node radius
 
@@ -67,13 +69,21 @@ def render():
     # nodes on top of the edges
     for i, (x, y) in pos.items():
         d.append(draw.Circle(x, y, NR, fill=COL[i], stroke=INK, stroke_width=2.2))
-        d.append(draw.Text(f"F{i}", FS_LABEL, x, y, font_family=FONT, text_anchor="middle",
+        d.append(draw.Text(LBL[i], FS_LABEL, x, y, font_family=FONT, text_anchor="middle",
                            dominant_baseline="central", fill="white", font_weight="bold"))
 
+    # spell out the graph's semantics: a node is a family, an edge is a coupling J
+    d.append(draw.Line(300, 205, 300, 224, stroke=MUTED, stroke_width=1.2))
+    d.append(draw.Text("a gene family", FS_TICK, 300, 196, font_family=FONT,
+                       text_anchor="middle", fill=MUTED))
+    d.append(draw.Line(150, 306, 262, 320, stroke=MUTED, stroke_width=1.2))
+    d.append(draw.Text("a coupling J", FS_TICK, 146, 302, font_family=FONT,
+                       text_anchor="end", fill=MUTED))
+
     # module labels below each clique
-    d.append(draw.Text("module A", FS_LABEL, 310, 460, font_family=FONT, text_anchor="middle",
+    d.append(draw.Text("module 1", FS_LABEL, 310, 460, font_family=FONT, text_anchor="middle",
                        fill=MODA, font_weight="bold"))
-    d.append(draw.Text("module B", FS_LABEL, 860, 460, font_family=FONT, text_anchor="middle",
+    d.append(draw.Text("module 2", FS_LABEL, 860, 460, font_family=FONT, text_anchor="middle",
                        fill=MODB, font_weight="bold"))
 
     # caption, centered along the bottom

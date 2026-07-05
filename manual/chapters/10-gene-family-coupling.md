@@ -24,7 +24,7 @@ $$f_i = h_i + \sum_j J_{ij}\,\sigma_j$$
 
 where the sum runs over present partners.
 
-![A genome is a present/absent vector $\sigma \in \{0,1\}^N$ over a fixed panel of gene families; colour marks which pathway module each present family belongs to.](figures/potts_genome.pdf)
+![Left: the fixed panel of $N$ families is organised into pathway modules — here four modules of five, coloured by module. Right: one genome is a present/absent vector $\sigma \in \{0,1\}^N$ over that panel, drawn as an unordered bag of its present families. Three modules are complete and protect their members; module 4 is incomplete (one of five present), so its lone gene feels a weak field, is lost quickly (the loss law below), and the module empties out — coupled families are kept, or lost, together.](figures/potts_genome.pdf){width=100%}
 
 **Coupling enters through loss.** A present family is lost at a rate that is modulated by its local
 field:

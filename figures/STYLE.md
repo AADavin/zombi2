@@ -46,3 +46,21 @@ The agreed style for every manual figure. The reference implementations are
 ## Axes
 - A visible time axis: baseline line + tick marks + numeric labels + a
   "time (root to present)" label, consistent across figures.
+
+## Tree aesthetics (Adrián's cross-cutting rule)
+Trees should look like one another across the whole manual — **wide and dense**, like the
+trait trees of Chapters 12–13 (`fig_trait_ou.py` is the reference). Never tall-and-narrow.
+
+- **Aspect ratio: landscape, ~1.5–1.7:1** (wider than tall). If a `species_style` height grows
+  with the tip count, **cap it** (`height=min(820, k·n_leaves + c)`) so more tips make the tree
+  *denser*, not *taller*. A portrait tree is a bug — widen it.
+- **Canvas width ~1150–1300 px** for a standalone tree; height then follows from the aspect.
+- **Target tip count ~20–30** for an illustrative tree (the old ~10-tip trees read as sparse).
+  Simulate more species / pick a seed with more leaves rather than settling for a small tree.
+- **Tip labels are optional and usually dropped** on a dense tree — a coloured tip square or a
+  bare leaf reads better than 25 single letters. Label only the tips a caption refers to (e.g.
+  the extinct `e1…` lineages), and leave the rest unlabelled.
+- **Fonts** stay on the shared `FS_*` scale (`FS_TITLE/FS_LABEL/FS_TICK`); `species_style(...,
+  font_size=FS_TICK)` for the leaf/axis text. A multi-panel figure that composes several trees
+  side by side is *very* wide once on the page, so its fonts must be set correspondingly larger
+  (see `fig_model_ghosts.py`).

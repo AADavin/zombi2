@@ -22,13 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))   # zombi_style
 import cairosvg
 import drawsvg as draw
 
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import FONT, INK, MUTED, COOCCUR, AVOID, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 NAME = "potts_lossrate"
 
 W, H = 1020, 720
-POS, NEG = "#2f8f4e", "#cc4b3c"                   # protected / fast-loss regimes
+POS, NEG = COOCCUR, AVOID                         # protected / fast-loss regimes
 
 
 def render():
@@ -82,22 +82,22 @@ def render():
     d.append(draw.Text("base_loss", FS_TICK, X(0) + 12, Y(1) - 14, font_family=FONT,
                        text_anchor="start", fill=MUTED))
 
-    # regime 1: no partners -> fast loss
+    # regime 1: incomplete module (partners absent) -> fast loss
     d.append(draw.Circle(X(-1.0), Y(math.exp(1)), 8, fill=NEG, stroke=INK, stroke_width=1.6))
-    d.append(draw.Text("no partners present:", FS_TICK, X(-1.0) + 20, Y(math.exp(1)) - 12,
+    d.append(draw.Text("module incomplete", FS_TICK, X(-1.0) + 20, Y(math.exp(1)) - 12,
                        font_family=FONT, text_anchor="start", fill=NEG, font_weight="bold"))
-    d.append(draw.Text("small field, fast loss", FS_TICK, X(-1.0) + 20, Y(math.exp(1)) + 12,
+    d.append(draw.Text("(partners absent): fast loss", FS_TICK, X(-1.0) + 20, Y(math.exp(1)) + 12,
                        font_family=FONT, text_anchor="start", fill=NEG, font_weight="bold"))
 
-    # regime 2: partners present -> protected
+    # regime 2: complete module (partners present) -> protected
     d.append(draw.Circle(X(2.0), Y(math.exp(-2)), 8, fill=POS, stroke=INK, stroke_width=1.6))
-    d.append(draw.Text("partners present:", FS_TICK, X(2.0), Y(math.exp(-2)) - 44,
+    d.append(draw.Text("module complete", FS_TICK, X(2.0), Y(math.exp(-2)) - 44,
                        font_family=FONT, text_anchor="middle", fill=POS, font_weight="bold"))
-    d.append(draw.Text("large field, protected", FS_TICK, X(2.0), Y(math.exp(-2)) - 20,
+    d.append(draw.Text("(partners present): protected", FS_TICK, X(2.0), Y(math.exp(-2)) - 20,
                        font_family=FONT, text_anchor="middle", fill=POS, font_weight="bold"))
 
     # caption
-    d.append(draw.Text("more present partners  =>  lower loss, so coupled families stay together",
+    d.append(draw.Text("more present partners  =>  lower loss, so a complete module stays together",
                        FS_TICK, W / 2, by + bh + 96, font_family=FONT, text_anchor="middle",
                        fill=MUTED))
 
