@@ -358,6 +358,7 @@ def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
     result = GenomeSimulator().simulate(
         tree, PottsRates(spec), rng,
         initial_size=0, transfers=tm, genome_factory=_panel_factory(seed_families),
+        log_seed_originations=True,  # panel families are pre-seeded → log their root births
     )
     return CoupledResult(
         profiles=_panel_profile(result.leaf_genomes, spec),

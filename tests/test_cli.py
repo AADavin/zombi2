@@ -157,13 +157,16 @@ def test_genomes_coupled_model(tmp_path):
     gen = tmp_path / "gen"
     rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"), "--rate-model", "coupled",
                "--pathways", "3,3", "--within", "3", "--trans", "0.3", "--gain-coupling", "4",
-               "--seed", "7", "-o", str(gen)])
+               "--write", "profiles", "trees", "--seed", "7", "-o", str(gen)])
     assert rc == 0
     for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv"):
         assert (gen / f).exists()
     rows = (gen / "Profiles.tsv").read_text().strip().splitlines()
     assert len(rows) == 1 + 6                           # header + a 6-family panel (3+3)
     assert "gain_coupling\t4.0" in (gen / "genomes.log").read_text()
+    # the coupled model reconstructs gene trees like every other rate model
+    trees = os.listdir(gen / "gene_trees")
+    assert any(f.endswith("_complete.nwk") for f in trees)
 
 
 def test_genomes_coupled_rejects_bad_pathways(tmp_path):

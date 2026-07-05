@@ -326,7 +326,8 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group(
         "coupled model", "with --rate-model coupled (Potts/Ising gene-family non-independence); "
-        "reuses --trans (HGT) and --orig; writes Profiles.tsv/Presence.tsv over the fixed panel")
+        "reuses --trans (HGT) and --orig; supports the full --write set (profiles, trees, "
+        "events, ...) over the fixed family panel")
     g.add_argument("--pathways", metavar="SIZES", default="4,4",
                    help="comma-separated pathway block sizes defining the family panel and its "
                         "coupling blocks, e.g. 4,4,3 -> an 11-family panel of three co-occurring "
@@ -1376,8 +1377,9 @@ def _run_coupled(tree: Tree, args: argparse.Namespace,
     The coupling structure is a set of pathway blocks (``--pathways``): families within a block
     co-occur (``--within`` J), families across blocks couple by ``--between`` J. Coupling enters
     through loss (``loss_i = base-loss·exp(-beta·f_i)``); ``--gain-coupling`` additionally
-    field-biases HGT establishment. Writes the fixed panel's Profiles/Presence (this model has
-    no gene-tree machinery, so tree/event outputs are not produced)."""
+    field-biases HGT establishment. The full genealogy is recorded, so every output component
+    (profiles, gene trees, events, transfers, ...) is produced exactly as for the other rate
+    models — gene-tree reconstruction is a model-agnostic function of the event log."""
     try:
         sizes = [int(s) for s in str(args.pathways).replace(" ", "").split(",") if s]
     except ValueError:
@@ -1392,12 +1394,15 @@ def _run_coupled(tree: Tree, args: argparse.Namespace,
     )
     t0 = time.perf_counter()
     res = simulate_coupled(tree, spec, seed=args.seed)
+    # Wrap the coupled result in the standard Genomes so it shares the full output machinery.
+    # Keep res.profiles (the fixed panel: all N rows, incl. any globally-extinct family) rather
+    # than letting Genomes derive a reduced one from the leaf genomes.
+    genomes = Genomes(species_tree=tree, leaf_genomes=res.leaf_genomes,
+                      event_log=res.event_log, profiles=res.profiles)
+    genomes.write(args.out, include=parts, sparse=args.sparse,
+                  annotate_species=args.annotate_species)
     dt = time.perf_counter() - t0
-    _write_profiles_only(args.out, tree, res.profiles, sparse=args.sparse)
-
-    ignored = parts - {"profiles"}
-    note = f" (coupled model writes profiles only; ignored: {' '.join(sorted(ignored))})" if ignored else ""
-    return (f"wrote [profiles]{note} to {args.out}/ ({len(tree.leaves())} tips, "
+    return (f"wrote [{' '.join(sorted(parts))}] to {args.out}/ ({len(tree.leaves())} tips, "
             f"{spec.n_families} panel families, gain_coupling={args.gain_coupling:g}) in {dt:.3g} s")
 
 
