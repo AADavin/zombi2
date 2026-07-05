@@ -17,8 +17,15 @@ Auto-generated from the source docstrings.
 ::: zombi2.tree.TreeNode
 ::: zombi2.tree.read_newick
 
-## Rate variation
+## Relaxed molecular clocks
 
+::: zombi2.rate_variation.Clock
+::: zombi2.rate_variation.StrictClock
+::: zombi2.rate_variation.UncorrelatedLogNormalClock
+::: zombi2.rate_variation.UncorrelatedGammaClock
+::: zombi2.rate_variation.WhiteNoiseClock
+::: zombi2.rate_variation.AutocorrelatedLogNormalClock
+::: zombi2.rate_variation.CIRClock
 ::: zombi2.rate_variation.RateVariation
 ::: zombi2.rate_variation.RateScaledTree
 ::: zombi2.sequence_evolution.SequenceEvolution
