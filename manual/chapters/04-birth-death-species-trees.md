@@ -60,8 +60,6 @@ The two knobs fix the two quantities the reconstructed process needs:
 
 ![What `age` measures. With `age_type="crown"` (left) the age is the depth from the crown — the root of the reconstructed tree — to the present. With `age_type="stem"` (right) it is measured from the origin instead, so a stem branch precedes the crown and the crown subtree is correspondingly shorter.](figures/age_crown.pdf){width=100%}
 
-![A reconstructed birth–death tree conditioned on ten extant tips.](figures/species_tree.pdf)
-
 ## Backward versus forward simulation
 
 By default ZOMBI2 simulates the *reconstructed* tree backward in time, sampling node ages from
