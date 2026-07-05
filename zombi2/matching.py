@@ -670,6 +670,7 @@ def match_coupled(
     accept=0.05,
     transfers=None,
     initial_presence=None,
+    origins=None,
     seed: int | None = None,
 ) -> ABCFit:
     """Fit parameters of a **coupled (Potts) gene-family model** to an empirical profile by ABC.
@@ -702,8 +703,12 @@ def match_coupled(
         structure), which is what makes coupling visible — the marginal alone can be blind to it.
     feature_weights, n_sims, accept, seed:
         As in :func:`match_profiles`.
-    transfers, initial_presence:
-        Passed through to :func:`~zombi2.simulate_coupled`.
+    transfers, initial_presence, origins:
+        Passed through to :func:`~zombi2.simulate_coupled`. ``origins`` (a ``{family: node}``
+        map, held fixed across all sims) seeds each panel family at its own birth node — e.g.
+        origins inferred once by the independent gain-loss likelihood (Count-lite) — instead of
+        all-at-root, so the fitted coupling is not biased by forcing deep families down from the
+        root. Mutually exclusive with ``initial_presence``.
 
     Returns
     -------
@@ -731,7 +736,8 @@ def match_coupled(
         vals = {n: priors[n].sample(rng) for n in names}   # no non-negativity clamp here
         sim_seed = int(rng.integers(1, 2**63 - 1))
         res = simulate_coupled(tree, spec_builder(vals), seed=sim_seed,
-                               transfers=transfers, initial_presence=initial_presence)
+                               transfers=transfers, initial_presence=initial_presence,
+                               origins=origins)
         summaries[i] = summarize(res.profiles)
         samples[i] = [vals[n] for n in names]
 
