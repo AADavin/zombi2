@@ -55,8 +55,8 @@ pm.matrix.shape                         # (n_families, n_extant_species)
 ```
 
 `output="profiles"` skips gene-ids, the event log and gene-tree reconstruction, so it is much
-faster and is the right path for ABC (see [Matching empirical profiles](matching.md)) and for
-generating large presence/absence datasets. `output="genomes"` tracks the full genealogy.
+faster and is the right path for generating large presence/absence datasets.
+`output="genomes"` tracks the full genealogy.
 
 ## Reproducibility & correctness
 

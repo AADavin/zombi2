@@ -67,12 +67,8 @@ NAMESPACES = {
         "simulate_gene_conditioned_trait",
         "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     ],
-    "abc": [
-        "match_profiles", "match_profiles_smc", "match_coupled", "ABCFit",
-        "default_summary", "default_gene_tree_summary", "cooccurrence_summary",
-        "cooccurrence_features", "event_count_summary", "frequency_spectrum",
-        "genome_sizes", "copy_number_spectrum",
-    ],
+    # NOTE: "abc" (ABC inference) is intentionally NOT a public namespace in v1 — it is withheld
+    # from the top-level surface. See test_abc_inference_is_insider_only_but_importable below.
     "distributions": [
         "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform",
         "as_distribution",
@@ -123,7 +119,6 @@ def test_from_import_style_works():
     from zombi2.sequences import lg
     from zombi2.genomes import simulate_genomes
     from zombi2.coevolve import simulate_coupled
-    from zombi2.abc import match_profiles
     from zombi2.distributions import Gamma
 
     assert DiversityDependent is z.DiversityDependent
@@ -132,15 +127,24 @@ def test_from_import_style_works():
     assert lg is z.lg
     assert simulate_genomes is z.simulate_genomes
     assert simulate_coupled is z.simulate_coupled
-    assert match_profiles is z.match_profiles
     assert Gamma is z.Gamma
 
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 133
+    assert len(z.__all__) == 121   # 133 minus the 12 ABC-inference names withheld from v1
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
+
+
+def test_abc_inference_is_insider_only_but_importable():
+    """ABC inference is withheld from the public top-level surface in v1, but the module stays
+    in-tree, importable, and identity-consistent (so it does not bit-rot while shelved)."""
+    for name in ("match_profiles", "match_coupled", "cooccurrence_summary", "ABCFit"):
+        assert not hasattr(z, name), f"{name} should not be on the public top-level surface"
+    from zombi2.matching import match_profiles           # implementation stays importable + tested
+    from zombi2.abc import match_profiles as ns_match     # thin namespace still works for insiders
+    assert ns_match is match_profiles
 
 
 def test_namespaces_partition_public_api():

@@ -1,7 +1,7 @@
 # Gene-family coupling (the Potts model)
 
 By default every gene family evolves independently, so the phylogenetic profile
-([`ProfileMatrix`](../reference/api.md#profile-matching-abc)) correlates families **only
+([`ProfileMatrix`](../reference/api.md#profiles)) correlates families **only
 through the shared species tree**. Real genomes correlate through **function**: families in
 the same pathway or complex tend to be present or absent *together* (Pellegrini 1999). ZOMBI2
 can inject that structure directly — a prescribed pairwise coupling `J` (and fields `h`) that

@@ -100,18 +100,13 @@ Auto-generated from the source docstrings.
 ::: zombi2.simulation.Genomes
 ::: zombi2.genome_sim.GenomeSimulator
 
-## Profile matching (ABC)
+## Profiles
 
-::: zombi2.matching.match_profiles
-::: zombi2.matching.match_profiles_smc
-::: zombi2.matching.ABCFit
-::: zombi2.matching.default_summary
-::: zombi2.matching.default_gene_tree_summary
-::: zombi2.matching.event_count_summary
-::: zombi2.matching.frequency_spectrum
-::: zombi2.matching.genome_sizes
-::: zombi2.matching.copy_number_spectrum
 ::: zombi2.profiles.ProfileMatrix
+
+<!-- ABC profile-matching inference (zombi2.matching) is experimental and withheld from the v1
+     public API; its reference entries return when the module is stabilised. -->
+
 
 ## Parallel replicates
 
