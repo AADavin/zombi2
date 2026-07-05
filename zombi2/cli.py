@@ -19,7 +19,8 @@ from .nucleotide_sim import simulate_nucleotide_genomes
 from .profiles import ProfileMatrix
 from .distributions import LogNormal
 from .rate_variation import RateVariation
-from .rates import PerGenomeRates
+from .genome import OrderedGenome
+from .rates import PerGenomeRates, SharedRates
 from .sequence_evolution import SequenceEvolution
 from .simulation import Genomes, simulate_genomes
 from .species_model import (
@@ -197,16 +198,20 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
     g.add_argument("--genome-model", dest="genome_model",
-                   choices=("unordered", "nucleotide"), default="unordered", metavar="LEVEL",
+                   choices=("unordered", "ordered", "nucleotide"), default="unordered",
+                   metavar="LEVEL",
                    help="genome level: unordered (default) evolves gene families with no "
-                        "positional structure; nucleotide evolves nucleotide-resolution genomes "
-                        "by variable-length structural events, genes emerge as 'blocks' (see the "
-                        "nucleotide sections)")
+                        "positional structure; ordered places genes on a chromosome where order "
+                        "matters (adds inversion/transposition on gene segments; distance counted "
+                        "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
+                        "genomes by variable-length structural events, genes emerge as 'blocks' "
+                        "(see the nucleotide sections)")
     g.add_argument("--rate-model", choices=("shared", "per-genome"),
                    default="shared", metavar="MODEL",
-                   help="rate heterogeneity for the unordered genome level: shared: same per-copy "
-                        "rates for every family (Rust; default); per-genome: constant per-genome "
-                        "rates, linear growth (Python)")
+                   help="rate heterogeneity for the unordered/ordered genome levels: shared: same "
+                        "per-copy rates for every family (Rust for unordered; default); per-genome: "
+                        "constant per-genome rates, linear growth (Python). Rearrangements "
+                        "(--inversion/--transposition on ordered genomes) need shared")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -222,8 +227,8 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="origination rate (per branch)")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
-                   help="number of gene families seeded at the root, for the unordered genome "
-                        "level (--genome-model unordered) (default: 20)")
+                   help="number of gene families seeded at the root, for the unordered and ordered "
+                        "genome levels (--genome-model unordered/ordered) (default: 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
                         "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
@@ -269,20 +274,26 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="where the family enters the tree: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
 
+    g = p.add_argument_group("structural events (rearrangements)",
+                             "--genome-model ordered/nucleotide")
+    g.add_argument("--inversion", type=float, default=None, metavar="RATE",
+                   help="inversion rate — per gene copy for --genome-model ordered (default 0), "
+                        "per nucleotide for nucleotide (default 0.001)")
+    g.add_argument("--transposition", type=float, default=None, metavar="RATE",
+                   help="transposition rate — per gene copy for --genome-model ordered, per "
+                        "nucleotide for nucleotide (default 0)")
+    g.add_argument("--extension", type=float, default=None, metavar="P",
+                   help="geometric event-length parameter (mean length 1/(1-extension)): counted "
+                        "in genes for --genome-model ordered (default None = single-gene events), "
+                        "in nucleotides for nucleotide (default 0.99)")
+
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
-    g.add_argument("--inversion", type=float, default=0.001, metavar="RATE",
-                   help="per-nucleotide inversion rate (default 0.001)")
-    g.add_argument("--transposition", type=float, default=0.0, metavar="RATE",
-                   help="per-nucleotide transposition rate (default 0)")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
                    help="number of root chromosomes seeded at the root, for --genome-model "
                         "nucleotide (default: 1)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
-    g.add_argument("--extension", type=float, default=0.99, metavar="P",
-                   help="geometric event-length parameter; mean event length is 1/(1-extension) "
-                        "nucleotides (default 0.99)")
 
     g = p.add_argument_group("genes & intergenes",
                              "--genome-model nucleotide; declare genes to enable genic mode")
@@ -1299,30 +1310,43 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
 
     if args.initial_chromosomes is not None:
         parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
-                     "unordered genome level uses --initial-families")
+                     "unordered and ordered genome levels use --initial-families")
 
+    ordered = args.genome_model == "ordered"
     initial_families = 20 if args.initial_families is None else args.initial_families
     args.initial_families = initial_families  # record the effective value in the params log
     if args.rate_model == "per-genome":
+        if ordered and (args.inversion is not None or args.transposition is not None):
+            parser.error("rearrangements (--inversion/--transposition) need --rate-model shared; "
+                         "per-genome rates do not carry them")
         model_kw = dict(rates=PerGenomeRates(args.dup, args.trans, args.loss, args.orig))
-    else:  # shared
+    elif ordered:  # shared per-copy rates + rearrangements on an ordered chromosome
+        inv = 0.0 if args.inversion is None else args.inversion
+        tps = 0.0 if args.transposition is None else args.transposition
+        args.inversion, args.transposition = inv, tps  # record effective values in the params log
+        model_kw = dict(rates=SharedRates(args.dup, args.trans, args.loss, args.orig,
+                                          inversion=inv, transposition=tps))
+    else:  # shared (unordered)
         model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
                         origination=args.orig)
     rate_kw = dict(**model_kw, initial_families=initial_families,
                    max_family_size=args.max_family_size, seed=args.seed)
+    if ordered:
+        ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
+        rate_kw["genome_factory"] = lambda ids, _e=ext: OrderedGenome(ids, extension=_e)
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the
     # full path (the fast counts-only / trace paths don't reconstruct gene trees).
     score = getattr(args, "score_likelihoods", False)
 
     t0 = time.perf_counter()
-    if parts == {"profiles"} and not score:
+    if parts == {"profiles"} and not score and not ordered:
         # counts-only Rust fast path: no genealogy reconstructed (parallel when --threads > 1)
         profiles = simulate_genomes(tree, output="profiles", threads=args.threads, **rate_kw)
         dt = time.perf_counter() - t0
         _write_profiles_only(args.out, tree, profiles, sparse=args.sparse)
         n_families = len(profiles.families)
-    elif "trace" in parts and parts <= {"trace", "profiles"} and not score:
+    elif "trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered:
         # event-trace fast path: compact Events_trace.tsv (+ profile), no per-event objects,
         # no gene-tree reconstruction — near counts-only speed, trees reconstructable later
         trace = simulate_genomes(tree, output="trace", **rate_kw)
@@ -1370,6 +1394,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     ancestral = "ancestral" in want
     initial_chromosomes = 1 if args.initial_chromosomes is None else args.initial_chromosomes
     args.initial_chromosomes = initial_chromosomes  # record the effective value in the params log
+    # the structural knobs are shared with the ordered level, so their defaults are resolved here
+    args.inversion = 0.001 if args.inversion is None else args.inversion
+    args.transposition = 0.0 if args.transposition is None else args.transposition
+    args.extension = 0.99 if args.extension is None else args.extension
     if args.gff and args.genes:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None

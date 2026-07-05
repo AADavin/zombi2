@@ -27,10 +27,8 @@ Two independent choices define a genome run.
 
 The first is the **level** — unordered, ordered, or nucleotide. The level is what a genome *is*, and
 therefore which events can act on it (see *Events, by level* below); each level *adds* events to the
-one beneath it. On the command line, `--genome-model` selects the level, but only the two endpoints
-are exposed there — `--genome-model unordered` (the default) and `--genome-model nucleotide`. The
-ordered level sits between them and is reached through the Python API (an `OrderedGenome` factory,
-Chapter 11).
+one beneath it. On the command line, `--genome-model` selects the level: `unordered` (the default),
+`ordered`, or `nucleotide`.
 
 The second choice, orthogonal to the first and meaningful only within the unordered level, is how
 the four gene-family rates *vary across families* — the **rate model** (`--rate-model`; see *Rate
@@ -39,7 +37,7 @@ models* below).
 | Level (`--genome-model`) | A genome is… | Coupling? | Chapter |
 |---|---|---|---|
 | **unordered** | a *set* of gene families (presence/absence) | **yes** | Chapter 8 (coupling: Chapter 10) |
-| **ordered** *(Python API only)* | genes on a chromosome (order matters, length does not) | no | Chapter 11 |
+| **ordered** | genes on a chromosome (order matters, length does not) | no | Chapter 11 |
 | **nucleotide** | a real sequence (genes + intergenes at true coordinates) | no | Chapter 12 |
 
 ## Events, by level

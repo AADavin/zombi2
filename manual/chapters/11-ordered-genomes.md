@@ -37,6 +37,24 @@ leaf.chromosome     # list of OrderedGene(gid, family, orientation=±1), in orde
 Each leaf genome exposes its `chromosome` as an ordered list of `OrderedGene` records, every one
 tagged with its family and a strand orientation of $+1$ or $-1$.
 
+### From the command line
+
+The ordered level is also a `--genome-model`, so the same run is available from the `genomes`
+command:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model ordered \
+    --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
+    --inversion 0.3 --transposition 0.2 --extension 0.5 \
+    --initial-families 25 --seed 1 --write profiles trees events -o out/
+```
+
+Here `--inversion` and `--transposition` are the rearrangement rates (**per gene copy**, unlike the
+per-nucleotide rates of the nucleotide model), and `--extension` is the segment-length knob counted
+**in genes** ($0.5$ gives a mean of two genes per event; omit it for single-gene events). Because
+rearrangements live on the shared per-copy rate model, they require the default `--rate-model
+shared`; `--rate-model per-genome` runs an ordered genome with duplication, transfer and loss only.
+
 ## Segment events
 
 Events act on a *contiguous segment* of the circular chromosome rather than a single gene. The
