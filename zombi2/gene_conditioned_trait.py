@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .traits import Mk, TraitResult, simulate_traits
+from ._traits_impl import Mk, TraitResult, simulate_traits
 from .tree import Tree, TreeNode
 
 
