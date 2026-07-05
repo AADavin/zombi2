@@ -39,16 +39,15 @@ from .transfers import TransferModel
 from .tree import Tree, read_newick
 
 _DESCRIPTION = """\
-Simulate in two steps — build a species tree, then evolve gene families along it —
-or run the inverse and fit rates to data. Run 'zombi2 <command> -h' for a command's
-options, grouped by model.
+Simulate each level on its own, or couple them into joint models; or run the inverse and
+fit rates to data. Run 'zombi2 <command> -h' for a command's options, grouped by model.
 
 Species trees
-  species              simulate a species tree (birth-death; forward or reconstructed)
+  species              simulate a dated species tree
 
 Gene families & sequences
   genomes              evolve gene families along a species tree (Newick)
-  sequence             rescale a genomes run's gene trees into substitutions/site
+  sequence             simulate DNA/protein alignments along a genomes run's gene trees
 
 Traits & coevolution
   trait                evolve a phenotypic trait along a given species tree
@@ -72,7 +71,7 @@ def _use_color() -> bool:
 
 
 def _banner() -> str:
-    return f"ZOMBI2 {__version__} — a phylogenetic simulator of species trees and gene families"
+    return f"ZOMBI2 {__version__} — a simulator of species trees, genomes, traits and sequences"
 
 
 class ZombiHelpFormatter(argparse.RawDescriptionHelpFormatter):
@@ -215,9 +214,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
     g.add_argument("--orig", type=float, default=0.0, metavar="RATE",
                    help="origination rate (per branch)")
-    g.add_argument("--initial-size", type=int, default=None, metavar="N",
-                   help="genomes seeded at the root (default: 20 gene families; 1 root chromosome "
-                        "for --rate-model nucleotide)")
+    g.add_argument("--initial-families", type=int, default=None, metavar="N",
+                   dest="initial_families",
+                   help="number of gene families seeded at the root, for --rate-model "
+                        "uniform/genome-wise (default: 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
                         "number of species (e.g. 0.5) [not used by --rate-model nucleotide]")
@@ -268,6 +268,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="per-nucleotide inversion rate (default 0.001)")
     g.add_argument("--transposition", type=float, default=0.0, metavar="RATE",
                    help="per-nucleotide transposition rate (default 0)")
+    g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
+                   dest="initial_chromosomes",
+                   help="number of root chromosomes seeded at the root, for --rate-model "
+                        "nucleotide (default: 1)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
     g.add_argument("--extension", type=float, default=0.99, metavar="P",
@@ -1183,7 +1187,7 @@ def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser
     with open(args.tree) as f:
         tree = read_newick(f.read())
     model = CladogeneticGenome(
-        initial_size=args.genome_size, loss=args.gene_loss, origination=args.gene_origination,
+        initial_families=args.genome_size, loss=args.gene_loss, origination=args.gene_origination,
         cladogenetic_loss=args.clado_gene_loss, cladogenetic_gain=args.clado_gene_gain)
     t0 = time.perf_counter()
     res = simulate_cladogenetic_genome(tree, model, seed=args.seed)
@@ -1266,7 +1270,8 @@ def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -
         f.write(profiles.to_tsv(presence=True))
 
 
-def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
+def _run_genomes(tree: Tree, args: argparse.Namespace,
+                 parser: argparse.ArgumentParser) -> str:
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
 
     The default ``uniform`` model runs on the Rust engine automatically (``simulate_genomes``
@@ -1280,16 +1285,24 @@ def _run_genomes(tree: Tree, args: argparse.Namespace) -> str:
                          "exactly --write profiles")
 
     if args.rate_model == "nucleotide":
+        if args.initial_families is not None:
+            parser.error("--initial-families is for the gene-family models "
+                         "(--rate-model uniform/genome-wise); the nucleotide model uses "
+                         "--initial-chromosomes")
         return _run_nucleotides(tree, args, parts)
 
-    initial_size = 20 if args.initial_size is None else args.initial_size
-    args.initial_size = initial_size          # record the effective value in the params log
+    if args.initial_chromosomes is not None:
+        parser.error("--initial-chromosomes is only for --rate-model nucleotide; the "
+                     "gene-family models use --initial-families")
+
+    initial_families = 20 if args.initial_families is None else args.initial_families
+    args.initial_families = initial_families  # record the effective value in the params log
     if args.rate_model == "genome-wise":
         model_kw = dict(rates=GenomeWiseRates(args.dup, args.trans, args.loss, args.orig))
     else:  # uniform
         model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
                         origination=args.orig)
-    rate_kw = dict(**model_kw, initial_size=initial_size,
+    rate_kw = dict(**model_kw, initial_families=initial_families,
                    max_family_size=args.max_family_size, seed=args.seed)
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the
@@ -1349,8 +1362,8 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         raise ValueError("the nucleotide model writes 'profiles', 'trees' and/or 'ancestral'; "
                          "--write events/transfers/summary do not apply to it")
     ancestral = "ancestral" in want
-    initial_size = 1 if args.initial_size is None else args.initial_size
-    args.initial_size = initial_size          # record the effective value in the params log
+    initial_chromosomes = 1 if args.initial_chromosomes is None else args.initial_chromosomes
+    args.initial_chromosomes = initial_chromosomes  # record the effective value in the params log
     if args.gff and args.genes:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None
@@ -1368,7 +1381,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
                   transfer=args.trans, transposition=args.transposition,
                   origination=args.orig, root_length=args.root_length,
-                  extension=args.extension, initial_size=initial_size, seed=args.seed,
+                  extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
                   gene_intervals=genes, pseudogenization=args.pseudogenization,
                   replacement=args.replacement, transfers=transfers, retain_internal=ancestral)
 
@@ -1603,7 +1616,8 @@ def _add_abc_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("posterior & simulation")
     g.add_argument("--regression-adjust", action="store_true",
                    help="also write the regression-adjusted posterior (Beaumont 2002)")
-    g.add_argument("--initial-size", type=int, default=20, metavar="N",
+    g.add_argument("--initial-families", type=int, default=20, metavar="N",
+                   dest="initial_families",
                    help="gene families seeded at the root of each simulation (default 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="growth cap for each simulation — recommended with --rate-model family to "
@@ -1674,7 +1688,7 @@ def _run_abc(args: argparse.Namespace) -> str:
     empirical = ProfileMatrix.from_tsv(args.profiles)
     priors = _build_priors(args)
     common = dict(model=args.model, family_shape=args.family_shape,
-                  initial_size=args.initial_size, max_family_size=args.max_family_size,
+                  initial_families=args.initial_families, max_family_size=args.max_family_size,
                   seed=args.seed)
 
     t0 = time.perf_counter()
@@ -1724,17 +1738,47 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="[--branch-bins] probability a step goes to the faster neighbour "
                         "(default 0.5 = symmetric walk)")
 
+    g = p.add_argument_group("sequence alignments",
+                             "give --subst-model to evolve DNA/protein along the rescaled trees")
+    g.add_argument("--subst-model", default=None, metavar="MODEL",
+                   help="substitution model to simulate an alignment per family: DNA "
+                        "(jc69/k80/hky85/gtr) or protein (lg/wag/jtt/dayhoff/poisson). DNA vs "
+                        "protein is auto-detected from the name. Omit to only rescale the trees "
+                        "(no sequences)")
+    g.add_argument("--seq-length", type=int, default=300, metavar="N",
+                   help="alignment length in sites (nt for DNA, aa for protein; default 300); "
+                        "ignored when --root-fasta seeds each family's root")
+    g.add_argument("--root-fasta", metavar="FILE", default=None,
+                   help="FASTA (optionally .gz) of per-family root sequences keyed by family id "
+                        "(header = family id); seeds each family's root instead of a random draw. "
+                        "Its length overrides --seq-length per family")
+    g.add_argument("--gamma-shape", type=float, default=None, metavar="ALPHA",
+                   help="discrete-Gamma across-site rate heterogeneity shape (default: none)")
+    g.add_argument("--kappa", type=float, default=2.0, metavar="K",
+                   help="[DNA k80/hky85] transition/transversion ratio (default 2.0)")
+    g.add_argument("--base-freqs", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
+                   help="[DNA hky85/gtr] equilibrium base frequencies (default equal)")
+    g.add_argument("--gtr-rates", type=float, nargs=6, default=None,
+                   metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
+                   help="[DNA gtr] the 6 exchangeabilities (default all 1)")
+
 
 def _run_sequence(args: argparse.Namespace) -> str:
-    """Overlay the gene x lineage substitution clock on a prior genomes run's gene trees.
+    """Overlay the gene x lineage substitution clock on a prior genomes run's gene trees, and —
+    with ``--subst-model`` — simulate a DNA or protein alignment down each rescaled tree.
 
     Replays the compact ``Events_trace.tsv`` (no re-simulation of gene content), rescales every
     reconciled gene tree from time into substitutions/site, and writes the phylograms plus the
     drawn per-family speeds and per-branch rates. The lineage clock is shared across families
     (``--branch-speed`` lognormal or ``--branch-bins`` discrete-bin); each family draws one
-    constant speed (``--family-speed``).
+    constant speed (``--family-speed``). When ``--subst-model`` is given, a sequence is evolved
+    along each rescaled **extant** gene tree (the rescaled branch lengths ARE the substitutions/
+    site) and the leaf alignment is written as ``alignments/<family>.fasta``.
     """
+    from .profiles import _natkey
     from .reconciliation import extant_species_from_records
+    from .sequence_sim import (GammaRates, evolve_on_tree, is_protein_model, make_model,
+                               read_fasta, write_fasta)
     from .simulation import read_events_trace
 
     if args.family_speed < 0 or args.branch_speed < 0:
@@ -1742,6 +1786,14 @@ def _run_sequence(args: argparse.Namespace) -> str:
     if args.branch_speed > 0 and args.branch_bins:
         raise ValueError("--branch-speed (lognormal clock) and --branch-bins (discrete-bin "
                          "clock) are two lineage clocks; give at most one")
+    model = None
+    if args.subst_model:
+        model = make_model(args.subst_model, kappa=args.kappa,
+                           freqs=args.base_freqs, rates=args.gtr_rates)
+    elif args.gamma_shape or args.root_fasta:
+        raise ValueError("--gamma-shape / --root-fasta only apply with --subst-model "
+                         "(which turns on sequence simulation)")
+    gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
 
     tree_path = os.path.join(args.genomes, "species_tree.nwk")
     trace_path = os.path.join(args.genomes, "Events_trace.tsv")
@@ -1767,7 +1819,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
         se = SequenceEvolution(branch_sigma=args.branch_speed, family_speed=family_speed)
 
     t0 = time.perf_counter()
-    phylo = se.scale_families(tree, families, gid2species, seed=args.seed)
+    phylo, node_trees = se.scale_families_trees(tree, families, gid2species, seed=args.seed)
     dt = time.perf_counter() - t0
 
     tdir = os.path.join(args.out, "gene_trees")
@@ -1792,8 +1844,50 @@ def _run_sequence(args: argparse.Namespace) -> str:
             f.write(f"{name}\t{r:.10g}\n")
 
     clock = f"branch-bins [{args.branch_bins}]" if args.branch_bins else f"branch-speed {args.branch_speed}"
-    return (f"wrote substitution-unit gene trees for {n} families to {args.out}/gene_trees/ "
-            f"(clock: {clock}, family-speed {args.family_speed}) in {dt:.3g} s")
+    msg = (f"wrote substitution-unit gene trees for {n} families to {args.out}/gene_trees/ "
+           f"(clock: {clock}, family-speed {args.family_speed}) in {dt:.3g} s")
+
+    if model is None:
+        return msg
+
+    # Evolve a sequence down each rescaled extant gene tree and write the leaf alignment.
+    root_seqs: dict = {}
+    if args.root_fasta:
+        root_seqs = read_fasta(args.root_fasta)
+    rng = np.random.default_rng(args.seed)
+    kind = "protein" if is_protein_model(args.subst_model) else "DNA"
+    aln_dir = os.path.join(args.out, "alignments")
+    os.makedirs(aln_dir, exist_ok=True)
+
+    n_aln = 0
+    for fam in sorted(node_trees, key=_natkey):
+        entry = node_trees[fam]["extant"]
+        if entry is None:                     # no survivors -> no alignment
+            continue
+        root_node, subst = entry
+        kw = {}
+        if fam in root_seqs:
+            kw["root_seq"] = root_seqs[fam]
+        else:
+            kw["length"] = args.seq_length
+        seqs = evolve_on_tree(root_node, subst, model, rng, gamma=gamma, **kw)
+        records = {f"{leaf.species}_{leaf.gid}": seqs[leaf.gid]
+                   for leaf in _iter_leaves(root_node)}
+        if records:
+            write_fasta(os.path.join(aln_dir, f"{fam}.fasta"), records)
+            n_aln += 1
+
+    return (f"{msg}; simulated {kind} alignments ({model.name}) for {n_aln} families "
+            f"to {args.out}/alignments/")
+
+
+def _iter_leaves(node):
+    """Yield the leaves (childless nodes) of a reconciliation ``_Node`` tree, left to right."""
+    if not node.children:
+        yield node
+        return
+    for child in node.children:
+        yield from _iter_leaves(child)
 
 
 def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder):
@@ -1817,14 +1911,14 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
 
     _add_subcommand(
-        sub, "species", "simulate a species tree",
-        "Simulate a species tree — a birth-death process, forward in time or reconstructed.",
+        sub, "species", "simulate a dated species tree",
+        "Simulate a dated species tree.",
         "zombi2 species -o DIR [--mode MODE] [--diversification PROCESS] [options]",
         _add_species_args)
 
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
-        "Evolve gene families along a species tree by duplication, transfer, loss and origination.",
+        "Evolve gene families along a species tree.",
         "zombi2 genomes -t FILE -o DIR [--rate-model MODEL] [--write PART ...] [options]",
         _add_rate_args)
 
@@ -1847,10 +1941,12 @@ def main(argv: list[str] | None = None) -> int:
         _add_coevolve_mode_args)
 
     _add_subcommand(
-        sub, "sequence", "rescale a genomes run's gene trees into substitutions/site",
+        sub, "sequence", "simulate DNA/protein alignments along a genomes run's gene trees",
         "Rescale a 'genomes' run's gene trees from time into substitutions/site under a "
-        "gene × lineage clock.",
-        "zombi2 sequence --genomes DIR -o DIR [--branch-speed SIGMA|--branch-bins ...] [options]",
+        "gene × lineage clock, then (with --subst-model) simulate a DNA or protein sequence "
+        "alignment along each rescaled gene tree.",
+        "zombi2 sequence --genomes DIR -o DIR [--subst-model MODEL] "
+        "[--branch-speed SIGMA|--branch-bins ...] [options]",
         _add_sequence_args)
 
     args = parser.parse_args(argv)
@@ -1916,7 +2012,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "genomes":
         with open(args.tree) as f:
             tree = read_newick(f.read())
-        summary = _run_genomes(tree, args)
+        summary = _run_genomes(tree, args, parser)
         print(summary)
         _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)
         return 0
