@@ -53,16 +53,17 @@ the extra structure that level introduces.
 - **Ordered** — the four events above (now acting on contiguous *segments* of the chromosome) plus
   two **rearrangements**: **inversion** reverses a segment and flips its strands, and
   **transposition** cuts a segment and pastes it elsewhere. These change gene *order*, not content.
-- **Nucleotide** — everything above, now at base-pair resolution, plus three events that exist only
-  once a genome has sequence: **pseudogenization** (a loss that demotes a gene to intergenic DNA
-  rather than deleting it), **homologous replacement** (a transfer that overwrites the recipient's
-  syntenic copy), and **substitution** (point mutation of the sequence itself).
+- **Nucleotide** — everything above, now at base-pair resolution, plus the events that exist only
+  once a genome has sequence: **intergenic insertion and deletion** (indels that lengthen or shorten
+  intergenic DNA), **pseudogenization** (a loss that demotes a gene to intergenic DNA rather than
+  deleting it), **homologous replacement** (a transfer that overwrites the recipient's syntenic
+  copy), and **substitution** (point mutation of the sequence itself).
 
 | Level | Events it adds | These events act on… |
 |---|---|---|
 | **Unordered** | origination, duplication, transfer, loss | gene *content* (which families, how many copies) |
 | **Ordered** | inversion, transposition | gene *order* (segments of the chromosome) |
-| **Nucleotide** | pseudogenization, homologous replacement, substitution | the *sequence* (base pairs; gene/intergene coordinates) |
+| **Nucleotide** | insertion, deletion, pseudogenization, homologous replacement, substitution | the *sequence* (base pairs; gene/intergene coordinates) |
 
 Each level is a strict superset: choosing a richer level never removes an event, it only adds the
 ones its extra structure makes possible. A nucleotide genome still undergoes duplication, transfer,

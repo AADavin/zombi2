@@ -21,11 +21,14 @@ sections below.
 | `inversion` | reverse a segment's orientation |
 | `transposition` | move a segment |
 | `origination` | insert a brand-new gene under a fresh source |
+| `insertion` | add a run of novel intergenic nucleotides (an indel; off by default) |
+| `deletion` | remove a run of intergenic nucleotides (an indel; off by default) |
 
-Duplication, transfer, loss, inversion, and transposition are **per-nucleotide** rates — the total
-genome rate is `rate × current_length`, so longer genomes evolve faster — while `origination` is
-**per branch**. Event lengths follow a geometric model with mean `1/(1 - extension)` nucleotides
-(`extension=0.99` gives about 100 nt).
+Duplication, transfer, loss, inversion, transposition, and the two indels are **per-nucleotide**
+rates — the total genome rate is `rate × current_length`, so longer genomes evolve faster — while
+`origination` is **per branch**. Event lengths follow a geometric model with mean `1/(1 - extension)`
+nucleotides (`extension=0.99` gives about 100 nt); indels have their own mean-length knob (see
+*Intergenic indels* below). The two indels are off by default (rate 0).
 
 ```python
 tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=20, age=5.0, seed=1)
@@ -165,11 +168,47 @@ per-nucleotide rates down accordingly (the E. coli example uses `inversion=2e-6`
 raise `extension` toward `0.999` for realistically long segments.
 :::
 
+## Intergenic indels
+
+Two optional events change the *length* of the chromosome by editing intergenic DNA:
+
+- **Insertion** lays down a run of novel nucleotides — a fresh source, its own block — inside an
+  intergene stretch, lengthening it. It is an intergenic origination of new sequence, with its own
+  genealogy rooted at the event.
+- **Deletion** removes a run of nucleotides from *within a single* intergene stretch. It is clamped
+  so it never reaches into, spans, or removes a gene, and never shrinks the chromosome below a small
+  floor (`MIN_GENOME_LENGTH`, one nucleotide) — a deletion can never empty the genome.
+
+Both are **per-nucleotide** rates, off by default (0). Unlike the structural events, an indel run's
+length is geometric with mean `indel_mean_length` (default 10) — a knob *independent* of
+`extension`, since indels and rearrangements have different length scales. In genic mode indels act
+only in intergenes (a gene is never split, spanned, or deleted); with no genes declared they may act
+anywhere.
+
+```python
+result = z.simulate_nucleotide_genomes(
+    tree, root_length=3000, gene_intervals=genes,
+    insertion=1e-3, deletion=1e-3, indel_mean_length=12, seed=5)
+```
+
+From the command line:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide --root-length 3000 \
+    --insertion 0.001 --deletion 0.001 --indel-mean-length 12 \
+    --seed 5 --write profiles trees -o out/
+```
+
+Because an insertion roots a new block and a deletion terminates one, indels enter the block
+genealogy exactly like an origination and a loss respectively. They require the Python engine
+(`output="genomes"`); setting either rate routes the run there automatically.
+
 ## The Rust fast path
 
 `output="profiles"` runs the compiled `zombi2_core` Rust engine over leaf segments only — much
 faster, and enough for `profile_matrix()`, `leaf_mosaic()`, and `trace_back()`. It emits **no event
-log**, so `block_gene_trees()` is unavailable, and it **requires** the built extension:
+log**, so `block_gene_trees()` is unavailable, it does **not** model genes/intergenes or indels, and
+it **requires** the built extension:
 
 ```python
 result = z.simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,

@@ -297,6 +297,17 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "nucleotide (default: 1)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
+    g.add_argument("--insertion", type=float, default=0.0, metavar="RATE",
+                   help="per-nucleotide intergenic insertion rate: lay down a run of novel "
+                        "nucleotides (a fresh block) inside an intergene (default 0)")
+    g.add_argument("--deletion", type=float, default=0.0, metavar="RATE",
+                   help="per-nucleotide intergenic deletion rate: remove a run from within a single "
+                        "intergene, never touching a gene, never below the min-genome floor "
+                        "(default 0)")
+    g.add_argument("--indel-mean-length", type=float, default=10.0, metavar="L",
+                   dest="indel_mean_length",
+                   help="mean length (in nucleotides) of an insertion/deletion run — geometric, a "
+                        "separate knob from --extension (default 10)")
 
     g = p.add_argument_group("genes & intergenes",
                              "--genome-model nucleotide; declare genes to enable genic mode")
@@ -1485,15 +1496,17 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         genes = None
     genic = bool(genes)
     transfers = TransferModel(replacement=0.0) if genic else None  # homologous repl. is genome-side
+    indels = bool(args.insertion or args.deletion)
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
                   transfer=args.trans, transposition=args.transposition,
-                  origination=args.orig, root_length=args.root_length,
+                  origination=args.orig, insertion=args.insertion, deletion=args.deletion,
+                  indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
                   gene_intervals=genes, pseudogenization=args.pseudogenization,
                   replacement=args.replacement, transfers=transfers, retain_internal=ancestral)
 
     t0 = time.perf_counter()
-    if "trees" in want or genic or ancestral:  # genealogy / genic / ancestral need the Python engine
+    if "trees" in want or genic or ancestral or indels:  # these need the Python engine
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:

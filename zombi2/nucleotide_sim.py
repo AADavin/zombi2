@@ -154,9 +154,10 @@ class NucleotideResult:
 
         for r in self.event_log:
             ev = r.event
-            if ev is EventType.ORIGINATION:
-                # the seed origination has one row per seed segment (gene / intergene tiling),
-                # each the root of the blocks it covers; a novel origination has a single row.
+            if ev is EventType.ORIGINATION or ev is EventType.INSERTION:
+                # ORIGINATION: the seed row per seed segment (gene / intergene tiling) or a novel
+                # gene; INSERTION: a run of novel intergene nucleotides. Both root the blocks they
+                # cover, so they enter the block records identically (an origin of new sequence).
                 for op in r.genes:
                     e2 = prov.get(op.gid)
                     if e2 is None:
@@ -182,8 +183,10 @@ class NucleotideResult:
                                   [GeneOp(rep, source, "parent"),
                                    *(GeneOp(op.gid, source, "child") for op in r.genes[1:])],
                                   donor=r.donor, recipient=r.recipient)
-            elif ev is EventType.LOSS:
-                if len(r.genes) == 2 and r.genes[1].role == "pseudogenized":
+            elif ev is EventType.LOSS or ev is EventType.DELETION:
+                # DELETION removes a run of intergene sequence — same as a LOSS for the block
+                # genealogy (the covered intergene block copy terminates on this branch).
+                if ev is EventType.LOSS and len(r.genes) == 2 and r.genes[1].role == "pseudogenized":
                     # pseudogenization was logged as a LOSS with a continuation row; rewrite it
                     # to a state-change edge (gene -> intergene) on the continuing lineage.
                     rec = EventRecord(EventType.PSEUDOGENIZATION, r.branch, r.time,
@@ -509,6 +512,9 @@ def simulate_nucleotide_genomes(
     transfer: float = 0.0,
     transposition: float = 0.0,
     origination: float = 0.0,
+    insertion: float = 0.0,
+    deletion: float = 0.0,
+    indel_mean_length: float = 10.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_chromosomes: int = 1,
@@ -534,6 +540,15 @@ def simulate_nucleotide_genomes(
     additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
     carrying the extant leaf genomes, the event log, the segment registry, and the block
     partition (over the surviving ancestral material).
+
+    ``insertion`` and ``deletion`` are **per-nucleotide** rates for intergenic indels: an
+    insertion lays down a run of novel nucleotides (a fresh source, its own block) inside an
+    intergene stretch, lengthening it; a deletion removes a run from *within a single* intergene
+    stretch, clamped so it never reaches into a gene and never shrinks the chromosome below a
+    small floor (:data:`~zombi2.nucleotide_genome.MIN_GENOME_LENGTH`). Both default to 0 (off).
+    In genic mode indels act only in intergenes (a gene is never split, spanned or deleted); with
+    no genes declared they act anywhere. ``indel_mean_length`` is the mean of the indel run's
+    geometric length (a separate parameter from ``extension``; default 10).
 
     Genes & intergenes (genic mode): pass ``gene_intervals`` — a list of non-overlapping
     ``(start, end)`` or ``(start, end, name)`` intervals on the root chromosome. Event
@@ -572,6 +587,9 @@ def simulate_nucleotide_genomes(
                              "Rust profiles path does not model genes/intergenes")
         if pseudogenization:
             raise ValueError("pseudogenization requires output='genomes' (the Python engine)")
+        if insertion or deletion:
+            raise ValueError("intergenic indels (insertion/deletion) require output='genomes' "
+                             "(the Python engine); the Rust profiles path does not model them")
         if sampler is not None:
             raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
         if extension is None:
@@ -591,13 +609,14 @@ def simulate_nucleotide_genomes(
         rng = np.random.default_rng(seed)
     rates = SharedRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
+                         insertion=insertion, deletion=deletion,
                          origination=origination)
     registry = SegmentRegistry(pending_genes=pending_genes)
 
     def factory(ids):
         return NucleotideGenome(ids, root_length=root_length, extension=extension,
                                 registry=registry, pseudogenization=pseudogenization,
-                                replacement=replacement)
+                                replacement=replacement, indel_mean_length=indel_mean_length)
 
     result = GenomeSimulator(sampler).simulate(
         species_tree, rates, rng, initial_size=initial_chromosomes, transfers=transfers,

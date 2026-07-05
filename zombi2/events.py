@@ -34,6 +34,13 @@ class EventType(Enum):
     # --- gene-order rearrangements (ordered genomes only) ---
     INVERSION = "I"
     TRANSPOSITION = "P"
+    # --- intergenic indels (nucleotide model only) ---
+    # INSERTION lays down a run of novel (random) nucleotides inside an intergene stretch
+    # (a fresh source, its own block); DELETION removes a run from within a single intergene.
+    # Both act only in intergene positions in genic mode (they never split/span/delete a gene);
+    # with no genes declared they act anywhere. Off by default (rate 0).
+    INSERTION = "N"
+    DELETION = "E"
     # --- gene / intergene state change (nucleotide genic model only) ---
     # A pseudogenization: a gene loses function but keeps its sequence, so the lineage
     # continues as intergene. It is a *sub-outcome of LOSS* (never sampled on its own, so
