@@ -68,6 +68,7 @@ class GenomeSimulator:
         max_family_size=None,
         genome_factory=UnorderedGenome,
         retain_internal: bool = False,
+        log_seed_originations: bool = False,
     ) -> GenomeResult:
         """Simulate gene families on ``tree``.
 
@@ -75,6 +76,13 @@ class GenomeSimulator:
         :meth:`Genome.clone_reminting`. ``transfers`` sets transfer mechanics;
         ``max_family_size`` (int absolute, or float as a multiple of the species count)
         bounds family growth.
+
+        ``log_seed_originations``: when the factory *pre-seeds* families into the root genome
+        (e.g. the coupling panel) rather than originating them via ``initial_size``, set this to
+        log an ORIGINATION for each at the root — otherwise those families have no birth record
+        and gene-tree reconstruction (which starts from the origination) yields nothing. The
+        default ``False`` leaves every existing caller (empty factory + ``initial_size`` loop,
+        or the nucleotide chromosome factory) byte-identical.
         """
         self._transfers = transfers or TransferModel()
         n_species = len(tree.extant_leaves())
@@ -87,6 +95,12 @@ class GenomeSimulator:
 
         # --- seed the root genome ------------------------------------------
         root_genome = genome_factory(ids)
+        if log_seed_originations:
+            # families the factory pre-seeded (e.g. the coupling panel) get a root origination
+            # so the genealogy carries their birth record (else gene trees can't be built).
+            for gene in list(root_genome.genes()):
+                log.add(EventRecord(EventType.ORIGINATION, root.name, root.time,
+                                    [GeneOp(gene.gid, gene.family, "origin")]))
         for _ in range(initial_size):
             params = rate_model.target_params(EventType.ORIGINATION, root_genome, root.name, root.time)
             ops = root_genome.originate(rng, params)

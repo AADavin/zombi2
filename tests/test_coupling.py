@@ -331,6 +331,27 @@ def test_gain_coupling_strengthens_cooccurrence():
     assert _corr(on[2], on[3]) < 0.25          # the uncoupled pair stays unstructured
 
 
+def test_coupled_result_reconstructs_gene_trees():
+    """The coupled event log carries a root origination for each panel family, so the standard
+    Genomes machinery reconstructs a gene tree per family — the fix that lets --rate-model
+    coupled write gene_trees/ like every other model."""
+    from zombi2.simulation import Genomes
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=15, age=3.0, seed=1)
+    spec = pathway_blocks([3, 3], within=2.0, **_REGIME)
+    res = simulate_coupled(tree, spec, seed=1)
+
+    fam_events = res.event_log.by_family()
+    assert set(spec.panel_ids) <= set(fam_events)
+    for fam in spec.panel_ids:                  # each panel family has its root birth record
+        assert any(r.event is EventType.ORIGINATION for r in fam_events[fam])
+
+    genomes = Genomes(species_tree=tree, leaf_genomes=res.leaf_genomes,
+                      event_log=res.event_log, profiles=res.profiles)
+    trees = genomes.gene_trees()
+    assert set(trees) == set(spec.panel_ids)
+    assert any(complete for complete, _extant in trees.values())  # non-empty genealogies
+
+
 # --- ABC for the coupled model: co-occurrence summary + match_coupled -------------
 
 from zombi2 import ProfileMatrix                                             # noqa: E402
