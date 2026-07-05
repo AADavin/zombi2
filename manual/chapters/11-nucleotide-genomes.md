@@ -120,7 +120,7 @@ Blocks carry their classification (`block.kind` is `"gene"` or `"intergene"`, pl
 (the Rust `profiles` path does not model genes). On the CLI:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
@@ -149,7 +149,7 @@ result = z.simulate_nucleotide_genomes(
 On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`/`--root-length`):
 
 ```bash
-zombi2 genomes -t species_tree.nwk --rate-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
   --write profiles trees -o out/
 ```

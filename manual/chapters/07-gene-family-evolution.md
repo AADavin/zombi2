@@ -1,4 +1,4 @@
-# Gene-family evolution
+# Genome evolution
 
 ZOMBI2 offers three models of genome evolution, differing in how much structure a genome
 carries — from an unordered set of families to a real nucleotide sequence.
@@ -16,19 +16,31 @@ carries — from an unordered set of families to a real nucleotide sequence.
 
 ![The three models of genome evolution, in increasing structure: an unordered set of gene families; genes on an ordered chromosome (order matters, length does not); and a real nucleotide sequence with genes and intergenes at true coordinates.](figures/genome_models.pdf){width=100%}
 
-This chapter covers the first and simplest — gene families as an unordered set, evolving by
-duplication, transfer, loss and origination. Ordered genomes are the subject of Chapter 10, and
-nucleotide genomes of Chapter 11.
+Two independent choices define a genome run. The **level** — unordered, ordered, or nucleotide —
+is what a genome *is*, and therefore which events can act on it; each level *adds* events to the one
+below. Orthogonal to it, and meaningful only within the unordered level, is how the four rates
+*vary across families* (the *Rates* section below). On the command line these are two separate
+flags: `--genome-model` picks the level, `--rate-model` the rate variation.
+
+| Level (`--genome-model`) | A genome is… | Events | Coupling? | Chapter |
+|---|---|---|---|---|
+| **unordered** | a *set* of gene families (presence/absence) | origination, duplication, transfer, loss | **yes** | this chapter (coupling: Chapter 9) |
+| **ordered** | genes ordered on a chromosome (order matters, length does not) | + inversion, transposition | no | Chapter 10 |
+| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | + pseudogenization, homologous replacement, substitution | no | Chapter 11 |
+
+The rest of this chapter is the **unordered** level: gene families as a set, evolving by
+origination, duplication, transfer and loss.
 
 Once the species tree is fixed, ZOMBI2 populates it with genes: a single forward continuous-time
 (Gillespie) process runs over every branch alive at a given moment, firing discrete events that
 create, move, and remove gene copies. The result is a set of gene families, each with its own
 history, threaded through the species tree.
 
-## The DTL(O) process
+## The four events
 
 The genome of a lineage is a collection of gene copies. As simulated time advances, four kinds of
-event can fire on any living branch:
+event can fire on any living branch (the ordered and nucleotide levels add more — see their
+chapters):
 
 | Event | Effect |
 |---|---|
@@ -38,7 +50,7 @@ event can fire on any living branch:
 | **Loss (L)** | a copy is removed |
 
 Speciation is implicit: at each species-tree node the branch's genome is inherited, intact, by
-both children. No gene event is attached to the node itself; the DTL(O) events fire only along the
+both children. No gene event is attached to the node itself; the four events fire only along the
 branches between nodes.
 
 The process is a Gillespie simulation over all branches alive at once. Duplication, transfer, and
@@ -48,28 +60,36 @@ over time independently of what is already present.
 
 ![One gene family evolving along a species tree: a duplication, a loss, and a transfer, each placed on the branch where the Gillespie process fired it.](figures/species_tree_events.pdf)
 
-## Rate models
+## Rates
 
-Rates are supplied by a *rate model*, a subclass of `RateModel`. The choice of rate model is where
-per-copy, per-genome, per-family, and per-branch heterogeneity enters.
+Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
+four rates vary across gene families**. Two are on the command line, `shared` (the default) and
+`per-genome`; per-family rates and the coupled model are Python-API for now.
 
-### Uniform rates
+| `--rate-model` | The rate is… | Family size grows | Object |
+|---|---|---|---|
+| **shared** (default) | one per-copy rate, the same for every family | exponentially | `SharedRates` |
+| **per-genome** | one per-genome rate, size-independent | linearly | `PerGenomeRates` |
+| *per-family* | each family draws its own rates | exponentially, per family | `FamilySampledRates` |
+| *coupled* | loss depends on which partner families are present | — | Chapter 9 (`PottsRates`) |
 
-`UniformRates` gives every family the same per-copy D/T/L rates and a shared per-branch origination
+### Shared rates
+
+`SharedRates` gives every family the same per-copy D/T/L rates and a shared per-branch origination
 rate:
 
 ```python
 from zombi2.genomes import (
-    UniformRates, GenomeWiseRates, FamilySampledRates, TransferModel, simulate_genomes,
+    SharedRates, PerGenomeRates, FamilySampledRates, TransferModel, simulate_genomes,
 )
 from zombi2.distributions import Gamma, Exponential, LogNormal, Uniform, Fixed
 
-rates = UniformRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
 genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 Because the family-level rate scales with copy number, this is a gene-wise model: bigger families
-experience more events. There is a shorthand that builds `UniformRates` for you from the same
+experience more events. There is a shorthand that builds `SharedRates` for you from the same
 keywords:
 
 ```python
@@ -77,19 +97,19 @@ genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
                              origination=0.5, initial_families=40, seed=42)
 ```
 
-### Genome-wise rates
+### Per-genome rates
 
-`GenomeWiseRates` fires each event at a **constant per-genome rate**, independent of genome size; a
+`PerGenomeRates` fires each event at a **constant per-genome rate**, independent of genome size; a
 target copy is then chosen uniformly among the copies present:
 
 ```python
-genomes = simulate_genomes(tree, GenomeWiseRates(duplication=1.0, transfer=0.3,
+genomes = simulate_genomes(tree, PerGenomeRates(duplication=1.0, transfer=0.3,
                                                      loss=0.5, origination=0.4),
                              initial_families=20, seed=1)
 ```
 
 Because the rate no longer scales with copy number, family sizes grow *linearly* rather than
-exponentially, which makes genome-wise models far less prone to runaway growth than gene-wise ones.
+exponentially, which makes per-genome models far less prone to runaway growth than gene-wise ones.
 
 ### Per-family sampled rates
 
@@ -129,15 +149,7 @@ zombi2 genomes --tree species_tree.nwk \
 matrix (families $\times$ extant species), the chronological `event_log`, the per-family
 `gene_families` records, and `gene_trees()`; `genomes.write("out/")` serialises them.
 
-### Rate models at a glance
-
-| Rate model | Rate applies… | Family size grows | Use when |
-|---|---|---|---|
-| `UniformRates` | per copy, same for every family | exponentially (gene-wise) | one set of D/T/L/O rates for the whole genome |
-| `GenomeWiseRates` | per genome, size-independent | linearly | you want bounded growth that ignores copy number |
-| `FamilySampledRates` | per copy, drawn per family | exponentially, family-specific | families should differ — each draws its own D/T/L |
-
-All three take the same four rates (duplication, transfer, loss per copy or per genome;
+All the rate models take the same four rates (duplication, transfer, loss per copy or per genome;
 origination per branch) and compose with the growth caps below.
 
 ## Transfers
@@ -219,7 +231,7 @@ is scaled by $\max(0,\, 1 - n/K)$, so family size settles *around* $K$ with a pr
 distribution:
 
 ```python
-UniformRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 ::: note
