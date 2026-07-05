@@ -20,9 +20,9 @@ import pytest
 
 import zombi2 as z
 
-# The seven scikit-learn-style namespaces and the exact public names each
-# advertises (kept in sync, by hand, with the module ``__all__`` lists so a
-# drift on either side is caught).
+# The scikit-learn-style namespaces and the exact public names each advertises
+# (kept in sync, by hand, with the module ``__all__`` lists so a drift on either
+# side is caught).
 NAMESPACES = {
     "species": [
         "Tree", "TreeNode", "read_newick", "prune",
@@ -46,8 +46,12 @@ NAMESPACES = {
         "TraitResult", "pagel_lambda", "pagel_delta", "pagel_kappa",
         "DEC", "simulate_biogeography", "Cladogenesis",
     ],
+    "clocks": [
+        "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
+        "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",
+        "CIRClock", "RateVariation",
+    ],
     "sequences": [
-        "RateVariation", "RateScaledTree",
         "SequenceEvolution", "GenePhylograms",
         "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr",
         "poisson", "lg", "wag", "jtt", "dayhoff", "make_model", "is_protein_model",
@@ -117,6 +121,7 @@ def test_from_import_style_works():
     from zombi2.species import DiversityDependent, simulate_species_tree
     from zombi2.traits import OrnsteinUhlenbeck
     from zombi2.sequences import lg
+    from zombi2.clocks import StrictClock, UncorrelatedLogNormalClock
     from zombi2.genomes import simulate_genomes
     from zombi2.coevolve import simulate_coupled
     from zombi2.distributions import Gamma
@@ -125,6 +130,8 @@ def test_from_import_style_works():
     assert simulate_species_tree is z.simulate_species_tree
     assert OrnsteinUhlenbeck is z.OrnsteinUhlenbeck
     assert lg is z.lg
+    assert StrictClock is z.StrictClock
+    assert UncorrelatedLogNormalClock is z.UncorrelatedLogNormalClock
     assert simulate_genomes is z.simulate_genomes
     assert simulate_coupled is z.simulate_coupled
     assert Gamma is z.Gamma
@@ -132,7 +139,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 121   # 133 minus the 12 ABC-inference names withheld from v1
+    assert len(z.__all__) == 128   # 133 - 12 ABC names (withheld in v1) + 7 relaxed-clock names
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 

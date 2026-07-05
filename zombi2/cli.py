@@ -17,7 +17,10 @@ from .ghosts import add_ghost_lineages
 from .nucleotide_sim import simulate_nucleotide_genomes
 from .profiles import ProfileMatrix
 from .distributions import LogNormal
-from .rate_variation import RateVariation
+from .rate_variation import (
+    AutocorrelatedLogNormalClock, CIRClock, RateVariation, StrictClock,
+    UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
+)
 from .genome import OrderedGenome
 from .rates import PerGenomeRates, SharedRates
 from .sequence_evolution import SequenceEvolution
@@ -1862,17 +1865,35 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "constant multiplier ~ LogNormal(0, SIGMA) (0 = every family the same)")
 
     g = p.add_argument_group("lineage clock",
-                             "shared across families; pick lognormal OR discrete-bin")
+                             "the relaxed molecular clock shared across families (chronogram "
+                             "-> phylogram). Pick one with --clock; its parameter knobs below")
+    g.add_argument("--clock", default=None, metavar="MODEL",
+                   choices=["strict", "autocorrelated-lognormal", "uncorrelated-lognormal",
+                            "uncorrelated-gamma", "white-noise", "cir", "discrete-bin"],
+                   help="relaxed clock model: strict | autocorrelated-lognormal | "
+                        "uncorrelated-lognormal | uncorrelated-gamma | white-noise | cir | "
+                        "discrete-bin (default: autocorrelated-lognormal via --branch-speed, "
+                        "or discrete-bin if --branch-bins is given)")
+    g.add_argument("--clock-mean", type=float, default=1.0, metavar="M",
+                   help="mean / strict / root rate of the clock (default 1.0)")
+    g.add_argument("--clock-sigma", type=float, default=0.5, metavar="SIGMA",
+                   help="rate spread for lognormal / white-noise / cir clocks (the volatility; "
+                        "default 0.5). 0 = strict for the uncorrelated & autocorrelated lognormal")
+    g.add_argument("--clock-shape", type=float, default=3.0, metavar="ALPHA",
+                   help="[--clock uncorrelated-gamma] gamma shape; larger = tighter around the "
+                        "mean (default 3.0)")
+    g.add_argument("--clock-theta", type=float, default=1.0, metavar="THETA",
+                   help="[--clock cir] CIR mean-reversion speed (default 1.0)")
     g.add_argument("--branch-speed", type=float, default=0.0, metavar="SIGMA",
-                   help="lognormal relaxed clock: autocorrelated, drift SIGMA per sqrt(time) "
-                        "(0 = strict clock). Exclusive with --branch-bins")
+                   help="shorthand for the autocorrelated-lognormal clock: drift SIGMA per "
+                        "sqrt(time) (0 = strict). Used when --clock is not given")
     g.add_argument("--branch-bins", default=None, metavar="R1,R2,...",
-                   help="discrete-bin within-branch GTDB clock: comma-separated ORDERED rate "
-                        "multipliers (e.g. 0.25,0.5,1,2,4), a Markov walk between adjacent bins")
+                   help="[--clock discrete-bin] comma-separated ORDERED rate multipliers "
+                        "(e.g. 0.25,0.5,1,2,4), a Markov walk between adjacent bins")
     g.add_argument("--branch-switch-rate", type=float, default=1.0, metavar="RATE",
-                   help="[--branch-bins] rate of stepping to a neighbouring bin (default 1.0)")
+                   help="[--clock discrete-bin] rate of stepping to a neighbouring bin (default 1.0)")
     g.add_argument("--branch-up-bias", type=float, default=0.5, metavar="P",
-                   help="[--branch-bins] probability a step goes to the faster neighbour "
+                   help="[--clock discrete-bin] probability a step goes to the faster neighbour "
                         "(default 0.5 = symmetric walk)")
 
     g = p.add_argument_group("sequence alignments",
@@ -1900,6 +1921,47 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="[DNA gtr] the 6 exchangeabilities (default all 1)")
 
 
+def _build_lineage_clock(args: argparse.Namespace):
+    """Resolve the sequence command's lineage-clock flags to a (Clock, description) pair.
+
+    ``--clock`` selects the model explicitly; without it we fall back to the historical flags
+    (``--branch-bins`` -> discrete-bin, otherwise the autocorrelated lognormal at
+    ``--branch-speed``), so old command lines keep working.
+    """
+    mean = args.clock_mean
+    model = args.clock
+    if model is None:
+        model = "discrete-bin" if args.branch_bins else "autocorrelated-lognormal-legacy"
+
+    if model == "strict":
+        return StrictClock(mean), f"strict {mean:g}"
+    if model == "autocorrelated-lognormal":
+        return AutocorrelatedLogNormalClock(args.clock_sigma, root_rate=mean), \
+            f"autocorrelated-lognormal sigma={args.clock_sigma:g}"
+    if model == "autocorrelated-lognormal-legacy":
+        return AutocorrelatedLogNormalClock(args.branch_speed, root_rate=mean), \
+            f"autocorrelated-lognormal sigma={args.branch_speed:g}"
+    if model == "uncorrelated-lognormal":
+        return UncorrelatedLogNormalClock(args.clock_sigma, mean=mean), \
+            f"uncorrelated-lognormal sigma={args.clock_sigma:g}"
+    if model == "uncorrelated-gamma":
+        return UncorrelatedGammaClock(args.clock_shape, mean=mean), \
+            f"uncorrelated-gamma shape={args.clock_shape:g}"
+    if model == "white-noise":
+        return WhiteNoiseClock(args.clock_sigma, mean=mean), \
+            f"white-noise sigma={args.clock_sigma:g}"
+    if model == "cir":
+        return CIRClock(theta=args.clock_theta, sigma=args.clock_sigma, mean=mean), \
+            f"cir theta={args.clock_theta:g} sigma={args.clock_sigma:g}"
+    if model == "discrete-bin":
+        if not args.branch_bins:
+            raise ValueError("--clock discrete-bin needs --branch-bins R1,R2,... (ordered rates)")
+        bins = [float(x) for x in args.branch_bins.split(",") if x.strip() != ""]
+        return RateVariation(bins=bins, switch_rate=args.branch_switch_rate,
+                             up_bias=args.branch_up_bias), f"discrete-bin [{args.branch_bins}]"
+    raise ValueError(f"unknown --clock {model!r}")
+
+
 def _run_sequence(args: argparse.Namespace) -> str:
     """Overlay the gene x lineage substitution clock on a prior genomes run's gene trees, and —
     with ``--subst-model`` — simulate a DNA or protein alignment down each rescaled tree.
@@ -1920,9 +1982,11 @@ def _run_sequence(args: argparse.Namespace) -> str:
 
     if args.family_speed < 0 or args.branch_speed < 0:
         raise ValueError("--family-speed / --branch-speed must be >= 0")
-    if args.branch_speed > 0 and args.branch_bins:
+    if args.clock is None and args.branch_speed > 0 and args.branch_bins:
         raise ValueError("--branch-speed (lognormal clock) and --branch-bins (discrete-bin "
-                         "clock) are two lineage clocks; give at most one")
+                         "clock) are two lineage clocks; give at most one, or select one "
+                         "explicitly with --clock")
+    lineage_clock, clock_desc = _build_lineage_clock(args)
     model = None
     if args.subst_model:
         model = make_model(args.subst_model, kappa=args.kappa,
@@ -1946,14 +2010,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     gid2species = extant_species_from_records(families, tree)
 
     family_speed = LogNormal(0.0, args.family_speed) if args.family_speed > 0 else 1.0
-    if args.branch_bins:
-        bins = [float(x) for x in args.branch_bins.split(",") if x.strip() != ""]
-        se = SequenceEvolution(
-            lineage=RateVariation(bins=bins, switch_rate=args.branch_switch_rate,
-                                  up_bias=args.branch_up_bias),
-            family_speed=family_speed)
-    else:
-        se = SequenceEvolution(branch_sigma=args.branch_speed, family_speed=family_speed)
+    se = SequenceEvolution(lineage=lineage_clock, family_speed=family_speed)
 
     t0 = time.perf_counter()
     phylo, node_trees = se.scale_families_trees(tree, families, gid2species, seed=args.seed)
@@ -1980,9 +2037,8 @@ def _run_sequence(args: argparse.Namespace) -> str:
         for name, r in phylo.branch_rate.items():
             f.write(f"{name}\t{r:.10g}\n")
 
-    clock = f"branch-bins [{args.branch_bins}]" if args.branch_bins else f"branch-speed {args.branch_speed}"
     msg = (f"wrote substitution-unit gene trees for {n} families to {args.out}/gene_trees/ "
-           f"(clock: {clock}, family-speed {args.family_speed}) in {dt:.3g} s")
+           f"(clock: {clock_desc}, family-speed {args.family_speed}) in {dt:.3g} s")
 
     if model is None:
         return msg
@@ -2081,7 +2137,7 @@ def main(argv: list[str] | None = None) -> int:
         "gene × lineage clock, then (with --subst-model) simulate a DNA or protein sequence "
         "alignment along each rescaled gene tree.",
         "zombi2 sequence --genomes DIR -o DIR [--subst-model MODEL] "
-        "[--branch-speed SIGMA|--branch-bins ...] [options]",
+        "[--clock MODEL [--clock-sigma S]] [options]",
         _add_sequence_args)
 
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
