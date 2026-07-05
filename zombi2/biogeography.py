@@ -26,7 +26,7 @@ from __future__ import annotations
 import numpy as np
 
 from .tree import Tree
-from .traits import Mk, TraitResult
+from ._traits_impl import Mk, TraitResult
 
 
 def _popcount(mask: int) -> int:

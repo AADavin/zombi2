@@ -13,6 +13,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+__all__ = [
+    "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform",
+    "as_distribution",
+]
+
 
 class Distribution(ABC):
     """Something that yields a float given a numpy Generator."""
