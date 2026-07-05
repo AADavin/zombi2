@@ -263,6 +263,95 @@ def test_runs_on_realistic_tree():
     assert len(res.event_log) > 0
 
 
+# ── 4. gain-side coupling: field-biased HGT establishment (option b) ──────────
+def _sel(family):
+    """A minimal stand-in for a transfer selection: the hook reads ``selection.genes[0].family``."""
+    from types import SimpleNamespace
+    return SimpleNamespace(genes=[SimpleNamespace(family=family)])
+
+
+def test_establishment_probability_formula():
+    """p = exp(-β·g·(f_maxᵢ - f_i)); deficit measured from the best-possible field."""
+    spec = CouplingSpec.from_edges(3, {(0, 1): 2.0, (0, 2): -1.0},
+                                   h=[0.5, 0.0, 0.0], beta=0.5, gain_coupling=2.0)
+    rates = PottsRates(spec)
+    # f_max[0] = h0 + max(J01,0) + max(J02,0) = 0.5 + 2 + 0 = 2.5
+    assert spec.f_max[0] == pytest.approx(2.5)
+    # only the positive partner present → field == f_max → establishes freely (p = 1)
+    assert rates.establishment_probability(_sel("F0"), _make_genome(["F1"]), 0.0) == pytest.approx(1.0)
+    # both partners present → f0 = 0.5+2-1 = 1.5, deficit 1.0 → exp(-0.5·2·1.0)
+    assert rates.establishment_probability(_sel("F0"), _make_genome(["F1", "F2"]), 0.0) \
+        == pytest.approx(math.exp(-1.0))
+    # only the negative partner → f0 = -0.5, deficit 3.0 → exp(-0.5·2·3.0)
+    assert rates.establishment_probability(_sel("F0"), _make_genome(["F2"]), 0.0) \
+        == pytest.approx(math.exp(-3.0))
+    # non-panel family is uncoupled → p = 1
+    assert rates.establishment_probability(_sel("X"), _make_genome(["F1"]), 0.0) == 1.0
+
+
+def test_establishment_probability_off_by_default():
+    """gain_coupling = 0 (the default) → every transfer establishes (p = 1), field ignored."""
+    spec = CouplingSpec.from_edges(3, {(0, 1): 2.0, (0, 2): -1.0}, h=[0.5, 0.0, 0.0], beta=0.5)
+    assert spec.gain_coupling == 0.0
+    rates = PottsRates(spec)
+    for g in ([], ["F1"], ["F2"], ["F1", "F2"]):
+        assert rates.establishment_probability(_sel("F0"), _make_genome(g), 0.0) == 1.0
+
+
+def test_gain_coupling_inert_without_transfers():
+    """With no transfers there is nothing to gate: gain_coupling leaves output byte-identical
+    (and consumes no RNG draw), confirming gain stays purely donor-limited."""
+    tree = near_star_tree(6, age=3.0)
+    common = dict(within=3.0, between=0.0, base_loss=1.0, transfer=0.0, beta=1.0, h=2.0)
+    a = simulate_coupled(tree, pathway_blocks([2, 2], **common, gain_coupling=0.0), seed=5).profiles
+    b = simulate_coupled(tree, pathway_blocks([2, 2], **common, gain_coupling=5.0), seed=5).profiles
+    assert np.array_equal(a.matrix, b.matrix)
+
+
+def test_gain_coupling_reproducible():
+    """The extra establishment draw is deterministic under a fixed seed."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=20, age=4.0, seed=2)
+    spec = pathway_blocks([2, 2], within=2.0, gain_coupling=3.0, **_REGIME)
+    a = simulate_coupled(tree, spec, seed=7).profiles
+    b = simulate_coupled(tree, spec, seed=7).profiles
+    assert np.array_equal(a.matrix, b.matrix)
+
+
+def test_gain_coupling_strengthens_cooccurrence():
+    """Field-biased establishment adds signal on the *gain* side: on the same tree/seed, the
+    coupled pair co-occurs more strongly with gain_coupling > 0 than with the loss coupling
+    alone (differential retention of transferred copies reinforces co-occurrence)."""
+    tree = near_star_tree(8, age=6.0)
+    base = dict(within=2.0, between=0.0, **_REGIME)
+    off = simulate_coupled(
+        tree, pathway_blocks([2, 1, 1], **base, gain_coupling=0.0), seed=3).profiles.presence()
+    on = simulate_coupled(
+        tree, pathway_blocks([2, 1, 1], **base, gain_coupling=4.0), seed=3).profiles.presence()
+    assert _corr(on[0], on[1]) > _corr(off[0], off[1])
+    assert _corr(on[2], on[3]) < 0.25          # the uncoupled pair stays unstructured
+
+
+def test_coupled_result_reconstructs_gene_trees():
+    """The coupled event log carries a root origination for each panel family, so the standard
+    Genomes machinery reconstructs a gene tree per family — the fix that lets --rate-model
+    coupled write gene_trees/ like every other model."""
+    from zombi2.simulation import Genomes
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=15, age=3.0, seed=1)
+    spec = pathway_blocks([3, 3], within=2.0, **_REGIME)
+    res = simulate_coupled(tree, spec, seed=1)
+
+    fam_events = res.event_log.by_family()
+    assert set(spec.panel_ids) <= set(fam_events)
+    for fam in spec.panel_ids:                  # each panel family has its root birth record
+        assert any(r.event is EventType.ORIGINATION for r in fam_events[fam])
+
+    genomes = Genomes(species_tree=tree, leaf_genomes=res.leaf_genomes,
+                      event_log=res.event_log, profiles=res.profiles)
+    trees = genomes.gene_trees()
+    assert set(trees) == set(spec.panel_ids)
+    assert any(complete for complete, _extant in trees.values())  # non-empty genealogies
+
+
 # --- ABC for the coupled model: co-occurrence summary + match_coupled -------------
 
 from zombi2 import ProfileMatrix                                             # noqa: E402

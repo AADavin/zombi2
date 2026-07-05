@@ -30,6 +30,7 @@ from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
 from .gene_diversification import GeneDiversification, simulate_gene_diversification
 from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
 from .gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
+from .coupling import pathway_blocks, simulate_coupled
 from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from ._traits_impl import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -196,12 +197,14 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    g.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide"),
+    g.add_argument("--rate-model", choices=("uniform", "genome-wise", "nucleotide", "coupled"),
                    default="uniform", metavar="MODEL",
                    help="uniform: same per-copy rates for every family (Rust; default); "
                         "genome-wise: constant per-genome rates, linear growth (Python); "
                         "nucleotide: nucleotide-resolution genomes evolving by variable-length "
-                        "structural events, genes emerge as 'atoms' (see the nucleotide sections)")
+                        "structural events, genes emerge as 'atoms' (see the nucleotide sections); "
+                        "coupled: non-independent families (Potts/Ising) whose presence/absence "
+                        "co-varies by pathway (see the coupled model section)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -320,6 +323,34 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--genome-fasta", metavar="FILE", default=None,
                    help="the input genome's DNA (FASTA, optionally .gz) to seed the root sequence; "
                         "without it the root is drawn at random")
+
+    g = p.add_argument_group(
+        "coupled model", "with --rate-model coupled (Potts/Ising gene-family non-independence); "
+        "reuses --trans (HGT) and --orig; supports the full --write set (profiles, trees, "
+        "events, ...) over the fixed family panel")
+    g.add_argument("--pathways", metavar="SIZES", default="4,4",
+                   help="comma-separated pathway block sizes defining the family panel and its "
+                        "coupling blocks, e.g. 4,4,3 -> an 11-family panel of three co-occurring "
+                        "pathways (default 4,4)")
+    g.add_argument("--within", type=float, default=3.0, metavar="J",
+                   help="coupling J between families in the SAME pathway (>0 -> co-occurrence; "
+                        "default 3.0)")
+    g.add_argument("--between", type=float, default=0.0, metavar="J",
+                   help="coupling J between families in DIFFERENT pathways (<0 -> mutually "
+                        "exclusive rival pathways; default 0 = independent blocks)")
+    g.add_argument("--field", type=float, default=2.0, metavar="H",
+                   help="intrinsic per-family retention field h (larger -> more universally "
+                        "present 'core' families; default 2.0)")
+    g.add_argument("--beta", type=float, default=1.0, metavar="B",
+                   help="global coupling strength (inverse temperature) scaling the whole field "
+                        "(0 -> independent; default 1.0)")
+    g.add_argument("--base-loss", type=float, default=1.0, metavar="RATE", dest="base_loss",
+                   help="baseline per-family loss rate, the loss at field 0 (default 1.0); "
+                        "coupling enters through loss as loss_i = base-loss * exp(-beta * f_i)")
+    g.add_argument("--gain-coupling", type=float, default=0.0, metavar="G", dest="gain_coupling",
+                   help="gain-side coupling: field-bias HGT establishment so a transferred copy "
+                        "sticks preferentially where its pathway partners are present "
+                        "(0 -> field-blind gain, default; needs --trans > 0 to have any effect)")
 
 
 def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
@@ -1284,6 +1315,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
                          "exactly --write profiles")
 
+    if args.rate_model == "coupled":
+        return _run_coupled(tree, args, parser, parts)
+
     if args.rate_model == "nucleotide":
         if args.initial_families is not None:
             parser.error("--initial-families is for the gene-family models "
@@ -1334,6 +1368,42 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     suffix = " + Reconciliation_likelihoods.tsv" if score else ""
     return (f"wrote [{' '.join(sorted(parts))}]{suffix} to {args.out}/ "
             f"({len(tree.leaves())} tips, {n_families} gene families) in {dt:.3g} s")
+
+
+def _run_coupled(tree: Tree, args: argparse.Namespace,
+                 parser: argparse.ArgumentParser, parts: set) -> str:
+    """Simulate a non-independent (Potts/Ising) gene-family panel along ``tree``.
+
+    The coupling structure is a set of pathway blocks (``--pathways``): families within a block
+    co-occur (``--within`` J), families across blocks couple by ``--between`` J. Coupling enters
+    through loss (``loss_i = base-loss·exp(-beta·f_i)``); ``--gain-coupling`` additionally
+    field-biases HGT establishment. The full genealogy is recorded, so every output component
+    (profiles, gene trees, events, transfers, ...) is produced exactly as for the other rate
+    models — gene-tree reconstruction is a model-agnostic function of the event log."""
+    try:
+        sizes = [int(s) for s in str(args.pathways).replace(" ", "").split(",") if s]
+    except ValueError:
+        parser.error("--pathways must be comma-separated integers, e.g. 4,4,3")
+    if not sizes or any(s <= 0 for s in sizes):
+        parser.error("--pathways must be positive integers, e.g. 4,4,3")
+
+    spec = pathway_blocks(
+        sizes, within=args.within, between=args.between, h=args.field,
+        base_loss=args.base_loss, transfer=args.trans, origination=args.orig,
+        beta=args.beta, gain_coupling=args.gain_coupling,
+    )
+    t0 = time.perf_counter()
+    res = simulate_coupled(tree, spec, seed=args.seed)
+    # Wrap the coupled result in the standard Genomes so it shares the full output machinery.
+    # Keep res.profiles (the fixed panel: all N rows, incl. any globally-extinct family) rather
+    # than letting Genomes derive a reduced one from the leaf genomes.
+    genomes = Genomes(species_tree=tree, leaf_genomes=res.leaf_genomes,
+                      event_log=res.event_log, profiles=res.profiles)
+    genomes.write(args.out, include=parts, sparse=args.sparse,
+                  annotate_species=args.annotate_species)
+    dt = time.perf_counter() - t0
+    return (f"wrote [{' '.join(sorted(parts))}] to {args.out}/ ({len(tree.leaves())} tips, "
+            f"{spec.n_families} panel families, gain_coupling={args.gain_coupling:g}) in {dt:.3g} s")
 
 
 def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None:
