@@ -6,10 +6,16 @@ comparative models with a single driver, `simulate_traits`, and a family of mode
 into it.
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath, simulate_species_tree
+from zombi2.traits import (
+    simulate_traits, BrownianMotion, OrnsteinUhlenbeck, EarlyBurst,
+    MultivariateBrownian, MultivariateOU, Mk, CorrelatedBinary, HiddenStateMk,
+    ThresholdModel, MultiOptimumOU, DEC, simulate_biogeography,
+    pagel_lambda, pagel_delta, pagel_kappa,
+)
 
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=5.0, seed=1)
-result = z.simulate_traits(tree, z.BrownianMotion(sigma2=0.5), seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=30, age=5.0, seed=1)
+result = simulate_traits(tree, BrownianMotion(sigma2=0.5), seed=1)
 
 result.values                 # {extant leaf: value} — the observable tip data
 result.ancestral_states()     # {internal node: value} — exact, not inferred
@@ -70,7 +76,7 @@ with mean $x_0 + \mathrm{trend}\cdot\mathrm{depth}$ and covariance $\mathrm{sigm
 is the shared-path-length matrix, so more closely related tips are more strongly correlated.
 
 ```python
-z.simulate_traits(tree, z.BrownianMotion(sigma2=0.5, x0=0.0, trend=0.0), seed=1)
+simulate_traits(tree, BrownianMotion(sigma2=0.5, x0=0.0, trend=0.0), seed=1)
 ```
 
 ![A continuous trait wanders down the branches by Brownian motion; each tip value is the endpoint of its root-to-tip random walk.](figures/trait_bm.pdf)
@@ -86,7 +92,7 @@ $dX = \alpha\,(\theta - X)\,dt + \sigma\, dW$. It starts at the optimum unless y
 bounds the variance, so lineages cluster around `theta` instead of wandering freely.
 
 ```python
-z.simulate_traits(tree, z.OrnsteinUhlenbeck(sigma2=0.4, alpha=2.0, theta=10.0), seed=1)
+simulate_traits(tree, OrnsteinUhlenbeck(sigma2=0.4, alpha=2.0, theta=10.0), seed=1)
 ```
 
 ![Ornstein–Uhlenbeck: the trait diffuses but is pulled back toward an optimum, so lineages cluster around it.](figures/trait_ou.pdf)
@@ -99,7 +105,7 @@ $\sigma^2(t) = \mathrm{sigma2}\cdot e^{\,\mathrm{rate}\cdot t}$ [@harmon2010earl
 radiation; a positive `rate` accelerates through time; `rate = 0` recovers plain Brownian motion.
 
 ```python
-z.simulate_traits(tree, z.EarlyBurst(sigma2=1.0, rate=-0.8), seed=1)
+simulate_traits(tree, EarlyBurst(sigma2=1.0, rate=-0.8), seed=1)
 ```
 
 ### Correlated continuous traits
@@ -110,12 +116,12 @@ and off-diagonal entries of `R` make the dimensions evolve together.
 
 ```python
 R = [[1.0, 0.9],
-     [0.9, 1.0]]                       # strong positive correlation between the two dimensions
-z.simulate_traits(tree, z.MultivariateBrownian(R), seed=1)
+     [0.9, 1.0]]      # strong positive correlation between the dimensions
+simulate_traits(tree, MultivariateBrownian(R), seed=1)
 
 # multivariate OU: pull each dimension toward an optimum
 # (alpha may be a scalar, vector, or matrix)
-z.simulate_traits(tree, z.MultivariateOU(R, alpha=1.5, theta=[0.0, 5.0]), seed=1)
+simulate_traits(tree, MultivariateOU(R, alpha=1.5, theta=[0.0, 5.0]), seed=1)
 ```
 
 ![Two correlated continuous traits: the rate matrix R correlates the dimensions, so they tend to move together down the tree.](figures/trait_multivariate.pdf)
@@ -129,17 +135,17 @@ A discrete character evolves as a continuous-time Markov chain over $k$ states w
 any `Q`, so you can specify an all-rates-different or an ordered/meristic character.
 
 ```python
-mk = z.simulate_traits(tree, z.Mk.equal_rates(3, 0.4,               # ER: one shared rate
-                                               states=["marine", "brackish", "fresh"]),
-                       seed=2)
+# equal-rates Mk over 3 labeled states (one shared rate)
+mk = simulate_traits(
+    tree, Mk.equal_rates(3, 0.4, states=["marine", "brackish", "fresh"]), seed=2)
 
-mk.labeled_values()                    # {extant leaf: "marine" | "brackish" | "fresh"}
-mk.history[node]                       # [(state, duration), ...] — the stochastic map
-mk.changes()                           # the transition events
+mk.labeled_values()   # {extant leaf: "marine" | "brackish" | "fresh"}
+mk.history[node]      # [(state, duration), ...] — the stochastic map
+mk.changes()          # the transition events
 
-z.Mk.symmetric([[0, 2, 1], [2, 0, 3], [1, 3, 0]])   # SYM: symmetric Q
-z.Mk.ordered(4, 0.5)                                 # ordered: adjacent-only steps (i <-> i±1)
-z.Mk([[0, 1, 2], [3, 0, 1], [1, 1, 0]])             # ARD: any user-supplied rate matrix
+Mk.symmetric([[0, 2, 1], [2, 0, 3], [1, 3, 0]])   # SYM: symmetric Q
+Mk.ordered(4, 0.5)   # ordered: adjacent-only chain
+Mk([[0, 1, 2], [3, 0, 1], [1, 1, 0]])   # ARD: any user-supplied Q
 ```
 
 ![A discrete character under an Mk model: the state jumps along the branches (the exact stochastic character map), and each tip inherits the state it ends in.](figures/trait_mk.pdf)
@@ -150,7 +156,7 @@ chain, and the raw constructor takes an arbitrary Markov chain. Every `Mk` also 
 quantities:
 
 ```python
-m = z.Mk.equal_rates(3, 0.4)
+m = Mk.equal_rates(3, 0.4)
 m.transition_matrix(1.0)               # P(t) = exp(Q·t)
 m.stationary_distribution()            # pi with pi Q = 0
 ```
@@ -167,12 +173,12 @@ null model in which the two evolve separately, giving the comparison that tests 
 
 ```python
 # Y tracks X: Y is gained quickly when X = 1 and lost quickly when X = 0
-m = z.CorrelatedBinary(x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
+m = CorrelatedBinary(x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
                        y_gain_x0=0.05, y_gain_x1=2.0, y_loss_x0=2.0, y_loss_x1=0.05)
-res = z.simulate_traits(tree, m, seed=1)
+res = simulate_traits(tree, m, seed=1)
 res.labeled_values()                   # {extant leaf: (X, Y)}
 
-null = z.CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
+null = CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
 ```
 
 ### Hidden rate classes (corHMM)
@@ -185,9 +191,9 @@ expose the hidden dimension.
 ```python
 slow = [[0, 0.1], [0.1, 0]]
 fast = [[0, 3.0], [3.0, 0]]
-hmm = z.HiddenStateMk(observed_rates=[slow, fast], hidden_rate=0.5,
+hmm = HiddenStateMk(observed_rates=[slow, fast], hidden_rate=0.5,
                       observed_states=[0, 1], hidden_states=["slow", "fast"])
-res = z.simulate_traits(tree, hmm, seed=1)
+res = simulate_traits(tree, hmm, seed=1)
 res.labeled_values()                   # observed 0/1 (hidden class collapsed)
 res.full_label(res.node_values[tree.extant_leaves()[0]])   # (observed, hidden), e.g. (1, 'fast')
 ```
@@ -201,7 +207,7 @@ observed discrete state is the interval the liability falls in, cut by an ordere
 discrete evolution.
 
 ```python
-th = z.simulate_traits(tree, z.ThresholdModel(thresholds=[0.0]), seed=1)   # binary
+th = simulate_traits(tree, ThresholdModel(thresholds=[0.0]), seed=1)   # binary
 th.values                              # liabilities (continuous, latent)
 th.labeled_values()                    # observed 0/1 states
 ```
@@ -220,9 +226,9 @@ the *same* tree, then run an OU with one `theta` per regime. `alpha` and `sigma2
 regime.
 
 ```python
-regimes = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.4), seed=1)        # paint 2 regimes
-mou = z.MultiOptimumOU(regimes, theta=[-5.0, 5.0], alpha=4.0, sigma2=0.4)
-z.simulate_traits(tree, mou, seed=2)                                       # tips track their optimum
+regimes = simulate_traits(tree, Mk.equal_rates(2, 0.4), seed=1)        # paint 2 regimes
+mou = MultiOptimumOU(regimes, theta=[-5.0, 5.0], alpha=4.0, sigma2=0.4)
+simulate_traits(tree, mou, seed=2)                                       # tips track their optimum
 ```
 
 This is the natural way to model a shift in selective regime: a discrete character paints where the
@@ -235,9 +241,9 @@ Pagel's $\lambda$, $\kappa$ and $\delta$ transform the tree's branch and node le
 clock.
 
 ```python
-z.simulate_traits(z.pagel_lambda(tree, 0.5), z.BrownianMotion(0.5), seed=1)   # scale signal
-z.pagel_delta(tree, 2.0)     # node depths ^delta (>1 late, <1 early change)
-z.pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational: unit branches)
+simulate_traits(pagel_lambda(tree, 0.5), BrownianMotion(0.5), seed=1)   # scale signal
+pagel_delta(tree, 2.0)     # node depths ^delta (>1 late, <1 early change)
+pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational: unit branches)
 ```
 
 - **$\lambda$** scales internal (shared) depths while holding tip depths fixed: `1` is the original
@@ -256,8 +262,8 @@ daughters at each speciation, by narrow sympatry, subset sympatry, or vicariance
 Because of that node process, DEC has its own driver, `simulate_biogeography`.
 
 ```python
-dec = z.DEC(areas=["A", "B", "C"], dispersal=0.1, extinction=0.1, max_range_size=3)
-res = z.simulate_biogeography(tree, dec, root_state={"A"}, seed=1)
+dec = DEC(areas=["A", "B", "C"], dispersal=0.1, extinction=0.1, max_range_size=3)
+res = simulate_biogeography(tree, dec, root_state={"A"}, seed=1)
 
 res.labeled_values()                   # {extant leaf: ('A', 'B') ...} — the observed ranges
 res.ancestral_states()                 # ancestral ranges at every internal node
