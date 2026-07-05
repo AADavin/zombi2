@@ -103,10 +103,12 @@ class SharedRates(RateModel):
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
                  *, inversion: float = 0.0, transposition: float = 0.0,
+                 insertion: float = 0.0, deletion: float = 0.0,
                  carrying_capacity: float | None = None):
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
-                 ("transposition", transposition))
+                 ("transposition", transposition), ("insertion", insertion),
+                 ("deletion", deletion))
         for name, value in rates:
             if value < 0:
                 raise ValueError(f"{name} rate must be >= 0, got {value}")
@@ -117,6 +119,9 @@ class SharedRates(RateModel):
         # rearrangements: only fired by genomes that support them (e.g. OrderedGenome)
         self.inversion = float(inversion)
         self.transposition = float(transposition)
+        # intergenic indels: only fired by the nucleotide genome (per-nucleotide rate)
+        self.insertion = float(insertion)
+        self.deletion = float(deletion)
         self.carrying_capacity = carrying_capacity
 
     def _regulated(self) -> bool:
@@ -148,6 +153,10 @@ class SharedRates(RateModel):
                 out.append(EventWeight(EventType.INVERSION, None, self.inversion * n))
             if self.transposition > 0:
                 out.append(EventWeight(EventType.TRANSPOSITION, None, self.transposition * n))
+            if self.insertion > 0:
+                out.append(EventWeight(EventType.INSERTION, None, self.insertion * n))
+            if self.deletion > 0:
+                out.append(EventWeight(EventType.DELETION, None, self.deletion * n))
         if self.origination > 0:
             out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
         return out

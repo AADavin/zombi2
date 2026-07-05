@@ -51,17 +51,19 @@ zombi2-free window.
   genes+intergenes by default/exclusively, dropping the separate section?
 
 ## Code features (agent-sized)
-- [ ] **INDELs in the nucleotide model (Ch11)** — indels ONLY in intergene regions; must
-  not break existing behaviour; test thoroughly (keep the E. coli test). DESIGN (settling):
-  - Length parameterization: **CONFIRMED** — replace `--extension` (ugly 0.999) with a
-    **mean event length** knob, **geometric under the hood** (`extension = 1 - 1/mean`).
-  - Span vs gene content: **CONFIRMED** (Adrián: "you got it right") — measure the affected
-    length in **FULL coordinates so genes in the span count** (a region enclosing 100 genes is
-    "bigger" than one enclosing 1 gene, and is hit differently). Snap breakpoints to intergene
-    boundaries (genes never split); whole genes inside the span are carried by the event.
-    VERIFY whether the current engine measures full vs collapsed (rust `draw_length` clamps to
-    available) and fix if collapsed.
-  - Loss barrier: add a **minimum-genome-size floor** so deletions can't empty the genome.
+- [x] **INDELs in the nucleotide model (Ch12)** — DONE + folded into PR #10 (2026-07-05).
+  Intergenic insertion (`N`) / deletion (`E`) events, **Python-engine only** (Rust profiles path
+  refuses them; the WIP's Rust impl was dropped per Adrián — ship Python-only). Insertion lays a
+  run of novel nucleotides (fresh block) in an intergene; deletion removes a run from *within one*
+  intergene, clamped so it never touches a gene and never drops below `MIN_GENOME_LENGTH` (floor).
+  Own **`indel_mean_length`** geometric knob (default 10), independent of `extension` — this is the
+  "mean event length" idea, applied to indels (the broader `--extension` reparametrization for
+  STRUCTURAL events remains a separate deferred polish). CLI `--insertion/--deletion/
+  --indel-mean-length`; setting either rate auto-routes to the Python engine. New
+  `tests/test_nucleotide_indels.py` (40 tests: grow/shrink, gene-integrity invariant, floor,
+  determinism, default-off, gate). 1169 tests total. Ported cleanly onto the renamed `SharedRates`
+  (was `UniformRates` on the stale feature/manual-revision WIP). Manual Ch12 §"Intergenic indels" +
+  Ch7 events-by-level updated.
 - [ ] **Pagel correlated traits > 2** (Ch12 §12.3.2) — support >2 correlated binary traits
   if not already; else implement.
 - [ ] **Homologous replacement transfer** (Ch11) — currently checks flanking genes; also
