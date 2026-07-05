@@ -13,7 +13,7 @@ def _sim():
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=12, age=3.0, seed=1)
     g = z.simulate_genomes(
         tree, z.GenomeWiseRates(duplication=0.3, transfer=0.15, loss=0.2, origination=0.6),
-        initial_size=12, seed=2)
+        initial_families=12, seed=2)
     return tree, g
 
 
@@ -152,7 +152,7 @@ def test_gid_to_species_recovered_from_trace():
     for seed in range(1, 5):
         tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.25), n_tips=14, age=4.0, seed=seed)
         g = z.simulate_genomes(tree, z.GenomeWiseRates(duplication=0.4, transfer=0.2, loss=0.3,
-                                                       origination=0.7), initial_size=12, seed=seed)
+                                                       origination=0.7), initial_families=12, seed=seed)
         families = read_events_trace(events_trace_from_log(g.event_log))
         assert extant_species_from_records(families, g.species_tree) == g._gid_to_species()
 

@@ -150,6 +150,23 @@ class SequenceEvolution:
         id to its species. This is the entry point used by ``zombi2 sequence`` after replaying a
         written ``Events_trace.tsv``; :meth:`scale` delegates here for the in-process case.
         """
+        return self._scale_families(species_tree, families, gid2species, rng=rng, seed=seed)[0]
+
+    def scale_families_trees(self, species_tree, families, gid2species, *,
+                             rng: np.random.Generator | None = None,
+                             seed: int | None = None):
+        """Like :meth:`scale_families` but also return the substitution-scaled node trees.
+
+        Returns ``(phylograms, node_trees)`` where ``node_trees`` maps each family to
+        ``{"complete": (root, subst), "extant": (root, subst)}`` — the reconciliation ``_Node``
+        trees with a ``subst`` map (branch length in substitutions/site of the branch ending at
+        each node). These are exactly what :func:`~zombi2.evolve_on_tree` consumes to simulate a
+        sequence alignment along the rescaled tree. A family with no lineages / no survivors maps
+        its ``complete`` / ``extant`` entry to ``None``.
+        """
+        return self._scale_families(species_tree, families, gid2species, rng=rng, seed=seed)
+
+    def _scale_families(self, species_tree, families, gid2species, *, rng, seed):
         if rng is None:
             rng = np.random.default_rng(seed)
 
@@ -160,6 +177,7 @@ class SequenceEvolution:
         complete: dict = {}
         extant: dict = {}
         speeds: dict = {}
+        node_trees: dict = {}
         # canonical family order so a family always draws the same speed for a given seed,
         # whether we came from a live Genomes or a replayed trace (dict order may differ)
         for fam in sorted(families, key=_natkey):
@@ -167,6 +185,7 @@ class SequenceEvolution:
             root_node = _node_tree(records, gid2species, total_age)
             if root_node is None:
                 complete[fam] = extant[fam] = None
+                node_trees[fam] = {"complete": None, "extant": None}
                 continue
             s_g = max(0.0, self.family_speed.sample(rng))
             speeds[fam] = s_g
@@ -175,8 +194,12 @@ class SequenceEvolution:
             complete[fam] = _phylo_newick(root_node, subst) + ";"
             pruned, psubst = _prune_subst(root_node, subst)
             extant[fam] = (_phylo_newick(pruned, psubst) + ";") if pruned is not None else None
+            node_trees[fam] = {
+                "complete": (root_node, subst),
+                "extant": (pruned, psubst) if pruned is not None else None,
+            }
 
-        return GenePhylograms(complete, extant, speeds, avg)
+        return GenePhylograms(complete, extant, speeds, avg), node_trees
 
 
 def _integrate(segs, t0: float, t1: float) -> float:
