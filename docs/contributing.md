@@ -41,15 +41,17 @@ Shared kernel at the top level:
 
 ## Adding a model
 
-Because the simulator only talks to interfaces, most additions are new subclasses that need
-no engine changes:
+ZOMBI2 grows by **adding models, not editing the engine** — most additions are new subclasses.
+Before you start, read the contract:
 
-- **A new species-tree model** — subclass the species model in `species_model.py`.
-- **A new rate model** — subclass `z.RateModel` (see `rates.py`). Implement how per-family
-  or per-copy rates are produced; the forward simulator will drive it unchanged.
-- **A new genome representation** — subclass the genome interface in `genome.py`.
+- **[Adding a model](contributing/adding-a-model.md)** — the interface to implement for each
+  level, and the end-to-end checklist (implement → export → CLI → validate → document).
+- **[Conventions](contributing/conventions.md)** — the names, outputs, seeding, and CLI grammar
+  every model follows.
+- **[Extending ZOMBI2](guide/extending.md)** — a worked example of the gene-family seams.
 
-See [extending ZOMBI2](guide/extending.md) for a worked example.
+**The hard rule:** *no model enters the core without an oracle or a statistical test* — a check
+that only asserts "it runs without error" is not validation. See [Validation](validation.md).
 
 ## Building the docs
 
