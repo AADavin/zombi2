@@ -1,4 +1,4 @@
-# Species-tree models: a roadmap for ZOMBI2
+# Species-tree models in ZOMBI2
 
 ZOMBI2 currently simulates species trees **backward in time** as a *constant-rate
 reconstructed birth–death* process conditioned on the number of extant tips: it draws the
@@ -11,12 +11,10 @@ birth–death extensions, explicit **mass-extinction pulses**, per-lineage **`Cl
 **`DiversityDependent`** (density-dependent) diversification, and **`CladeShiftBirthDeath`**
 (scheduled clade-specific rate shifts) (all detailed below).
 
-This note proposes a prioritized menu of additional models. Candidates are judged on
-**scientific value** and, crucially, on **how well they fit the backward sampler**: models
-that keep the "draw i.i.d. node ages → assemble" shape (possibly with a numerically
-inverted CDF) are cheap; models that need a *forward* simulation retaining extinct lineages
-(fossils, sampled ancestors) or a type-/trait-structured process (SSE-family) need new
-machinery and are deferred.
+Trait-dependent diversification (the SSE family — BiSSE/MuSSE/QuaSSE) also ships, under the
+separate `coevolve` command (`--couple traits:species`), since it jointly evolves a trait and
+the tree. The summary below records what is implemented and the short menu of models **not yet**
+implemented, judged on scientific value and how well each fits ZOMBI2's samplers.
 
 ## Summary
 
@@ -29,60 +27,27 @@ machinery and are deferred.
 | **Diversity-dependent (logistic) BD** | forward | age or N tips (≤K) | **shipped** — λ(n)=λ₀(1−n/K), exact-Gillespie forward (trivial once the loop knows n) | — |
 | **Birth–death-shift / ClaDS (per-lineage rates)** | forward | age or N tips | **shipped** — each lineage carries its own λ; daughters jump lognormally at speciation | — |
 | **Clade-specific rate shifts** | forward | age + shifts (time, λ, μ) | **shipped** — at a scheduled age a random lineage + its descendants adopt new (λ, μ) | — |
-| Multi-type BD (BiSSE/MTBD) | forward | N tips, tip states | needs latent trait history → forward/augmented | Low |
-| Continuous trait-dependent (QuaSSE) | forward | N tips, traits | joint tree+trait → very hard | Low |
-| **Fossilized birth–death (FBD)** + sampled ancestors | **forward** | extant + fossils | **requires retained extinct lineages** | Low now / High post-ghosts |
-| Skyline FBD | **forward** | tips, epochs, fossils | FBD + episodic | Low now / High post-ghosts |
+| **Multi-type BD (BiSSE/MuSSE)** | forward | N tips, tip states | joint tree+trait sampler | **shipped** via `coevolve` |
+| **Continuous trait-dependent (QuaSSE)** | forward | N tips, traits | joint tree+trait sampler | **shipped** via `coevolve` |
+| **Fossilized birth–death (FBD)** + sampled ancestors | **forward** | extant + fossils | forward, extinct lineages retained | **shipped** |
+| Skyline FBD | **forward** | tips, epochs, fossils | FBD + episodic | planned |
 | Occurrence BD (OBDP) | **forward** | mixed data types | forward + occurrence sampling | Low |
 
 \* diversity-dependence *can* be done backward but only with rejection/importance sampling.
 
-## Near-term (fit the current backward sampler)
+## Not yet implemented
 
-**1. Episodic / skyline birth–death-sampling — High.** Piecewise-constant `λ(t), μ(t)`
-(and sampling `ψ(t)`) over user-defined epochs. Captures mass extinctions and changing
-diversification regimes. *Fit:* within each epoch the reconstructed-process CDF keeps its
-closed form; sample node ages by numerically inverting the piecewise CDF (a generalization
-of the critical-rate branch we already special-case). This is the recommended first
-addition and the foundation for several others. (Stadler & Bonhoeffer 2013; Höhna et al.
-TESS 2016.)
+A short menu of models that would extend the current samplers; every model marked *shipped*
+above is documented in [Forward simulation](#forward-simulation-implemented) below.
 
-**2. Time-varying sampling (BDST) — High.** As above but the knob that varies is the
-sampling rate `ψ(t)` and we condition on *sampled* tips. Important for phylodynamics
-(epidemic trees) and paleontology (variable preservation). *Fit:* reuses the episodic
-machinery. (Stadler et al. 2013.)
+- **Time-varying sampling (BDST).** Piecewise sampling `ψ(t)` conditioned on *sampled* tips —
+  important for phylodynamics (epidemic trees) and variable fossil preservation. Fits the
+  existing episodic machinery (a numerically inverted piecewise CDF). (Stadler et al. 2013.)
+- **Skyline FBD** (episodic FBD) and the **occurrence birth–death process** (Andréoletti et
+  al. 2022) — combined-evidence extensions of the implemented fossilized birth–death.
 
-**3. Diversity-dependent diversification — shipped (forward).** Rates depend on current lineage
-count, `λ(n) = λ₀·max(0, 1 − n/K)` (ecological carrying capacity). The CDF becomes path-dependent
-so pure i.i.d. *backward* sampling breaks — but *forward* the loop already knows `n`, so it is a
-one-line rate function (see [below](#per-lineage-and-diversity-dependent-rates)). Nice conceptual
-parallel to our per-family `carrying_capacity` for genes.
-
-**4. Clade-specific rate shifts — shipped (forward).** A finite set of scheduled shifts: at a
-given age a lineage (and its descendants) adopts a new (λ, μ) regime — a radiating or collapsing
-clade. Forward-natural (the shifted lineage just carries new rates); see
-[below](#per-lineage-and-diversity-dependent-rates).
-
-## Deferred — need forward simulation with extinct lineages
-
-These are scientifically valuable but fundamentally require **retaining extinct lineages**
-(the "ghost lineage" extension already on ZOMBI2's roadmap), because sampled fossils are
-extinct-lineage tips:
-
-- **Fossilized birth–death (FBD)** and **sampled-ancestor** trees (Gavryushkina et al.
-  2014; Heath et al. 2014) — the standard model for fossil-calibrated dating.
-- **Skyline FBD** (episodic FBD) and the **occurrence birth–death process** (Andréoletti
-  et al. 2022, Stadler group) for combined-evidence macroevolution/epidemiology.
-
-Recommendation: build the forward simulator with extinct-lineage retention first (it also
-unlocks ghost-lineage HGT for gene families), then FBD becomes a natural addition.
-
-## Deferred — need type/trait-structured processes
-
-The state-dependent speciation–extinction (SSE) family — **BiSSE/MuSSE/MTBD**, **QuaSSE**,
-**ClaDS** — requires jointly sampling the tree and a latent trait/rate history. This is a
-different machinery from our backward sampler; for these we recommend users lean on
-diversitree, RevBayes, or BEAST2 unless there is strong demand to integrate them natively.
+The state-dependent speciation–extinction (SSE) family (BiSSE/MuSSE/QuaSSE) already ships
+under `coevolve --couple traits:species`; see [coevolution models](coevolution_models.md).
 
 ## How a new model plugs in
 
@@ -231,7 +196,7 @@ hand-specified version of rate heterogeneity. Diversification runs at the backgr
 death)` until, at each scheduled age before the present, a uniformly chosen lineage then alive (and
 all of its descendants) adopts a new `(birth, death)` regime. It's the model for "a key innovation
 sparks a radiation in one clade" or "a clade enters a slow-down," and the direct forward analogue
-of the node/time-specific rate shifts on the roadmap (you can't name an unborn clade in a forward
+of the node/time-specific rate shifts not yet implemented (you can't name an unborn clade in a forward
 run, so the shifted lineage is drawn at random — contemporaneous lineages are exchangeable).
 
 ```python
