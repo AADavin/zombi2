@@ -5,7 +5,7 @@
 </defs>
 <rect x="0" y="0" width="1200" height="660" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Hidden rate classes (corHMM)</text>
-<path d="M300.0,82 L332.0,82" stroke="#5a86a0" stroke-width="5.2" />
+<path d="M300.0,82 L332.0,82" stroke="#1a1a1a" stroke-width="5.2" />
 <text x="340.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">hidden: fast</text>
 <path d="M450.0,82 L482.0,82" stroke="#9a9a9a" stroke-width="2.4" />
 <text x="490.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">hidden: slow</text>
@@ -47,35 +47,35 @@
 <text x="300.0" y="180" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">flip observed</text>
 <text x="300.0" y="544" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">nodes = observed 0/1;  arrow width = rate</text>
 <text x="520" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
-<path d="M580.0,190.0 L854.5755725293943,190.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M580.0,190.0 L854.5755725293943,190.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M854.5755725293943,190.0 L990.0,190.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <circle cx="628.1843501637154" cy="190.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="725.6792777346076" cy="190.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M580.0,413.25 L703.5579118317664,413.25" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M580.0,413.25 L703.5579118317664,413.25" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="582.1586072868771" cy="413.25" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M703.5579118317664,304.0 L716.7954314107575,304.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M703.5579118317664,304.0 L716.7954314107575,304.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M716.7954314107575,304.0 L846.8744173706091,304.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
-<path d="M703.5579118317664,522.5 L737.8936891768695,522.5" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M703.5579118317664,522.5 L737.8936891768695,522.5" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="717.8104244938453" cy="522.5" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M846.8744173706091,228.0 L990.0,228.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <circle cx="930.4664576892712" cy="228.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M846.8744173706091,380.0 L863.4735803852777,380.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
-<path d="M737.8936891768695,494.0 L990.0,494.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M737.8936891768695,494.0 L990.0,494.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="752.1216699240974" cy="494.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="757.5774787222524" cy="494.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="947.0773758680621" cy="494.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M737.8936891768695,551.0 L806.6041931440133,551.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M737.8936891768695,551.0 L806.6041931440133,551.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M863.4735803852777,323.0 L948.7060070487311,323.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M863.4735803852777,437.0 L913.2719362709734,437.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
-<path d="M913.2719362709734,437.0 L926.7512034322033,437.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
-<path d="M806.6041931440133,532.0 L990.0,532.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
-<path d="M806.6041931440133,570.0 L990.0,570.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M913.2719362709734,437.0 L926.7512034322033,437.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M806.6041931440133,532.0 L990.0,532.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M806.6041931440133,570.0 L990.0,570.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="873.5686344431117" cy="570.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M948.7060070487311,285.0 L968.5176088541075,285.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M948.7060070487311,361.0 L966.3103612989873,361.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
-<path d="M926.7512034322033,418.0 L990.0,418.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M926.7512034322033,418.0 L990.0,418.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="968.0530095971081" cy="418.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M926.7512034322033,456.0 L933.0432994029446,456.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
+<path d="M926.7512034322033,456.0 L933.0432994029446,456.0" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M933.0432994029446,456.0 L990.0,456.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M968.5176088541075,266.0 L990.0,266.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M968.5176088541075,304.0 L990.0,304.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
@@ -92,16 +92,16 @@
 <path d="M703.5579118317664,304.0 L703.5579118317664,522.5" stroke="#1a1a1a" stroke-width="2.4" />
 <path d="M580.0,190.0 L580.0,413.25" stroke="#1a1a1a" stroke-width="2.4" />
 <text x="1044" y="164" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">obs</text>
-<rect x="1031" y="177.0" width="26" height="26" fill="#5a86a0" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1031" y="215.0" width="26" height="26" fill="#5a86a0" stroke="#1a1a1a" stroke-width="1.6" />
+<rect x="1031" y="177.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
+<rect x="1031" y="215.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="253.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="291.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="329.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="367.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1031" y="405.0" width="26" height="26" fill="#5a86a0" stroke="#1a1a1a" stroke-width="1.6" />
+<rect x="1031" y="405.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="443.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="481.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1031" y="519.0" width="26" height="26" fill="#5a86a0" stroke="#1a1a1a" stroke-width="1.6" />
+<rect x="1031" y="519.0" width="26" height="26" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1031" y="557.0" width="26" height="26" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M580.0,606 L990.0,606" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M580.0,606 L580.0,612" stroke="#1a1a1a" stroke-width="1.6" />

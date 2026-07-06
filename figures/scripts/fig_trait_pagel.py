@@ -12,7 +12,10 @@ trait's current state, and that dependence is exactly what "correlated evolution
     where X = 1 (present) and light where X = 0; the two tip columns give each leaf's (X, Y).
     Y tracks X: the clades where X switches on are the clades where Y is present.
 
-House style: B&W, one centered title, ASCII text, legend clear of the data.
+This figure is produced in two palettes from one run: a soft, low-saturation COLOUR version
+(the default, trait_pagel.svg/.png) and the original B&W version (trait_pagel_bw.svg/.png). In
+colour, "present" (state 1) is drawn in a muted accent hue; in B&W it is near-black. The BW look
+is preserved so the monochrome figure can always be regenerated.
 
 Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_pagel.py
 """
@@ -38,6 +41,12 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 660
 GREY = "#9a9a9a"                      # X = 0 (absent): light branch / open chip stroke
+
+# "present" (state 1 / X = 1) is the colour-carrying element. Two palettes; BW preserves the
+# original near-black look, COLOUR uses a soft dusty-blue accent. PRESENT is set per render mode.
+PRESENT_BW    = INK
+PRESENT_COLOR = "#5a86a0"             # dusty blue, matches the Mk / hidden-Mk colour set
+PRESENT = PRESENT_COLOR              # active "present" colour (set per mode)
 
 # --- the example model: X neutral & symmetric; Y strongly tracks X --------------------
 MODEL = dict(x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
@@ -98,10 +107,16 @@ def state_node(d, cx, cy, label):
                        dominant_baseline="central", fill=INK, font_weight="bold"))
 
 
-def chip(d, cx, cy, on, s=13):
-    """A tip chip: filled = state 1 (present), open = state 0 (absent)."""
+def chip(d, cx, cy, on, s=13, fill_on=None):
+    """A tip chip: filled = state 1 (present), open = state 0 (absent).
+
+    `fill_on` sets the fill for the "on" state; it defaults to the active PRESENT colour so
+    the colour / B&W palette flows through. Passing it explicitly lets other figures pick their
+    own accent without touching this module's global.
+    """
+    fill = (fill_on if fill_on is not None else PRESENT) if on else "white"
     d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
-                            fill=INK if on else "white", stroke=INK, stroke_width=1.6))
+                            fill=fill, stroke=INK, stroke_width=1.6))
 
 
 # --------------------------------------------------------------------------- panel A: the model
@@ -184,7 +199,7 @@ def panel_realization(d, ox, oy, pw, ph):
                        text_anchor="start", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, on):
-        d.append(draw.Line(x1, y, x2, y, stroke=INK if on else GREY,
+        d.append(draw.Line(x1, y, x2, y, stroke=PRESENT if on else GREY,
                            stroke_width=5.2 if on else 2.4, stroke_linecap="butt"))
 
     # branches, painted by the X stochastic map
@@ -232,14 +247,14 @@ def panel_realization(d, ox, oy, pw, ph):
 
 
 # --------------------------------------------------------------------------- render
-def render():
+def render_one(name):
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Correlated binary characters (Pagel)", FS_TITLE, W / 2, 46,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     # legend (clear of the data), centered under the title
     ly = 80
-    d.append(draw.Rectangle(W / 2 - 150, ly - 12, 22, 22, fill=INK, stroke=INK, stroke_width=1.4))
+    d.append(draw.Rectangle(W / 2 - 150, ly - 12, 22, 22, fill=PRESENT, stroke=INK, stroke_width=1.4))
     d.append(draw.Text("state 1 (present)", FS_TICK, W / 2 - 120, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
     d.append(draw.Rectangle(W / 2 + 40, ly - 12, 22, 22, fill="white", stroke=INK, stroke_width=1.4))
@@ -249,13 +264,21 @@ def render():
     panel_model(d, 212, 272)                       # (cx0, cy0) = top-left state centre
     seed = panel_realization(d, 520, 150, 620, 470)
 
-    name = "trait_pagel"
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
     cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"),
                      scale=300 / 72.0)
     print(f"wrote {out}/{name}.svg / .png  (trait seed {seed})")
+
+
+def render():
+    """Render both palettes: colour -> trait_pagel, B&W -> trait_pagel_bw."""
+    global PRESENT
+    PRESENT = PRESENT_COLOR
+    render_one("trait_pagel")
+    PRESENT = PRESENT_BW
+    render_one("trait_pagel_bw")
 
 
 if __name__ == "__main__":
