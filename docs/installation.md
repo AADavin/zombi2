@@ -35,8 +35,7 @@ pytest
 - **scipy** — only needed if you pass a `scipy.stats` frozen distribution to
   `FamilySampledRates`; the built-in distributions (`Gamma`, `Exponential`, …) need
   nothing beyond numpy.
-- **matplotlib / pandas** — used only by the demo notebook
-  (`examples/zombi2_demo.ipynb`), not by the library.
+- **matplotlib / pandas** — not required by the library itself.
 
 ## Building these docs
 
