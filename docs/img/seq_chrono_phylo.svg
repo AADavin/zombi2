@@ -29,13 +29,13 @@
 <rect x="0" y="0" width="1320" height="660" fill="white" />
 <text x="660.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">From time to substitutions: chronogram into phylogram</text>
 <use xlink:href="#d0" />
-<text x="660.0" y="68" font-size="18" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">branch rate</text>
+<text x="660.0" y="68" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">branch rate</text>
 <rect x="495.0" y="76" width="330" height="15" fill="url(#d0)" stroke="#1a1a1a" stroke-width="0.8" />
-<text x="495.0" y="107" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
-<text x="660.0" y="107" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1x</text>
-<text x="825.0" y="107" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>
+<text x="495.0" y="107" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
+<text x="660.0" y="107" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1x</text>
+<text x="825.0" y="107" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>
 <text x="305.0" y="134" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Chronogram</text>
-<text x="305.0" y="156" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">branch length = time</text>
+<text x="305.0" y="156" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">branch length = time</text>
 <path d="M70.0,225.5 L115.00728163702544,225.5" stroke="#28808c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M70.0,514.6666666666667 L89.27899174181968,514.6666666666667" stroke="#289887" stroke-width="3.4" stroke-linecap="round" />
 <path d="M115.00728163702544,178.0 L540.0,178.0" stroke="#411e67" stroke-width="3.4" stroke-linecap="round" />
@@ -98,17 +98,17 @@
 <circle cx="540.0" cy="551.3333333333333" r="3.0" fill="#3aa87b" stroke="white" stroke-width="0.6" />
 <circle cx="540.0" cy="578.0" r="3.0" fill="#4cb96e" stroke="white" stroke-width="0.6" />
 <path d="M540.0,170.0 L540.0,586.0" stroke="#8a8a8a" stroke-width="1.2" stroke-dasharray="4,4" />
-<text x="540.0" y="162.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">tips aligned</text>
+<text x="540.0" y="162.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">tips aligned</text>
 <path d="M70.0,612 L540,612" stroke="#1a1a1a" stroke-width="1.5" />
 <path d="M70.0,612 L70.0,617" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="70.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.0</text>
+<text x="70.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.0</text>
 <path d="M305.0,612 L305.0,617" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="305.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.5</text>
+<text x="305.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.5</text>
 <path d="M540.0,612 L540.0,617" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="540.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1.0</text>
-<text x="305.0" y="654" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">time</text>
+<text x="540.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1.0</text>
+<text x="305.0" y="654" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">time</text>
 <text x="1015.0" y="134" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Phylogram</text>
-<text x="1015.0" y="156" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">branch length = substitutions</text>
+<text x="1015.0" y="156" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">branch length = substitutions</text>
 <path d="M780.0,225.5 L804.7277901077208,225.5" stroke="#28808c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M780.0,514.6666666666667 L793.1478828666956,514.6666666666667" stroke="#289887" stroke-width="3.4" stroke-linecap="round" />
 <path d="M804.7277901077208,178.0 L914.4074085574346,178.0" stroke="#411e67" stroke-width="3.4" stroke-linecap="round" />
@@ -170,19 +170,19 @@
 <circle cx="1208.8706246896" cy="524.6666666666667" r="3.0" fill="#228f8c" stroke="white" stroke-width="0.6" />
 <circle cx="1242.7103599014376" cy="551.3333333333333" r="3.0" fill="#3aa87b" stroke="white" stroke-width="0.6" />
 <circle cx="1250.0" cy="578.0" r="3.0" fill="#4cb96e" stroke="white" stroke-width="0.6" />
-<text x="1250" y="184" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a" font-style="italic">tips no longer aligned</text>
+<text x="1250" y="184" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a" font-style="italic">tips no longer aligned</text>
 <path d="M780.0,612 L1250,612" stroke="#1a1a1a" stroke-width="1.5" />
 <path d="M780.0,612 L780.0,617" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="780.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.0</text>
+<text x="780.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.0</text>
 <path d="M1015.0,612 L1015.0,617" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="1015.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.8</text>
+<text x="1015.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.8</text>
 <path d="M1250.0,612 L1250.0,617" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="1250.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1.6</text>
-<text x="1015.0" y="654" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">substitutions / site</text>
+<text x="1250.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1.6</text>
+<text x="1015.0" y="654" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">substitutions / site</text>
 <path d="M560,378.0 L750,378.0" stroke="#1a1a1a" stroke-width="3.0" />
 <path d="M760,378.0 L744,369.0 L744,387.0 Z" fill="#1a1a1a" />
-<text x="660.0" y="338.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">apply a</text>
-<text x="660.0" y="358.0" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">relaxed clock</text>
-<text x="660.0" y="402.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">multiply each</text>
-<text x="660.0" y="420.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">branch by its rate</text>
+<text x="660.0" y="338.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">apply a</text>
+<text x="660.0" y="358.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">relaxed clock</text>
+<text x="660.0" y="402.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">multiply each</text>
+<text x="660.0" y="420.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">branch by its rate</text>
 </svg>

@@ -106,44 +106,44 @@
 <path d="M-556.0,177.24171874999996 L-542.0,177.24171874999996" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-542.0,177.24171874999996 L-542.0,91.68343749999998" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-542.0,177.24171874999996 L-542.0,262.79999999999995" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="444.914413223745" y="-292.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e1</text>
-<text x="553.9999999612853" y="-268.64" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.999999984514" y="-245.28" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.999999984514" y="-221.92000000000002" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999612855" y="-198.56" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999612855" y="-175.2" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999612855" y="-151.84" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999225713" y="-128.48000000000002" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="437.70348419575123" y="-105.12" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e2</text>
-<text x="423.9769289930721" y="-81.75999999999999" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e3</text>
-<text x="553.9999999806428" y="-58.400000000000006" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999806428" y="-35.04000000000002" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="177.5113361119711" y="-11.680000000000007" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e4</text>
-<text x="553.9999999612855" y="11.680000000000007" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="328.8424207956044" y="35.039999999999964" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e5</text>
-<text x="553.9999999922572" y="58.39999999999998" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999883858" y="81.75999999999999" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999883858" y="105.12" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="554.0" y="128.48000000000002" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="-210.01459204388533" y="151.83999999999997" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e6</text>
-<text x="38.1323539886248" y="175.2" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e7</text>
-<text x="553.9999999303141" y="198.56" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999999303141" y="221.91999999999996" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999998141714" y="245.27999999999997" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="553.9999998141714" y="268.64" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
-<text x="-68.11971220333942" y="292.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e8</text>
+<text x="444.914413223745" y="-292.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e1</text>
+<text x="553.9999999612853" y="-268.64" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.999999984514" y="-245.28" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.999999984514" y="-221.92000000000002" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999612855" y="-198.56" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999612855" y="-175.2" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999612855" y="-151.84" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999225713" y="-128.48000000000002" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="437.70348419575123" y="-105.12" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e2</text>
+<text x="423.9769289930721" y="-81.75999999999999" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e3</text>
+<text x="553.9999999806428" y="-58.400000000000006" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999806428" y="-35.04000000000002" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="177.5113361119711" y="-11.680000000000007" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e4</text>
+<text x="553.9999999612855" y="11.680000000000007" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="328.8424207956044" y="35.039999999999964" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e5</text>
+<text x="553.9999999922572" y="58.39999999999998" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999883858" y="81.75999999999999" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999883858" y="105.12" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="554.0" y="128.48000000000002" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="-210.01459204388533" y="151.83999999999997" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e6</text>
+<text x="38.1323539886248" y="175.2" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e7</text>
+<text x="553.9999999303141" y="198.56" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999999303141" y="221.91999999999996" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999998141714" y="245.27999999999997" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="553.9999998141714" y="268.64" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="-68.11971220333942" y="292.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">e8</text>
 <path d="M-556.0,306.0 L541.9999999690285,306.0" stroke="black" stroke-width="1.6" />
 <path d="M-542.0,306.0 L-542.0,312.0" stroke="black" stroke-width="1.6" />
-<text x="-542.0" y="330.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.00</text>
+<text x="-542.0" y="334.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.00</text>
 <path d="M-271.00000000774287,306.0 L-271.00000000774287,312.0" stroke="black" stroke-width="1.6" />
-<text x="-271.00000000774287" y="330.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.70</text>
+<text x="-271.00000000774287" y="334.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.70</text>
 <path d="M-1.5485738913412206e-08,306.0 L-1.5485738913412206e-08,312.0" stroke="black" stroke-width="1.6" />
-<text x="-1.5485738913412206e-08" y="330.0" font-size="18" text-anchor="middle" font-family="Helvetica">1.40</text>
+<text x="-1.5485738913412206e-08" y="334.0" font-size="22" text-anchor="middle" font-family="Helvetica">1.40</text>
 <path d="M270.9999999767714,306.0 L270.9999999767714,312.0" stroke="black" stroke-width="1.6" />
-<text x="270.9999999767714" y="330.0" font-size="18" text-anchor="middle" font-family="Helvetica">2.10</text>
+<text x="270.9999999767714" y="334.0" font-size="22" text-anchor="middle" font-family="Helvetica">2.10</text>
 <path d="M541.9999999690285,306.0 L541.9999999690285,312.0" stroke="black" stroke-width="1.6" />
-<text x="541.9999999690285" y="330.0" font-size="18" text-anchor="middle" font-family="Helvetica">2.80</text>
-<text x="-7.000000015485739" y="357.0" font-size="18" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
+<text x="541.9999999690285" y="334.0" font-size="22" text-anchor="middle" font-family="Helvetica">2.80</text>
+<text x="-7.000000015485739" y="367.0" font-size="22" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
 <text x="0" y="-366.0" font-size="32" font-weight="bold" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a">A species tree with extinct lineages</text>
 <text x="-620.0" y="-260.0" font-size="22" font-weight="bold" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">Lineages</text>
 <path d="M-620.0,-220.4 L-586.0,-220.4" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />

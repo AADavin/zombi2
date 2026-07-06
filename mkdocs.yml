@@ -78,6 +78,7 @@ nav:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
       - Conventions: contributing/conventions.md
+  - Publishing a release: publishing.md
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
