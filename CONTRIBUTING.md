@@ -13,11 +13,13 @@ gene-family engine is a compiled Rust extension that you build once with
 git clone https://github.com/AADavin/zombi2.git
 cd zombi2
 
+# the compiled gene-family engine FIRST (needed for the default `genomes` model
+# and its tests) -- zombi2 depends on zombi2_core, which isn't on an index during
+# development, so building it here satisfies that pin locally
+pip install ./rust
+
 # the library + dev tools (pytest, scipy)
 pip install -e ".[dev]"
-
-# the compiled gene-family engine (needed for the default `genomes` model and its tests)
-pip install ./rust
 ```
 
 Species trees, traits, sequences and the flexible-rate genome models run in pure Python, but

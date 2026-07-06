@@ -10,7 +10,11 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Adrian A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
-dependencies = ["numpy>=1.24"]
+# zombi2_core is the compiled Rust engine for the built-in gene-family model.
+# It ships as prebuilt binary wheels and is released in lockstep with zombi2,
+# so the version is pinned exactly. For local development, install it first
+# (`pip install ./rust`) before an editable install of zombi2.
+dependencies = ["numpy>=1.24", "zombi2_core==0.2.0.dev0"]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 classifiers = [
