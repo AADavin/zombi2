@@ -133,7 +133,7 @@ def main() -> None:
         leaf.name = name
 
     # wide, dense canvas (landscape ~1.6:1) with a generous top margin for the title
-    style = species_style(width=1180, height=740, margin=110, font_size=FS_TICK)
+    style = species_style(width=1320, height=820, margin=118, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
