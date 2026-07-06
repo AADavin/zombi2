@@ -789,8 +789,8 @@ def test_genomes_nucleotide_ancestral(tmp_path):
     assert arch.count("\tgene\t") == 4
 
 
-# NOTE: the `abc` CLI command is withheld from v1 (see zombi2/cli.py); its command-level tests
-# were removed with it. The ABC implementation itself stays covered by tests/test_matching.py.
+# NOTE: there is no `abc` CLI command — ABC inference moved out of the core to
+# ZOMBI2_FUTURE/abc-inference/ (a Phase-3 Extension). The assertion below pins that absence.
 
 
 # --------------------------------------------------------------------------- coevolve (traits:species = SSE)

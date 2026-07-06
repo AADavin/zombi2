@@ -82,10 +82,9 @@ from zombi2.coevolve import (
     TraitGeneFeedback, TraitGeneFeedbackResult, simulate_trait_gene_feedback,
     BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
 )
-# NOTE: ABC profile-matching inference (zombi2.matching / zombi2.abc) is withheld from the v1
-# public surface — it is not yet documented/stabilised. The modules remain in-tree (import via
-# ``from zombi2.matching import match_profiles``) and fully tested; re-add the export here, the
-# 'abc' CLI command, and the docs nav entry to promote it back to the public API.
+# NOTE: ABC profile-matching inference has moved out of the core to
+# ``ZOMBI2_FUTURE/abc-inference/`` — inference is a Phase-3 Extension, not a core simulation
+# level. See that folder's README to revive it as an Extension.
 
 __all__ = [
     "__version__",
@@ -114,7 +113,6 @@ __all__ = [
     # trait-conditioned gene families (trait <-> gene-family coupling)
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
     "simulate_trait_linked_genomes",
-    # profile matching / ABC inference — withheld from the v1 public surface (see note above)
     # relaxed molecular clocks (chronogram -> phylogram; the shared lineage clock family)
     "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
     "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",
