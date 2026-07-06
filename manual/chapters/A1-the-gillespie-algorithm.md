@@ -4,11 +4,11 @@
 
 # The Gillespie algorithm
 
-Chapter 3 produced a species tree and evolved gene families along it with a
-few lines of code. Behind those lines is a single small engine, run over and over. It is
-the same engine that grows a birth–death tree, that duplicates and loses genes, that flips
-a discrete trait between states, and that grafts on ghost lineages. Learn it once and you
-understand how *every* stochastic process in ZOMBI2 is realised.
+Almost every simulation in ZOMBI2 is produced by a single small engine, run over and over.
+It is the engine that grows a birth–death tree, that duplicates and loses genes, that flips
+a discrete trait between states, and that grafts on ghost lineages — the same loop each
+time, given a different list of events. Learn it once and you understand how *every*
+stochastic process in ZOMBI2 is realised.
 
 That engine is the **Gillespie algorithm** [@gillespie1976; @gillespie1977] — an exact,
 event-by-event recipe for simulating a continuous-time process defined by *rates*. This
@@ -35,6 +35,18 @@ rate we will need. Notice it says nothing about a *clock ticking down* to the ne
 in any instant the chance of firing is the same, $\lambda\,\Delta t$, regardless of how
 long we have already been waiting. A rate has no memory. That single fact is what makes the
 whole algorithm work.
+
+It also means a rate is a statement about *probability*, not a fixed schedule. A loss rate
+of one per unit of time does not deliver exactly one loss in every unit: over any given
+unit the number of events that actually fire is random — often none or one, sometimes two
+or three, now and then more. That count follows the **Poisson distribution**, with mean
+$\lambda T$ over an interval of length $T$ (Figure A.1): a few events, tightly bunched near
+zero, when the rate is low; a broad spread when the rate is high; but always scattered
+around the average the rate sets, never exactly equal to it. The exponential waiting time
+of the next section and this Poisson count are two views of the same process — the gaps
+between events and the number of events — so the rate ties them together.
+
+![The count of events in a fixed window is random, not fixed. With rate $\lambda$, the number of events in one unit of time is Poisson-distributed with mean $\lambda$ (dashed line). At a low rate (left) most windows see zero or one event and a few see more; at a higher rate (right) the count spreads out around the mean. The rate fixes only the average.](figures/gillespie_poisson.pdf){width=100%}
 
 Rates carry units of *one over time*, so their reciprocal $1/\lambda$ is a time — the mean
 waiting time we are about to meet. In ZOMBI2 the rates are the numbers you supply on the
@@ -109,7 +121,7 @@ the two separately: first draw the time from the total rate, then spin a weighte
 wheel to pick the event, each slice of the wheel sized to a rate. The figure below shows the
 two draws for a small menu of three events.
 
-![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event fires is a second, independent draw: event $i$ wins with probability $r_i/R$ — the rates laid end to end as a roulette wheel, here landing on transfer.](figures/gillespie_step.pdf){width=100%}
+![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event fires is a second, independent draw: event $i$ wins with probability $r_i/R$ — the rates laid end to end as a roulette wheel, here landing on transfer. The step then advances the clock by $\Delta t$, applies the chosen event to the state, and repeats.](figures/gillespie_step.pdf){width=100%}
 
 In code the roulette wheel is a cumulative sum: lay the rates end to end, draw a point
 uniformly along their combined length $R$, and see which segment it lands in. ZOMBI2 does
@@ -191,30 +203,43 @@ when no such shortcut exists — which is almost always.
 
 ## When the rates change within a step
 
-The algorithm above assumes the rates hold constant *between* events, so that a single
-exponential draw with rate $R$ is exact. That is true whenever the rates depend only on the
-current state, which covers most of ZOMBI2. But some models have rates that drift with
-*time itself*, even while no event fires: episodic (skyline) birth–death rates that step at
-fixed epochs, diversity-dependent rates that ease off as a clade fills up, ghost-lineage
-grafting along a time-varying hazard. Then $R$ is a moving target and the plain draw would
-be wrong.
+The direct method assumes the rates hold still *between* events, so that a single
+$\text{Exponential}(R)$ draw lands exactly on the next event. That holds whenever the rates
+depend only on the current state — which covers most of ZOMBI2, since the state changes only
+when an event fires. But a few models have rates that drift with the *clock itself*, even
+while nothing is happening: episodic (skyline) rates that step at fixed epochs, or the
+time-varying hazard used to graft ghost lineages. Now $R$ is a moving target, and a single
+draw at today's $R$ would be wrong — by the time the drawn wait elapses, $R$ has already
+changed.
 
-The fix is **thinning** [@lewis1979thinning], also called the rejection method. Pick a
-ceiling $\bar R$ that is at least as large as the true total rate over the interval. Propose
-candidate events at the constant rate $\bar R$ — the easy, exact draw again — but *accept*
-each candidate only with probability $R(t)/\bar R$, the true rate at that instant over the
-ceiling; reject it otherwise and simply carry on. The accepted events occur with exactly the
-right time-varying intensity, and no integral of the rate is ever needed. ZOMBI2 uses
-thinning for its time-varying species-tree models, for state-dependent diversification
-(the SSE models), and for grafting ghost lineages; the exact direct method of the previous
-sections drives everything whose rates are constant between events — gene families, discrete
-traits, and the per-lineage diversification models.
+The mathematically exact remedy is to integrate the rate over time, which is often awkward
+and sometimes has no closed form. **Thinning** sidesteps the integral with a trick
+[@lewis1979thinning]. Pick a **ceiling** $\bar R$ — a constant rate you know is never below
+the true rate $R(t)$ anywhere in the interval. Then:
+
+1. **Propose** a candidate event by drawing a waiting time at the constant ceiling rate
+   $\bar R$ — the ordinary, easy exponential draw. Because $\bar R \ge R(t)$, this proposes
+   events *too often*.
+2. When a candidate lands at time $t$, **keep** it as a real event with probability
+   $R(t)/\bar R$ — the true rate right now as a fraction of the ceiling. Otherwise **discard**
+   it as a phantom and carry on proposing.
+
+Deleting candidates in just the right proportion at each instant — more where the true rate
+is low, fewer where it is high — thins the too-dense stream of proposals down to events that
+occur at the true, time-varying rate, with no integral ever computed. It is the sampling
+equivalent of letting rain fall at a constant heavy rate and then, drop by drop, keeping only
+a fraction that tracks how hard it is really raining at that moment.
+
+ZOMBI2 uses thinning for its time-varying species-tree models, for state-dependent
+diversification (the SSE models), and for grafting ghost lineages; the exact direct method of
+the earlier sections drives everything whose rates stay put between events — gene families,
+discrete traits, and the per-lineage diversification models.
 
 ::: tip
-Thinning is worth recognising because a poorly chosen ceiling $\bar R$ makes it slow: if the
-bound sits far above the true rate, most candidates are rejected and the simulation spins.
-ZOMBI2 chooses tight bounds internally, but it is the reason a model with wildly varying
-rates can run slower than a constant-rate one with the same number of events.
+The price of thinning is the discarded candidates. If the ceiling $\bar R$ sits far above the
+typical true rate, most proposals are rejected and the run slows down, so ZOMBI2 keeps
+$\bar R$ as tight as it can. It is why a model with wildly varying rates can run slower than a
+constant-rate one with the same number of *real* events.
 :::
 
 ## It's all Gillespie
@@ -228,21 +253,41 @@ fed a different bag of events (the figure below):
 | Gene families | duplication, transfer, loss, origination | the four DTLO rates |
 | Discrete traits | changes between character states | the entries of the $Q$ matrix |
 
-![One engine, many events. Each level supplies its own events and rates, but all are realised by the identical loop on the right: total rate, exponential waiting time, an event chosen in proportion to its rate, apply, repeat. The lone exception is sequence substitution along an already-fixed branch, which needs only the branch's endpoints and so is computed in a single matrix step rather than event by event.](figures/gillespie_everywhere.pdf){width=100%}
+![One engine, many events. Each level supplies its own events and rates, but all are realised by the identical loop on the right: total rate, exponential waiting time, an event chosen in proportion to its rate, apply, repeat.](figures/gillespie_everywhere.pdf){width=100%}
 
 Swapping levels means swapping the list of events and how their rates are computed; the
 timing machinery — total rate, exponential wait, proportional choice — never changes. That
 is why ZOMBI2 factors it into one shared component that every simulator reuses, and why
-understanding this one appendix carries you through all the chapters that use it.
+understanding this one appendix carries you through all the chapters that use it. This engine
+is everywhere in the manual: it grows the species trees of Chapter 4, races the duplications,
+transfers and losses of the genome chapters, and flips the discrete traits of Chapter 13 —
+the same loop throughout, differing only in the events on its menu.
 
-There is a single, telling exception. Once a gene tree's branches are fixed, evolving a
-DNA sequence *along* a branch does not need the individual substitution events — only the
-sequence at the two ends. For that, ZOMBI2 skips the event-by-event loop and jumps straight
-to the answer with a single matrix operation, $P(t) = e^{Qt}$ (Chapter 15). The contrast
-is instructive: you reach for Gillespie precisely when you need the *whole history* — every
-branching, every gain and loss, at its exact time — and not merely a before-and-after
-snapshot. For the trees and genomes that are ZOMBI2's subject, the history *is* the result.
+## …except when it isn't
 
-This engine is everywhere in the manual: it grows the species trees of Chapter 4, races the
-duplications, transfers and losses of the genome chapters, and flips the discrete traits of
-Chapter 13 — the same loop throughout, differing only in the events on its menu.
+Almost, but not quite. ZOMBI2 deliberately steps *outside* the event-by-event loop in two
+places, and for the same reason both times: when you do not need the whole timed history —
+only the endpoints, or a summary that has a closed form — an exact shortcut beats simulating
+events you would immediately throw away.
+
+The first is **sequence substitution along a fixed branch**. Once a gene tree and its branch
+lengths are settled, evolving a DNA sequence down a branch does not require the individual
+substitution events — only the base at each end. The probability of ending in each state
+after a branch of length $t$ is given exactly by the matrix exponential $P(t) = e^{Qt}$, so
+ZOMBI2 draws each site's final base straight from $P(t)$ in a single step (Chapter 15).
+Running Gillespie here would generate — and then discard — thousands of intermediate
+substitutions.
+
+The second is the **reconstructed species tree**. ZOMBI2's default tree keeps only the
+lineages ancestral to the survivors, and a classical result gives the ages of such a tree's
+nodes in closed form: they are independent draws from a known distribution. ZOMBI2 samples
+them directly, producing a tree with a prescribed number of tips exactly and cheaply, however
+small the chance of survival — no growing-and-pruning required. (The *complete* forward tree,
+which keeps extinct lineages, has no such shortcut: it is grown with the Gillespie loop, just
+as in the worked example above — Chapter 4.)
+
+The rule of thumb is the same each time. Reach for Gillespie when you need the *whole
+history* — every branching, gain and loss at its exact time; reach for a shortcut when the
+endpoints, or a closed-form summary, are all you need. For the trees and genomes that are
+ZOMBI2's real subject the history *is* the result, so the loop is the norm and these two
+shortcuts are the telling exceptions.
