@@ -20,7 +20,7 @@ copy"; a specific family means "weight the target by this family's own rate".
 
 ```python
 import zombi2 as z
-from zombi2.events import EventType
+from zombi2 import EventType
 
 class PerGenomeRates(z.RateModel):
     """D/T/L totals independent of genome size."""

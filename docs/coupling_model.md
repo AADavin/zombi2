@@ -73,7 +73,7 @@ fast path could not apply regardless). Cost is `O(N + nnz(J))` per event.
 ```python
 import numpy as np
 from zombi2 import simulate_species_tree, BirthDeath
-from zombi2.coupling import CouplingSpec, pathway_blocks, simulate_coupled
+from zombi2.coevolve.coupling import CouplingSpec, pathway_blocks, simulate_coupled
 
 tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=100, age=6.0, seed=1)
 
@@ -96,9 +96,9 @@ profiles = res.profiles          # ProfileMatrix, N panel rows × species (all r
 
 ### Public API (to be documented on the mkdocs site)
 
-`zombi2.coupling`: `CouplingSpec` (`.from_dense`, `.from_edges`, `.dense_J`),
+`zombi2.coevolve.coupling`: `CouplingSpec` (`.from_dense`, `.from_edges`, `.dense_J`),
 `pathway_blocks`, `PottsRates`, `simulate_coupled`, `CoupledResult`. Not yet re-exported
-from the top-level `zombi2` namespace — import from `zombi2.coupling`.
+from the top-level `zombi2` namespace — import from `zombi2.coevolve.coupling`.
 
 ## Validation (`tests/test_coupling.py`)
 

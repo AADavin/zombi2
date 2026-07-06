@@ -10,7 +10,7 @@ import gzip
 import pytest
 
 from zombi2 import BirthDeath, read_gff, simulate_nucleotide_genomes, simulate_species_tree
-from zombi2.gff import GffGenome
+from zombi2.genomes.gff import GffGenome
 
 # chr1 (1000 bp, circular, 4 genes incl. an overlap + a nested one) and a smaller plasmid.
 GFF = """\

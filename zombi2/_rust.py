@@ -24,12 +24,12 @@ import numpy as np
 
 from collections import Counter
 
-from .events import EventLog, EventRecord, EventType, GeneOp
-from .genome_sim import resolve_max_family_size
-from .nucleotide_sim import NucleotideResult
-from .profiles import ProfileMatrix
-from .rates import SharedRates
-from .simulation import Genomes
+from zombi2.genomes.events import EventLog, EventRecord, EventType, GeneOp
+from zombi2.genomes.genome_sim import resolve_max_family_size
+from zombi2.genomes.nucleotide_sim import NucleotideResult
+from zombi2.genomes.profiles import ProfileMatrix
+from zombi2.genomes.rates import SharedRates
+from zombi2.genomes.simulation import Genomes
 
 try:  # optional native extension
     import zombi2_core as _core
@@ -62,7 +62,7 @@ def eligible(rates, genome_factory, sampler) -> bool:
     """True if this model is the built-in one the Rust engine implements: the default
     ``UnorderedGenome``, a plain ``SharedRates`` (no soft carrying capacity, no
     rearrangements), and no custom event sampler. Everything else runs on Python."""
-    from .genome import UnorderedGenome
+    from zombi2.genomes.genome import UnorderedGenome
 
     return (
         genome_factory is UnorderedGenome
@@ -217,7 +217,7 @@ def _assemble_profiles(result, nodes) -> ProfileMatrix:
     and natkey-ordered species columns with vectorised numpy — the per-cell Python loop this
     replaces was ~40% of the wall-clock at millions of tips. Stays sparse COO throughout, so the
     dense O(N²) array is never built."""
-    from .profiles import _natkey
+    from zombi2.genomes.profiles import _natkey
 
     leaf_nodes_b, col_b, fam_b, cnt_b = result
     leaf_idx = np.frombuffer(leaf_nodes_b, dtype=np.uint32)
@@ -314,7 +314,7 @@ def events_trace_tsv(columns, nodes) -> str:
     it formats the columns directly, which is the whole point (object construction is the wall
     on large trees). The format matches the record-based
     :func:`zombi2.simulation.events_trace_from_log` exactly (g-prefixed gids, 1-based families)."""
-    from .simulation import EVENTS_TRACE_HEADER
+    from zombi2.genomes.simulation import EVENTS_TRACE_HEADER
 
     ev, br, tm, dn, rc, fm, g0, g1, g2 = columns
     n = len(br)
@@ -369,7 +369,7 @@ def trace(species_tree, rates, *, initial_size, transfers, max_family_size, seed
     # species tree, not read off leaf genomes, so leaf_genomes stays empty for this path.
     profs = _assemble_profiles(leaf_coo, nodes)
 
-    from .simulation import GenomeTrace
+    from zombi2.genomes.simulation import GenomeTrace
     return GenomeTrace(species_tree=species_tree, leaf_genomes={},
                        profiles=profs, _columns=cols, _nodes=nodes)
 
@@ -429,9 +429,9 @@ def nucleotide(species_tree, *, inversion, loss, duplication, transfer, transpos
     ``trace_back()`` but not the event-log products. This is the path behind
     ``simulate_nucleotide_genomes(..., output="profiles")``."""
     require()
-    from .events import EventLog
-    from .nucleotide_genome import Segment, SegmentRegistry
-    from .nucleotide_sim import _build_blocks
+    from zombi2.genomes.events import EventLog
+    from zombi2.genomes.nucleotide_genome import Segment, SegmentRegistry
+    from zombi2.genomes.nucleotide_sim import _build_blocks
 
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     _, seed_val = _cap_and_seed(None, sum(extant_leaf), seed)

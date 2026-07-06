@@ -13,11 +13,11 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2._aa_models import (
+from zombi2.sequences._aa_models import (
     _DAYHOFF_PI, _JTT_PI, _LG_PI, _WAG_PI,
 )
-from zombi2.nucleotide_sim import simulate_nucleotide_genomes
-from zombi2.sequence_sim import (
+from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
+from zombi2.sequences.models import (
     AMINO_ACIDS, DNA_MODELS, GammaRates, PROTEIN_MODELS, dayhoff, evolve_on_tree, gtr, hky85,
     is_protein_model, jc69, jtt, k80, lg, make_model, poisson, read_fasta, reverse_complement,
     wag, write_fasta,

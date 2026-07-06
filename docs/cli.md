@@ -173,10 +173,9 @@ optionally cap the range with `--max-range-size`, and pin the root range with `-
 ## Fitting rates to a profile (ABC) — experimental
 
 The inverse of `genomes` — fitting D/T/L/O rates to an **empirical copy-number profile** by
-**Approximate Bayesian Computation** — exists as an **experimental Python API**
-(`zombi2.matching`), but is **withheld from the command line in this release**: there is no
-`zombi2 abc` command yet. See the [profile-matching guide](guide/matching.md) for the library
-interface.
+**Approximate Bayesian Computation** — is **inference, not simulation**, so it lives outside the
+core as a planned Phase-3 Extension (archived under `ZOMBI2_FUTURE/abc-inference/`). There is no
+`zombi2 abc` command in this release.
 
 ## `sequence` — substitution branch lengths
 

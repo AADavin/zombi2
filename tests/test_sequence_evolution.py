@@ -146,8 +146,8 @@ def test_scale_families_equals_scale():
 
 def test_gid_to_species_recovered_from_trace():
     """Reconstructing gid->species from the written trace matches the live leaf-genome mapping."""
-    from zombi2.reconciliation import extant_species_from_records
-    from zombi2.simulation import events_trace_from_log, read_events_trace
+    from zombi2.genomes.reconciliation import extant_species_from_records
+    from zombi2.genomes.simulation import events_trace_from_log, read_events_trace
 
     for seed in range(1, 5):
         tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.25), n_tips=14, age=4.0, seed=seed)
@@ -159,8 +159,8 @@ def test_gid_to_species_recovered_from_trace():
 
 def test_replay_from_trace_matches_live_within_precision():
     """A phylogram replayed from the trace matches the live one to the trace's time precision."""
-    from zombi2.reconciliation import extant_species_from_records
-    from zombi2.simulation import events_trace_from_log, read_events_trace
+    from zombi2.genomes.reconciliation import extant_species_from_records
+    from zombi2.genomes.simulation import events_trace_from_log, read_events_trace
 
     tree, g = _sim()
     families = read_events_trace(events_trace_from_log(g.event_log))
