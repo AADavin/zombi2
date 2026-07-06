@@ -34,11 +34,11 @@ The second choice, orthogonal to the first and meaningful only within the unorde
 the four gene-family rates *vary across families* — the **rate model** (`--rate-model`; see *Rate
 models* below).
 
-| Level (`--genome-model`) | A genome is… | Coupling? | Chapter |
-|---|---|---|---|
-| **unordered** | a *set* of gene families (presence/absence) | **yes** | Chapter 8 (coupling: Chapter 10) |
-| **ordered** | genes on a chromosome (order matters, length does not) | no | Chapter 11 |
-| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | no | Chapter 12 |
+| Level (`--genome-model`) | A genome is… | Chapter |
+|---|---|---|
+| **unordered** | a *set* of gene families (presence/absence) | Chapter 8 |
+| **ordered** | genes on a chromosome (order matters, length does not) | Chapter 11 |
+| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | Chapter 12 |
 
 ## Events, by level
 
@@ -74,18 +74,17 @@ loss and rearrangement — but now they have real lengths and can split or fuse 
 ## Rate models
 
 Within the unordered level, a second axis controls **how the four rates vary across gene families**.
-This is the `--rate-model` flag (a `RateModel` object in Python). Three are available on the command
-line — `shared` (the default), `per-genome`, and `coupled` (Chapter 10); per-family rates are
-reached through the Python API.
+This is the `--rate-model` flag (a `RateModel` object in Python). Two are available on the command
+line — `shared` (the default) and `per-genome`; per-family rates are reached through the Python API.
 
 | `--rate-model` | The rate is… | Family size grows | Object |
 |---|---|---|---|
 | **shared** (default) | one per-copy rate, the same for every family | exponentially | `SharedRates` |
 | **per-genome** | one per-genome rate, size-independent | linearly | `PerGenomeRates` |
 | *per-family* | each family draws its own rates | exponentially, per family | `FamilySampledRates` |
-| *coupled* | loss depends on which partner families are present | — | Chapter 10 (`PottsRates`) |
 
 The level and the rate model are independent: any rate model can drive any unordered run, and the
 choice never affects *which* events fire, only *how often* each family fires them. Chapter 8 works
-through the four rate models in detail; the coupled model, where families gain and lose
-non-independently, has its own chapter (Chapter 10).
+through the rate models in detail. Gene-family *coupling* — where families gain and lose
+non-independently (a Potts/Ising panel) — is not part of this release's CLI or manual; it is
+available through the Python API (`zombi2.simulate_coupled`).
