@@ -135,3 +135,58 @@ def test_dec_invalid_root_range_is_clean_error():
     with pytest.raises(ValueError):                                # not a cryptic KeyError
         z.DEC(areas=["A", "B", "C"], dispersal=0.1, extinction=0.1,
               max_range_size=2, root={"A", "B", "C"})
+
+
+# --------------------------------------------------------------------------- simulation oracles
+def test_dec_anagenesis_matches_transition_matrix():
+    """Pure anagenetic range evolution down one branch matches expm(Q·t)[start].
+
+    A root with a single child evolves by dispersal/extinction only (no cladogenesis is applied
+    at a degree-two node), so the tip's range distribution is the DEC transition matrix acting on
+    the root range. This ties the stochastic simulation back to the rate matrix that
+    ``test_dispersal_and_extinction_rates`` checks entry-by-entry — an oracle on the sim itself.
+    """
+    from zombi2.tree import Tree, TreeNode
+    t = 1.3
+    root = TreeNode("r", 0.0)
+    tip = TreeNode("a", t)
+    root.add_child(tip)
+    tree = Tree(root, t)
+
+    model = z.DEC(areas=3, dispersal=0.3, extinction=0.2)
+    start = model.encode({0})
+    counts = np.zeros(len(model.states))
+    rng = np.random.default_rng(3)
+    reps = 20000
+    for _ in range(reps):
+        end = z.simulate_biogeography(tree, model, root_state=start, rng=rng).node_values[tip]
+        counts[end] += 1
+    emp = counts / reps
+    assert np.allclose(emp, model.transition_matrix(t)[start], atol=0.02)
+
+
+def test_dec_cladogenesis_probabilities():
+    """A widespread range splits into its 2·|R| subset-sympatry / vicariance daughters uniformly.
+
+    For a range R of r areas the split is drawn uniformly over, for each area ``a`` in R, the
+    subset-sympatry pair ``{a} | R`` and the vicariance pair ``{a} | R\\{a}`` — 2r outcomes, each
+    with probability 1/(2r), and no other pair ever occurs.
+    """
+    model = z.DEC(areas=3, dispersal=0.1, extinction=0.1)
+    R = model.encode({0, 1, 2})
+    rng = np.random.default_rng(4)
+    reps = 12000
+    tally: dict = {}
+    for _ in range(reps):
+        i1, i2 = model.cladogenesis(R, rng)
+        pair = frozenset((model.states[i1], model.states[i2]))
+        tally[pair] = tally.get(pair, 0) + 1
+
+    full = (0, 1, 2)
+    expected = set()
+    for a in (0, 1, 2):
+        expected.add(frozenset(((a,), full)))                           # subset sympatry
+        expected.add(frozenset(((a,), tuple(x for x in full if x != a))))  # vicariance
+    assert set(tally) == expected                                       # nothing else appears
+    for n in tally.values():
+        assert abs(n / reps - 1.0 / 6.0) < 0.02                         # each of the 6 is 1/6
