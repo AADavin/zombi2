@@ -30,7 +30,7 @@ Repository = "https://github.com/AADavin/zombi2"
 Issues = "https://github.com/AADavin/zombi2/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "scipy>=1.10"]
+dev = ["pytest>=7", "pytest-cov", "scipy>=1.10"]
 docs = ["mkdocs-material", "mkdocstrings[python]"]
 
 [project.scripts]
