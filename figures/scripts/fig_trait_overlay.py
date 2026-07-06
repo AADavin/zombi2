@@ -62,9 +62,10 @@ def panel_continuous(d, x0, ytop, w, h):
     d.append(draw.Text("(the path is never simulated)", FS_TICK, x0 + w / 2, ytop + 30,
                        font_family=FONT, text_anchor="middle", fill=MUTED))
 
-    # normal endpoint distribution at the far end of the branch (kept inside the plot box)
+    # normal endpoint distribution at the far end of the branch (kept inside the plot box).
+    # sd is deliberately modest so the curve's peak stays clear of the subtitle above.
     xend = x0 + 0.66 * w
-    sd = h * 0.14
+    sd = h * 0.105
     ys = np.linspace(ymid - 3 * sd, ymid + 3 * sd, 80)
     dens = np.exp(-0.5 * ((ys - ymid) / sd) ** 2)
     bell = draw.Path(fill="none", stroke=INK, stroke_width=2.4)
