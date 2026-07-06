@@ -70,8 +70,9 @@ def main():
             copies[sp] = copies.get(sp, 0) + 1
             lf.name = f"{sp}_{copies[sp]}"
 
-    # taller canvas + generous top margin gives a clean header band (title + legend row).
-    style = species_style(width=920, height=900, margin=120, font_size=FS_TICK)
+    # extra-wide landscape canvas so the gene tree fills the PDF page width, with a
+    # generous top margin for a clean header band (title + legend row).
+    style = species_style(width=1440, height=900, margin=120, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
     draw_skeleton(d, tree)               # solid survivors, dashed lost lineage

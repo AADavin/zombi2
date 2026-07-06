@@ -74,7 +74,7 @@ In a forward run, unsampled extant tips are marked `is_extant=False`. Incomplete
 tree ultrametric, and is accepted as an overlay by every forward diversification model in this
 chapter.
 
-![Incomplete extant sampling: only a fraction of the living tips (filled) are retained; the rest (open) are dropped.](figures/model_sampling.pdf)
+![Incomplete extant sampling: only a fraction of the living tips (filled) are retained; the rest (open) are dropped.](figures/model_sampling.pdf){width=100%}
 
 ::: warning
 Serial sampling *through time* — dated fossil tips, as in the fossilized birth–death process below
