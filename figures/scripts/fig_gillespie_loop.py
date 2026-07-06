@@ -61,7 +61,7 @@ def box(d, cy, rows, *, fill="white", stroke=INK, rx=14, w=BW, h=BH):
 def render():
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    text(d, "The Gillespie loop", W / 2, 40, FS_TITLE, weight="bold")
+    text(d, "The Gillespie loop", CX, 40, FS_TITLE, weight="bold")
 
     y_start = 118
     y_rate = 250
@@ -87,7 +87,7 @@ def render():
     d.append(draw.Lines(CX, y_dec - dh / 2, CX + dw / 2, y_dec, CX, y_dec + dh / 2,
                         CX - dw / 2, y_dec, close=True, fill="white", stroke=INK,
                         stroke_width=2.6))
-    lines(d, ["clock past the target age?", "(or nothing left alive)"], CX, y_dec, FS_ANNOT)
+    lines(d, ["clock past the target age?", "(or nothing left alive)"], CX, y_dec, 16)
     # yes -> stop box on the right
     stop_x = CX + dw / 2 + 250
     d.append(draw.Line(CX + dw / 2, y_dec, stop_x - 118, y_dec, stroke=INK, stroke_width=2.6))
@@ -114,7 +114,7 @@ def render():
     d.append(draw.Line(lx, y_apply, lx, y_rate, stroke=INK, stroke_width=2.6))
     d.append(draw.Line(lx, y_rate, CX - BW / 2 - 3, y_rate, stroke=INK, stroke_width=2.6))
     arrowhead(d, CX - BW / 2, y_rate, lx, y_rate, INK)
-    text(d, "repeat", lx - 12, (y_rate + y_apply) / 2, FS_ANNOT, anchor="middle",
+    text(d, "repeat", lx - 16, (y_rate + y_apply) / 2, FS_ANNOT, anchor="end",
          fill=MUTED, weight="bold")
 
     name = "gillespie_loop"

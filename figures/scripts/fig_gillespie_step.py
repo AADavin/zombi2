@@ -28,7 +28,7 @@ from zombi_style import FONT, INK, MUTED, ACCENT, FS_TITLE, FS_LABEL, FS_ANNOT, 
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1260, 600
+W, H = 1260, 512
 
 # The three illustrative events and their (aggregate) rates. Round numbers so the
 # probabilities are clean: R = 6, shares 1/2, 1/3, 1/6.
@@ -162,10 +162,6 @@ def render():
          fill=MUTED)
     text(d, "probability (its rate) / R", bar_left + bar_w / 2, bar_top + bar_h + 126,
          FS_TICK, fill=MUTED)
-
-    # ---- bottom strip --------------------------------------------------------
-    text(d, "then advance the clock by dt, apply the chosen event to the state, and repeat",
-         W / 2, H - 26, FS_ANNOT, fill=MUTED, italic=True)
 
     name = "gillespie_step"
     out = OUT_DIR / name
