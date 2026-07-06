@@ -20,9 +20,9 @@
 <path d="M337.29478497918274,621.802237270275 Q590.0,578.0,842.7052150208173,621.802237270275" fill="none" stroke="#009E73" stroke-width="2.8" stroke-linecap="round" />
 <path d="M842.7052150208173,621.802237270275 L830.1041339569018,624.9979775633261 L831.9147758228066,614.5519667984901 Z" fill="#009E73" />
 <text x="590.0" y="574.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#009E73" font-weight="bold">trait-linked</text>
-<path d="M842.7052150208173,638.197762729725 Q590.0,682.0,337.29478497918274,638.197762729725" fill="none" stroke="#CC79A7" stroke-width="2.8" stroke-linecap="round" />
-<path d="M337.29478497918274,638.197762729725 L349.89586604309824,635.0020224366739 L348.0852241771933,645.4480332015099 Z" fill="#CC79A7" />
-<text x="590.0" y="686.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#CC79A7" font-weight="bold">gene-conditioned</text>
+<path d="M842.7052150208173,638.197762729725 Q590.0,682.0,337.29478497918274,638.197762729725" fill="none" stroke="#8E5AA8" stroke-width="2.8" stroke-linecap="round" />
+<path d="M337.29478497918274,638.197762729725 L349.89586604309824,635.0020224366739 L348.0852241771933,645.4480332015099 Z" fill="#8E5AA8" />
+<text x="590.0" y="686.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8E5AA8" font-weight="bold">gene-conditioned</text>
 <path d="M320.728851183895,593.1253785793259 L559.271148816105,306.87462142067403" stroke="#555555" stroke-width="3.2" stroke-linecap="round" />
 <path d="M320.728851183895,593.1253785793259 L323.9843916408008,581.5754237597844 L331.5023978092479,587.840428900157 Z" fill="#555555" />
 <path d="M559.271148816105,306.87462142067403 L556.0156083591992,318.4245762402155 L548.4976021907521,312.15957109984294 Z" fill="#555555" />

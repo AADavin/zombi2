@@ -30,14 +30,26 @@ import drawsvg as draw
 
 from zombi2.coevolve import BiSSE, simulate_sse
 
-from fig_trait_pagel import curved_arrow, rate_width, state_node, chip, _layout
+from fig_trait_pagel import curved_arrow, rate_width, state_node, _layout
 from model_common import zombi_to_ete3
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import (FONT, INK, MUTED, STATE_ON, STATE_OFF,
+                         FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 700
 GREY = "#9a9a9a"
+
+# The figure ships in two flavours: a colour version (default; the tasteful pale STATE_ON/OFF
+# two-tone) written to <name>.svg — the copy the manual embeds — and the original B&W kept as
+# <name>_bw.svg.  ON_COL/OFF_COL are swapped between the two by render(bw=...).
+ON_COL, OFF_COL = STATE_ON, STATE_OFF
+
+
+def chip(d, cx, cy, on, s=13):
+    """Tip chip: filled = state 1 (present), open = state 0.  Colour-aware."""
+    d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
+                            fill=ON_COL if on else "white", stroke=ON_COL, stroke_width=1.6))
 
 # the model: state 1 speciates 3x faster; equal extinction; symmetric slow transitions
 L0, L1, MU, Q = 1.0, 3.0, 0.3, 0.12
@@ -126,7 +138,7 @@ def panel_realization(d, ox, oy, pw, ph):
                        oy - 6, font_family=FONT, text_anchor="end", fill=INK, font_style="italic"))
 
     def seg(x1, x2, y, on):
-        d.append(draw.Line(x1, y, x2, y, stroke=INK if on else GREY,
+        d.append(draw.Line(x1, y, x2, y, stroke=ON_COL if on else OFF_COL,
                            stroke_width=5.2 if on else 2.4, stroke_linecap="butt"))
 
     for n in ete.traverse():
@@ -167,7 +179,10 @@ def panel_realization(d, ox, oy, pw, ph):
     return seed
 
 
-def render():
+def render(bw=False):
+    global ON_COL, OFF_COL
+    ON_COL, OFF_COL = (INK, GREY) if bw else (STATE_ON, STATE_OFF)
+
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("State-dependent diversification (BiSSE)", FS_TITLE, W / 2, 46,
@@ -175,10 +190,10 @@ def render():
 
     # legend
     ly = 82
-    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=INK, stroke_width=5.2))
+    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=ON_COL, stroke_width=5.2))
     d.append(draw.Text("in state 1", FS_TICK, W / 2 - 260, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Line(W / 2 - 150, ly, W / 2 - 118, ly, stroke=GREY, stroke_width=2.4))
+    d.append(draw.Line(W / 2 - 150, ly, W / 2 - 118, ly, stroke=OFF_COL, stroke_width=2.4))
     d.append(draw.Text("in state 0", FS_TICK, W / 2 - 110, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
     ah = 5.0
@@ -191,13 +206,15 @@ def render():
     seed = panel_realization(d, 560, 150, 600, 460)
 
     name = "sse"
+    suffix = "_bw" if bw else ""
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
-    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"),
+    (out / f"{name}{suffix}.svg").write_text(d.as_svg(), encoding="utf-8")
+    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}{suffix}.png"),
                      scale=300 / 72.0)
-    print(f"wrote {out}/{name}.svg / .png  (tree seed {seed})")
+    print(f"wrote {out}/{name}{suffix}.svg / .png  (tree seed {seed})")
 
 
 if __name__ == "__main__":
-    render()
+    render(bw=False)   # colour version -> sse.svg (embedded in the manual)
+    render(bw=True)    # preserved B&W  -> sse_bw.svg

@@ -14,7 +14,7 @@ chapter steps back and presents the whole **family** of clocks as first-class mo
 interface, so you can rescale *any* tree (a species tree, a gene tree, anything read from Newick),
 compare models, and plug whichever you like into a sequence-evolution run.
 
-![One tree, every clock. A single time-calibrated tree (top-left, black, in time) is rescaled into substitutions by each clock in the family. Every small tree is a **phylogram**: branch lengths are expected substitutions per site, each branch is painted by the rate the clock drew for it (a shared logarithmic colour scale, so a colour means the same rate in every panel), and all panels share one substitutions-per-pixel scale, so branch lengths are directly comparable. The strict clock leaves the tree undistorted; the uncorrelated clocks scatter branch rates independently, so the tips no longer line up; the autocorrelated clocks vary the rate smoothly down the tree. The eight panels are the clocks summarised in the table at the end of the chapter.](figures/clock_family.pdf){width=100%}
+![One tree, every clock. A single time-calibrated tree (top-left, black, in time) is rescaled into substitutions by each clock in the family. Every small tree is a **phylogram**: branch lengths are expected substitutions per site, each branch is painted by the rate the clock drew for it (a shared logarithmic colour scale, so a colour means the same rate in every panel), and all panels share one substitutions-per-pixel scale, so branch lengths are directly comparable. The strict clock leaves the tree undistorted; the uncorrelated clocks scatter branch rates independently, so the tips no longer line up; the autocorrelated clocks vary the rate smoothly down the tree. The eight panels are the clocks summarised in Table \ref{tbl:clocks}.](figures/clock_family.pdf){width=100%}
 
 ## The strict clock and what relaxing it means
 
@@ -149,10 +149,10 @@ included here for completeness and shares the same interface.
 z.RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0], switch_rate=1.0).scale(tree, seed=2)
 ```
 
-The whole family, at a glance:
+The whole family is summarised in Table \ref{tbl:clocks}.
 
 | clock | class | kind | main parameter |
-|-------|-------|------|----------------|
+|:-----------------------|:-----------------------------|:---------------|:---------------|
 | strict | `StrictClock` | — | `rate` |
 | uncorrelated lognormal | `UncorrelatedLogNormalClock` | uncorrelated | `sigma` |
 | uncorrelated gamma | `UncorrelatedGammaClock` | uncorrelated | `shape` |
@@ -160,6 +160,8 @@ The whole family, at a glance:
 | autocorrelated lognormal | `AutocorrelatedLogNormalClock` | autocorrelated | `sigma` |
 | Cox–Ingersoll–Ross | `CIRClock` | autocorrelated | `theta`, `sigma` |
 | discrete-bin (GTDB) | `RateVariation` | autocorrelated | `bins`, `switch_rate` |
+
+: The relaxed-clock family: each clock, its class in `zombi2.clocks`, whether it is uncorrelated or autocorrelated, and its main shape parameter. \label{tbl:clocks}
 
 They all live in the `zombi2.clocks` namespace (and at the top level as `z.StrictClock`, and so on),
 sharing the `Clock` interface: `scale(tree, seed=...)` returns a `RateScaledTree`.
