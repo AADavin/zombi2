@@ -42,7 +42,8 @@ NAMESPACES = {
     "traits": [
         "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian",
         "MultivariateOU", "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk",
-        "CorrelatedBinary", "HiddenStateMk", "simulate_traits", "replicate_traits",
+        "CorrelatedBinary", "CorrelatedBinaryK", "HiddenStateMk", "simulate_traits",
+        "replicate_traits",
         "TraitResult", "pagel_lambda", "pagel_delta", "pagel_kappa",
         "DEC", "simulate_biogeography", "Cladogenesis",
     ],
@@ -140,7 +141,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 132   # 128 + 4 species<->genes / trait<->genes joint-model names
+    assert len(z.__all__) == 133   # 132 joint-model set + CorrelatedBinaryK (Pagel k-trait)
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 
