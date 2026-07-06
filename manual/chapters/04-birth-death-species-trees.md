@@ -89,7 +89,7 @@ The result keeps the extinct leaves — conventionally named `e*` — so a linea
 the present is still a tip of the complete tree. The run is conditioned to leave at least two
 survivors; a realization in which every lineage dies is rejected and redrawn.
 
-![A complete forward tree that keeps its extinct lineages, drawn dashed and named `e1, e2, …`.](figures/species_tree_extinct.pdf)
+![A complete forward tree that keeps its extinct lineages, drawn dashed and named `e1, e2, …`.](figures/species_tree_extinct.pdf){width=100%}
 
 The complete-versus-reconstructed distinction is the same one drawn analytically for these
 processes: the reconstructed tree is the complete tree with its extinct subtrees pruned away

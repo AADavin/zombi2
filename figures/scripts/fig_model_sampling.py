@@ -72,7 +72,7 @@ def main():
     n_leaves = len(tree.get_leaves())
     # wide, dense landscape canvas (fixed width, height capped so the tree stays
     # wider than it is tall); extra top headroom for the centered title + legend
-    style = species_style(width=1180, height=min(820, 30 * n_leaves + 240), margin=118)
+    style = species_style(width=1320, height=min(860, 30 * n_leaves + 260), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
@@ -97,9 +97,9 @@ def main():
                                -style.height / 2 + 44, font_weight="bold",
                                font_family=style.font_family, text_anchor="middle",
                                dominant_baseline="central", fill=INK))
-    # legend: single column in the open left quadrant, clear of the basal dashed
-    # lineages in the top strip and of the crown (which sits to the right)
-    add_legend(d, x=-style.width / 2 + 34, y=54)
+    # legend: single column in the top-left, just under the title and clear of the
+    # crown (which radiates to the right)
+    add_legend(d, x=-style.width / 2 + 34, y=-style.height / 2 + 120)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)

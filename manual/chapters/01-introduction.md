@@ -24,9 +24,7 @@ can:
 - evolve phenotypic traits (Brownian motion, Ornstein–Uhlenbeck, Mk, threshold, biogeographic
   ranges) along the same tree;
 - couple these processes into models of *coevolution* — gene content that shapes traits, traits
-  that shape gene content, or gene families that evolve non-independently;
-- run the inverse problem — fitting gene-family rates back to an empirical presence/absence
-  profile by Approximate Bayesian Computation.
+  that shape gene content, or gene families that evolve non-independently.
 
 ## The levels of evolution
 
@@ -59,7 +57,8 @@ can imagine them feeding back on the tree too.
 
 ## For the impatient
 
-A minimal run is just two commands: build a species tree, then evolve gene families along it.
+A minimal run can be just two commands, for example: build a species tree, then evolve gene
+families along it.
 
 ```bash
 # 1. a species tree: 20 extant species from a birth–death process
@@ -71,8 +70,8 @@ zombi2 genomes -t my_tree/species_tree.nwk \
 ```
 
 The first writes `my_tree/species_tree.nwk`; the second writes gene trees and the presence/absence
-**profile matrix** (gene families × species) into `my_genomes/`. The same run from Python, where
-`initial_families` sets how many gene families seed the root genome:
+**profile matrix** (gene families × species) into `my_genomes/`. You can do the same run from
+Python:
 
 ```python
 import zombi2 as z
@@ -84,11 +83,3 @@ genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
 genomes.profiles.matrix     # gene families × extant species (copy numbers)
 genomes.write("out/")       # trees, event tables, transfers, profiles
 ```
-
-## How this manual is organised
-
-The manual is a **concepts-and-tutorial** companion to the software. Part I gets you installed
-and running end to end. Parts II–VI then cover the models in the order you meet them in a
-simulation: species trees, gene families, traits, coevolution, and sequence evolution — each
-with worked examples and figures. The exhaustive command-line and Python API reference lives in
-the online documentation rather than here, so this book stays readable front to back.

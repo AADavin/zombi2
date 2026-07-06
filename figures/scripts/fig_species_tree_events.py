@@ -1,15 +1,23 @@
 """Figure: gene-family events painted on the species tree.
 
-This is the *scenario* companion to the gene-tree figure: the exact events of
-ZOMBI2 gene family 9 (genome run along this tree, dup=trans=loss=0.2, seed 7),
-placed at their true time on the species tree. The same three events reappear as
-the gene tree in ``fig_gene_tree`` — species tree -> events -> gene tree.
+This is the *scenario* companion to the gene-tree figure: the exact events of a
+SINGLE ZOMBI2 gene family, placed at their true time on the species tree. The run
+uses ``origination=0`` and ``initial_families=1`` so exactly one family seeds the
+root and evolves along the tree by duplication, transfer and loss — the events the
+caption promises:
 
-  * duplication in species I           -> hatched square
-  * transfer F -> G                    -> black arc, donor dot -> arrowhead on recipient
-  * loss in species J                  -> hatched circle
+  * duplication in species A            -> filled square
+  * transfer B -> C                     -> black arc, donor dot -> arrowhead on recipient
+  * loss on an internal branch          -> black cross
 
-Monochrome, print-friendly. Run:  python figures/scripts/fig_species_tree_events.py
+The tree (10 extant tips, ``BirthDeath(1.0, 0.3)``, seed 25) is committed as the
+fixture ``figures/species_tree_10/species_tree.nwk``; the family is genome seed 61.
+Events are keyed by their ZOMBI node names (``n6``; ``n5`` -> ``n4``; ``i3``) so the
+glyphs land on the right branches; extant leaves are then relabelled A-J for
+display. Monochrome, print-friendly, and wide to match the other species-tree
+figures.
+
+Run:  python figures/scripts/fig_species_tree_events.py
 """
 
 from __future__ import annotations
@@ -27,11 +35,14 @@ FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_10" / "species_tree.nwk"
 OUT_STEM = FIG_DIR / "species_tree_events" / "species_tree_events"
 
-# Family 9's events, in DISPLAY-name space (leaves A-J), at their true simulated
-# times (from 9_events.tsv) so this figure matches the gene tree exactly.
-DUPLICATIONS = [("I", 0.5965)]                              # duplication in species I
-LOSSES = [("J", 0.7128)]                                    # loss in species J
-TRANSFERS = [{"from": "F", "to": "G", "time": 0.4233}]      # transfer F -> G
+# The single family's events at their true simulated times (genome seed 61 on this
+# tree: origination=0, initial_families=1, so exactly one family evolves).
+# Duplication/loss are keyed by the ZOMBI name captured *before* the A-J relabel;
+# the transfer is drawn by ``plot_transfers`` (which re-looks-up node names on the
+# already-relabelled tree), so its endpoints are the DISPLAY letters.
+DUPLICATIONS = [("n6", 0.1747)]                              # duplication in species A
+LOSSES = [("i3", 0.6134)]                                    # loss on an internal branch
+TRANSFERS = [{"from": "B", "to": "C", "time": 0.9991}]       # transfer B -> C
 
 MARKER_R = 9.0
 
@@ -75,10 +86,10 @@ def _branch_point(d, node, t):
     return x_p + (x_c - x_p) * frac, y_c
 
 
-def draw_events(d, tree):
+def draw_events(d, name2node):
     """Solid-black event glyphs: filled square = duplication, cross = loss,
-    black arc with arrowhead = transfer."""
-    name2node = {n.name: n for n in tree.traverse()}
+    black arc with arrowhead = transfer. ``name2node`` maps ZOMBI names to nodes
+    (captured before the display relabelling)."""
     for br, t in DUPLICATIONS:
         d._draw_shape_at(*_branch_point(d, name2node[br], t), "square", INK, r=MARKER_R)
     for br, t in LOSSES:
@@ -124,17 +135,19 @@ def add_legend(d, x, y):
 def main():
     tree = read_newick(TREE_NWK)
     present = annotate_times(tree)
+    # capture the ZOMBI-name -> node map BEFORE relabelling, so events resolve
+    name2node = {n.name: n for n in tree.traverse()}
     for leaf, letter in zip(tree.get_leaves(), string.ascii_uppercase):
         leaf.name = letter
 
-    # taller canvas + generous top margin gives a clean header band (title + legend row)
-    # that sits entirely above the tree.
-    style = species_style(width=920, height=760, margin=120, font_size=FS_TICK)
+    # wide landscape canvas (matching the other species-tree figures) with a
+    # generous top margin for a clean header band (title + legend row) above the tree.
+    style = species_style(width=1180, height=760, margin=120, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d.draw()
     d.add_leaf_names(color=INK, padding=12)
 
-    draw_events(d, tree)
+    draw_events(d, name2node)
 
     ticks = [round(present * i / 4, 6) for i in range(5)]
     d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
