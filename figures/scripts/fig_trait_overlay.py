@@ -47,8 +47,8 @@ def axes(d, x0, y0, w, h, xlabel, ylabel):
 # --------------------------------------------------------------------------- panel A: continuous
 def panel_continuous(d, x0, ytop, w, h):
     ybase = ytop + h
-    d.append(draw.Text("A   continuous: draw the endpoint", FS_LABEL, x0 - 40, ytop - 26,
-                       font_family=FONT, text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("continuous", FS_LABEL, x0 + w / 2, ytop - 26,
+                       font_family=FONT, text_anchor="middle", fill=INK, font_weight="bold"))
     axes(d, x0, ybase, w, h, "time (one branch)", "trait value")
     ymid = ytop + h / 2
     root = (x0, ymid)
@@ -89,8 +89,8 @@ def panel_continuous(d, x0, ytop, w, h):
 # --------------------------------------------------------------------------- panel B: discrete
 def panel_discrete(d, x0, ytop, w, h):
     ybase = ytop + h
-    d.append(draw.Text("B   discrete: simulate the jumps", FS_LABEL, x0 - 40, ytop - 26,
-                       font_family=FONT, text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("discrete", FS_LABEL, x0 + w / 2, ytop - 26,
+                       font_family=FONT, text_anchor="middle", fill=INK, font_weight="bold"))
     axes(d, x0, ybase, w, h, "time (one branch)", "state")
 
     levels = [ybase - h * f for f in (0.2, 0.5, 0.8)]      # states 0,1,2 (bottom..top)
