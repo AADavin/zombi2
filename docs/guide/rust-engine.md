@@ -15,22 +15,25 @@ by the model, so a given `seed` is always reproducible against a single engine.
   `carrying_capacity`, ordered genomes, rearrangements, or a custom `sampler` run on the
   pure-Python engine automatically.
 
-## Building the extension
+## Getting the extension
 
-The extension isn't built by `pip install -e .`; build it once with
-[maturin](https://www.maturin.rs/):
+`pip install zombi2` installs the engine automatically: `zombi2_core` ships as
+prebuilt binary wheels (Linux, macOS, Windows; CPython 3.10+), so no Rust
+toolchain is needed.
+
+From a source checkout it is a separate package you install from `rust/` — before
+an editable install of `zombi2`, since `zombi2` depends on it:
 
 ```bash
-pip install maturin
-cd rust && maturin build --release -i python3
-pip install --force-reinstall rust/target/wheels/*.whl
+pip install ./rust      # needs a Rust toolchain (rustup); wraps maturin
+pip install -e .
 ```
 
 Check it's available:
 
 ```python
 import zombi2 as z
-z.rust_available()   # True once the wheel is installed
+z.rust_available()   # True once zombi2_core is installed
 ```
 
 ## Two outputs, one function

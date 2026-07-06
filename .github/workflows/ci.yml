@@ -36,11 +36,15 @@ jobs:
         with:
           workspaces: rust
 
-      - name: Install ZOMBI2 (with dev extras)
-        run: pip install -e ".[dev]"
-
+      # Build and install the compiled engine FIRST. zombi2 pins
+      # zombi2_core==<version>, which is not on an index during development,
+      # so installing it from ./rust here satisfies that pin locally and the
+      # editable install below never reaches out for it.
       - name: Build and install the compiled gene-family engine
         run: pip install ./rust
+
+      - name: Install ZOMBI2 (with dev extras)
+        run: pip install -e ".[dev]"
 
       # The built-in genome model has no pure-Python fallback, and its tests
       # skip (green) when the extension is absent. Fail loudly instead, so CI
@@ -65,9 +69,13 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       # The docs build imports zombi2 (via mkdocstrings) but does not exercise
-      # the compiled engine, so no Rust toolchain is needed here.
-      - name: Install ZOMBI2 (with docs extras)
-        run: pip install -e ".[docs]"
+      # the compiled engine -- zombi2._rust degrades gracefully when zombi2_core
+      # is absent. Install without deps to skip the compiled-engine pin (no Rust
+      # toolchain needed here), then add just what the docs build imports.
+      - name: Install ZOMBI2 (docs deps, engine-free)
+        run: |
+          pip install -e . --no-deps
+          pip install "numpy>=1.24" mkdocs-material "mkdocstrings[python]"
 
       - name: Build the documentation (strict)
         run: mkdocs build --strict
