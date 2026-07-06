@@ -15,7 +15,7 @@
 <path d="M339.4,236.0 L520.0,236.0" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M339.4,300.0 L520.0,300.0" stroke="#1a1a1a" stroke-width="2.6" />
 <circle cx="90" cy="204.0" r="5.5" fill="#1a1a1a" />
-<text x="90" y="190.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">crown</text>
+<text x="90" y="190.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">crown</text>
 <path d="M90,340 L520,340" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M90,333 L90,347" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M520,333 L520,347" stroke="#1a1a1a" stroke-width="1.8" />
@@ -32,10 +32,10 @@
 <path d="M943.5799999999999,300.0 L1070.0,300.0" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M640,204.0 L769.0,204.0" stroke="#1a1a1a" stroke-width="2.6" />
 <circle cx="640" cy="204.0" r="5.5" fill="#1a1a1a" />
-<text x="640" y="190.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">origin</text>
-<text x="704.5" y="190.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">stem</text>
+<text x="640" y="190.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">origin</text>
+<text x="704.5" y="190.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">stem</text>
 <circle cx="769.0" cy="204.0" r="5.5" fill="#1a1a1a" />
-<text x="779.0" y="190.0" font-size="18" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">crown</text>
+<text x="779.0" y="190.0" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">crown</text>
 <path d="M640,340 L1070,340" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M640,333 L640,347" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M1070,333 L1070,347" stroke="#1a1a1a" stroke-width="1.8" />

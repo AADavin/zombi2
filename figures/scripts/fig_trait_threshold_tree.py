@@ -19,7 +19,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/Users/aadria/Desktop/CLAUDE/ZOMBI2-traits")   # traits-enabled zombi2
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # local: zombi_style, model_common, fig_trait_bm
 
 import drawsvg as draw
 
@@ -31,7 +31,7 @@ from model_common import zombi_to_ete3
 from zombi_style import INK, species_style
 from phylustrator.utils import generate_id
 
-OUT_STEM = Path("/Users/aadria/Desktop/CLAUDE/ZOMBI2/figures/trait_threshold_tree/trait_threshold_tree")
+OUT_STEM = Path(__file__).resolve().parent.parent / "trait_threshold_tree" / "trait_threshold_tree"
 
 N_TIPS, AGE, TREE_SEED = 12, 1.0, 2
 SIGMA2, THRESH, TRAIT_SEED = 1.6, 0.0, 3

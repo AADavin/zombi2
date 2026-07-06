@@ -133,8 +133,8 @@
 <path d="M517.4000000000001,437.75 L517.4000000000001,592.25" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="5,4" />
 <circle cx="517.4000000000001" cy="476.1875" r="6.5" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
 <path d="M514.4000000000001,476.1875 L519.4000000000001,472.6875 L519.4000000000001,479.6875 Z" fill="#1a1a1a" />
-<text x="517.4000000000001" y="427.75" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">rate shift</text>
-<text x="537.4000000000001" y="545.0" font-size="20" font-family="Helvetica" text-anchor="start" fill="#555" font-style="italic">fast diversification</text>
+<text x="517.4000000000001" y="427.75" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">rate shift</text>
+<text x="537.4000000000001" y="545.0" font-size="22" font-family="Helvetica" text-anchor="start" fill="#555" font-style="italic">fast diversification</text>
 <path d="M102,92 L136,92" stroke="#9a9a9a" stroke-width="1.7" stroke-linecap="round" />
 <text x="146" y="92" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">background rate</text>
 <path d="M102,122 L136,122" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
@@ -142,16 +142,16 @@
 <path d="M102,152 L136,152" stroke="#9a9a9a" stroke-width="1.5" stroke-dasharray="6,5" />
 <text x="146" y="152" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">extinct lineage</text>
 <path d="M96.0,606.25 L96.0,612.25" stroke="#1a1a1a" stroke-width="1.2" />
-<text x="96.0" y="630.25" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#777">0.0</text>
+<text x="96.0" y="630.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#777">0.0</text>
 <path d="M336.79999999999995,606.25 L336.79999999999995,612.25" stroke="#1a1a1a" stroke-width="1.2" />
-<text x="336.79999999999995" y="630.25" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#777">1.2</text>
+<text x="336.79999999999995" y="630.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#777">1.2</text>
 <path d="M577.5999999999999,606.25 L577.5999999999999,612.25" stroke="#1a1a1a" stroke-width="1.2" />
-<text x="577.5999999999999" y="630.25" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#777">2.4</text>
+<text x="577.5999999999999" y="630.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#777">2.4</text>
 <path d="M818.4,606.25 L818.4,612.25" stroke="#1a1a1a" stroke-width="1.2" />
-<text x="818.4" y="630.25" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#777">3.6</text>
+<text x="818.4" y="630.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#777">3.6</text>
 <path d="M1059.1999999999998,606.25 L1059.1999999999998,612.25" stroke="#1a1a1a" stroke-width="1.2" />
-<text x="1059.1999999999998" y="630.25" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#777">4.8</text>
+<text x="1059.1999999999998" y="630.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#777">4.8</text>
 <path d="M1300.0,606.25 L1300.0,612.25" stroke="#1a1a1a" stroke-width="1.2" />
-<text x="1300.0" y="630.25" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#777">6.0</text>
+<text x="1300.0" y="630.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#777">6.0</text>
 <text x="698.0" y="658.25" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#555">time (root to present)</text>
 </svg>
