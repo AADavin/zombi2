@@ -32,7 +32,7 @@ from fig_trait_bm import VIRIDIS, hexc, viridis       # shared colormap
 from model_common import zombi_to_ete3
 from zombi_style import INK, species_style, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
-OUT_STEM = Path("/Users/aadria/Desktop/CLAUDE/ZOMBI2/figures/trait_threshold/trait_threshold")
+OUT_STEM = Path(__file__).resolve().parent.parent / "trait_threshold" / "trait_threshold"
 
 N_TIPS, AGE, TREE_SEED = 28, 1.0, 3
 SIGMA2, X0, THRESHOLD = 1.2, 0.0, 0.0

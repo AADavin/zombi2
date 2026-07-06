@@ -38,18 +38,18 @@
 <path d="M-349.0296863185791,-101.93181818181819 L-349.0296863185791,141.13636363636365" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-379.0,-105.19886363636363 L-365.0,-105.19886363636363" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M-365.0,-230.0 L-365.0,19.602272727272734" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="376.99999997810005" y="-230.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n6</text>
-<text x="377.0" y="-188.1818181818182" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n5</text>
-<text x="376.9999999270001" y="-146.36363636363637" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n12</text>
-<text x="376.9999999416001" y="-104.54545454545453" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n1</text>
-<text x="376.9999999416001" y="-62.72727272727272" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n7</text>
-<text x="376.9999999416001" y="-20.909090909090907" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n9</text>
-<text x="376.9999999416001" y="20.909090909090935" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n10</text>
-<text x="376.9999999270001" y="62.72727272727275" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n4</text>
-<text x="376.9999999270001" y="104.54545454545456" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n8</text>
-<text x="376.99999997810005" y="146.36363636363637" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n3</text>
-<text x="376.99999997810005" y="188.1818181818182" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n11</text>
-<text x="376.99999997810005" y="230.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n2</text>
+<text x="376.99999997810005" y="-230.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n6</text>
+<text x="377.0" y="-188.1818181818182" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n5</text>
+<text x="376.9999999270001" y="-146.36363636363637" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n12</text>
+<text x="376.9999999416001" y="-104.54545454545453" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n1</text>
+<text x="376.9999999416001" y="-62.72727272727272" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n7</text>
+<text x="376.9999999416001" y="-20.909090909090907" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n9</text>
+<text x="376.9999999416001" y="20.909090909090935" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n10</text>
+<text x="376.9999999270001" y="62.72727272727275" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n4</text>
+<text x="376.9999999270001" y="104.54545454545456" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n8</text>
+<text x="376.99999997810005" y="146.36363636363637" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n3</text>
+<text x="376.99999997810005" y="188.1818181818182" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n11</text>
+<text x="376.99999997810005" y="230.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">n2</text>
 <circle cx="-372.0" cy="-121.19886363636363" r="6.800000000000001" fill="#4477AA" stroke="none" />
 <circle cx="-372.0" cy="-105.19886363636363" r="6.800000000000001" fill="#E08A3C" stroke="none" />
 <circle cx="-372.0" cy="-89.19886363636363" r="6.800000000000001" fill="#7B5EA7" stroke="none" />
@@ -73,16 +73,16 @@
 <circle cx="-1.460000010906164" cy="-15.681818181818173" r="2.5" fill="#7B5EA7" />
 <path d="M-379.0,246.0 L364.99999997810005,246.0" stroke="black" stroke-width="1.6" />
 <path d="M-365.0,246.0 L-365.0,252.0" stroke="black" stroke-width="1.6" />
-<text x="-365.0" y="270.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.00</text>
+<text x="-365.0" y="274.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.00</text>
 <path d="M-182.500000005475,246.0 L-182.500000005475,252.0" stroke="black" stroke-width="1.6" />
-<text x="-182.500000005475" y="270.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.25</text>
+<text x="-182.500000005475" y="274.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.25</text>
 <path d="M-1.0949975148832891e-08,246.0 L-1.0949975148832891e-08,252.0" stroke="black" stroke-width="1.6" />
-<text x="-1.0949975148832891e-08" y="270.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.50</text>
+<text x="-1.0949975148832891e-08" y="274.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.50</text>
 <path d="M182.49999998357498,246.0 L182.49999998357498,252.0" stroke="black" stroke-width="1.6" />
-<text x="182.49999998357498" y="270.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.75</text>
+<text x="182.49999998357498" y="274.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.75</text>
 <path d="M364.99999997810005,246.0 L364.99999997810005,252.0" stroke="black" stroke-width="1.6" />
-<text x="364.99999997810005" y="270.0" font-size="18" text-anchor="middle" font-family="Helvetica">1.00</text>
-<text x="-7.000000010949975" y="297.0" font-size="18" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
+<text x="364.99999997810005" y="274.0" font-size="22" text-anchor="middle" font-family="Helvetica">1.00</text>
+<text x="-7.000000010949975" y="307.0" font-size="22" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
 <text x="0" y="-471.0" font-size="32" font-weight="bold" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a">Three gene families on one species tree</text>
 <text x="-604.0" y="-415.0" font-size="22" font-weight="bold" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">Gene family</text>
 <rect x="-604.0" y="-390.9" width="20.0" height="20.0" fill="#4477AA" opacity="1.0" />

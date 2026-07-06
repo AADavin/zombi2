@@ -6,9 +6,9 @@
 <rect x="0" y="0" width="1220" height="690" fill="white" />
 <text x="610.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Where the change happens: anagenetic vs cladogenetic</text>
 <circle cx="280.0" cy="80" r="5.0" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="294.0" y="80" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">change along a branch (anagenetic)</text>
+<text x="294.0" y="80" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">change along a branch (anagenetic)</text>
 <path d="M640.0,72.5 L647.5,80 L640.0,87.5 L632.5,80 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="654.0" y="80" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">change at a split (cladogenetic)</text>
+<text x="654.0" y="80" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">change at a split (cladogenetic)</text>
 <text x="70" y="152" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   anagenetic (BiSSE): change accrues with time</text>
 <path d="M110.0,202.0 L125.28107264176676,202.0" stroke="#2f7d84" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="125.28107264176676" cy="202.0" r="5.0" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
@@ -63,16 +63,16 @@
 <rect x="537" y="505.0" width="26" height="26" fill="white" stroke="#2f7d84" stroke-width="1.6" />
 <path d="M110.0,570 L480.0,570" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M110.0,570 L110.0,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="110.0" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.00</text>
+<text x="110.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.00</text>
 <path d="M202.5,570 L202.5,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="202.5" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.25</text>
+<text x="202.5" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.25</text>
 <path d="M295.0,570 L295.0,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="295.0" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.50</text>
+<text x="295.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.50</text>
 <path d="M387.5,570 L387.5,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="387.5" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.75</text>
+<text x="387.5" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.75</text>
 <path d="M480.0,570 L480.0,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="480.0" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">1.00</text>
-<text x="295.0" y="614" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (root to present)</text>
+<text x="480.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">1.00</text>
+<text x="295.0" y="614" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (root to present)</text>
 <text x="660" y="152" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   cladogenetic (ClaSSE): change injected at the split</text>
 <path d="M700.0,202.0 L1070.0,202.0" stroke="#b9b0a4" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M700.0,387.65 L811.5034814091551,387.65" stroke="#b9b0a4" stroke-width="2.4" stroke-linecap="butt" />
@@ -124,15 +124,15 @@
 <rect x="1127" y="505.0" width="26" height="26" fill="white" stroke="#2f7d84" stroke-width="1.6" />
 <path d="M700.0,570 L1070.0,570" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M700.0,570 L700.0,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="700.0" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.00</text>
+<text x="700.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.00</text>
 <path d="M792.5,570 L792.5,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="792.5" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.25</text>
+<text x="792.5" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.25</text>
 <path d="M885.0,570 L885.0,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="885.0" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.50</text>
+<text x="885.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.50</text>
 <path d="M977.5,570 L977.5,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="977.5" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.75</text>
+<text x="977.5" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">0.75</text>
 <path d="M1070.0,570 L1070.0,576" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="1070.0" y="592" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">1.00</text>
-<text x="885.0" y="614" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (root to present)</text>
-<text x="610.0" y="668" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">same tree, same Gillespie -- only the consequence of a speciation differs</text>
+<text x="1070.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">1.00</text>
+<text x="885.0" y="614" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (root to present)</text>
+<text x="610.0" y="668" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">same tree, same Gillespie -- only the consequence of a speciation differs</text>
 </svg>

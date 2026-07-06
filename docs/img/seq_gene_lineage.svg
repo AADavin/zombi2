@@ -33,10 +33,10 @@
 <text x="640.0" y="99" font-size="32" font-family="Helvetica" text-anchor="middle" fill="#79ce58" font-weight="bold">R_b</text>
 <text x="750.0" y="96" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">x</text>
 <text x="860.0" y="99" font-size="32" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">s_g</text>
-<text x="640.0" y="122" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">one per tree (shared)</text>
-<text x="860.0" y="122" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">one per family</text>
+<text x="640.0" y="122" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">one per tree (shared)</text>
+<text x="860.0" y="122" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">one per family</text>
 <text x="285.0" y="184" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Shared lineage clock  R_b</text>
-<text x="285.0" y="204" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">drawn once on the species tree</text>
+<text x="285.0" y="204" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">drawn once on the species tree</text>
 <path d="M70.0,255.02272727272728 L125.8503011400995,255.02272727272728" stroke="#3f3174" stroke-width="4.4" stroke-linecap="round" />
 <path d="M70.0,445.5909090909091 L158.75532407883156,445.5909090909091" stroke="#42af75" stroke-width="4.4" stroke-linecap="round" />
 <path d="M125.8503011400995,224.0 L152.28667085442163,224.0" stroke="#440154" stroke-width="4.4" stroke-linecap="round" />
@@ -84,11 +84,11 @@
 <circle cx="418.58684111362777" cy="614.0" r="2.6" fill="#65ca5f" stroke="white" stroke-width="0.5" />
 <use xlink:href="#d0" />
 <rect x="100" y="646" width="310" height="15" fill="url(#d0)" stroke="#1a1a1a" stroke-width="0.8" />
-<text x="100" y="677" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
-<text x="255.0" y="677" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R_b = 1</text>
-<text x="410" y="677" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>
+<text x="100" y="677" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
+<text x="255.0" y="677" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R_b = 1</text>
+<text x="410" y="677" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>
 <text x="620" y="180" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Family g1:  s_g = 0.6</text>
-<text x="880" y="180" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(slow-evolving gene)</text>
+<text x="880" y="180" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(slow-evolving gene)</text>
 <path d="M620.0,207.0 L648.7633320428613,207.0" stroke="#3f3174" stroke-width="3.0" stroke-linecap="round" />
 <path d="M620.0,250.0 L665.7096704035183,250.0" stroke="#42af75" stroke-width="3.0" stroke-linecap="round" />
 <path d="M648.7633320428613,200.0 L662.3782645423914,200.0" stroke="#440154" stroke-width="3.0" stroke-linecap="round" />
@@ -136,7 +136,7 @@
 <circle cx="799.5248879960745" cy="288.0" r="2.6" fill="#65ca5f" stroke="white" stroke-width="0.5" />
 <path d="M620,296 L841.4532871972318,296" stroke="#8a8a8a" stroke-width="1.0" stroke-dasharray="2,3" />
 <text x="620" y="330" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Family g2:  s_g = 1</text>
-<text x="880" y="330" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(average gene)</text>
+<text x="880" y="330" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(average gene)</text>
 <path d="M620.0,357.0 L667.938886738102,357.0" stroke="#3f3174" stroke-width="3.0" stroke-linecap="round" />
 <path d="M620.0,400.0 L696.1827840058638,400.0" stroke="#42af75" stroke-width="3.0" stroke-linecap="round" />
 <path d="M667.938886738102,350.0 L690.6304409039857,350.0" stroke="#440154" stroke-width="3.0" stroke-linecap="round" />
@@ -184,7 +184,7 @@
 <circle cx="919.2081466601242" cy="438.0" r="2.6" fill="#65ca5f" stroke="white" stroke-width="0.5" />
 <path d="M620,446 L989.0888119953864,446" stroke="#8a8a8a" stroke-width="1.0" stroke-dasharray="2,3" />
 <text x="620" y="480" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Family g3:  s_g = 1.7</text>
-<text x="880" y="480" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(fast-evolving gene)</text>
+<text x="880" y="480" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(fast-evolving gene)</text>
 <path d="M620.0,507.0 L701.4961074547736,507.0" stroke="#3f3174" stroke-width="3.0" stroke-linecap="round" />
 <path d="M620.0,550.0 L749.5107328099684,550.0" stroke="#42af75" stroke-width="3.0" stroke-linecap="round" />
 <path d="M701.4961074547736,500.0 L740.0717495367758,500.0" stroke="#440154" stroke-width="3.0" stroke-linecap="round" />
@@ -233,19 +233,19 @@
 <path d="M620,596 L1247.450980392157,596" stroke="#8a8a8a" stroke-width="1.0" stroke-dasharray="2,3" />
 <path d="M620.0,610 L1260,610" stroke="#1a1a1a" stroke-width="1.5" />
 <path d="M620.0,610 L620.0,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="620.0" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="620.0" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M714.1701512493454,610 L714.1701512493454,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="714.1701512493454" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.5</text>
+<text x="714.1701512493454" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0.5</text>
 <path d="M808.3403024986908,610 L808.3403024986908,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="808.3403024986908" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="808.3403024986908" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M902.5104537480363,610 L902.5104537480363,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="902.5104537480363" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1.5</text>
+<text x="902.5104537480363" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1.5</text>
 <path d="M996.6806049973817,610 L996.6806049973817,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="996.6806049973817" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="996.6806049973817" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
 <path d="M1090.850756246727,610 L1090.850756246727,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="1090.850756246727" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2.5</text>
+<text x="1090.850756246727" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2.5</text>
 <path d="M1185.0209074960726,610 L1185.0209074960726,615" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="1185.0209074960726" y="630" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">3</text>
-<text x="940.0" y="652" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">substitutions / site  (shared scale)</text>
-<text x="940.0" y="676" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">same colour pattern (R_b shared) -- different overall length (s_g)</text>
+<text x="1185.0209074960726" y="630" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">3</text>
+<text x="940.0" y="652" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">substitutions / site  (shared scale)</text>
+<text x="940.0" y="676" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">same colour pattern (R_b shared) -- different overall length (s_g)</text>
 </svg>
