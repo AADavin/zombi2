@@ -9,8 +9,9 @@ into it.
 from zombi2.species import BirthDeath, simulate_species_tree
 from zombi2.traits import (
     simulate_traits, BrownianMotion, OrnsteinUhlenbeck, EarlyBurst,
-    MultivariateBrownian, MultivariateOU, Mk, CorrelatedBinary, CorrelatedBinaryK, HiddenStateMk,
-    ThresholdModel, MultiOptimumOU, DEC, simulate_biogeography,
+    MultivariateBrownian, MultivariateOU, Mk, CorrelatedBinary,
+    CorrelatedBinaryK, HiddenStateMk, ThresholdModel, MultiOptimumOU,
+    DEC, simulate_biogeography,
     pagel_lambda, pagel_delta, pagel_kappa,
 )
 
@@ -95,7 +96,8 @@ $dX = \alpha\,(\theta - X)\,dt + \sigma\, dW$. It starts at the optimum unless y
 bounds the variance, so lineages cluster around `theta` instead of wandering freely.
 
 ```python
-simulate_traits(tree, OrnsteinUhlenbeck(sigma2=0.4, alpha=2.0, theta=10.0), seed=1)
+ou = OrnsteinUhlenbeck(sigma2=0.4, alpha=2.0, theta=10.0)
+simulate_traits(tree, ou, seed=1)
 ```
 
 ![Ornstein–Uhlenbeck: the trait diffuses but is pulled back toward an optimum, so lineages cluster around it.](figures/trait_ou.pdf){width=100%}
@@ -178,12 +180,14 @@ null model in which the two evolve separately, giving the comparison that tests 
 
 ```python
 # Y tracks X: Y is gained quickly when X = 1 and lost quickly when X = 0
-m = CorrelatedBinary(x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
-                       y_gain_x0=0.05, y_gain_x1=2.0, y_loss_x0=2.0, y_loss_x1=0.05)
+m = CorrelatedBinary(
+    x_gain_y0=0.5, x_gain_y1=0.5, x_loss_y0=0.5, x_loss_y1=0.5,
+    y_gain_x0=0.05, y_gain_x1=2.0, y_loss_x0=2.0, y_loss_x1=0.05)
 res = simulate_traits(tree, m, seed=1)
 res.labeled_values()                   # {extant leaf: (X, Y)}
 
-null = CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
+null = CorrelatedBinary.independent(
+    x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0.5)
 ```
 
 ![Correlated binary characters. **A**, the joint state space $\{00, 01, 10, 11\}$: horizontal edges flip Y, vertical edges flip X, and each arrow's width is its rate. With these rates Y is gained fast only when X = 1 and lost fast when X = 0, so Y is driven toward X. **B**, one realization on a tree: branches are drawn heavy where X = 1 and light where X = 0, and the two tip columns give each leaf's $(X, Y)$ — the clades where X switches on are exactly the clades where Y is present.](figures/trait_pagel.pdf){width=100%}
@@ -198,15 +202,17 @@ each trait on its own), `equal_rates` (one shared gain/loss), `partner_coupling`
 by one designated partner), or `from_table` (the full rate table):
 
 ```python
-# 3 binary traits; trait 1 "tracks" trait 0 as its partner: when trait 0 is present, trait 1 is
-# gained 3x faster and lost half as fast, so the two come to co-occur (traits 0 and 2 evolve freely)
+# 3 binary traits; trait 1 "tracks" trait 0 as its partner: when
+# trait 0 is present, trait 1 is gained 3x faster and lost half as
+# fast, so the two come to co-occur (traits 0 and 2 evolve freely)
 m = CorrelatedBinaryK.partner_coupling(
     gains=[0.5, 0.3, 0.5], losses=[0.5, 0.5, 0.5],
     partners=[None, 0, None], boost_gain=[1, 3, 1], boost_loss=[1, 0.5, 1])
 res = simulate_traits(tree, m, seed=1)
 res.labeled_values()                   # {extant leaf: (t0, t1, t2)}
 
-null = CorrelatedBinaryK.independent(gains=0.5, losses=[0.5, 0.5, 0.5])   # the k = 3 Pagel null
+# the k = 3 Pagel null
+null = CorrelatedBinaryK.independent(gains=0.5, losses=[0.5, 0.5, 0.5])
 ```
 
 ### Hidden rate classes (corHMM)
@@ -256,9 +262,9 @@ the *same* tree, then run an OU with one `theta` per regime. `alpha` and `sigma2
 regime.
 
 ```python
-regimes = simulate_traits(tree, Mk.equal_rates(2, 0.4), seed=1)        # paint 2 regimes
+regimes = simulate_traits(tree, Mk.equal_rates(2, 0.4), seed=1)   # 2 regimes
 mou = MultiOptimumOU(regimes, theta=[-5.0, 5.0], alpha=4.0, sigma2=0.4)
-simulate_traits(tree, mou, seed=2)                                       # tips track their optimum
+simulate_traits(tree, mou, seed=2)   # tips track their optimum
 ```
 
 This is the natural way to model a shift in selective regime: a discrete character paints where the
@@ -273,9 +279,10 @@ Pagel's $\lambda$, $\kappa$ and $\delta$ transform the tree's branch and node le
 clock.
 
 ```python
-simulate_traits(pagel_lambda(tree, 0.5), BrownianMotion(0.5), seed=1)   # scale signal
+# scale phylogenetic signal, then run any model on the transformed tree
+simulate_traits(pagel_lambda(tree, 0.5), BrownianMotion(0.5), seed=1)
 pagel_delta(tree, 2.0)     # node depths ^delta (>1 late, <1 early change)
-pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational: unit branches)
+pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational)
 ```
 
 - **$\lambda$** scales internal (shared) depths while holding tip depths fixed: `1` is the original
@@ -297,9 +304,9 @@ Because of that node process, DEC has its own driver, `simulate_biogeography`.
 dec = DEC(areas=["A", "B", "C"], dispersal=0.1, extinction=0.1, max_range_size=3)
 res = simulate_biogeography(tree, dec, root_state={"A"}, seed=1)
 
-res.labeled_values()                   # {extant leaf: ('A', 'B') ...} — the observed ranges
-res.ancestral_states()                 # ancestral ranges at every internal node
-res.changes()                          # anagenetic dispersal / extinction events along branches
+res.labeled_values()      # {extant leaf: ('A', 'B') ...} — tip ranges
+res.ancestral_states()    # ancestral ranges at every internal node
+res.changes()             # anagenetic dispersal / extinction events
 ```
 
 ![The DEC model of geographic-range evolution. **A**, along a branch a range gains areas by dispersal and loses them by local extinction — a Markov chain over the lattice of ranges (subsets of areas). **B**, at each speciation the ancestral range is split between the two daughters by narrow sympatry, subset sympatry, or vicariance.](figures/dec.pdf){width=100%}
@@ -320,9 +327,9 @@ T=species_tree.nwk
 zombi2 trait -t $T --model bm --sigma2 0.5 --seed 1 -o out/
 zombi2 trait -t $T --model ou --alpha 2.0 --theta 10.0 -o out/
 zombi2 trait -t $T --model eb --rate -0.8 -o out/
-zombi2 trait -t $T --model mk --states 3 -o out/                 # equal-rates Mk
-zombi2 trait -t $T --model mk --ordered -o out/                  # adjacent-only chain
-zombi2 trait -t $T --model mk --q-matrix Q.tsv -o out/           # arbitrary Q
+zombi2 trait -t $T --model mk --states 3 -o out/         # equal-rates Mk
+zombi2 trait -t $T --model mk --ordered -o out/          # adjacent-only chain
+zombi2 trait -t $T --model mk --q-matrix Q.tsv -o out/   # arbitrary Q
 zombi2 trait -t $T --model threshold -o out/
 zombi2 trait -t $T --model dec --areas A,B,C --dispersal 0.3 -o out/
 ```

@@ -26,7 +26,8 @@ from fig_trait_bm import color_bar, hexc, viridis
 from model_common import zombi_to_ete3
 from zombi_style import INK, MUTED, species_style, FS_TITLE, FS_LABEL, FS_TICK
 
-OUT_STEM = Path("/Users/aadria/Desktop/CLAUDE/ZOMBI2/figures/trait_earlyburst/trait_earlyburst")
+OUT_STEM = Path(__file__).resolve().parent.parent / "trait_earlyburst" / "trait_earlyburst"
+OUT_STEM.parent.mkdir(parents=True, exist_ok=True)
 
 N_TIPS, AGE, TREE_SEED = 28, 1.0, 3
 SIGMA2, RATE, X0 = 6.0, -4.0, 0.0            # rate < 0 -> early burst
@@ -63,17 +64,24 @@ def main():
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 
-    # rate strip under the tree: sigma^2(t) fast (dark, early) -> slow (light, late)
+    # rate strip under the tree: sigma^2(t) fast (dark, early) -> slow (light, late).
+    # The strip is made a good deal TALLER than the label height so the "rate: fast"
+    # and "slow" labels sit comfortably inside it (vertically centred) instead of
+    # spilling above/below the band.
     strip_y = max(l.coordinates[1] for l in tree.get_leaves()) + 20
-    x0, x1 = d.root_x, d.root_x + AGE * d.sf
+    strip_h = 30
+    strip_pad = 8
+    x0, x1 = d.root_x - strip_pad, d.root_x + AGE * d.sf + strip_pad
     grad = draw.LinearGradient(x0, 0, x1, 0, id="rate_decay")
     grad.add_stop(0.0, "#3a3a3a")
     grad.add_stop(1.0, "#ededed")
     d.drawing.append(grad)
-    d.drawing.append(draw.Rectangle(x0, strip_y, x1 - x0, 13, fill=grad, stroke=INK, stroke_width=0.5))
-    d.drawing.append(draw.Text("rate: fast", FS_TICK, x0 + 6, strip_y + 9, font_family=style.font_family,
+    d.drawing.append(draw.Rectangle(x0, strip_y, x1 - x0, strip_h, fill=grad, stroke=INK, stroke_width=0.5))
+    d.drawing.append(draw.Text("rate: fast", FS_TICK, x0 + 10, strip_y + strip_h / 2,
+                               font_family=style.font_family,
                                text_anchor="start", dominant_baseline="central", fill="white"))
-    d.drawing.append(draw.Text("slow", FS_TICK, x1 - 6, strip_y + 9, font_family=style.font_family,
+    d.drawing.append(draw.Text("slow", FS_TICK, x1 - 10, strip_y + strip_h / 2,
+                               font_family=style.font_family,
                                text_anchor="end", dominant_baseline="central", fill=INK))
 
     d.plot_continuous_variable(node_to_rgb, stroke_width=BRANCH_W)

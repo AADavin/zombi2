@@ -47,8 +47,8 @@ def axes(d, x0, y0, w, h, xlabel, ylabel):
 # --------------------------------------------------------------------------- panel A: continuous
 def panel_continuous(d, x0, ytop, w, h):
     ybase = ytop + h
-    d.append(draw.Text("A   continuous: draw the endpoint", FS_LABEL, x0 - 40, ytop - 26,
-                       font_family=FONT, text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("continuous", FS_LABEL, x0 + w / 2, ytop - 26,
+                       font_family=FONT, text_anchor="middle", fill=INK, font_weight="bold"))
     axes(d, x0, ybase, w, h, "time (one branch)", "trait value")
     ymid = ytop + h / 2
     root = (x0, ymid)
@@ -62,9 +62,10 @@ def panel_continuous(d, x0, ytop, w, h):
     d.append(draw.Text("(the path is never simulated)", FS_TICK, x0 + w / 2, ytop + 30,
                        font_family=FONT, text_anchor="middle", fill=MUTED))
 
-    # normal endpoint distribution at the far end of the branch (kept inside the plot box)
+    # normal endpoint distribution at the far end of the branch (kept inside the plot box).
+    # sd is deliberately modest so the curve's peak stays clear of the subtitle above.
     xend = x0 + 0.66 * w
-    sd = h * 0.14
+    sd = h * 0.105
     ys = np.linspace(ymid - 3 * sd, ymid + 3 * sd, 80)
     dens = np.exp(-0.5 * ((ys - ymid) / sd) ** 2)
     bell = draw.Path(fill="none", stroke=INK, stroke_width=2.4)
@@ -88,8 +89,8 @@ def panel_continuous(d, x0, ytop, w, h):
 # --------------------------------------------------------------------------- panel B: discrete
 def panel_discrete(d, x0, ytop, w, h):
     ybase = ytop + h
-    d.append(draw.Text("B   discrete: simulate the jumps", FS_LABEL, x0 - 40, ytop - 26,
-                       font_family=FONT, text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("discrete", FS_LABEL, x0 + w / 2, ytop - 26,
+                       font_family=FONT, text_anchor="middle", fill=INK, font_weight="bold"))
     axes(d, x0, ybase, w, h, "time (one branch)", "state")
 
     levels = [ybase - h * f for f in (0.2, 0.5, 0.8)]      # states 0,1,2 (bottom..top)
