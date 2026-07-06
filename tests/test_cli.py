@@ -149,25 +149,6 @@ def test_genomes_on_supplied_tree(tmp_path):
 
 
 @needs_rust
-def test_genomes_score_likelihoods_writes_table(tmp_path):
-    """`genomes --score-likelihoods` writes the per-family ALE likelihood table."""
-    sp = tmp_path / "sp"
-    main(["species", "--birth", "1", "--death", "0.2", "--tips", "8", "--age", "1",
-          "--seed", "5", "-o", str(sp)])
-    gen = tmp_path / "gen"
-    rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"),
-               "--dup", "0.3", "--trans", "0.2", "--loss", "0.4", "--initial-families", "12",
-               "--seed", "5", "--write", "trees",
-               "--score-likelihoods", "--score-model", "dated", "undated", "-o", str(gen)])
-    assert rc == 0
-    table = gen / "Reconciliation_likelihoods.tsv"
-    assert table.exists()
-    lines = table.read_text().strip().split("\n")
-    assert lines[0] == "family\textant_copies\tdated_loglik\tundated_loglik"
-    assert len(lines) >= 2  # header + at least one scored family
-
-
-@needs_rust
 def test_genomes_output_all_writes_full(tmp_path):
     """`--output all` writes the full ZOMBI-1 output (Rust engine)."""
     sp = tmp_path / "sp"

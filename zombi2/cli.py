@@ -273,24 +273,6 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--annotate-species", action="store_true",
                    help="label internal gene-tree nodes <gid>|<species-branch> (e.g. g570|i5)")
 
-    g = p.add_argument_group(
-        "reconciliation likelihoods (ALE)",
-        "score every extant gene tree (forces the full gene-family path)")
-    g.add_argument("--score-likelihoods", action="store_true",
-                   help="also write Reconciliation_likelihoods.tsv: the ALE reconciliation "
-                        "log-likelihood of every extant family's gene tree, under each "
-                        "--score-model, at the --dup/--trans/--loss rates")
-    g.add_argument("--score-model", nargs="+", metavar="MODEL",
-                   choices=("dated", "undated", "reldated"), default=["dated", "undated"],
-                   help="ALE model(s) to score with (default: dated undated). dated = faithful "
-                        "time-sliced likelihood (rates are per-unit-time); undated/reldated use "
-                        "per-branch odds")
-    g.add_argument("--score-nsteps", type=int, default=100, metavar="N",
-                   help="dated model time-grid resolution (sub-steps per slice; default 100)")
-    g.add_argument("--score-origination", choices=("root", "uniform"), default="root",
-                   metavar="WHERE",
-                   help="where the family enters the tree: 'root' (default; exact for root-seeded "
-                        "families) or 'uniform' over branches")
 
     g = p.add_argument_group("structural events (rearrangements)",
                              "--genome-model ordered/nucleotide")
@@ -1487,18 +1469,14 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
         rate_kw["genome_factory"] = lambda ids, _e=ext: OrderedGenome(ids, extension=_e)
 
-    # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the
-    # full path (the fast counts-only / trace paths don't reconstruct gene trees).
-    score = getattr(args, "score_likelihoods", False)
-
     t0 = time.perf_counter()
-    if parts == {"profiles"} and not score and not ordered:
+    if parts == {"profiles"} and not ordered:
         # counts-only Rust fast path: no genealogy reconstructed (parallel when --threads > 1)
         profiles = simulate_genomes(tree, output="profiles", threads=args.threads, **rate_kw)
         dt = time.perf_counter() - t0
         _write_profiles_only(args.out, tree, profiles, sparse=args.sparse)
         n_families = len(profiles.families)
-    elif "trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered:
+    elif "trace" in parts and parts <= {"trace", "profiles"} and not ordered:
         # event-trace fast path: compact Events_trace.tsv (+ profile), no per-event objects,
         # no gene-tree reconstruction — near counts-only speed, trees reconstructable later
         trace = simulate_genomes(tree, output="trace", **rate_kw)
@@ -1511,23 +1489,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         genomes.write(args.out, include=parts, sparse=args.sparse,
                       annotate_species=args.annotate_species)
         n_families = len(genomes.profiles.families)
-        if score:
-            _write_reconciliation_likelihoods(genomes, args)
-    suffix = " + Reconciliation_likelihoods.tsv" if score else ""
-    return (f"wrote [{' '.join(sorted(parts))}]{suffix} to {args.out}/ "
+    return (f"wrote [{' '.join(sorted(parts))}] to {args.out}/ "
             f"({len(tree.leaves())} tips, {n_families} gene families) in {dt:.3g} s")
-
-
-def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None:
-    """Score every extant family's gene tree (ALElite) and write Reconciliation_likelihoods.tsv."""
-    from .alelite import write_scores_tsv
-
-    models = list(dict.fromkeys(args.score_model))  # de-dupe, keep order
-    rows = genomes.reconciliation_likelihoods(
-        args.dup, args.trans, args.loss, models=models,
-        origination=args.score_origination, n_steps=args.score_nsteps,
-    )
-    write_scores_tsv(rows, os.path.join(args.out, "Reconciliation_likelihoods.tsv"), models=models)
 
 
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
