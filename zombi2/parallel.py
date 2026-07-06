@@ -19,8 +19,8 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
-from .simulation import simulate_genomes
-from .species_sim import simulate_species_tree
+from zombi2.genomes.simulation import simulate_genomes
+from zombi2.species.sim import simulate_species_tree
 
 
 def _run_replicate(cfg: dict) -> dict:

@@ -47,12 +47,11 @@ NAMESPACES = {
         "TraitResult", "pagel_lambda", "pagel_delta", "pagel_kappa",
         "DEC", "simulate_biogeography", "Cladogenesis",
     ],
-    "clocks": [
+    "sequences": [
+        # relaxed molecular clocks (folded into sequences — the rate half of sequence evolution)
         "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
         "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",
         "CIRClock", "RateVariation",
-    ],
-    "sequences": [
         "SequenceEvolution", "GenePhylograms",
         "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr",
         "poisson", "lg", "wag", "jtt", "dayhoff", "make_model", "is_protein_model",
@@ -73,8 +72,6 @@ NAMESPACES = {
         "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
         "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     ],
-    # NOTE: "abc" (ABC inference) is intentionally NOT a public namespace in v1 — it is withheld
-    # from the top-level surface. See test_abc_inference_is_insider_only_but_importable below.
     "distributions": [
         "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform",
         "as_distribution",
@@ -122,8 +119,7 @@ def test_from_import_style_works():
     """The scikit-learn ``from zombi2.<ns> import <Name>`` style resolves."""
     from zombi2.species import DiversityDependent, simulate_species_tree
     from zombi2.traits import OrnsteinUhlenbeck
-    from zombi2.sequences import lg
-    from zombi2.clocks import StrictClock, UncorrelatedLogNormalClock
+    from zombi2.sequences import lg, StrictClock, UncorrelatedLogNormalClock
     from zombi2.genomes import simulate_genomes
     from zombi2.coevolve import simulate_coupled
     from zombi2.distributions import Gamma
@@ -144,16 +140,6 @@ def test_top_level_still_exposes_all_original_names():
     assert len(z.__all__) == 133   # 132 joint-model set + CorrelatedBinaryK (Pagel k-trait)
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
-
-
-def test_abc_inference_is_insider_only_but_importable():
-    """ABC inference is withheld from the public top-level surface in v1, but the module stays
-    in-tree, importable, and identity-consistent (so it does not bit-rot while shelved)."""
-    for name in ("match_profiles", "match_coupled", "cooccurrence_summary", "ABCFit"):
-        assert not hasattr(z, name), f"{name} should not be on the public top-level surface"
-    from zombi2.matching import match_profiles           # implementation stays importable + tested
-    from zombi2.abc import match_profiles as ns_match     # thin namespace still works for insiders
-    assert ns_match is match_profiles
 
 
 def test_namespaces_partition_public_api():
@@ -185,6 +171,6 @@ def test_traits_impl_moved_but_backward_compatible():
     home.
     """
     from zombi2.traits import OrnsteinUhlenbeck as ns_ou, _expm  # noqa: F401
-    from zombi2._traits_impl import OrnsteinUhlenbeck as impl_ou
+    from zombi2.traits.models import OrnsteinUhlenbeck as impl_ou
 
     assert ns_ou is impl_ou is z.OrnsteinUhlenbeck
