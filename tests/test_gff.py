@@ -7,7 +7,6 @@ nucleotide simulation.
 
 import gzip
 
-import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, read_gff, simulate_nucleotide_genomes, simulate_species_tree

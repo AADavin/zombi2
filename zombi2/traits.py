@@ -25,7 +25,7 @@ from ._traits_impl import (
     CorrelatedBinaryK, HiddenStateMk, Cladogenesis, simulate_traits,
     replicate_traits, TraitResult,
     pagel_lambda, pagel_delta, pagel_kappa,
-    _expm,
+    _expm,  # noqa: F401 (re-exported for backward compatibility; see the module docstring)
 )
 from .biogeography import DEC, simulate_biogeography
 

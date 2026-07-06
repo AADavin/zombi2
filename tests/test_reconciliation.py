@@ -1,6 +1,5 @@
 """Gene-tree reconstruction and growth-regulation tests."""
 
-import numpy as np
 
 from zombi2 import (
     BirthDeath,

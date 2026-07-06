@@ -6,7 +6,6 @@ pure-Python tests assert) on the Rust result; cross-engine equivalence is statis
 RNG differs) and checked outside the suite.
 """
 
-import numpy as np
 import pytest
 
 import zombi2 as z
