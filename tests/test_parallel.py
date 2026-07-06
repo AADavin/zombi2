@@ -24,10 +24,10 @@ def test_run_replicates_serial_writes_outputs(tmp_path):
         assert (d / "gene_trees").is_dir()
 
 
-def test_replicates_are_independent():
+def test_replicates_are_independent(tmp_path):
     # different seeds -> the replicates are not all identical
     rows = run_replicates(
-        5, "/tmp/zombi2_indep", BirthDeath(1.0, 0.3), n_tips=10, age=4.0,
+        5, str(tmp_path), BirthDeath(1.0, 0.3), n_tips=10, age=4.0,
         duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
         initial_families=10, seed=7, processes=1,
     )

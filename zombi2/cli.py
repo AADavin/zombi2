@@ -250,7 +250,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
 
     g = p.add_argument_group("output")
-    g.add_argument("--write", dest="output", nargs="+", metavar="PART",
+    g.add_argument("--write", dest="write", nargs="+", metavar="PART",
                    choices=(*Genomes.WRITE_PARTS, "ancestral", "all"), default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
                         "transfers, summary} or 'all' (default: profiles trees). species_tree.nwk "
@@ -758,7 +758,7 @@ def _add_traits_genes_args(p: argparse.ArgumentParser) -> None:
                         "its OU dynamics")
 
     g = p.add_argument_group("traits:genes output")
-    g.add_argument("--write", dest="output", nargs="+", metavar="PART",
+    g.add_argument("--write", dest="write", nargs="+", metavar="PART",
                    choices=(*Genomes.WRITE_PARTS, "all"), default=["profiles", "trees"],
                    help="which gene-family outputs to write — any of {profiles, trace, trees, "
                         "events, transfers, summary} or 'all' (default: profiles trees). "
@@ -846,7 +846,7 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
                      "into-species edges that grow a tree")
     with open(args.tree) as f:
         tree = read_newick(f.read())
-    parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
+    parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
     if args.panel < 1:
@@ -1472,7 +1472,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     raises a build hint if the extension is missing); ``per-genome`` runs on Python.
     """
     args.extension = _extension_from_mean_length(args.mean_length)   # mean-length knob → engine p
-    parts = set(Genomes.WRITE_PARTS) if "all" in args.output else set(args.output)
+    parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
     if args.threads > 1 and parts != {"profiles"}:
@@ -2383,6 +2383,9 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "genomes":
         with open(args.tree) as f:
             tree = read_newick(f.read())
+        if len(tree.leaves()) < 2:
+            parser.error(f"{args.tree} is not a usable species tree — fewer than 2 tips "
+                         "(is it a valid Newick file?)")
         summary = _run_genomes(tree, args, parser)
         print(summary)
         _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)

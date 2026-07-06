@@ -170,6 +170,8 @@ def read_newick(newick: str) -> Tree:
     supplied species tree, or a reconstructed gene tree, into the ``Tree`` interface.
     """
     s = newick.strip().rstrip(";")
+    if not s:
+        raise ValueError("empty Newick string — is the tree file empty?")
     i = 0
 
     def parse() -> TreeNode:
