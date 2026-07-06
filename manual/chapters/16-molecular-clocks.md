@@ -14,6 +14,8 @@ chapter steps back and presents the whole **family** of clocks as first-class mo
 interface, so you can rescale *any* tree (a species tree, a gene tree, anything read from Newick),
 compare models, and plug whichever you like into a sequence-evolution run.
 
+![One tree, every clock. A single time-calibrated tree (top-left, black, in time) is rescaled into substitutions by each clock in the family. Every small tree is a **phylogram**: branch lengths are expected substitutions per site, each branch is painted by the rate the clock drew for it (a shared logarithmic colour scale, so a colour means the same rate in every panel), and all panels share one substitutions-per-pixel scale, so branch lengths are directly comparable. The strict clock leaves the tree undistorted; the uncorrelated clocks scatter branch rates independently, so the tips no longer line up; the autocorrelated clocks vary the rate smoothly down the tree. The eight panels are the clocks summarised in the table at the end of the chapter.](figures/clock_family.pdf){width=100%}
+
 ## The strict clock and what relaxing it means
 
 The baseline is the **strict clock**: one rate on every branch. It multiplies the whole tree by a
@@ -37,6 +39,8 @@ kinds:
   you nothing about its neighbours' — rate is a property of the branch alone.
 - **Autocorrelated** clocks anchor each branch's rate to its parent's, so the rate evolves *along*
   the tree and nearby lineages have similar rates.
+
+![Uncorrelated versus autocorrelated, and the proof of the difference. Two painted trees (the same tree) above a scatter of every parent branch's rate against its child's. **Left** (uncorrelated lognormal): each branch draws its rate independently, the colours are salt-and-pepper, and the scatter is a shapeless cloud — a branch's rate says nothing about its child's. **Right** (autocorrelated lognormal): each branch inherits its parent's rate, the colour changes smoothly down the tree, and the scatter hugs the diagonal — child rate tracks parent rate.](figures/clock_correlation.pdf){width=100%}
 
 ## Drawing a phylogram
 
@@ -97,6 +101,8 @@ dependence is what sets it apart from the plain gamma clock above.
 z.WhiteNoiseClock(sigma=0.5).scale(tree, seed=2)
 ```
 
+![The per-branch rate distribution behind each uncorrelated clock, and the one knob that sets its spread. All three are centred on mean rate 1, so the tree's average length is preserved. **Lognormal**: `sigma` widens the spread ($\sigma = 0$ recovers the strict clock). **Gamma**: the `shape` controls it *inversely* — a large shape concentrates rates near 1. **White noise**: the same gamma, but its variance is $\sigma^2/\Delta t$, so a short branch draws a wildly variable rate while a long branch averages back toward 1.](figures/clock_distributions.pdf){width=100%}
+
 ::: note
 The uncorrelated clocks are memoryless across branches. Two branches meeting at a node can have very
 different rates — there is no smoothing. If you expect rates to change gradually down the tree,
@@ -132,6 +138,8 @@ the mean times the total time rather than drifting.
 ```python
 z.CIRClock(theta=1.0, sigma=0.4, mean=1.0).scale(tree, seed=2)
 ```
+
+![Random walk versus mean reversion — the difference between the two autocorrelated clocks. Each panel plots many sample paths of the instantaneous rate against elapsed time. **Left** (autocorrelated lognormal): a geometric random walk with no restoring force, so the paths fan out without bound and the tree's total length wanders with them. **Right** (Cox–Ingersoll–Ross): a mean-reverting diffusion — the drift pulls every path back toward the long-run mean, so the spread stabilises and the total length stays close to the mean times the elapsed time. CIR also varies the rate *within* a branch, which the lognormal walk, jumping only at nodes, does not.](figures/clock_cir.pdf){width=100%}
 
 **Discrete-bin (GTDB)** — the model of Chapter 15's `RateVariation`, also an autocorrelated clock: an
 ordered set of rate bins with a nearest-neighbour Markov walk between them along the tree. It is
