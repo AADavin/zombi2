@@ -105,6 +105,14 @@ class ZombiHelpFormatter(argparse.RawDescriptionHelpFormatter):
         return super()._format_action(action)
 
 
+def _examples(*lines: str) -> str:
+    """Build an ``EXAMPLES`` epilog block in the house style: a bold header on a TTY
+    (plain when the output is piped), followed by the given lines verbatim. Safe because
+    the parser's formatter is ``RawDescription``-based, so these line breaks are kept."""
+    header = _BOLD + "EXAMPLES" + _RESET if _use_color() else "EXAMPLES"
+    return header + "\n" + "\n".join(lines)
+
+
 def _int_or_float(text: str) -> int | float:
     """Parse ``--max-family-size``: a plain integer is an absolute cap, a value with a
     decimal point is a fraction of the number of species (e.g. ``0.5`` -> half of N)."""
@@ -2197,14 +2205,16 @@ def _iter_leaves(node):
         yield from _iter_leaves(child)
 
 
-def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder):
+def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder,
+                    epilog: str | None = None):
     """Register a subcommand with the house-style formatter and a hand-written compact usage.
 
     The command list itself is curated (grouped by theme) in the top-level description, so the
     per-command ``help`` is suppressed from argparse's auto listing to avoid a duplicate dump.
+    ``epilog`` (built with :func:`_examples`) adds a worked-example block below the options.
     """
     p = sub.add_parser(name, help=help, description=description, usage=usage,
-                       formatter_class=ZombiHelpFormatter)
+                       epilog=epilog, formatter_class=ZombiHelpFormatter)
     adder(p)
     return p
 
@@ -2213,6 +2223,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,
         formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # 1. a dated species tree (20 extant tips)",
+            "  zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/",
+            "",
+            "  # 2. gene families along it",
+            "  zombi2 genomes -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/",
+            "",
+            "  # 3. a trait (or sequences, or coupled processes) on the same tree",
+            "  zombi2 trait -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
+            "",
+            "Run 'zombi2 <command> -h' for a command's options and its own examples.",
+        ),
     )
     parser.add_argument("--version", action="version", version=f"ZOMBI2 {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
@@ -2221,19 +2243,40 @@ def main(argv: list[str] | None = None) -> int:
         sub, "species", "simulate a dated species tree",
         "Simulate a dated species tree.",
         "zombi2 species -o DIR [--mode MODE] [--diversification PROCESS] [options]",
-        _add_species_args)
+        _add_species_args,
+        epilog=_examples(
+            "  # backward birth-death tree, 50 extant tips at age 5",
+            "  zombi2 species --birth 1 --death 0.3 --tips 50 --age 5 --seed 1 -o out/",
+            "",
+            "  # forward simulation to a fixed age (complete tree, keeps extinct lineages)",
+            "  zombi2 species --mode forward --birth 1 --death 0.4 --age 5 --seed 1 -o out/",
+        ))
 
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree.",
         "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-model MODEL] "
         "[--write PART ...] [options]",
-        _add_rate_args)
+        _add_rate_args,
+        epilog=_examples(
+            "  # DTL gene families with a full event log and gene trees",
+            "  zombi2 genomes -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/",
+            "",
+            "  # counts-only profiles (scales to very large trees)",
+            "  zombi2 genomes -t out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 --write profiles --seed 42 -o out/",
+        ))
 
     _add_subcommand(
         sub, "trait", "evolve a phenotypic trait along a given species tree",
         "Evolve a phenotypic trait along a species tree, writing tip and ancestral values.",
-        "zombi2 trait -t FILE -o DIR [--model MODEL] [options]", _add_trait_args)
+        "zombi2 trait -t FILE -o DIR [--model MODEL] [options]", _add_trait_args,
+        epilog=_examples(
+            "  # Ornstein-Uhlenbeck continuous trait",
+            "  zombi2 trait -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
+            "",
+            "  # 3-state discrete Mk trait, 20 replicates",
+            "  zombi2 trait -t out/species_tree.nwk --model mk --states 3 --replicates 20 --seed 1 -o out/",
+        ))
 
     # 'abc' (ABC inference) is intentionally not registered for v1 — see the note by _DESCRIPTION.
     # To re-enable: _add_subcommand(sub, "abc", ..., _add_abc_args) and restore its dispatch below.
@@ -2243,7 +2286,14 @@ def main(argv: list[str] | None = None) -> int:
         "Co-evolve coupled processes over {species, traits, genes} — pick directed edges with "
         "--couple (e.g. traits:species = SSE, traits:genes = trait-conditioned gene families).",
         "zombi2 coevolve -o DIR --couple DRIVER:TARGET [-t FILE] [--age T|--tips N] [options]",
-        _add_coevolve_mode_args)
+        _add_coevolve_mode_args,
+        epilog=_examples(
+            "  # trait-conditioned gene families (loss/gain depends on a simulated trait)",
+            "  zombi2 coevolve --couple traits:genes -t out/species_tree.nwk --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/",
+            "",
+            "  # trait-dependent diversification (BiSSE), grows the tree",
+            "  zombi2 coevolve --couple traits:species --sse-model bisse --tips 50 --seed 1 -o out/",
+        ))
 
     _add_subcommand(
         sub, "sequence", "simulate DNA/protein alignments along a genomes run's gene trees",
@@ -2252,7 +2302,14 @@ def main(argv: list[str] | None = None) -> int:
         "alignment along each rescaled gene tree.",
         "zombi2 sequence --genomes DIR -o DIR [--subst-model MODEL] "
         "[--clock MODEL [--clock-sigma S]] [options]",
-        _add_sequence_args)
+        _add_sequence_args,
+        epilog=_examples(
+            "  # rescale gene trees into substitutions/site (needs a 'genomes' run done with --write trace)",
+            "  zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/",
+            "",
+            "  # ...and also simulate DNA alignments under HKY85",
+            "  zombi2 sequence --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
+        ))
 
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
     try:
