@@ -10,7 +10,6 @@ minting schemes, so comparisons are gid-independent).
 
 import re
 
-import numpy as np
 import pytest
 
 import zombi2 as z

@@ -41,3 +41,16 @@ packages = ["zombi2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Ruff's default rule set (pyflakes + core pycodestyle), pinned, minus a few that flag
+# deliberate, readable patterns in the numerical code.
+select = ["E4", "E7", "E9", "F"]
+ignore = [
+    "E741",  # ambiguous names like `l` / `O` — conventional in the rate-matrix / math code
+    "E702",  # multiple statements on one line (;) — tight COO sparse-assembly loops
+    "E731",  # lambda assignment — occasional and deliberate
+]
