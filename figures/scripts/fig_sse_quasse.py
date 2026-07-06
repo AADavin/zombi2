@@ -34,7 +34,7 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1200, 700
+W, H = 1200, 620          # trimmed height: content ends ~570, this leaves a tidy bottom margin
 N_TIPS = 14
 
 # lambda(x) rises sigmoidally with the trait; mu flat; slow diffusion
@@ -45,8 +45,8 @@ XLO, XHI = -3.2, 3.2
 
 
 # --------------------------------------------------------------------------- panel A: the model
-def panel_model(d, ox, oy, pw, ph):
-    d.append(draw.Text("A   the model", FS_LABEL, ox, oy - 18, font_family=FONT,
+def panel_model(d, ox, oy, pw, ph, title_y):
+    d.append(draw.Text("A   the model", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
     x_at = lambda x: ox + (x - XLO) / (XHI - XLO) * pw      # noqa: E731
     rmax = SPEC(XHI) * 1.08
@@ -103,7 +103,7 @@ def _pick(seed_range):
     return best
 
 
-def panel_realization(d, ox, oy, pw, ph):
+def panel_realization(d, ox, oy, pw, ph, title_y):
     _, seed, res, ete, vals = _pick(range(1, 160))
     lo, hi = min(vals.values()), max(vals.values())
     norm = lambda v: (v - lo) / (hi - lo) if hi > lo else 0.5   # noqa: E731
@@ -113,7 +113,7 @@ def panel_realization(d, ox, oy, pw, ph):
     x_at = lambda t: ox + 40 + (t / present) * (pw - 150)       # noqa: E731
     y_at = lambda k: oy + 40 + (k / max(1, nleaf - 1)) * (ph - 96)   # noqa: E731
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 18, font_family=FONT,
+    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
 
     for n in ete.traverse():
@@ -142,12 +142,13 @@ def panel_realization(d, ox, oy, pw, ph):
             d.append(draw.Rectangle(colc - 8, y - 8, 16, 16, fill=col(n.name),
                                     stroke=INK, stroke_width=1.0))
 
-    # colour bar
+    # colour bar -- tuck it just under the tree (its actual bottom row), not far below the panel
     grad = draw.LinearGradient(ox, 0, ox + 200, 0)
     for t, c in VIRIDIS:
         grad.add_stop(t, hexc(c))
     d.append(grad)
-    by = oy + ph + 6
+    tree_bot = y_at(nleaf - 1)
+    by = tree_bot + 40
     d.append(draw.Rectangle(ox, by, 200, 14, fill=grad, stroke=INK, stroke_width=0.8))
     d.append(draw.Text(f"{lo:+.1f}", FS_TICK, ox, by + 30, font_family=FONT, text_anchor="start", fill="#555"))
     d.append(draw.Text(f"{hi:+.1f}", FS_TICK, ox + 200, by + 30, font_family=FONT, text_anchor="end", fill="#555"))
@@ -162,8 +163,12 @@ def render():
     d.append(draw.Text("Continuous-trait diversification (QuaSSE)", FS_TITLE, W / 2, 46,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
-    panel_model(d, 110, 190, 360, 300)
-    seed = panel_realization(d, 620, 150, 520, 400)
+    # both panels share a title baseline and a common plotting top so A and B line up cleanly;
+    # panel A's trait strip and panel B's colour bar then sit at comparable heights.
+    title_y = 150
+    top = 200
+    panel_model(d, 110, top, 360, 300, title_y)
+    seed = panel_realization(d, 620, top, 520, 356, title_y)
 
     name = "sse_quasse"
     out = OUT_DIR / name
