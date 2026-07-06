@@ -134,7 +134,7 @@ tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3),
 
 # 2. gene families along it
 genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_size=40, seed=42)
+                             origination=0.5, initial_families=40, seed=42)
 
 print(tree.to_newick())
 print(genomes.profiles.matrix)          # families × species copy numbers
