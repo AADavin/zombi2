@@ -43,7 +43,10 @@ The fastest way to get this right is to copy the nearest existing model and chan
 
 A public model is reachable **two ways, as the same object**: from the top level
 (`zombi2.MyModel`) and from its level's submodule (`zombi2.species.MyModel`). Add it to both
-re-export lists and to `__all__` in `zombi2/__init__.py`.
+re-export lists and to `__all__` in `zombi2/__init__.py`. The docs and examples use the
+**submodule form** (`from zombi2.species import MyModel`) as canonical — it mirrors the four levels
+and keeps `zombi2.<TAB>` from becoming an undifferentiated dump as the catalog grows; the top-level
+alias stays for quick interactive use.
 
 ## 4. Add the CLI surface
 
@@ -75,35 +78,43 @@ Always include a determinism test. Choose tolerances in the spirit of the existi
 
 ## 6. Document it — the catalog page
 
-Every model gets one page in the **model catalog**, all in the same shape, so breadth stays
-legible. Copy this template (see [birth–death](../models/birth-death.md) for a filled example):
+Models are documented in **family pages**: one page per family of related models (e.g. *Diversification
+models*, *Continuous-trait models*, *DNA substitution models*), grouped by level in the catalog nav.
+Related variants share a page so breadth stays legible — the way IQ-TREE lists its substitution
+models. The page **title is the family name with no level suffix** (the nav section already carries the
+level); name each model by its common acronym, expanded on first use — never "(trait)"/"(species tree)".
+
+Copy this shape (see [diversification models](../models/diversification.md) for a filled example):
 
 ```markdown
-# <Model name>
+# <Family name>
 
-**What it is.** One paragraph: the process, and one citation.
+<One paragraph: the shared process, and how the variants extend it.>
 
-**When to use it.** The scientific question it answers, and how it differs from its siblings.
-
-## Parameters
-| Parameter | Meaning | Default |
+| Model | What varies | Reach for it when |    (a scannable overview, one row per model)
 | --- | --- | --- |
 
+## The models
+### <Model A (ACRONYM)>    (one compact paragraph each: what it is, key params, when to use it)
+### <Model B>
+
 ## Command line
-`zombi2 <cmd> --model <x> ...`  + one runnable example.
+`zombi2 <cmd> --<selector> <x> ...` + a runnable example per model.
 
 ## Python
-A short `simulate_*` snippet.
+A `from zombi2.<level> import ...` snippet — the canonical namespaced form.
 
 ## Output
 Which files/columns it produces (link the conventions).
 
 ## Validation
-How we know it is correct — name the test and what it checks.
+One bullet per model, naming its test and what it checks — the hard rule, kept visible.
 
-## Reference
-The citation.
+## References
+The citations.
 ```
+
+A single-model family (e.g. biogeography's DEC) still gets its own page in this shape.
 
 ## What belongs in the core
 

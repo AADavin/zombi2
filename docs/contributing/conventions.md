@@ -115,7 +115,10 @@ Event codes are single letters: **O**rigination, **D**uplication, **T**ransfer, 
   state, no engine switch visible to the user.
 - **Namespaces mirror the levels.** Everything is exported at the top level (`zombi2.BirthDeath`)
   and from a scikit-learn-style submodule (`zombi2.species.BirthDeath`) — the *same* objects.
-  A new model is exported from both, and listed in `zombi2/__init__.py`'s `__all__`.
+  A new model is exported from both, and listed in `zombi2/__init__.py`'s `__all__`. The docs and
+  examples use the **submodule form** (`from zombi2.species import BirthDeath, simulate_species_tree`)
+  as canonical — it mirrors the levels and keeps `zombi2.<TAB>` legible as the catalog grows; the
+  top-level alias stays for quick interactive use.
 - **`seed=` / `rng=` on every simulator**, matching the reproducibility rule above.
 
 ## CLI grammar
