@@ -1,34 +1,39 @@
 # Installation
 
-ZOMBI2 needs Python ≥ 3.10. The library depends only on **numpy**, but the built-in
-(default) gene-family engine is a compiled **Rust** extension that you build once with
-[maturin](https://www.maturin.rs/).
+ZOMBI2 needs Python ≥ 3.10.
 
-## From source
+## With pip
+
+```bash
+pip install zombi2
+```
+
+This installs the pure-Python `zombi2` package together with its compiled engine
+`zombi2_core`, for which prebuilt binary wheels are published for Linux, macOS and
+Windows (CPython 3.10 and newer). No Rust toolchain is needed. If no wheel matches
+your platform, pip builds `zombi2_core` from source, which requires a
+[Rust toolchain](https://rustup.rs).
+
+## From source (development)
+
+The compiled engine (`zombi2_core`, in `rust/`) is a **separate package that
+`zombi2` depends on**. Build and install it *first*, then install `zombi2`
+editable — otherwise pip tries to fetch `zombi2_core` from an index before it is
+published:
 
 ```bash
 git clone https://github.com/AADavin/zombi2.git
 cd zombi2
-pip install -e . maturin
 
-# build the compiled gene-family engine (required for the default `genomes` model)
-cd rust && maturin build --release -i python3
-pip install --force-reinstall target/wheels/*.whl
+pip install ./rust          # compiled gene-family engine (needs a Rust toolchain)
+pip install -e ".[dev]"     # the library + dev tools (pytest, scipy)
+pytest
 ```
 
 The editable install exposes the `zombi2` command-line tool. Species trees, traits,
 sequences, and the flexible-rate genome models run in pure Python — but the **default
 `genomes` engine needs the compiled extension**, and without it `zombi2 genomes` exits
 with a build hint that points back to this step.
-
-## Development extras
-
-To run the test suite and the statistical checks:
-
-```bash
-pip install -e ".[dev]"   # adds pytest and scipy
-pytest
-```
 
 ## Optional dependencies
 

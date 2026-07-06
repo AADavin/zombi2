@@ -6,9 +6,9 @@
 <rect x="0" y="0" width="1080" height="620" fill="white" />
 <text x="540.0" y="52" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Couplings J tie families into modules</text>
 <path d="M240.0,104 L278.0,104" stroke="#2f8f4e" stroke-width="4.5" />
-<text x="288.0" y="104" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &gt; 0  (partners co-occur)</text>
+<text x="288.0" y="104" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &gt; 0  (partners co-occur)</text>
 <path d="M600.0,104 L638.0,104" stroke="#cc4b3c" stroke-width="4.0" stroke-dasharray="9,6" />
-<text x="648.0" y="104" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &lt; 0  (partners avoid)</text>
+<text x="648.0" y="104" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">J &lt; 0  (partners avoid)</text>
 <path d="M300,260 L230,380" stroke="#2f8f4e" stroke-width="4.5" />
 <path d="M300,260 L390,378" stroke="#2f8f4e" stroke-width="4.5" />
 <path d="M230,380 L390,378" stroke="#2f8f4e" stroke-width="4.5" />
@@ -29,11 +29,11 @@
 <circle cx="940" cy="378" r="34" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="940" y="378" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
 <path d="M300,205 L300,224" stroke="#8a8a8a" stroke-width="1.2" />
-<text x="300" y="196" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">a gene family</text>
+<text x="300" y="196" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">a gene family</text>
 <path d="M150,306 L262,320" stroke="#8a8a8a" stroke-width="1.2" />
-<text x="146" y="302" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">a coupling J</text>
+<text x="146" y="302" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">a coupling J</text>
 <text x="310" y="460" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4477AA" font-weight="bold">module 1</text>
 <text x="860" y="460" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E08A3C" font-weight="bold">module 2</text>
-<text x="540.0" y="540" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">families are nodes, couplings are edges; mutually positive J form a module</text>
-<text x="540.0" y="568" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">a weak J &lt; 0 between modules keeps them apart</text>
+<text x="540.0" y="540" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">families are nodes, couplings are edges; mutually positive J form a module</text>
+<text x="540.0" y="568" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">a weak J &lt; 0 between modules keeps them apart</text>
 </svg>

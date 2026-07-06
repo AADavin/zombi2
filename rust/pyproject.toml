@@ -4,9 +4,29 @@ build-backend = "maturin"
 
 [project]
 name = "zombi2_core"
-version = "0.1.0"
-description = "Optional Rust fast-path engine for ZOMBI2"
+version = "0.2.0.dev0"
+description = "Compiled Rust engine for ZOMBI2's built-in gene-family model"
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [{ name = "Adrian A. Davin" }]
+keywords = ["phylogenetics", "simulation", "gene families", "birth-death"]
+license = "GPL-3.0-or-later"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/AADavin/zombi2"
+Repository = "https://github.com/AADavin/zombi2"
 
 [tool.maturin]
+# The crate builds one stable-ABI (abi3) wheel per platform, usable on
+# CPython 3.10+ -- see the pyo3 `abi3-py310` feature in Cargo.toml.
 module-name = "zombi2_core"

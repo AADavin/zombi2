@@ -8,8 +8,8 @@
 <rect x="120" y="150" width="430" height="430" fill="none" stroke="#cccccc" stroke-width="1.2" />
 <path d="M120,365.0 L550,365.0" stroke="#d9d9d9" stroke-width="1" />
 <path d="M335.0,150 L335.0,580" stroke="#d9d9d9" stroke-width="1" />
-<text x="544" y="355.0" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">trait X</text>
-<text x="345.0" y="168" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">trait Y</text>
+<text x="544" y="355.0" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">trait X</text>
+<text x="345.0" y="168" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">trait Y</text>
 <circle cx="387.68631171420526" cy="462.05089932069825" r="3.0" fill="#b4b4b4" fill-opacity="0.55" />
 <circle cx="344.6078425501173" cy="387.5075691716323" r="3.0" fill="#b4b4b4" fill-opacity="0.55" />
 <circle cx="302.34172698818975" cy="389.93612032401535" r="3.0" fill="#b4b4b4" fill-opacity="0.55" />
@@ -302,8 +302,8 @@
 <rect x="650" y="150" width="430" height="430" fill="none" stroke="#cccccc" stroke-width="1.2" />
 <path d="M650,365.0 L1080,365.0" stroke="#d9d9d9" stroke-width="1" />
 <path d="M865.0,150 L865.0,580" stroke="#d9d9d9" stroke-width="1" />
-<text x="1074" y="355.0" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">trait X</text>
-<text x="875.0" y="168" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">trait Y</text>
+<text x="1074" y="355.0" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">trait X</text>
+<text x="875.0" y="168" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">trait Y</text>
 <circle cx="812.7529525971239" cy="451.2839951697125" r="3.0" fill="#b4b4b4" fill-opacity="0.55" />
 <circle cx="848.8188640150065" cy="337.6073557017918" r="3.0" fill="#b4b4b4" fill-opacity="0.55" />
 <circle cx="939.0151528743252" cy="357.852461862367" r="3.0" fill="#b4b4b4" fill-opacity="0.55" />
@@ -593,7 +593,7 @@
 <circle cx="963.0961470198383" cy="385.66173133287543" r="4.0" fill="#555555" />
 <circle cx="865.0" cy="365.0" r="4.0" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <text x="865.0" y="132" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Independent  (rho = 0)</text>
-<text x="335.0" y="602" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R = [[1, 0.75], [0.75, 1]]</text>
-<text x="865.0" y="602" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R = [[1, 0], [0, 1]]</text>
-<text x="600.0" y="632" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">dots = endpoints,  ring = 95% ellipse,  lines = sample paths</text>
+<text x="335.0" y="602" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R = [[1, 0.75], [0.75, 1]]</text>
+<text x="865.0" y="602" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R = [[1, 0], [0, 1]]</text>
+<text x="600.0" y="632" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">dots = endpoints,  ring = 95% ellipse,  lines = sample paths</text>
 </svg>

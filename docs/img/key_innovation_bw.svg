@@ -6,20 +6,20 @@
 <rect x="0" y="0" width="1200" height="700" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Key-innovation diversification (genes to species)</text>
 <path d="M300.0,82 L332.0,82" stroke="#1a1a1a" stroke-width="5.2" />
-<text x="340.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">carries the driver</text>
+<text x="340.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">carries the driver</text>
 <path d="M510.0,82 L542.0,82" stroke="#9a9a9a" stroke-width="2.4" />
-<text x="550.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">no driver</text>
+<text x="550.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">no driver</text>
 <circle cx="678.0" cy="82" r="10.0" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M672.8,82 L683.2,82" stroke="#1a1a1a" stroke-width="2.2" />
 <path d="M678.0,76.8 L678.0,87.2" stroke="#1a1a1a" stroke-width="2.2" />
-<text x="696.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">gain / loss</text>
+<text x="696.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">gain / loss</text>
 <text x="150" y="170" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the model</text>
 <path d="M243.48533431783318,314.10658116006135 Q335.0,298.0,426.5146656821668,314.10658116006135" fill="none" stroke="#1a1a1a" stroke-width="4.388548009269341" stroke-linecap="round" />
 <path d="M426.5146656821668,314.10658116006135 L415.8452507642349,316.78306865471023 L417.40019985239223,307.9481306538161 Z" fill="#1a1a1a" />
-<text x="335.0" y="282.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">gain</text>
+<text x="335.0" y="282.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">gain</text>
 <path d="M426.5146656821668,325.89341883993865 Q335.0,342.0,243.48533431783318,325.89341883993865" fill="none" stroke="#1a1a1a" stroke-width="2.68" stroke-linecap="round" />
 <path d="M243.48533431783318,325.89341883993865 L254.1547492357651,323.21693134528977 L252.59980014760774,332.0518693461838 Z" fill="#1a1a1a" />
-<text x="335.0" y="358.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">loss</text>
+<text x="335.0" y="358.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">loss</text>
 <circle cx="210" cy="320" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="210" y="320" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">D-</text>
 <circle cx="460" cy="320" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
@@ -30,10 +30,10 @@
 <path d="M460,366 L460,382" stroke="#1a1a1a" stroke-width="7.040000000000001" stroke-linecap="round" />
 <path d="M460,382 L438,404" stroke="#1a1a1a" stroke-width="7.040000000000001" stroke-linecap="round" />
 <path d="M460,382 L482,404" stroke="#1a1a1a" stroke-width="7.040000000000001" stroke-linecap="round" />
-<text x="210" y="440" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">slow speciation</text>
-<text x="460" y="440" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">fast speciation</text>
-<text x="335.0" y="224" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">gain = transfer (proportional to prevalence) + origination</text>
-<text x="335.0" y="478" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">carriers speciate faster, so the driver's clades grow</text>
+<text x="210" y="440" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">slow speciation</text>
+<text x="460" y="440" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">fast speciation</text>
+<text x="335.0" y="224" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">gain = transfer (proportional to prevalence) + origination</text>
+<text x="335.0" y="478" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">carriers speciate faster, so the driver's clades grow</text>
 <text x="560" y="144" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
 <path d="M600.0,201.0 L832.9490759649265,201.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M600.0,441.7109375 L729.5935168491784,441.7109375" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="butt" />
@@ -95,7 +95,7 @@
 <path d="M784.222955201853,234.0 L784.222955201853,404.84375" stroke="#1a1a1a" stroke-width="2.4" />
 <path d="M729.5935168491784,319.421875 L729.5935168491784,564.0" stroke="#1a1a1a" stroke-width="2.4" />
 <path d="M600.0,201.0 L600.0,441.7109375" stroke="#1a1a1a" stroke-width="2.4" />
-<text x="1130" y="158" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">driver</text>
+<text x="1130" y="158" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">driver</text>
 <rect x="1121" y="181.0" width="18" height="18" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1121" y="203.0" width="18" height="18" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <rect x="1121" y="247.0" width="18" height="18" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
