@@ -68,10 +68,16 @@ nav:
       - Running in parallel: guide/parallel.md
       - Rust engine: guide/rust-engine.md
       - Extending ZOMBI2: guide/extending.md
+  - Model catalog:
+      - Birth–death (species tree): models/birth-death.md
   - Cookbook: cookbook.md
   - FAQ: faq.md
   - Comparison with ZOMBI-1: comparison.md
-  - Contributing: contributing.md
+  - Validation: validation.md
+  - Contributing:
+      - Overview: contributing.md
+      - Adding a model: contributing/adding-a-model.md
+      - Conventions: contributing/conventions.md
   - Publishing a release: publishing.md
   - API reference: reference/api.md
   - Roadmap:
