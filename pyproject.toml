@@ -11,6 +11,23 @@ requires-python = ">=3.10"
 authors = [{ name = "Adrian A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
 dependencies = ["numpy>=1.24"]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/AADavin/zombi2"
+Repository = "https://github.com/AADavin/zombi2"
+Issues = "https://github.com/AADavin/zombi2/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "scipy>=1.10"]

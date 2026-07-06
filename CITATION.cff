@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use ZOMBI2, please cite it using the metadata in this file."
+title: "ZOMBI2: a phylogenetic simulator of species trees, genomes, traits and sequences"
+abstract: >-
+  ZOMBI2 simulates evolution in two steps: it builds a species tree and then evolves
+  gene families along it under duplication, transfer, loss and origination, together
+  with phenotypic traits and molecular sequences. It is a ground-up redesign of ZOMBI,
+  with a fast Rust engine, a command-line interface and a composable Python library.
+type: software
+authors:
+  - given-names: "Adrián A."
+    family-names: "Davin"
+    email: "aaredav@gmail.com"
+version: "0.2.0.dev0"
+license: "GPL-3.0-or-later"
+repository-code: "https://github.com/AADavin/zombi2"
+url: "https://github.com/AADavin/zombi2"
+keywords:
+  - phylogenetics
+  - simulation
+  - gene families
+  - birth-death
+  - evolution
+# When the ZOMBI2 paper is published, add its DOI and a `preferred-citation:` block here
+# so that citations resolve to the article rather than the software repository.
