@@ -33,7 +33,7 @@ zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
 The result is a timed tree with 20 surviving tips. `BirthDeath` is the model; `birth` and
 `death` are the per-lineage speciation and extinction rates.
 
-![A simulated species tree with the duplication, loss and transfer events of one gene family marked on its branches.](figures/species_tree_events.pdf)
+![A simulated species tree with the duplication, loss and transfer events of one gene family marked on its branches.](figures/species_tree_events.pdf){width=100%}
 
 ## Evolving gene families along the tree
 
@@ -94,7 +94,7 @@ losses (leaves labelled `LOSS_<id>`). The *extant* tree is pruned to lineages wi
 copy, with unifurcations suppressed; its leaves are labelled `<species>_<geneid>`. The number of
 leaves in an extant tree equals the family's total copy count across all species.
 
-![A gene family's *complete* gene tree: every copy implied by its duplication, transfer, and loss events — including a copy that was later lost (the dashed lineage ending in a cross). The *extant* tree is this tree pruned to the surviving copies.](figures/gene_tree.pdf)
+![A gene family's *complete* gene tree: every copy implied by its duplication, transfer, and loss events — including a copy that was later lost (the dashed lineage ending in a cross). The *extant* tree is this tree pruned to the surviving copies.](figures/gene_tree.pdf){width=100%}
 
 ## Reading the results back in Python
 
