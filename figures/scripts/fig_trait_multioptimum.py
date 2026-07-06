@@ -31,7 +31,8 @@ from fig_trait_bm import VIRIDIS, hexc, viridis, color_bar
 from model_common import zombi_to_ete3
 from zombi_style import INK, MUTED, species_style, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
-OUT_STEM = Path("/Users/aadria/Desktop/CLAUDE/ZOMBI2/figures/trait_multioptimum/trait_multioptimum")
+OUT_STEM = Path(__file__).resolve().parent.parent / "trait_multioptimum" / "trait_multioptimum"
+OUT_STEM.parent.mkdir(parents=True, exist_ok=True)
 
 N_TIPS, AGE, TREE_SEED = 28, 1.0, 3
 THETA = [-5.0, 5.0]
@@ -62,7 +63,13 @@ def main():
     reg, res = pick_seeds(ztree)
     val = {n.name: float(v) for n, v in res.node_values.items()}
     regime = {n.name: int(r) for n, r in reg.node_values.items()}
-    vmin, vmax = min(val.values()), max(val.values())
+    # Include both optima in the colour range so their markers fall inside the colour bar
+    # (a tip need not reach theta exactly); branches use the same range, so bar and tree agree.
+    # A small margin beyond the extremes keeps either theta marker off the bar's border.
+    lo = min(min(val.values()), *THETA)
+    hi = max(max(val.values()), *THETA)
+    pad = 0.05 * (hi - lo)
+    vmin, vmax = lo - pad, hi + pad
     norm = lambda v: (v - vmin) / (vmax - vmin) if vmax > vmin else 0.5     # noqa: E731
     node_to_rgb = {name: viridis(norm(v)) for name, v in val.items()}
 
@@ -70,6 +77,19 @@ def main():
     style = species_style(width=1180, height=740, margin=120, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
+
+    # Compress the tree vertically a touch and drop its top edge, so the header band
+    # (colour bar + the two-optima caption) sits clear of the top branches instead of
+    # crowding them. Remap every node's y into a slightly shorter band that starts lower.
+    ys = [n.coordinates[1] for n in tree.traverse()]
+    y_top, y_bot = min(ys), max(ys)
+    NEW_TOP, NEW_BOT = y_top + 55.0, y_bot - 15.0          # start lower, end a touch higher
+    span = (y_bot - y_top) or 1.0
+    for n in tree.traverse():
+        x, y = n.coordinates
+        n.coordinates = (x, NEW_TOP + (y - y_top) / span * (NEW_BOT - NEW_TOP))
+        n.y_coord = n.coordinates[1]
+
     d.plot_continuous_variable(node_to_rgb, stroke_width=BRANCH_W)
 
     # regime bar per tip (the discrete map that sets which optimum a lineage chases)
@@ -89,6 +109,10 @@ def main():
                                text_anchor="middle", dominant_baseline="central", fill=INK))
     bar_x, bar_y, bar_w, bar_h = -style.width / 2 + 32, -style.height / 2 + 96, 220, 18
     color_bar(d, x=bar_x, y=bar_y, w=bar_w, h=bar_h, vmin=vmin, vmax=vmax, title="Trait value")
+    # mark the two optima (theta) on the colour bar; the ticks sit INSIDE the bar boundary
+    for th in THETA:
+        tx = bar_x + max(0.0, min(1.0, (th - vmin) / (vmax - vmin))) * bar_w
+        d.drawing.append(draw.Line(tx, bar_y + 1, tx, bar_y + bar_h - 1, stroke=INK, stroke_width=2.4))
     d.drawing.append(draw.Text(f"two optima: theta = {THETA[0]:g} and {THETA[1]:g}", FS_TICK,
                                bar_x, bar_y + bar_h + 46, font_family=fam, text_anchor="start",
                                fill=MUTED))

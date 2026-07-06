@@ -12,7 +12,10 @@ heterogeneity a plain Mk cannot represent.
     is slow; small circles mark observed-state changes; tip chips give the observed 0/1. The
     observed changes cluster on the fast (heavy) branches — the signature of hidden rate classes.
 
-House style: B&W, one centered title, ASCII text.
+This figure is produced in two palettes from one run: a soft, low-saturation COLOUR version
+(the default, trait_hiddenmk.svg/.png) and the original B&W version (trait_hiddenmk_bw.svg/.png).
+In colour the fast hidden class (and the observed-1 chips) is a muted accent hue; in B&W it is
+near-black. The BW look is preserved so the monochrome figure can always be regenerated.
 
 Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_hiddenmk.py
 """
@@ -38,6 +41,12 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 660
 GREY = "#9a9a9a"
+# The fast hidden class (heavy branches) and the observed-1 chips carry the colour. Two palettes;
+# BW preserves the original near-black look, COLOUR uses the shared dusty-blue accent. FAST_INK is
+# set per render mode.
+FAST_BW    = INK
+FAST_COLOR = "#5a86a0"               # dusty blue, matches the Mk / Pagel colour set
+FAST_INK = FAST_COLOR               # active "fast / present" colour (set per mode)
 OBS_STATES, HID_STATES = ["0", "1"], ["slow", "fast"]
 SLOW, FAST, HIDDEN_RATE = 0.4, 3.5, 0.7
 N_TIPS, AGE, TREE_SEED, TRAIT_SEED = 11, 1.0, 3, 9
@@ -101,7 +110,7 @@ def panel_realization(d, ox, oy, pw, ph):
                        text_anchor="start", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, fast):
-        d.append(draw.Line(x1, y, x2, y, stroke=INK if fast else GREY,
+        d.append(draw.Line(x1, y, x2, y, stroke=FAST_INK if fast else GREY,
                            stroke_width=5.2 if fast else 2.4, stroke_linecap="butt"))
 
     for n in tree.traverse():
@@ -126,7 +135,7 @@ def panel_realization(d, ox, oy, pw, ph):
                        fill=INK, font_weight="bold"))
     for n in tree.get_leaves():
         y = y_at(ys[n.name])
-        chip(d, colc, y, obs_tip[n.name] == "1")
+        chip(d, colc, y, obs_tip[n.name] == "1", fill_on=FAST_INK)
 
     base = oy + ph - 14
     d.append(draw.Line(x_at(0), base, x_at(present), base, stroke=INK, stroke_width=1.6))
@@ -141,14 +150,14 @@ def panel_realization(d, ox, oy, pw, ph):
 
 
 # --------------------------------------------------------------------------- render
-def render():
+def render_one(name):
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Hidden rate classes (corHMM)", FS_TITLE, W / 2, 46, font_family=FONT,
                        text_anchor="middle", font_weight="bold", fill=INK))
     # legend: hidden-class branch shading + observed chips
     ly = 82
-    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=INK, stroke_width=5.2))
+    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=FAST_INK, stroke_width=5.2))
     d.append(draw.Text("hidden: fast", FS_TICK, W / 2 - 260, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
     d.append(draw.Line(W / 2 - 150, ly, W / 2 - 118, ly, stroke=GREY, stroke_width=2.4))
@@ -161,12 +170,20 @@ def render():
     panel_model(d, 212, 272)
     panel_realization(d, 520, 150, 620, 470)
 
-    name = "trait_hiddenmk"
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
     cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"), scale=300 / 72.0)
     print(f"wrote {out}/{name}.svg / .png")
+
+
+def render():
+    """Render both palettes: colour -> trait_hiddenmk, B&W -> trait_hiddenmk_bw."""
+    global FAST_INK
+    FAST_INK = FAST_COLOR
+    render_one("trait_hiddenmk")
+    FAST_INK = FAST_BW
+    render_one("trait_hiddenmk_bw")
 
 
 if __name__ == "__main__":

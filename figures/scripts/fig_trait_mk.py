@@ -8,8 +8,10 @@ A discrete character evolves as a continuous-time Markov chain over k states wit
     state it is in, switching at the instant a transition happens; tip chips give the observed
     state each lineage ends in.
 
-House style: B&W. Three categorical states are shown as three greys (light / mid / dark), the one
-readable monochrome device for a small categorical set.
+This figure is produced in two palettes from one run: a soft, low-saturation COLOUR version
+(the default, trait_mk.svg/.png) and the original B&W version (trait_mk_bw.svg/.png). In B&W the
+three categorical states are three greys (light / mid / dark), the one readable monochrome device
+for a small categorical set; in colour they become three muted, print-friendly hues.
 
 Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_mk.py
 """
@@ -35,7 +37,11 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 660
 STATES = ["A", "B", "C"]
-SHADE = {"A": "#1f1f1f", "B": "#8a8a8a", "C": "#cccccc"}     # dark / mid / light
+# Two palettes for the three categorical states. BW = original three greys (preserved so the
+# monochrome figure can always be regenerated); COLOUR = a soft, low-saturation trio.
+SHADE_BW    = {"A": "#1f1f1f", "B": "#8a8a8a", "C": "#cccccc"}     # dark / mid / light
+SHADE_COLOR = {"A": "#5a86a0", "B": "#8fae86", "C": "#e0cfa4"}     # dusty blue / sage / pale sand
+SHADE = SHADE_COLOR                                                # active palette (set per mode)
 Q_RATE, N_TIPS, AGE, TREE_SEED, TRAIT_SEED = 0.7, 12, 1.0, 4, 5
 NR = 34
 
@@ -129,12 +135,12 @@ def panel_realization(d, ox, oy, pw, ph):
 
 
 # --------------------------------------------------------------------------- render
-def render():
+def render_one(name):
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("A discrete character under the Mk model", FS_TITLE, W / 2, 46,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
-    # categorical legend (three greys)
+    # categorical legend (three state swatches)
     lx = W / 2 - 150
     for i, s in enumerate(STATES):
         x = lx + i * 110
@@ -145,12 +151,20 @@ def render():
     panel_model(d, 300, 360)
     panel_realization(d, 560, 150, 580, 470)
 
-    name = "trait_mk"
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
     cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"), scale=300 / 72.0)
     print(f"wrote {out}/{name}.svg / .png")
+
+
+def render():
+    """Render both palettes: colour -> trait_mk, B&W -> trait_mk_bw."""
+    global SHADE
+    SHADE = SHADE_COLOR
+    render_one("trait_mk")
+    SHADE = SHADE_BW
+    render_one("trait_mk_bw")
 
 
 if __name__ == "__main__":

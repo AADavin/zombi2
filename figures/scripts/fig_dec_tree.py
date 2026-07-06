@@ -30,7 +30,7 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1200, 620
+W, H = 1460, 620
 AREA_COLOR = {"A": "#4477AA", "B": "#EE6677", "C": "#228833"}
 DISP, EXT = "#2f8f4e", "#cc4b3c"                 # dispersal (gain) green, extinction (loss) red
 CELL = 24
@@ -66,7 +66,7 @@ def render():
 
     tree = zombi_to_ete3(ztree)
     tfo, present, ys, nleaf = _layout(tree)
-    ox, oy, pw, ph = 60, 150, 980, 400
+    ox, oy, pw, ph = 60, 150, 1240, 400
     x_at = lambda t: ox + 90 + (t / present) * (pw - 320)      # noqa: E731
     y_at = lambda k: oy + 30 + (k / max(1, nleaf - 1)) * (ph - 60)
 
