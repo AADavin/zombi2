@@ -6,26 +6,26 @@
 <rect x="0" y="0" width="1200" height="612" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Gene-conditioned trait (genes to traits)</text>
 <path d="M300.0,82 L332.0,82" stroke="#1a1a1a" stroke-width="5.2" />
-<text x="340.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">modifier present</text>
+<text x="340.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">modifier present</text>
 <path d="M490.0,82 L522.0,82" stroke="#9a9a9a" stroke-width="2.4" />
-<text x="530.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">absent</text>
+<text x="530.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">absent</text>
 <circle cx="640.0" cy="82" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="654.0" y="82" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">tip trait value</text>
+<text x="654.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">tip trait value</text>
 <text x="90" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the mechanism</text>
 <path d="M90,210 L90,510" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M90,510 L390,510" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M90,467.14285714285717 L390,467.14285714285717" stroke="#8a8a8a" stroke-width="2.0" stroke-dasharray="6,5" />
-<text x="390" y="459.14285714285717" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">theta_absent</text>
+<text x="390" y="459.14285714285717" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">theta_absent</text>
 <path d="M90,252.8571428571429 L390,252.8571428571429" stroke="#8a8a8a" stroke-width="2.0" stroke-dasharray="6,5" />
-<text x="390" y="244.8571428571429" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">theta_present</text>
-<text x="78" y="360.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" transform="rotate(-90 78 360.0)">trait</text>
-<text x="240.0" y="536" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time</text>
+<text x="390" y="244.8571428571429" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">theta_present</text>
+<text x="78" y="360.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" transform="rotate(-90 78 360.0)">trait</text>
+<text x="240.0" y="536" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time</text>
 <path d="M96.0,442.6518276862349 L102.14285714285714,497.81083751862735 L108.28571428571428,462.12567098214777 L114.42857142857143,473.9560924163923 L120.57142857142857,472.5746486481825 L126.71428571428572,469.73002309993433 L132.85714285714286,491.3826906926242 L139.0,469.92604567458744 L145.14285714285714,477.52541405815646 L151.28571428571428,427.26686294311855 L157.42857142857144,464.43341778412207 L163.57142857142856,471.3744266749563 L169.71428571428572,470.5183061606733 L175.85714285714283,475.15941329616453 L182.0,479.8046637573186 L188.14285714285714,471.832468869673 L194.28571428571428,461.3595124807757 L200.42857142857144,470.00550042173757 L206.57142857142856,455.64975270734 L212.71428571428572,469.5404826916561 L218.85714285714286,466.85174236193717 L225.0,448.5930069283034" fill="none" stroke="#9a9a9a" stroke-width="3.0" />
 <path d="M225.0,448.5930069283034 L225.0,425.83721280512975 L229.8181818181818,415.0325917313145 L234.63636363636363,402.1607116645606 L239.45454545454544,383.6270106582048 L244.27272727272728,353.61260680603436 L249.0909090909091,347.0867495655722 L253.9090909090909,340.90249536455934 L258.72727272727275,323.5280282554354 L263.54545454545456,325.525699462246 L268.3636363636364,321.73603441650545 L273.1818181818182,307.21585248300164 L278.0,296.8516970354459 L282.8181818181818,292.0293153855936 L287.6363636363636,282.1856930839359 L292.45454545454544,306.2116538851943 L297.27272727272725,291.7802836133832 L302.0909090909091,297.3252801092269 L306.9090909090909,309.0558491301528 L311.72727272727275,301.39147697581245 L316.5454545454545,290.4182494146951 L321.3636363636364,291.2312715495245 L326.18181818181824,297.92656931673207 L331.0,293.62400107633385 L335.8181818181818,290.4523156000395 L340.6363636363636,273.81596734500823 L345.4545454545455,264.8826835448665 L350.27272727272725,261.9729802181906 L355.09090909090907,250.67144177787014 L359.9090909090909,252.80594363125925 L364.72727272727275,261.54046182741627 L369.54545454545456,255.25212761613935 L374.3636363636364,249.54407389764742 L379.1818181818182,251.8677798374838 L384.0,259.3375891014848" fill="none" stroke="#1a1a1a" stroke-width="4.4" />
 <circle cx="225.0" cy="448.5930069283034" r="10.0" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <path d="M219.8,448.5930069283034 L230.2,448.5930069283034" stroke="#1a1a1a" stroke-width="2.2" />
 <path d="M225.0,443.3930069283034 L225.0,453.7930069283034" stroke="#1a1a1a" stroke-width="2.2" />
-<text x="209.0" y="422.5930069283034" font-size="18" font-family="Helvetica" text-anchor="end" fill="#1a1a1a" font-style="italic">gene gained</text>
+<text x="209.0" y="422.5930069283034" font-size="22" font-family="Helvetica" text-anchor="end" fill="#1a1a1a" font-style="italic">gene gained</text>
 <text x="500" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
 <path d="M500.0,232.86363636363637 L638.1732885024471,232.86363636363637" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M500.0,379.4545454545455 L575.340190141321,379.4545454545455" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
@@ -62,9 +62,9 @@
 <path d="M575.340190141321,331.72727272727275 L575.340190141321,427.1818181818182" stroke="#1a1a1a" stroke-width="2.4" />
 <path d="M500.0,232.86363636363637 L500.0,379.4545454545455" stroke="#1a1a1a" stroke-width="2.4" />
 <path d="M852.6666666666666,193.0 L852.6666666666666,521.0" stroke="#8a8a8a" stroke-width="2.0" stroke-dasharray="6,5" />
-<text x="852.6666666666666" y="185.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">theta_absent</text>
+<text x="852.6666666666666" y="185.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">theta_absent</text>
 <path d="M1066.0,193.0 L1066.0,521.0" stroke="#8a8a8a" stroke-width="2.0" stroke-dasharray="6,5" />
-<text x="1066.0" y="185.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">theta_present</text>
+<text x="1066.0" y="185.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">theta_present</text>
 <circle cx="867.2922091313237" cy="209.0" r="6.5" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="864.1885278409312" cy="236.27272727272728" r="6.5" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="837.205025387116" cy="263.54545454545456" r="6.5" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
@@ -77,5 +77,5 @@
 <circle cx="1039.892071714909" cy="454.4545454545455" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="1036.1045162895591" cy="481.7272727272727" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
 <circle cx="1046.9007560867244" cy="509.0" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="970.0" y="543.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">trait value at the tip</text>
+<text x="970.0" y="543.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">trait value at the tip</text>
 </svg>

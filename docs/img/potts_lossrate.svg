@@ -5,8 +5,8 @@
 </defs>
 <rect x="0" y="0" width="1020" height="720" fill="white" />
 <text x="510.0" y="52" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Coupling enters through the loss rate</text>
-<text x="510.0" y="100" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">local field   f_i  =  h_i  +  sum_j J_ij sigma_j     (over present partners)</text>
-<text x="510.0" y="134" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">loss rate   loss_i  =  base_loss * exp(-beta * f_i)</text>
+<text x="510.0" y="100" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">local field   f_i  =  h_i  +  sum_j J_ij sigma_j     (over present partners)</text>
+<text x="510.0" y="134" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">loss rate   loss_i  =  base_loss * exp(-beta * f_i)</text>
 <path d="M190,190 L190,570" stroke="#bdbdbd" stroke-width="1.6" />
 <path d="M190,570 L830,570" stroke="#bdbdbd" stroke-width="1.6" />
 <path d="M393.6363636363636,190 L393.6363636363636,570" stroke="#dcdcdc" stroke-width="1.4" stroke-dasharray="4,4" />
@@ -14,12 +14,12 @@
 <text x="146" y="380.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" transform="rotate(-90 146 380.0)">loss rate</text>
 <text x="510.0" y="616" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">local field  f</text>
 <circle cx="393.6363636363636" cy="479.5238095238095" r="5" fill="#999" />
-<text x="405.6363636363636" y="465.5238095238095" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">base_loss</text>
+<text x="405.6363636363636" y="465.5238095238095" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">base_loss</text>
 <circle cx="248.18181818181816" cy="324.06021552037214" r="8" fill="#cc4b3c" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="268.18181818181813" y="312.06021552037214" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">module incomplete</text>
-<text x="268.18181818181813" y="336.06021552037214" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">(partners absent): fast loss</text>
+<text x="268.18181818181813" y="312.06021552037214" font-size="22" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">module incomplete</text>
+<text x="268.18181818181813" y="336.06021552037214" font-size="22" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">(partners absent): fast loss</text>
 <circle cx="684.5454545454545" cy="557.755379135735" r="8" fill="#2f8f4e" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="684.5454545454545" y="513.755379135735" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">module complete</text>
-<text x="684.5454545454545" y="537.755379135735" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">(partners present): protected</text>
-<text x="510.0" y="666" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">more present partners  =&gt;  lower loss, so a complete module stays together</text>
+<text x="684.5454545454545" y="513.755379135735" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">module complete</text>
+<text x="684.5454545454545" y="537.755379135735" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#2f8f4e" font-weight="bold">(partners present): protected</text>
+<text x="510.0" y="666" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">more present partners  =&gt;  lower loss, so a complete module stays together</text>
 </svg>

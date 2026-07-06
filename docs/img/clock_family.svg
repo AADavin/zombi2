@@ -31,11 +31,11 @@
 <use xlink:href="#d0" />
 <text x="760.0" y="80" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">branch rate multiplier</text>
 <rect x="570.0" y="92" width="380" height="18" fill="url(#d0)" stroke="#1a1a1a" stroke-width="0.8" />
-<text x="570.0" y="128" font-size="18" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">0.33x (slow)</text>
-<text x="760.0" y="128" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1x</text>
-<text x="950.0" y="128" font-size="18" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">3x (fast)</text>
+<text x="570.0" y="128" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">0.33x (slow)</text>
+<text x="760.0" y="128" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1x</text>
+<text x="950.0" y="128" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">3x (fast)</text>
 <text x="220.0" y="172.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Chronogram</text>
-<text x="220.0" y="194.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">input (time)</text>
+<text x="220.0" y="194.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">input (time)</text>
 <path d="M60.0,234.3653846153846 L205.9583540149668,234.3653846153846" stroke="#1a1a1a" stroke-width="3.4" stroke-linecap="round" />
 <path d="M60.0,344.2007211538462 L107.3136394087496,344.2007211538462" stroke="#1a1a1a" stroke-width="3.4" stroke-linecap="round" />
 <path d="M205.9583540149668,220.0 L217.0,220.0" stroke="#1a1a1a" stroke-width="3.4" stroke-linecap="round" />
@@ -92,14 +92,14 @@
 <path d="M217.0,214.0 L217.0,475.0" stroke="#8a8a8a" stroke-width="1.0" stroke-dasharray="3,3" />
 <path d="M60.0,499.0 L374.0,499.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M60.0,499.0 L60.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="60.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="60.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M217.0,499.0 L217.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="217.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="217.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M374.0,499.0 L374.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="374.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="217.0" y="539.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">time</text>
+<text x="374.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="217.0" y="539.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">time</text>
 <text x="580.0" y="172.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Strict</text>
-<text x="580.0" y="194.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">one rate</text>
+<text x="580.0" y="194.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">one rate</text>
 <path d="M420.0,234.3653846153846 L565.9583540149667,234.3653846153846" stroke="#21918c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M420.0,344.2007211538462 L467.3136394087496,344.2007211538462" stroke="#21918c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M565.9583540149667,220.0 L577.0,220.0" stroke="#21918c" stroke-width="3.4" stroke-linecap="round" />
@@ -155,14 +155,14 @@
 <circle cx="577.0" cy="469.0" r="2.4" fill="#21918c" stroke="white" stroke-width="0.5" />
 <path d="M420.0,499.0 L734.0,499.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M420.0,499.0 L420.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="420.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="420.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M577.0,499.0 L577.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="577.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="577.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M734.0,499.0 L734.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="734.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="577.0" y="539.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="734.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="577.0" y="539.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 <text x="940.0" y="172.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Uncorrelated lognormal</text>
-<text x="940.0" y="194.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">uncorrelated</text>
+<text x="940.0" y="194.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">uncorrelated</text>
 <path d="M780.0,234.3653846153846 L905.5555033899252,234.3653846153846" stroke="#28808c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M780.0,344.2007211538462 L803.5739669603746,344.2007211538462" stroke="#3d3c7c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M905.5555033899252,220.0 L916.7422995461591,220.0" stroke="#22928b" stroke-width="3.4" stroke-linecap="round" />
@@ -218,14 +218,14 @@
 <circle cx="911.7572952290692" cy="469.0" r="2.4" fill="#2d748c" stroke="white" stroke-width="0.5" />
 <path d="M780.0,499.0 L1094.0,499.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M780.0,499.0 L780.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="780.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="780.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M937.0,499.0 L937.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="937.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="937.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M1094.0,499.0 L1094.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1094.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="937.0" y="539.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="1094.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="937.0" y="539.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 <text x="1300.0" y="172.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Uncorrelated gamma</text>
-<text x="1300.0" y="194.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">uncorrelated</text>
+<text x="1300.0" y="194.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">uncorrelated</text>
 <path d="M1140.0,234.3653846153846 L1266.6029864592151,234.3653846153846" stroke="#28818c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M1140.0,344.2007211538462 L1196.2205980941092,344.2007211538462" stroke="#34a37f" stroke-width="3.4" stroke-linecap="round" />
 <path d="M1266.6029864592151,220.0 L1274.4985530899035,220.0" stroke="#316b8b" stroke-width="3.4" stroke-linecap="round" />
@@ -281,14 +281,14 @@
 <circle cx="1386.9676524299025" cy="469.0" r="2.4" fill="#3aa87b" stroke="white" stroke-width="0.5" />
 <path d="M1140.0,499.0 L1454.0,499.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M1140.0,499.0 L1140.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1140.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="1140.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M1297.0,499.0 L1297.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1297.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="1297.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M1454.0,499.0 L1454.0,504.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1454.0" y="519.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="1297.0" y="539.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="1454.0" y="519.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="1297.0" y="539.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 <text x="220.0" y="617.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">White noise</text>
-<text x="220.0" y="639.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">uncorrelated</text>
+<text x="220.0" y="639.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">uncorrelated</text>
 <path d="M60.0,679.3653846153846 L200.65791464430097,679.3653846153846" stroke="#238d8c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M60.0,789.2007211538462 L116.00561014269029,789.2007211538462" stroke="#34a27f" stroke-width="3.4" stroke-linecap="round" />
 <path d="M200.65791464430097,665.0 L218.68305832166286,665.0" stroke="#57c367" stroke-width="3.4" stroke-linecap="round" />
@@ -344,14 +344,14 @@
 <circle cx="291.558577221286" cy="914.0" r="2.4" fill="#88d152" stroke="white" stroke-width="0.5" />
 <path d="M60.0,944.0 L374.0,944.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M60.0,944.0 L60.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="60.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="60.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M217.0,944.0 L217.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="217.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="217.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M374.0,944.0 L374.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="374.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="217.0" y="984.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="374.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="217.0" y="984.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 <text x="580.0" y="617.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Autocorrelated lognormal</text>
-<text x="580.0" y="639.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">autocorrelated</text>
+<text x="580.0" y="639.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">autocorrelated</text>
 <path d="M420.0,679.3653846153846 L519.1145104829542,679.3653846153846" stroke="#33658b" stroke-width="3.4" stroke-linecap="round" />
 <path d="M420.0,789.2007211538462 L461.786160120252,789.2007211538462" stroke="#27838c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M519.1145104829542,665.0 L526.857826808859,665.0" stroke="#32688b" stroke-width="3.4" stroke-linecap="round" />
@@ -407,14 +407,14 @@
 <circle cx="710.4174878758145" cy="914.0" r="2.4" fill="#dde131" stroke="white" stroke-width="0.5" />
 <path d="M420.0,944.0 L734.0,944.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M420.0,944.0 L420.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="420.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="420.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M577.0,944.0 L577.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="577.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="577.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M734.0,944.0 L734.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="734.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="577.0" y="984.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="734.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="577.0" y="984.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 <text x="940.0" y="617.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Cox-Ingersoll-Ross</text>
-<text x="940.0" y="639.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">autocorrelated</text>
+<text x="940.0" y="639.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">autocorrelated</text>
 <path d="M780.0,679.3653846153846 L874.5026707028985,679.3653846153846" stroke="#365f8b" stroke-width="3.4" stroke-linecap="round" />
 <path d="M780.0,789.2007211538462 L830.9691419405111,789.2007211538462" stroke="#299986" stroke-width="3.4" stroke-linecap="round" />
 <path d="M874.5026707028985,665.0 L880.5197224476146,665.0" stroke="#3c4985" stroke-width="3.4" stroke-linecap="round" />
@@ -470,14 +470,14 @@
 <circle cx="969.5440875812922" cy="914.0" r="2.4" fill="#53bf69" stroke="white" stroke-width="0.5" />
 <path d="M780.0,944.0 L1094.0,944.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M780.0,944.0 L780.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="780.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="780.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M937.0,944.0 L937.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="937.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="937.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M1094.0,944.0 L1094.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1094.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="937.0" y="984.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="1094.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="937.0" y="984.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 <text x="1300.0" y="617.0" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Discrete-bin (GTDB)</text>
-<text x="1300.0" y="639.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">autocorrelated</text>
+<text x="1300.0" y="639.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">autocorrelated</text>
 <path d="M1140.0,679.3653846153846 L1285.9583540149674,679.3653846153846" stroke="#21918c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M1140.0,789.2007211538462 L1187.3136394087496,789.2007211538462" stroke="#21918c" stroke-width="3.4" stroke-linecap="round" />
 <path d="M1285.9583540149674,665.0 L1297.0000000000007,665.0" stroke="#21918c" stroke-width="3.4" stroke-linecap="round" />
@@ -533,10 +533,10 @@
 <circle cx="1268.4128326838593" cy="914.0" r="2.4" fill="#3d3d7d" stroke="white" stroke-width="0.5" />
 <path d="M1140.0,944.0 L1454.0,944.0" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M1140.0,944.0 L1140.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1140.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
+<text x="1140.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M1297.0,944.0 L1297.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1297.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<text x="1297.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
 <path d="M1454.0,944.0 L1454.0,949.0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1454.0" y="964.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
-<text x="1297.0" y="984.0" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
+<text x="1454.0" y="964.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<text x="1297.0" y="984.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">subs/site</text>
 </svg>
