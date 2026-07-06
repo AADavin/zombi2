@@ -43,9 +43,18 @@ TH_ABS, TH_PRES, ALPHA, SIGMA2 = 0.0, 5.0, 3.0, 0.35
 GENE_GAIN, GENE_LOSS = 0.55, 0.55
 
 
+def gain_marker(d, cx, cy, r=10.0):
+    """A gene-gain (+) marker: open circle with the '+' drawn as strokes so it is geometrically
+    centred (SVG '+' text glyphs do not centre reliably)."""
+    d.append(draw.Circle(cx, cy, r, fill="white", stroke=INK, stroke_width=1.8))
+    a = r * 0.52
+    d.append(draw.Line(cx - a, cy, cx + a, cy, stroke=INK, stroke_width=2.2))
+    d.append(draw.Line(cx, cy - a, cx, cy + a, stroke=INK, stroke_width=2.2))
+
+
 # --------------------------------------------------------------------------- panel A: the mechanism
-def panel_model(d, ox, oy, pw, ph):
-    d.append(draw.Text("A   the mechanism", FS_LABEL, ox, oy - 16, font_family=FONT,
+def panel_model(d, ox, oy, pw, ph, title_y):
+    d.append(draw.Text("A   the mechanism", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
     vlo, vhi = -1.0, 6.0
     x_at = lambda t: ox + t * pw                              # noqa: E731  t in [0,1]
@@ -83,9 +92,7 @@ def panel_model(d, ox, oy, pw, ph):
         pp.L(x_at(t), y_at(v))
     d.append(pp)
     gx, gy = x_at(tg), y_at(absent[-1][1])
-    d.append(draw.Circle(gx, gy, 8.5, fill="white", stroke=INK, stroke_width=1.8))
-    d.append(draw.Text("+", FS_TICK, gx, gy + 1, font_family=FONT, text_anchor="middle",
-                       dominant_baseline="central", fill=INK, font_weight="bold"))
+    gain_marker(d, gx, gy)
     # label the gain in the OPEN space up-and-left of the marker, clear of the theta_absent line,
     # the trajectory and the rising curve to its right (previously it sat on the dashed line)
     d.append(draw.Text("gene gained", FS_TICK, gx - 16, gy - 26, font_family=FONT,
@@ -116,7 +123,7 @@ def _pick():
     return best
 
 
-def panel_realization(d, ox, oy, pw, ph):
+def panel_realization(d, ox, oy, pw, ph, title_y):
     _, tree, res = _pick()
     gmap = {n.name: int(v) for n, v in res.gene.node_values.items()}
     gene_chg = {}
@@ -130,7 +137,7 @@ def panel_realization(d, ox, oy, pw, ph):
     x_at = lambda t: ox + (t / present) * tw                 # noqa: E731
     y_at = lambda k: oy + 34 + (k / max(1, nleaf - 1)) * (ph - 80)   # noqa: E731
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 16, font_family=FONT,
+    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, on):
@@ -187,8 +194,11 @@ def render():
     d.append(draw.Text("tip trait value", FS_TICK, W / 2 + 54, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
 
-    panel_model(d, 90, 220, 300, 300)
-    panel_realization(d, 500, 200, 660, 400)
+    # shared title baseline; panel A's trajectory plot is vertically centred against panel B's tree
+    # so the two panels line up cleanly (previously the A/B titles sat at different heights).
+    title_y = 150
+    panel_model(d, 90, 210, 300, 300, title_y)
+    panel_realization(d, 500, 175, 660, 380, title_y)
 
     name = "gene_conditioned_trait"
     out = OUT_DIR / name

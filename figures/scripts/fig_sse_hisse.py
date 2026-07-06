@@ -56,8 +56,8 @@ def chip(d, cx, cy, on, s=13):
 def small_fork(d, x, y, lam):
     """A small speciation fork whose stroke width encodes lambda, drawn compactly so it can tuck
     into the lower-right of a state node (see panel_model). Smaller than fig_sse.spec_fork."""
-    w = 1.8 + 1.7 * lam
-    stem, arm = 9, 13
+    w = 1.5 + 1.4 * lam
+    stem, arm = 7, 10
     d.append(draw.Line(x, y, x, y + stem, stroke=INK, stroke_width=w, stroke_linecap="round"))
     d.append(draw.Line(x, y + stem, x - arm, y + stem + arm, stroke=INK, stroke_width=w,
                        stroke_linecap="round"))
@@ -88,8 +88,9 @@ def panel_model(d, cx0, cy0):
     curved_arrow(d, P["1f"], P["1s"], +1, B, rate_width(QHID), "")
     for key, (x, y) in P.items():
         state_node(d, x, y, key[0])                        # observed digit
-        # a small speciation fork tucked at the LOWER-RIGHT of each state (fork width = rate)
-        small_fork(d, x + 27, y + 22, L_SLOW if key[1] == "s" else L_FAST)
+        # a small speciation fork set at the LOWER-RIGHT of each state, a touch clear of the node
+        # rim and the transition arrows (fork width = rate)
+        small_fork(d, x + 32, y + 26, L_SLOW if key[1] == "s" else L_FAST)
     d.append(draw.Text("slow", FS_TICK, cx0 - 116, cy0, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=MUTED, font_style="italic"))
     d.append(draw.Text("fast", FS_TICK, cx0 - 116, cy0 + gy, font_family=FONT, text_anchor="middle",

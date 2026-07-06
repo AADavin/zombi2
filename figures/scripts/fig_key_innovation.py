@@ -48,6 +48,18 @@ def chip(d, cx, cy, on, s=13):
     """Tip chip: filled = driver present, open = absent.  Colour-aware."""
     d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
                             fill=ON_COL if on else "white", stroke=ON_COL, stroke_width=1.6))
+
+
+def event_marker(d, cx, cy, gain, r=10.0):
+    """A gain (+) / loss (-) marker: an open circle with the symbol drawn as strokes so it is
+    geometrically centred (SVG text glyphs for '+'/'-' do not centre reliably)."""
+    d.append(draw.Circle(cx, cy, r, fill="white", stroke=INK, stroke_width=1.8))
+    a = r * 0.52                                            # half-length of each symbol arm
+    d.append(draw.Line(cx - a, cy, cx + a, cy, stroke=INK, stroke_width=2.2))   # horizontal (both)
+    if gain:
+        d.append(draw.Line(cx, cy - a, cx, cy + a, stroke=INK, stroke_width=2.2))  # vertical (+)
+
+
 N_TIPS = 16
 
 L0, DRIVER_SPEC, MU, TRANSFER, LOSS, ORIG = 0.8, 1.6, 0.2, 1.2, 0.18, 0.09
@@ -128,9 +140,6 @@ def panel_realization(d, ox, oy, pw, ph):
 
     d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 6, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
-    d.append(draw.Text(f"driver in {int(round(prev * 100))}% of extant tips", FS_ANNOT,
-                       ox + pw - 30, oy - 6, font_family=FONT, text_anchor="end", fill=INK,
-                       font_style="italic"))
 
     for n in ete.traverse():
         if n.is_root():
@@ -142,11 +151,7 @@ def panel_realization(d, ox, oy, pw, ph):
                            stroke_linecap="butt"))
         if has[n.name] != has[n.up.name]:                       # gain / loss at this branch
             mx = x_at(tfo[n.up.name])
-            sign = "+" if has[n.name] else "-"
-            d.append(draw.Circle(mx + 12, y, 8.5, fill="white", stroke=INK, stroke_width=1.8))
-            d.append(draw.Text(sign, FS_TICK, mx + 12, y + 1, font_family=FONT,
-                               text_anchor="middle", dominant_baseline="central", fill=INK,
-                               font_weight="bold"))
+            event_marker(d, mx + 13, y, has[n.name])
         if n.is_leaf() and not n.is_extant:
             xx, ah = x_at(tfo[n.name]), 5.5
             d.append(draw.Line(xx - ah, y - ah, xx + ah, y + ah, stroke=INK, stroke_width=2.0))
@@ -182,10 +187,8 @@ def render(bw=False):
     d.append(draw.Line(W / 2 - 90, ly, W / 2 - 58, ly, stroke=OFF_COL, stroke_width=2.4))
     d.append(draw.Text("no driver", FS_TICK, W / 2 - 50, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Circle(W / 2 + 78, ly, 8.5, fill="white", stroke=INK, stroke_width=1.8))
-    d.append(draw.Text("+", FS_TICK, W / 2 + 78, ly + 1, font_family=FONT, text_anchor="middle",
-                       dominant_baseline="central", fill=INK, font_weight="bold"))
-    d.append(draw.Text("gain / loss", FS_TICK, W / 2 + 92, ly, font_family=FONT,
+    event_marker(d, W / 2 + 78, ly, True)
+    d.append(draw.Text("gain / loss", FS_TICK, W / 2 + 96, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
 
     panel_model(d, 210, 320)

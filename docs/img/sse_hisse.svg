@@ -34,24 +34,24 @@
 <path d="M380.28694687298247,333.51657834516936 L383.0208381964737,344.1714288007759 L374.17765661521713,342.66406830397085 Z" fill="#1a1a1a" />
 <circle cx="210" cy="300" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="210" y="300" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">0</text>
-<path d="M237,322 L237,331" stroke="#1a1a1a" stroke-width="2.99" stroke-linecap="round" />
-<path d="M237,331 L224,344" stroke="#1a1a1a" stroke-width="2.99" stroke-linecap="round" />
-<path d="M237,331 L250,344" stroke="#1a1a1a" stroke-width="2.99" stroke-linecap="round" />
+<path d="M242,326 L242,333" stroke="#1a1a1a" stroke-width="2.48" stroke-linecap="round" />
+<path d="M242,333 L232,343" stroke="#1a1a1a" stroke-width="2.48" stroke-linecap="round" />
+<path d="M242,333 L252,343" stroke="#1a1a1a" stroke-width="2.48" stroke-linecap="round" />
 <circle cx="386" cy="300" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="386" y="300" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">1</text>
-<path d="M413,322 L413,331" stroke="#1a1a1a" stroke-width="2.99" stroke-linecap="round" />
-<path d="M413,331 L400,344" stroke="#1a1a1a" stroke-width="2.99" stroke-linecap="round" />
-<path d="M413,331 L426,344" stroke="#1a1a1a" stroke-width="2.99" stroke-linecap="round" />
+<path d="M418,326 L418,333" stroke="#1a1a1a" stroke-width="2.48" stroke-linecap="round" />
+<path d="M418,333 L408,343" stroke="#1a1a1a" stroke-width="2.48" stroke-linecap="round" />
+<path d="M418,333 L428,343" stroke="#1a1a1a" stroke-width="2.48" stroke-linecap="round" />
 <circle cx="210" cy="476" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="210" y="476" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">0</text>
-<path d="M237,498 L237,507" stroke="#1a1a1a" stroke-width="5.88" stroke-linecap="round" />
-<path d="M237,507 L224,520" stroke="#1a1a1a" stroke-width="5.88" stroke-linecap="round" />
-<path d="M237,507 L250,520" stroke="#1a1a1a" stroke-width="5.88" stroke-linecap="round" />
+<path d="M242,502 L242,509" stroke="#1a1a1a" stroke-width="4.859999999999999" stroke-linecap="round" />
+<path d="M242,509 L232,519" stroke="#1a1a1a" stroke-width="4.859999999999999" stroke-linecap="round" />
+<path d="M242,509 L252,519" stroke="#1a1a1a" stroke-width="4.859999999999999" stroke-linecap="round" />
 <circle cx="386" cy="476" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="386" y="476" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">1</text>
-<path d="M413,498 L413,507" stroke="#1a1a1a" stroke-width="5.88" stroke-linecap="round" />
-<path d="M413,507 L400,520" stroke="#1a1a1a" stroke-width="5.88" stroke-linecap="round" />
-<path d="M413,507 L426,520" stroke="#1a1a1a" stroke-width="5.88" stroke-linecap="round" />
+<path d="M418,502 L418,509" stroke="#1a1a1a" stroke-width="4.859999999999999" stroke-linecap="round" />
+<path d="M418,509 L408,519" stroke="#1a1a1a" stroke-width="4.859999999999999" stroke-linecap="round" />
+<path d="M418,509 L428,519" stroke="#1a1a1a" stroke-width="4.859999999999999" stroke-linecap="round" />
 <text x="94" y="300" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-style="italic">slow</text>
 <text x="94" y="476" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-style="italic">fast</text>
 <text x="298.0" y="204" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">flip observed</text>
