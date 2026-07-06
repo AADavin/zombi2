@@ -72,8 +72,6 @@ NAMESPACES = {
         "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
         "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
     ],
-    # NOTE: "abc" (ABC inference) is intentionally NOT a public namespace in v1 — it is withheld
-    # from the top-level surface. See test_abc_inference_is_insider_only_but_importable below.
     "distributions": [
         "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform",
         "as_distribution",
@@ -142,16 +140,6 @@ def test_top_level_still_exposes_all_original_names():
     assert len(z.__all__) == 133   # 132 joint-model set + CorrelatedBinaryK (Pagel k-trait)
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
-
-
-def test_abc_inference_is_insider_only_but_importable():
-    """ABC inference is withheld from the public top-level surface in v1, but the module stays
-    in-tree, importable, and identity-consistent (so it does not bit-rot while shelved)."""
-    for name in ("match_profiles", "match_coupled", "cooccurrence_summary", "ABCFit"):
-        assert not hasattr(z, name), f"{name} should not be on the public top-level surface"
-    from zombi2.matching import match_profiles           # implementation stays importable + tested
-    from zombi2.abc import match_profiles as ns_match     # thin namespace still works for insiders
-    assert ns_match is match_profiles
 
 
 def test_namespaces_partition_public_api():

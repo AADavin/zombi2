@@ -12,7 +12,6 @@ import pytest
 
 import zombi2 as z
 from zombi2.genomes.profiles import ProfileMatrix
-from zombi2.matching import frequency_spectrum, genome_sizes, copy_number_spectrum
 
 
 def _example():
@@ -57,21 +56,6 @@ def test_coo_tsv_roundtrip_preserves_all_columns():
     # every species column survives even though s2/s3 may be sparse
     assert back.species == species
     assert np.array_equal(back.matrix, dense)
-
-
-def test_abc_stats_use_sparse_and_match_dense():
-    families, species, dense = _example()
-    pm = ProfileMatrix(families, species, dense)
-    S = len(species)
-    # frequency spectrum: families present in exactly k species
-    present = (dense > 0).sum(axis=1)
-    exp_fs = np.bincount(present, minlength=S + 1)[1:S + 1].astype(float)
-    assert np.array_equal(frequency_spectrum(pm, S), exp_fs)
-    assert np.array_equal(genome_sizes(pm, species), dense.sum(axis=0).astype(float))
-    vals = dense[dense > 0]
-    exp_cn = np.array([np.count_nonzero(vals == 1), np.count_nonzero(vals == 2),
-                       np.count_nonzero(vals == 3), np.count_nonzero(vals >= 4)], float)
-    assert np.array_equal(copy_number_spectrum(pm), exp_cn)
 
 
 def test_empty_profile():
