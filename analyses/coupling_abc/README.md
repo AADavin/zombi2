@@ -5,18 +5,20 @@ Simulation-based validation of **ABC inference for the coupled (Potts) gene-fami
 
 ## What it shows
 
-Can the strength of gene-family coupling (`J`) be recovered from phylogenetic profiles by
-Approximate Bayesian Computation? On simulated data: **yes** (RMSE ≈ 0.056). The analysis also
-teases apart *how* it works — coupling is entangled with prevalence, so the marginal frequency
-spectrum recovers `J` in ordinary regimes; when prevalence is held fixed the marginal goes blind
-and **gene-family co-occurrence (module) structure** becomes essential, roughly halving the error.
+Can the strength of gene-family coupling (`J`) be recovered from a presence/absence table by
+Approximate Bayesian Computation? Uses the full **gain+loss** coupling model (`gain_coupling > 0`:
+coupling lowers loss *and* biases HGT establishment). On simulated data: **yes** (error ≈ 0.056).
+The analysis also teases apart *how* it works — coupling makes genes both more common and more
+co-occurring, so a summary of gene *commonness* alone recovers `J` in ordinary regimes; when genes
+are tuned to stay equally common regardless of coupling, only the **co-occurrence** signal recovers
+it (halving the commonness-only error).
 
-It also includes an **empirical test** on a real 43-genome eggNOG dataset (`ZOMBI2_DATA`):
-**17 of 18 functional COG categories are significant co-occurrence modules** (cell motility most of
-all), and same-category groups co-occur more than different-category ones (p≈0.002 vs a
-phylogeny-controlled null) once the "function unknown" catch-all (S, ~60% of variable groups, not a
-module) is excluded. This supports **scaffolding the coupling structure J on *functional* COG
-categories** — turning "infer which families couple" into a principled prior.
+It also includes an **empirical test** on a real 43-genome eggNOG dataset (`ZOMBI2_DATA`): genes of
+the same COG functional category co-occur far more than genes of different functions (p≈0.002 vs a
+label-permutation null that keeps each gene's real presence pattern), led overwhelmingly by **cell
+motility** (12/18 functions individually significant). The non-functional "function unknown" /
+"general prediction" buckets are set aside from the start. This supports **using gene function as the
+coupling blueprint** — take same-function genes as coupled groups and fit their strength.
 
 ## Regenerate
 

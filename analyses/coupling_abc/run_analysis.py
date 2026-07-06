@@ -19,6 +19,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # use this repo's own zombi2
 import zombi2 as z
 from zombi2.coupling import pathway_blocks
 
@@ -49,16 +51,26 @@ SIZE, BLOCKS = 4, 15
 N = SIZE * BLOCKS
 tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=60, age=1.0, seed=1)
 S = len(tree.extant_leaves())
-H_NEUTRAL = lambda J: 0.33 - 2.35 * J           # holds prevalence ~0.5 (calibrated)
+GAIN = 1.5      # gain-coupling: transferred genes also establish more easily near present partners
 
 
 def spec(J, h):
     return pathway_blocks([SIZE] * BLOCKS, within=J, between=0.0, h=h,
-                          base_loss=1.0, transfer=0.4, beta=1.0)
+                          base_loss=1.0, transfer=0.4, beta=1.0, gain_coupling=GAIN)
 
 
 def presence(J, h, seed):
     return (z.simulate_coupled(tree, spec(J, h), seed=seed).profiles.matrix > 0).astype(float)
+
+
+# Calibrate h(J) so genes stay equally common (prevalence ~0.5) for every coupling strength J.
+# Recomputed here (not hardcoded) because gain-coupling changes the prevalence-vs-h relationship.
+def _prev(J, h, seeds=(1, 2, 3)):
+    return float(np.mean([presence(J, h, s).mean() for s in seeds]))
+_calJ, _grid = [0.0, 0.5, 1.0, 1.5], np.linspace(-4.5, 1.5, 25)
+_hstar = [_grid[int(np.argmin([abs(_prev(J, h) - 0.5) for h in _grid]))] for J in _calJ]
+_b1, _b0 = np.polyfit(_calJ, _hstar, 1)
+H_NEUTRAL = lambda J: _b0 + _b1 * J             # holds prevalence ~0.5 across J (gain+loss model)
 
 
 # --- summary statistics on a presence matrix P (families x species) ---------------
