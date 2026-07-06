@@ -148,37 +148,6 @@ def test_genomes_on_supplied_tree(tmp_path):
     assert os.listdir(gen / "gene_trees")
 
 
-def test_genomes_coupled_model(tmp_path):
-    """`genomes --rate-model coupled` runs the Potts model (pure Python) and writes the fixed
-    panel's profiles; --gain-coupling is accepted and recorded in the params log."""
-    sp = tmp_path / "sp"
-    main(["species", "--birth", "1", "--death", "0.3",
-          "--tips", "20", "--age", "5", "--seed", "1", "-o", str(sp)])
-    gen = tmp_path / "gen"
-    rc = main(["genomes", "--tree", str(sp / "species_tree.nwk"), "--rate-model", "coupled",
-               "--pathways", "3,3", "--within", "3", "--trans", "0.3", "--gain-coupling", "4",
-               "--write", "profiles", "trees", "--seed", "7", "-o", str(gen)])
-    assert rc == 0
-    for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv"):
-        assert (gen / f).exists()
-    rows = (gen / "Profiles.tsv").read_text().strip().splitlines()
-    assert len(rows) == 1 + 6                           # header + a 6-family panel (3+3)
-    assert "gain_coupling\t4.0" in (gen / "genomes.log").read_text()
-    # the coupled model reconstructs gene trees like every other rate model
-    trees = os.listdir(gen / "gene_trees")
-    assert any(f.endswith("_complete.nwk") for f in trees)
-
-
-def test_genomes_coupled_rejects_bad_pathways(tmp_path):
-    """--pathways must be comma-separated positive integers."""
-    sp = tmp_path / "sp"
-    main(["species", "--birth", "1", "--death", "0.3", "--tips", "8", "--age", "2",
-          "--seed", "1", "-o", str(sp)])
-    with pytest.raises(SystemExit):
-        main(["genomes", "--tree", str(sp / "species_tree.nwk"), "--rate-model", "coupled",
-              "--pathways", "4,oops", "-o", str(tmp_path / "g")])
-
-
 @needs_rust
 def test_genomes_score_likelihoods_writes_table(tmp_path):
     """`genomes --score-likelihoods` writes the per-family ALE likelihood table."""

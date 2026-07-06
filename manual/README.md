@@ -54,7 +54,7 @@ To work on a chapter you only need: **that one chapter file**, this README, and
   Classes: `note`, `warning`, `tip`.
 - **Code.** Fenced code blocks with a language tag (```` ```python ````) are syntax-highlighted.
 - **Cross-references.** Link to another chapter/section by its heading id, e.g.
-  `[the coupling model](#gene-family-coupling)` (resolves in the merged book).
+  `[unordered genomes](#unordered-genomes)` (resolves in the merged book).
 
 ## Scope
 

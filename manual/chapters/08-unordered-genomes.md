@@ -4,7 +4,7 @@ The **unordered** level is the simplest and fastest of the three genome models (
 is an unordered *set* of gene families, each present in some copy number, with no position, no
 neighbours and no length. It is the right model whenever what you care about is gene *content* —
 presence/absence profiles, copy number, reconciliations, family sizes — and it is the only level
-that supports coupling between families (Chapter 10).
+that supports coupling between families (a Potts/Ising panel, available through the Python API).
 
 Once the species tree is fixed, ZOMBI2 populates it with genes: a single forward continuous-time
 (Gillespie) process runs over every branch alive at a given moment, firing discrete events that
@@ -38,10 +38,9 @@ over time independently of what is already present.
 ## Rates
 
 Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
-four rates vary across gene families**. Chapter 7 summarises the four rate models in a table; this
+four rates vary across gene families**. Chapter 7 summarises the rate models in a table; this
 section works through them. Two of them are available on the command line, `shared` (the default)
-and `per-genome`, as is the coupled model (`--rate-model coupled`, Chapter 10); per-family rates are
-Python-API for now.
+and `per-genome`; per-family rates are Python-API for now.
 
 ### Shared rates
 
