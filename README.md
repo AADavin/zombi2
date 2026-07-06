@@ -6,11 +6,11 @@
 
 **A simulator suite for genome evolution.**
 
-ZOMBI2 simulates how genomes evolve along a phylogeny — **species trees**, the **gene
-families** that live on them, **genome structure**, **phenotypic traits**, and molecular
-**sequences**, plus their **coevolution** — as one composable, seeded, fully reproducible
-suite. Use it to generate benchmark datasets with known ground truth for phylogenetic and
-comparative methods.
+ZOMBI2 simulates how genomes evolve along a phylogeny across **four levels** — **species
+trees**, the **genomes** (gene families) that evolve along them, phenotypic **traits**, and
+molecular **sequences** — plus their **coevolution**, as one composable, seeded, fully
+reproducible suite. Use it to generate benchmark datasets with known ground truth for
+phylogenetic and comparative methods.
 
 ---
 
@@ -54,28 +54,40 @@ genomes.write("run/")           # gene trees, event tables, transfers, copy-numb
 
 ---
 
+## Levels
+
+ZOMBI2 is organized around **four levels of evolution**. Each conditions on the ones above it,
+and you run whichever you need — a species tree, then genomes and/or traits along it, then
+sequences along the resulting gene trees — composed into one seeded, reproducible run.
+
+<p align="center">
+  <img src="docs/img/four_levels.svg" alt="The four levels of evolution ZOMBI2 simulates: species trees, genomes, traits, and sequences" width="460">
+</p>
+
+A cross-cutting mode, **coevolution**, couples any two levels so they drive each other
+(`coevolve --couple driver:target`).
+
+---
+
 ## Models
 
-ZOMBI2 is a library of models organized by the level of evolution they act on. Each links to
-its guide:
+A broad library, grouped by the level it acts on. Each links to its guide.
 
 - **[Species trees](docs/guide/species-trees.md)** — birth–death (backward and forward),
   episodic/skyline shifts, fossilized birth–death, incomplete sampling, diversity-dependent
   and per-lineage (ClaDS) diversification, mass extinctions, and ghost lineages
   ([full list](docs/species_tree_models.md)).
-- **[Gene families](docs/guide/gene-families.md)** — duplication, transfer, loss, and
-  origination (DTL), with shared, family-sampled, genome-wise, or per-branch rates and a full
-  [transfer model](docs/guide/transfers.md).
-- **[Genome structure](docs/guide/ordered-genomes.md)** — ordered chromosomes with inversions
-  and transpositions, and [nucleotide-resolution genomes](docs/guide/nucleotide-genomes.md)
-  where genes emerge as blocks from structural events.
+- **[Genomes](docs/guide/gene-families.md)** — gene families under duplication, transfer, loss,
+  and origination (DTL) with shared / family-sampled / genome-wise / per-branch rates and a full
+  [transfer model](docs/guide/transfers.md); plus genome **structure** —
+  [ordered chromosomes](docs/guide/ordered-genomes.md) with rearrangements and
+  [nucleotide-resolution genomes](docs/guide/nucleotide-genomes.md) where genes emerge as blocks.
 - **[Traits](docs/guide/traits.md)** — Brownian motion, Ornstein–Uhlenbeck, and early burst
   (continuous); Mk and threshold (discrete); DEC biogeography.
 - **[Sequences](docs/cli.md#sequence--substitution-branch-lengths)** — substitution models
-  (JC/K80/HKY/GTR + Gamma, and empirical amino-acid models) simulated along the gene trees.
-- **[Molecular clocks](docs/guide/rate-variation.md)** — a relaxed-clock family (strict,
-  uncorrelated lognormal/gamma, white-noise, autocorrelated, Cox–Ingersoll–Ross) that
-  rescales timetrees into substitutions per site.
+  (JC/K80/HKY/GTR + Gamma, and empirical amino-acid models) along the gene trees, with a family
+  of [relaxed molecular clocks](docs/guide/rate-variation.md) (strict, uncorrelated
+  lognormal/gamma, autocorrelated, Cox–Ingersoll–Ross) rescaling time into substitutions.
 - **[Coevolution](docs/coevolution_models.md)** — couple any two levels with
   `coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic
   change, key innovations, and [trait-linked gene families](docs/guide/trait-linked-genomes.md).
