@@ -33,7 +33,7 @@ loss act **per gene copy**, so a family's total event rate scales with its curre
 its size follows an exponential birth–death. Origination acts **per branch**, seeding new families
 over time independently of what is already present.
 
-![One gene family evolving along a species tree: a duplication, a loss, and a transfer, each placed on the branch where the Gillespie process fired it.](figures/species_tree_events.pdf)
+![Three gene families evolving along one species tree, each drawn in its own colour. Every family originates at the root and then accrues its own duplication, transfer and loss, placed on the branch where the shared Gillespie process fired it — one process, run over every branch alive at each moment, threads all three histories through the same tree at once.](figures/species_tree_events_multi.pdf)
 
 ## Rates
 
