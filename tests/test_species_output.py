@@ -73,3 +73,33 @@ def test_banner_only_on_help(tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["--help"])
     assert BANNER in capsys.readouterr().out                            # but it is on --help
+
+
+def test_cli_writes_species_nodes_table(tmp_path):
+    """`species` writes species_nodes.tsv — one row per node (name, time, is_leaf, is_extant) —
+    matching the simulated tree, on both forward and backward runs."""
+    out = tmp_path / "fwd"
+    rc = main(["species", "--mode", "forward", "--age", "6", "--birth", "1", "--death", "0.5",
+               "--sampling-fraction", "0.5", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    # the same seed reproduces the exact tree the CLI built the table from
+    tree = simulate_species_tree(BirthDeath(1.0, 0.5, sampling_fraction=0.5),
+                                 age=6.0, direction="forward", seed=1)
+
+    rows = (out / "species_nodes.tsv").read_text().splitlines()
+    assert rows[0] == "name\ttime\tis_leaf\tis_extant"
+    table = {}
+    for line in rows[1:]:
+        name, t, is_leaf, is_extant = line.split("\t")
+        table[name] = (float(t), is_leaf == "True", is_extant == "True")
+    assert len(table) == len(list(tree.nodes()))               # one row per node, names unique
+    for node in tree.nodes():
+        t, is_leaf, is_extant = table[node.name]
+        assert is_leaf == (not node.children)                  # leaf iff no children
+        assert is_extant == bool(node.is_extant)               # extant flag faithful to the sim
+        assert abs(t - node.time) <= 1e-6 * max(1.0, abs(node.time))
+
+    # written on a plain backward run too (no dead tips, no companion tree)
+    out2 = tmp_path / "bwd"
+    assert main(["species", "--mode", "backward", "--tips", "10", "--seed", "1", "-o", str(out2)]) == 0
+    assert (out2 / "species_nodes.tsv").exists()
