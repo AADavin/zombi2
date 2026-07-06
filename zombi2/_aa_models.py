@@ -18,6 +18,8 @@ Correctness is asserted in the tests: for every model the stored ``π`` must mat
 vector to 1e-4 and the assembled ``Q`` must be reversible (``π_i Q_ij = π_j Q_ji``).
 """
 
+from __future__ import annotations
+
 # LG: lower-triangular exchangeabilities (190) + stationary frequencies (20),
 # amino-acid order A R N D C Q E G H I L K M F P S T W Y V (PAML lg.dat, abacus-gene/paml).
 _LG_EXCH = (
