@@ -7,57 +7,57 @@
 <text x="600.0" y="48" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Modules are kept or lost together</text>
 <path d="M600,92 L600,590" stroke="#e0e0e0" stroke-width="1.4" />
 <text x="44" y="108" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">A</text>
-<text x="78" y="108" font-size="20" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">the panel: 20 families in 4 modules</text>
+<text x="78" y="108" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">the panel: 20 families in 4 modules</text>
 <rect x="67" y="178" width="216" height="150" rx="14" fill="#f7f7f7" stroke="#e4e4e4" stroke-width="1.2" />
-<text x="175" y="200" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#4477AA" font-weight="bold">module 1</text>
+<text x="175" y="200" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4477AA" font-weight="bold">module 1</text>
 <circle cx="117" cy="248" r="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="117" y="248" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
+<text x="117" y="248" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
 <circle cx="175" cy="248" r="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="175" y="248" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
+<text x="175" y="248" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
 <circle cx="233" cy="248" r="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="233" y="248" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
+<text x="233" y="248" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
 <circle cx="146" cy="296" r="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="146" y="296" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
+<text x="146" y="296" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
 <circle cx="204" cy="296" r="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="204" y="296" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
+<text x="204" y="296" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
 <rect x="337" y="178" width="216" height="150" rx="14" fill="#f7f7f7" stroke="#e4e4e4" stroke-width="1.2" />
-<text x="445" y="200" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#E08A3C" font-weight="bold">module 2</text>
+<text x="445" y="200" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E08A3C" font-weight="bold">module 2</text>
 <circle cx="387" cy="248" r="20" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="387" y="248" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
+<text x="387" y="248" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
 <circle cx="445" cy="248" r="20" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="445" y="248" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
+<text x="445" y="248" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
 <circle cx="503" cy="248" r="20" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="503" y="248" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
+<text x="503" y="248" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
 <circle cx="416" cy="296" r="20" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="416" y="296" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
+<text x="416" y="296" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
 <circle cx="474" cy="296" r="20" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="474" y="296" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
+<text x="474" y="296" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
 <rect x="67" y="398" width="216" height="150" rx="14" fill="#f7f7f7" stroke="#e4e4e4" stroke-width="1.2" />
-<text x="175" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#7B5EA7" font-weight="bold">module 3</text>
+<text x="175" y="420" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#7B5EA7" font-weight="bold">module 3</text>
 <circle cx="117" cy="468" r="20" fill="#7B5EA7" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="117" y="468" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
+<text x="117" y="468" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
 <circle cx="175" cy="468" r="20" fill="#7B5EA7" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="175" y="468" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
+<text x="175" y="468" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
 <circle cx="233" cy="468" r="20" fill="#7B5EA7" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="233" y="468" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
+<text x="233" y="468" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
 <circle cx="146" cy="516" r="20" fill="#7B5EA7" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="146" y="516" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
+<text x="146" y="516" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
 <circle cx="204" cy="516" r="20" fill="#7B5EA7" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="204" y="516" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
+<text x="204" y="516" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
 <rect x="337" y="398" width="216" height="150" rx="14" fill="#f7f7f7" stroke="#e4e4e4" stroke-width="1.2" />
-<text x="445" y="420" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#4C9AA6" font-weight="bold">module 4</text>
+<text x="445" y="420" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4C9AA6" font-weight="bold">module 4</text>
 <circle cx="387" cy="468" r="20" fill="#4C9AA6" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="387" y="468" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
+<text x="387" y="468" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">1</text>
 <circle cx="445" cy="468" r="20" fill="#4C9AA6" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="445" y="468" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
+<text x="445" y="468" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">2</text>
 <circle cx="503" cy="468" r="20" fill="#4C9AA6" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="503" y="468" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
+<text x="503" y="468" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">3</text>
 <circle cx="416" cy="516" r="20" fill="#4C9AA6" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="416" y="516" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
+<text x="416" y="516" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">4</text>
 <circle cx="474" cy="516" r="20" fill="#4C9AA6" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="474" y="516" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
+<text x="474" y="516" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">5</text>
 <text x="636" y="108" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">B</text>
-<text x="670" y="108" font-size="20" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">one genome, drawn unordered</text>
+<text x="670" y="108" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">one genome, drawn unordered</text>
 <rect x="650" y="150" width="474" height="356" rx="16" fill="#f7f7f7" stroke="#d7d7d7" stroke-width="1.6" />
 <circle cx="726" cy="246" r="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="2.0" />
 <circle cx="833" cy="237" r="20" fill="#E08A3C" stroke="#1a1a1a" stroke-width="2.0" />
@@ -78,15 +78,15 @@
 <path d="M1006,392 L1034,420" stroke="#cc4b3c" stroke-width="5" stroke-linecap="round" />
 <path d="M1006,420 L1034,392" stroke="#cc4b3c" stroke-width="5" stroke-linecap="round" />
 <path d="M1038,416 L1064,446" stroke="#8a8a8a" stroke-width="1.4" />
-<text x="1068" y="456" font-size="18" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">lost</text>
-<text x="887.0" y="540" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">module 4 is incomplete (1 of 5): its lone gene has no partners,</text>
-<text x="887.0" y="564" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">so a small field, a fast loss -- the module empties out</text>
+<text x="1068" y="456" font-size="22" font-family="Helvetica" text-anchor="start" fill="#cc4b3c" font-weight="bold">lost</text>
+<text x="887.0" y="540" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">module 4 is incomplete (1 of 5): its lone gene has no partners,</text>
+<text x="887.0" y="564" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">so a small field, a fast loss -- the module empties out</text>
 <circle cx="230" cy="628" r="11" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="250" y="628" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 1</text>
+<text x="250" y="628" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 1</text>
 <circle cx="430" cy="628" r="11" fill="#E08A3C" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="450" y="628" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 2</text>
+<text x="450" y="628" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 2</text>
 <circle cx="630" cy="628" r="11" fill="#7B5EA7" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="650" y="628" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 3</text>
+<text x="650" y="628" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 3</text>
 <circle cx="830" cy="628" r="11" fill="#4C9AA6" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="850" y="628" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 4</text>
+<text x="850" y="628" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">module 4</text>
 </svg>

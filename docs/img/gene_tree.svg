@@ -49,36 +49,36 @@
 <path d="M-614.0,-0.9375 L-600.0,-0.9375" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-600.0,-0.9375 L-600.0,-202.5" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-600.0,-0.9375 L-600.0,200.625" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="611.999520000192" y="-330.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">A_1</text>
-<text x="611.999520000192" y="-270.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">B_1</text>
-<text x="611.999520000192" y="-210.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">C_1</text>
-<text x="611.999040000384" y="-150.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">D_1</text>
-<text x="611.999040000384" y="-90.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">E_1</text>
-<text x="611.9992800002881" y="-30.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">F_1</text>
-<text x="611.9992800002881" y="30.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">G_1</text>
-<text x="611.9997600000961" y="90.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">G_2</text>
-<text x="612.0" y="150.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">H_1</text>
-<text x="612.0" y="210.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">I_1</text>
-<text x="612.0" y="270.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">I_2</text>
-<text x="267.39421784231274" y="330.0" font-size="18" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="611.999520000192" y="-330.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">A_1</text>
+<text x="611.999520000192" y="-270.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">B_1</text>
+<text x="611.999520000192" y="-210.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">C_1</text>
+<text x="611.999040000384" y="-150.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">D_1</text>
+<text x="611.999040000384" y="-90.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">E_1</text>
+<text x="611.9992800002881" y="-30.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">F_1</text>
+<text x="611.9992800002881" y="30.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">G_1</text>
+<text x="611.9997600000961" y="90.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">G_2</text>
+<text x="612.0" y="150.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">H_1</text>
+<text x="612.0" y="210.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">I_1</text>
+<text x="612.0" y="270.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">I_2</text>
+<text x="267.39421784231274" y="330.0" font-size="22" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
 <rect x="106.84339366264248" y="231.0" width="18.0" height="18.0" fill="#1a1a1a" opacity="1.0" />
 <path d="M-92.07884316846275,-10.392304845413262 L-101.07884316846275,5.196152422706631 L-83.07884316846275,5.196152422706631 Z" fill="#1a1a1a" opacity="1.0" />
-<text x="-74.07884316846275" y="-42.0" font-size="20" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">remaining copy</text>
-<text x="-74.07884316846275" y="18.0" font-size="20" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">transferred copy</text>
+<text x="-74.07884316846275" y="-42.0" font-size="22" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">remaining copy</text>
+<text x="-74.07884316846275" y="18.0" font-size="22" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">transferred copy</text>
 <path d="M246.39421784231274,321.0 L264.39421784231274,339.0" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
 <path d="M246.39421784231274,339.0 L264.39421784231274,321.0" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
 <path d="M-614.0,346.0 L599.999520000192,346.0" stroke="black" stroke-width="1.6" />
 <path d="M-600.0,346.0 L-600.0,352.0" stroke="black" stroke-width="1.6" />
-<text x="-600.0" y="370.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.00</text>
+<text x="-600.0" y="374.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.00</text>
 <path d="M-300.000119999952,346.0 L-300.000119999952,352.0" stroke="black" stroke-width="1.6" />
-<text x="-300.000119999952" y="370.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.25</text>
+<text x="-300.000119999952" y="374.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.25</text>
 <path d="M-0.0002399999040108014,346.0 L-0.0002399999040108014,352.0" stroke="black" stroke-width="1.6" />
-<text x="-0.0002399999040108014" y="370.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.50</text>
+<text x="-0.0002399999040108014" y="374.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.50</text>
 <path d="M299.9996400001439,346.0 L299.9996400001439,352.0" stroke="black" stroke-width="1.6" />
-<text x="299.9996400001439" y="370.0" font-size="18" text-anchor="middle" font-family="Helvetica">0.75</text>
+<text x="299.9996400001439" y="374.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.75</text>
 <path d="M599.999520000192,346.0 L599.999520000192,352.0" stroke="black" stroke-width="1.6" />
-<text x="599.999520000192" y="370.0" font-size="18" text-anchor="middle" font-family="Helvetica">1.00</text>
-<text x="-7.000239999904011" y="397.0" font-size="18" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
+<text x="599.999520000192" y="374.0" font-size="22" text-anchor="middle" font-family="Helvetica">1.00</text>
+<text x="-7.000239999904011" y="407.0" font-size="22" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
 <text x="0" y="-408.0" font-size="32" font-weight="bold" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a">The complete gene tree</text>
 <rect x="-687.0" y="-371.0" width="18.0" height="18.0" fill="#1a1a1a" opacity="1.0" />
 <text x="-645.0" y="-362.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">Duplication</text>

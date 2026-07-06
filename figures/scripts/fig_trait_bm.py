@@ -27,7 +27,7 @@ from zombi2.traits import BrownianMotion, simulate_traits
 from model_common import zombi_to_ete3
 from zombi_style import INK, species_style, FS_TITLE, FS_LABEL, FS_TICK
 
-OUT_STEM = Path("/Users/aadria/Desktop/CLAUDE/ZOMBI2/figures/trait_bm/trait_bm")
+OUT_STEM = Path(__file__).resolve().parent.parent / "trait_bm" / "trait_bm"
 
 N_TIPS, AGE, TREE_SEED = 28, 1.0, 3
 SIGMA2, X0, TRAIT_SEED = 1.0, 0.0, 12
