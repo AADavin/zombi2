@@ -9,7 +9,7 @@ into it.
 from zombi2.species import BirthDeath, simulate_species_tree
 from zombi2.traits import (
     simulate_traits, BrownianMotion, OrnsteinUhlenbeck, EarlyBurst,
-    MultivariateBrownian, MultivariateOU, Mk, CorrelatedBinary, HiddenStateMk,
+    MultivariateBrownian, MultivariateOU, Mk, CorrelatedBinary, CorrelatedBinaryK, HiddenStateMk,
     ThresholdModel, MultiOptimumOU, DEC, simulate_biogeography,
     pagel_lambda, pagel_delta, pagel_kappa,
 )
@@ -63,6 +63,7 @@ you need:
 | `MultivariateBrownian` / `MultivariateOU` | continuous | correlated multi-trait evolution |
 | `Mk` | discrete | a $k$-state Markov character |
 | `CorrelatedBinary` | discrete | two binary characters evolving jointly (Pagel) |
+| `CorrelatedBinaryK` | discrete | $k$ binary characters evolving jointly (Pagel, $k \ge 2$) |
 | `HiddenStateMk` | discrete | hidden rate classes (corHMM) |
 | `ThresholdModel` | discrete | a discrete state from a latent continuous liability |
 | `MultiOptimumOU` | continuous | OU with a different optimum per regime |
@@ -186,6 +187,27 @@ null = CorrelatedBinary.independent(x_gain=0.5, x_loss=0.5, y_gain=0.5, y_loss=0
 ```
 
 ![Correlated binary characters. **A**, the joint state space $\{00, 01, 10, 11\}$: horizontal edges flip Y, vertical edges flip X, and each arrow's width is its rate. With these rates Y is gained fast only when X = 1 and lost fast when X = 0, so Y is driven toward X. **B**, one realization on a tree: branches are drawn heavy where X = 1 and light where X = 0, and the two tip columns give each leaf's $(X, Y)$ — the clades where X switches on are exactly the clades where Y is present.](figures/trait_pagel.pdf){width=100%}
+
+`CorrelatedBinaryK` generalises this to **$k \ge 2$** binary characters evolving jointly over the
+$2^k$ configurations of $\{0,1\}^k$, still changing one trait at a time (every transition that would
+flip two or more bits at once has rate zero — Pagel's single-change constraint). Each single-bit flip
+may depend on the *other* traits' states, and that dependence is the correlated evolution. It is a
+plain $2^k$-state `Mk`, so it simulates like any discrete trait, with each tip labelled by its
+$k$-tuple. Build it with the compact convenience constructors — `independent` (the Pagel **null**,
+each trait on its own), `equal_rates` (one shared gain/loss), `partner_coupling` (each trait modulated
+by one designated partner), or `from_table` (the full rate table):
+
+```python
+# 3 binary traits; trait 1 "tracks" trait 0 as its partner: when trait 0 is present, trait 1 is
+# gained 3x faster and lost half as fast, so the two come to co-occur (traits 0 and 2 evolve freely)
+m = CorrelatedBinaryK.partner_coupling(
+    gains=[0.5, 0.3, 0.5], losses=[0.5, 0.5, 0.5],
+    partners=[None, 0, None], boost_gain=[1, 3, 1], boost_loss=[1, 0.5, 1])
+res = simulate_traits(tree, m, seed=1)
+res.labeled_values()                   # {extant leaf: (t0, t1, t2)}
+
+null = CorrelatedBinaryK.independent(gains=0.5, losses=[0.5, 0.5, 0.5])   # the k = 3 Pagel null
+```
 
 ### Hidden rate classes (corHMM)
 
