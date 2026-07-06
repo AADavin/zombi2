@@ -241,7 +241,6 @@ def test_root_tuple_pins_configuration():
 
 # --------------------------------------------------------------------------- partner coupling
 def test_partner_coupling_reduces_to_independent_without_partners():
-    k = 3
     m = CorrelatedBinaryK.partner_coupling(
         gains=[0.4, 0.5, 0.6], losses=[0.3, 0.2, 0.1],
         partners=[None, None, None])
