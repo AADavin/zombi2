@@ -72,6 +72,7 @@ nav:
   - FAQ: faq.md
   - Comparison with ZOMBI-1: comparison.md
   - Contributing: contributing.md
+  - Publishing a release: publishing.md
   - API reference: reference/api.md
   - Roadmap:
       - Species-tree models: species_tree_models.md
