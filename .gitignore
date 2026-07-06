@@ -28,6 +28,29 @@ site/
 docs/non_independence.pdf
 docs/non_independence.tex
 
+# --- Generated artifacts: regenerable outputs; the sources that produce them ARE tracked ---
+
+# Offline single-file docs mirror (rebuild with tools/build_docs_html.py)
+/zombi2-docs.html
+
+# Publication figure renders — regenerate with figures/scripts/*.py
+# (the scripts and the small .nwk fixtures stay tracked; docs/img/*.svg is the served copy)
+figures/**/*.png
+figures/**/*.svg
+
+# Compiled analysis reports and regenerated figures
+# (run scripts, *.json results and *.tex sources stay tracked)
+analyses/**/*.pdf
+analyses/**/figures/*.png
+analyses/**/figures/*.svg
+analyses/**/figs/*.png
+analyses/**/figs/*.svg
+# ...except the performance overview embedded in README.md
+!analyses/performance/figures/overview.png
+
+# Compiled coupling explainer (keep the .tex)
+/docs/coupling_explained.pdf
+
 # LaTeX build artifacts
 *.aux
 *.log
