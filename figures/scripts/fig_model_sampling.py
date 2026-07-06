@@ -70,9 +70,9 @@ def main():
     mark_observed(tree)
 
     n_leaves = len(tree.get_leaves())
-    # wide, dense landscape canvas (fixed width, height capped so the tree stays
-    # wider than it is tall); extra top headroom for the centered title + legend
-    style = species_style(width=1320, height=min(860, 30 * n_leaves + 260), margin=118)
+    # extra-wide landscape canvas so the tree fills the PDF page width (height capped
+    # so it stays wider than it is tall); extra top headroom for the title + legend
+    style = species_style(width=1440, height=min(860, 30 * n_leaves + 260), margin=118)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d._calculate_layout()
 

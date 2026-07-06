@@ -4,18 +4,19 @@ This is the *scenario* companion to the gene-tree figure: the exact events of a
 SINGLE ZOMBI2 gene family, placed at their true time on the species tree. The run
 uses ``origination=0`` and ``initial_families=1`` so exactly one family seeds the
 root and evolves along the tree by duplication, transfer and loss — the events the
-caption promises:
+caption promises, all landing comfortably in the interior of the tree:
 
-  * duplication in species A            -> filled square
-  * transfer B -> C                     -> black arc, donor dot -> arrowhead on recipient
-  * loss on an internal branch          -> black cross
+  * duplication in species A            -> filled square   (t = 0.77)
+  * transfer H -> J                     -> black arc, donor dot -> arrowhead (t = 0.57)
+  * loss on an internal branch          -> black cross     (t = 0.58)
 
-The tree (10 extant tips, ``BirthDeath(1.0, 0.3)``, seed 25) is committed as the
-fixture ``figures/species_tree_10/species_tree.nwk``; the family is genome seed 61.
-Events are keyed by their ZOMBI node names (``n6``; ``n5`` -> ``n4``; ``i3``) so the
-glyphs land on the right branches; extant leaves are then relabelled A-J for
-display. Monochrome, print-friendly, and wide to match the other species-tree
-figures.
+The tree (10 extant tips, ``BirthDeath(1.0, 0.3)``, seed 86) is committed as the
+fixture ``figures/species_tree_10/species_tree.nwk``; the family is genome seed 178.
+Duplication/loss are keyed by ZOMBI node name (``n4``; ``i3``) and resolved before
+the A-J relabel; the transfer is drawn by ``plot_transfers`` (which re-looks-up
+names on the already-relabelled tree), so its endpoints are the DISPLAY letters.
+The legend sits in the empty upper-left, clear of every branch. Monochrome,
+print-friendly, and wide to match the other species-tree figures.
 
 Run:  python figures/scripts/fig_species_tree_events.py
 """
@@ -35,14 +36,14 @@ FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_10" / "species_tree.nwk"
 OUT_STEM = FIG_DIR / "species_tree_events" / "species_tree_events"
 
-# The single family's events at their true simulated times (genome seed 61 on this
+# The single family's events at their true simulated times (genome seed 178 on this
 # tree: origination=0, initial_families=1, so exactly one family evolves).
 # Duplication/loss are keyed by the ZOMBI name captured *before* the A-J relabel;
 # the transfer is drawn by ``plot_transfers`` (which re-looks-up node names on the
 # already-relabelled tree), so its endpoints are the DISPLAY letters.
-DUPLICATIONS = [("n6", 0.1747)]                              # duplication in species A
-LOSSES = [("i3", 0.6134)]                                    # loss on an internal branch
-TRANSFERS = [{"from": "B", "to": "C", "time": 0.9991}]       # transfer B -> C
+DUPLICATIONS = [("n4", 0.7702)]                              # duplication in species A
+LOSSES = [("i3", 0.5833)]                                    # loss on an internal branch
+TRANSFERS = [{"from": "H", "to": "J", "time": 0.5664}]       # transfer H -> J
 
 MARKER_R = 9.0
 
@@ -101,8 +102,9 @@ def draw_events(d, name2node):
 
 
 def add_legend(d, x, y):
-    """Symbol legend (solid-black glyphs), a single vertical column in the top-left:
-    one row per event, ordered Duplication, Transfer, Loss."""
+    """Symbol legend (solid-black glyphs) as a single vertical column, placed in the
+    empty upper-left corner clear of every branch: one row per event, ordered
+    Duplication, Transfer, Loss."""
     r = MARKER_R
     fam = d.style.font_family
     gap = 24                                     # symbol-to-label gap
@@ -154,14 +156,14 @@ def main():
                     label="Time (root to present)", tick_size=6.0, padding=16.0,
                     stroke_width=1.6)
 
-    # title centered at the top; symbol legend as a vertical column in the top-left,
-    # both clear of the tree
-    left = -style.width / 2 + 30
+    # title centered at the top; symbol legend as a vertical column in the empty
+    # upper-left (this tree's crown fans out to the right, so the upper-left corner
+    # is clear of every branch)
     d.drawing.append(draw.Text("Gene-family events on the species tree", FS_TITLE, 0,
                                -style.height / 2 + 42, font_weight="bold",
                                font_family=style.font_family, text_anchor="middle",
                                dominant_baseline="central", fill=INK))
-    add_legend(d, x=left + 12, y=-style.height / 2 + 88)
+    add_legend(d, x=-style.width / 2 + 44, y=-style.height / 2 + 116)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)
