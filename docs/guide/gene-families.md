@@ -78,9 +78,7 @@ genomes = z.simulate_genomes(tree, z.PerGenomeRates(duplication=1.0, transfer=0.
 ```
 
 A useful consequence: family sizes grow *linearly* rather than exponentially, so
-genome-wise models are far less prone to runaway growth. See the
-[`genome_wise_model.ipynb`](https://github.com/AADavin/zombi2/blob/main/examples/genome_wise_model.ipynb)
-notebook for a side-by-side comparison with the gene-wise model.
+genome-wise models are far less prone to runaway growth.
 
 ### Branch-wise rates
 

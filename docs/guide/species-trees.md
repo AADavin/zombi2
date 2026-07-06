@@ -79,9 +79,6 @@ z.EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25
     lineages — it ships in forward mode; see
     [fossilized birth–death](../species_tree_models.md).
 
-See the [`episodic_species_trees.ipynb`](https://github.com/AADavin/zombi2/blob/main/examples/episodic_species_trees.ipynb)
-notebook for worked examples.
-
 ## Mass extinctions (instantaneous pulses)
 
 Raising `death` over an epoch spreads extra extinction *smoothly* across a time window. A **mass
