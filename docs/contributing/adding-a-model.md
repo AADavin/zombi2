@@ -10,22 +10,27 @@ not "done" when it runs. It is done when it plugs into the right seam, follows t
 
 ## 1. Implement the interface
 
-Pick the level you are adding to and implement its interface. The deep architecture of the
-gene-family seams (`Genome` / `RateModel` / `EventSampler`) is in
+ZOMBI2 has **four levels** of evolution, each a subpackage under `zombi2/`. Pick the level you
+are adding to and implement its interface — a level can offer more than one kind of seam. The
+deep architecture of the gene-family seams (`Genome` / `RateModel` / `EventSampler`) is in
 [Extending ZOMBI2](../guide/extending.md); this is the map.
 
-| Level | Implement | Key method(s) | Passed to | Lives in |
+| Level | To add… | Implement (file) | Key method(s) | Passed to |
 |---|---|---|---|---|
-| Species tree | a model class | `validate()`, and `sample_internal_age(u, A)` (backward) *or* forward-simulable rates | `simulate_species_tree` | `species_model.py` |
-| Gene-family rates | subclass `RateModel` | `event_weights(genome, branch, time)` | `simulate_genomes` | `rates.py` |
-| Genome representation | the `Genome` protocol | `draw_target`, `apply`, `supported_events`, … | `simulate_genomes(genome_factory=…)` | `genome.py` |
-| Trait | a duck-typed model | `kind`, `root_value(rng)`, `evolve(state, dt, t0, rng)` | `simulate_traits` | `_traits_impl.py` |
-| Substitution | a `SubstitutionModel` | frozen dataclass `name, Q, stationary, alphabet` | `evolve_on_tree` / `SequenceEvolution` | `sequence_sim.py` |
-| Molecular clock | subclass `Clock` | `_branch_rate(node, parent_rate, rng)` | `SequenceEvolution` / `clock.scale` | `rate_variation.py` |
-| Event sampler | subclass `EventSampler` | `next_waiting_time`, `choose_index` | `simulate_genomes(sampler=…)` | `_sampling.py` |
+| **species** <br>`zombi2/species/` | a species-tree model | a model class (`model.py`) | `validate()`, and `sample_internal_age(u, A)` (backward) *or* forward-simulable rates | `simulate_species_tree` |
+| **genomes** <br>`zombi2/genomes/` | a rate model | subclass `RateModel` (`rates.py`) | `event_weights(genome, branch, time)` | `simulate_genomes` |
+| | a genome representation | the `Genome` protocol (`genome.py`) | `draw_target`, `apply`, `supported_events`, … | `simulate_genomes(genome_factory=…)` |
+| **traits** <br>`zombi2/traits/` | a trait model | a duck-typed model (`models.py`) | `kind`, `root_value(rng)`, `evolve(state, dt, t0, rng)` | `simulate_traits` |
+| **sequences** <br>`zombi2/sequences/` | a substitution model | a `SubstitutionModel` (`models.py`) | frozen dataclass `name, Q, stationary, alphabet` | `evolve_on_tree` / `SequenceEvolution` |
+| | a molecular clock | subclass `Clock` (`clocks.py`) | `_branch_rate(node, parent_rate, rng)` | `SequenceEvolution` / `clock.scale` |
+
+Two seams are cross-cutting rather than levels: the **event sampler** (`EventSampler` in
+`_sampling.py` — the Gillespie numeric core, shared by every level) and **coevolution**
+(`zombi2/coevolve/`), which *couples* two levels rather than adding one — see
+[coevolution models](../coevolution_models.md).
 
 Most levels are **duck-typed protocols** (implement the methods, no base class needed);
-`RateModel`, `EventSampler` are ABCs; `SubstitutionModel` is a frozen dataclass. Add a
+`RateModel` and `EventSampler` are ABCs, `SubstitutionModel` is a frozen dataclass. Add a
 `validate()` that raises a clear `ValueError` on bad parameters, and call it on entry.
 
 ## 2. Follow the conventions
@@ -104,16 +109,18 @@ The citation.
 
 Not every model belongs in the core suite. A model enters the **core** when all of these hold:
 
-1. **It is a genome-evolution model** — one of the levels ZOMBI2 simulates (species trees,
-   gene families, genome structure, traits, sequences, clocks) or a *coupling* among them.
+1. **It is a genome-evolution model** — one of the four levels ZOMBI2 simulates (species trees,
+   genomes, traits, sequences) or a *coupling* among them.
 2. **It ships validation** — clears the hard rule in step 5.
 3. **It follows the conventions** — clears steps 2–4.
 4. **It is general** — a reusable model, not a one-off analysis script.
 
 Anything else is an **Extension**: it lives in a separate release with its own manual, sharing
-these conventions but not the core's release cadence. Inference (ABC/NDE) and population
-genetics are Extensions by design; gene-family coupling was moved to one when it could not yet
-clear the bar. Per-lineage diversification (ClaDS) cleared it and is in the core.
+these conventions but not the core's release cadence. **Inference** — ABC profile-matching and
+ALElite reconciliation likelihood — and **population genetics** are Extensions by design; the
+inference code was moved out to `ZOMBI2_FUTURE/` because likelihood is not simulation. By
+contrast, per-lineage diversification (ClaDS) is a genome-evolution model that clears the bar,
+so it is in the core.
 
 This is a **curation call**, made by the maintainers — the point of the bar is that breadth
 never comes at the cost of coherence. When unsure, open an issue before writing the model.
