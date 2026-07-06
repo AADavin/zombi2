@@ -47,12 +47,11 @@ NAMESPACES = {
         "TraitResult", "pagel_lambda", "pagel_delta", "pagel_kappa",
         "DEC", "simulate_biogeography", "Cladogenesis",
     ],
-    "clocks": [
+    "sequences": [
+        # relaxed molecular clocks (folded into sequences — the rate half of sequence evolution)
         "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
         "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",
         "CIRClock", "RateVariation",
-    ],
-    "sequences": [
         "SequenceEvolution", "GenePhylograms",
         "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr",
         "poisson", "lg", "wag", "jtt", "dayhoff", "make_model", "is_protein_model",
@@ -122,8 +121,7 @@ def test_from_import_style_works():
     """The scikit-learn ``from zombi2.<ns> import <Name>`` style resolves."""
     from zombi2.species import DiversityDependent, simulate_species_tree
     from zombi2.traits import OrnsteinUhlenbeck
-    from zombi2.sequences import lg
-    from zombi2.clocks import StrictClock, UncorrelatedLogNormalClock
+    from zombi2.sequences import lg, StrictClock, UncorrelatedLogNormalClock
     from zombi2.genomes import simulate_genomes
     from zombi2.coevolve import simulate_coupled
     from zombi2.distributions import Gamma
@@ -185,6 +183,6 @@ def test_traits_impl_moved_but_backward_compatible():
     home.
     """
     from zombi2.traits import OrnsteinUhlenbeck as ns_ou, _expm  # noqa: F401
-    from zombi2._traits_impl import OrnsteinUhlenbeck as impl_ou
+    from zombi2.traits.models import OrnsteinUhlenbeck as impl_ou
 
     assert ns_ou is impl_ou is z.OrnsteinUhlenbeck

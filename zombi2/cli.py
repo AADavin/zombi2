@@ -12,37 +12,37 @@ import numpy as np
 
 from . import __version__
 
-from .biogeography import DEC, simulate_biogeography
-from .ghosts import add_ghost_lineages
-from .nucleotide_sim import simulate_nucleotide_genomes
-from .profiles import ProfileMatrix
-from .distributions import LogNormal
-from .rate_variation import (
+from zombi2.traits.biogeography import DEC, simulate_biogeography
+from zombi2.species.ghosts import add_ghost_lineages
+from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
+from zombi2.genomes.profiles import ProfileMatrix
+from zombi2.distributions import LogNormal
+from zombi2.sequences.clocks import (
     AutocorrelatedLogNormalClock, CIRClock, RateVariation, StrictClock,
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
-from .genome import OrderedGenome
-from .rates import PerGenomeRates, SharedRates
-from .sequence_evolution import SequenceEvolution
-from .simulation import Genomes, simulate_genomes
-from .species_model import (
+from zombi2.genomes.genome import OrderedGenome
+from zombi2.genomes.rates import PerGenomeRates, SharedRates
+from zombi2.sequences.evolution import SequenceEvolution
+from zombi2.genomes.simulation import Genomes, simulate_genomes
+from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
 )
-from .species_sim import simulate_species_tree
-from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
-from .gene_diversification import (
+from zombi2.species.sim import simulate_species_tree
+from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, simulate_sse
+from zombi2.coevolve.gene_diversification import (
     GeneDiversification, simulate_gene_diversification, simulate_co_diversification,
 )
-from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
-from .gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
-from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
-from .trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
-from ._traits_impl import (
+from zombi2.coevolve.cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
+from zombi2.coevolve.gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
+from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
+from zombi2.coevolve.trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
+from zombi2.traits.models import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
     Cladogenesis, simulate_traits,
 )
-from .transfers import TransferModel
-from .tree import Tree, prune, read_newick
+from zombi2.genomes.transfers import TransferModel
+from zombi2.tree import Tree, prune, read_newick
 
 _DESCRIPTION = """\
 Simulate each level on its own, or couple them into joint models. Run
@@ -1558,7 +1558,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None
     if args.gff:                              # start from a real genome: length + gene coordinates
-        from .gff import read_gff
+        from zombi2.genomes.gff import read_gff
         gff_info = read_gff(args.gff, seqid=args.gff_seqid)
         genes = gff_info.genes
         args.root_length = gff_info.length    # GFF is authoritative for the chromosome length
@@ -1632,7 +1632,7 @@ def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
     ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is seeded
     from ``--genome-fasta`` (the real genome) when given, else drawn at random.
     """
-    from .sequence_sim import make_model, GammaRates, read_fasta, write_fasta
+    from zombi2.sequences.models import make_model, GammaRates, read_fasta, write_fasta
     model = make_model(args.subst_model, kappa=args.kappa,
                        freqs=args.base_freqs, rates=args.gtr_rates)
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
@@ -2032,11 +2032,11 @@ def _run_sequence(args: argparse.Namespace) -> str:
     along each rescaled **extant** gene tree (the rescaled branch lengths ARE the substitutions/
     site) and the leaf alignment is written as ``alignments/<family>.fasta``.
     """
-    from .profiles import _natkey
-    from .reconciliation import extant_species_from_records
-    from .sequence_sim import (GammaRates, evolve_on_tree, is_protein_model, make_model,
+    from zombi2.genomes.profiles import _natkey
+    from zombi2.genomes.reconciliation import extant_species_from_records
+    from zombi2.sequences.models import (GammaRates, evolve_on_tree, is_protein_model, make_model,
                                read_fasta, write_fasta)
-    from .simulation import read_events_trace
+    from zombi2.genomes.simulation import read_events_trace
 
     if args.family_speed < 0 or args.branch_speed < 0:
         raise ValueError("--family-speed / --branch-speed must be >= 0")

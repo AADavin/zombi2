@@ -38,7 +38,7 @@ def _read_profiles(path):
 def _python_profiles(tree, seed, *, initial_families, max_family_size, **rates):
     """Reference profiles from the pure-Python engine (the built-in model otherwise routes
     to Rust), for the cross-engine statistical-equivalence check."""
-    from zombi2.genome_sim import GenomeSimulator
+    from zombi2.genomes.genome_sim import GenomeSimulator
 
     rng = np.random.default_rng(seed)
     res = GenomeSimulator().simulate(tree, z.SharedRates(**rates), rng,

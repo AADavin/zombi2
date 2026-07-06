@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..tree import read_newick
+from zombi2.tree import read_newick
 
 
 @dataclass(slots=True)

@@ -27,9 +27,9 @@ from zombi2 import (
     BrownianMotion, Mk, MultivariateBrownian, TraitResult, simulate_species_tree,
     simulate_traits, BirthDeath,
 )
-from zombi2.events import EventType
-from zombi2.genome import Gene, IdManager, UnorderedGenome
-from zombi2.trait_coupling import (
+from zombi2.genomes.events import EventType
+from zombi2.genomes.genome import Gene, IdManager, UnorderedGenome
+from zombi2.coevolve.trait_coupling import (
     TraitGeneCoupling, TraitLinkedRates, TraitTrajectory, simulate_trait_linked_genomes,
 )
 from zombi2.tree import Tree, TreeNode
