@@ -82,8 +82,9 @@ tree = simulate_species_tree(
 )
 ```
 
-A forward run realizes the process by an exact event-by-event (Gillespie) loop: starting from the
-root it draws waiting times to the next birth or death and applies them until it reaches `age`.
+A forward run realizes the process by an exact event-by-event (Gillespie) loop — the engine
+described in full in Appendix A: starting from the root it draws waiting times to the next birth
+or death and applies them until it reaches `age`.
 The result keeps the extinct leaves — conventionally named `e*` — so a lineage that died before
 the present is still a tip of the complete tree. The run is conditioned to leave at least two
 survivors; a realization in which every lineage dies is rejected and redrawn.
