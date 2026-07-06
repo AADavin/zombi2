@@ -11,7 +11,7 @@ from zombi2 import (
     simulate_genomes,
     simulate_species_tree,
 )
-from zombi2.events import EventType
+from zombi2.genomes.events import EventType
 
 
 def _name_to_node(tree):

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 import zombi2 as z
-from zombi2.profiles import ProfileMatrix
+from zombi2.genomes.profiles import ProfileMatrix
 from zombi2.matching import frequency_spectrum, genome_sizes, copy_number_spectrum
 
 

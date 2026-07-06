@@ -23,14 +23,14 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2.coupling import (
+from zombi2.coevolve.coupling import (
     CouplingSpec,
     PottsRates,
     pathway_blocks,
     simulate_coupled,
 )
-from zombi2.events import EventType
-from zombi2.genome import Gene, IdManager, UnorderedGenome
+from zombi2.genomes.events import EventType
+from zombi2.genomes.genome import Gene, IdManager, UnorderedGenome
 from zombi2.tree import Tree, TreeNode
 
 
@@ -418,7 +418,7 @@ def test_coupled_result_reconstructs_gene_trees():
     """The coupled event log carries a root origination for each panel family, so the standard
     Genomes machinery reconstructs a gene tree per family — the fix that lets --rate-model
     coupled write gene_trees/ like every other model."""
-    from zombi2.simulation import Genomes
+    from zombi2.genomes.simulation import Genomes
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=15, age=3.0, seed=1)
     spec = pathway_blocks([3, 3], within=2.0, **_REGIME)
     res = simulate_coupled(tree, spec, seed=1)

@@ -51,11 +51,11 @@ from typing import Callable
 
 import numpy as np
 
-from .distributions import Distribution, Fixed, Gamma, Uniform, as_distribution
-from .events import EventType
-from .profiles import ProfileMatrix
-from .rates import FamilySampledRates
-from .tree import Tree
+from zombi2.distributions import Distribution, Fixed, Gamma, Uniform, as_distribution
+from zombi2.genomes.events import EventType
+from zombi2.genomes.profiles import ProfileMatrix
+from zombi2.genomes.rates import FamilySampledRates
+from zombi2.tree import Tree
 
 #: The rate parameters the built-in models fit (the independent-family model).
 RATE_PARAMS = ("duplication", "transfer", "loss", "origination")
@@ -478,7 +478,7 @@ def _simulate(tree, vals, *, builder, initial_size, max_family_size, transfers,
     scalar model (``builder is None``) runs on Rust; family/custom builders run on Python.
     ``output="profiles"`` takes the fast counts-only path; ``output="genomes"`` returns the
     full result (needed for the gene-tree summary)."""
-    from .simulation import simulate_genomes
+    from zombi2.genomes.simulation import simulate_genomes
 
     kw = dict(initial_families=initial_size, max_family_size=max_family_size,
               transfers=transfers, seed=seed,
@@ -721,7 +721,7 @@ def match_coupled(
     ABCFit
         Accepted posterior over the fitted coupling parameters, with the usual diagnostics.
     """
-    from .coupling import simulate_coupled           # local import avoids any import cycle
+    from zombi2.coevolve.coupling import simulate_coupled           # local import avoids any import cycle
 
     profile_mat = (empirical if isinstance(empirical, ProfileMatrix)
                    else ProfileMatrix.from_tsv(empirical))
