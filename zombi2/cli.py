@@ -2113,6 +2113,12 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             with open(os.path.join(args.out, "species_tree_extant.nwk"), "w") as f:
                 f.write(prune(tree, keep="extant").to_newick() + "\n")
             wrote += " + species_tree_extant.nwk"
+        with open(os.path.join(args.out, "species_nodes.tsv"), "w") as f:   # node metadata table
+            f.write("name\ttime\tis_leaf\tis_extant\n")
+            for node in tree.nodes():
+                is_leaf = not node.children
+                f.write(f"{node.name}\t{node.time:.10g}\t{is_leaf}\t{bool(node.is_extant)}\n")
+        wrote += " + species_nodes.tsv"
         parts = [f"{n_extant} extant"]
         if n_extinct:
             parts.append(f"{n_extinct} extinct")
