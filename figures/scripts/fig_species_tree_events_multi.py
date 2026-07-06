@@ -84,10 +84,9 @@ def draw_cross(d, x, y, r, color, stroke_width=3.0):
                                stroke_width=stroke_width, stroke_linecap="round"))
 
 
-def draw_diamond(d, x, y, r, color):
-    """A filled diamond marking an origination, in the family colour."""
-    d.drawing.append(draw.Lines(x, y - r, x + r, y, x, y + r, x - r, y,
-                                close=True, fill=color, stroke="none"))
+def draw_origin(d, x, y, r, color):
+    """A filled circle marking an origination, in the family colour."""
+    d.drawing.append(draw.Circle(x, y, r, fill=color, stroke="none"))
 
 
 def annotate_times(tree) -> float:
@@ -127,77 +126,92 @@ def draw_family_events(d, tree, fam):
 
 def draw_originations(d, tree):
     """All three families originate at the root at t=0; stack a small coloured
-    diamond per family just past the root stub so the colour<->family key is
+    circle per family just past the root stub so the colour<->family key is
     anchored on the tree itself."""
     root = tree.get_tree_root()
     x0, y0 = root.coordinates
     x = x0 - d.style.root_stub_length * 0.5
-    span = (len(FAMILIES) - 1) * 15.0
+    span = (len(FAMILIES) - 1) * 16.0
     for i, fam in enumerate(FAMILIES):
-        draw_diamond(d, x, y0 - span / 2 + i * 15.0, MARKER_R * 0.8, fam["color"])
+        draw_origin(d, x, y0 - span / 2 + i * 16.0, MARKER_R * 0.8, fam["color"])
 
 
-def add_family_legend(d, x, y):
-    """Colour -> family key (one row per family), a vertical column, top-left."""
-    fam_font = d.style.font_family
-    d.drawing.append(draw.Text("Gene family", FS_LABEL, x, y, font_weight="bold",
-                               font_family=fam_font, text_anchor="start",
-                               dominant_baseline="central", fill=INK))
-    cy = y + FS_LABEL * 1.7
-    for fam in FAMILIES:
-        d._draw_shape_at(x + 9, cy, "square", fam["color"], r=9)
-        d.drawing.append(draw.Text(fam["label"], FS_LABEL, x + 9 + 22, cy,
-                                   font_family=fam_font, text_anchor="start",
-                                   dominant_baseline="central", fill=INK))
-        cy += FS_LABEL * 1.7
+def _legend_transfer_glyph(d, x, cy, key, r):
+    """A miniature donor-dot -> arc -> arrowhead, centred on (x, cy)."""
+    d.drawing.append(draw.Circle(x - r, cy, 3.4, fill=key))
+    p = draw.Path(stroke=key, stroke_width=2.6, fill="none", stroke_linecap="round")
+    p.M(x - r, cy).C(x - r, cy - 11, x + r, cy - 11, x + r, cy)
+    d.drawing.append(p)
+    d.drawing.append(draw.Lines(x + r, cy + 1, x + r - 5, cy - 7, x + r + 5, cy - 7,
+                                close=True, fill=key))
 
 
-def add_event_legend(d, x, y):
-    """Shape -> event key (grey, colour-neutral glyphs), a vertical column.
-    Order: Origination, Duplication, Transfer, Loss."""
+def add_legends(d, x, y):
+    """Two clean legend columns in the top-left header band, well clear of the
+    tree: a colour->family key and a glyph->event key. Each column is a heading
+    plus one row per entry; the two columns are widely separated so neither text
+    block runs into the other or into the crown.
+
+    Columns (glyph centred on ``gx``; label starts at ``gx + LGAP``):
+      * family:  coloured square + family name
+      * event:   circle(origination) / square(dup) / arc(transfer) / cross(loss)
+    """
     fam_font = d.style.font_family
     key = INK
-    r = 9
-    gap = 22
-    row = 36
-    d.drawing.append(draw.Text("Event", FS_LABEL, x, y, font_weight="bold",
-                               font_family=fam_font, text_anchor="start",
-                               dominant_baseline="central", fill=INK))
-    cy = y + FS_LABEL * 1.7
+    R = 10                       # legend glyph radius
+    ROW = FS_LABEL * 1.55        # vertical spacing between rows
+    LGAP = 30                    # glyph centre -> label start
+    COL2 = 300                   # family column -> event column offset
 
-    # origination: diamond
-    draw_diamond(d, x + r, cy, r * 0.85, key)
-    d.drawing.append(draw.Text("Origination", FS_LABEL, x + r + gap, cy, font_family=fam_font,
-                               text_anchor="start", dominant_baseline="central", fill=INK))
+    def heading(hx, text):
+        d.drawing.append(draw.Text(text, FS_LABEL, hx, y, font_weight="bold",
+                                   font_family=fam_font, text_anchor="start",
+                                   dominant_baseline="central", fill=INK))
+
+    def label(lx, ly, text):
+        d.drawing.append(draw.Text(text, FS_LABEL, lx, ly, font_family=fam_font,
+                                   text_anchor="start", dominant_baseline="central",
+                                   fill=INK))
+
+    # --- column 1: gene family (colour key) ---
+    heading(x, "Gene family")
+    gx = x + R
+    cy = y + ROW
+    for fam in FAMILIES:
+        d._draw_shape_at(gx, cy, "square", fam["color"], r=R)
+        label(gx + LGAP, cy, fam["label"])
+        cy += ROW
+
+    # --- column 2: event (glyph key, colour-neutral) ---
+    ex = x + COL2
+    heading(ex, "Event")
+    gx = ex + R
+    cy = y + ROW
+    # origination: filled circle
+    draw_origin(d, gx, cy, R, key)
+    label(gx + LGAP, cy, "Origination")
     # duplication: filled square
-    cy += row
-    d._draw_shape_at(x + r, cy, "square", key, r=r)
-    d.drawing.append(draw.Text("Duplication", FS_LABEL, x + r + gap, cy, font_family=fam_font,
-                               text_anchor="start", dominant_baseline="central", fill=INK))
+    cy += ROW
+    d._draw_shape_at(gx, cy, "square", key, r=R)
+    label(gx + LGAP, cy, "Duplication")
     # transfer: donor dot -> arc -> arrowhead
-    cy += row
-    d.drawing.append(draw.Circle(x + r - 9, cy, 3.2, fill=key))
-    p = draw.Path(stroke=key, stroke_width=2.6, fill="none", stroke_linecap="round")
-    p.M(x + r - 9, cy).C(x + r - 9, cy - 12, x + r + 9, cy - 12, x + r + 9, cy)
-    d.drawing.append(p)
-    d.drawing.append(draw.Lines(x + r + 9, cy + 1, x + r + 9 - 5, cy - 8, x + r + 9 + 5, cy - 8,
-                                close=True, fill=key))
-    d.drawing.append(draw.Text("Transfer", FS_LABEL, x + r + gap, cy, font_family=fam_font,
-                               text_anchor="start", dominant_baseline="central", fill=INK))
+    cy += ROW
+    _legend_transfer_glyph(d, gx, cy, key, R)
+    label(gx + LGAP, cy, "Transfer")
     # loss: cross
-    cy += row
-    draw_cross(d, x + r, cy, r, key)
-    d.drawing.append(draw.Text("Loss", FS_LABEL, x + r + gap, cy, font_family=fam_font,
-                               text_anchor="start", dominant_baseline="central", fill=INK))
+    cy += ROW
+    draw_cross(d, gx, cy, R, key)
+    label(gx + LGAP, cy, "Loss")
 
 
 def main():
     tree = read_newick(str(TREE_NWK))
     present = annotate_times(tree)
 
-    # wide landscape canvas: three families' events need horizontal room and a
-    # left header band clear of the crown for the two legends.
-    style = species_style(width=1260, height=820, margin=120, font_size=FS_TICK)
+    # wide landscape canvas. The generous top margin opens a clear header band
+    # above the crown that holds the title and both legends, so nothing overlaps
+    # a branch; the tree still fills the lower ~two-thirds and stays landscape.
+    style = species_style(width=1300, height=1030, margin=285, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d.draw()
     d.add_leaf_names(color=INK, padding=12)
@@ -211,13 +225,12 @@ def main():
                     label="Time (root to present)", tick_size=6.0, padding=16.0,
                     stroke_width=1.6)
 
-    left = -style.width / 2 + 40
+    left = -style.width / 2 + 46
     d.drawing.append(draw.Text("Three gene families on one species tree", FS_TITLE, 0,
-                               -style.height / 2 + 42, font_weight="bold",
+                               -style.height / 2 + 44, font_weight="bold",
                                font_family=style.font_family, text_anchor="middle",
                                dominant_baseline="central", fill=INK))
-    add_family_legend(d, x=left, y=-style.height / 2 + 96)
-    add_event_legend(d, x=left + 210, y=-style.height / 2 + 96)
+    add_legends(d, x=left, y=-style.height / 2 + 100)
 
     d.save_svg(f"{OUT_STEM}.svg")
     d.save_png(f"{OUT_STEM}.png", dpi=300)
