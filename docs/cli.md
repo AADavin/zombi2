@@ -2,7 +2,7 @@
 
 Installing the package puts a `zombi2` command on your PATH — a thin wrapper over the library.
 Everything starts from a species tree; you then evolve gene families and/or a phenotypic trait
-along it — or run the inverse, fitting rates to an empirical profile.
+along it.
 
 ```bash
 # 1. a species tree -> out/species_tree.nwk  (runs with defaults)
@@ -15,11 +15,7 @@ zombi2 genomes --tree out/species_tree.nwk \
 # 3. a phenotypic trait along that tree
 zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
 
-# 4. fit gene-family rates to an empirical profile (ABC inference)
-zombi2 abc --tree out/species_tree.nwk --profiles empirical_Profiles.tsv \
-    --dup 0 1 --loss 0 1.5 --orig 0 4 --n-sims 1000 --seed 1 -o out/
-
-# 5. gene families whose loss/gain is conditioned on a trait
+# 4. gene families whose loss/gain is conditioned on a trait
 zombi2 coevolve --couple traits:genes --tree out/species_tree.nwk \
     --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/
 ```
@@ -174,36 +170,13 @@ extinction along branches plus cladogenetic range splits at speciations. Set the
 optionally cap the range with `--max-range-size`, and pin the root range with `--root-range`
 (e.g. `A`). Ranges are written as `{A,B}`.
 
-## `abc` — fit rates to an empirical profile
+## Fitting rates to a profile (ABC) — experimental
 
-`abc` runs the inverse of `genomes`: given a species tree and an **empirical copy-number profile**
-(a `families × species` TSV, like the `Profiles.tsv` that `genomes` writes), it fits the D/T/L/O
-rates by **Approximate Bayesian Computation** — simulate many profiles from the priors, keep the
-draws whose summary statistics land closest to the data, and report the posterior.
-
-Give each rate you want to fit a **prior**: two values `LOW HIGH` (a uniform prior) or one value
-(fixed); omit a rate to hold it at 0. At least one rate must be a range (there must be something
-to fit).
-
-```bash
-zombi2 abc -t out/species_tree.nwk --profiles empirical_Profiles.tsv \
-    --dup 0 1 --trans 0 0.5 --loss 0 1.5 --orig 0 4 --n-sims 1000 --seed 1 -o out/
-```
-
-It writes **`summary.tsv`** (per-parameter posterior mean / median / 95% CI), **`posterior.tsv`**
-(the accepted draws, one column per fitted rate), **`spectra.tsv`** (a posterior-predictive check:
-the empirical gene-frequency spectrum against the accepted simulations), and `abc.log`.
-
-**Models.** `--rate-model uniform` (default) fits one shared scalar rate per type on the fast Rust
-engine; `--rate-model family` fits each rate as the **mean** of a per-family distribution (ZOMBI-1
-style, Python engine — pass `--max-family-size` to bound runaway growth). **ABC-SMC.** `--smc`
-switches from rejection to a sequential sampler (`--rounds`, `--particles`, `--quantile`) that
-shrinks the tolerance across rounds. **`--regression-adjust`** adds a bias-corrected posterior
-(Beaumont 2002) to `summary.tsv`.
-
-Copy-number profiles identify the **gain-side** rates (duplication, origination) well, but **loss**
-and **transfer** sit on an identifiability ridge — expect wide intervals there. The `spectra.tsv`
-check tells you whether *any* rates reproduce the data.
+The inverse of `genomes` — fitting D/T/L/O rates to an **empirical copy-number profile** by
+**Approximate Bayesian Computation** — exists as an **experimental Python API**
+(`zombi2.matching`), but is **withheld from the command line in this release**: there is no
+`zombi2 abc` command yet. See the [profile-matching guide](guide/matching.md) for the library
+interface.
 
 ## `sequence` — substitution branch lengths
 
@@ -328,22 +301,6 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--thresholds` | comma-separated liability cut points [threshold] |
 | `--areas` `--dispersal` `--extinction` `--max-range-size` `--root-range` | DEC range-evolution parameters |
 | `--replicates` | simulate this many times → wide one-column-per-replicate table |
-| `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
-
-### `abc`
-
-| Option | Meaning |
-| --- | --- |
-| `--tree` / `-t` | species tree the empirical data evolved along (required) |
-| `--profiles` | empirical copy-number profile TSV, `families × species` (required) |
-| `--dup` `--trans` `--loss` `--orig` | prior per rate: two values `LOW HIGH` (uniform) or one (fixed); omitted → held at 0 |
-| `--rate-model {uniform,family}` | `uniform` (default, Rust): shared scalar rates; `family` (Python): fit per-family rate means |
-| `--family-shape` | [family] Gamma shape for per-family dispersion (default `2.0`) |
-| `--n-sims` / `--accept` | [rejection] number of simulations (default `1000`) / accepted fraction (default `0.05`) |
-| `--processes` | [rejection] parallel worker processes (default: serial) |
-| `--smc` `--rounds` `--particles` `--quantile` | run ABC-SMC instead of rejection, with these controls |
-| `--regression-adjust` | also write the regression-adjusted posterior (Beaumont 2002) |
-| `--initial-families` / `--max-family-size` | families seeded per sim / growth cap (advised for `--rate-model family`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
 ### `sequence`
