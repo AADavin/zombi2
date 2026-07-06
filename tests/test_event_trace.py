@@ -14,7 +14,7 @@ import pytest
 
 import zombi2 as z
 from zombi2 import GenomeTrace
-from zombi2.simulation import EVENTS_TRACE_HEADER, events_trace_from_log
+from zombi2.genomes.simulation import EVENTS_TRACE_HEADER, events_trace_from_log
 
 RATES = dict(duplication=0.2, transfer=0.12, loss=0.3, origination=1.0)
 
@@ -101,7 +101,7 @@ def test_events_trace_file_roundtrips(tmp_path):
     """A written compact trace, read back with the species tree, expands to a full genealogy that
     reconstructs the same species-level structure as the in-memory trace."""
     from zombi2 import read_events_trace
-    from zombi2.reconciliation import extant_species_from_records, reconcile
+    from zombi2.genomes.reconciliation import extant_species_from_records, reconcile
     from collections import Counter
 
     tree = _tree()

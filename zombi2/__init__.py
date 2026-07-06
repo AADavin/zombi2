@@ -25,20 +25,20 @@ from __future__ import annotations
 __version__ = "0.2.0.dev0"
 
 # Low-level primitives (kept at top level only; no scikit-style namespace).
-from .events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
-from ._rust import available as rust_available
+from zombi2.genomes.events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
+from zombi2._rust import available as rust_available
 
 # scikit-learn-style namespaces are the single source of truth for the
 # public API: importing from them here guarantees that, e.g.,
 # ``zombi2.BirthDeath is zombi2.species.BirthDeath`` (same object). The
 # namespace modules are thin re-exports over the implementation modules and do
 # not redefine anything; see zombi2/species.py, zombi2/genomes.py, etc.
-from .species import (
+from zombi2.species import (
     Tree, TreeNode, read_newick, prune,
     BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent,
     CladeShiftBirthDeath, simulate_species_tree, add_ghost_lineages,
 )
-from .genomes import (
+from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, GffGenome,
@@ -48,22 +48,22 @@ from .genomes import (
     simulate_genomes, Genomes, GenomeTrace, read_events_trace,
     build_gene_trees, run_replicates,
 )
-from .distributions import (
+from zombi2.distributions import (
     Distribution, Fixed, Exponential, Gamma, LogNormal, Uniform, as_distribution,
 )
-from .clocks import (
+from zombi2.sequences import (
+    # relaxed molecular clocks (chronogram -> phylogram; the shared lineage clock family)
     Clock, RateScaledTree, StrictClock, UncorrelatedLogNormalClock,
     UncorrelatedGammaClock, WhiteNoiseClock, AutocorrelatedLogNormalClock,
     CIRClock, RateVariation,
-)
-from .sequences import (
+    # substitution models + the gene x lineage substitution clock
     SequenceEvolution, GenePhylograms,
     SubstitutionModel, GammaRates, jc69, k80, hky85, gtr,
     poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model,
     DNA_MODELS, PROTEIN_MODELS, AMINO_ACIDS,
     evolve_on_tree, read_fasta, write_fasta,
 )
-from .traits import (
+from zombi2.traits import (
     BrownianMotion, OrnsteinUhlenbeck, MultivariateBrownian, MultivariateOU,
     MultiOptimumOU, ThresholdModel, EarlyBurst, Mk, CorrelatedBinary,
     CorrelatedBinaryK, HiddenStateMk, Cladogenesis, simulate_traits,
@@ -71,7 +71,7 @@ from .traits import (
     pagel_lambda, pagel_delta, pagel_kappa,
     DEC, simulate_biogeography,
 )
-from .coevolve import (
+from zombi2.coevolve import (
     CouplingSpec, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
     TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
     simulate_trait_linked_genomes,
@@ -82,10 +82,9 @@ from .coevolve import (
     TraitGeneFeedback, TraitGeneFeedbackResult, simulate_trait_gene_feedback,
     BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
 )
-# NOTE: ABC profile-matching inference (zombi2.matching / zombi2.abc) is withheld from the v1
-# public surface — it is not yet documented/stabilised. The modules remain in-tree (import via
-# ``from zombi2.matching import match_profiles``) and fully tested; re-add the export here, the
-# 'abc' CLI command, and the docs nav entry to promote it back to the public API.
+# NOTE: ABC profile-matching inference has moved out of the core to
+# ``ZOMBI2_FUTURE/abc-inference/`` — inference is a Phase-3 Extension, not a core simulation
+# level. See that folder's README to revive it as an Extension.
 
 __all__ = [
     "__version__",
@@ -114,7 +113,6 @@ __all__ = [
     # trait-conditioned gene families (trait <-> gene-family coupling)
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
     "simulate_trait_linked_genomes",
-    # profile matching / ABC inference — withheld from the v1 public surface (see note above)
     # relaxed molecular clocks (chronogram -> phylogram; the shared lineage clock family)
     "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
     "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",

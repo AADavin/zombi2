@@ -12,10 +12,10 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2.events import EventType, Region, Selection, TargetParams
-from zombi2.genome import IdManager
-from zombi2.nucleotide_genome import NucleotideGenome, SegmentRegistry
-from zombi2.nucleotide_sim import simulate_nucleotide_genomes
+from zombi2.genomes.events import EventType, Region, Selection, TargetParams
+from zombi2.genomes.genome import IdManager
+from zombi2.genomes.nucleotide_genome import NucleotideGenome, SegmentRegistry
+from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
 
 
 def _tree(n_tips=6, age=1.0, seed=0):

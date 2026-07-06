@@ -10,10 +10,10 @@ import math
 import numpy as np
 import pytest
 
-from zombi2.species_model import (
+from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath, Yule,
 )
-from zombi2.species_sim import simulate_species_tree
+from zombi2.species.sim import simulate_species_tree
 
 
 def _finite_tree(tree):
