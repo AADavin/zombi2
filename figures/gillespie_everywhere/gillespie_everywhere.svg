@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1240" height="516" viewBox="0 0 1240 516">
+<defs>
+</defs>
+<rect x="0" y="0" width="1240" height="516" fill="white" />
+<text x="620.0" y="42" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">One engine, many events: it's all Gillespie</text>
+<rect x="50" y="91.0" width="700" height="104" rx="16" ry="16" fill="white" stroke="#1a1a1a" stroke-width="2.4" />
+<text x="78" y="121" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">Species tree</text>
+<text x="78" y="151" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: lambda, mu</text>
+<path d="M476.0,126 L476.0,139" stroke="#999999" stroke-width="3.0" />
+<path d="M476.0,139 L465.0,151" stroke="#999999" stroke-width="3.0" />
+<path d="M476.0,139 L487.0,151" stroke="#999999" stroke-width="3.0" />
+<text x="476.0" y="165" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">speciation</text>
+<path d="M567.0,130 L585.0,148" stroke="#1a1a1a" stroke-width="3.0" />
+<path d="M567.0,148 L585.0,130" stroke="#1a1a1a" stroke-width="3.0" />
+<text x="576.0" y="165" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">extinction</text>
+<rect x="50" y="231.0" width="700" height="104" rx="16" ry="16" fill="white" stroke="#1a1a1a" stroke-width="2.4" />
+<text x="78" y="261" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">Gene families</text>
+<text x="78" y="291" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: one per event</text>
+<rect x="368.0" y="271.0" width="16" height="16" fill="#1a1a1a" />
+<text x="376.0" y="305" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">duplication</text>
+<path d="M464.0,287 Q476.0,259,488.0,287" fill="none" stroke="#1a1a1a" stroke-width="3.0" />
+<path d="M488.0,287 L480.38808962585114,282.1980399360339 L486.49507931562704,278.12671347618334 Z" fill="#1a1a1a" />
+<text x="476.0" y="305" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">transfer</text>
+<path d="M567.0,270 L585.0,288" stroke="#1a1a1a" stroke-width="3.0" />
+<path d="M567.0,288 L585.0,270" stroke="#1a1a1a" stroke-width="3.0" />
+<text x="576.0" y="305" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">loss</text>
+<circle cx="676.0" cy="279" r="8" fill="none" stroke="#1a1a1a" stroke-width="3.0" />
+<text x="676.0" y="305" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">origination</text>
+<rect x="50" y="371.0" width="700" height="104" rx="16" ry="16" fill="white" stroke="#1a1a1a" stroke-width="2.4" />
+<text x="78" y="401" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">Discrete trait (Mk)</text>
+<text x="78" y="431" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: Q-matrix entries</text>
+<rect x="504.0" y="411" width="15" height="15" fill="#dddddd" stroke="#1a1a1a" stroke-width="1.6" />
+<rect x="534.0" y="411" width="15" height="15" fill="#1a1a1a" />
+<path d="M521.0,419 L532.0,419" stroke="#1a1a1a" stroke-width="2.4" />
+<path d="M532.0,419 L525.6083774178138,421.854323171417 L525.6083774178138,416.145676828583 Z" fill="#1a1a1a" />
+<text x="526.0" y="445" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">state change</text>
+<rect x="814" y="91.0" width="374" height="384.0" rx="18" ry="18" fill="#f2f2f2" stroke="#1a1a1a" stroke-width="3.0" />
+<text x="1001.0" y="131.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">one Gillespie loop</text>
+<text x="846" y="171.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">1.  total rate R = sum</text>
+<text x="846" y="199.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">     of every event's rate</text>
+<text x="846" y="227.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal"></text>
+<text x="846" y="255.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">2.  when:  draw dt ~</text>
+<text x="846" y="283.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">     Exponential(R)</text>
+<text x="846" y="311.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal"></text>
+<text x="846" y="339.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">3.  what:  pick event i</text>
+<text x="846" y="367.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">     with prob. (rate)/R</text>
+<text x="846" y="395.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal"></text>
+<text x="846" y="423.0" font-size="20" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">4.  apply it, then repeat</text>
+<path d="M750,143 L811,283.0" stroke="#8a8a8a" stroke-width="2.4" />
+<path d="M811,283.0 L802.1374524722968,274.90955802695544 L811.1090709357574,271.00049569644756 Z" fill="#8a8a8a" />
+<path d="M750,283 L811,283.0" stroke="#8a8a8a" stroke-width="2.4" />
+<path d="M811,283.0 L800.0429327162523,287.89312543671485 L800.0429327162523,278.10687456328515 Z" fill="#8a8a8a" />
+<path d="M750,423 L811,283.0" stroke="#8a8a8a" stroke-width="2.4" />
+<path d="M811,283.0 L811.1090709357574,294.99950430355244 L802.1374524722968,291.09044197304456 Z" fill="#8a8a8a" />
+</svg>

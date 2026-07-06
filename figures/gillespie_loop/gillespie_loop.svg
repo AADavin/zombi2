@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1000" height="900" viewBox="0 0 1000 900">
+<defs>
+</defs>
+<rect x="0" y="0" width="1000" height="900" fill="white" />
+<text x="430" y="40" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">The Gillespie loop</text>
+<rect x="240.0" y="85.0" width="380" height="66" rx="37" ry="37" fill="#f2f2f2" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="430" y="118.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">start:  t = 0,  initial state</text>
+<path d="M430,151 L430,210.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M430,213.0 L424.6991141102256,201.12984377594 L435.3008858897744,201.12984377594 Z" fill="#1a1a1a" />
+<rect x="240.0" y="213.0" width="380" height="74" rx="14" ry="14" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="430" y="236.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">compute every event's rate</text>
+<text x="430" y="264.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">total rate  R = sum of the rates</text>
+<path d="M430,287.0 L430,342.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M430,345.0 L424.6991141102256,333.12984377594 L435.3008858897744,333.12984377594 Z" fill="#1a1a1a" />
+<rect x="240.0" y="345.0" width="380" height="74" rx="14" ry="14" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="430" y="368.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">draw waiting time  dt ~ Exponential(R)</text>
+<text x="430" y="396.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">advance the clock  t = t + dt</text>
+<path d="M430,419.0 L430,451" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M430,454 L424.6991141102256,442.12984377594 L435.3008858897744,442.12984377594 Z" fill="#1a1a1a" />
+<path d="M430,455.0 L590.0,520 L430,585.0 L270.0,520 Z" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="430" y="508.0" font-size="16" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">clock past the target age?</text>
+<text x="430" y="532.0" font-size="16" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">(or nothing left alive)</text>
+<path d="M590.0,520 L722.0,520" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M722.0,520 L710.12984377594,525.3008858897745 L710.12984377594,514.6991141102255 Z" fill="#1a1a1a" />
+<text x="656.0" y="502" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="bold">yes</text>
+<rect x="728.0" y="480" width="224" height="80" rx="14" ry="14" fill="#f2f2f2" stroke="#E41A1C" stroke-width="2.8" />
+<text x="840.0" y="506.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">stop:</text>
+<text x="840.0" y="534.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">return the history</text>
+<path d="M430,585.0 L430,622.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M430,625.0 L424.6991141102256,613.12984377594 L435.3008858897744,613.12984377594 Z" fill="#1a1a1a" />
+<text x="454" y="607.0" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="bold">no</text>
+<rect x="240.0" y="625.0" width="380" height="74" rx="14" ry="14" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="430" y="648.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">choose one event, i,</text>
+<text x="430" y="676.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">with probability  (rate of i) / R</text>
+<path d="M430,699.0 L430,746.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M430,749.0 L424.6991141102256,737.12984377594 L435.3008858897744,737.12984377594 Z" fill="#1a1a1a" />
+<rect x="240.0" y="749.0" width="380" height="74" rx="14" ry="14" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
+<text x="430" y="772.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">apply event i to the state,</text>
+<text x="430" y="800.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">and record it in the history</text>
+<path d="M240.0,786 L170.0,786" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M170.0,786 L170.0,250" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M170.0,250 L237.0,250" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M240.0,250 L228.12984377594,255.3008858897744 L228.12984377594,244.6991141102256 Z" fill="#1a1a1a" />
+<text x="154.0" y="518.0" font-size="20" font-family="Helvetica" text-anchor="end" dominant-baseline="central" fill="#8a8a8a" font-weight="bold">repeat</text>
+</svg>
