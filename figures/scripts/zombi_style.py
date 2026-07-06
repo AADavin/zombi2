@@ -38,6 +38,18 @@ ACCENT = {
     "highlight":   "#FDBF6F",   # warm sand, for clade shading
 }
 
+# --- Binary-state figures: a tasteful pale two-tone -----------------------
+# Several coevolution figures (SSE, key-innovation, punctuational genome, HiSSE,
+# cladogenetic) encode a BINARY lineage state as heavy-vs-light branches. Their
+# default is B&W (near-black heavy / grey light — kept as a `<name>_bw.svg`), but
+# a restrained COLOUR version reads more clearly on the page. The pair below is
+# deliberately pale/neutral and harmonises with the viridis ramp used elsewhere:
+# a muted teal for the "active" state (present / state-1 / carrier / fast-hidden)
+# and a warm pale taupe for the "inactive" one. Colour-blind-safe (teal vs taupe
+# differ in both hue and lightness); event markers stay solid INK per house style.
+STATE_ON  = "#2f7d84"      # active state: heavy branch / filled chip  (muted teal)
+STATE_OFF = "#b9b0a4"      # inactive state: light branch / open chip  (warm taupe)
+
 # --- Coupled / Potts figures ---------------------------------------------
 # Categorical palette for the pathway MODULES of the coupled (Potts) chapter, where a
 # few module identities must be told apart (the STYLE.md "categorical exception").

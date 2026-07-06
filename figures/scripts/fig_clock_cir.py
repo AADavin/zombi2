@@ -68,8 +68,15 @@ def panel(d, ox, oy, pw, ph, title, subtitle, t, paths, note):
     # long-run mean reference
     d.append(draw.Line(ox, y_at(MEAN), ox + pw, y_at(MEAN), stroke=INK, stroke_width=1.8,
                        stroke_dasharray="7,5"))
-    d.append(draw.Text("long-run mean = 1", FS_TICK, ox + pw - 6, y_at(MEAN) - 8, font_family=FONT,
-                       text_anchor="end", fill=INK, font_weight="bold"))
+    # label sits over the densest band of paths, so give it a white plate (halo) to stay legible;
+    # lift it a little further off the dashed line as well.
+    _lab = "long-run mean = 1"
+    _lx, _ly = ox + pw - 6, y_at(MEAN) - 16
+    _lw, _lh = 0.56 * FS_TICK * len(_lab), FS_TICK + 8
+    d.append(draw.Rectangle(_lx - _lw, _ly - _lh / 2 - 2, _lw + 8, _lh, rx=4, ry=4,
+                            fill="white", fill_opacity=0.86, stroke="none"))
+    d.append(draw.Text(_lab, FS_TICK, _lx, _ly, font_family=FONT,
+                       text_anchor="end", dominant_baseline="central", fill=INK, font_weight="bold"))
     # y ticks
     for v in (0, 1, 2, 3):
         d.append(draw.Line(ox - 5, y_at(v), ox, y_at(v), stroke=INK, stroke_width=1.4))

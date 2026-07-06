@@ -33,7 +33,8 @@ from zombi2.coevolve import CladogeneticGenome, simulate_cladogenetic_genome
 
 from fig_trait_pagel import _layout
 from model_common import zombi_to_ete3
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import (FONT, INK, MUTED, STATE_ON,
+                         FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
@@ -41,6 +42,12 @@ W, H = 1220, 664
 GREY = "#9a9a9a"
 N_TIPS, AGE, TREE_SEED = 11, 1.0, 3
 INIT = 24
+
+# This figure is not branch-state-coded (both panels have black trees; shape distinguishes
+# gradual circles from punctuational diamonds). The tasteful colour touch is a pale-teal tint on
+# the genome-size bars; the tree and event markers stay INK per house style. Default output is the
+# colour version (-> punctuational_genome.svg, embedded); a preserved B&W copy is *_bw.svg.
+BAR_COL = STATE_ON
 
 
 def _by_name(d):
@@ -89,7 +96,7 @@ def _panel(d, ox, oy, pw, ph, tree, res, mode, header):
     for n in ete.get_leaves():
         y = y_at(ys[n.name])
         w = bw * sizes[n.name] / smax
-        d.append(draw.Rectangle(bx, y - 6, w, 12, fill=INK, stroke="none"))
+        d.append(draw.Rectangle(bx, y - 6, w, 12, fill=BAR_COL, stroke="none"))
         d.append(draw.Text(str(sizes[n.name]), FS_TICK, bx + w + 6, y, font_family=FONT,
                            text_anchor="start", dominant_baseline="central", fill=MUTED))
     d.append(draw.Text("genome size", FS_TICK, bx, oy + 20, font_family=FONT,
@@ -104,7 +111,10 @@ def _panel(d, ox, oy, pw, ph, tree, res, mode, header):
                        font_family=FONT, text_anchor="middle", fill=MUTED))
 
 
-def render():
+def render(bw=False):
+    global BAR_COL
+    BAR_COL = INK if bw else STATE_ON
+
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Gradual vs punctuational genome (species to genes)",
@@ -136,13 +146,15 @@ def render():
            "B   punctuational: gene content bursts at each split")
 
     name = "punctuational_genome"
+    suffix = "_bw" if bw else ""
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
-    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"),
+    (out / f"{name}{suffix}.svg").write_text(d.as_svg(), encoding="utf-8")
+    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}{suffix}.png"),
                      scale=300 / 72.0)
-    print(f"wrote {out}/{name}.svg / .png")
+    print(f"wrote {out}/{name}{suffix}.svg / .png")
 
 
 if __name__ == "__main__":
-    render()
+    render(bw=False)   # colour -> punctuational_genome.svg (embedded)
+    render(bw=True)    # preserved B&W -> punctuational_genome_bw.svg

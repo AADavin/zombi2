@@ -33,7 +33,7 @@ W, H = 1180, 820
 R = 48                                        # node radius
 
 # One colour per directed arrow, matched to its label (Okabe-Ito, colour-blind safe). Warm/cool
-# groups the three node-pairs: cool blues = species<->traits, warm = species<->genes, green/pink =
+# groups the three node-pairs: cool blues = species<->traits, warm = species<->genes, green/purple =
 # traits<->genes. The bidirectional joint arrows are neutral grey (a "combination", not a 7th edge).
 COL = {
     "trait-driven":     "#0072B2",   # T -> S  (into S)
@@ -41,7 +41,7 @@ COL = {
     "key innovation":   "#D55E00",   # G -> S  (into S)
     "punctuational":    "#E69F00",   # S -> G
     "trait-linked":     "#009E73",   # T -> G
-    "gene-conditioned": "#CC79A7",   # G -> T
+    "gene-conditioned": "#8E5AA8",   # G -> T  (purple; pairs with the trait-linked green)
 }
 DBL = "#555555"                       # bidirectional (joint) double-headed arrows
 LW_INTO_S, LW_OVERLAY = 4.6, 2.8      # weight encodes into-S (tree is an output) vs overlay

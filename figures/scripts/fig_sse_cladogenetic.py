@@ -34,15 +34,27 @@ import numpy as np
 from zombi2.species import BirthDeath, simulate_species_tree
 from zombi2.traits import Mk, Cladogenesis, simulate_traits
 
-from fig_trait_pagel import chip, _layout
+from fig_trait_pagel import _layout
 from model_common import zombi_to_ete3
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import (FONT, INK, MUTED, STATE_ON, STATE_OFF,
+                         FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1220, 690
 GREY = "#9a9a9a"                       # state 0: light / thin branch
 N_TIPS, AGE, TREE_SEED = 11, 1.0, 3
+
+# Colour version (default -> sse_cladogenetic.svg) + preserved B&W (*_bw.svg). ON = state 1 (heavy
+# branch / filled chip), OFF = state 0. Event markers (open circle = anagenetic, diamond =
+# cladogenetic) stay INK — they are shape-coded per the house gene-family grammar.
+ON_COL, OFF_COL = STATE_ON, STATE_OFF
+
+
+def chip(d, cx, cy, on, s=13):
+    """Tip chip: filled = state 1, open = state 0.  Colour-aware."""
+    d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
+                            fill=ON_COL if on else "white", stroke=ON_COL, stroke_width=1.6))
 
 Q_ANA = np.array([[-1.4, 1.4], [1.4, -1.4]])   # anagenetic rate (state flips along branches)
 CLADO_SHIFT = 0.45                             # per-daughter hop probability at each split
@@ -112,7 +124,7 @@ def _panel(d, ox, oy, pw, ph, tree, res, mode, header):
                        text_anchor="start", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, on):
-        d.append(draw.Line(x1, y, x2, y, stroke=INK if on else GREY,
+        d.append(draw.Line(x1, y, x2, y, stroke=ON_COL if on else OFF_COL,
                            stroke_width=5.2 if on else 2.4, stroke_linecap="butt"))
 
     for n in ete.traverse():
@@ -169,7 +181,10 @@ def _diamond(d, x, y, filled):
                         stroke=INK, stroke_width=2.0))
 
 
-def render():
+def render(bw=False):
+    global ON_COL, OFF_COL
+    ON_COL, OFF_COL = (INK, GREY) if bw else (STATE_ON, STATE_OFF)
+
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Where the change happens: anagenetic vs cladogenetic",
@@ -201,13 +216,15 @@ def render():
                        FS_TICK, W / 2, H - 22, font_family=FONT, text_anchor="middle", fill=MUTED))
 
     name = "sse_cladogenetic"
+    suffix = "_bw" if bw else ""
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
-    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"),
+    (out / f"{name}{suffix}.svg").write_text(d.as_svg(), encoding="utf-8")
+    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}{suffix}.png"),
                      scale=300 / 72.0)
-    print(f"wrote {out}/{name}.svg / .png")
+    print(f"wrote {out}/{name}{suffix}.svg / .png")
 
 
 if __name__ == "__main__":
-    render()
+    render(bw=False)   # colour -> sse_cladogenetic.svg (embedded)
+    render(bw=True)    # preserved B&W -> sse_cladogenetic_bw.svg
