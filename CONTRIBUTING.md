@@ -34,6 +34,20 @@ The suite is deterministic (seeded) and hermetic — no network, no external dat
 sure you built the engine (above) before concluding the suite passed. CI builds it and treats a
 missing engine as an error, so the compiled path is always exercised there.
 
+## Adding a model
+
+ZOMBI2 grows by **adding models, not editing the engine**. If you are contributing a model,
+follow the contract:
+
+- [Adding a model](docs/contributing/adding-a-model.md) — the interface for each level and the
+  end-to-end checklist (implement → export → CLI → validate → document).
+- [Conventions](docs/contributing/conventions.md) — the names, outputs, seeding, and CLI grammar
+  every model follows, so the suite reads as one tool.
+
+**The hard rule: no model enters the core without an oracle or a statistical test.** A test that
+only asserts "it runs without error" is not validation — see [Validation](docs/validation.md).
+This is enforced in review.
+
 ## Documentation
 
 ```bash
