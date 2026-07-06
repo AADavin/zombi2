@@ -4,159 +4,108 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
-**A phylogenetic simulator of species trees and gene families.**
+**A simulator suite for genome evolution.**
 
-ZOMBI2 simulates evolution in two steps: build a **species tree**, then evolve
-**gene families** along it under duplication, transfer, loss, and origination (DTL).
-It also evolves **phenotypic traits** along a phylogeny. It is a ground-up redesign of
-[ZOMBI](https://github.com/AADavin/Zombi), with a fast Rust engine, a simple
-command-line interface, and a composable Python library.
-
-Use it to generate benchmark datasets for phylogenetic methods — gene trees,
-reconciliations, and copy-number profiles — with fully reproducible, seeded runs.
+ZOMBI2 simulates how genomes evolve along a phylogeny — **species trees**, the **gene
+families** that live on them, **genome structure**, **phenotypic traits**, and molecular
+**sequences**, plus their **coevolution** — as one composable, seeded, fully reproducible
+suite. Use it to generate benchmark datasets with known ground truth for phylogenetic and
+comparative methods.
 
 ---
 
-## Installation
-
-ZOMBI2 needs Python ≥ 3.10.
+## Install
 
 ```bash
-git clone https://github.com/AADavin/zombi2.git
-cd zombi2
-pip install -e . maturin
-cd rust && maturin build --release -i python3 && pip install --force-reinstall target/wheels/*.whl
+pip install zombi2
 ```
 
-This installs the `zombi2` command and the compiled gene-family engine.
+Prebuilt wheels are published for Linux, macOS, and Windows (CPython 3.10+), including the
+native engine — no toolchain required. Building from source is covered in the
+[installation guide](docs/installation.md).
 
 ---
 
-## Command line
+## Quickstart
 
-### 1. Simulate a species tree
-
-```bash
-zombi2 species --birth 1 --death 0.3 --tips 50 --age 5 --seed 1 -o out/
-```
-
-### 2. Evolve gene families along it
+Each level is its own subcommand — run whichever you need. Here a dated species tree, then
+gene families evolving along it under duplication, transfer, loss, and origination:
 
 ```bash
-zombi2 genomes --tree out/species_tree.nwk \
-    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
+zombi2 species --birth 1 --death 0.3 --tips 50 --age 5 --seed 1  -o run/
+zombi2 genomes --tree run/species_tree.nwk \
+    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42       -o run/
 ```
 
-### 3. Evolve a phenotypic trait along it
+`zombi2 <command> -h` documents each of `species`, `genomes`, `trait`, `sequence`, and
+`coevolve`; see the [quickstart](docs/quickstart.md) and [CLI reference](docs/cli.md).
 
-```bash
-zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
+From Python, every model is a first-class object you can compose:
+
+```python
+import zombi2 as z
+
+tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3), n_tips=20, age=5.0, seed=1)
+genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                             origination=0.5, initial_families=40, seed=42)
+
+genomes.write("run/")           # gene trees, event tables, transfers, copy-number profiles
 ```
-
-### 4. Rescale gene trees to substitutions/site
-
-```bash
-zombi2 genomes  --tree out/species_tree.nwk --dup 0.2 --loss 0.25 --orig 0.5 \
-    --write trace profiles --seed 42 -o out/
-zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/
-```
-
-### 5. Couple gene families to a trait
-
-`zombi2 coevolve --couple traits:genes` evolves gene families whose loss/gain **depends on a
-trait**, so the profile carries a known, trait-linked signal (e.g. dating the tree from the Great
-Oxidation Event). See [trait-linked gene families](docs/guide/trait-linked-genomes.md).
-
-```bash
-zombi2 coevolve --couple traits:genes --tree out/species_tree.nwk --trait-model mk --states 2 \
-    --trait-center --panel 40 --responsive 0.3 --effect-loss 3 --seed 1 -o out/
-```
-
-Run `zombi2 <command> -h` or see [`docs/cli.md`](docs/cli.md).
-
----
-
-## Performance
-
-The core models run on a native Rust engine and scale to millions of tips on a laptop.
-A backward species tree of 1M tips builds in ~6 s (3M in ~18 s). Gene families over a
-100k-tip tree take ~5 s as a full event log, but only ~1.4 s as a compact **event trace**
-(gene trees still reconstructable) and ~1.1 s as counts-only **profiles** — the trace and
-profile paths both scale to 1M tips at close to the same cost (~19 s / ~16 s, ~5 GB / ~3 GB),
-where the full event log tops out near 100k. On the identical task, ZOMBI2 runs gene-family
-simulations **over 1000× faster than ZOMBI 1** (48 s → 38 ms at 1,000 tips; the legacy tool
-stalls past ~1,200 tips).
-
-![ZOMBI2 performance](analyses/performance/figures/overview.png)
 
 ---
 
 ## Models
 
-ZOMBI2 ships a broad range of models, all reachable from the Python API.
+ZOMBI2 is a library of models organized by the level of evolution they act on. Each links to
+its guide:
 
-**Species-tree models**
-
-- Backward (reconstructed) and forward (complete) birth–death
-- Episodic / skyline rate shifts
-- Fossilized birth–death and incomplete sampling
-- Ghost lineages added on top of a phylogeny
-
-**Genome models**
-
-- Uniform DTL rates (default, Rust engine)
-- Family-sampled rates — each family draws its own DTL from distributions (ZOMBI-1 style)
-- Genome-wise rates
-- Ordered chromosomes with inversions and transpositions
-- Nucleotide-resolution genomes, where genes emerge as *blocks* from structural events
-- Gene-family coupling (a Potts model of non-independence)
-- Trait-linked gene families — loss/gain conditioned on a phenotypic trait (`coevolve --couple traits:genes`)
-
-**Trait models**
-
-- Brownian motion, Ornstein–Uhlenbeck, and early burst (continuous traits)
-- Mk and threshold models (discrete traits)
-- DEC biogeography (geographic ranges)
-
-**Sequence evolution**
-
-- A gene × lineage relaxed clock that rescales gene trees from time into substitutions/site
-  (lognormal or discrete-bin GTDB lineage rates × per-family speed)
+- **[Species trees](docs/guide/species-trees.md)** — birth–death (backward and forward),
+  episodic/skyline shifts, fossilized birth–death, incomplete sampling, diversity-dependent
+  and per-lineage (ClaDS) diversification, mass extinctions, and ghost lineages
+  ([full list](docs/species_tree_models.md)).
+- **[Gene families](docs/guide/gene-families.md)** — duplication, transfer, loss, and
+  origination (DTL), with shared, family-sampled, genome-wise, or per-branch rates and a full
+  [transfer model](docs/guide/transfers.md).
+- **[Genome structure](docs/guide/ordered-genomes.md)** — ordered chromosomes with inversions
+  and transpositions, and [nucleotide-resolution genomes](docs/guide/nucleotide-genomes.md)
+  where genes emerge as blocks from structural events.
+- **[Traits](docs/guide/traits.md)** — Brownian motion, Ornstein–Uhlenbeck, and early burst
+  (continuous); Mk and threshold (discrete); DEC biogeography.
+- **[Sequences](docs/cli.md#sequence--substitution-branch-lengths)** — substitution models
+  (JC/K80/HKY/GTR + Gamma, and empirical amino-acid models) simulated along the gene trees.
+- **[Molecular clocks](docs/guide/rate-variation.md)** — a relaxed-clock family (strict,
+  uncorrelated lognormal/gamma, white-noise, autocorrelated, Cox–Ingersoll–Ross) that
+  rescales timetrees into substitutions per site.
+- **[Coevolution](docs/coevolution_models.md)** — couple any two levels with
+  `coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic
+  change, key innovations, and [trait-linked gene families](docs/guide/trait-linked-genomes.md).
 
 ---
 
-## Python library
+## Performance
 
-The same two steps from Python, where models are first-class objects you can compose:
+The built-in models run on a native **Rust** engine and scale to millions of tips on a
+laptop: a backward species tree of 1M tips builds in ~6 s, and gene families over a 100k-tip
+tree simulate in ~1 s as copy-number profiles. On the same task, ZOMBI2 runs gene-family
+simulations **over 1000× faster than ZOMBI 1** (48 s → 38 ms at 1,000 tips). Details in the
+[Rust engine guide](docs/guide/rust-engine.md).
 
-```python
-import zombi2 as z
-
-# 1. species tree (backward). Yule(birth) == BirthDeath(birth, death=0).
-tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3),
-                               n_tips=20, age=5.0, seed=1)
-
-# 2. gene families along it
-genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_families=40, seed=42)
-
-print(tree.to_newick())
-print(genomes.profiles.matrix)          # families × species copy numbers
-genomes.write("out/")                   # trees, event tables, transfers, profiles
-```
+![ZOMBI2 performance](analyses/performance/figures/overview.png)
 
 ---
 
 ## Documentation
 
-Full guides and API reference live in `docs/` (build with
-`pip install -e ".[docs]" && mkdocs serve`). Start with
-[`docs/quickstart.md`](docs/quickstart.md) and the
-[command-line reference](docs/cli.md).
+Guides, a command-line reference, and the full API live in [`docs/`](docs/) (build locally
+with `pip install -e ".[docs]" && mkdocs serve`); a book-style [manual](manual/) is built with
+Pandoc. Start with the [quickstart](docs/quickstart.md).
 
-## Development
+## Citation
 
-```bash
-pip install -e ".[dev]"   # adds pytest and scipy
-pytest
-```
+If you use ZOMBI2, please cite it via [`CITATION.cff`](CITATION.cff) (GitHub's *Cite this
+repository* button). A dedicated ZOMBI2 paper is in preparation; until then, cite the original
+[ZOMBI](https://github.com/AADavin/Zombi).
+
+## License
+
+ZOMBI2 is released under the [GNU General Public License v3.0 or later](LICENSE).
