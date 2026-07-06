@@ -53,6 +53,6 @@ the output format — while rebuilding the internals around clean interfaces.
 
 The interface-first design is meant to make the next models drop-in rather than rewrites.
 Much of what was once roadmap has landed — episodic/skyline rates, forward complete trees,
-and fossilized birth–death all ship today. The headline item still ahead is gene-family
-**coupling** (a Potts-style model of non-independence between families). See the
-[species-tree models roadmap](species_tree_models.md).
+fossilized birth–death and gene-family **coupling** (a Potts-style model of non-independence)
+all ship today. See [species-tree models](species_tree_models.md) for the few still ahead
+(time-varying sampling, occurrence birth–death).
