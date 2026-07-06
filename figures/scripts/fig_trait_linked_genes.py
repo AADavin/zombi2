@@ -40,7 +40,7 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1320, 720
+W, H = 1500, 720          # wider canvas: the tree and the gene-presence matrix get more room
 N_TIPS, AGE, TREE_SEED = 12, 1.0, 3
 N_RESP, N_INERT = 7, 7
 BASE_LOSS, EFFECT_LOSS, TRANSFER, SIGMA2 = 1.0, 2.6, 0.9, 1.3
@@ -134,7 +134,7 @@ def panel_realization(d, ox, oy, pw, ph):
 
     ete = zombi_to_ete3(tree)
     tfo, present, ys, nleaf = _layout(ete)
-    tw = 250
+    tw = 330                                                    # wider tree
     x_at = lambda t: ox + (t / present) * tw                    # noqa: E731
     y_at = lambda k: oy + 30 + (k / max(1, nleaf - 1)) * (ph - 70)   # noqa: E731
 
@@ -158,8 +158,8 @@ def panel_realization(d, ox, oy, pw, ph):
     pm = res.profiles
     M = np.asarray(_val(pm.matrix))
     col_of = {sp: j for j, sp in enumerate(_val(pm.species))}
-    cell = 20
-    chip_x = ox + tw + 26
+    cell = 24                                                  # larger presence cells
+    chip_x = ox + tw + 30
     grid_x = chip_x + 34
     for n in ete.get_leaves():
         y = y_at(ys[n.name])
@@ -197,7 +197,7 @@ def render():
                        text_anchor="start", dominant_baseline="central", fill=INK))
 
     panel_model(d, 80, 250, 300, 250)
-    corr = panel_realization(d, 470, 150, 800, 500)
+    corr = panel_realization(d, 500, 150, 960, 500)
 
     name = "trait_linked_genes"
     out = OUT_DIR / name

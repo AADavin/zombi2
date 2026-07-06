@@ -77,7 +77,9 @@ def panel_model(d, ox, oy, pw, ph):
     for i, x in enumerate(xs):
         (mu.M if i == 0 else mu.L)(x_at(x), y_at(EXT(x)))
     d.append(mu)
-    d.append(draw.Text("lambda(x)", FS_ANNOT, x_at(1.4), y_at(SPEC(1.4)) - 16, font_family=FONT,
+    # place the lambda(x) label in the open space above the curve's shoulder (not touching it):
+    # sit it at the plateau height but shifted left, where the rising curve is still well below.
+    d.append(draw.Text("lambda(x)", FS_ANNOT, x_at(0.35), y_at(SPEC(2.9)) - 20, font_family=FONT,
                        text_anchor="middle", fill=INK, font_weight="bold"))
     d.append(draw.Text("mu(x)", FS_ANNOT, x_at(-2.1), y_at(EXT(-2.1)) - 14, font_family=FONT,
                        text_anchor="middle", fill=MUTED))

@@ -30,15 +30,39 @@ import drawsvg as draw
 
 from zombi2.coevolve import BiSSE, HiSSE, simulate_sse
 
-from fig_sse import spec_fork
-from fig_trait_pagel import curved_arrow, rate_width, state_node, chip, _layout
+from fig_trait_pagel import curved_arrow, rate_width, state_node, _layout
 from model_common import zombi_to_ete3
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import (FONT, INK, MUTED, STATE_ON, STATE_OFF,
+                         FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 700
 GREY = "#9a9a9a"
+
+# Colour version (default -> sse_hisse.svg) + preserved B&W (*_bw.svg). ON = fast hidden class
+# (heavy branch), OFF = slow. Chips give the OBSERVED state (filled = observed 1). Swapped by
+# render(bw=...); forks and event markers stay INK.
+ON_COL, OFF_COL = STATE_ON, STATE_OFF
+
+
+def chip(d, cx, cy, on, s=13):
+    """Tip chip: filled = observed 1, open = observed 0.  Colour-aware (observed chips stay INK
+    so they read as a *separate* channel from the hidden-class branch colour)."""
+    d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
+                            fill=INK if on else "white", stroke=INK, stroke_width=1.6))
+
+
+def small_fork(d, x, y, lam):
+    """A small speciation fork whose stroke width encodes lambda, drawn compactly so it can tuck
+    into the lower-right of a state node (see panel_model). Smaller than fig_sse.spec_fork."""
+    w = 1.8 + 1.7 * lam
+    stem, arm = 9, 13
+    d.append(draw.Line(x, y, x, y + stem, stroke=INK, stroke_width=w, stroke_linecap="round"))
+    d.append(draw.Line(x, y + stem, x - arm, y + stem + arm, stroke=INK, stroke_width=w,
+                       stroke_linecap="round"))
+    d.append(draw.Line(x, y + stem, x + arm, y + stem + arm, stroke=INK, stroke_width=w,
+                       stroke_linecap="round"))
 N_TIPS = 16
 
 L_SLOW, L_FAST, MU, QOBS, QHID = 0.7, 2.4, 0.25, 0.5, 0.25
@@ -64,7 +88,8 @@ def panel_model(d, cx0, cy0):
     curved_arrow(d, P["1f"], P["1s"], +1, B, rate_width(QHID), "")
     for key, (x, y) in P.items():
         state_node(d, x, y, key[0])                        # observed digit
-        spec_fork(d, x, y + 34, L_SLOW if key[1] == "s" else L_FAST)   # fork width = speciation rate
+        # a small speciation fork tucked at the LOWER-RIGHT of each state (fork width = rate)
+        small_fork(d, x + 27, y + 22, L_SLOW if key[1] == "s" else L_FAST)
     d.append(draw.Text("slow", FS_TICK, cx0 - 116, cy0, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=MUTED, font_style="italic"))
     d.append(draw.Text("fast", FS_TICK, cx0 - 116, cy0 + gy, font_family=FONT, text_anchor="middle",
@@ -122,7 +147,7 @@ def panel_realization(d, ox, oy, pw, ph):
                        text_anchor="start", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, fast):
-        d.append(draw.Line(x1, y, x2, y, stroke=INK if fast else GREY,
+        d.append(draw.Line(x1, y, x2, y, stroke=ON_COL if fast else OFF_COL,
                            stroke_width=5.2 if fast else 2.4, stroke_linecap="butt"))
 
     for n in ete.traverse():
@@ -156,17 +181,20 @@ def panel_realization(d, ox, oy, pw, ph):
     return seed
 
 
-def render():
+def render(bw=False):
+    global ON_COL, OFF_COL
+    ON_COL, OFF_COL = (INK, GREY) if bw else (STATE_ON, STATE_OFF)
+
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Hidden-state diversification (HiSSE) -- the null",
                        FS_TITLE, W / 2, 46, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
     ly = 82
-    d.append(draw.Line(W / 2 - 320, ly, W / 2 - 288, ly, stroke=INK, stroke_width=5.2))
+    d.append(draw.Line(W / 2 - 320, ly, W / 2 - 288, ly, stroke=ON_COL, stroke_width=5.2))
     d.append(draw.Text("hidden: fast", FS_TICK, W / 2 - 280, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Line(W / 2 - 150, ly, W / 2 - 118, ly, stroke=GREY, stroke_width=2.4))
+    d.append(draw.Line(W / 2 - 150, ly, W / 2 - 118, ly, stroke=OFF_COL, stroke_width=2.4))
     d.append(draw.Text("hidden: slow", FS_TICK, W / 2 - 110, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
     d.append(draw.Rectangle(W / 2 + 40, ly - 9, 18, 18, fill=INK, stroke=INK, stroke_width=1.2))
@@ -177,13 +205,15 @@ def render():
     seed = panel_realization(d, 560, 150, 600, 470)
 
     name = "sse_hisse"
+    suffix = "_bw" if bw else ""
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
-    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"),
+    (out / f"{name}{suffix}.svg").write_text(d.as_svg(), encoding="utf-8")
+    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}{suffix}.png"),
                      scale=300 / 72.0)
-    print(f"wrote {out}/{name}.svg / .png  (tree seed {seed})")
+    print(f"wrote {out}/{name}{suffix}.svg / .png  (tree seed {seed})")
 
 
 if __name__ == "__main__":
-    render()
+    render(bw=False)   # colour -> sse_hisse.svg (embedded)
+    render(bw=True)    # preserved B&W -> sse_hisse_bw.svg

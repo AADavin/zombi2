@@ -36,8 +36,8 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1200, 700
-GREY = "#9a9a9a"
+W, H = 1200, 612          # trimmed height: the panels ended ~590, so this cuts the dead band
+GREY = "#9a9a9a"          # that was pushing the caption too far below the figure
 N_TIPS, AGE, TREE_SEED = 12, 1.0, 3
 TH_ABS, TH_PRES, ALPHA, SIGMA2 = 0.0, 5.0, 3.0, 0.35
 GENE_GAIN, GENE_LOSS = 0.55, 0.55
@@ -86,8 +86,10 @@ def panel_model(d, ox, oy, pw, ph):
     d.append(draw.Circle(gx, gy, 8.5, fill="white", stroke=INK, stroke_width=1.8))
     d.append(draw.Text("+", FS_TICK, gx, gy + 1, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=INK, font_weight="bold"))
-    d.append(draw.Text("gene gained", FS_TICK, gx, gy + 24, font_family=FONT, text_anchor="middle",
-                       fill=INK, font_style="italic"))
+    # label the gain in the OPEN space up-and-left of the marker, clear of the theta_absent line,
+    # the trajectory and the rising curve to its right (previously it sat on the dashed line)
+    d.append(draw.Text("gene gained", FS_TICK, gx - 16, gy - 26, font_family=FONT,
+                       text_anchor="end", fill=INK, font_style="italic"))
 
 
 # --------------------------------------------------------------------------- panel B: a realization
