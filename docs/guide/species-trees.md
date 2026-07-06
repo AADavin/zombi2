@@ -29,7 +29,7 @@ tree = z.simulate_species_tree(
 - **`n_tips`** — the tree has exactly this many extant leaves.
 - **`age` / `age_type`** — with `"crown"` the root sits at time 0 and every extant leaf at
   `age`; with `"stem"` the age is the origin time and a stem precedes the crown. (v1
-  requires an explicit `age`; conditioning on `n_tips` alone is on the roadmap.)
+  requires an explicit `age`; conditioning on `n_tips` alone is not currently supported.)
 
 ## The `Tree` object
 
@@ -76,7 +76,8 @@ z.EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25
     This covers episodic *diversification* and incomplete *extant* sampling — both keep
     the tree ultrametric. Serial sampling *through time* (dated tips / fossils, as in the
     fossilized birth–death process) needs forward simulation with retained extinct
-    lineages and is on the [roadmap](../species_tree_models.md), not implemented yet.
+    lineages — it ships in forward mode; see
+    [fossilized birth–death](../species_tree_models.md).
 
 See the [`episodic_species_trees.ipynb`](https://github.com/AADavin/zombi2/blob/main/examples/episodic_species_trees.ipynb)
 notebook for worked examples.
@@ -190,8 +191,9 @@ tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 adopt a new speciation/extinction regime — here sparking a fast-diversifying clade.</figcaption>
 </figure>
 
-## What's coming
+## Related models
 
-The remaining frontier is trait-dependent diversification (the SSE family, tying rates to the
-traits ZOMBI2 can already simulate) — laid out in the
-[species-tree roadmap](../species_tree_models.md).
+Trait-dependent diversification — the SSE family, tying rates to the traits ZOMBI2 simulates —
+ships under the `coevolve` command (`--couple traits:species`). See
+[species-tree models](../species_tree_models.md) for the full menu, including the few models
+not yet implemented.

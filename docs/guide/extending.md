@@ -62,12 +62,14 @@ Append a member to `EventType`, emit it from a rate model, and handle it in a ge
 `apply` + `supported_events`. The loop keeps only events a genome supports, so other
 representations ignore it automatically.
 
-## What's coming through these seams
+## Built through these seams
+
+The interface-first design has let these models drop in as subclasses, without touching the
+engine:
 
 - **Non-independence (Potts model)** — a `RateModel` whose gain/loss rates read the genome's
-  presence vector, so functionally coupled families gain/lose together (in design).
-- **Ghost lineages** — a forward species-tree simulator retaining extinct lineages, which
-  also unlocks fossilized birth–death (see the
-  [species-tree roadmap](../species_tree_models.md)).
-- **Gene length / intergenes**, **genome-wise rates** — further `Genome` / `RateModel`
+  presence vector, so functionally coupled families gain/lose together.
+- **Ghost lineages** and **fossilized birth–death** — a forward species-tree simulator that
+  retains extinct lineages (see [species-tree models](../species_tree_models.md)).
+- **Gene length / intergenes** and **genome-wise rates** — further `Genome` / `RateModel`
   subclasses.
