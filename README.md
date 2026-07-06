@@ -1,5 +1,9 @@
 # ZOMBI2
 
+[![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+
 **A phylogenetic simulator of species trees and gene families.**
 
 ZOMBI2 simulates evolution in two steps: build a **species tree**, then evolve
