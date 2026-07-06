@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install ZOMBI2 (with dev extras)
+        run: pip install -e ".[dev]"
+
+      - name: Build and install the compiled gene-family engine
+        run: pip install ./rust
+
+      # The built-in genome model has no pure-Python fallback, and its tests
+      # skip (green) when the extension is absent. Fail loudly instead, so CI
+      # can never pass while silently leaving the compiled path untested.
+      - name: Require the Rust engine (fail, don't skip)
+        run: python -c "import zombi2; assert zombi2.rust_available(), 'zombi2_core (Rust engine) is not built'"
+
+      - name: Run the test suite
+        run: pytest -q
+
+  docs:
+    name: docs (mkdocs --strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # The docs build imports zombi2 (via mkdocstrings) but does not exercise
+      # the compiled engine, so no Rust toolchain is needed here.
+      - name: Install ZOMBI2 (with docs extras)
+        run: pip install -e ".[docs]"
+
+      - name: Build the documentation (strict)
+        run: mkdocs build --strict
