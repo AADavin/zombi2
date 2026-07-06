@@ -5,7 +5,7 @@
 </defs>
 <rect x="0" y="0" width="1200" height="560" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Two ways a branch is traversed</text>
-<text x="70" y="124" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   continuous: draw the endpoint</text>
+<text x="290.0" y="124" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">continuous</text>
 <path d="M110,450 L110,150" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M110,450 L470,450" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="290.0" y="484" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (one branch)</text>
@@ -24,7 +24,7 @@
 <circle cx="347.6" cy="353.55" r="4.5" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <circle cx="347.6" cy="304.725" r="6.0" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="453.20000000000005" y="300.0" font-size="18" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a">Normal(x0, sigma^2 t)</text>
-<text x="680" y="124" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   discrete: simulate the jumps</text>
+<text x="900.0" y="124" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">discrete</text>
 <path d="M720,450 L720,150" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M720,450 L1080,450" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="900.0" y="484" font-size="18" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (one branch)</text>
