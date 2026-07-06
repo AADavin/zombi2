@@ -14,9 +14,11 @@ ever observe, the complete tree is the history that generated it, and the loss i
 exactly the difference between them.
 
 The trees are REAL ZOMBI2 output (not hand-placed). A 10-tip backward birth-death
-tree (seed 2) is run through ``simulate_genomes`` (seed 5); family 3 has a clean
-signature -- one duplication, one transfer, one lost lineage -- and its
-``(complete, extant)`` pair is drawn directly from ``gene_trees()``.
+tree (seed 24) is run through ``simulate_genomes`` (seed 5); family 4 has a clean
+signature -- one duplication, one transfer, one lost lineage -- with the
+duplication early (t~0.25) and the transfer late (t~0.92) so the two are widely
+separated on the tree. Its ``(complete, extant)`` pair is drawn directly from
+``gene_trees()``.
 
 Encoding (same house style as fig_gene_tree / the species-tree figures)
   * filled square      -> duplication (two sister copies in the same species)
@@ -49,21 +51,23 @@ COMPLETE_NWK = OUT_DIR / "complete.nwk"
 EXTANT_NWK = OUT_DIR / "extant.nwk"
 
 # --- scenario (reproducible) ------------------------------------------------
-TREE_SEED, N_TIPS = 2, 10
+TREE_SEED, N_TIPS = 24, 10
 GENOME_SEED = 5
-FAMILY = "3"
+FAMILY = "4"
 # species (ZOMBI node) -> display letter, from the species tree's top-to-bottom
-# leaf order (see fig_gene_tree_panels header / detail_ch9.py).
-SPECIES_LETTER = {"n7": "A", "n1": "B", "n4": "C", "n8": "D", "n5": "E",
-                  "n3": "F", "n6": "G", "n2": "H", "n9": "I", "n10": "J"}
+# leaf order (see fig_gene_tree_panels header / detail_ch9_v2.py).
+SPECIES_LETTER = {"n4": "A", "n5": "B", "n10": "C", "n2": "D", "n6": "E",
+                  "n1": "F", "n7": "G", "n8": "H", "n3": "I", "n9": "J"}
 
-# reconciliation annotation for family 3 (from its event log):
-#   duplication at gene node g337 (two copies in species C)
-#   transfer    at gene node g178: donor-kept copy g337, transferred copy g338
-DUP_NODE = "g337"
-TRANSFER_NODE = "g178"
-TRANSFER_KEPT = "g337"          # child that stays in the donor lineage
-TRANSFER_MOVED = "g338"         # child that was transferred away
+# reconciliation annotation for family 4 (from its event log):
+#   duplication at gene node g104 (two copies in species F), early (t~0.25)
+#   transfer    at gene node g340: donor-kept copy g693, transferred copy g694,
+#               late (t~0.92) -- so dup and transfer sit far apart on the tree
+DUP_NODE = "g104"
+TRANSFER_NODE = "g340"
+TRANSFER_KEPT = "g693"          # child that stays in the donor lineage (-> G, H)
+TRANSFER_MOVED = "n9_g694"      # child that was transferred away (leaf -> J);
+                               # a tip, so its node name still carries the species
 
 # per-panel geometry. The two panels compose into one wide (~2:1) figure, so on
 # the page labels scale down; fonts are therefore set MUCH larger than a
@@ -128,16 +132,25 @@ def panel(nwk_path, label, subtitle, *, complete):
     # duplication square
     if DUP_NODE in name2node:
         d._draw_shape_at(*name2node[DUP_NODE].coordinates, "square", INK, r=MARKER_R)
-    # transfer triangle + donor/transferred copy labels
+    # transfer triangle + donor/transferred copy labels. Place the labels toward
+    # whichever side has room: to the LEFT (anchored end) when the transfer sits
+    # in the right third of the tree (so the text can't run off the panel or hit
+    # the tip labels), otherwise to the RIGHT. This keeps the figure robust to
+    # where the transfer happens to fall.
     if TRANSFER_NODE in name2node:
         tn = name2node[TRANSFER_NODE]
         d._draw_shape_at(*tn.coordinates, "triangle", INK, r=MARKER_R)
         xn = tn.coordinates[0]
+        right_edge = d.root_x + present * d.sf
+        put_left = xn > d.root_x + 0.62 * (right_edge - d.root_x)
+        anchor = "end" if put_left else "start"
+        dx = -22 if put_left else 22
         for role, child in (("donor-kept copy", TRANSFER_KEPT),
                             ("transferred copy", TRANSFER_MOVED)):
             if child in name2node:
                 cy = name2node[child].coordinates[1]
-                d.add_text(role, xn + 24, cy - 16, font_size=FS_ANNOT_P, color=MUTED)
+                d.add_text(role, xn + dx, cy - 16, font_size=FS_ANNOT_P,
+                           color=MUTED, text_anchor=anchor)
     # loss crosses (complete panel only; extant has none)
     for lf in loss_tips:
         _draw_cross_ink(d, *lf.coordinates, MARKER_R, stroke_width=4.0)
