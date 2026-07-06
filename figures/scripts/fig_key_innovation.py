@@ -29,14 +29,37 @@ import drawsvg as draw
 from zombi2.coevolve import GeneDiversification, simulate_gene_diversification
 
 from fig_sse import spec_fork
-from fig_trait_pagel import curved_arrow, rate_width, state_node, chip, _layout
+from fig_trait_pagel import curved_arrow, rate_width, state_node, _layout
 from model_common import zombi_to_ete3
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import (FONT, INK, MUTED, STATE_ON, STATE_OFF,
+                         FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 700
 GREY = "#9a9a9a"
+
+# Colour version (default -> key_innovation.svg, embedded) + preserved B&W (key_innovation_bw.svg).
+# ON = carries the driver (heavy branch / filled chip), OFF = no driver; swapped by render(bw=...).
+ON_COL, OFF_COL = STATE_ON, STATE_OFF
+
+
+def chip(d, cx, cy, on, s=13):
+    """Tip chip: filled = driver present, open = absent.  Colour-aware."""
+    d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
+                            fill=ON_COL if on else "white", stroke=ON_COL, stroke_width=1.6))
+
+
+def event_marker(d, cx, cy, gain, r=10.0):
+    """A gain (+) / loss (-) marker: an open circle with the symbol drawn as strokes so it is
+    geometrically centred (SVG text glyphs for '+'/'-' do not centre reliably)."""
+    d.append(draw.Circle(cx, cy, r, fill="white", stroke=INK, stroke_width=1.8))
+    a = r * 0.52                                            # half-length of each symbol arm
+    d.append(draw.Line(cx - a, cy, cx + a, cy, stroke=INK, stroke_width=2.2))   # horizontal (both)
+    if gain:
+        d.append(draw.Line(cx, cy - a, cx, cy + a, stroke=INK, stroke_width=2.2))  # vertical (+)
+
+
 N_TIPS = 16
 
 L0, DRIVER_SPEC, MU, TRANSFER, LOSS, ORIG = 0.8, 1.6, 0.2, 1.2, 0.18, 0.09
@@ -117,9 +140,6 @@ def panel_realization(d, ox, oy, pw, ph):
 
     d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 6, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
-    d.append(draw.Text(f"driver in {int(round(prev * 100))}% of extant tips", FS_ANNOT,
-                       ox + pw - 30, oy - 6, font_family=FONT, text_anchor="end", fill=INK,
-                       font_style="italic"))
 
     for n in ete.traverse():
         if n.is_root():
@@ -127,15 +147,11 @@ def panel_realization(d, ox, oy, pw, ph):
         y = y_at(ys[n.name])
         on = has[n.name]
         d.append(draw.Line(x_at(tfo[n.up.name]), y, x_at(tfo[n.name]), y,
-                           stroke=INK if on else GREY, stroke_width=5.2 if on else 2.4,
+                           stroke=ON_COL if on else OFF_COL, stroke_width=5.2 if on else 2.4,
                            stroke_linecap="butt"))
         if has[n.name] != has[n.up.name]:                       # gain / loss at this branch
             mx = x_at(tfo[n.up.name])
-            sign = "+" if has[n.name] else "-"
-            d.append(draw.Circle(mx + 12, y, 8.5, fill="white", stroke=INK, stroke_width=1.8))
-            d.append(draw.Text(sign, FS_TICK, mx + 12, y + 1, font_family=FONT,
-                               text_anchor="middle", dominant_baseline="central", fill=INK,
-                               font_weight="bold"))
+            event_marker(d, mx + 13, y, has[n.name])
         if n.is_leaf() and not n.is_extant:
             xx, ah = x_at(tfo[n.name]), 5.5
             d.append(draw.Line(xx - ah, y - ah, xx + ah, y + ah, stroke=INK, stroke_width=2.0))
@@ -155,36 +171,39 @@ def panel_realization(d, ox, oy, pw, ph):
     return seed
 
 
-def render():
+def render(bw=False):
+    global ON_COL, OFF_COL
+    ON_COL, OFF_COL = (INK, GREY) if bw else (STATE_ON, STATE_OFF)
+
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Key-innovation diversification (genes to species)",
                        FS_TITLE, W / 2, 46, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
     ly = 82
-    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=INK, stroke_width=5.2))
+    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=ON_COL, stroke_width=5.2))
     d.append(draw.Text("carries the driver", FS_TICK, W / 2 - 260, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Line(W / 2 - 90, ly, W / 2 - 58, ly, stroke=GREY, stroke_width=2.4))
+    d.append(draw.Line(W / 2 - 90, ly, W / 2 - 58, ly, stroke=OFF_COL, stroke_width=2.4))
     d.append(draw.Text("no driver", FS_TICK, W / 2 - 50, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Circle(W / 2 + 78, ly, 8.5, fill="white", stroke=INK, stroke_width=1.8))
-    d.append(draw.Text("+", FS_TICK, W / 2 + 78, ly + 1, font_family=FONT, text_anchor="middle",
-                       dominant_baseline="central", fill=INK, font_weight="bold"))
-    d.append(draw.Text("gain / loss", FS_TICK, W / 2 + 92, ly, font_family=FONT,
+    event_marker(d, W / 2 + 78, ly, True)
+    d.append(draw.Text("gain / loss", FS_TICK, W / 2 + 96, ly, font_family=FONT,
                        text_anchor="start", dominant_baseline="central", fill=INK))
 
     panel_model(d, 210, 320)
     seed = panel_realization(d, 560, 150, 600, 470)
 
     name = "key_innovation"
+    suffix = "_bw" if bw else ""
     out = OUT_DIR / name
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
-    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"),
+    (out / f"{name}{suffix}.svg").write_text(d.as_svg(), encoding="utf-8")
+    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}{suffix}.png"),
                      scale=300 / 72.0)
-    print(f"wrote {out}/{name}.svg / .png  (tree seed {seed})")
+    print(f"wrote {out}/{name}{suffix}.svg / .png  (tree seed {seed})")
 
 
 if __name__ == "__main__":
-    render()
+    render(bw=False)   # colour -> key_innovation.svg (embedded)
+    render(bw=True)    # preserved B&W -> key_innovation_bw.svg

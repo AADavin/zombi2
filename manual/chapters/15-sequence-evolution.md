@@ -183,25 +183,29 @@ over a branch of length $t$ is $P(t) = e^{Qt}$; every model here is time-reversi
 computed by eigendecomposition of the symmetric matrix $B = \operatorname{diag}(\sqrt{\pi})\, Q\,
 \operatorname{diag}(1/\sqrt{\pi})$.
 
-**Nucleotide (4 states, `ACGT`).**
+**Nucleotide (4 states, `ACGT`).** The four nucleotide models are listed in Table \ref{tbl:ntmodels}.
 
-| model    | description                                                        | parameters |
-|----------|--------------------------------------------------------------------|------------|
-| `jc69`   | Jukes–Cantor: equal rates, equal base frequencies                  | —          |
-| `k80`    | Kimura 2-parameter: transition/transversion ratio `--kappa`        | `--kappa`  |
-| `hky85`  | HKY85: transition bias with unequal base frequencies               | `--kappa`, `--base-freqs` |
-| `gtr`    | general time-reversible: 6 exchangeabilities + frequencies         | `--gtr-rates`, `--base-freqs` |
+| model    | description                                                 | parameters |
+|:---------|:------------------------------------------------------------|:-----------------------------|
+| `jc69`   | Jukes–Cantor: equal rates, equal base frequencies           | —          |
+| `k80`    | Kimura 2-parameter: transition/transversion ratio `--kappa` | `--kappa`  |
+| `hky85`  | HKY85: transition bias with unequal base frequencies        | `--kappa`, `--base-freqs` |
+| `gtr`    | general time-reversible: 6 exchangeabilities + frequencies  | `--gtr-rates`, `--base-freqs` |
+
+: The nucleotide substitution models (`--seq-model`), their character, and the parameters each takes. \label{tbl:ntmodels}
 
 **Amino acid (20 states).** Empirical exchangeability matrices, transcribed byte-for-byte from the
-reference PAML data files (Ziheng Yang), plus a parameter-free Poisson model.
+reference PAML data files (Ziheng Yang), plus a parameter-free Poisson model (Table \ref{tbl:aamodels}).
 
-| model     | description                                                       |
-|-----------|-------------------------------------------------------------------|
-| `poisson` | equal exchangeabilities, uniform frequencies (protein F81)        |
-| `lg`      | LG [@le2008improved] — the modern default                         |
-| `wag`     | WAG [@whelan2001general]                                          |
-| `jtt`     | JTT [@jones1992rapid]                                             |
-| `dayhoff` | Dayhoff [@dayhoff1978model] (PAML values)                         |
+| model     | description                                                |
+|:----------|:-----------------------------------------------------------|
+| `poisson` | equal exchangeabilities, uniform frequencies (protein F81) |
+| `lg`      | LG [@le2008improved] — the modern default                  |
+| `wag`     | WAG [@whelan2001general]                                   |
+| `jtt`     | JTT [@jones1992rapid]                                      |
+| `dayhoff` | Dayhoff [@dayhoff1978model] (PAML values)                  |
+
+: The empirical amino-acid substitution models (`--seq-model`); all are parameter-free. \label{tbl:aamodels}
 
 The protein models are empirical and take no parameters. `--gamma-shape ALPHA` adds discrete-Gamma
 across-site rate heterogeneity (+Γ) for any model; `--seq-length N` sets the alignment length. To

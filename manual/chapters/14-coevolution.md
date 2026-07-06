@@ -37,16 +37,18 @@ zombi2 coevolve --couple traits:species --couple species:traits ...
 So `--couple species:traits` and `--couple traits:species` are deliberately **different models**, and
 a bidirectional coupling is simply *both* edges. The `:` (rather than `->`) keeps the flag shell-safe.
 
-The three processes give six directed edges, each a distinct model:
+The three processes give six directed edges (Table \ref{tbl:edges}), each a distinct model:
 
 | Edge (`--couple`) | Direction | Model |
-|---|---|---|
+|:------------------|:----------|:-----------------------------------------------|
 | `traits:species` | T $\to$ S | state-dependent diversification (SSE / ClaSSE) |
 | `species:traits` | S $\to$ T | cladogenetic trait jumps at speciation |
 | `genes:species` | G $\to$ S | key-innovation diversification |
 | `species:genes` | S $\to$ G | punctuational (cladogenetic) genome |
 | `traits:genes` | T $\to$ G | trait-linked gene families |
 | `genes:traits` | G $\to$ T | gene-conditioned trait |
+
+: The six directed coupling edges of `coevolve` mode — the `--couple driver:target` flag, the direction of the arrow, and the model each one selects. \label{tbl:edges}
 
 These six are the *building blocks*. They are not the whole story, because each node-pair's two edges
 can be switched on **together**, giving a **joint (bidirectional) model** — three more: **ClaSSE**
@@ -90,10 +92,11 @@ and a stopping condition (`n_tips` or `age`) instead. The driver is `simulate_ss
 ```python
 from zombi2.coevolve import simulate_sse, BiSSE
 
-# BiSSE: state 1 speciates three times faster, so it comes to dominate the standing tips
-res = simulate_sse(BiSSE(lambda0=1, lambda1=3, mu0=0.2, mu1=0.2, q01=0.1, q10=0.1),
-                   n_tips=200, seed=1)
-res.tree               # the complete tree (extinct lineages kept; prune() for the reconstructed one)
+# BiSSE: state 1 speciates 3x faster, so it dominates the standing tips
+res = simulate_sse(
+    BiSSE(lambda0=1, lambda1=3, mu0=0.2, mu1=0.2, q01=0.1, q10=0.1),
+    n_tips=200, seed=1)
+res.tree               # complete tree; prune() for the reconstructed one
 res.labeled_values()   # the trait at the extant tips
 ```
 
@@ -109,10 +112,13 @@ rather than the focal trait — the honest null against which a real association
 import numpy as np
 from zombi2.coevolve import MuSSE, QuaSSE, HiSSE
 
-MuSSE(birth=[1, 3], death=[0.2, 0.2], Q=np.array([[-0.1, 0.1], [0.1, -0.1]]))     # k-state
-QuaSSE(speciation=lambda x: 1 + 2 / (1 + np.exp(-x)),                             # continuous
+# k-state:
+MuSSE(birth=[1, 3], death=[0.2, 0.2], Q=np.array([[-0.1, 0.1], [0.1, -0.1]]))
+# continuous trait:
+QuaSSE(speciation=lambda x: 1 + 2 / (1 + np.exp(-x)),
        extinction=lambda x: 0.2, sigma2=0.5, rate_bound=5.0, x0=0.0)
-HiSSE(classes=[BiSSE(0.5, 0.7, 0.2, 0.2, 0.1, 0.1),                               # hidden classes
+# hidden classes:
+HiSSE(classes=[BiSSE(0.5, 0.7, 0.2, 0.2, 0.1, 0.1),
                BiSSE(2.0, 3.0, 0.2, 0.2, 0.1, 0.1)], hidden_transition=0.1)
 ```
 
@@ -144,8 +150,10 @@ anagenetic rates to zero gives *purely* speciational change:
 import numpy as np
 from zombi2 import Cladogenesis, simulate_traits, Mk
 
-# a purely speciational binary trait: no within-branch change (zero-rate Mk), a jump at each split
-res = simulate_traits(tree, Mk(np.zeros((2, 2))), cladogenesis=Cladogenesis(shift=0.4), seed=2)
+# a purely speciational binary trait: no within-branch change (zero-rate
+# Mk), a jump at each split
+res = simulate_traits(tree, Mk(np.zeros((2, 2))),
+                      cladogenesis=Cladogenesis(shift=0.4), seed=2)
 ```
 
 `Cladogenesis(shift=…)` is the per-daughter state-hop probability for a discrete trait;
@@ -207,11 +215,13 @@ first command wrote:
 
 ```bash
 zombi2 coevolve --couple genes:species --drivers 2 --root-drivers 1 \
-    --lambda0 1 --mu0 0.2 --driver-speciation 1.2 --driver-transfer 0.8 --driver-loss 0.3 \
+    --lambda0 1 --mu0 0.2 --driver-speciation 1.2 \
+    --driver-transfer 0.8 --driver-loss 0.3 \
     --tips 200 --seed 1 -o out/
 
-# overlay the neutral genome on the resulting tree (the factorisation, made explicit):
-zombi2 genomes -t out/species_tree.nwk --trans 1 --loss 0.5 --write profiles trees -o out/
+# overlay the neutral genome on the resulting tree (factorisation made explicit):
+zombi2 genomes -t out/species_tree.nwk --trans 1 --loss 0.5 \
+    --write profiles trees -o out/
 ```
 
 `coevolve` writes `species_tree.nwk`, `drivers.tsv` (per-node driver presence) and
@@ -233,10 +243,13 @@ of the usual gradual along-branch change:
 ```python
 from zombi2.coevolve import simulate_cladogenetic_genome, CladogeneticGenome
 
-# purely punctuational: gene content changes ONLY at speciations (no anagenetic loss/origination)
+# purely punctuational: gene content changes ONLY at speciations
+# (no anagenetic loss/origination)
 res = simulate_cladogenetic_genome(
-    tree, CladogeneticGenome(initial_families=30, loss=0.0, origination=0.0,
-                             cladogenetic_loss=0.15, cladogenetic_gain=3.0), seed=2)
+    tree,
+    CladogeneticGenome(initial_families=30, loss=0.0, origination=0.0,
+                       cladogenetic_loss=0.15, cladogenetic_gain=3.0),
+    seed=2)
 res.genome_sizes()     # {node: family count}
 res.profile_matrix()   # families × extant tips
 ```
@@ -270,7 +283,7 @@ res = simulate_co_diversification(
                         loss=0.0, origination=0.0, transfer=0.0, root_drivers=1,
                         cladogenetic_loss=0.15, cladogenetic_gain=0.2),
     n_tips=200, seed=5)
-res.tip_prevalence()   # the drivers still spread — the genes:species signal survives the bursts
+res.tip_prevalence()   # drivers still spread: the genes:species signal survives
 ```
 
 ```bash
@@ -308,11 +321,14 @@ from zombi2 import simulate_traits, BrownianMotion
 from zombi2.coevolve import simulate_trait_linked_genomes, TraitGeneCoupling
 
 trait = simulate_traits(tree, BrownianMotion(sigma2=1.0), seed=1)
-weights = np.zeros(40); weights[::3] = 1.0        # every third family responds to the trait
+weights = np.zeros(40)
+weights[::3] = 1.0             # every third family responds to the trait
 res = simulate_trait_linked_genomes(
-    tree, trait, TraitGeneCoupling(n_families=40, weights=weights,
-                                   effect_loss=2.0, base_loss=1.0, transfer=0.5), seed=1)
-res.profiles           # ProfileMatrix: families × extant species — the trait-linked data
+    tree, trait,
+    TraitGeneCoupling(n_families=40, weights=weights,
+                      effect_loss=2.0, base_loss=1.0, transfer=0.5),
+    seed=1)
+res.profiles           # ProfileMatrix: families x species (the linked data)
 res.trait              # the TraitResult the genes were conditioned on
 res.genomes()          # promote to a full Genomes (gene trees, reconciliations)
 ```
@@ -379,15 +395,18 @@ tips end up with the trait and the panel **correlated even though neither was im
 from zombi2.coevolve import TraitGeneFeedback, simulate_trait_gene_feedback
 
 res = simulate_trait_gene_feedback(
-    tree, TraitGeneFeedback(n_families=24, effect_loss=1.5, base_loss=1.0, gain=1.0,
-                            theta_low=-3.0, theta_high=3.0, alpha=1.0, sigma2=0.5), seed=2)
-res.trait_gene_correlation()   # the emergent trait-gene association the feedback writes
+    tree,
+    TraitGeneFeedback(n_families=24, effect_loss=1.5, base_loss=1.0, gain=1.0,
+                      theta_low=-3.0, theta_high=3.0, alpha=1.0, sigma2=0.5),
+    seed=2)
+res.trait_gene_correlation()   # the emergent trait-gene association
 ```
 
 ```bash
 zombi2 coevolve --couple traits:genes --couple genes:traits -t species_tree.nwk \
     --panel 24 --effect-loss 1.5 --loss 1.0 --trans 1.0 \
-    --theta-absent -3 --theta-present 3 --trait-alpha 1 --trait-sigma2 0.5 --seed 2 -o out/
+    --theta-absent -3 --theta-present 3 --trait-alpha 1 --trait-sigma2 0.5 \
+    --seed 2 -o out/
 ```
 
 Here `--theta-absent`/`--theta-present` are the trait's optima at an empty/full panel and `--loss`/
