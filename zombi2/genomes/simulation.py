@@ -160,25 +160,6 @@ class Genomes:
             for fam, records in self.gene_families.items()
         }
 
-    def reconciliation_likelihoods(self, duplication: float, transfer: float, loss: float, *,
-                                   models=("dated", "undated"), origination: str = "root",
-                                   n_steps: int = 100, backend: str = "auto"):
-        """ALE reconciliation log-likelihood of every extant family's gene tree (ALElite).
-
-        Scores each family's **extant** reconciled gene tree under each ``model`` (any of
-        ``"dated"``, ``"undated"``, ``"reldated"``) at the given DTL rates — for ``dated`` the
-        rates are per-unit-time δ/τ/λ (as simulated); for the undated models they are per-branch
-        odds. Returns a list of :class:`~zombi2.alelite.FamilyScore` (family, extant copy count,
-        ``{model: loglik}``). Pass the simulation's own rates to score each family under the
-        generating model. See :mod:`zombi2.alelite`.
-        """
-        from zombi2.alelite.scoring import score_reconciliations
-
-        return score_reconciliations(
-            self.species_tree, self.reconciliations(), duplication, transfer, loss,
-            models=models, origination=origination, n_steps=n_steps, backend=backend,
-        )
-
     # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
     # are always written; the CLI's --output maps onto these names.
     WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary")
