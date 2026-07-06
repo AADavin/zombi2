@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate the GitHub wiki from the canonical MkDocs pages under ``docs/``.
 
-The wiki is a *mirror*, not a second source: edit the pages in ``docs/`` and let this
-script (run by the ``sync-wiki`` GitHub Action) regenerate the wiki. It:
+The wiki is a *mirror*, not a second source: edit the pages in ``docs/`` and run this
+script manually to regenerate the wiki (it is currently dormant — there is no CI Action
+for it, and the MkDocs site already renders the same ``docs/``). It:
 
 * flattens ``docs/``'s nested layout to the wiki's flat page names,
 * rewrites intra-doc ``*.md`` links to wiki page names,
@@ -36,7 +37,6 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("guide/transfers.md",              "Transfers",                  "Transfers",               "User guide"),
     ("guide/growth.md",                 "Bounding-Growth",            "Bounding growth",         "User guide"),
     ("guide/gene-trees-and-output.md",  "Gene-Trees-and-Output",      "Gene trees & output",     "User guide"),
-    ("guide/matching.md",               "Matching-Empirical-Profiles","Matching empirical profiles", "User guide"),
     ("guide/coupling.md",               "Gene-Family-Coupling",       "Gene-family coupling",    "User guide"),
     ("guide/ordered-genomes.md",        "Ordered-Genomes",            "Ordered genomes",         "User guide"),
     ("guide/nucleotide-genomes.md",     "Nucleotide-Genomes",         "Nucleotide genomes",      "User guide"),
