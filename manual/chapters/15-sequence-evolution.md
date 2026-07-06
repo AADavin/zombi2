@@ -26,6 +26,8 @@ The model therefore needs two things at once: rate variation *across the tree* t
 the genes living in a given lineage, and rate variation *across families* that is intrinsic to each
 gene. Both are multiplicative overlays on the timetree.
 
+![From time to substitutions. The same tree drawn as a **chronogram** (branch lengths in time — ultrametric, so every tip lines up at the present) and as a **phylogram** (branch lengths in substitutions per site, after multiplying each branch by an evolutionary rate). Both trees are painted by the same per-branch rate: fast (yellow) branches that were short in time stretch out, slow (purple) ones collapse, and the tips no longer line up. Rescaling a chronogram into a phylogram this way is exactly what sequence evolution does.](figures/seq_chrono_phylo.pdf){width=100%}
+
 ## The model
 
 Every gene family shares the same underlying lineage history. If a clade of the species tree is
@@ -47,6 +49,8 @@ A gene-tree branch that sits on species branch $b$ over the time interval $[t_0,
 substitution length $s_g \cdot R_b \cdot (t_1 - t_0)$. Because reconciliation is exact, a gene branch
 that spans several species branches (after pruning away losses) simply sums the contributions of the
 pieces it crosses.
+
+![The gene $\times$ lineage clock, $\text{rate} = R_b \cdot s_g$. **Left**, the shared lineage clock $R_b$ painted on the species tree — drawn once and shared by every family. **Right**, three gene families, each with its own speed $s_g$. Because $R_b$ is shared, the three phylograms have an identical colour pattern (the same clades run fast or slow); the family speed only sets each tree's overall length. Length carries $s_g$, colour carries $R_b$.](figures/seq_gene_lineage.pdf){width=100%}
 
 ### The shared lineage clock
 
@@ -168,6 +172,8 @@ DNA versus protein is **auto-detected** from the model name. One FASTA per gene 
 record is headed by the same `<species>_<gene-id>` label the leaf carries in
 `gene_trees/<family>_extant_subst.nwk`, so alignment and tree line up one-to-one. Omit `--subst-model`
 and `sequence` behaves exactly as before — it only rescales the trees and writes no alignments.
+
+![Substitution models over the four bases. **Top**, the nucleotide models as exchange graphs (purines A, G above; pyrimidines C, T below), with edge width the exchange rate and node area the stationary base frequency: across JC69, K80, HKY85 and GTR the model adds a transition/transversion bias, then unequal frequencies, then six free exchange rates. **Bottom**, one HKY85 alignment simulated down a small phylogram — sister tips share near-identical sequences and divergent clades differ, so the alignment tracks the tree.](figures/seq_subst_models.pdf){width=100%}
 
 ### Available models
 
