@@ -21,7 +21,7 @@ genomes.write("out/")                   # write every output to out/
 
 Everything is seeded: the same `seed` gives byte-identical results.
 
-## What you get from `write("out/")`
+## What `genomes.write("out/")` writes
 
 | File / folder | Contents |
 |---|---|
@@ -33,6 +33,10 @@ Everything is seeded: the same `seed` gives byte-identical results.
 | `Gene_family_summary.tsv` | per-family event counts and extant copies |
 | `Profiles.tsv` / `Presence.tsv` | families × species copy-number / presence matrix |
 
+The Python `write()` saves **all** of these by default. The `zombi2 genomes` **command line**
+writes a subset — `Profiles.tsv`, `Presence.tsv` and `gene_trees/` (its `--write` default is
+`profiles trees`); pass `--write all` for the full set above.
+
 ## Command line
 
 ```bash
@@ -43,8 +47,9 @@ zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 -o out/
 ```
 
-The built-in model runs on Rust automatically; use `--write profiles` for the counts-only
-output. See the full [command-line interface](cli.md) for every option.
+The built-in model runs on Rust automatically. `--write` selects the outputs — the default is
+`profiles trees`, `--write all` gives the full set above, and `--write profiles` gives just the
+counts. See the full [command-line interface](cli.md) for every option.
 
 ## Next steps
 

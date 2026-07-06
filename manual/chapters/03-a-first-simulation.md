@@ -68,7 +68,10 @@ Write everything to disk with a single call:
 genomes.write("out/")
 ```
 
-The command line produces the same layout under `-o out/`. Here is what you will find:
+That single call writes the full layout below. On the command line the default `zombi2 genomes`
+command writes only the common subset (`Profiles.tsv`, `Presence.tsv` and `gene_trees/`); add
+`--write all` for everything shown here — Chapter 9 covers `--write` in full. Here is what you
+will find:
 
 | File / folder | Contents |
 |---|---|
