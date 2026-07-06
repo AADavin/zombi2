@@ -69,7 +69,8 @@ nav:
       - Rust engine: guide/rust-engine.md
       - Extending ZOMBI2: guide/extending.md
   - Model catalog:
-      - Birth–death (species tree): models/birth-death.md
+      - Species trees:
+          - Diversification models: models/diversification.md
   - Cookbook: cookbook.md
   - FAQ: faq.md
   - Comparison with ZOMBI-1: comparison.md
