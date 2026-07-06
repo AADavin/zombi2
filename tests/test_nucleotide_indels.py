@@ -14,10 +14,10 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2.genome import IdManager
-from zombi2.events import EventType, TargetParams
-from zombi2.nucleotide_genome import MIN_GENOME_LENGTH, NucleotideGenome, SegmentRegistry
-from zombi2.nucleotide_sim import simulate_nucleotide_genomes
+from zombi2.genomes.genome import IdManager
+from zombi2.genomes.events import EventType, TargetParams
+from zombi2.genomes.nucleotide_genome import MIN_GENOME_LENGTH, NucleotideGenome, SegmentRegistry
+from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
 
 
 def _tree(n_tips=8, age=2.0, seed=0):
@@ -152,7 +152,7 @@ def test_profiles_fast_path_rejects_indels():
 
 
 def test_negative_indel_rate_rejected():
-    from zombi2.rates import SharedRates
+    from zombi2.genomes.rates import SharedRates
     with pytest.raises(ValueError, match="insertion"):
         SharedRates(insertion=-1.0)
     with pytest.raises(ValueError, match="deletion"):

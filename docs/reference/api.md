@@ -4,11 +4,11 @@ Auto-generated from the source docstrings.
 
 ## Species trees
 
-::: zombi2.species_model.BirthDeath
-::: zombi2.species_model.Yule
-::: zombi2.species_model.EpisodicBirthDeath
-::: zombi2.species_sim.simulate_species_tree
-::: zombi2.ghosts.add_ghost_lineages
+::: zombi2.species.model.BirthDeath
+::: zombi2.species.model.Yule
+::: zombi2.species.model.EpisodicBirthDeath
+::: zombi2.species.sim.simulate_species_tree
+::: zombi2.species.ghosts.add_ghost_lineages
 ::: zombi2.tree.prune
 
 ## Tree
@@ -19,17 +19,17 @@ Auto-generated from the source docstrings.
 
 ## Relaxed molecular clocks
 
-::: zombi2.rate_variation.Clock
-::: zombi2.rate_variation.StrictClock
-::: zombi2.rate_variation.UncorrelatedLogNormalClock
-::: zombi2.rate_variation.UncorrelatedGammaClock
-::: zombi2.rate_variation.WhiteNoiseClock
-::: zombi2.rate_variation.AutocorrelatedLogNormalClock
-::: zombi2.rate_variation.CIRClock
-::: zombi2.rate_variation.RateVariation
-::: zombi2.rate_variation.RateScaledTree
-::: zombi2.sequence_evolution.SequenceEvolution
-::: zombi2.sequence_evolution.GenePhylograms
+::: zombi2.sequences.clocks.Clock
+::: zombi2.sequences.clocks.StrictClock
+::: zombi2.sequences.clocks.UncorrelatedLogNormalClock
+::: zombi2.sequences.clocks.UncorrelatedGammaClock
+::: zombi2.sequences.clocks.WhiteNoiseClock
+::: zombi2.sequences.clocks.AutocorrelatedLogNormalClock
+::: zombi2.sequences.clocks.CIRClock
+::: zombi2.sequences.clocks.RateVariation
+::: zombi2.sequences.clocks.RateScaledTree
+::: zombi2.sequences.evolution.SequenceEvolution
+::: zombi2.sequences.evolution.GenePhylograms
 
 ## Trait evolution
 
@@ -51,33 +51,33 @@ Auto-generated from the source docstrings.
 
 ## Historical biogeography
 
-::: zombi2.biogeography.simulate_biogeography
-::: zombi2.biogeography.DEC
+::: zombi2.traits.biogeography.simulate_biogeography
+::: zombi2.traits.biogeography.DEC
 
 ## Gene-family coupling (Potts)
 
-::: zombi2.coupling.simulate_coupled
-::: zombi2.coupling.CouplingSpec
-::: zombi2.coupling.pathway_blocks
-::: zombi2.coupling.PottsRates
-::: zombi2.coupling.CoupledResult
+::: zombi2.coevolve.coupling.simulate_coupled
+::: zombi2.coevolve.coupling.CouplingSpec
+::: zombi2.coevolve.coupling.pathway_blocks
+::: zombi2.coevolve.coupling.PottsRates
+::: zombi2.coevolve.coupling.CoupledResult
 
 ## Trait-linked gene families
 
-::: zombi2.trait_coupling.simulate_trait_linked_genomes
-::: zombi2.trait_coupling.TraitGeneCoupling
-::: zombi2.trait_coupling.TraitLinkedResult
-::: zombi2.trait_coupling.TraitLinkedRates
-::: zombi2.trait_coupling.TraitTrajectory
+::: zombi2.coevolve.trait_coupling.simulate_trait_linked_genomes
+::: zombi2.coevolve.trait_coupling.TraitGeneCoupling
+::: zombi2.coevolve.trait_coupling.TraitLinkedResult
+::: zombi2.coevolve.trait_coupling.TraitLinkedRates
+::: zombi2.coevolve.trait_coupling.TraitTrajectory
 
 ## Rate models
 
-::: zombi2.rates.RateModel
-::: zombi2.rates.SharedRates
-::: zombi2.rates.PerGenomeRates
-::: zombi2.rates.FamilySampledRates
-::: zombi2.rates.BranchRates
-::: zombi2.rates.EventWeight
+::: zombi2.genomes.rates.RateModel
+::: zombi2.genomes.rates.SharedRates
+::: zombi2.genomes.rates.PerGenomeRates
+::: zombi2.genomes.rates.FamilySampledRates
+::: zombi2.genomes.rates.BranchRates
+::: zombi2.genomes.rates.EventWeight
 
 ## Distributions
 
@@ -91,25 +91,25 @@ Auto-generated from the source docstrings.
 
 ## Transfers
 
-::: zombi2.transfers.TransferModel
+::: zombi2.genomes.transfers.TransferModel
 
 ## Genomes
 
-::: zombi2.genome.Gene
-::: zombi2.genome.Genome
-::: zombi2.genome.UnorderedGenome
-::: zombi2.genome.OrderedGene
-::: zombi2.genome.OrderedGenome
+::: zombi2.genomes.genome.Gene
+::: zombi2.genomes.genome.Genome
+::: zombi2.genomes.genome.UnorderedGenome
+::: zombi2.genomes.genome.OrderedGene
+::: zombi2.genomes.genome.OrderedGenome
 
 ## Simulation driver
 
-::: zombi2.simulation.simulate_genomes
-::: zombi2.simulation.Genomes
-::: zombi2.genome_sim.GenomeSimulator
+::: zombi2.genomes.simulation.simulate_genomes
+::: zombi2.genomes.simulation.Genomes
+::: zombi2.genomes.genome_sim.GenomeSimulator
 
 ## Profiles
 
-::: zombi2.profiles.ProfileMatrix
+::: zombi2.genomes.profiles.ProfileMatrix
 
 <!-- ABC profile-matching inference (zombi2.matching) is experimental and withheld from the v1
      public API; its reference entries return when the module is stabilised. -->
@@ -129,11 +129,11 @@ extension is installed.
 
 ## Gene-tree reconstruction
 
-::: zombi2.reconciliation.build_gene_trees
+::: zombi2.genomes.reconciliation.build_gene_trees
 
 ## Events
 
-::: zombi2.events.EventType
-::: zombi2.events.EventRecord
-::: zombi2.events.GeneOp
-::: zombi2.events.Selection
+::: zombi2.genomes.events.EventType
+::: zombi2.genomes.events.EventRecord
+::: zombi2.genomes.events.GeneOp
+::: zombi2.genomes.events.Selection

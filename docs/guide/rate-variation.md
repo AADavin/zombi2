@@ -5,7 +5,7 @@ the branch lengths you would infer from *sequence evolution*, overlay a substitu
 that varies across the tree — a **relaxed molecular clock**, which turns a chronogram into a
 **phylogram**.
 
-ZOMBI2 provides a whole family of these clocks in the `zombi2.clocks` namespace, all sharing one
+ZOMBI2 provides a whole family of these clocks in the `zombi2.sequences` namespace, all sharing one
 `Clock` interface (`scale(tree, seed=...)` returns the phylogram): the strict clock (`StrictClock`),
 the *uncorrelated* clocks (`UncorrelatedLogNormalClock`, `UncorrelatedGammaClock`, `WhiteNoiseClock`
 — each branch draws an i.i.d. rate), and the *autocorrelated* clocks (`AutocorrelatedLogNormalClock`,

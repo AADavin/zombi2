@@ -466,7 +466,7 @@ def test_sequence_missing_trace_is_clean_error(tmp_path):
 
 def _alignment_letters(aln_dir):
     """Read every FASTA in a `sequence` run's alignments/ dir; return the set of all letters seen."""
-    from zombi2.sequence_sim import read_fasta
+    from zombi2.sequences.models import read_fasta
     files = sorted(aln_dir.glob("*.fasta"))
     letters = set()
     for f in files:
@@ -501,7 +501,7 @@ def test_sequence_command_protein_alignments(tmp_path):
     assert letters <= set("ARNDCQEGHILKMFPSTWYV")           # amino acids
     assert not letters <= set("ACGT")                       # genuinely protein
     # every sequence in a family alignment is --seq-length long
-    from zombi2.sequence_sim import read_fasta
+    from zombi2.sequences.models import read_fasta
     recs = read_fasta(str(files[0]))
     assert recs and all(len(s) == 50 for s in recs.values())
 
@@ -789,8 +789,8 @@ def test_genomes_nucleotide_ancestral(tmp_path):
     assert arch.count("\tgene\t") == 4
 
 
-# NOTE: the `abc` CLI command is withheld from v1 (see zombi2/cli.py); its command-level tests
-# were removed with it. The ABC implementation itself stays covered by tests/test_matching.py.
+# NOTE: there is no `abc` CLI command — ABC inference moved out of the core to
+# ZOMBI2_FUTURE/abc-inference/ (a Phase-3 Extension). The assertion below pins that absence.
 
 
 # --------------------------------------------------------------------------- coevolve (traits:species = SSE)

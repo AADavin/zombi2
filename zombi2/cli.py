@@ -12,37 +12,37 @@ import numpy as np
 
 from . import __version__
 
-from .biogeography import DEC, simulate_biogeography
-from .ghosts import add_ghost_lineages
-from .nucleotide_sim import simulate_nucleotide_genomes
-from .profiles import ProfileMatrix
-from .distributions import LogNormal
-from .rate_variation import (
+from zombi2.traits.biogeography import DEC, simulate_biogeography
+from zombi2.species.ghosts import add_ghost_lineages
+from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
+from zombi2.genomes.profiles import ProfileMatrix
+from zombi2.distributions import LogNormal
+from zombi2.sequences.clocks import (
     AutocorrelatedLogNormalClock, CIRClock, RateVariation, StrictClock,
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
-from .genome import OrderedGenome
-from .rates import PerGenomeRates, SharedRates
-from .sequence_evolution import SequenceEvolution
-from .simulation import Genomes, simulate_genomes
-from .species_model import (
+from zombi2.genomes.genome import OrderedGenome
+from zombi2.genomes.rates import PerGenomeRates, SharedRates
+from zombi2.sequences.evolution import SequenceEvolution
+from zombi2.genomes.simulation import Genomes, simulate_genomes
+from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
 )
-from .species_sim import simulate_species_tree
-from .sse import BiSSE, MuSSE, QuaSSE, simulate_sse
-from .gene_diversification import (
+from zombi2.species.sim import simulate_species_tree
+from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, simulate_sse
+from zombi2.coevolve.gene_diversification import (
     GeneDiversification, simulate_gene_diversification, simulate_co_diversification,
 )
-from .cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
-from .gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
-from .trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
-from .trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
-from ._traits_impl import (
+from zombi2.coevolve.cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
+from zombi2.coevolve.gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
+from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
+from zombi2.coevolve.trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
+from zombi2.traits.models import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
     Cladogenesis, simulate_traits,
 )
-from .transfers import TransferModel
-from .tree import Tree, prune, read_newick
+from zombi2.genomes.transfers import TransferModel
+from zombi2.tree import Tree, prune, read_newick
 
 _DESCRIPTION = """\
 Simulate each level on its own, or couple them into joint models. Run
@@ -59,10 +59,6 @@ Traits & coevolution
   trait                evolve a phenotypic trait along a given species tree
   coevolve             co-evolve coupled processes (--couple driver:target)
 """
-# NOTE: the ABC inference command ('abc') is present in-tree but withheld from v1's public
-# surface — the module is not yet documented/stabilised. See _run_abc/_add_abc_args below and
-# zombi2/matching.py; re-register it in _build_parser to bring it back.
-#
 # NOTE: the experimental gene-family coupling rate model ('genomes --rate-model coupled',
 # Potts/Ising non-independence) is likewise de-registered from this release's CLI/manual and
 # preserved in the ZOMBI2_FUTURE archive. The model itself stays: zombi2/coupling.py is a
@@ -1558,7 +1554,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None
     if args.gff:                              # start from a real genome: length + gene coordinates
-        from .gff import read_gff
+        from zombi2.genomes.gff import read_gff
         gff_info = read_gff(args.gff, seqid=args.gff_seqid)
         genes = gff_info.genes
         args.root_length = gff_info.length    # GFF is authoritative for the chromosome length
@@ -1632,7 +1628,7 @@ def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
     ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is seeded
     from ``--genome-fasta`` (the real genome) when given, else drawn at random.
     """
-    from .sequence_sim import make_model, GammaRates, read_fasta, write_fasta
+    from zombi2.sequences.models import make_model, GammaRates, read_fasta, write_fasta
     model = make_model(args.subst_model, kappa=args.kappa,
                        freqs=args.base_freqs, rates=args.gtr_rates)
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
@@ -1759,155 +1755,6 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
         dump(os.path.join(out, "gene_trees"), result.block_gene_trees())
 
 
-def _add_abc_args(p: argparse.ArgumentParser) -> None:
-    g = p.add_argument_group("general")
-    g.add_argument("-t", "--tree", required=True, metavar="FILE",
-                   help="species tree (Newick) the empirical data evolved along")
-    g.add_argument("--profiles", required=True, metavar="TSV",
-                   help="empirical copy-number profile table (families x species TSV, like the "
-                        "Profiles.tsv that 'zombi2 genomes' writes)")
-    g.add_argument("--rate-model", dest="model", choices=("uniform", "family"), default="uniform",
-                   metavar="MODEL",
-                   help="uniform: one shared scalar rate per type (Rust; default); "
-                        "family: per-family sampled rates, fitting each rate's mean (Python)")
-    g.add_argument("--seed", type=int, default=None, metavar="N",
-                   help="RNG seed for reproducibility")
-    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
-
-    g = p.add_argument_group(
-        "priors",
-        "the rates to fit — two values LOW HIGH (uniform) or one (fixed); omit to hold at 0. "
-        "At least one must be a range")
-    # priors reuse the genomes rate flags, but each takes a PRIOR (see _build_priors)
-    for flag, param in (("--dup", "duplication"), ("--trans", "transfer"),
-                        ("--loss", "loss"), ("--orig", "origination")):
-        g.add_argument(flag, type=float, nargs="+", default=None, metavar="RATE",
-                       help=f"{param} prior")
-
-    g = p.add_argument_group("family model", "--rate-model family")
-    g.add_argument("--family-shape", type=float, default=2.0, metavar="A",
-                   help="Gamma shape for per-family rate dispersion (default 2.0)")
-
-    g = p.add_argument_group("rejection ABC", "the default sampler")
-    g.add_argument("--n-sims", type=int, default=1000, metavar="N",
-                   help="number of prior simulations (default 1000)")
-    g.add_argument("--accept", type=float, default=0.05, metavar="FRAC",
-                   help="fraction of closest simulations to accept (default 0.05)")
-    g.add_argument("--processes", type=int, default=None, metavar="N",
-                   help="parallel worker processes (default: serial)")
-
-    g = p.add_argument_group("ABC-SMC", "sequential sampler with shrinking tolerance")
-    g.add_argument("--smc", action="store_true", help="use ABC-SMC instead of rejection")
-    g.add_argument("--rounds", type=int, default=5, metavar="N",
-                   help="number of SMC rounds (default 5)")
-    g.add_argument("--particles", type=int, default=200, metavar="N",
-                   help="particles per round (default 200)")
-    g.add_argument("--quantile", type=float, default=0.5, metavar="Q",
-                   help="tolerance quantile carried between rounds (default 0.5)")
-
-    g = p.add_argument_group("posterior & simulation")
-    g.add_argument("--regression-adjust", action="store_true",
-                   help="also write the regression-adjusted posterior (Beaumont 2002)")
-    g.add_argument("--initial-families", type=int, default=20, metavar="N",
-                   dest="initial_families",
-                   help="gene families seeded at the root of each simulation (default 20)")
-    g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
-                   help="growth cap for each simulation — recommended with --rate-model family to "
-                        "avoid runaway growth (integer = absolute, decimal = fraction of N)")
-
-
-def _build_priors(args: argparse.Namespace) -> dict:
-    """Turn the ``--dup/--trans/--loss/--orig`` flags into a priors dict for ``match_profiles``.
-
-    Two values ``LOW HIGH`` -> a uniform prior on that rate; one value -> fixed; omitted ->
-    the rate is held at 0. At least one rate must be given as a range (there must be something
-    to fit).
-    """
-    priors: dict = {}
-    for flag, param in (("dup", "duplication"), ("trans", "transfer"),
-                        ("loss", "loss"), ("orig", "origination")):
-        spec = getattr(args, flag)
-        if spec is None:
-            continue
-        if len(spec) == 1:
-            priors[param] = spec[0]                       # fixed value
-        elif len(spec) == 2:
-            priors[param] = (spec[0], spec[1])            # uniform (low, high)
-        else:
-            raise ValueError(f"--{flag} takes one value (fixed) or two (LOW HIGH), got {len(spec)}")
-    if not any(isinstance(v, tuple) for v in priors.values()):
-        raise ValueError("give at least one rate to fit as a range, e.g. --loss 0 1.5 (LOW HIGH)")
-    return priors
-
-
-def _write_abc_outputs(out: str, fit, adjusted: bool = False) -> None:
-    """Write the ABC posterior, the per-parameter summary, and the spectrum diagnostic."""
-    post = fit.posterior
-    names = list(post)
-    n_accept = len(next(iter(post.values())))
-    lines = ["\t".join(names)]
-    for i in range(n_accept):
-        lines.append("\t".join(f"{post[nm][i]:.6g}" for nm in names))
-    with open(os.path.join(out, "posterior.tsv"), "w") as f:      # accepted draws, one col/param
-        f.write("\n".join(lines) + "\n")
-
-    slines = ["parameter\tmean\tmedian\tlo95\thi95"]
-    for nm, s in fit.summary().items():
-        slines.append(f"{nm}\t{s['mean']:.6g}\t{s['median']:.6g}\t{s['lo95']:.6g}\t{s['hi95']:.6g}")
-    if adjusted:
-        slines.append("# regression-adjusted (Beaumont 2002)")
-        for nm, s in fit.summary(adjusted=True).items():
-            slines.append(f"{nm}_adj\t{s['mean']:.6g}\t{s['median']:.6g}\t"
-                          f"{s['lo95']:.6g}\t{s['hi95']:.6g}")
-    with open(os.path.join(out, "summary.tsv"), "w") as f:
-        f.write("\n".join(slines) + "\n")
-
-    if fit.uses_default_summary:                                  # posterior-predictive spectrum
-        d = fit.spectra_data()
-        lo, med, hi = np.percentile(d["accepted"], [2.5, 50, 97.5], axis=0)
-        flines = ["k\tempirical\tacc_median\tacc_lo95\tacc_hi95"]
-        for i, k in enumerate(d["k"]):
-            flines.append(f"{int(k)}\t{d['empirical'][i]:.6g}\t{med[i]:.6g}\t"
-                          f"{lo[i]:.6g}\t{hi[i]:.6g}")
-        with open(os.path.join(out, "spectra.tsv"), "w") as f:
-            f.write("\n".join(flines) + "\n")
-
-
-def _run_abc(args: argparse.Namespace) -> str:
-    """Fit gene-family rates to an empirical profile by ABC and write the posterior.
-
-    Retained in-tree but not wired to a subcommand in v1 (ABC is not yet stabilised/documented);
-    re-register 'abc' in _build_parser to expose it. The implementation import is local so the
-    module stays importable without the ABC surface on the public path.
-    """
-    from .matching import match_profiles, match_profiles_smc
-    with open(args.tree) as f:
-        tree = read_newick(f.read())
-    empirical = ProfileMatrix.from_tsv(args.profiles)
-    priors = _build_priors(args)
-    common = dict(model=args.model, family_shape=args.family_shape,
-                  initial_families=args.initial_families, max_family_size=args.max_family_size,
-                  seed=args.seed)
-
-    t0 = time.perf_counter()
-    if args.smc:
-        fit = match_profiles_smc(tree, empirical, priors, rounds=args.rounds,
-                                 n_particles=args.particles, quantile=args.quantile, **common)
-        effort = f"{args.rounds} SMC rounds x {args.particles} particles"
-    else:
-        fit = match_profiles(tree, empirical, priors, n_sims=args.n_sims, accept=args.accept,
-                             processes=args.processes, **common)
-        effort = f"{args.n_sims} sims"
-    dt = time.perf_counter() - t0
-
-    os.makedirs(args.out, exist_ok=True)
-    _write_abc_outputs(args.out, fit, adjusted=args.regression_adjust)
-    posterior = " ".join(f"{n}={s['median']:.3g}[{s['lo95']:.3g},{s['hi95']:.3g}]"
-                         for n, s in fit.summary().items())
-    return (f"fit {len(fit.accepted)} accepted / {effort}, tol={fit.tolerance:.3g} in {dt:.3g} s "
-            f"-> {args.out}/ (median [95% CI]: {posterior})")
-
-
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     g.add_argument("--genomes", required=True, metavar="DIR",
@@ -2032,11 +1879,11 @@ def _run_sequence(args: argparse.Namespace) -> str:
     along each rescaled **extant** gene tree (the rescaled branch lengths ARE the substitutions/
     site) and the leaf alignment is written as ``alignments/<family>.fasta``.
     """
-    from .profiles import _natkey
-    from .reconciliation import extant_species_from_records
-    from .sequence_sim import (GammaRates, evolve_on_tree, is_protein_model, make_model,
+    from zombi2.genomes.profiles import _natkey
+    from zombi2.genomes.reconciliation import extant_species_from_records
+    from zombi2.sequences.models import (GammaRates, evolve_on_tree, is_protein_model, make_model,
                                read_fasta, write_fasta)
-    from .simulation import read_events_trace
+    from zombi2.genomes.simulation import read_events_trace
 
     if args.family_speed < 0 or args.branch_speed < 0:
         raise ValueError("--family-speed / --branch-speed must be >= 0")
@@ -2213,9 +2060,6 @@ def main(argv: list[str] | None = None) -> int:
             "  # 3-state discrete Mk trait, 20 replicates",
             "  zombi2 trait -t out/species_tree.nwk --model mk --states 3 --replicates 20 --seed 1 -o out/",
         ))
-
-    # 'abc' (ABC inference) is intentionally not registered for v1 — see the note by _DESCRIPTION.
-    # To re-enable: _add_subcommand(sub, "abc", ..., _add_abc_args) and restore its dispatch below.
 
     _add_subcommand(
         sub, "coevolve", "co-evolve coupled processes (--couple driver:target)",

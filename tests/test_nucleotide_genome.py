@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2.events import EventRecord, EventType, GeneOp, Region, Selection, TargetParams
-from zombi2.genome import IdManager
-from zombi2.nucleotide_genome import NucleotideGenome, SegmentRegistry
-from zombi2.nucleotide_sim import simulate_nucleotide_genomes
-from zombi2.reconciliation import reconcile
+from zombi2.genomes.events import EventRecord, EventType, GeneOp, Region, Selection, TargetParams
+from zombi2.genomes.genome import IdManager
+from zombi2.genomes.nucleotide_genome import NucleotideGenome, SegmentRegistry
+from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
+from zombi2.genomes.reconciliation import reconcile
 from zombi2.tree import read_newick
 
 
