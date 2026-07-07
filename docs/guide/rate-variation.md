@@ -1,5 +1,8 @@
 # Rate variation (relaxed clock)
 
+> **Reference:** see the [relaxed-clock](../models/relaxed-clocks.md) and
+> [DNA-substitution](../models/dna-substitution.md) catalog pages.
+
 Species trees and gene trees in ZOMBI2 are **timetrees** — branch lengths are time. To get
 the branch lengths you would infer from *sequence evolution*, overlay a substitution rate
 that varies across the tree — a **relaxed molecular clock**, which turns a chronogram into a

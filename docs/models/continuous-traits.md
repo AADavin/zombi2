@@ -1,5 +1,7 @@
 # Continuous-trait models
 
+> **Tutorial:** see the [Trait evolution](../guide/traits.md) guide.
+
 A quantitative trait — a body size, an expression level, a latent liability — evolves down the
 tree as a **diffusion**: along each branch it performs a random walk, and ZOMBI2 integrates that
 walk **exactly**, node by node in preorder from a root value, so the internal nodes are true

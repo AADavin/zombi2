@@ -27,7 +27,7 @@ deep architecture of the gene-family seams (`Genome` / `RateModel` / `EventSampl
 Two seams are cross-cutting rather than levels: the **event sampler** (`EventSampler` in
 `_sampling.py` — the Gillespie numeric core, shared by every level) and **coevolution**
 (`zombi2/coevolve/`), which *couples* two levels rather than adding one — see
-[coevolution models](../coevolution_models.md).
+[coevolution models](../models/coevolution.md).
 
 Most levels are **duck-typed protocols** (implement the methods, no base class needed);
 `RateModel` and `EventSampler` are ABCs, `SubstitutionModel` is a frozen dataclass. Add a

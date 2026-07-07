@@ -39,7 +39,7 @@ genomes = simulate_genomes(tree, PerGenomeRates(0.5, 0.2, 0.5, 0.4), seed=1)
 ```
 
 `RateModel.bind(rng, max_family_size)` is called once per run — override it for stateful
-models (e.g. per-family sampling, or the future Potts model, which will read
+models (e.g. per-family sampling, or a future non-independence model that reads
 `genome.presence_vector(order)` to couple families).
 
 ## Add a genome representation
@@ -69,9 +69,10 @@ representations ignore it automatically.
 The interface-first design has let these models drop in as subclasses, without touching the
 engine:
 
-- **Non-independence (Potts model)** — a `RateModel` whose gain/loss rates read the genome's
-  presence vector, so functionally coupled families gain/lose together.
+- **Non-independence** — a future `RateModel` whose gain/loss rates would read the
+  genome's presence vector, so functionally coupled families gain/lose together.
 - **Ghost lineages** and **fossilized birth–death** — a forward species-tree simulator that
-  retains extinct lineages (see [species-tree models](../species_tree_models.md)).
+  retains extinct lineages (see [ghost lineages](ghost-lineages.md) and the
+  [birth–death](../models/birth-death.md) catalog page).
 - **Gene length / intergenes** and **genome-wise rates** — further `Genome` / `RateModel`
   subclasses.

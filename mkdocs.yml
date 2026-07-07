@@ -59,7 +59,6 @@ nav:
       - Transfers: guide/transfers.md
       - Bounding growth: guide/growth.md
       - Gene trees & output: guide/gene-trees-and-output.md
-      - Gene-family coupling: guide/coupling.md
       - Ordered genomes: guide/ordered-genomes.md
       - Nucleotide genomes: guide/nucleotide-genomes.md
       - Sequences: guide/sequences.md
@@ -88,7 +87,7 @@ nav:
       - Coevolution: models/coevolution.md
   - Cookbook: cookbook.md
   - FAQ: faq.md
-  - Comparison with ZOMBI-1: comparison.md
+  - Comparison with ZOMBI1: comparison.md
   - Validation: validation.md
   - Contributing:
       - Overview: contributing.md
@@ -96,6 +95,3 @@ nav:
       - Conventions: contributing/conventions.md
   - Publishing a release: publishing.md
   - API reference: reference/api.md
-  - Roadmap:
-      - Species-tree models: species_tree_models.md
-      - Coevolution (coupled models): coevolution_models.md

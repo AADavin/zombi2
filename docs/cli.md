@@ -20,7 +20,7 @@ zombi2 sequence --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq
 `species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
 full output (see [gene trees & output](guide/gene-trees-and-output.md)); `trait` reads a tree and
 writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)). To **couple**
-levels so one drives another, see [`coevolve`](coevolution_models.md).
+levels so one drives another, see [`coevolve`](models/coevolution.md).
 
 Run `zombi2 <command> -h` for a command's options — each command's help groups its flags into
 labelled model sections (the general options, then one section per model), so the parameters of
@@ -217,7 +217,7 @@ zombi2 coevolve --couple traits:species --sse-model bisse \
     --lambda0 1 --lambda1 3 --q01 0.1 --q10 0.1 --tips 200 --seed 1 -o out/
 ```
 
-See **[coevolution models](coevolution_models.md)** for the full reference — all six edges, their
+See **[coevolution models](models/coevolution.md)** for the full reference — all six edges, their
 parameters, the joint (both-arrow) models, and the CLI options.
 
 ## Options
@@ -249,7 +249,7 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | Option | Meaning |
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
-| `--genome-model {unordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
+| `--genome-model {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
 | `--rate-model {shared,per-genome}` | rate heterogeneity for the unordered level: `shared` (default, Rust): same per-copy rates for all families; `per-genome` (Python): constant per-genome rates, linear growth |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
@@ -302,7 +302,7 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
 Run `zombi2 <command> -h` for the authoritative list. For the `coevolve` options, see
-[coevolution models](coevolution_models.md#cli-reference).
+[coevolution models](models/coevolution.md#command-line).
 
 ## Choosing the output, and the Rust engine
 
