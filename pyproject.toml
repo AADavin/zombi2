@@ -15,7 +15,7 @@ keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evol
 # so the version is pinned exactly. For local development, install it first
 # (`pip install ./rust`) before an editable install of zombi2.
 dependencies = ["numpy>=1.24", "zombi2_core==0.2.0"]
-license = "GPL-3.0-or-later"
+license = "MIT"
 license-files = ["LICENSE"]
 classifiers = [
     "Development Status :: 4 - Beta",
