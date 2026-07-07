@@ -3,8 +3,7 @@
 The **unordered** level is the simplest and fastest of the three genome models (Chapter 7): a genome
 is an unordered *set* of gene families, each present in some copy number, with no position, no
 neighbours and no length. It is the right model whenever what you care about is gene *content* —
-presence/absence profiles, copy number, reconciliations, family sizes — and it is the only level
-that supports coupling between families (a Potts/Ising panel, available through the Python API).
+presence/absence profiles, copy number, reconciliations, family sizes.
 
 Once the species tree is fixed, ZOMBI2 populates it with genes: a single forward continuous-time
 (Gillespie) process runs over every branch alive at a given moment, firing discrete events that

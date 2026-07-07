@@ -25,7 +25,7 @@ layer for couplings among them and a shared kernel at the top level:
 | `zombi2/genomes/` | gene families + genome structure (`rates.py`, `genome.py`, `genome_sim.py`, `simulation.py`, `reconciliation.py`, `profiles.py`, `events.py`, `transfers.py`, `nucleotide_*.py`, `gff.py`) |
 | `zombi2/traits/` | trait models (`models.py`) + biogeography (`biogeography.py`, the DEC model) |
 | `zombi2/sequences/` | substitution models (`models.py`), the gene×lineage clock (`evolution.py`), and the relaxed molecular clocks (`clocks.py`) |
-| `zombi2/coevolve/` | the couplings among the four levels (`sse.py`, `trait_coupling.py`, `gene_diversification.py`, `coupling.py`, …) |
+| `zombi2/coevolve/` | the couplings among the four levels (`sse.py`, `trait_coupling.py`, `gene_diversification.py`, …) |
 
 Shared kernel at the top level:
 

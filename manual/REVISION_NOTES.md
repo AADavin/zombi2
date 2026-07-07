@@ -183,8 +183,8 @@ Ch12 all figure fixes + 3 new figures · Ch5 figs 5.1/5.3/5.4/5.5/5.6/5.7 widene
 + "fast diversification" label + drop "ClaDS" from §5.3 title + 5.5/5.6 code overflows fixed ·
 Ch6 fig 6.1 widened + §6.2 overflows · Ch7 fig 7.1 nucleotide-row gene letters (edited the hand-SVG
 `docs/img/genome_models.svg` — no generator exists) · Ch10 fig 10.2 widened · Ch9 removed the dense
-9.1 4-panel figure, split into 4 standalone figs (`potts_genome`/`potts_coupling`/`potts_lossrate`/
-`potts_retention`) placed across The model / Building / Running sections · Ch3 & Ch8 "reconciled"→
+9.1 4-panel figure, split into 4 standalone coupling figs placed across The model / Building /
+Running sections · Ch3 & Ch8 "reconciled"→
 "complete" gene tree (figure title + both captions) · Ch4 fig 4.1 caption (ten not twenty tips),
 removed v1-age note + backward-mode tip box, extinct tips `x*`→`e*` in fig_species_tree_extinct.
 Ch4 **age-vs-crown** two-panel figure DONE (`fig_age_crown.py` → `age_crown`, placed after the
