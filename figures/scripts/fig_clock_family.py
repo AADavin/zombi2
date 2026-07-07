@@ -158,15 +158,14 @@ def _panel(d, ox, oy, tree, ys, nleaf, rate, dist, scale, axis_max, title, tag, 
 def _rate_bar(d, x, y, w, h):
     # objectBoundingBox coords so the gradient fills the bar rect regardless of
     # absolute position (userSpaceOnUse breaks in the rsvg-convert -> PDF path).
-    grad = draw.LinearGradient(0, 0, 1, 0, gradientUnits="objectBoundingBox")
-    for i in range(21):
-        t = i / 20.0
-        r = C.RATE_LO * (C.RATE_HI / C.RATE_LO) ** t     # log-spaced
-        grad.add_stop(t, C.rate_hex(r))
-    d.append(grad)
     d.append(draw.Text("branch rate multiplier", FS_LABEL, x + w / 2, y - 12, font_family=FONT,
                        text_anchor="middle", font_weight="bold", fill=INK))
-    d.append(draw.Rectangle(x, y, w, h, fill=grad, stroke=INK, stroke_width=0.8))
+    n = 64
+    for i in range(n):
+        t = i / (n - 1)
+        r = C.RATE_LO * (C.RATE_HI / C.RATE_LO) ** t     # log-spaced
+        d.append(draw.Rectangle(x + w * i / n, y, w / n + 0.7, h, fill=C.rate_hex(r), stroke="none"))
+    d.append(draw.Rectangle(x, y, w, h, fill="none", stroke=INK, stroke_width=0.8))
     for tx, lab, anc in ((x, "0.33x (slow)", "start"),
                          (x + w / 2, "1x", "middle"),
                          (x + w, "3x (fast)", "end")):

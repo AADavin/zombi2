@@ -41,11 +41,13 @@ N_TIPS = 14
 # instead of absolute userSpaceOnUse coords. The latter silently collapse to the first stop when
 # rsvg-convert rasterizes the SVG for the PDF (the bar shows solid blue); objectBoundingBox fills
 # the rect regardless of where it is placed. Horizontal ramp: x1=0,y1=0 -> x2=1,y2=0.
-def _viridis_bar_gradient():
-    grad = draw.LinearGradient(0, 0, 1, 0, gradientUnits="objectBoundingBox")
-    for t, c in VIRIDIS:
-        grad.add_stop(t, hexc(c))
-    return grad
+def _viridis_cells(d, x, y, w, h):
+    # discrete colour strip (no gradient shading object — renders identically in every viewer)
+    n = 64
+    for i in range(n):
+        d.append(draw.Rectangle(x + w * i / n, y, w / n + 0.7, h,
+                                fill=hexc(viridis(i / (n - 1))), stroke="none"))
+    d.append(draw.Rectangle(x, y, w, h, fill="none", stroke=INK, stroke_width=0.8))
 
 
 # lambda(x) rises sigmoidally with the trait; mu flat; slow diffusion
@@ -67,9 +69,7 @@ def panel_model(d, ox, oy, pw, ph, title_y, bar_y):
     y_at = lambda r: oy + ph - (r / rmax) * ph              # noqa: E731
 
     # viridis strip along the trait axis (C#1: objectBoundingBox gradient), shared bar height bar_y
-    grad = _viridis_bar_gradient()
-    d.append(grad)
-    d.append(draw.Rectangle(ox, bar_y, pw, 14, fill=grad, stroke=INK, stroke_width=0.8))
+    _viridis_cells(d, ox, bar_y, pw, 14)
     d.append(draw.Text("trait value  x", FS_TICK, ox + pw / 2, bar_y + 34, font_family=FONT,
                        text_anchor="middle", fill=MUTED))
 
@@ -161,9 +161,7 @@ def panel_realization(d, ox, oy, pw, ph, title_y, bar_y):
     # height bar_y as panel A's trait strip so the two bars line up across the figure.
     bw = 200
     bx = ox + (pw - bw) / 2
-    grad = _viridis_bar_gradient()
-    d.append(grad)
-    d.append(draw.Rectangle(bx, bar_y, bw, 14, fill=grad, stroke=INK, stroke_width=0.8))
+    _viridis_cells(d, bx, bar_y, bw, 14)
     d.append(draw.Text(f"{lo:+.1f}", FS_TICK, bx, bar_y + 34, font_family=FONT, text_anchor="start", fill="#555"))
     d.append(draw.Text(f"{hi:+.1f}", FS_TICK, bx + bw, bar_y + 34, font_family=FONT, text_anchor="end", fill="#555"))
     d.append(draw.Text("trait value", FS_TICK, bx + bw / 2, bar_y + 34, font_family=FONT,
