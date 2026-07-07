@@ -10,6 +10,10 @@ exclude_docs: |
   *.tex
   *.bib
 
+# The header title/logo links back to the main website (these docs are a /docs/ subsite).
+extra:
+  homepage: https://aadavin.github.io/zombi2/
+
 theme:
   name: material
   features:
