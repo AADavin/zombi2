@@ -67,7 +67,7 @@ event types drop in as subclasses without touching the engine. See
 - New to ZOMBI2? Start with [Installation](installation.md) and the
   [Quickstart](quickstart.md).
 - Then work through the **User guide** in the navigation, or browse the
-  [**model catalog**](models/diversification.md).
+  [**model catalog**](models/birth-death.md).
 - Prefer a narrative? The
   [**Concepts & Tutorial manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf)
   walks through every model with worked examples and figures.

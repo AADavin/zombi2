@@ -68,7 +68,7 @@ zombi2 species --mode forward --age 6 --sampling-fraction 0.5 -o out/   # 50% sa
 **Mass extinctions** (forward only). `--mass-extinction AGE FRACTION` fires an instantaneous,
 tree-wide survival pulse — at `AGE` before the present, each live lineage dies with probability
 `FRACTION` — and is repeatable for several pulses (needs `--age`). See the
-[diversification models](models/diversification.md#mass-extinctions-overlay) catalog for details.
+[advanced diversification](models/advanced-diversification.md#mass-extinctions-overlay) catalog for details.
 
 ```bash
 zombi2 species --mode forward --age 5 --mass-extinction 2.5 0.75 -o out/        # 75% die at age 2.5

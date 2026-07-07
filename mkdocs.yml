@@ -71,10 +71,12 @@ nav:
       - Extending ZOMBI2: guide/extending.md
   - Model catalog:
       - Species trees:
-          - Diversification models: models/diversification.md
+          - Basic (birth–death & Yule): models/birth-death.md
+          - Advanced (heterogeneous rates): models/advanced-diversification.md
       - Genomes:
-          - Gene-family evolution (DTL): models/gene-family.md
-          - Genome structure: models/genome-structure.md
+          - Unordered (gene families): models/gene-family.md
+          - Ordered chromosomes: models/ordered.md
+          - Nucleotide genomes: models/nucleotide.md
       - Traits:
           - Continuous-trait models: models/continuous-traits.md
           - Discrete-trait models: models/discrete-traits.md
@@ -83,9 +85,7 @@ nav:
           - DNA substitution models: models/dna-substitution.md
           - Protein substitution models: models/protein-substitution.md
           - Relaxed clocks: models/relaxed-clocks.md
-      - Coevolution:
-          - State-dependent diversification (SSE): models/sse.md
-          - Coupled models: models/coevolution.md
+      - Coevolution: models/coevolution.md
   - Cookbook: cookbook.md
   - FAQ: faq.md
   - Comparison with ZOMBI-1: comparison.md
