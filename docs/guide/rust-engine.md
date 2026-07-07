@@ -52,7 +52,7 @@ g = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
                      origination=0.5, initial_families=100, max_family_size=0.5, seed=1)
 len(g.event_log)                        # every O/D/T/L/S record, as EventRecord objects
 complete, extant = g.gene_trees()["1"]  # reconstructed per-family gene trees
-g.write("out/")                         # full ZOMBI-1 output (tables, trees, transfers, ...)
+g.write("out/")                         # full ZOMBI1 output (tables, trees, transfers, ...)
 
 # output="profiles": just the copy-number matrix — the fast counts-only path (the σ dataset)
 pm = simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1, origination=0.5,

@@ -128,7 +128,7 @@ genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
                            origination=0.5, initial_families=40, seed=42)
 ```
 
-### Per-family rates drawn from distributions (ZOMBI-1 style)
+### Per-family rates drawn from distributions (ZOMBI1 style)
 
 Each family samples its own D/T/L once, from the given distributions:
 
@@ -294,7 +294,7 @@ for record in genomes.event_log[:10]:
     print(record.time, record.event, record.family)
 ```
 
-### Write the full ZOMBI-1 output
+### Write the full ZOMBI1 output
 
 ```python
 genomes.write("out/")   # species tree, event tables, gene trees, transfers, profiles

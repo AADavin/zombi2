@@ -24,10 +24,6 @@ ghost lineages grafted back on (dashed) to recover the full diversification hist
     [species trees](species-trees.md). The two are distributionally equivalent for the
     reconstructed part; pick by which you have in hand.
 
-This page is the how-to. For the exact conditional law behind it — the `λ(t)·E(t)`
-attachment intensity, the h-transform sampler, and why un-pruning is exact — see
-[Ghost lineages — how it works](../ghost_lineages.md).
-
 ## Basic use
 
 Pass the **same model** you used to build the tree:
@@ -100,6 +96,48 @@ Ghost lineages let you study what the reconstructed tree hides: extinct or unsam
 lineages as sources/sinks of horizontal transfer, the effect of sampling on downstream
 inference, and the difference between the complete and reconstructed histories. The result
 is an ordinary `Tree` — the extra tips are just leaves with `is_extant=False`.
+
+## How it works
+
+The reconstructed tree is the complete birth–death tree with its dead branches pruned off.
+Un-pruning inverts that using the exact conditional law of the complete tree given the
+reconstructed one (Nee, May & Harvey 1994; Stadler 2009; Lambert & Stadler 2013):
+
+> Along each edge of the reconstructed tree, dead lineages attach as an inhomogeneous Poisson
+> process with intensity `λ(t)·E(t)`, where `E(t)` is the probability that a lineage present at
+> time `t` leaves **no sampled descendant** at the present.
+
+Intuition: a surviving lineage still speciates at rate `λ`; each side-branch independently
+leaves a sampled descendant (prob `1−E`) or nothing (prob `E`). The reconstructed tree kept
+only the branchings where *both* sides survived — its nodes — so *between* its nodes every
+branching had a dying sibling, occurring at rate `λ·E(t)`.
+
+`E(t)` is the survival quantity ZOMBI2 already solves: the ODE `dE/dτ = μ − (λ+μ)E + λE²` with
+`E(0) = 1−ρ` (τ = time before present). Constant-rate `BirthDeath` has the closed form;
+`EpisodicBirthDeath` integrates it on a grid. This one quantity unifies the two kinds of dead
+lineage — **extinct** (arose and died before the present; needs `μ>0`) and **unsampled extant**
+(alive today but not sampled; needs `ρ<1`) — both being "leaves no *sampled* descendant".
+
+**Growing each ghost.** An attachment at time `t` roots a birth–death subtree grown to the
+present, conditioned on leaving no sampled descendant (the event of probability `E(t)`). The
+two `method=` samplers realise this identically:
+
+- **`rejection`** — grow a normal BD subtree, sample each present-day tip with prob `ρ`, and
+  reject if any tip is sampled. Ghosts are small (conditioned to die out), so the expected work
+  is `O(λ · tree length)`.
+- **`htransform`** — the conditioned process is itself a birth–death with per-lineage birth
+  `λ·E(τ)` and death `μ/E(τ)`, drawn in one pass (no rejection). The death rate diverges as
+  `E→0`, which is exactly what forces extinction before the present.
+
+**Why it is exact.** Pruning the ghosts back off returns the original reconstructed tree
+unchanged (ghosts have no sampled descendants), so the sampled-tree statistics are untouched —
+an exact augmentation, not an approximation. Yule with complete sampling (`μ=0, ρ=1`) gives
+`E≡0` → zero ghosts → reconstructed = complete.
+
+**Transfers from the dead.** Once grafted, ghosts are ordinary branches: the forward gene
+simulator sees them in `branches_alive_at(t)`, so horizontal transfers can draw ghost
+donors/recipients — a gene from a ghost donor surfaces in reconciliation as a transfer from a
+lineage absent from the sampled species tree (Szöllősi, Tannier, Lartillot & Daubin 2013).
 
 See also the [cookbook](../cookbook.md#add-ghost-extinct-lineages) for the short recipe and
 [species trees](species-trees.md) for the underlying model.

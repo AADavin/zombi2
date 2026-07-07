@@ -14,7 +14,7 @@ family, drawn per family, held constant per genome, or scaled per branch.
 | --- | --- | --- |
 | **SharedRates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast and uniform |
 | **PerGenomeRates** | constant per-genome totals; families grow linearly | you want size-independent rates and no runaway growth |
-| **FamilySampledRates** | each family draws its own D/T/L (ZOMBI-1 style) | families should differ in their evolutionary rates |
+| **FamilySampledRates** | each family draws its own D/T/L (ZOMBI1 style) | families should differ in their evolutionary rates |
 | **BranchRates** | a per-branch factor scaling any base model | rates vary across the species tree (relaxed clock) |
 
 D/T/L are **per gene copy** unless a model says otherwise, so a family's copy number follows an
@@ -44,7 +44,7 @@ fires the target copy is chosen uniformly; origination is per branch. Selected o
 ### FamilySampledRates
 
 Each gene family draws its **own** `duplication`/`transfer`/`loss` rates from distributions the first time
-it is seen, then keeps them for life (the ZOMBI-1 style of rate heterogeneity). Pass a float for a fixed
+it is seen, then keeps them for life (the ZOMBI1 style of rate heterogeneity). Pass a float for a fixed
 rate or a distribution (e.g. `Exponential`, `Gamma`) to sample per family. Origination stays a single
 per-branch rate. Python API only. Also honours an optional `carrying_capacity`.
 

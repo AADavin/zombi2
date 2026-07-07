@@ -84,7 +84,7 @@ Related variants share a page so breadth stays legible — the way IQ-TREE lists
 models. The page **title is the family name with no level suffix** (the nav section already carries the
 level); name each model by its common acronym, expanded on first use — never "(trait)"/"(species tree)".
 
-Copy this shape (see [diversification models](../models/diversification.md) for a filled example):
+Copy this shape (see [basic diversification](../models/birth-death.md) for a filled example):
 
 ```markdown
 # <Family name>
