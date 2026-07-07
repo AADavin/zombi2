@@ -167,6 +167,63 @@ def test_genomes_score_likelihoods_writes_table(tmp_path):
     assert len(lines) >= 2  # header + at least one scored family
 
 
+# `tools reconcile` scores hand-authored trees with the pure-Python engines — no Rust needed.
+_RECON_SP = "((A:1.0,B:1.0):1.0,C:2.0);"          # dated 3-tip species tree
+_RECON_GT1 = "((A|1,B|2),C|3);"                    # one copy per species
+_RECON_GT2 = "(A|1,B|2);"                          # present in A,B; lost in C
+
+
+def test_tools_reconcile_matches_api(tmp_path):
+    """`zombi2 tools reconcile -o` writes a table whose dated column equals the API's."""
+    from zombi2.tree import read_newick
+    from zombi2.tools import reconciliation_likelihood, SpeciesTree
+
+    sp_file = tmp_path / "sp.nwk"; sp_file.write_text(_RECON_SP + "\n")
+    gt_file = tmp_path / "gt.nwk"; gt_file.write_text(_RECON_GT1 + "\n" + _RECON_GT2 + "\n")
+    out = tmp_path / "out"
+
+    rc = main(["tools", "reconcile", "-g", str(gt_file), "-t", str(sp_file),
+               "--dup", "0.1", "--trans", "0.05", "--loss", "0.15",
+               "--model", "dated", "undated", "-o", str(out)])
+    assert rc == 0
+    lines = (out / "Reconciliation_likelihoods.tsv").read_text().strip().split("\n")
+    assert lines[0] == "family\textant_copies\tdated_loglik\tundated_loglik"
+    assert len(lines) == 3  # header + 2 trees
+
+    sp = SpeciesTree.from_tree(read_newick(_RECON_SP))
+    for i, gt in enumerate((_RECON_GT1, _RECON_GT2)):
+        want = reconciliation_likelihood(gene_tree=gt, species_tree=sp, duplication=0.1,
+                                         transfer=0.05, loss=0.15, model="dated")
+        assert want < 0
+        assert float(lines[i + 1].split("\t")[2]) == pytest.approx(want, abs=1e-6)
+
+
+def test_tools_reconcile_single_prints_bare_number(tmp_path, capsys):
+    """One tree and one model prints just the log-likelihood (scripting-friendly)."""
+    from zombi2.tree import read_newick
+    from zombi2.tools import reconciliation_likelihood, SpeciesTree
+
+    sp_file = tmp_path / "sp.nwk"; sp_file.write_text(_RECON_SP + "\n")
+    gt_file = tmp_path / "gt.nwk"; gt_file.write_text(_RECON_GT1 + "\n")
+
+    rc = main(["tools", "reconcile", "-g", str(gt_file), "-t", str(sp_file),
+               "--dup", "0.1", "--trans", "0.05", "--loss", "0.15"])
+    assert rc == 0
+    want = reconciliation_likelihood(gene_tree=_RECON_GT1,
+                                     species_tree=SpeciesTree.from_tree(read_newick(_RECON_SP)),
+                                     duplication=0.1, transfer=0.05, loss=0.15, model="dated")
+    assert float(capsys.readouterr().out.strip()) == pytest.approx(want, abs=1e-6)
+
+
+def test_tools_reconcile_rejects_unknown_species(tmp_path, capsys):
+    """A gene tip whose species is not in the species tree fails cleanly (rc 1, no traceback)."""
+    sp_file = tmp_path / "sp.nwk"; sp_file.write_text(_RECON_SP + "\n")
+    gt_file = tmp_path / "gt.nwk"; gt_file.write_text("(A|1,ZZZ|2);\n")
+    rc = main(["tools", "reconcile", "-g", str(gt_file), "-t", str(sp_file), "--dup", "0.1"])
+    assert rc == 1
+    assert "ZZZ" in capsys.readouterr().err
+
+
 @needs_rust
 def test_genomes_output_all_writes_full(tmp_path):
     """`--output all` writes the full ZOMBI-1 output (Rust engine)."""

@@ -58,6 +58,9 @@ Gene families & sequences
 Traits & coevolution
   trait                evolve a phenotypic trait along a given species tree
   coevolve             co-evolve coupled processes (--couple driver:target)
+
+Analysis tools
+  tools                compute on ZOMBI2 outputs (reconcile: ALE reconciliation likelihood)
 """
 
 
@@ -1523,6 +1526,58 @@ def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None
     write_scores_tsv(rows, os.path.join(args.out, "Reconciliation_likelihoods.tsv"), models=models)
 
 
+def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools reconcile`` — the ALE reconciliation log-likelihood (ALElite) of one or
+    more given gene trees, *evaluated* at fixed DTL rates (no rate fitting)."""
+    from .tools import (GeneTree, SpeciesTree, FamilyScore, reconciliation_likelihood,
+                        write_scores_tsv)
+
+    with open(args.species_tree) as f:
+        tree = read_newick(f.read())
+    if len(tree.leaves()) < 2:
+        parser.error(f"{args.species_tree} is not a usable species tree — fewer than 2 tips "
+                     "(is it a valid Newick file?)")
+    species_names = {n.name for n in tree.leaves()}
+    sp = SpeciesTree.from_tree(tree)               # build the dated species index once
+
+    with open(args.gene_tree) as f:                # one Newick per non-blank, non-comment line
+        newicks = [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+    if not newicks:
+        raise ValueError(f"no gene trees found in {args.gene_tree}")
+
+    models = list(dict.fromkeys(args.model))       # de-dupe, keep order
+    rows = []
+    for i, nwk in enumerate(newicks, 1):
+        gt = GeneTree.from_newick(nwk)
+        unknown = gt.species_set() - species_names
+        if unknown:
+            raise ValueError(
+                f"gene tree {i} references species absent from the species tree: "
+                f"{', '.join(sorted(unknown))} — tip labels must be '<species>|<gid>' with "
+                "<species> a species-tree leaf.")
+        tips = sum(g.is_leaf for g in gt.nodes)
+        logliks = {m: reconciliation_likelihood(
+                        gene_tree=gt, species_tree=sp,
+                        duplication=args.dup, transfer=args.trans, loss=args.loss,
+                        model=m, origination=args.origination, n_steps=args.n_steps)
+                   for m in models}
+        rows.append(FamilyScore(family=str(i), extant_tips=tips, logliks=logliks))
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, "Reconciliation_likelihoods.tsv")
+        write_scores_tsv(rows, path, models=tuple(models))
+        print(f"wrote {path} ({len(rows)} gene tree(s) x {len(models)} model(s))")
+    elif len(rows) == 1 and len(models) == 1:
+        print(f"{rows[0].logliks[models[0]]:.6f}")     # bare number — scripting-friendly
+    else:                                              # same columns as write_scores_tsv
+        print("family\textant_copies\t" + "\t".join(f"{m}_loglik" for m in models))
+        for r in rows:
+            print(f"{r.family}\t{r.extant_tips}\t"
+                  + "\t".join(f"{r.logliks[m]:.6f}" for m in models))
+    return 0
+
+
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
@@ -1981,6 +2036,61 @@ def _iter_leaves(node):
         yield from _iter_leaves(child)
 
 
+def _add_tools_args(p: argparse.ArgumentParser) -> None:
+    """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
+    layer). Each tool is its own sub-subcommand — currently just ``reconcile`` (ALElite)."""
+    tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
+    rp = tsub.add_parser(
+        "reconcile",
+        help="ALE reconciliation log-likelihood of a gene tree given a species tree",
+        description=(
+            "Compute the ALE reconciliation log-likelihood P(gene tree | species tree, DTL "
+            "rates) of one or more gene trees, EVALUATED at the given --dup/--trans/--loss "
+            "(ALElite). This is not inference: it scores fixed rates, it does not fit them."
+        ),
+        usage="zombi2 tools reconcile -g FILE -t FILE --dup D --trans T --loss L [options]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # log-likelihood of a reconciled gene tree under the faithful dated model",
+            "  zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15",
+            "",
+            "  # compare all three ALE models and save the table into out/",
+            "  zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15 --model dated undated reldated -o out/",
+        ),
+    )
+    _add_tools_reconcile_args(rp)
+
+
+def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-g", "--gene-tree", required=True, metavar="FILE",
+                   help="Newick file of one or more reconciled gene trees (one per line); tip "
+                        "labels '<species>|<gid>', <species> matching a species-tree leaf")
+    g.add_argument("-t", "--species-tree", required=True, metavar="FILE",
+                   help="dated species-tree Newick (as written by 'zombi2 species')")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write Reconciliation_likelihoods.tsv into DIR (default: print to "
+                        "stdout — a bare number for one tree and one model, else a table)")
+
+    g = p.add_argument_group("DTL rates")
+    g.add_argument("--dup", type=float, default=0.0, metavar="RATE",
+                   help="duplication rate (per-unit-time for dated; per-branch odds for undated/reldated)")
+    g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer rate")
+    g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss rate")
+
+    g = p.add_argument_group("model")
+    g.add_argument("--model", nargs="+", default=["dated"], metavar="MODEL",
+                   choices=("dated", "undated", "reldated"),
+                   help="ALE model(s) to score with (default: dated). dated = faithful "
+                        "time-sliced likelihood (rates per-unit-time); undated = GeneRax "
+                        "UndatedDTL (per-branch odds); reldated = time-overlap-constrained undated")
+    g.add_argument("--n-steps", type=int, default=100, metavar="N",
+                   help="dated model time-grid resolution (sub-steps per slice; default 100)")
+    g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
+                   help="where the family originates: 'root' (default; exact for root-seeded "
+                        "families) or 'uniform' over branches")
+
+
 def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder,
                     epilog: str | None = None):
     """Register a subcommand with the house-style formatter and a hand-written compact usage.
@@ -2082,6 +2192,20 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "  # ...and also simulate DNA alignments under HKY85",
             "  zombi2 sequence --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
+        ))
+
+    _add_subcommand(
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE reconciliation likelihood)",
+        "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
+        "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
+        "'zombi2 tools <tool> -h' for its options.\n\n"
+        "Tools\n"
+        "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)",
+        "zombi2 tools <tool> [options]",
+        _add_tools_args,
+        epilog=_examples(
+            "  # ALE reconciliation log-likelihood of a gene tree at given DTL rates",
+            "  zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15",
         ))
 
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
@@ -2187,6 +2311,11 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         print(summary)
         _write_params_log(os.path.join(args.out, "coevolve.log"), args, summary)
         return 0
+
+    if args.command == "tools":
+        if args.tools_command == "reconcile":
+            return _run_tools_reconcile(args, parser)
+        parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
 
     return 1
 
