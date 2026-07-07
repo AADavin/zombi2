@@ -183,15 +183,99 @@ def test_reproducible_and_root_seq():
     assert s1 == s2 and s1["r"] == "ACGTACGTAC" and s1["a"] == "ACGTACGTAC"
 
 
-def test_gamma_increases_variance():
-    # with rate heterogeneity, per-site divergence is more dispersed than without
-    a = _N("a")
-    root = _N("r", [a])
-    rng = np.random.default_rng(4)
-    base = evolve_on_tree(root, {a: 0.3}, jc69(), rng, length=20000)
-    gam = evolve_on_tree(root, {a: 0.3}, jc69(), rng, length=20000, gamma=GammaRates(0.2, 6))
-    # both diverge from the root; the Gamma run simply runs without error and stays valid DNA
-    assert set(base["a"]) <= set("ACGT") and set(gam["a"]) <= set("ACGT")
+def _jc_pdiff(t):
+    """JC69: probability a site's state differs from its ancestor after subst-length ``t``."""
+    return 0.75 * (1.0 - np.exp(-4.0 / 3.0 * t))
+
+
+def test_gamma_overdisperses_per_site_divergence():
+    """+Gamma over-disperses per-site divergence vs a homogeneous rate at equal mean rate.
+
+    In one ``evolve_on_tree`` call every tip of a star tree shares a single per-site rate-category
+    assignment, so the sites are an honest mixture: a slow-category site rarely differs from the
+    root across the M tips, a fast-category site differs on most of them. Per site the number of
+    differing tips is Binomial(M, p_site); with no Gamma p_site == p0 for every site, with +Gamma
+    p_site == p_c for the site's mean-1 category c, where
+
+        p_c = 3/4 (1 - e^{-4 t r_c / 3}),   p0 = 3/4 (1 - e^{-4 t / 3}).
+
+    The per-site count of differing tips, k_i, then has an over-dispersed distribution under +Gamma.
+    We check its mean and variance against the exact closed forms (law of total variance over the
+    category mixture) to Monte-Carlo tolerance, and confirm strict over-dispersion plus fatter
+    invariant / fast tails.
+    """
+    t = 0.6
+    shape, kcat = 0.25, 6
+    length = 60000
+    M = 24                                              # tips per star -> per-site Binomial(M, p)
+    g = GammaRates(shape, kcat)
+
+    # --- closed-form oracles (per-site count of differing tips) ---------------
+    p0 = _jc_pdiff(t)
+    p_cat = _jc_pdiff(t * g.rates)                      # per-category divergence prob (mean-1 rates)
+    w = 1.0 / kcat                                      # equal category weights
+    # homogeneous: k_i ~ Binomial(M, p0)
+    mean0 = M * p0
+    var0 = M * p0 * (1 - p0)
+    # +Gamma: mixture of Binomials. Law of total: E = M E[p]; Var = M E[p(1-p)] + M^2 Var[p].
+    Ep = (w * p_cat).sum()
+    Ep1p = (w * p_cat * (1 - p_cat)).sum()
+    Vp = (w * p_cat ** 2).sum() - Ep ** 2
+    meang = M * Ep
+    varg = M * Ep1p + M ** 2 * Vp
+    assert Ep < p0                                      # Jensen: concavity lowers the mean
+    assert varg > var0                                  # and inflates the variance
+
+    # --- one big star tree per model (all tips share the site-category vector) -
+    tips = [_N(f"t{i}") for i in range(M)]
+    root = _N("r", tips)
+    subst = {tp: t for tp in tips}
+
+    def per_site_diff_counts(gamma, seed):
+        rng = np.random.default_rng(seed)
+        seqs = evolve_on_tree(root, subst, jc69(), rng, length=length, gamma=gamma)
+        ref = np.frombuffer(seqs["r"].encode(), "S1")
+        k = np.zeros(length)
+        for tp in tips:
+            k += np.frombuffer(seqs[tp.gid].encode(), "S1") != ref
+        return k
+
+    k0 = per_site_diff_counts(None, 20260707)
+    kg = per_site_diff_counts(g, 424242)
+
+    # (1) MEAN count matches the closed form for both models.
+    assert abs(k0.mean() - mean0) < 0.05 * mean0
+    assert abs(kg.mean() - meang) < 0.05 * meang
+
+    # (2) VARIANCE matches the closed form; +Gamma is strictly over-dispersed.
+    assert abs(k0.var() - var0) < 0.10 * var0
+    assert abs(kg.var() - varg) < 0.10 * varg
+    assert kg.var() > 1.5 * k0.var()                    # genuine over-dispersion, wide margin
+
+    # (3) Fatter tails under +Gamma: more invariant sites (0 tips differ) and more saturated
+    #     sites (>= M-2 tips differ). Both compared to their exact mixture closed forms.
+    from math import comb
+
+    def binom_pmf(kk, pp):
+        return comb(M, kk) * pp ** kk * (1 - pp) ** (M - kk)
+
+    inv0_exp = (1 - p0) ** M
+    invg_exp = (w * (1 - p_cat) ** M).sum()
+    sat_ks = (M, M - 1, M - 2)
+    sat0_exp = sum(binom_pmf(kk, p0) for kk in sat_ks)
+    satg_exp = sum((w * np.array([binom_pmf(kk, pc) for pc in p_cat])).sum() for kk in sat_ks)
+
+    inv0 = np.mean(k0 == 0)
+    invg = np.mean(kg == 0)
+    sat0 = np.mean(k0 >= M - 2)
+    satg = np.mean(kg >= M - 2)
+
+    assert abs(inv0 - inv0_exp) < max(0.005, 0.20 * invg_exp)
+    assert abs(invg - invg_exp) < 0.15 * invg_exp
+    assert abs(sat0 - sat0_exp) < max(0.005, 0.25 * satg_exp)
+    assert abs(satg - satg_exp) < 0.20 * satg_exp
+    assert invg > 5.0 * max(inv0, 1e-6)                 # far more invariant sites under +Gamma
+    assert satg > 2.0 * max(sat0, 1e-6)                 # and a genuine saturated / fast tail
 
 
 def test_revcomp_and_fasta_roundtrip(tmp_path):
@@ -273,3 +357,82 @@ def test_node_sequence_needs_simulate_first():
     tree, res = _run()
     with pytest.raises(RuntimeError, match="simulate_sequences"):
         res.node_sequence(tree.root)
+
+
+# --------------------------------------------------------------------------- #
+# Model-structure oracles (K80 ti/tv, GTR stationary frequencies)
+# --------------------------------------------------------------------------- #
+# transition pairs A<->G and C<->T over the ACGT alphabet
+_TRANSITIONS = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
+
+
+def test_k80_transition_transversion_matches_kappa():
+    """K80 substitution structure matches kappa: the observed transition/transversion difference
+    frequencies match the K80 closed form derived from kappa (independent of the engine's p_matrix).
+
+    A long root sequence is evolved one branch of length ``t`` (subs/site). Between root and tip we
+    count differences that are transitions (A<->G, C<->T) vs transversions. Because the root is drawn
+    from the (uniform) K80 stationary distribution, the expected per-site probabilities of a
+    transition- and a transversion-difference are the Kimura (1980) closed forms
+
+        p_ti = 1/4 + 1/4 e^{-4 beta t} - 1/2 e^{-2(alpha+beta) t}
+        p_tv = 1/4 - 1/4 e^{-4 beta t}   (each of the two transversion targets)
+
+    where the per-site transition/transversion rates satisfy alpha = kappa*beta and, after the
+    model's normalisation to 1 subst/site/unit, alpha + 2 beta = 1. The expected ti:tv difference
+    ratio is p_ti / (2 p_tv) = kappa-dependent. We check both the ratio and the raw fractions.
+    """
+    kappa, t, length = 4.0, 0.5, 400_000
+    m = k80(kappa)
+
+    # closed-form K80 per-site rates from kappa (independent of p_matrix): normalisation gives
+    # alpha + 2 beta = 1 with alpha = kappa*beta  ->  beta = 1/(kappa+2), alpha = kappa/(kappa+2).
+    beta = 1.0 / (kappa + 2.0)
+    alpha = kappa * beta
+    p_ti = 0.25 + 0.25 * np.exp(-4 * beta * t) - 0.5 * np.exp(-2 * (alpha + beta) * t)
+    p_tv = 0.25 - 0.25 * np.exp(-4 * beta * t)          # one of two transversion targets
+    exp_ti_frac = p_ti                                   # one transition target per base
+    exp_tv_frac = 2.0 * p_tv                             # two transversion targets per base
+    exp_ratio = exp_ti_frac / exp_tv_frac
+
+    a = _N("a")
+    root = _N("r", [a])
+    seqs = evolve_on_tree(root, {a: t}, m, np.random.default_rng(0), length=length)
+    r, d = seqs["r"], seqs["a"]
+
+    ti = sum(1 for x, y in zip(r, d) if x != y and (x, y) in _TRANSITIONS)
+    tv = sum(1 for x, y in zip(r, d) if x != y and (x, y) not in _TRANSITIONS)
+
+    obs_ti_frac = ti / length
+    obs_tv_frac = tv / length
+    obs_ratio = ti / tv
+
+    # ~0.5% relative Monte-Carlo sigma at this length; 3% clears it by ~6 sigma.
+    assert abs(obs_ti_frac - exp_ti_frac) / exp_ti_frac < 0.03
+    assert abs(obs_tv_frac - exp_tv_frac) / exp_tv_frac < 0.03
+    assert abs(obs_ratio - exp_ratio) / exp_ratio < 0.03
+
+    # and the ratio genuinely reflects kappa (a JC69 run, kappa=1, would give ratio ~0.5)
+    assert obs_ratio > 1.2
+
+
+def test_gtr_stationary_frequencies_recovered():
+    """GTR stationary-frequency recovery against an asymmetric target pi=(0.1,0.2,0.3,0.4).
+
+    Like the hky85 stationarity check, this verifies that the equilibrium base composition converges
+    to the model's target pi. The root starts from a uniform sequence (25% each, NOT the target) and
+    is evolved down a very long branch, so the recovered composition tests that exp(Qt) drives the
+    base frequencies to the asymmetric pi. This probes only the stationary distribution; it does not
+    validate the individual exchangeability rates.
+    """
+    pi = (0.1, 0.2, 0.3, 0.4)
+    m = gtr((0.5, 3.0, 1.0, 1.5, 2.5, 0.8), pi)     # exchangeabilities [AC,AG,AT,CG,CT,GT]
+    rng = np.random.default_rng(7)
+    length = 200000
+    root_seq = "ACGT" * (length // 4)               # uniform 25% each -> NOT the stationary pi
+    a = _N("a")
+    root = _N("r", [a])
+    seqs = evolve_on_tree(root, {a: 40.0}, m, rng, root_seq=root_seq)   # long branch -> equilibrium
+    c = Counter(seqs["a"])
+    freqs = np.array([c[b] / len(seqs["a"]) for b in "ACGT"])
+    assert np.allclose(freqs, pi, atol=0.01)
