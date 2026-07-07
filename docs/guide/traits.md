@@ -1,5 +1,9 @@
 # Trait evolution
 
+> **Reference:** see the [continuous-trait](../models/continuous-traits.md),
+> [discrete-trait](../models/discrete-traits.md) and
+> [biogeography](../models/biogeography.md) catalog pages.
+
 Once you have a tree, you can evolve **traits** on it — a body size, an expression level, a
 discrete character such as habitat or the presence of a structure. ZOMBI2 simulates the classic
 phylogenetic-comparative models (Felsenstein 1985 and successors) with one function,

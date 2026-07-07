@@ -1,5 +1,7 @@
 # DNA substitution models
 
+> **Tutorial:** see the [Sequences](../guide/sequences.md) guide.
+
 Once `genomes` has produced gene trees and `sequence` has rescaled them into **substitutions per
 site** (a phylogram), ZOMBI2 evolves an actual DNA alignment down each tree under a **continuous-time
 Markov substitution model** over the four bases `ACGT`. Every model here is time-reversible and

@@ -1,5 +1,7 @@
 # Discrete-trait models
 
+> **Tutorial:** see the [Trait evolution](../guide/traits.md) guide.
+
 A **discrete trait** is a character that takes one of finitely many states — a habitat, the
 presence or absence of a structure, a diet class. ZOMBI2 evolves it as a **continuous-time Markov
 chain** along the tree: given a rate matrix `Q` (off-diagonal `Q[i,j] ≥ 0` is the instantaneous

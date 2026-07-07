@@ -6,7 +6,7 @@ then evolve gene families along it. That works because the joint distribution *f
 previous one. **Coevolution breaks that factorisation.** A coupling is a directed edge
 `driver → target`: the driver's state modulates the target's rates, and the two levels must be grown
 **together** — one process, one Gillespie. All of them live under a single command,
-`zombi2 coevolve --couple driver:target`, over the four levels {species, traits, genes}.
+`zombi2 coevolve --couple driver:target`, over the three levels {species, traits, genes}.
 
 The direction of the arrow decides how the run behaves. When the arrow points *into* the tree — a
 trait or a gene panel sets speciation/extinction — the tree can no longer be drawn first; it is an
@@ -15,23 +15,34 @@ no `-t`). When it points elsewhere, the coupling is an **overlay** on a tree you
 State-dependent diversification (SSE) is simply the family of couplings whose arrow points into the
 species tree.
 
-| Model | Edge (driver→target) | Tree | What it does |
+**Nine models in all: 6 directed edges + 3 bidirectional joint models.** Each ordered pair of the
+three levels {species, traits, genes} gives a directed edge `driver → target` — six of them. For
+each *undirected* pair, switching **both** arrows on together gives a bidirectional **joint** model
+in which one coupled object drives both directions at once — three of them (traits↔species =
+**ClaSSE**, genes↔species = **co-diversification**, traits↔genes = **trait–gene feedback**). Every
+row below is one `zombi2 coevolve --couple driver:target` invocation (the joint models pass the flag
+twice, once per arrow).
+
+| Model | Edge (driver:target) | What it does | `--couple` selector |
 | --- | --- | --- | --- |
-| **BiSSE** | traits→species | output (forward) | a binary trait sets each lineage's λ, μ; the fast state comes to dominate the tips |
-| **MuSSE** | traits→species | output (forward) | a k-state character drives diversification (BiSSE is `k = 2`) |
-| **HiSSE** | traits→species | output (forward) | binary observed + hidden classes; heterogeneity can live off the observed trait |
-| **QuaSSE** | traits→species | output (forward) | a continuous trait sets a bounded λ(x) |
-| **ClaSSE** | traits→species + species→traits | output (forward) | SSE *plus* a state jump *at* each speciation (cladogenetic) |
-| **GeneDiversification** | genes→species | output (forward) | gene content (key innovations, spread by HGT) drives the radiation |
-| **CladogeneticGenome** | species→genes | given (`-t`) | gene gain/loss bursts *at* speciations — punctuational genome evolution |
-| **GeneConditionedTrait** | genes→traits | given (`-t`) | a modifier gene unlocks a new phenotypic optimum |
-| **TraitGeneCoupling** (trait-linked genomes) | traits→genes | given (`-t`) | a trait's history shapes which gene families are retained |
-| **co-diversification** | genes→species + species→genes | output (forward) | speciation itself reshuffles the rate-setting drivers (genomic ClaSSE) |
-| **TraitGeneFeedback** | traits→genes + genes→traits | given (`-t`) | a trait and a gene panel modulate each other, with no single imposed arrow |
+| **BiSSE / MuSSE / QuaSSE / HiSSE** | traits→species | a trait (binary, k-state, continuous, or hidden) sets each lineage's λ, μ | `--couple traits:species` |
+| **Key-innovation diversification** | genes→species | gene content (key innovations, spread by HGT) drives the radiation | `--couple genes:species` |
+| **Cladogenetic trait evolution** | species→traits | the trait jumps *at* each speciation (speciational change) | `--couple species:traits` |
+| **Cladogenetic genome evolution** | species→genes | gene gain/loss bursts *at* speciations — punctuational genome | `--couple species:genes` |
+| **Trait-conditioned gene families** | traits→genes | a trait's history shapes which gene families are retained | `--couple traits:genes` |
+| **Gene-conditioned trait** | genes→traits | a modifier gene unlocks a new phenotypic optimum | `--couple genes:traits` |
+| **ClaSSE** *(joint, traits↔species)* | traits→species + species→traits | SSE *plus* a state jump *at* each speciation | `--couple traits:species --couple species:traits` |
+| **Co-diversification** *(joint, genes↔species)* | genes→species + species→genes | speciation itself reshuffles the rate-setting drivers (genomic ClaSSE) | `--couple genes:species --couple species:genes` |
+| **Trait–gene feedback** *(joint, traits↔genes)* | traits→genes + genes→traits | a trait and a gene panel modulate each other, no single imposed arrow | `--couple traits:genes --couple genes:traits` |
+
+The **directed** rows into species (`traits:species`, `genes:species`) grow the tree — give
+`--age`/`--tips` and no `-t`; the other directed rows overlay a tree you pass with `-t`. A **joint**
+model inherits its tree behaviour from its into-S arrow: ClaSSE and co-diversification grow the tree
+(one arrow points into S), while trait–gene feedback is an overlay.
 
 ## The models
 
-### State-dependent diversification (SSE)
+### State-dependent diversification, traits→species (BiSSE / MuSSE / QuaSSE / HiSSE)
 
 State-dependent speciation and extinction (SSE) models let a **trait drive the shape of the tree**: a
 lineage's character state sets its speciation and extinction rates, so the tree and the trait must be
@@ -64,15 +75,25 @@ lineage and the rates are functions of its current value (FitzJohn 2010). The ra
 speciation curve. On the CLI the trait is a sigmoidal speciation (`--spec-low/high/center/slope`) plus
 a constant extinction (`--qmu`).
 
-**ClaSSE.** Not a separate class but the **both-arrows** combination: a discrete or continuous SSE
-model *plus* a [`Cladogenesis`](../guide/traits.md) kernel that jumps each daughter's state **at**
-speciation (Goldberg & Igić 2012). The trait both shapes the tree (`traits:species`) *and* is kicked
-by its branching (`species:traits`), so change is concentrated at nodes rather than spread along
-branches. `shift` is the per-daughter state-hop probability (discrete); `jump_sigma2` is the Gaussian
-jump variance (continuous, `quasse`). With `Q = 0` the cladogenesis kernel supplies all the state
-dynamics.
+**ClaSSE.** The joint traits↔species model — both arrows at once: a discrete or continuous SSE model
+*plus* a [`Cladogenesis`](../guide/traits.md) kernel that jumps each daughter's state **at** speciation
+(Goldberg & Igić 2012). The trait both shapes the tree (`traits:species`) *and* is kicked by its
+branching (`species:traits`), so change is concentrated at nodes as well as spread along branches.
+`shift` is the per-daughter state-hop probability (discrete); `jump_sigma2` the Gaussian jump variance
+(continuous, `quasse`). With `Q = 0` the cladogenesis kernel supplies all the state dynamics. The
+`species:traits` arrow on its own is the next section.
 
-### GeneDiversification (genes→species)
+### Cladogenetic trait evolution (species→traits)
+
+The reverse of `traits:species`, on its own: the trait does **not** shape the tree, so this is an
+**overlay** on a given tree (`-t`). A [`Cladogenesis`](../guide/traits.md) kernel jumps each
+daughter's state **at** each speciation — speciational (punctuational) trait change concentrated at
+nodes rather than spread along branches (Bokma 2008; Pagel 1999) — layered on an ordinary anagenetic
+trait model. `shift` is the per-daughter state-hop probability (discrete); `jump_sigma2` the Gaussian
+jump variance (continuous). Switching this on **together** with `traits:species` gives the joint
+**ClaSSE** feedback above. In Python it is `simulate_traits(tree, model, cladogenesis=Cladogenesis(…))`.
+
+### Key-innovation diversification (genes→species)
 
 A small panel of binary **driver** ("key innovation") gene families whose *presence* sets each
 lineage's speciation/extinction rate: a present driver scales λ by `exp(driver_speciation)` and μ by
@@ -84,7 +105,7 @@ The neutral bulk genome, which does not touch diversification, is overlaid after
 tree with the ordinary [`genomes`](../cli.md) (exact under independent families). `root_drivers` seeds
 the first *m* drivers at the root.
 
-### CladogeneticGenome (species→genes)
+### Cladogenetic genome evolution (species→genes)
 
 The reverse of `genes:species`: gene content does **not** affect diversification, so this is an
 overlay on a given tree — the genomic twin of cladogenetic trait evolution. A genome of
@@ -95,7 +116,7 @@ Poisson(`cladogenetic_gain`) count of new families — on top of optional gradua
 signature is that *sister tips differ* because change is injected at their split rather than spread
 along branches.
 
-### GeneConditionedTrait (genes→traits)
+### Gene-conditioned trait (genes→traits)
 
 The reverse of `traits:genes`: here gene content conditions a **trait**. A binary *modifier* gene
 comes and goes along the tree (a two-state Markov chain, `gene_gain`/`gene_loss`, optionally
@@ -104,7 +125,7 @@ carrying the gene is pulled toward `theta_present`, one without it drifts back t
 mean-reversion `alpha` (0 = Brownian) and diffusion `sigma2`. "Gene presence enables a trait shift."
 Tips carrying the modifier end up near `theta_present`, those without near `theta_absent`.
 
-### TraitGeneCoupling (traits→genes)
+### Trait-conditioned gene families (traits→genes)
 
 The trait-linked-genomes model: a trait is evolved down the tree, then a fixed **panel** of gene
 families is evolved along it whose **loss depends on the local trait value**. A *responsive* family
@@ -118,7 +139,7 @@ time — a discrete trait contributes its stochastic character map, a continuous
 into `trait_steps` pieces per branch. Setting `effect_loss = 0` recovers plain, uncoupled gene-family
 evolution as a null.
 
-### co-diversification (genes→species + species→genes)
+### Co-diversification (joint, genes↔species)
 
 Both species↔genes arrows at once: the same driver panel **sets** the diversification rates
 (`genes:species`) *and* is **reshuffled by a cladogenetic burst** at every speciation
@@ -129,7 +150,7 @@ ClaSSE. One arrow points into S, so the tree is an **output** (`simulate_co_dive
 `--couple genes:species --couple species:genes`). It reduces to `GeneDiversification` when both
 cladogenetic probabilities are 0.
 
-### TraitGeneFeedback (traits→genes + genes→traits)
+### Trait–gene feedback (joint, traits↔genes)
 
 Both traits↔genes arrows at once: a continuous trait and a coupled panel of `n_families` modulate each
 other, integrated jointly along each branch — the panel's present count sets the trait's OU optimum
@@ -170,6 +191,10 @@ zombi2 coevolve --couple traits:species --sse-model quasse \
 zombi2 coevolve --couple traits:species --couple species:traits \
     --lambda0 1 --lambda1 3 --mu0 0.2 --mu1 0.2 --q01 0.05 --q10 0.05 \
     --clado-shift 0.3 --tips 200 --seed 3 -o out/classe
+
+# species:traits on its own — purely speciational trait on a given tree (no within-branch change)
+zombi2 coevolve --couple species:traits -t $T \
+    --sse-model bisse --q01 0 --q10 0 --clado-shift 0.4 --seed 2 -o out/clado
 
 # --- gene- and trait-coupled edges ---
 
@@ -352,6 +377,15 @@ trait↔gene linkage for downstream inference.
 - **TraitGeneFeedback** — the joint run writes a measurable trait↔gene-panel correlation into the
   tips (`test_trait_gene_feedback.py::test_feedback_writes_a_trait_gene_correlation`).
 
+## Not yet implemented
+
+The nine models above are the six directed edges and the three pairwise bidirectional joint models.
+The one coevolution model still on the roadmap is the fully **joint `--all`** run: every edge active
+at once, so all three pairs are bidirectional and the trait, the genome and the tree feed back on one
+another with no single imposed direction (forward time resolves the mutual dependence). It composes
+the existing edges — think of it as `--couple` for all six arrows — rather than adding new science,
+and is best treated as a stress-test/showcase than a routine analysis mode.
+
 ## References
 
 - Maddison, W. P., Midford, P. E. & Otto, S. P. (2007). Estimating a binary character's effect on
@@ -367,5 +401,7 @@ trait↔gene linkage for downstream inference.
   66(12): 3701–3709. (ClaSSE — cladogenetic state change + SSE, the analogue behind the joint models.)
 - Bokma, F. (2008). Detection of "punctuated equilibrium" by Bayesian estimation. *Journal of
   Evolutionary Biology* 21(5): 1218–1227. (Change concentrated at speciation.)
+- Pagel, M. (1999). Inferring the historical patterns of biological evolution. *Nature* 401:
+  877–884. (Speciational / punctuational trait change.)
 - Davin, A. A. (2025). Timing the tree of bacteria with horizontally transferred genes and a trait
   linked to the Great Oxidation Event. (The trait-linked gene-family generator.)

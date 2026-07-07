@@ -1,5 +1,7 @@
 # Gene-family evolution (DTL)
 
+> **Tutorial:** see the [Gene families & rates](../guide/gene-families.md) guide.
+
 Gene families evolve **forward** along a fixed species tree by a **duplication–transfer–loss (DTL)**
 process, with new families entering by **origination**. A family is born as a single copy on a branch,
 copied by **duplication** (a copy splits in two) or **transfer** (a copy is gained by another lineage
@@ -12,7 +14,7 @@ family, drawn per family, held constant per genome, or scaled per branch.
 
 | Model | Rates | Reach for it when |
 | --- | --- | --- |
-| **SharedRates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast and uniform |
+| **SharedRates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast and shared |
 | **PerGenomeRates** | constant per-genome totals; families grow linearly | you want size-independent rates and no runaway growth |
 | **FamilySampledRates** | each family draws its own D/T/L (ZOMBI1 style) | families should differ in their evolutionary rates |
 | **BranchRates** | a per-branch factor scaling any base model | rates vary across the species tree (relaxed clock) |
@@ -51,7 +53,7 @@ per-branch rate. Python API only. Also honours an optional `carrying_capacity`.
 ### BranchRates
 
 Wraps **any** base rate model and multiplies its D/T/L weights on each species-tree branch by a per-branch
-factor (origination is left unscaled), so branch heterogeneity composes with whatever family/uniform rates
+factor (origination is left unscaled), so branch heterogeneity composes with whatever family/shared rates
 the base uses. Provide exactly one factor source: `autocorr_sigma` (a **relaxed clock** — the factor drifts
 lognormally down the tree, so relatives have similar rates), `per_branch` (a distribution drawn i.i.d. per
 branch), or an explicit `factors` `{branch_name: factor}` map. Python API only.

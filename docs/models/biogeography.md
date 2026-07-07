@@ -1,5 +1,7 @@
 # Biogeography (DEC)
 
+> **Tutorial:** see the [Trait evolution](../guide/traits.md) guide.
+
 Biogeography models evolve a lineage's **geographic range** — a set of discrete areas — down a
 species tree. ZOMBI2 ships the classic **DEC** process (Ree & Smith 2008): along a branch the range
 changes anagenetically (a lineage *disperses* into new areas and goes *locally extinct* in old

@@ -4,7 +4,7 @@
 
 Every event re-mints the gene-lineage ids it touches, and speciations are logged, so each
 family's event log records a complete parent→children genealogy. Reconstruction is then
-pure post-processing (as in ZOMBI 1).
+pure post-processing (as in ZOMBI1).
 
 ```python
 trees = genomes.gene_trees()          # {family_id: (complete_newick, extant_newick)}

@@ -129,6 +129,17 @@ extinct, `u*` unsampled, `i*` internal.
 - **Determinism.** A fixed `seed` reproduces the Newick exactly
   (`test_species_forward.py::test_reproducible`).
 
+## Not yet implemented
+
+A short menu of sampling extensions that fit the existing forward/episodic machinery but are not
+built yet:
+
+- **Time-varying sampling (BDST).** Piecewise sampling `ψ(t)` conditioned on *sampled* tips —
+  important for phylodynamics (epidemic trees) and variable fossil preservation. Fits the existing
+  episodic machinery (a numerically inverted piecewise CDF) (Stadler et al. 2013).
+- **Skyline (episodic) FBD** and the **occurrence birth–death process (OBDP)** — combined-evidence
+  extensions of the fossilized birth–death already shipped (Andréoletti et al. 2022).
+
 ## References
 
 - Maliet, O., Hartig, F. & Morlon, H. (2019). A model with many small shifts for estimating

@@ -94,22 +94,12 @@ verified values were used.
   Biol. 62(3):386–397. [10.1093/sysbio/syt003](https://doi.org/10.1093/sysbio/syt003).
   `szollosi2013lgtdead` · why extinct/unsampled ("ghost") lineages matter for gene transfer.
 
-## Gene families & coupling (the Potts model)
+## Gene families & phylogenetic profiles
 
 - **Pellegrini, Marcotte, Thompson, Eisenberg & Yeates (1999)** — *Assigning protein functions by
   comparative genome analysis: protein phylogenetic profiles.* PNAS 96(8):4285–4288.
   [10.1073/pnas.96.8.4285](https://doi.org/10.1073/pnas.96.8.4285). `pellegrini1999profiles`
   · the founding phylogenetic-profiles idea (functional co-occurrence).
-- **Fukunaga & Iwasaki (2022)** — *Inverse Potts model improves accuracy of phylogenetic
-  profiling.* Bioinformatics 38(7):1794–1800.
-  [10.1093/bioinformatics/btac034](https://doi.org/10.1093/bioinformatics/btac034). `fukunaga2022ipm`
-  · the inverse-Potts / DCA inference ZOMBI2's coupling model benchmarks.
-- **Croce, Gueudré, Ruiz Cuevas, Keidel, Figliuzzi, Szurmant & Weigt (2019)** — *A multi-scale
-  coevolutionary approach to predict interactions between protein domains.* PLOS Comput. Biol.
-  15(10):e1006891. [10.1371/journal.pcbi.1006891](https://doi.org/10.1371/journal.pcbi.1006891).
-  `croce2019multiscale` · DCA of co-occurrence. **Confirm this is the "Croce 2019" you intended** —
-  there is a separate 2019 Croce *FilterDCA* preprint (about inter-domain contacts, **not**
-  phylogenetic profiles) that should **not** be used.
 
 ## Trait evolution
 
@@ -218,8 +208,7 @@ verified values were used.
 
 ---
 
-*Status: 44 verified against Crossref/DOI, 1 flagged UNVERIFIED (the GTDB rate-variation clock).
-Open confirmations for you: (1) which paper the GTDB discrete-bin clock comes from; (2) that
-`croce2019multiscale` is the intended "Croce 2019". The same 44 entries are in
-[`references.bib`](references.bib) (BibTeX, same keys) for the LaTeX/pandoc PDF build —
+*Status: 42 verified against Crossref/DOI, 1 flagged UNVERIFIED (the GTDB rate-variation clock).
+Open confirmation for you: which paper the GTDB discrete-bin clock comes from. The same 42 entries
+are in [`references.bib`](references.bib) (BibTeX, same keys) for the LaTeX/pandoc PDF build —
 validated with `biber --tool`.*

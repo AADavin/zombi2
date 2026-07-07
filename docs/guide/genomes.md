@@ -1,5 +1,7 @@
 # Genomes
 
+> **Reference:** see the [Gene-family models](../models/gene-family.md) catalog page.
+
 A genome in ZOMBI2 evolves **along a species tree**, and you can model it at three levels of
 resolution — pick the coarsest one that answers your question.
 
@@ -27,12 +29,12 @@ presence and absence. See [ordered genomes](ordered-genomes.md).
 The finest level: a **nucleotide-resolution** genome of root-anchored segments, with
 variable-length structural events (inversions, transpositions, indels), an explicit
 gene/intergene structure, homologous replacement, and GFF import to start from a real genome.
-Every atom carries its own gene tree, and ancestral sequences can be reconstructed at every
+Every block carries its own gene tree, and ancestral sequences can be reconstructed at every
 node. See [nucleotide genomes](nucleotide-genomes.md).
 
 ---
 
 All three run the same way — `simulate_genomes(tree, ...)` in Python, or `zombi2 genomes` on the
-command line (`--genome-model unordered` (default) or `nucleotide`; ordered chromosomes are
-selected with the `genome_factory` argument). Growth can be bounded with a hard `max_family_size`
-cap or a soft `carrying_capacity` — see [bounding growth](growth.md).
+command line (`--genome-model {unordered, ordered, nucleotide}`, default `unordered`; in Python,
+ordered chromosomes can also be selected with the `genome_factory` argument). Growth can be bounded
+with a hard `max_family_size` cap or a soft `carrying_capacity` — see [bounding growth](growth.md).
