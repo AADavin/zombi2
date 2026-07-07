@@ -25,6 +25,7 @@ import pytest
 from zombi2 import BirthDeath, simulate_species_tree
 from zombi2.coevolve.coupling import (
     CouplingSpec,
+    CoupledRates,
     PottsRates,
     pathway_blocks,
     simulate_coupled,
@@ -122,7 +123,7 @@ def test_loss_rate_matches_field_formula():
         3, {(0, 1): 1.2, (0, 2): -0.4},
         h=[0.5, -0.3, 0.0], base_loss=1.0, beta=0.5, transfer=0.7,
     )
-    rates = PottsRates(spec)
+    rates = CoupledRates(spec)
     g = _make_genome(["F0", "F1", "F2"])            # all three present
     ws = rates.event_weights(g, "b", 0.0)
     loss = {e.family: e.rate for e in ws if e.event is EventType.LOSS}
@@ -144,7 +145,7 @@ def test_loss_rate_matches_field_formula():
 def test_present_partner_changes_the_field():
     spec = CouplingSpec.from_edges(3, {(0, 1): 1.2, (0, 2): -0.4},
                                    h=[0.5, -0.3, 0.0], base_loss=1.0, beta=0.5)
-    rates = PottsRates(spec)
+    rates = CoupledRates(spec)
     # drop F2: now f0 = 0.5 + 1.2 = 1.7 (only the F1 partner remains)
     g = _make_genome(["F0", "F1"])
     loss = {e.family: e.rate for e in rates.event_weights(g, "b", 0.0)
@@ -154,7 +155,7 @@ def test_present_partner_changes_the_field():
 
 def test_positive_partner_protects_negative_partner_exposes():
     spec = CouplingSpec.from_edges(3, {(0, 1): 2.0, (0, 2): -2.0}, base_loss=1.0, beta=1.0)
-    rates = PottsRates(spec)
+    rates = CoupledRates(spec)
     solo = {e.family: e.rate for e in rates.event_weights(_make_genome(["F0"]), "b", 0)
             if e.event is EventType.LOSS}["F0"]
     with_pos = {e.family: e.rate for e in rates.event_weights(_make_genome(["F0", "F1"]), "b", 0)
@@ -167,7 +168,7 @@ def test_positive_partner_protects_negative_partner_exposes():
 
 def test_non_panel_family_is_uncoupled():
     spec = CouplingSpec.from_edges(2, {(0, 1): 3.0}, base_loss=0.7, beta=1.0)
-    rates = PottsRates(spec)
+    rates = CoupledRates(spec)
     g = _make_genome(["F0", "F1", "X"])                   # X is not in the panel
     loss = {e.family: e.rate for e in rates.event_weights(g, "b", 0.0)
             if e.event is EventType.LOSS}
@@ -176,11 +177,11 @@ def test_non_panel_family_is_uncoupled():
 
 def test_origination_channel_optional():
     spec = CouplingSpec.from_edges(2, {(0, 1): 1.0}, origination=0.3)
-    ws = PottsRates(spec).event_weights(_make_genome(["F0"]), "b", 0.0)
+    ws = CoupledRates(spec).event_weights(_make_genome(["F0"]), "b", 0.0)
     orig = [e for e in ws if e.event is EventType.ORIGINATION]
     assert len(orig) == 1 and orig[0].rate == pytest.approx(0.3)
     # default: no origination channel (closed panel)
-    ws0 = PottsRates(CouplingSpec.from_edges(2, {(0, 1): 1.0})).event_weights(
+    ws0 = CoupledRates(CouplingSpec.from_edges(2, {(0, 1): 1.0})).event_weights(
         _make_genome(["F0"]), "b", 0.0)
     assert not [e for e in ws0 if e.event is EventType.ORIGINATION]
 
@@ -357,7 +358,7 @@ def test_establishment_probability_formula():
     """p = exp(-β·g·(f_maxᵢ - f_i)); deficit measured from the best-possible field."""
     spec = CouplingSpec.from_edges(3, {(0, 1): 2.0, (0, 2): -1.0},
                                    h=[0.5, 0.0, 0.0], beta=0.5, gain_coupling=2.0)
-    rates = PottsRates(spec)
+    rates = CoupledRates(spec)
     # f_max[0] = h0 + max(J01,0) + max(J02,0) = 0.5 + 2 + 0 = 2.5
     assert spec.f_max[0] == pytest.approx(2.5)
     # only the positive partner present → field == f_max → establishes freely (p = 1)
@@ -376,7 +377,7 @@ def test_establishment_probability_off_by_default():
     """gain_coupling = 0 (the default) → every transfer establishes (p = 1), field ignored."""
     spec = CouplingSpec.from_edges(3, {(0, 1): 2.0, (0, 2): -1.0}, h=[0.5, 0.0, 0.0], beta=0.5)
     assert spec.gain_coupling == 0.0
-    rates = PottsRates(spec)
+    rates = CoupledRates(spec)
     for g in ([], ["F1"], ["F2"], ["F1", "F2"]):
         assert rates.establishment_probability(_sel("F0"), _make_genome(g), 0.0) == 1.0
 
@@ -433,4 +434,15 @@ def test_coupled_result_reconstructs_gene_trees():
     trees = genomes.gene_trees()
     assert set(trees) == set(spec.panel_ids)
     assert any(complete for complete, _extant in trees.values())  # non-empty genealogies
+
+
+def test_pottsrates_is_backward_compatible_alias():
+    """The coupled rate model was renamed ``PottsRates`` -> ``CoupledRates``; the old name
+    stays importable as an alias (same object) so existing code keeps working."""
+    from zombi2 import CoupledRates as top_coupled, PottsRates as top_potts
+    from zombi2.coevolve import PottsRates as coevolve_potts
+
+    assert PottsRates is CoupledRates       # this module's imports
+    assert top_potts is top_coupled         # top-level zombi2 namespace
+    assert coevolve_potts is CoupledRates   # zombi2.coevolve namespace
 

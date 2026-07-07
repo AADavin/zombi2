@@ -47,7 +47,7 @@
 \setlength{\emergencystretch}{2.5em}
 
 \title{\vspace{-1.5cm}{\Large\textcolor{mainblue}{\textsc{How the gene-family coupling model works}}}\\[0.2em]
-  {\normalsize A Potts/Ising model of non-independent gene families in ZOMBI2}}
+  {\normalsize A coupling model of non-independent gene families in ZOMBI2}}
 \author{}\date{\vspace{-1.2cm}}
 
 \begin{document}
@@ -58,14 +58,14 @@ By default ZOMBI2 evolves every gene family independently, so the phylogenetic p
 emits---the \emph{families $\times$ species} presence/copy-number matrix---has rows that
 correlate \emph{only} through the shared species tree. Real genomes correlate through
 \emph{function}: families in one pathway or complex tend to be present or absent
-\emph{together}, the signal that phylogenetic-profiling and inverse-Potts methods exploit.
+\emph{together}, the signal that phylogenetic-profiling and direct-coupling (DCA) methods exploit.
 The \texttt{zombi2.coupling} model is the forward, \emph{generative} counterpart: you
 prescribe pairwise couplings, and it produces profiles that carry that co-occurrence
 structure as a known ground truth for benchmarking those inference methods.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section*{\textcolor{mainblue}{1\quad The model}}
-Fix a panel of $N$ gene families. Inside one genome, their presence/absence is an Ising
+Fix a panel of $N$ gene families. Inside one genome, their presence/absence is a binary
 vector $\sigma\in\{0,1\}^N$ ($\sigma_i=1$ means family $i$ is present). Two ingredients set
 how a family behaves: a \emph{field} $h_i$ (its intrinsic tendency to be retained) and, for
 each pair, a \emph{coupling} $J_{ij}$ (how much $i$ and $j$ ``like'' to co-occur). Together
@@ -129,7 +129,7 @@ rows are independent given the tree.
 \section*{\textcolor{mainblue}{3\quad How it plugs into ZOMBI2}}
 ZOMBI2's forward simulator already hands each rate model the \emph{whole} genome (through its
 \texttt{event\_weights} method). The coupling is therefore a single new rate
-model, \texttt{PottsRates}, and \textbf{nothing else changes}---not the simulator, the
+model, \texttt{CoupledRates}, and \textbf{nothing else changes}---not the simulator, the
 genome, the event types, nor the output:
 
 \begin{enumerate}
@@ -145,7 +145,7 @@ Because a custom rate model breaks per-family independence it runs on the pure-P
 
 \begin{warningbox}[One caveat worth stating plainly]
 Because the gain channel is \emph{field-blind}, the process has \textbf{no exact Boltzmann
-stationary distribution}---this is an \emph{approximate} Potts generator by design (a lost
+stationary distribution}---this is an \emph{approximate} coupling generator by design (a lost
 gene returns only from a donor that has it, which is the honest biology). Consequently,
 couplings recovered from the profiles track the injected $J$ in \textbf{sign and rank, not as
 an exact multiple}. Separately, on an ordinary birth--death tree even \emph{uncoupled}

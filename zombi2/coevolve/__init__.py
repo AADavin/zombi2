@@ -19,7 +19,7 @@ it does not redefine anything.
 from __future__ import annotations
 
 from zombi2.coevolve.coupling import (
-    CouplingSpec, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
+    CouplingSpec, CoupledRates, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
 )
 from zombi2.coevolve.trait_coupling import (
     TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
@@ -42,7 +42,7 @@ from zombi2.coevolve.trait_gene_feedback import (
 from zombi2.coevolve.sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
 
 __all__ = [
-    "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled",
+    "CouplingSpec", "CoupledRates", "PottsRates", "pathway_blocks", "simulate_coupled",
     "CoupledResult",
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
     "TraitLinkedResult", "simulate_trait_linked_genomes",

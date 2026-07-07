@@ -72,7 +72,7 @@ from zombi2.traits import (
     DEC, simulate_biogeography,
 )
 from zombi2.coevolve import (
-    CouplingSpec, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
+    CouplingSpec, CoupledRates, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
     TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
     simulate_trait_linked_genomes,
     GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
@@ -108,8 +108,8 @@ __all__ = [
     # simulation
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes", "GenomeTrace",
     "read_events_trace", "build_gene_trees",
-    # gene-family coupling (Potts/Ising non-independence)
-    "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled", "CoupledResult",
+    # gene-family coupling (non-independence)
+    "CouplingSpec", "CoupledRates", "PottsRates", "pathway_blocks", "simulate_coupled", "CoupledResult",
     # trait-conditioned gene families (trait <-> gene-family coupling)
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
     "simulate_trait_linked_genomes",

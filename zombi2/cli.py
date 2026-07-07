@@ -60,7 +60,7 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 """
 # NOTE: the experimental gene-family coupling rate model ('genomes --rate-model coupled',
-# Potts/Ising non-independence) is likewise de-registered from this release's CLI/manual and
+# gene-family non-independence) is likewise de-registered from this release's CLI/manual and
 # preserved in the ZOMBI2_FUTURE archive. The model itself stays: zombi2/coevolve/coupling.py is a
 # dependency of the shipped 'coevolve' command, and the Python API
 # (zombi2.simulate_coupled / CouplingSpec / pathway_blocks) remains exported from zombi2/__init__.
@@ -705,7 +705,7 @@ def _add_traits_genes_args(p: argparse.ArgumentParser) -> None:
                         "exp(-effect_loss * weight * trait) (default 2.0; 0 = no coupling)")
     g.add_argument("--effect-gain", type=float, default=0.0, metavar="B",
                    help="optional HGT-activity coupling: a lineage's transfer rate scales by "
-                        "exp(effect_gain * trait) (default 0 = field-blind gain, as in the Potts model)")
+                        "exp(effect_gain * trait) (default 0 = field-blind gain, as in the coupled gene-family model)")
     g.add_argument("--panel-root-fraction", dest="panel_root_fraction", type=float, default=0.5,
                    metavar="F",
                    help="[traits:genes + genes:traits JOINT model only] fraction of the panel present "

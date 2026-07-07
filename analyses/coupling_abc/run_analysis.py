@@ -1,4 +1,4 @@
-"""Simulation analysis for ABC inference of the coupled (Potts) gene-family model.
+"""Simulation analysis for ABC inference of the coupled gene-family model.
 
 Generates every figure in `report/report.tex` and prints the numbers the report cites.
 All results are deterministic (fixed seeds). Run from anywhere:

@@ -1,6 +1,6 @@
 # Coupling ABC analysis
 
-Simulation-based validation of **ABC inference for the coupled (Potts) gene-family model**
+Simulation-based validation of **ABC inference for the coupled gene-family model**
 (`zombi2.match_coupled` + `zombi2.cooccurrence_summary`), and the report explaining it.
 
 ## What it shows

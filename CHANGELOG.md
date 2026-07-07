@@ -19,7 +19,7 @@ First public development line (`0.2.0.dev0`). ZOMBI2 is a ground-up redesign of
   Backward trees scale to millions of tips on a laptop via a native Rust engine.
 - **Gene families** — duplication, transfer, loss and origination along a species tree, with
   uniform, family-sampled and genome-wise rate models; ordered chromosomes with inversions and
-  transpositions; nucleotide-resolution genomes; and a Potts model of gene-family coupling
+  transpositions; nucleotide-resolution genomes; and a gene-family coupling model
   (non-independence). Output as full event logs, compact event traces, or counts-only sparse
   profiles, with parallel replicates.
 - **Traits** — Brownian motion, Ornstein–Uhlenbeck, early burst, Mk, threshold,

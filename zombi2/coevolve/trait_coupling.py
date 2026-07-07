@@ -19,7 +19,7 @@ local trait value ``s(branch, t)`` the loss rate is
 
 so where the trait favours it (``w_i·s`` large) the family is retained, and where it does not
 the family is purged. Gain is horizontal transfer (a field-blind influx), exactly as in the
-:class:`~zombi2.PottsRates` coupling model: a family flows in and the trait-modulated loss
+:class:`~zombi2.CoupledRates` coupling model: a family flows in and the trait-modulated loss
 then *selectively retains* it, which is what writes the trait↔gene association into the
 profiles. So the **net** gene content of a lineage tracks its trait even though the influx
 itself is trait-blind. ``effect_gain`` optionally scales a lineage's transfer (HGT) activity

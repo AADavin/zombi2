@@ -51,8 +51,8 @@ ACCENT = {
 STATE_ON  = "#2f7d84"      # active state: heavy branch / filled chip  (muted teal)
 STATE_OFF = "#b9b0a4"      # inactive state: light branch / open chip  (warm taupe)
 
-# --- Coupled / Potts figures ---------------------------------------------
-# Categorical palette for the pathway MODULES of the coupled (Potts) chapter, where a
+# --- Coupled gene-family figures -----------------------------------------
+# Categorical palette for the pathway MODULES of the coupled gene-family chapter, where a
 # few module identities must be told apart (the STYLE.md "categorical exception").
 # Colour-blind-safe and deliberately distinct from the green/red used below for the
 # co-occur/avoid (and protected/lost) *semantics*, so the two never get confused.

@@ -59,7 +59,7 @@ NAMESPACES = {
         "evolve_on_tree", "read_fasta", "write_fasta",
     ],
     "coevolve": [
-        "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled",
+        "CouplingSpec", "CoupledRates", "PottsRates", "pathway_blocks", "simulate_coupled",
         "CoupledResult",
         "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
         "TraitLinkedResult", "simulate_trait_linked_genomes",
@@ -137,7 +137,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 133   # 132 joint-model set + CorrelatedBinaryK (Pagel k-trait)
+    assert len(z.__all__) == 134   # 133 prior + CoupledRates (functional rename of PottsRates; alias kept)
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 

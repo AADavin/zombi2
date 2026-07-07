@@ -26,7 +26,7 @@
 \renewcommand{\arraystretch}{1.15}
 
 \title{\vspace{-1.5em}\textbf{\Large Approximate Bayesian inference of gene-family coupling}\\[0.35em]
-  \large Fitting a likelihood-free Potts model to phylogenetic profiles}
+  \large Fitting a likelihood-free coupling model to phylogenetic profiles}
 \author{ZOMBI2 \,\textbullet\, coupling ABC analysis\\ \small\color{muted} simulated-data validation}
 \date{\small 2026-07-03}
 
@@ -55,8 +55,8 @@ all), and same-category groups co-occur more than different-category ones ($p\ap
 \section{The question}
 
 ZOMBI2 simulates a species tree and then evolves gene families along it. In the
-\emph{coupled} (Potts) model, the presence/absence of a fixed panel of $N$ families is an
-Ising vector $\sigma$, and a family's loss rate depends on its partners:
+\emph{coupled} model, the presence/absence of a fixed panel of $N$ families is a
+binary vector $\sigma$, and a family's loss rate depends on its partners:
 \[
 \text{loss}_i \;=\; \text{base\_loss}\cdot e^{-\beta f_i},\qquad
 f_i \;=\; h_i + \textstyle\sum_j J_{ij}\,\sigma_j ,

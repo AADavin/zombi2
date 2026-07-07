@@ -1,19 +1,19 @@
-"""Non-independent gene families — a Potts/Ising-style coupling rate model.
+"""Non-independent gene families — a coupling rate model.
 
 Today every other rate model evolves each family independently, so the phylogenetic
 profile (:class:`~zombi2.ProfileMatrix`) correlates rows *only* through the shared species
 tree. Real genomes correlate through **function**: families in the same pathway or complex
-are present or absent together (Pellegrini 1999), a signal that (inverse) Potts / DCA
-methods exploit (Croce 2019; Fukunaga & Iwasaki 2022). This module is the *forward*,
+are present or absent together (Pellegrini 1999), a signal that direct-coupling analysis
+(DCA) methods exploit (Croce 2019; Fukunaga & Iwasaki 2022). This module is the *forward*,
 generative counterpart: it injects prescribed pairwise couplings ``J`` (and fields ``h``)
 so that simulated profiles carry a **known ground-truth** coupling structure to benchmark
 those inference methods against.
 
-The design note ``docs/non_independence.tex`` derives three variants; this is the
-implemented one, ``docs/coupling_model.md`` documents the choices. In one paragraph:
+The companion explainer ``docs/coupling_explained.tex`` documents the model and the
+design choices. In one paragraph:
 
-**The model.** Presence/absence of a fixed panel of ``N`` families inside one genome is an
-Ising vector ``σ ∈ {0,1}^N``. Fields ``h_i`` and couplings ``J_ij`` define a local field
+**The model.** Presence/absence of a fixed panel of ``N`` families inside one genome is a
+binary vector ``σ ∈ {0,1}^N``. Fields ``h_i`` and couplings ``J_ij`` define a local field
 
     f_i(σ) = h_i + Σ_j J_ij · σ_j          (partners only; J has a zero diagonal)
 
@@ -29,7 +29,7 @@ That differential retention of horizontally-acquired genes is what writes ``J`` 
 profiles.
 
 **Faithfulness.** Because the gain channel is field-blind (HGT, not a detailed-balance
-Glauber gain), this is an *approximate* Potts generator: recovered couplings track the
+Glauber gain), this is an *approximate* coupling generator: recovered couplings track the
 injected ``J`` in **sign and rank**, not as an exact Boltzmann constant. That is the
 deliberate price of keeping regain mechanistic — a lost family returns only from a donor
 that still has it, exactly as in real genomes. Setting ``gain_coupling > 0`` additionally
@@ -37,7 +37,7 @@ moves part of the coupling onto the gain channel by field-biasing HGT *establish
 transferred copy sticks preferentially where its partners are present) — sharper recovery,
 still donor-limited and still not exact Boltzmann.
 
-**Architecture.** :class:`PottsRates` is an ordinary :class:`~zombi2.RateModel`: the
+**Architecture.** :class:`CoupledRates` is an ordinary :class:`~zombi2.RateModel`: the
 simulator already hands it the whole genome via ``event_weights(genome, branch, time)``, so
 coupling needs **no change to the simulator, sampler, genome or output**. A custom rate
 model is automatically ineligible for the Rust fast path, so a coupled run uses the
@@ -123,7 +123,7 @@ class CouplingSpec:
         self.panel_ids: list[str] = [f"{self.prefix}{i}" for i in range(self.n_families)]
         self.index: dict[str, int] = {fam: i for i, fam in enumerate(self.panel_ids)}
         # Best-possible local field per family (all positive-J partners present). The field
-        # "deficit" f_max - f_i (>= 0) drives gain-side establishment coupling; see PottsRates.
+        # "deficit" f_max - f_i (>= 0) drives gain-side establishment coupling; see CoupledRates.
         self.f_max: np.ndarray = self.h.copy()
         for i, nbrs in enumerate(self.adjacency):
             self.f_max[i] += sum(j_ij for _, j_ij in nbrs if j_ij > 0.0)
@@ -206,7 +206,7 @@ def pathway_blocks(pathway_sizes, *, within: float = 3.0, between: float = 0.0,
 # ═══════════════════════════════════════════════════════════════════════════════
 # The rate model
 # ═══════════════════════════════════════════════════════════════════════════════
-class PottsRates(RateModel):
+class CoupledRates(RateModel):
     """Coupled loss + horizontal-transfer gain over a fixed family panel.
 
     For each *present* family ``i`` emits a loss weight ``base_loss·exp(-β·f_i)`` (so
@@ -283,6 +283,11 @@ class PottsRates(RateModel):
         if s.origination > 0.0:
             out.append(EventWeight(EventType.ORIGINATION, None, s.origination))
         return out
+
+
+# Back-compat alias — this rate model was called ``PottsRates`` before it was renamed to the
+# functional ``CoupledRates``. Keep the old name importable so existing code keeps working.
+PottsRates = CoupledRates
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -384,7 +389,7 @@ def simulate_coupled(tree, spec: CouplingSpec, *, seed=None, rng=None,
 
     tm = transfers if transfers is not None else TransferModel(replacement=1.0)
     result = GenomeSimulator().simulate(
-        tree, PottsRates(spec), rng,
+        tree, CoupledRates(spec), rng,
         initial_size=0, transfers=tm, genome_factory=_panel_factory(seed_families),
         log_seed_originations=True,  # root-seeded panel families → log their root births
         seed_originations=seed_map,  # internal-node births (per-family origins)

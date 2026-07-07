@@ -1,6 +1,6 @@
 """The phylogenetic profile matrix — families x extant species.
 
-This is the key v1 output and the σ-sample dataset the future inverse-Potts / DCA
+This is the key v1 output and the σ-sample dataset that future direct-coupling analysis (DCA)
 validation will consume. It is read directly off the final genome state at each extant
 leaf; no gene trees are needed.
 
