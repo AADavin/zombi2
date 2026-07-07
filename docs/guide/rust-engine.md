@@ -1,7 +1,7 @@
 # The Rust engine
 
 The built-in gene-family model runs on a native **Rust** engine (`zombi2_core`). There is no
-separate "fast" function and no engine switch: [`simulate_genomes`](gene-families.md) routes
+separate "fast" function and no engine switch: [`simulate_genomes`](genomes.md) routes
 the built-in model to Rust automatically, and flexible models to Python. The engine is chosen
 by the model, so a given `seed` is always reproducible against a single engine.
 
@@ -79,7 +79,7 @@ Python engine within Monte-Carlo error.
   Trees with degree-two nodes — FBD *sampled ancestors*, from forward simulation with
   `removal < 1` — are routed to the Python engine (which passes genomes through such nodes).
   You do not need to do anything; the correct engine is selected per tree.
-* **The nucleotide model.** [`simulate_nucleotide_genomes`](nucleotide-genomes.md) runs on
+* **The nucleotide model.** [`simulate_nucleotide_genomes`](genomes.md) runs on
   Python by default (it emits the full event log and per-block gene trees). Pass
   `output="profiles"` for the Rust path over leaf segments — much faster, enough for
   `profile_matrix()` / `leaf_mosaic()` / `trace_back()`, but with no event log.

@@ -49,7 +49,7 @@ nucleotide genomes, a custom `sampler`) run on pure Python automatically and nee
 Both duplication and transfer add copies, so families can grow exponentially. Use
 `max_family_size` for a **hard** cap (an integer, or a float fraction of the number of
 species like `0.5`), or `carrying_capacity=K` on the rate model for a **soft** logistic
-limit. See [bounding growth](guide/growth.md).
+limit. See [bounding growth](guide/genomes.md).
 
 ### `Yule` vs `BirthDeath`?
 
@@ -78,7 +78,7 @@ simulate_genomes(tree, FamilySampledRates(
     loss=Gamma(2, 0.07), origination=0.5), seed=42)
 ```
 
-See [gene families & rates](guide/gene-families.md).
+See [gene families & rates](guide/genomes.md).
 
 ### How do I run many replicates at once?
 

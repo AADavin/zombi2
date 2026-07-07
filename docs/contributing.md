@@ -48,7 +48,7 @@ Before you start, read the contract:
   level, and the end-to-end checklist (implement → export → CLI → validate → document).
 - **[Conventions](contributing/conventions.md)** — the names, outputs, seeding, and CLI grammar
   every model follows.
-- **[Extending ZOMBI2](guide/extending.md)** — a worked example of the gene-family seams.
+- **[Extending ZOMBI2](contributing/adding-a-model.md)** — a worked example of the gene-family seams.
 
 **The hard rule:** *no model enters the core without an oracle or a statistical test* — a check
 that only asserts "it runs without error" is not validation. See [Validation](validation.md).
