@@ -4,7 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "zombi2_core"
-version = "0.2.0"
+# Single-sourced from Cargo.toml ([package].version); maturin reads it there.
+dynamic = ["version"]
 description = "Compiled Rust engine for ZOMBI2's built-in gene-family model"
 readme = "README.md"
 requires-python = ">=3.10"
