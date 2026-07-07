@@ -6,11 +6,13 @@ Re-exports the genome-simulation public API so users can write::
 
 Every name here is the *same object* as the corresponding top-level
 ``zombi2`` attribute -- this module is a thin, additive namespace over the
-implementation modules (:mod:`zombi2.genome`, :mod:`zombi2.nucleotide_genome`,
-:mod:`zombi2.nucleotide_sim`, :mod:`zombi2.gff`, :mod:`zombi2.rates`,
-:mod:`zombi2.transfers`, :mod:`zombi2.genome_sim`, :mod:`zombi2.profiles`,
-:mod:`zombi2.reconciliation`, :mod:`zombi2.simulation`,
-:mod:`zombi2.parallel`); it does not redefine anything.
+implementation modules (:mod:`zombi2.genomes.genome`,
+:mod:`zombi2.genomes.nucleotide_genome`, :mod:`zombi2.genomes.nucleotide_sim`,
+:mod:`zombi2.genomes.gff`, :mod:`zombi2.genomes.rates`,
+:mod:`zombi2.genomes.transfers`, :mod:`zombi2.genomes.genome_sim`,
+:mod:`zombi2.genomes.profiles`, :mod:`zombi2.genomes.reconciliation`,
+:mod:`zombi2.genomes.simulation`, :mod:`zombi2.parallel`); it does not
+redefine anything.
 """
 
 from __future__ import annotations

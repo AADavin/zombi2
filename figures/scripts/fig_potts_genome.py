@@ -11,7 +11,7 @@ coupled (J > 0), so members protect one another from loss.
 
 The "incomplete module is lost" claim is exactly the model's loss law
 loss_i = base_loss * exp(-beta * f_i) with f_i = h_i + sum over present partners J_ij (see
-zombi2/coupling.py): fewer present partners -> smaller field -> faster loss.
+zombi2/coevolve/coupling.py): fewer present partners -> smaller field -> faster loss.
 
 House style: categorical module colour (STYLE.md exception), one centered bold title, ASCII text.
 

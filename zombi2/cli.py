@@ -61,11 +61,11 @@ Traits & coevolution
 """
 # NOTE: the experimental gene-family coupling rate model ('genomes --rate-model coupled',
 # Potts/Ising non-independence) is likewise de-registered from this release's CLI/manual and
-# preserved in the ZOMBI2_FUTURE archive. The model itself stays: zombi2/coupling.py is a
+# preserved in the ZOMBI2_FUTURE archive. The model itself stays: zombi2/coevolve/coupling.py is a
 # dependency of the shipped 'coevolve' command, and the Python API
 # (zombi2.simulate_coupled / CouplingSpec / pathway_blocks) remains exported from zombi2/__init__.
 # To re-expose the CLI: restore the 'coupled' --rate-model choice, its argument group, the
-# dispatch to _run_coupled, and the .coupling import.
+# dispatch to _run_coupled, and the zombi2.coevolve.coupling import.
 
 
 # ── house style: an IQ-TREE-like grouped, sectioned help ────────────────────────────
