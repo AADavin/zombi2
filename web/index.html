@@ -191,13 +191,15 @@
 
   /* ---------- feature cards ---------- */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 18px; margin-top: 36px; }
-  .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 22px; background: var(--card-bg); transition: border-color .15s ease, transform .15s ease; }
+  .card { position: relative; cursor: pointer; border: 1px solid var(--border); border-radius: var(--radius); padding: 24px 22px; background: var(--card-bg); transition: border-color .15s ease, transform .15s ease; }
   @media (prefers-reduced-motion: no-preference) { .card:hover { border-color: var(--border-strong); transform: translateY(-2px); } }
   .card .ico { width: 34px; height: 34px; color: var(--accent); margin-bottom: 16px; }
   .card h3 { font-size: 1.12rem; }
   .card h3 .step { color: var(--muted); font-weight: 600; font-size: 0.85rem; margin-right: 6px; }
   .card p { margin-top: 9px; font-size: 0.94rem; color: var(--body); }
   .card a { display: inline-block; margin-top: 14px; font-size: 0.88rem; font-weight: 600; }
+  .card a::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+  .card:hover a { text-decoration: underline; }
 
   /* ---------- workflow / code ---------- */
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
@@ -286,7 +288,6 @@
       <div class="nav-controls">
         <nav class="nav-links" id="navlinks">
           <a href="#install">Install</a>
-          <a href="#features">Features</a>
           <a href="#models">Models</a>
           <a href="#performance">Performance</a>
           <a href="#cite">Cite</a>
