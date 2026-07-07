@@ -15,6 +15,10 @@ from zombi2.tools import reconciliation_likelihood
 That separation is deliberate: the simulation core stays small and stable, and the tools layer
 grows alongside it without enlarging the core's surface.
 
+Tools with a command-line surface live under the `zombi2 tools` command group, mirroring this
+namespace — e.g. `zombi2 tools reconcile` evaluates the reconciliation likelihood of a gene tree
+you already have. Run `zombi2 tools -h` to list them.
+
 ## The bar
 
 A tool is admitted only if it is a **computation with a right answer** that is:
