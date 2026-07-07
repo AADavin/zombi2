@@ -40,13 +40,13 @@
 <text x="590.0" y="630.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">trait-gene feedback</text>
 <circle cx="590.0" cy="270" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="590.0" y="266" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">S</text>
-<text x="590.0" y="294" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">species</text>
+<text x="590.0" y="293" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">species</text>
 <circle cx="290.0" cy="630" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="290.0" y="626" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">T</text>
-<text x="290.0" y="654" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">traits</text>
+<text x="290.0" y="653" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">traits</text>
 <circle cx="890.0" cy="630" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="890.0" y="626" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">G</text>
-<text x="890.0" y="654" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">genes</text>
+<text x="890.0" y="653" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">genes</text>
 <path d="M60,108 L104,108" stroke="#1a1a1a" stroke-width="4.6" stroke-linecap="round" />
 <text x="116" y="108" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">into S: the tree is grown as an OUTPUT</text>
 <path d="M60,138 L104,138" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />

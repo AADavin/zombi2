@@ -36,8 +36,8 @@
 <path d="M521.0,415 L535.0,415" stroke="#1a1a1a" stroke-width="2.8" />
 <path d="M535.0,415 L526.7821995371892,418.66984407753614 L526.7821995371892,411.33015592246386 Z" fill="#1a1a1a" />
 <text x="527.0" y="449" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">state change</text>
-<rect x="814" y="91.0" width="374" height="384.0" rx="18" ry="18" fill="#f2f2f2" stroke="#1a1a1a" stroke-width="3.0" />
-<text x="1001.0" y="131.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">one Gillespie loop</text>
+<rect x="814" y="91.0" width="340" height="384.0" rx="18" ry="18" fill="#f2f2f2" stroke="#1a1a1a" stroke-width="3.0" />
+<text x="984.0" y="131.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">one Gillespie loop</text>
 <text x="846" y="171.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">1.  total rate R = sum</text>
 <text x="846" y="199.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">     of every event's rate</text>
 <text x="846" y="227.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a" font-weight="normal"></text>
