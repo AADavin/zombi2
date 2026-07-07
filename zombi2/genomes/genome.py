@@ -15,7 +15,7 @@ full genealogy (from-id → to-ids) that :mod:`zombi2.reconciliation` turns into
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -37,6 +37,7 @@ class IdManager:
     def __init__(self) -> None:
         self._gene = 0
         self._family = 0
+        self._order = 0
 
     def new_gene(self) -> str:
         self._gene += 1
@@ -46,17 +47,35 @@ class IdManager:
         self._family += 1
         return str(self._family)
 
+    def new_order(self) -> int:
+        """A fresh, monotonically increasing seniority stamp for a genuinely new gene copy.
+
+        Used by :attr:`Gene.origin_order`: a lineage's *continuation* inherits its parent's stamp,
+        while every truly new copy (origination, duplication copy, transferred-in copy, converted
+        copy) gets a larger one. So the founder lineage of a family always holds the minimum stamp
+        among its live copies — the anchor for biased (directional) gene conversion."""
+        self._order += 1
+        return self._order
+
 
 @dataclass(slots=True)
 class Gene:
-    """A single gene copy. v1 carries only ``gid`` (current lineage segment) and ``family``.
+    """A single gene copy. v1 carries ``gid`` (current lineage segment) and ``family``.
 
     The ordered-genome extension adds ``orientation``; the length extension adds
     ``length`` — additive fields on a subclass.
+
+    ``origin_order`` is an inherited **seniority** stamp (lower = older lineage): a lineage's
+    continuation keeps its parent's stamp, every truly new copy gets a larger one (see
+    :meth:`IdManager.new_order`), so the founder copy of a family always has the minimum. It is
+    keyword-only (it never participates in positional construction, so subclasses like
+    :class:`OrderedGene` are unaffected) and is used only to bias directional gene conversion; it
+    is pure bookkeeping and appears in no output, so it leaves every existing run byte-identical.
     """
 
     gid: str
     family: str
+    origin_order: int = field(default=0, kw_only=True)
 
 
 class Genome(ABC):
@@ -163,7 +182,7 @@ class UnorderedGenome(Genome):
         )
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset(STOCHASTIC_EVENTS)
+        return frozenset(STOCHASTIC_EVENTS + (EventType.CONVERSION,))
 
     # --- mutation ----------------------------------------------------------
     def draw_target(self, event: EventType, rng, params: TargetParams, family: str | None = None) -> Selection:
@@ -183,8 +202,8 @@ class UnorderedGenome(Genome):
             parent = selection.genes[0]
             fam = parent.family
             self._remove(parent)  # the ancestral lineage terminates here
-            left = Gene(self.ids.new_gene(), fam)   # continuation
-            right = Gene(self.ids.new_gene(), fam)  # new copy
+            left = Gene(self.ids.new_gene(), fam, origin_order=parent.origin_order)  # continuation
+            right = Gene(self.ids.new_gene(), fam, origin_order=self.ids.new_order())  # new copy
             self._add(left)
             self._add(right)
             return [[
@@ -202,9 +221,53 @@ class UnorderedGenome(Genome):
 
     def originate(self, rng, params: TargetParams) -> list[GeneOp]:
         family = self.ids.new_family()
-        gene = Gene(self.ids.new_gene(), family)
+        gene = Gene(self.ids.new_gene(), family, origin_order=self.ids.new_order())
         self._add(gene)
         return [GeneOp(gene.gid, family, "origin")]
+
+    # --- intra-genome gene conversion --------------------------------------
+    def convert(self, family: str, rng, bias: float = 0.0) -> tuple[list[GeneOp], list[GeneOp]]:
+        """One copy of ``family`` overwrites ("converts") another copy of the same family in place.
+
+        Non-reciprocal and copy-number-neutral: the **donor** lineage bifurcates (exactly like a
+        duplication of the donor — its old segment ends, a continuation and a fresh converted copy
+        open), and the **recipient** copy's old lineage is removed. So the converted copy descends
+        from the donor and the two coalesce at the conversion time, while the recipient's ancestry
+        above the event is gone — the concerted-evolution signal. The recipient is chosen uniformly;
+        ``bias`` in [0, 1] tilts the donor toward the family's founder (smallest ``origin_order``):
+        ``0`` = uniform donor, ``1`` = always the oldest candidate. ``bias`` is inert when only two
+        copies exist (one donor candidate). Requires ``copy_number(family) >= 2`` (the rate model
+        only fires it then). Returns ``(donor_bifurcation_group, recipient_loss_group)``.
+        """
+        pool = self._genes[family]
+        n = len(pool)
+        recipient = pool[int(rng.integers(n))]           # the copy being overwritten
+        others = [g for g in pool if g is not recipient]
+        donor = self._choose_donor(others, rng, bias)
+        # donor bifurcates: old segment ends, continuation + converted copy open (a duplication)
+        self._remove(donor)
+        donor_cont = Gene(self.ids.new_gene(), family, origin_order=donor.origin_order)
+        converted = Gene(self.ids.new_gene(), family, origin_order=self.ids.new_order())
+        self._add(donor_cont)
+        self._add(converted)
+        # the recipient's old lineage is overwritten -> it ends here (a loss of that ancestry)
+        self._remove(recipient)
+        return (
+            [GeneOp(donor.gid, family, "parent"),
+             GeneOp(donor_cont.gid, family, "donor_copy"),
+             GeneOp(converted.gid, family, "converted_copy")],
+            [GeneOp(recipient.gid, family, "converted_out")],
+        )
+
+    @staticmethod
+    def _choose_donor(others, rng, bias):
+        """Pick the donor among ``others``: uniform (``bias=0`` or a single candidate), else with
+        probability ``bias`` the oldest lineage (smallest ``origin_order``). The ``bias<=0`` /
+        single-candidate path draws exactly one uniform integer, so unbiased runs stay
+        byte-identical to a bias-free implementation."""
+        if bias > 0.0 and len(others) > 1 and rng.random() < bias:
+            return min(others, key=lambda g: g.origin_order)
+        return others[int(rng.integers(len(others)))]
 
     # --- transfer handoff --------------------------------------------------
     def extract_segment(self, selection: Selection, rng) -> TransferSegment:
@@ -213,10 +276,12 @@ class UnorderedGenome(Genome):
             fam = g.family
             old_gids.append(g.gid)
             self._remove(g)
-            cont = Gene(self.ids.new_gene(), fam)  # donor lineage continues (new segment)
+            # donor lineage continues (new segment, keeps its seniority)
+            cont = Gene(self.ids.new_gene(), fam, origin_order=g.origin_order)
             self._add(cont)
             cont_gids.append(cont.gid)
-            transferred.append(Gene(self.ids.new_gene(), fam))
+            # the transferred copy is a newcomer in the recipient -> a fresh seniority stamp
+            transferred.append(Gene(self.ids.new_gene(), fam, origin_order=self.ids.new_order()))
         return TransferSegment(
             family=selection.family, genes=tuple(transferred),
             donor_old_gids=old_gids, donor_cont_gids=cont_gids,
@@ -238,7 +303,7 @@ class UnorderedGenome(Genome):
         mapping = []
         for family, lst in self._genes.items():
             for g in lst:
-                ng = Gene(self.ids.new_gene(), family)
+                ng = Gene(self.ids.new_gene(), family, origin_order=g.origin_order)  # keeps seniority
                 new._add(ng)
                 mapping.append((g.gid, ng.gid, family))
         return new, mapping

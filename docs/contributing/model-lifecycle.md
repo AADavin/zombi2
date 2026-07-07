@@ -40,6 +40,25 @@ is exactly what keeps the core surface clean, while the model is still fully usa
 from zombi2.experimental import MyNewModel   # explicit — nothing leaks into zombi2.*
 ```
 
+### Engine-integrated features
+
+Most experimental models are self-contained classes that plug into an existing seam (a rate model, a
+trait model) and never touch the engine. A few are different: a new **event kind** — where the engine
+itself must learn to *apply* and *reconstruct* a new kind of event — cannot live entirely under
+`zombi2/experimental/`, because event dispatch is in the core simulator loop.
+
+For those, **split it**: the **dormant engine capability** goes in the core (the `EventType` member,
+the apply method, the dispatch branch, the reconciliation), inert until something fires it; only the
+**user-facing surface** — the model that emits the event — stages in `zombi2.experimental` with its
+`warn_experimental`. The core stays byte-identical when the feature is off, and the surface still
+gates behind the experimental door.
+
+The worked example is **intra-genome gene conversion**
+(`zombi2.experimental.GeneConversionRates` / `ConversionModel`): the `CONVERSION` event, its
+application, and its reconciliation are dormant in the core engine; the rate model that turns them on
+lives in `experimental`. On promotion the surface moves into the core and gains a CLI flag and a
+catalog page — the engine capability is already there.
+
 ### Promotion to the core
 
 A model graduates out of `experimental` once it clears the full bar:
