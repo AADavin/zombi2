@@ -20,9 +20,22 @@ theme:
     - search.suggest
     - toc.follow
   palette:
-    - scheme: default
+    # Light mode — the default, shown when the visitor's OS prefers light.
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: teal
       accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    # Dark mode — shown when the visitor's OS prefers dark; header toggle flips it.
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 plugins:
   - search
