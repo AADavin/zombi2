@@ -56,18 +56,18 @@ A `CouplingSpec` holds the panel size, the couplings `J`, the fields `h`, and th
 Build it from pathway blocks, a dense matrix, or a sparse edge list:
 
 ```python
-import zombi2 as z
+from zombi2.coevolve import CouplingSpec, pathway_blocks
 
 # (a) pathway blocks: families 0–2 co-occur, 3–5 co-occur, the two blocks mutually exclusive
-spec = z.pathway_blocks([3, 3], within=3.0, between=-1.0,
-                        h=2.0, base_loss=1.0, transfer=0.2, beta=1.0)
+spec = pathway_blocks([3, 3], within=3.0, between=-1.0,
+                      h=2.0, base_loss=1.0, transfer=0.2, beta=1.0)
 
 # (b) a dense N×N coupling matrix (diagonal ignored)
 J = [[0, 3, 0], [3, 0, 0], [0, 0, 0]]
-spec = z.CouplingSpec.from_dense(J, h=2.0, base_loss=1.0, transfer=0.2)
+spec = CouplingSpec.from_dense(J, h=2.0, base_loss=1.0, transfer=0.2)
 
 # (c) a sparse edge list {(i, j): J_ij} (symmetrised)
-spec = z.CouplingSpec.from_edges(6, {(0, 1): 3.0, (0, 2): 3.0, (0, 3): -2.0}, h=2.0)
+spec = CouplingSpec.from_edges(6, {(0, 1): 3.0, (0, 2): 3.0, (0, 3): -2.0}, h=2.0)
 ```
 
 - **`within` / `between`** (`pathway_blocks`) set the coupling *inside* a block (positive →
@@ -82,8 +82,11 @@ spec = z.CouplingSpec.from_edges(6, {(0, 1): 3.0, (0, 2): 3.0, (0, 3): -2.0}, h=
 ## Running a coupled simulation
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=100, age=6.0, seed=1)
-res = z.simulate_coupled(tree, spec, seed=1)
+from zombi2.species import BirthDeath, simulate_species_tree
+from zombi2.coevolve import simulate_coupled
+
+tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=100, age=6.0, seed=1)
+res = simulate_coupled(tree, spec, seed=1)
 
 res.profiles          # ProfileMatrix — N panel rows × extant species (all rows kept)
 res.profiles.presence()

@@ -114,13 +114,14 @@ variant (sigmoidal speciation via `--spec-low/high/center/slope` + Brownian `--d
 Python the driver is `simulate_sse`:
 
 ```python
-import zombi2 as z
-res = z.simulate_sse(z.BiSSE(1, 3, 0.2, 0.2, 0.1, 0.1), n_tips=200, seed=1)
-res.tree                 # complete tree (extinct lineages kept; z.prune() for the reconstructed one)
+from zombi2.coevolve import simulate_sse, BiSSE
+from zombi2.species import prune
+res = simulate_sse(BiSSE(1, 3, 0.2, 0.2, 0.1, 0.1), n_tips=200, seed=1)
+res.tree                 # complete tree (extinct lineages kept; prune() for the reconstructed one)
 res.labeled_values()     # the trait at the extant tips
 ```
 
-`z.BiSSE` / `z.MuSSE` / `z.QuaSSE` and `z.HiSSE` (hidden-state SSE, the honest null) are all on the
+`BiSSE` / `MuSSE` / `QuaSSE` and `HiSSE` (hidden-state SSE, the honest null) are all on the
 public API.
 
 ### The reverse arrow — `species:traits` and ClaSSE
@@ -146,8 +147,9 @@ zombi2 coevolve --couple traits:species --couple species:traits \
 
 `--clado-shift` is the per-daughter state-hop probability (discrete traits); `--clado-jump` is the
 Gaussian jump variance for a continuous (`quasse`) trait. In Python the kernel is
-`z.Cladogenesis(shift=…, jump_sigma2=…)`, accepted by both `z.simulate_sse(..., cladogenesis=…)`
-(ClaSSE) and `z.simulate_traits(tree, model, cladogenesis=…)` (`species:traits` on a fixed tree).
+`Cladogenesis(shift=…, jump_sigma2=…)` (`from zombi2.traits import Cladogenesis`), accepted by both
+`simulate_sse(..., cladogenesis=…)` (ClaSSE) and `simulate_traits(tree, model, cladogenesis=…)`
+(`species:traits` on a fixed tree).
 
 ### Gene content drives the tree — `genes:species`
 
@@ -170,7 +172,8 @@ zombi2 genomes -t keygene/species_tree.nwk --trans 1 --loss 0.5 --write profiles
 `coevolve` writes `species_tree.nwk`, `drivers.tsv` (per-node driver presence) and
 `drivers_manifest.tsv` (the effect sizes β and rates). `--driver-speciation`/`--driver-extinction`
 are the per-driver log-rate effects; `--driver-loss`/`--driver-origination`/`--driver-transfer` the
-gene dynamics. In Python: `z.simulate_gene_diversification(z.GeneDiversification(…), n_tips=…)`.
+gene dynamics. In Python: `simulate_gene_diversification(GeneDiversification(…), n_tips=…)`
+(`from zombi2.coevolve import simulate_gene_diversification, GeneDiversification`).
 
 ### Speciation drives the genome — `species:genes`
 
@@ -189,7 +192,8 @@ zombi2 coevolve --couple species:genes -t species_tree.nwk \
 mean number of new families gained (Poisson); `--gene-loss`/`--gene-origination` add gradual
 along-branch change (both 0 = pure punctuation). It writes `Profiles.tsv`/`Presence.tsv` (families ×
 extant tips) and `genome_sizes.tsv`. In Python:
-`z.simulate_cladogenetic_genome(tree, z.CladogeneticGenome(…))`. The signature of the model is that
+`simulate_cladogenetic_genome(tree, CladogeneticGenome(…))`
+(`from zombi2.coevolve import simulate_cladogenetic_genome, CladogeneticGenome`). The signature of the model is that
 **sister tips differ** — change is injected at their split, not spread along the branches.
 
 ### Gene content shapes a trait — `genes:traits`
@@ -210,7 +214,8 @@ zombi2 coevolve --couple genes:traits -t species_tree.nwk \
 It writes `traits.tsv` (per node: modifier presence 0/1 and the trait value) and `trait_tree.nwk`.
 `--trait-alpha` is the OU mean-reversion (0 = Brownian); the modifier's own dynamics are
 `--modifier-gain`/`--modifier-loss`/`--root-modifier`. In Python:
-`z.simulate_gene_conditioned_trait(tree, z.GeneConditionedTrait(…))`. The signal: **tips carrying the
+`simulate_gene_conditioned_trait(tree, GeneConditionedTrait(…))`
+(`from zombi2.coevolve import simulate_gene_conditioned_trait, GeneConditionedTrait`). The signal: **tips carrying the
 modifier sit near `theta_present`**, those without near `theta_absent`.
 
 Only the full three-way `--all` remains on the roadmap below.

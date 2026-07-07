@@ -82,15 +82,20 @@ The architecture already supports this as a single additive step:
 ## API
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.5), n_tips=20, age=5.0, seed=1)
-z.add_ghost_lineages(tree, z.BirthDeath(1.0, 0.5), seed=1)   # augments in place
-genomes = z.simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
-                             origination=0.5, seed=42)        # transfers can use ghosts
+from zombi2.species import (
+    simulate_species_tree, BirthDeath, add_ghost_lineages, EpisodicBirthDeath,
+)
+from zombi2.genomes import simulate_genomes
+
+tree = simulate_species_tree(BirthDeath(birth=1.0, death=0.5), n_tips=20, age=5.0, seed=1)
+add_ghost_lineages(tree, BirthDeath(1.0, 0.5), seed=1)   # augments in place
+genomes = simulate_genomes(tree, duplication=0.1, transfer=0.2, loss=0.15,
+                           origination=0.5, seed=42)        # transfers can use ghosts
 
 # episodic rates + incomplete sampling (adds unsampled-extant ghosts as well as extinct ones):
-m = z.EpisodicBirthDeath(birth=[1.0, 1.6], death=[0.3, 0.8], shifts=[3.0], sampling_fraction=0.6)
-tree = z.simulate_species_tree(m, n_tips=50, age=6.0, seed=1)
-z.add_ghost_lineages(tree, m, seed=2)
+m = EpisodicBirthDeath(birth=[1.0, 1.6], death=[0.3, 0.8], shifts=[3.0], sampling_fraction=0.6)
+tree = simulate_species_tree(m, n_tips=50, age=6.0, seed=1)
+add_ghost_lineages(tree, m, seed=2)
 ```
 
 ## Scope & roadmap
