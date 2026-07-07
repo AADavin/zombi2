@@ -91,6 +91,7 @@ nav:
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
+      - Model lifecycle: contributing/model-lifecycle.md
       - Conventions: contributing/conventions.md
   - Publishing a release: publishing.md
   - API reference: reference/api.md
