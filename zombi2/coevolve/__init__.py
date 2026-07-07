@@ -3,12 +3,11 @@
 Re-exports the coupling and state-dependent-coevolution public API so users
 can write::
 
-    from zombi2.coevolve import simulate_coupled, BiSSE
+    from zombi2.coevolve import simulate_trait_linked_genomes, BiSSE
 
 Every name here is the *same object* as the corresponding top-level
 ``zombi2`` attribute -- this module is a thin, additive namespace over the
-implementation modules (:mod:`zombi2.coevolve.coupling`,
-:mod:`zombi2.coevolve.trait_coupling`,
+implementation modules (:mod:`zombi2.coevolve.trait_coupling`,
 :mod:`zombi2.coevolve.gene_diversification`,
 :mod:`zombi2.coevolve.cladogenetic_genome`,
 :mod:`zombi2.coevolve.gene_conditioned_trait`,
@@ -18,9 +17,6 @@ it does not redefine anything.
 
 from __future__ import annotations
 
-from zombi2.coevolve.coupling import (
-    CouplingSpec, PottsRates, pathway_blocks, simulate_coupled, CoupledResult,
-)
 from zombi2.coevolve.trait_coupling import (
     TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
     simulate_trait_linked_genomes,
@@ -42,8 +38,6 @@ from zombi2.coevolve.trait_gene_feedback import (
 from zombi2.coevolve.sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
 
 __all__ = [
-    "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled",
-    "CoupledResult",
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
     "TraitLinkedResult", "simulate_trait_linked_genomes",
     "GeneDiversification", "GeneDiversificationResult",

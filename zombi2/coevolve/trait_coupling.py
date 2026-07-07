@@ -18,9 +18,9 @@ local trait value ``s(branch, t)`` the loss rate is
     loss_i = base_loss · exp(-effect_loss · w_i · s),
 
 so where the trait favours it (``w_i·s`` large) the family is retained, and where it does not
-the family is purged. Gain is horizontal transfer (a field-blind influx), exactly as in the
-:class:`~zombi2.PottsRates` coupling model: a family flows in and the trait-modulated loss
-then *selectively retains* it, which is what writes the trait↔gene association into the
+the family is purged. Gain is horizontal transfer (a trait-blind influx): a family flows in
+and the trait-modulated loss then *selectively retains* it, which is what writes the
+trait↔gene association into the
 profiles. So the **net** gene content of a lineage tracks its trait even though the influx
 itself is trait-blind. ``effect_gain`` optionally scales a lineage's transfer (HGT) activity
 by its trait too; it is off by default.
@@ -410,7 +410,7 @@ def simulate_trait_linked_genomes(
 
     The panel is seeded present at the root (pass ``initial_presence`` as a length-``N`` 0/1 mask
     for a different start). Transfers default to full replacement so a re-acquired family does not
-    stack copies — keeping the panel cleanly presence/absence, as in :func:`~zombi2.simulate_coupled`.
+    stack copies — keeping the panel cleanly presence/absence.
     """
     if rng is None:
         rng = np.random.default_rng(seed)
