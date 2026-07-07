@@ -6,9 +6,9 @@ Re-exports the species-tree public API so users can write::
 
 Every name here is the *same object* as the corresponding top-level
 ``zombi2`` attribute -- this module is a thin, additive namespace over the
-implementation modules (:mod:`zombi2.tree`, :mod:`zombi2.species_model`,
-:mod:`zombi2.species_sim`, :mod:`zombi2.ghosts`); it does not redefine
-anything.
+implementation modules (:mod:`zombi2.tree`, :mod:`zombi2.species.model`,
+:mod:`zombi2.species.sim`, :mod:`zombi2.species.forward`,
+:mod:`zombi2.species.ghosts`); it does not redefine anything.
 """
 
 from __future__ import annotations
