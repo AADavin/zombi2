@@ -25,14 +25,15 @@ way.
   length is `Σ (segment_duration × bin_rate)`.
 
 ```python
-import zombi2 as z
+from zombi2.species import simulate_species_tree, BirthDeath
+from zombi2.sequences import RateVariation
 
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
 
-rv = z.RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0],  # ordered slow -> fast
-                     switch_rate=1.0,   # rate of stepping to a neighbouring bin
-                     up_bias=0.5,       # P(step up); 0.5 = symmetric walk
-                     start=2)           # initial bin index (default: the middle bin)
+rv = RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0],  # ordered slow -> fast
+                   switch_rate=1.0,   # rate of stepping to a neighbouring bin
+                   up_bias=0.5,       # P(step up); 0.5 = symmetric walk
+                   start=2)           # initial bin index (default: the middle bin)
 scaled = rv.scale(tree, seed=1)
 
 print(scaled.to_newick())          # the phylogram (substitution lengths)
@@ -53,10 +54,14 @@ scaled.segments[node]              # [(bin_index, duration), ...] pieces of that
 load them with `read_newick` first:
 
 ```python
-genomes = z.simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, seed=1)
+from zombi2.genomes import simulate_genomes
+from zombi2.sequences import RateVariation
+from zombi2 import read_newick
+
+genomes = simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, seed=1)
 _, extant = genomes.gene_trees()["1"]
-gene_tree = z.read_newick(extant)          # Newick -> Tree
-phylogram = z.RateVariation(bins=[0.5, 2.0], switch_rate=1.0).scale(gene_tree, seed=1)
+gene_tree = read_newick(extant)          # Newick -> Tree
+phylogram = RateVariation(bins=[0.5, 2.0], switch_rate=1.0).scale(gene_tree, seed=1)
 ```
 
 The same rate process can be applied independently to the species tree and to each gene
@@ -89,14 +94,17 @@ A gene-tree branch on species branch `b` over `[t0, t1]` gets substitution lengt
 branches (after pruning) just sums the pieces.
 
 ```python
-import zombi2 as z
+from zombi2.species import simulate_species_tree, BirthDeath
+from zombi2.genomes import simulate_genomes
+from zombi2.sequences import SequenceEvolution
+from zombi2 import LogNormal
 
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
-genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.2,
-                             origination=0.5, seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
+genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.2,
+                           origination=0.5, seed=1)
 
-se = z.SequenceEvolution(branch_sigma=0.5,                    # shared lineage clock
-                         family_speed=z.LogNormal(0.0, 0.4))  # per-family speed
+se = SequenceEvolution(branch_sigma=0.5,                    # shared lineage clock
+                       family_speed=LogNormal(0.0, 0.4))    # per-family speed
 phylo = se.scale(genomes, seed=2)
 
 phylo.extant["1"]        # family 1's extant tree, branch lengths in substitutions/site
@@ -115,8 +123,11 @@ To use the discrete-bin GTDB clock for the lineage part instead of the lognormal
 carry several rate segments, integrated exactly under each gene branch:
 
 ```python
-rv = z.RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0], switch_rate=1.0)  # slow -> fast
-phylo = z.SequenceEvolution(lineage=rv, family_speed=z.LogNormal(0.0, 0.4)).scale(genomes, seed=2)
+from zombi2.sequences import RateVariation, SequenceEvolution
+from zombi2 import LogNormal
+
+rv = RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0], switch_rate=1.0)  # slow -> fast
+phylo = SequenceEvolution(lineage=rv, family_speed=LogNormal(0.0, 0.4)).scale(genomes, seed=2)
 ```
 
 ### From the CLI

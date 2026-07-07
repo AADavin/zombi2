@@ -32,8 +32,8 @@ pip install -e .
 Check it's available:
 
 ```python
-import zombi2 as z
-z.rust_available()   # True once zombi2_core is installed
+from zombi2 import rust_available
+rust_available()   # True once zombi2_core is installed
 ```
 
 ## Two outputs, one function
@@ -42,18 +42,21 @@ z.rust_available()   # True once zombi2_core is installed
 `output`:
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.4), n_tips=10_000, age=10.0, seed=1)
+from zombi2.species import BirthDeath, simulate_species_tree
+from zombi2.genomes import simulate_genomes
+
+tree = simulate_species_tree(BirthDeath(1.0, 0.4), n_tips=10_000, age=10.0, seed=1)
 
 # output="genomes" (default): the full Genomes — event log, gene trees, write()
-g = z.simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
-                       origination=0.5, initial_families=100, max_family_size=0.5, seed=1)
+g = simulate_genomes(tree, duplication=0.1, transfer=0.05, loss=0.15,
+                     origination=0.5, initial_families=100, max_family_size=0.5, seed=1)
 len(g.event_log)                        # every O/D/T/L/S record, as EventRecord objects
 complete, extant = g.gene_trees()["1"]  # reconstructed per-family gene trees
 g.write("out/")                         # full ZOMBI-1 output (tables, trees, transfers, ...)
 
 # output="profiles": just the copy-number matrix — the fast counts-only path (the σ dataset)
-pm = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1, origination=0.5,
-                        initial_families=200, max_family_size=0.3, seed=42, output="profiles")
+pm = simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1, origination=0.5,
+                      initial_families=200, max_family_size=0.3, seed=42, output="profiles")
 pm.matrix.shape                         # (n_families, n_extant_species)
 ```
 

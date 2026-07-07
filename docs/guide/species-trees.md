@@ -8,17 +8,19 @@ coalescence (Hartmann, Wong & Stadler 2010).
 ## Models
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath, Yule
 
-z.BirthDeath(birth=1.0, death=0.3)   # speciation λ, extinction μ
-z.Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
+BirthDeath(birth=1.0, death=0.3)   # speciation λ, extinction μ
+Yule(birth=1.0)                    # pure birth == BirthDeath(birth, death=0)
 ```
 
 ## Simulating
 
 ```python
-tree = z.simulate_species_tree(
-    z.BirthDeath(1.0, 0.3),
+from zombi2.species import BirthDeath, simulate_species_tree
+
+tree = simulate_species_tree(
+    BirthDeath(1.0, 0.3),
     n_tips=20,          # condition on the number of extant species (>= 2)
     age=5.0,            # tree age
     age_type="crown",   # "crown": age of the root; "stem": time of origin
@@ -53,9 +55,11 @@ Rates are given one value per epoch (ordered from the present backward), with th
 boundaries as strictly increasing **ages** before the present:
 
 ```python
+from zombi2.species import EpisodicBirthDeath, simulate_species_tree
+
 # a mass extinction: normal extinction recently, a spike older than age 1
-epi = z.EpisodicBirthDeath(birth=[1.0, 1.0], death=[0.2, 3.0], shifts=[1.0])
-tree = z.simulate_species_tree(epi, n_tips=30, age=4.0, seed=1)
+epi = EpisodicBirthDeath(birth=[1.0, 1.0], death=[0.2, 3.0], shifts=[1.0])
+tree = simulate_species_tree(epi, n_tips=30, age=4.0, seed=1)
 ```
 
 - `birth[i]`, `death[i]` apply to epoch `i`; `shifts` has one fewer entry than `birth`
@@ -69,7 +73,9 @@ tree = z.simulate_species_tree(epi, n_tips=30, age=4.0, seed=1)
 Pass `sampling_fraction=ρ` (probability an extant species is sampled):
 
 ```python
-z.EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25)
+from zombi2.species import EpisodicBirthDeath
+
+EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25)
 ```
 
 !!! note "Scope"
@@ -87,13 +93,15 @@ the standing diversity is wiped out at once. Give any forward model a `mass_exti
 `(age, fraction)` pulses:
 
 ```python
+from zombi2.species import BirthDeath, EpisodicBirthDeath, simulate_species_tree
+
 # a radiation punctuated by two cataclysms (75% then 50% die), grown forward:
-m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(1.0, 0.75), (2.5, 0.5)])
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
+m = BirthDeath(1.0, 0.3, mass_extinctions=[(1.0, 0.75), (2.5, 0.5)])
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 
 # pulses layer on the episodic background too:
-m = z.EpisodicBirthDeath(birth=[1.0, 1.4], death=[0.2, 0.3], shifts=[2.0],
-                         mass_extinctions=[(1.0, 0.8)])
+m = EpisodicBirthDeath(birth=[1.0, 1.4], death=[0.2, 0.3], shifts=[2.0],
+                       mass_extinctions=[(1.0, 0.8)])
 ```
 
 - At each `age` before the present, every lineage then alive **independently** dies with
@@ -124,9 +132,11 @@ lineage-by-lineage down the tree. It's the diversification counterpart of a rela
 clock, and captures the heavy among-clade rate variation real phylogenies show.
 
 ```python
+from zombi2.species import ClaDS, simulate_species_tree
+
 # α<1 = speciation slows toward the present; σ = jump spread; ε = μ/λ turnover
-m = z.ClaDS(lambda_0=1.0, alpha=0.9, sigma=0.2, turnover=0.1)
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n_tips=…
+m = ClaDS(lambda_0=1.0, alpha=0.9, sigma=0.2, turnover=0.1)
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n_tips=…
 ```
 
 - Forward-only (per-lineage rates have no closed-form reconstructed CDF); `age` or `n_tips` mode.
@@ -147,8 +157,10 @@ the tree fills an ecological carrying capacity `K`: `λ(n) = max(0, λ₀·(1 �
 macroevolutionary analogue of the per-family `carrying_capacity` ZOMBI2 already offers for genes.
 
 ```python
-m = z.DiversityDependent(lambda_0=2.0, death=0.2, carrying_capacity=50)
-tree = z.simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or n_tips ≤ K
+from zombi2.species import DiversityDependent, simulate_species_tree
+
+m = DiversityDependent(lambda_0=2.0, death=0.2, carrying_capacity=50)
+tree = simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or n_tips ≤ K
 ```
 
 - Forward-only; `age` or `n_tips` mode (`n_tips` must be `≤ K`).
@@ -172,9 +184,11 @@ lineage then alive (and all its descendants) adopts a new `(birth, death)` — a
 sparking a radiation, or a clade entering a slow-down.
 
 ```python
+from zombi2.species import CladeShiftBirthDeath, simulate_species_tree
+
 # a slow background; at age 3 one clade starts diversifying fast
-m = z.CladeShiftBirthDeath(0.6, 0.4, clade_shifts=[(3.0, 2.0, 0.1)])
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
+m = CladeShiftBirthDeath(0.6, 0.4, clade_shifts=[(3.0, 2.0, 0.1)])
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 ```
 
 - Forward-only and **age mode** (the shifts are scheduled as ages before a fixed present).

@@ -3,7 +3,8 @@
 ### Can I simulate gene families on my own species tree?
 
 Yes. Use the `genomes` subcommand with `--tree` pointing at any Newick file, or
-`z.read_newick(text)` + `z.simulate_genomes(tree, ...)` in Python. Branch lengths are read
+`read_newick(text)` (from `zombi2`) + `simulate_genomes(tree, ...)` (from `zombi2.genomes`) in
+Python. Branch lengths are read
 as durations. See the [command-line interface](cli.md).
 
 ### Is the CLI using the Rust engine?
@@ -19,8 +20,10 @@ counts only (no event log or gene trees), which is the right path for large pres
 datasets and for ABC:
 
 ```python
-pm = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
-                        origination=0.5, output="profiles")   # -> ProfileMatrix
+from zombi2.genomes import simulate_genomes
+
+pm = simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
+                      origination=0.5, output="profiles")   # -> ProfileMatrix
 ```
 
 The default `output="genomes"` returns the full `Genomes`. There is no longer a separate
@@ -50,7 +53,8 @@ limit. See [bounding growth](guide/growth.md).
 
 ### `Yule` vs `BirthDeath`?
 
-`z.Yule(birth)` is pure birth (no extinction) — the same as `z.BirthDeath(birth, death=0)`.
+`Yule(birth)` is pure birth (no extinction) — the same as `BirthDeath(birth, death=0)` (both
+from `zombi2.species`).
 
 ### Crown age vs stem age?
 
@@ -61,20 +65,25 @@ age. In the Python API this is the `age_type` argument to `simulate_species_tree
 
 ### How do I give every gene family its own rates (ZOMBI-1 style)?
 
-Pass a `z.FamilySampledRates(...)` rate model with distributions instead of the scalar
+Pass a `FamilySampledRates(...)` (from `zombi2.genomes`) rate model with distributions instead
+of the scalar
 shorthand:
 
 ```python
-z.simulate_genomes(tree, z.FamilySampledRates(
-    duplication=z.Gamma(2, 0.06), transfer=z.Exponential(0.08),
-    loss=z.Gamma(2, 0.07), origination=0.5), seed=42)
+from zombi2.genomes import simulate_genomes, FamilySampledRates
+from zombi2 import Gamma, Exponential
+
+simulate_genomes(tree, FamilySampledRates(
+    duplication=Gamma(2, 0.06), transfer=Exponential(0.08),
+    loss=Gamma(2, 0.07), origination=0.5), seed=42)
 ```
 
 See [gene families & rates](guide/gene-families.md).
 
 ### How do I run many replicates at once?
 
-`z.run_replicates(...)` distributes independent replicates across CPU cores. See
+`run_replicates(...)` (from `zombi2.genomes`) distributes independent replicates across CPU
+cores. See
 [running in parallel](guide/parallel.md).
 
 ### Where is the full API reference?

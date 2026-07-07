@@ -19,23 +19,23 @@ A rate model implements `event_weights(genome, branch, time)`, returning a list 
 copy"; a specific family means "weight the target by this family's own rate".
 
 ```python
-import zombi2 as z
 from zombi2 import EventType
+from zombi2.genomes import RateModel, EventWeight, simulate_genomes
 
-class PerGenomeRates(z.RateModel):
+class PerGenomeRates(RateModel):
     """D/T/L totals independent of genome size."""
     def __init__(self, dup, trans, loss, orig):
         self.d, self.t, self.l, self.o = dup, trans, loss, orig
     def event_weights(self, genome, branch, time):
         out = []
         if genome.size() > 0:
-            out += [z.EventWeight(EventType.DUPLICATION, None, self.d),
-                    z.EventWeight(EventType.TRANSFER,    None, self.t),
-                    z.EventWeight(EventType.LOSS,        None, self.l)]
-        out.append(z.EventWeight(EventType.ORIGINATION, None, self.o))
+            out += [EventWeight(EventType.DUPLICATION, None, self.d),
+                    EventWeight(EventType.TRANSFER,    None, self.t),
+                    EventWeight(EventType.LOSS,        None, self.l)]
+        out.append(EventWeight(EventType.ORIGINATION, None, self.o))
         return out
 
-genomes = z.simulate_genomes(tree, PerGenomeRates(0.5, 0.2, 0.5, 0.4), seed=1)
+genomes = simulate_genomes(tree, PerGenomeRates(0.5, 0.2, 0.5, 0.4), seed=1)
 ```
 
 `RateModel.bind(rng, max_family_size)` is called once per run — override it for stateful
@@ -48,8 +48,10 @@ Implement the `Genome` interface (queries, `draw_target`, `apply`, the transfer 
 `clone_reminting`, `supported_events`) and pass a factory:
 
 ```python
-genomes = z.simulate_genomes(tree, rates,
-                             genome_factory=lambda ids: MyGenome(ids))
+from zombi2.genomes import simulate_genomes
+
+genomes = simulate_genomes(tree, rates,
+                           genome_factory=lambda ids: MyGenome(ids))
 ```
 
 `OrderedGenome` is a worked example: it added gene order plus inversion/transposition with

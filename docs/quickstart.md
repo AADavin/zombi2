@@ -3,15 +3,16 @@
 ## A full simulation in ten lines
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath, simulate_species_tree
+from zombi2.genomes import simulate_genomes
 
 # 1. species tree (backward), conditioned on 20 extant tips and a crown age of 5
-tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3),
-                               n_tips=20, age=5.0, seed=1)
+tree = simulate_species_tree(BirthDeath(birth=1.0, death=0.3),
+                             n_tips=20, age=5.0, seed=1)
 
 # 2. gene families (forward) along that tree
-genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_families=40, seed=42)
+genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                           origination=0.5, initial_families=40, seed=42)
 
 # results
 print(tree.to_newick())                 # timed Newick
