@@ -206,13 +206,19 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
-      - name: Install Pandoc, XeLaTeX and librsvg
+      - name: Install XeLaTeX and librsvg
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            pandoc librsvg2-bin lmodern \
+            librsvg2-bin lmodern \
             texlive-xetex texlive-latex-recommended texlive-latex-extra \
             texlive-fonts-recommended texlive-fonts-extra texlive-plain-generic
+      - name: Install a recent Pandoc (Ubuntu's apt pandoc is too old for --syntax-highlighting)
+        run: |
+          ver=$(curl -fsSL https://api.github.com/repos/jgm/pandoc/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+          curl -fsSL "https://github.com/jgm/pandoc/releases/download/${ver}/pandoc-${ver}-1-amd64.deb" -o /tmp/pandoc.deb
+          sudo dpkg -i /tmp/pandoc.deb
+          pandoc --version | head -1
       - name: Build the manual
         run: make -C manual manual
       - uses: actions/upload-artifact@v4
