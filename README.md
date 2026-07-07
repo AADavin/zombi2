@@ -78,17 +78,17 @@ A broad library, grouped by the level it acts on. Each links to its guide.
 - **[Species trees](docs/guide/species-trees.md)** — birth–death (backward and forward),
   episodic/skyline shifts, fossilized birth–death, incomplete sampling, diversity-dependent
   and per-lineage (ClaDS) diversification, mass extinctions, and ghost lineages
-  ([full list](docs/species_tree_models.md)).
+  ([full list](docs/guide/species-trees.md)).
 - **[Genomes](docs/guide/genomes.md)** — gene families under duplication, transfer, loss,
   and origination (DTL) with shared / family-sampled / genome-wise / per-branch rates and a full
-  [transfer model](docs/guide/transfers.md); plus genome **structure** —
-  [ordered chromosomes](docs/guide/ordered-genomes.md) with rearrangements and
-  [nucleotide-resolution genomes](docs/guide/nucleotide-genomes.md) where genes emerge as blocks.
+  [transfer model](docs/guide/genomes.md); plus genome **structure** —
+  [ordered chromosomes](docs/guide/genomes.md) with rearrangements and
+  [nucleotide-resolution genomes](docs/guide/genomes.md) where genes emerge as blocks.
 - **[Traits](docs/guide/traits.md)** — Brownian motion, Ornstein–Uhlenbeck, and early burst
   (continuous); Mk and threshold (discrete); DEC biogeography.
 - **[Sequences](docs/guide/sequences.md)** — substitution models
   (JC/K80/HKY/GTR + Gamma, and empirical amino-acid models) along the gene trees, with a family
-  of [relaxed molecular clocks](docs/guide/rate-variation.md) (strict, uncorrelated
+  of [relaxed molecular clocks](docs/guide/sequences.md) (strict, uncorrelated
   lognormal/gamma, autocorrelated, Cox–Ingersoll–Ross) rescaling time into substitutions.
 
 ---
@@ -98,7 +98,7 @@ A broad library, grouped by the level it acts on. Each links to its guide.
 **Coevolution** couples any two levels so they drive each other with
 `coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic change,
 key innovations, and trait-linked gene families. See the
-[coevolution models](docs/models/coevolution.md) guide.
+[coevolution models](docs/guide/coevolution.md) guide.
 
 ---
 
