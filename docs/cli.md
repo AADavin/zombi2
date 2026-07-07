@@ -20,7 +20,7 @@ zombi2 sequence --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq
 `species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
 full output (see [gene trees & output](guide/gene-trees-and-output.md)); `trait` reads a tree and
 writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)). To **couple**
-levels so one drives another, see [`coevolve`](models/coevolution.md).
+levels so one drives another, see [`coevolve`](guide/coevolution.md).
 
 Run `zombi2 <command> -h` for a command's options — each command's help groups its flags into
 labelled model sections (the general options, then one section per model), so the parameters of
@@ -68,7 +68,7 @@ zombi2 species --mode forward --age 6 --sampling-fraction 0.5 -o out/   # 50% sa
 **Mass extinctions** (forward only). `--mass-extinction AGE FRACTION` fires an instantaneous,
 tree-wide survival pulse — at `AGE` before the present, each live lineage dies with probability
 `FRACTION` — and is repeatable for several pulses (needs `--age`). See the
-[advanced diversification](models/advanced-diversification.md#mass-extinctions-overlay) catalog for details.
+[advanced diversification](guide/species-trees.md#mass-extinctions-instantaneous-pulses) catalog for details.
 
 ```bash
 zombi2 species --mode forward --age 5 --mass-extinction 2.5 0.75 -o out/        # 75% die at age 2.5
@@ -111,7 +111,7 @@ zombi2 species --mode forward --age 6 \
 **Ghost lineages** (backward only). `--ghosts` un-prunes the reconstructed tree, grafting the
 extinct/unsampled lineages back on (they get `e*` names, like any extinct tip);
 `--ghost-method` picks the
-sampler. See [ghost lineages](guide/ghost-lineages.md):
+sampler. See [ghost lineages](guide/species-trees.md):
 
 ```bash
 zombi2 species --tips 50 --death 0.6 --ghosts -o out/
@@ -217,7 +217,7 @@ zombi2 coevolve --couple traits:species --sse-model bisse \
     --lambda0 1 --lambda1 3 --q01 0.1 --q10 0.1 --tips 200 --seed 1 -o out/
 ```
 
-See **[coevolution models](models/coevolution.md)** for the full reference — all six edges, their
+See **[coevolution models](guide/coevolution.md)** for the full reference — all six edges, their
 parameters, the joint (both-arrow) models, and the CLI options.
 
 ## Options
@@ -302,7 +302,7 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
 Run `zombi2 <command> -h` for the authoritative list. For the `coevolve` options, see
-[coevolution models](models/coevolution.md#command-line).
+[coevolution models](guide/coevolution.md#command-line).
 
 ## Choosing the output, and the Rust engine
 
@@ -355,11 +355,11 @@ only what you ask for.
 by variable-length structural events (inversion, deletion, tandem duplication, transposition,
 transfer, origination), genes emerge as blocks, and the model can start from a real GFF genome and
 even simulate ancestral DNA. It is a substantial model with its own flags; see
-[nucleotide genomes](guide/nucleotide-genomes.md) for the full walkthrough.
+[nucleotide genomes](guide/genomes.md) for the full walkthrough.
 
 ## Scope
 
 The CLI covers the common **shared-rate** case (and per-genome rates via `--rate-model
 per-genome`). For family-sampled rates, custom transfer mechanics, ordered genomes, or replicate
-parallelism, use the Python API (see [gene families & rates](guide/gene-families.md) and the
+parallelism, use the Python API (see [gene families & rates](guide/genomes.md) and the
 other guides).
