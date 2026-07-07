@@ -37,7 +37,8 @@ python run.py --list                 # what benchmarks exist
 python run.py species_tree           # run just one
 python run.py --full                 # push to 10M tips (heavier; see "Scale")
 python run.py write_output           # opt-in extra benchmark
-ZOMBI1_DIR=/path/to/ZOMBI python run.py vs_zombi1   # opt-in: vs legacy ZOMBI 1
+ZOMBI1_DIR=/path/to/ZOMBI python run.py vs_zombi1              # opt-in: vs legacy ZOMBI 1 (scaling curve)
+ZOMBI1_DIR=/path/to/ZOMBI python run.py vs_zombi1_fixedtree    # opt-in: vs ZOMBI 1 on one shared tree (box-plot)
 ```
 
 ## Report
@@ -80,14 +81,18 @@ actually runs it, pushed to where each task stops being cheap.
 | `memory_scaling`   | Peak RSS vs #tips (isolated subprocess)       | what fits in RAM |
 | `parallel_scaling` | N independent sims vs #worker processes       | compute-bound speed-up |
 | `write_output`     | Serialise a full simulation to disk (opt-in)  | reconstruct + write cost |
-| `vs_zombi1`        | Same task in ZOMBI2 vs legacy ZOMBI 1 (opt-in)| >1000× faster; ZOMBI 1 ceiling ~1200 tips |
+| `vs_zombi1`        | Same task in ZOMBI2 vs legacy ZOMBI 1 (opt-in)| scaling curve; >1000× faster; ZOMBI 1 ceiling ~1200 tips |
+| `vs_zombi1_fixedtree` | Both engines' genome step on **one shared** 1000-tip tree (opt-in) | box-plot of per-run times; ≈580× faster on the identical tree (overview panel c) |
 
 All benchmarks share one regime (`config.py`): `BirthDeath(λ=1.0, μ=0.3)`, tree
 age 2.0, `D=0.2 T=0.1 L=0.25 O=0.5`, `initial_families=20`. Trees are built once per
 size and only the timed call sits inside the timer. (`vs_zombi1` uses a matched
 pure-birth Yule tree and rate regime so the two tools do comparable work — see
 [`vs_zombi1/NOTES.md`](vs_zombi1/NOTES.md); it is opt-in and needs the ZOMBI 1
-checkout via `$ZOMBI1_DIR`.)
+checkout via `$ZOMBI1_DIR`.) `vs_zombi1_fixedtree` goes further: it builds **one**
+1000-tip tree and runs *both* engines' genome step on that identical tree (ZOMBI2 reads
+it via `read_newick`), so the only variable is the engine — this removes the tree-depth
+confound and is the box-plot in overview panel c.
 
 Methodology: a monotonic clock (`time.perf_counter`), one untimed warm-up (none
 for the multi-second giants), several repeats **with the cyclic GC disabled inside
