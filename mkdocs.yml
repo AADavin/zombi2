@@ -85,6 +85,9 @@ nav:
           - Relaxed clocks: models/relaxed-clocks.md
       - Coevolution: models/coevolution.md
   - Cookbook: cookbook.md
+  - Tools:
+      - Overview: tools/index.md
+      - Reconciliation likelihood: tools/reconciliation-likelihood.md
   - FAQ: faq.md
   - Comparison with ZOMBI1: comparison.md
   - Validation: validation.md
