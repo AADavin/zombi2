@@ -54,8 +54,11 @@ def gain_marker(d, cx, cy, r=10.0):
 
 # --------------------------------------------------------------------------- panel A: the mechanism
 def panel_model(d, ox, oy, pw, ph, title_y):
-    d.append(draw.Text("A   the mechanism", FS_LABEL, ox, title_y, font_family=FONT,
+    # P#1: panel letter top-left of the panel; title horizontally centred over the panel
+    d.append(draw.Text("A", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("the mechanism", FS_LABEL, ox + pw / 2, title_y, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
     vlo, vhi = -1.0, 6.0
     x_at = lambda t: ox + t * pw                              # noqa: E731  t in [0,1]
     y_at = lambda v: oy + ph - (v - vlo) / (vhi - vlo) * ph   # noqa: E731
@@ -137,8 +140,11 @@ def panel_realization(d, ox, oy, pw, ph, title_y):
     x_at = lambda t: ox + (t / present) * tw                 # noqa: E731
     y_at = lambda k: oy + 34 + (k / max(1, nleaf - 1)) * (ph - 80)   # noqa: E731
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, title_y, font_family=FONT,
+    # P#1: panel letter top-left of the panel; title horizontally centred over the panel
+    d.append(draw.Text("B", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("a simulated realization", FS_LABEL, ox + pw / 2, title_y, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, on):
         d.append(draw.Line(x1, y, x2, y, stroke=INK if on else GREY,
@@ -184,15 +190,16 @@ def render():
     d.append(draw.Text("Gene-conditioned trait (genes to traits)", FS_TITLE, W / 2, 46,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     ly = 82
+    lty = ly + 0.34 * FS_TICK   # L#1: text baseline vertically centred on the legend marker
     d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=INK, stroke_width=5.2))
-    d.append(draw.Text("modifier present", FS_TICK, W / 2 - 260, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("modifier present", FS_TICK, W / 2 - 260, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
     d.append(draw.Line(W / 2 - 110, ly, W / 2 - 78, ly, stroke=GREY, stroke_width=2.4))
-    d.append(draw.Text("absent", FS_TICK, W / 2 - 70, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("absent", FS_TICK, W / 2 - 70, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
     d.append(draw.Circle(W / 2 + 40, ly, 6.5, fill=INK, stroke=INK, stroke_width=1.8))
-    d.append(draw.Text("tip trait value", FS_TICK, W / 2 + 54, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("tip trait value", FS_TICK, W / 2 + 54, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
 
     # shared title baseline; panel A's trajectory plot is vertically centred against panel B's tree
     # so the two panels line up cleanly (previously the A/B titles sat at different heights).

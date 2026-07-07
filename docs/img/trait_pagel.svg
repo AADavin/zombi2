@@ -5,11 +5,12 @@
 </defs>
 <rect x="0" y="0" width="1200" height="660" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Correlated binary characters (Pagel)</text>
-<rect x="450.0" y="68" width="22" height="22" fill="#5a86a0" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="480.0" y="80" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">state 1 (present)</text>
-<rect x="640.0" y="68" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="670.0" y="80" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">state 0 (absent)</text>
-<text x="172" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the model</text>
+<rect x="435.0" y="68" width="22" height="22" fill="#5a86a0" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="465.0" y="86.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">state 1 (present)</text>
+<rect x="678.0" y="68" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="708.0" y="86.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">state 0 (absent)</text>
+<text x="172" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
+<text x="300.0" y="126" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">the model</text>
 <path d="M245.51657834516936,266.28694687298247 Q300.0,257.0,354.48342165483064,266.28694687298247" fill="none" stroke="#1a1a1a" stroke-width="2.1692099788303083" stroke-linecap="round" />
 <path d="M354.48342165483064,266.28694687298247 L343.8285711992241,269.0208381964737 L345.33593169602915,260.17765661521713 Z" fill="#1a1a1a" />
 <text x="300.0" y="241.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">0.05</text>
@@ -45,7 +46,8 @@
 <text x="300.0" y="180" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">flip Y</text>
 <text x="114" y="360.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-style="italic">flip X</text>
 <text x="300.0" y="544" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">states = (X, Y);  arrow width = rate</text>
-<text x="520" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
+<text x="520" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B</text>
+<text x="830.0" y="126" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">a simulated realization</text>
 <path d="M580.0,190.0 L746.9763136854112,190.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M746.9763136854112,190.0 L926.5615426774671,190.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M926.5615426774671,190.0 L980.0,190.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />

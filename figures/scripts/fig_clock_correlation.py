@@ -154,7 +154,9 @@ def main():
 
 
 def _rate_bar(d, x, y, w, h):
-    grad = draw.LinearGradient(x, y, x + w, y)
+    # objectBoundingBox coords so the gradient fills the bar rect regardless of
+    # absolute position (userSpaceOnUse breaks in the rsvg-convert -> PDF path).
+    grad = draw.LinearGradient(0, 0, 1, 0, gradientUnits="objectBoundingBox")
     for i in range(21):
         t = i / 20.0
         grad.add_stop(t, C.rate_hex(C.RATE_LO * (C.RATE_HI / C.RATE_LO) ** t))

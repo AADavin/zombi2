@@ -5,13 +5,14 @@
 </defs>
 <rect x="0" y="0" width="1200" height="660" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Hidden rate classes (corHMM)</text>
-<path d="M300.0,82 L332.0,82" stroke="#5a86a0" stroke-width="5.2" />
-<text x="340.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">hidden: fast</text>
-<path d="M450.0,82 L482.0,82" stroke="#9a9a9a" stroke-width="2.4" />
-<text x="490.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">hidden: slow</text>
-<circle cx="612.0" cy="82" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="624.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">observed change</text>
-<text x="172" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the model</text>
+<path d="M279.5,82 L311.5,82" stroke="#5a86a0" stroke-width="5.2" />
+<text x="323.5" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">hidden: fast</text>
+<path d="M487.5,82 L519.5,82" stroke="#9a9a9a" stroke-width="2.4" />
+<text x="531.5" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">hidden: slow</text>
+<circle cx="719.5" cy="82" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />
+<text x="747.5" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">observed change</text>
+<text x="172" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
+<text x="300.0" y="126" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">the model</text>
 <path d="M245.51657834516936,266.28694687298247 Q300.0,257.0,354.48342165483064,266.28694687298247" fill="none" stroke="#1a1a1a" stroke-width="3.209968943799849" stroke-linecap="round" />
 <path d="M354.48342165483064,266.28694687298247 L343.8285711992241,269.0208381964737 L345.33593169602915,260.17765661521713 Z" fill="#1a1a1a" />
 <text x="300.0" y="241.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">0.4</text>
@@ -46,7 +47,8 @@
 <text x="120" y="448" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-style="italic">fast</text>
 <text x="300.0" y="180" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">flip observed</text>
 <text x="300.0" y="544" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">nodes = observed 0/1;  arrow width = rate</text>
-<text x="520" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
+<text x="520" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B</text>
+<text x="830.0" y="126" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">a simulated realization</text>
 <path d="M580.0,190.0 L854.5755725293943,190.0" stroke="#5a86a0" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M854.5755725293943,190.0 L990.0,190.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <circle cx="628.1843501637154" cy="190.0" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="1.8" />

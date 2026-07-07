@@ -123,8 +123,11 @@ def chip(d, cx, cy, on, s=13, fill_on=None):
 def panel_model(d, cx0, cy0):
     """4-state square. (cx0, cy0) is the top-left state's centre. Paired arrows bow apart."""
     gx = gy = 176
-    d.append(draw.Text("A   the model", FS_LABEL, cx0 - 40, cy0 - 146, font_family=FONT,
+    # P#1: panel letter top-left of the panel; title horizontally centred over the panel
+    d.append(draw.Text("A", FS_LABEL, cx0 - 40, cy0 - 146, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("the model", FS_LABEL, cx0 + gx / 2, cy0 - 146, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
     P = {"00": (cx0, cy0), "01": (cx0 + gx, cy0),
          "10": (cx0, cy0 + gy), "11": (cx0 + gx, cy0 + gy)}
     m = MODEL
@@ -195,8 +198,11 @@ def panel_realization(d, ox, oy, pw, ph):
     x_at = lambda t: ox + 60 + (t / present) * (pw - 220)      # noqa: E731
     y_at = lambda k: oy + 40 + (k / max(1, nleaf - 1)) * (ph - 90)
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 24, font_family=FONT,
+    # P#1: panel letter top-left; title centred over the panel's content (tree + chips)
+    d.append(draw.Text("B", FS_LABEL, ox, oy - 24, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("a simulated realization", FS_LABEL, ox + pw / 2, oy - 24,
+                       font_family=FONT, text_anchor="middle", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, on):
         d.append(draw.Line(x1, y, x2, y, stroke=PRESENT if on else GREY,
@@ -254,12 +260,15 @@ def render_one(name):
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     # legend (clear of the data), centered under the title
     ly = 80
-    d.append(draw.Rectangle(W / 2 - 150, ly - 12, 22, 22, fill=PRESENT, stroke=INK, stroke_width=1.4))
-    d.append(draw.Text("state 1 (present)", FS_TICK, W / 2 - 120, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Rectangle(W / 2 + 40, ly - 12, 22, 22, fill="white", stroke=INK, stroke_width=1.4))
-    d.append(draw.Text("state 0 (absent)", FS_TICK, W / 2 + 70, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    # L#1: swatch middle y = (ly-12)+22/2 = ly-1; centre the label text on it
+    ty = (ly - 1) + 0.34 * FS_TICK
+    d.append(draw.Rectangle(W / 2 - 165, ly - 12, 22, 22, fill=PRESENT, stroke=INK, stroke_width=1.4))
+    d.append(draw.Text("state 1 (present)", FS_TICK, W / 2 - 135, ty, font_family=FONT,
+                       text_anchor="start", fill=INK))
+    # second swatch pushed right so "(present)" never touches the white square
+    d.append(draw.Rectangle(W / 2 + 78, ly - 12, 22, 22, fill="white", stroke=INK, stroke_width=1.4))
+    d.append(draw.Text("state 0 (absent)", FS_TICK, W / 2 + 108, ty, font_family=FONT,
+                       text_anchor="start", fill=INK))
 
     panel_model(d, 212, 272)                       # (cx0, cy0) = top-left state centre
     seed = panel_realization(d, 520, 150, 620, 470)

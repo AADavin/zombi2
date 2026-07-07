@@ -82,8 +82,6 @@ def panel_continuous(d, x0, ytop, w, h):
     for yy in draws:
         d.append(draw.Circle(xend, yy, 4.5, fill="white", stroke=INK, stroke_width=1.6))
     d.append(draw.Circle(xend, chosen, 6.0, fill=INK, stroke=INK, stroke_width=1.6))
-    d.append(draw.Text("Normal(x0, sigma^2 t)", FS_TICK, xend + 0.26 * w + 12, ymid, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=MUTED))
 
 
 # --------------------------------------------------------------------------- panel B: discrete

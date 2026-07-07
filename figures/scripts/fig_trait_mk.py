@@ -145,8 +145,9 @@ def render_one(name):
     for i, s in enumerate(STATES):
         x = lx + i * 110
         d.append(draw.Rectangle(x, 74, 18, 18, fill=SHADE[s], stroke=INK, stroke_width=1.4))
-        d.append(draw.Text(f"state {s}", FS_TICK, x + 26, 83, font_family=FONT, text_anchor="start",
-                           dominant_baseline="central", fill=INK))
+        # L#1: vertically centre the label on the swatch (square middle y = 74 + 18/2 = 83)
+        d.append(draw.Text(f"state {s}", FS_TICK, x + 26, 83 + 0.34 * FS_TICK, font_family=FONT,
+                           text_anchor="start", fill=INK))
 
     panel_model(d, 300, 360)
     panel_realization(d, 560, 150, 580, 470)

@@ -61,5 +61,4 @@
 <path d="M432,250 L556,250" stroke="#1a1a1a" stroke-width="3" />
 <path d="M568,250 L553,242 L553,258 Z" fill="#1a1a1a" />
 <text x="500.0" y="232" font-size="20" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Transposition</text>
-<text x="500.0" y="498" font-size="14" font-family="Helvetica" text-anchor="middle" fill="#555">a segment moves elsewhere</text>
 </svg>

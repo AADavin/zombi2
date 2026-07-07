@@ -863,7 +863,7 @@
 <text x="542.0" y="339.0" font-size="17" text-anchor="middle" font-family="Helvetica">4.00</text>
 <text x="-7.0" y="364.5" font-size="17" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
 <text x="0" y="-376.0" font-size="32" font-weight="bold" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a">Episodic (skyline) birth-death</text>
-<text x="-626.0" y="252.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">b = birth rate,  d = death rate</text>
-<path d="M-626.0,284.0 L-592.0,284.0" stroke="#1a1a1a" stroke-width="2.2" stroke-dasharray="6,5" stroke-linecap="butt" />
-<text x="-580.0" y="284.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">extinct lineage</text>
+<text x="-626.0" y="-282.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">b = birth rate,  d = death rate</text>
+<path d="M-626.0,-250.0 L-592.0,-250.0" stroke="#1a1a1a" stroke-width="2.2" stroke-dasharray="6,5" stroke-linecap="butt" />
+<text x="-580.0" y="-250.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">extinct lineage</text>
 </svg>

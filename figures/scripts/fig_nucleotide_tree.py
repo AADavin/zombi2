@@ -277,14 +277,14 @@ def panel_a(d, blocks, leaf_event, leaf_breaks, mode, hatch):
 
 # --------------------------------------------------------------------------- panel B
 def panel_b(d, blocks, mosaics, mode):
-    d.append(draw.Line(TITLE_X, 306, 760, 306, stroke="#dcdcdc", stroke_width=1.2))
-    d.append(draw.Text("B — the segments propagate: every genome is a mosaic of the same blocks", 18,
-                       TITLE_X, 326, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
-    y0 = 434
+    d.append(draw.Line(TITLE_X, 330, 760, 330, stroke="#dcdcdc", stroke_width=1.2))
+    d.append(draw.Text("B — the segments propagate: every genome is a mosaic of the same blocks", 15,
+                       TITLE_X, 350, font_family=FONT, text_anchor="start", font_weight="bold", fill=INK))
+    y0 = 458
     gw = ROOT_L * 9.0
-    d.append(draw.Line(RX, 378, RX, y0, stroke=INK, stroke_width=1.1, stroke_dasharray="3,3"))
-    ancestral_genome(d, RX - gw / 2, 356, gw, mode, divided=True)
-    d.append(draw.Text("initial genome — now cut into its blocks (gradient squares)", 15, RX, 346,
+    d.append(draw.Line(RX, 402, RX, y0, stroke=INK, stroke_width=1.1, stroke_dasharray="3,3"))
+    ancestral_genome(d, RX - gw / 2, 380, gw, mode, divided=True)
+    d.append(draw.Text("initial genome — now cut into its blocks (gradient squares)", 15, RX, 370,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
     yl, yn2 = species_tree(d, y0, 112)

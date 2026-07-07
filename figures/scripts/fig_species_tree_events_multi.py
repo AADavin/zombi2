@@ -182,39 +182,47 @@ def add_legends(d, x, y):
         label(gx + LGAP, cy, fam["label"])
         cy += ROW
 
-    # --- column 2: event (glyph key, colour-neutral) ---
+    # --- columns 2 & 3: event (glyph key, colour-neutral), laid out in TWO
+    # sub-columns (2x2) so the event key is compact and horizontal to match the
+    # wider tree: origination / duplication stack on the left, transfer / loss
+    # on the right, under a single "Event" heading spanning both.
     ex = x + COL2
     heading(ex, "Event")
-    gx = ex + R
-    cy = y + ROW
-    # origination: filled circle
-    draw_origin(d, gx, cy, R, key)
-    label(gx + LGAP, cy, "Origination")
-    # duplication: filled square
-    cy += ROW
-    d._draw_shape_at(gx, cy, "square", key, r=R)
-    label(gx + LGAP, cy, "Duplication")
-    # transfer: donor dot -> arc -> arrowhead
-    cy += ROW
-    _legend_transfer_glyph(d, gx, cy, key, R)
-    label(gx + LGAP, cy, "Transfer")
-    # loss: cross
-    cy += ROW
-    draw_cross(d, gx, cy, R, key)
-    label(gx + LGAP, cy, "Loss")
+    ECOL = 180                     # gap between the two event sub-columns
+    r1, r2 = y + ROW, y + 2 * ROW  # the two glyph rows
+
+    def event_row(col_x, cy, kind, text):
+        gx = col_x + R
+        if kind == "origination":
+            draw_origin(d, gx, cy, R, key)
+        elif kind == "duplication":
+            d._draw_shape_at(gx, cy, "square", key, r=R)
+        elif kind == "transfer":
+            _legend_transfer_glyph(d, gx, cy, key, R)
+        elif kind == "loss":
+            draw_cross(d, gx, cy, R, key)
+        label(gx + LGAP, cy, text)
+
+    # left sub-column: origination (row 1), duplication (row 2)
+    event_row(ex, r1, "origination", "Origination")
+    event_row(ex, r2, "duplication", "Duplication")
+    # right sub-column: transfer (row 1), loss (row 2)
+    event_row(ex + ECOL, r1, "transfer", "Transfer")
+    event_row(ex + ECOL, r2, "loss", "Loss")
 
 
 def main():
     tree = read_newick(str(TREE_NWK))
     present = annotate_times(tree)
 
-    # wide landscape canvas. The generous top margin opens a clear header band
-    # above the crown that holds the title and both legends, so nothing overlaps
-    # a branch; the tree still fills the lower ~two-thirds and stays landscape.
-    style = species_style(width=1300, height=1030, margin=285, font_size=FS_TICK)
+    # wide landscape canvas. A large margin still opens a clear header band above
+    # the crown for the title and both legends, but the canvas is now much wider
+    # so the tree spans most of the width (matching the tree figures in earlier
+    # chapters) instead of hugging the left. Tip names are dropped, freeing the
+    # right edge for the crown to fill.
+    style = species_style(width=1680, height=1030, margin=230, font_size=FS_TICK)
     d = ph.VerticalTreeDrawer(tree, style=style)
     d.draw()
-    d.add_leaf_names(color=INK, padding=12)
 
     draw_originations(d, tree)
     for fam in FAMILIES:

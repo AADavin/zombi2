@@ -29,7 +29,7 @@ import drawsvg as draw
 from zombi2.coevolve import GeneDiversification, simulate_gene_diversification
 
 from fig_sse import spec_fork
-from fig_trait_pagel import curved_arrow, rate_width, state_node, _layout
+from fig_trait_pagel import curved_arrow, rate_width, _layout, NR
 from model_common import zombi_to_ete3
 from zombi_style import (FONT, INK, MUTED, STATE_ON, STATE_OFF,
                          FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK)
@@ -38,6 +38,15 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1200, 700
 GREY = "#9a9a9a"
+
+
+def state_node(d, cx, cy, label):
+    """A Markov-state node whose label is geometrically centred in the disc (M#1): the text
+    baseline is set explicitly rather than relying on dominant_baseline, which renders slightly
+    high in rsvg/cairosvg."""
+    d.append(draw.Circle(cx, cy, NR, fill="white", stroke=INK, stroke_width=2.2))
+    d.append(draw.Text(label, FS_LABEL, cx, cy + 0.34 * FS_LABEL, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
 
 # Colour version (default -> key_innovation.svg, embedded) + preserved B&W (key_innovation_bw.svg).
 # ON = carries the driver (heavy branch / filled chip), OFF = no driver; swapped by render(bw=...).
@@ -68,8 +77,11 @@ L0, DRIVER_SPEC, MU, TRANSFER, LOSS, ORIG = 0.8, 1.6, 0.2, 1.2, 0.18, 0.09
 # --------------------------------------------------------------------------- panel A: the model
 def panel_model(d, cx0, cy0):
     gx = 250
-    d.append(draw.Text("A   the model", FS_LABEL, cx0 - 60, cy0 - 150, font_family=FONT,
+    # P#1: panel letter at the top-left corner; panel title centred over the panel.
+    d.append(draw.Text("A", FS_LABEL, cx0 - 60, cy0 - 150, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("the model", FS_LABEL, cx0 + gx / 2, cy0 - 150, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
     P = {"D-": (cx0, cy0), "D+": (cx0 + gx, cy0)}
     curved_arrow(d, P["D-"], P["D+"], +1, 22, rate_width(TRANSFER), "gain")   # transfer + origination
     curved_arrow(d, P["D+"], P["D-"], -1, 22, rate_width(LOSS), "loss")
@@ -138,8 +150,11 @@ def panel_realization(d, ox, oy, pw, ph):
     x_at = lambda t: ox + 40 + (t / present) * (pw - 150)      # noqa: E731
     y_at = lambda k: oy + 40 + (k / max(1, nleaf - 1)) * (ph - 96)   # noqa: E731
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 6, font_family=FONT,
+    # P#1: panel letter at the top-left corner; panel title centred over the panel.
+    d.append(draw.Text("B", FS_LABEL, ox, oy - 6, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("a simulated realization", FS_LABEL, ox + pw / 2, oy - 6, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
 
     for n in ete.traverse():
         if n.is_root():
@@ -180,16 +195,19 @@ def render(bw=False):
     d.append(draw.Text("Key-innovation diversification (genes to species)",
                        FS_TITLE, W / 2, 46, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
+    # legend -- L#1: text baselines set explicitly so each label sits vertically centred on its
+    # marker, with a little extra space between each marker and its label.
     ly = 82
+    ty = ly + 0.34 * FS_TICK
     d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=ON_COL, stroke_width=5.2))
-    d.append(draw.Text("carries the driver", FS_TICK, W / 2 - 260, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("carries the driver", FS_TICK, W / 2 - 256, ty, font_family=FONT,
+                       text_anchor="start", fill=INK))
     d.append(draw.Line(W / 2 - 90, ly, W / 2 - 58, ly, stroke=OFF_COL, stroke_width=2.4))
-    d.append(draw.Text("no driver", FS_TICK, W / 2 - 50, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("no driver", FS_TICK, W / 2 - 46, ty, font_family=FONT,
+                       text_anchor="start", fill=INK))
     event_marker(d, W / 2 + 78, ly, True)
-    d.append(draw.Text("gain / loss", FS_TICK, W / 2 + 96, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("gain / loss", FS_TICK, W / 2 + 100, ty, font_family=FONT,
+                       text_anchor="start", fill=INK))
 
     panel_model(d, 210, 320)
     seed = panel_realization(d, 560, 150, 600, 470)

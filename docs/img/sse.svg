@@ -6,13 +6,14 @@
 <rect x="0" y="0" width="1200" height="700" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">State-dependent diversification (BiSSE)</text>
 <path d="M300.0,82 L332.0,82" stroke="#2f7d84" stroke-width="5.2" />
-<text x="340.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">in state 1</text>
+<text x="344.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">in state 1</text>
 <path d="M450.0,82 L482.0,82" stroke="#b9b0a4" stroke-width="2.4" />
-<text x="490.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">in state 0</text>
+<text x="494.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">in state 0</text>
 <path d="M605.0,77.0 L615.0,87.0" stroke="#1a1a1a" stroke-width="2.2" />
 <path d="M605.0,87.0 L615.0,77.0" stroke="#1a1a1a" stroke-width="2.2" />
-<text x="624.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">extinct</text>
-<text x="150" y="170" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the model</text>
+<text x="624.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">extinct</text>
+<text x="150" y="170" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
+<text x="335.0" y="170" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">the model</text>
 <path d="M243.572981485168,314.62832296237315 Q335.0,300.0,426.427018514832,314.6283229623731" fill="none" stroke="#1a1a1a" stroke-width="2.481816307401944" stroke-linecap="round" />
 <path d="M426.427018514832,314.6283229623731 L415.80054113101846,317.4705014246268 L417.2178312538465,308.61243815695155 Z" fill="#1a1a1a" />
 <text x="335.0" y="284.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">0.12</text>
@@ -20,9 +21,9 @@
 <path d="M243.572981485168,325.37167703762685 L254.19945886898157,322.52949857537317 L252.7821687461535,331.3875618430484 Z" fill="#1a1a1a" />
 <text x="335.0" y="356.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">0.12</text>
 <circle cx="210" cy="320" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
-<text x="210" y="320" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">0</text>
+<text x="210" y="327.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">0</text>
 <circle cx="460" cy="320" r="34" fill="white" stroke="#1a1a1a" stroke-width="2.2" />
-<text x="460" y="320" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">1</text>
+<text x="460" y="327.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">1</text>
 <path d="M210,366 L210,382" stroke="#1a1a1a" stroke-width="4.1" stroke-linecap="round" />
 <path d="M210,382 L188,404" stroke="#1a1a1a" stroke-width="4.1" stroke-linecap="round" />
 <path d="M210,382 L232,404" stroke="#1a1a1a" stroke-width="4.1" stroke-linecap="round" />
@@ -31,10 +32,12 @@
 <path d="M460,382 L482,404" stroke="#1a1a1a" stroke-width="8.3" stroke-linecap="round" />
 <text x="210" y="438" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">lambda = 1,  mu = 0.3</text>
 <text x="460" y="438" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">lambda = 3,  mu = 0.3</text>
-<text x="335.0" y="478" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">nodes = state;  arrows = transitions;  fork width = speciation rate</text>
+<text x="335.0" y="478" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">nodes = state;  arrows = transitions;</text>
+<text x="335.0" y="506" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">fork width = speciation rate</text>
 <text x="335.0" y="224" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">state 1 branches 3x faster</text>
-<text x="560" y="144" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
-<text x="1126" y="144" font-size="22" font-family="Helvetica" text-anchor="end" fill="#1a1a1a" font-style="italic">state 1 fills 9 of 12 extant tips</text>
+<text x="560" y="144" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B</text>
+<text x="860.0" y="144" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">a simulated realization</text>
+<text x="1126" y="174" font-size="22" font-family="Helvetica" text-anchor="end" fill="#1a1a1a" font-style="italic">state 1 fills 9 of 12 extant tips</text>
 <path d="M604.0,205.86666666666667 L772.2930733601363,205.86666666666667" stroke="#2f7d84" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M604.0,487.32916666666665 L627.0952059355446,487.32916666666665" stroke="#2f7d84" stroke-width="5.2" stroke-linecap="butt" />
 <path d="M772.2930733601363,194.0 L899.575781299455,194.0" stroke="#2f7d84" stroke-width="5.2" stroke-linecap="butt" />
