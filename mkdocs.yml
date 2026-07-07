@@ -1,9 +1,14 @@
 site_name: ZOMBI2
 site_description: Simulation of species trees and gene families in phylogenetics
-site_url: https://aadavin.github.io/zombi2/
+site_url: https://aadavin.github.io/zombi2/docs/
 repo_url: https://github.com/AADavin/zombi2
 repo_name: AADavin/zombi2
 docs_dir: docs
+# Never publish LaTeX/BibTeX source (e.g. coupling_explained.tex) — MkDocs would
+# otherwise copy them verbatim into the built site and serve them publicly.
+exclude_docs: |
+  *.tex
+  *.bib
 
 theme:
   name: material
