@@ -4,7 +4,7 @@ Ordinary gene-family evolution changes a genome *along* its branches (anagenesis
 accumulate gradually in time). Here **speciation itself** reorganises the genome: at every branching
 event each daughter undergoes a *burst* of gene loss and gain — a founder effect / genome upheaval
 concentrated at the split. This is the gene-content counterpart of the cladogenetic trait model
-([`species:traits`](coevolution_models)), i.e. **punctuational genome evolution**: the ``species:genes``
+([`species:traits`](models/coevolution)), i.e. **punctuational genome evolution**: the ``species:genes``
 arrow, where *speciation drives gene content*.
 
 Because gene content does **not** feed back into diversification here, the tree is an *input* (a given
