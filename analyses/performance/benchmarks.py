@@ -14,12 +14,14 @@ only the timed call sits inside :func:`perfkit.measure`, setup is untimed.
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -465,3 +467,149 @@ def vs_zombi1(profile: str) -> Result:
                        "ZOMBI 1 Gm regime D=0.2 T=0.1 L=0.25 O=0.5, initial size 20, "
                        "replacement transfers (see vs_zombi1/NOTES.md)"),
     )
+
+
+# =========================================================================
+# 6b. Head-to-head at ONE fixed size on the SAME species tree (boxplot data)
+# =========================================================================
+
+def _z1_build_tree(work: Path, n_tips: int, seed: int) -> tuple[str | None, str]:
+    """Run ZOMBI 1's ``T`` mode once to build a species tree of ~``n_tips`` extant tips.
+
+    Uses the vendored template (pure-birth: SPECIATION=1, EXTINCTION=0, STOPPING_RULE=1),
+    so the complete tree *is* the extant tree — no extinct lineages — and both engines can
+    later run their genome step over the identical tree. Returns ``(ExtantTree.nwk path, "")``
+    or ``(None, error)``. Not timed."""
+    tmpl = (_VS_ZOMBI1_DIR / "SpeciesTreeParameters_template.tsv").read_text()
+    tmpl = tmpl.replace("__NTIPS__", str(int(n_tips))).replace("__SEED__", str(int(seed)))
+    work.mkdir(parents=True, exist_ok=True)
+    sp_params = work / "sp_params.tsv"
+    sp_params.write_text(tmpl)
+    proc = subprocess.run([sys.executable, str(_zombi1_dir() / "Zombi.py"), "T",
+                           str(sp_params), str(work)],
+                          cwd=str(_zombi1_dir()), capture_output=True, text=True)
+    extant = work / "T" / "ExtantTree.nwk"
+    if proc.returncode != 0 or not extant.is_file():
+        return None, (proc.stderr or proc.stdout)[-500:]
+    return str(extant), ""
+
+
+def _z1_gm_once(work: Path, seed: int, timeout: float) -> tuple[float | None, int]:
+    """Time ONE ZOMBI 1 ``Gm`` genome step on the tree already in ``work`` (varying the
+    genome seed only). Returns ``(seconds, n_families)`` or ``(None, 0)`` on timeout/error."""
+    params = (_VS_ZOMBI1_DIR / "GenomeParameters_bench.tsv").read_text()
+    lines = [f"SEED {seed}" if ln.strip().startswith("SEED") else ln
+             for ln in params.splitlines()]
+    params_r = work / f"genome_params_s{seed}.tsv"
+    params_r.write_text("\n".join(lines) + "\n")
+    t0 = time.perf_counter()
+    try:
+        proc = subprocess.run([sys.executable, str(_zombi1_dir() / "Zombi.py"), "Gm",
+                               str(params_r), str(work)],
+                              cwd=str(_zombi1_dir()), capture_output=True, text=True,
+                              timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None, 0
+    if proc.returncode != 0:
+        print(f"  ZOMBI 1 · Python   seed={seed} Gm FAILED: "
+              f"{(proc.stderr or proc.stdout)[-300:]}")
+        return None, 0
+    dt = time.perf_counter() - t0
+    gf_dir = work / "G" / "Gene_families"
+    nfam = sum(1 for x in gf_dir.iterdir() if x.name.endswith("_events.tsv")) \
+        if gf_dir.is_dir() else 0
+    return dt, nfam
+
+
+@benchmark("vs_zombi1_fixedtree")
+def vs_zombi1_fixedtree(profile: str) -> Result:
+    """Head-to-head at a FIXED size on ONE shared species tree — boxplot of per-run times.
+
+    Builds a single ZOMBI 1 species tree of ~1000 extant tips (pure-birth, so the extant
+    tree *is* the complete tree), then runs the *genome* step of BOTH engines on that
+    identical tree, once per seed. Sharing the tree removes every confound except the
+    engine — same topology, same branch-length/time integral, same D/T/L/O regime — so the
+    per-seed spread across replicates is an honest wall-clock distribution. ZOMBI2 reads the
+    tree via ``read_newick``; ZOMBI 1 runs its ``Gm`` step on the same ``T/`` folder. Each
+    Point carries every replicate time in ``times`` (the plotter box-plots them).
+
+    Opt-in (needs the ZOMBI 1 checkout at $ZOMBI1_DIR). If it is absent, an empty result is
+    returned and the overview falls back to two panels.
+    """
+    n_tips = {"quick": 200, "standard": 1000, "full": 1000}[profile]
+    reps = {"quick": 3, "standard": 10, "full": 20}[profile]
+    z1_timeout = {"quick": 60.0, "standard": 180.0, "full": 240.0}[profile]
+
+    have_z1 = (_zombi1_dir() / "Zombi.py").is_file()
+    if not have_z1:
+        print(f"  SKIPPED (no ZOMBI 1 checkout at {_zombi1_dir()}; set $ZOMBI1_DIR)")
+        return Result(name="vs_zombi1_fixedtree",
+                      title=f"ZOMBI2 vs ZOMBI 1 on one shared {n_tips}-tip tree",
+                      x_label="Wall-clock time (one full genome simulation)",
+                      points=[], meta=dict(regime=config.label(), profile=profile,
+                                           zombi1_available=False))
+
+    work = Path(tempfile.mkdtemp(prefix="zombi2_fixedtree_bench_"))
+    points: list[Point] = []
+    try:
+        # --- one shared species tree (built by ZOMBI 1's T mode, untimed) -------------
+        extant, err = _z1_build_tree(work, n_tips, seed=1)
+        if extant is None:
+            print(f"  species-tree build FAILED: {err}")
+            raise RuntimeError("tree build failed")
+        nwk = Path(extant).read_text().strip()
+        tree = z.read_newick(nwk)
+        actual = len(tree.extant_leaves())
+        print(f"  shared tree: {actual} extant tips (age {tree.total_age:.2f})")
+
+        # --- ZOMBI2 (Rust): one timed run per seed on the shared tree -----------------
+        rates = config.rate_model()
+        transfers = z.TransferModel(replacement=1.0)
+        z.simulate_genomes(tree, rates=rates, initial_families=config.INITIAL_SIZE,
+                           transfers=transfers, seed=999)  # warm-up, untimed
+        z2_times: list[float] = []
+        g = None
+        for r in range(1, reps + 1):
+            gc.collect()
+            t0 = time.perf_counter()
+            g = z.simulate_genomes(tree, rates=rates, initial_families=config.INITIAL_SIZE,
+                                   transfers=transfers, seed=r)
+            z2_times.append(time.perf_counter() - t0)
+        points.append(Point(series="ZOMBI2 · Rust", x=actual, times=z2_times,
+                            work=dict(n_families=len(g.profiles.families))))
+        print(f"  ZOMBI2 · Rust      {reps} runs  median={_med(z2_times)*1e3:8.2f} ms")
+
+        # --- ZOMBI 1 (Python): one Gm per seed on the SAME T/ folder ------------------
+        z1_times: list[float] = []
+        nfam = 0
+        for r in range(1, reps + 1):
+            dt, nfam = _z1_gm_once(work, seed=r, timeout=z1_timeout)
+            if dt is None:
+                print(f"  ZOMBI 1 · Python   seed={r} did not finish (> {z1_timeout:.0f}s)")
+                break
+            z1_times.append(dt)
+            print(f"  ZOMBI 1 · Python   seed={r:<2d} {dt*1e3:9.1f} ms  fams={nfam}")
+        if z1_times:
+            points.append(Point(series="ZOMBI 1 · Python", x=actual, times=z1_times,
+                                work=dict(n_families=nfam)))
+            print(f"  ZOMBI 1 · Python   {len(z1_times)} runs  "
+                  f"median={_med(z1_times):8.2f} s")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+    return Result(
+        name="vs_zombi1_fixedtree",
+        title=f"ZOMBI2 vs ZOMBI 1 on one shared {n_tips}-tip tree",
+        x_label="Wall-clock time (one full genome simulation)",
+        points=points,
+        meta=dict(regime=config.label(), profile=profile, zombi1_available=True,
+                  n_tips=n_tips, reps=reps,
+                  note="ONE ZOMBI 1 pure-birth tree (~%d extant tips); both engines run their "
+                       "genome step on it, one run per seed. D=0.2 T=0.1 L=0.25 O=0.5, initial "
+                       "size 20, replacement transfers (see vs_zombi1/NOTES.md)" % n_tips),
+    )
+
+
+def _med(xs: list[float]) -> float:
+    from statistics import median
+    return median(xs) if xs else float("nan")

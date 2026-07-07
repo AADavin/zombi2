@@ -100,8 +100,8 @@ key innovations, and trait-linked gene families. See the
 
 The built-in models run on a native **Rust** engine and scale to millions of tips on a
 laptop: a backward species tree of 1M tips builds in ~6 s, and gene families over a 100k-tip
-tree simulate in ~1 s as copy-number profiles. On the same task, ZOMBI2 runs gene-family
-simulations **over 1000× faster than ZOMBI 1** (48 s → 38 ms at 1,000 tips). Details in the
+tree simulate in ~1 s as copy-number profiles. On one shared 1,000-tip species tree, ZOMBI2
+runs the gene-family simulation **≈580× faster than ZOMBI 1** (41 s → 71 ms). Details in the
 [Rust engine guide](docs/guide/rust-engine.md).
 
 ![ZOMBI2 performance](analyses/performance/figures/overview.png)
