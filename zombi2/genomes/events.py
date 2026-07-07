@@ -31,6 +31,15 @@ class EventType(Enum):
     DUPLICATION = "D"
     TRANSFER = "T"
     LOSS = "L"
+    # --- intra-genome gene conversion (multiset genomes) ---
+    # One gene copy of a family overwrites ("converts") another copy of the SAME family within the
+    # same genome: non-reciprocal (the donor copy is unchanged) and a REPLACEMENT, not a duplication
+    # (copy number is unchanged, no copy is added). Like the rearrangements below it is fired by the
+    # rate model but opted into per-genome via supported_events(), so it is NOT in STOCHASTIC_EVENTS.
+    # In the log a conversion is a donor-lineage bifurcation (a 3-row CONVERSION record) paired with
+    # the overwritten copy's LOSS, so the existing gene-tree reconstruction turns it into the
+    # converted copy coalescing with the donor at the conversion time (concerted evolution).
+    CONVERSION = "C"
     # --- gene-order rearrangements (ordered genomes only) ---
     INVERSION = "I"
     TRANSPOSITION = "P"

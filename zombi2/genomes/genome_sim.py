@@ -55,6 +55,7 @@ class GenomeSimulator:
         self.sampler = sampler or NumpyEventSampler()
         self.max_events_per_interval = max_events_per_interval
         self._transfers = TransferModel()
+        self._conversions = None
         self._cap: int | None = None
 
     def simulate(
@@ -65,6 +66,7 @@ class GenomeSimulator:
         *,
         initial_size: int = 20,
         transfers: TransferModel | None = None,
+        conversions=None,
         max_family_size=None,
         genome_factory=UnorderedGenome,
         retain_internal: bool = False,
@@ -74,9 +76,11 @@ class GenomeSimulator:
         """Simulate gene families on ``tree``.
 
         ``genome_factory(ids)`` builds the root genome; every other genome is produced by
-        :meth:`Genome.clone_reminting`. ``transfers`` sets transfer mechanics;
-        ``max_family_size`` (int absolute, or float as a multiple of the species count)
-        bounds family growth.
+        :meth:`Genome.clone_reminting`. ``transfers`` sets transfer mechanics; ``conversions`` sets
+        intra-genome gene-conversion directionality (any object with a ``bias`` attribute — the
+        experimental :class:`zombi2.experimental.ConversionModel`; ``None`` = unbiased);
+        ``max_family_size`` (int absolute, or float as a multiple of the species count) bounds family
+        growth.
 
         ``log_seed_originations``: when the factory *pre-seeds* families into the root genome
         (e.g. the coupling panel) rather than originating them via ``initial_size``, set this to
@@ -94,6 +98,7 @@ class GenomeSimulator:
         byte-identical. Requires a multiset genome (one exposing ``_add``).
         """
         self._transfers = transfers or TransferModel()
+        self._conversions = conversions
         n_species = len(tree.extant_leaves())
         self._cap = resolve_max_family_size(max_family_size, n_species)
 
@@ -379,6 +384,23 @@ class GenomeSimulator:
                 ))
             self._reconcile_recipient(rec_genome, segment, recipient, t, params, log, rng)
             return (branch, recipient)
+
+        if event is EventType.CONVERSION:
+            # Intra-genome gene conversion (activated by zombi2.experimental.GeneConversionRates,
+            # which emits the CONVERSION weights; dormant otherwise). The donor lineage bifurcates
+            # and the recipient copy of the same family is overwritten, so copy number is unchanged
+            # and the converted copy coalesces with the donor at time t (concerted evolution). The
+            # rate model only fires this on a family with >= 2 copies, so `family` is always set. It
+            # is logged as a CONVERSION record (the donor bifurcation; donor == recipient == this
+            # branch, an intra-genome event) paired with a LOSS record (the overwritten copy) — a
+            # shape the existing gene-tree reconstruction already understands. ``conversions`` is any
+            # object with a ``bias`` attribute (or None for unbiased).
+            bias = self._conversions.bias if self._conversions is not None else 0.0
+            donor_group, loss_group = genome.convert(family, rng, bias)
+            log.add(EventRecord(EventType.CONVERSION, branch.name, t, donor_group,
+                                donor=branch.name, recipient=branch.name))
+            log.add(EventRecord(EventType.LOSS, branch.name, t, loss_group))
+            return (branch,)
 
         # duplication / loss / inversion / transposition (one log record per group)
         selection = genome.draw_target(event, rng, params, family=family)

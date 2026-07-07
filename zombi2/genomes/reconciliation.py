@@ -42,7 +42,10 @@ class _Node:
         self.is_pseudo = False                # pseudogenization: a unary gene->intergene state flip
 
 
-_INTERNAL = (EventType.DUPLICATION, EventType.TRANSFER, EventType.SPECIATION)
+# Events that terminate an incoming lineage and open child lineages (a from->to bifurcation). A
+# CONVERSION is a donor bifurcation just like a DUPLICATION (both children stay on the same species
+# branch — it is intra-genome, unlike TRANSFER), so it reconstructs through the same machinery.
+_INTERNAL = (EventType.DUPLICATION, EventType.TRANSFER, EventType.SPECIATION, EventType.CONVERSION)
 
 
 def _node_tree(records, gid2species, total_age) -> _Node | None:
@@ -229,6 +232,13 @@ def _expand_one(family, records, node_by_name):
                 emitted.append(EventRecord(EventType.DUPLICATION, node.name, ev.time,
                     [GeneOp(my, family, "parent"), GeneOp(a, family, "left"),
                      GeneOp(b, family, "right")]))
+            elif ev.event is EventType.CONVERSION:           # donor bifurcation, both on this branch
+                a = walk(ev.genes[1].gid, node, ev.time)
+                b = walk(ev.genes[2].gid, node, ev.time)
+                emitted.append(EventRecord(EventType.CONVERSION, node.name, ev.time,
+                    [GeneOp(my, family, "parent"), GeneOp(a, family, "donor_copy"),
+                     GeneOp(b, family, "converted_copy")],
+                    donor=node.name, recipient=node.name))
             else:                                            # TRANSFER
                 cont = walk(ev.genes[1].gid, node, ev.time)
                 tc = walk(ev.genes[2].gid, node_by_name[ev.recipient], ev.time)
@@ -323,7 +333,7 @@ ReconEvent = namedtuple("ReconEvent", ["event", "species", "recipient", "time", 
 Reconciliation = namedtuple("Reconciliation", ["complete", "extant", "events"])
 
 _EV_CHAR = {EventType.DUPLICATION: "D", EventType.TRANSFER: "T", EventType.SPECIATION: "S",
-            EventType.PSEUDOGENIZATION: "G"}
+            EventType.PSEUDOGENIZATION: "G", EventType.CONVERSION: "C"}
 
 
 def _prune_recon(node: "_Node"):

@@ -8,6 +8,13 @@ The value of ZOMBI2 is coherence — a broad library that behaves like one tool.
 not "done" when it runs. It is done when it plugs into the right seam, follows the
 [conventions](conventions.md), ships a validation test, and has a catalog page. All four.
 
+New models usually **stage in [`zombi2.experimental`](model-lifecycle.md) first** — a low-bar
+inbound door — and graduate into the core once they clear everything on this page; a model that
+already clears the full bar can also land in the core directly. Either way, **this page is the bar**.
+Most models "drop in as a subclass" and never touch the engine, but a few — a new **event kind**, say
+— also need a small dormant capability in the core engine; those stage only their *user-facing
+surface* in `zombi2.experimental` (see [engine-integrated features](model-lifecycle.md#engine-integrated-features)).
+
 ## 1. Implement the interface
 
 ZOMBI2 has **four levels** of evolution, each a subpackage under `zombi2/`. Pick the level you
