@@ -83,3 +83,49 @@ def test_unordered_genome_ignores_rearrangement_rates():
     g = simulate_genomes(tree, rates, initial_families=8, seed=2)  # default UnorderedGenome
     assert not any(r.event in (EventType.INVERSION, EventType.TRANSPOSITION)
                    for r in g.event_log)
+
+
+def _total_branch_length(tree):
+    return sum(n.branch_length() for n in tree.nodes() if n.parent is not None)
+
+
+def _count_inversions(g):
+    return sum(1 for r in g.event_log if r.event is EventType.INVERSION)
+
+
+def test_inversion_count_matches_poisson_mean():
+    # A FIXED species tree: every replicate walks the same branches, so the theoretical
+    # intensity is a single constant, not a per-run random quantity.
+    tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=12, age=3.0, seed=17)
+    total_bl = _total_branch_length(tree)
+
+    inversion_rate = 0.4
+    initial_families = 10
+
+    # Only rearrangements fire (no D/T/L/O). Inversions/transpositions conserve genome
+    # CONTENT, so the genome size stays exactly `initial_families` on every branch. The
+    # per-branch inversion hazard is `inversion_rate * size`, so integrated over the whole
+    # tree the number of INVERSION events is Poisson with mean:
+    #     lambda = inversion_rate * initial_families * total_branch_length
+    rates = SharedRates(inversion=inversion_rate, transposition=0.2, origination=0.0)
+
+    expected_mean = inversion_rate * initial_families * total_bl
+
+    reps = 400
+    counts = []
+    for s in range(reps):
+        g = simulate_genomes(tree, rates, initial_families=initial_families,
+                             seed=1000 + s, genome_factory=_ordered(0.5))
+        # content really is conserved -> size constant -> the oracle's `n` is exact
+        for leaf in g.leaf_genomes.values():
+            assert leaf.size() == initial_families
+        counts.append(_count_inversions(g))
+
+    observed_mean = np.asarray(counts).mean()
+
+    # The Poisson-mean estimator over `reps` runs has s.e. = sqrt(lambda / reps); assert
+    # within 4 sigma (deterministic seeds make this a fixed, several-sigma-margin check).
+    sigma = np.sqrt(expected_mean / reps)
+    assert abs(observed_mean - expected_mean) < 4 * sigma, (
+        f"observed {observed_mean:.3f} vs expected {expected_mean:.3f} "
+        f"({abs(observed_mean - expected_mean) / sigma:.2f} sigma)")
