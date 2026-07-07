@@ -201,7 +201,7 @@ res.gene_alignments()            # {gene_id: {species_gid: sequence}} extant ali
 ```
 
 If no `root_fasta` is given, each root gene/intergene sequence is drawn at random from the model's
-stationary frequencies (the ZOMBI-1 way); with it, the root sequences are the real genome's
+stationary frequencies (the ZOMBI1 way); with it, the root sequences are the real genome's
 substrings, so the reconstructed root genome is byte-identical to the input.
 
 On the CLI, `--write ancestral`:
