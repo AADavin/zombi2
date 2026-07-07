@@ -1,4 +1,4 @@
-# Comparison with ZOMBI-1
+# Comparison with ZOMBI1
 
 ZOMBI2 is a ground-up redesign of the original
 [ZOMBI](https://github.com/AADavin/Zombi). It keeps the ideas that made ZOMBI useful —
@@ -9,7 +9,7 @@ the output format — while rebuilding the internals around clean interfaces.
 
 - **The DTLO model** — duplication, transfer, loss, and origination of gene families
   along a species tree.
-- **Per-family sampled rates** — the ZOMBI-1 style where each family draws its own D/T/L
+- **Per-family sampled rates** — the ZOMBI1 style where each family draws its own D/T/L
   from distributions is available as `FamilySampledRates(...)`.
 - **Output format** — `Genomes.write("out/")` produces the familiar files: the species
   tree, per-family event tables, reconstructed complete and extant gene trees, a transfer
@@ -26,15 +26,15 @@ the output format — while rebuilding the internals around clean interfaces.
   conditioned on exactly `N` extant tips (cheap and exact), **or** simulate the *complete*
   tree **forward** in time — extinct lineages included — with fossilized birth–death
   (dated/fossil tips) and incomplete sampling. See [species trees](guide/species-trees.md).
-- **More rate models out of the box.** Beyond uniform and family-sampled rates, there are
-  genome-wise rates and rate variation across the branches of the tree. See
-  [rate variation](guide/rate-variation.md).
-- **Richer transfers.** A `TransferModel` controls additive vs replacement transfers,
-  phylogenetic-distance-weighted recipient choice, and self-transfers. See
-  [transfers](guide/transfers.md).
-- **Gene order and rearrangements.** An optional `OrderedGenome` puts genes on an ordered
-  chromosome and adds inversions and transpositions. See
-  [ordered genomes](guide/ordered-genomes.md).
+- **Trait levels.** Evolve phenotypic traits along the tree — Brownian motion,
+  Ornstein–Uhlenbeck, early burst, Mk, threshold, and DEC biogeography. See
+  [trait evolution](guide/traits.md).
+- **Nucleotide genomes.** Nucleotide-resolution genomes with variable-length structural
+  events — inversions, transpositions, indels — genes and intergenes, and GFF import. See
+  [nucleotide genomes](guide/nucleotide-genomes.md).
+- **Coevolution modes.** Couple any two levels along a directed edge (`coevolve --couple
+  driver:target`) — state-dependent diversification (SSE), cladogenetic change, key
+  innovations, and trait-linked gene families. See [coevolution](coevolution_models.md).
 - **Principled growth control.** A hard `max_family_size` cap (absolute or a fraction of
   the number of species) and a soft logistic `carrying_capacity`. See
   [bounding growth](guide/growth.md).
@@ -48,11 +48,3 @@ the output format — while rebuilding the internals around clean interfaces.
 - **Distributions.** Rate distributions accept the built-ins (`Gamma`, `Exponential`,
   `LogNormal`, `Uniform`, `Fixed`), any `scipy.stats` frozen distribution, or a plain
   `rng -> float` callable.
-
-## On the roadmap
-
-The interface-first design is meant to make the next models drop-in rather than rewrites.
-Much of what was once roadmap has landed — episodic/skyline rates, forward complete trees,
-fossilized birth–death and gene-family **coupling** (a Potts-style model of non-independence)
-all ship today. See [species-tree models](species_tree_models.md) for the few still ahead
-(time-varying sampling, occurrence birth–death).

@@ -63,7 +63,7 @@ ancestor (the root of the reconstructed tree); `--age-type stem` treats it as th
 age. In the Python API this is the `age_type` argument to `simulate_species_tree`. See
 [species trees](guide/species-trees.md).
 
-### How do I give every gene family its own rates (ZOMBI-1 style)?
+### How do I give every gene family its own rates (ZOMBI1 style)?
 
 Pass a `FamilySampledRates(...)` (from `zombi2.genomes`) rate model with distributions instead
 of the scalar

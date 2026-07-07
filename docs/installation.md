@@ -40,7 +40,6 @@ with a build hint that points back to this step.
 - **scipy** — only needed if you pass a `scipy.stats` frozen distribution to
   `FamilySampledRates`; the built-in distributions (`Gamma`, `Exponential`, …) need
   nothing beyond numpy.
-- **matplotlib / pandas** — not required by the library itself.
 
 ## Building these docs
 

@@ -73,14 +73,14 @@ A broad library, grouped by the level it acts on. Each links to its guide.
   episodic/skyline shifts, fossilized birth–death, incomplete sampling, diversity-dependent
   and per-lineage (ClaDS) diversification, mass extinctions, and ghost lineages
   ([full list](docs/species_tree_models.md)).
-- **[Genomes](docs/guide/gene-families.md)** — gene families under duplication, transfer, loss,
+- **[Genomes](docs/guide/genomes.md)** — gene families under duplication, transfer, loss,
   and origination (DTL) with shared / family-sampled / genome-wise / per-branch rates and a full
   [transfer model](docs/guide/transfers.md); plus genome **structure** —
   [ordered chromosomes](docs/guide/ordered-genomes.md) with rearrangements and
   [nucleotide-resolution genomes](docs/guide/nucleotide-genomes.md) where genes emerge as blocks.
 - **[Traits](docs/guide/traits.md)** — Brownian motion, Ornstein–Uhlenbeck, and early burst
   (continuous); Mk and threshold (discrete); DEC biogeography.
-- **[Sequences](docs/cli.md#sequence--substitution-branch-lengths)** — substitution models
+- **[Sequences](docs/guide/sequences.md)** — substitution models
   (JC/K80/HKY/GTR + Gamma, and empirical amino-acid models) along the gene trees, with a family
   of [relaxed molecular clocks](docs/guide/rate-variation.md) (strict, uncorrelated
   lognormal/gamma, autocorrelated, Cox–Ingersoll–Ross) rescaling time into substitutions.
@@ -91,7 +91,7 @@ A broad library, grouped by the level it acts on. Each links to its guide.
 
 **Coevolution** couples any two levels so they drive each other with
 `coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic change,
-key innovations, and [trait-linked gene families](docs/guide/trait-linked-genomes.md). See the
+key innovations, and trait-linked gene families. See the
 [coevolution models](docs/coevolution_models.md) guide.
 
 ---

@@ -20,7 +20,7 @@ ancestry.
 ### Ordered genome
 
 A circular chromosome of genes, each carrying a strand orientation, with **no intergenic regions** —
-the basic ZOMBI-1 representation. On top of the usual duplication / transfer / loss / origination,
+the basic ZOMBI1 representation. On top of the usual duplication / transfer / loss / origination,
 two rearrangements act on a **contiguous segment** whose length is drawn from an `extension`
 continuation probability (`extension=None` → single genes; higher → longer segments): **inversion**
 reverses the segment and flips every strand, and **transposition** cuts and pastes it elsewhere. Both

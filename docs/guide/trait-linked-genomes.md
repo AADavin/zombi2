@@ -5,8 +5,7 @@ aerobic retains and acquires oxygen-using gene families; one that reverts to ana
 them. ZOMBI2 can simulate that link directly: evolve a trait down the tree, then evolve a
 panel of gene families whose **loss and gain depend on the local trait value**. The resulting
 phylogenetic profile carries a *known*, trait-linked signal — the forward generator behind
-studies that read gene content as a record of a trait's history (e.g. timing the bacterial
-tree from the Great Oxidation Event, Davin 2025).
+studies that read gene content as a record of a trait's history.
 
 ```python
 from zombi2.species import simulate_species_tree, BirthDeath
@@ -170,7 +169,7 @@ Useful options:
   as `zombi2 trait` writes with its all-nodes output.
 - `--effect-gain` turns on the optional donor-side HGT-activity coupling.
 
-See the [CLI reference](../cli.md#coevolve-couple-traitsgenes-trait-conditioned-gene-families)
+See the [coevolution models CLI reference](../coevolution_models.md#traitsgenes-trait-conditioned-gene-families)
 for the full option table.
 
 ## What it recovers
@@ -195,8 +194,8 @@ directed graph over species, traits and gene families (`zombi2 coevolve --couple
 It was formerly the standalone `coevolve-genetrait` command, now folded into `coevolve`.
 Planned next:
 
-- an **environmental clock** — a trait (and its coupled families) gated by a dated event such
-  as the GOE, which is what turns the coupled dynamics into a *time* signal;
+- an **environmental clock** — a trait (and its coupled families) gated by a dated
+  environmental transition, which is what turns the coupled dynamics into a *time* signal;
 - a **recipient-side gain** channel (trait-dependent acquisition, not only retention);
 - the into-species edges (`traits:species` = SSE, `genes:species`) that couple traits and gene
   families *back* to the diversification process, up to the fully joint `--all` model.

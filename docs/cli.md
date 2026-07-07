@@ -1,8 +1,6 @@
 # Command-line interface
 
 Installing the package puts a `zombi2` command on your PATH — a thin wrapper over the library.
-Everything starts from a species tree; you then evolve gene families and/or a phenotypic trait
-along it.
 
 ```bash
 # 1. a species tree -> out/species_tree.nwk  (runs with defaults)
@@ -10,19 +8,19 @@ zombi2 species -o out/
 
 # 2. gene families along that tree (or any Newick tree)
 zombi2 genomes --tree out/species_tree.nwk \
-    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --max-family-size 0.5 --seed 42 -o out/
+    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 
 # 3. a phenotypic trait along that tree
 zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
 
-# 4. gene families whose loss/gain is conditioned on a trait
-zombi2 coevolve --couple traits:genes --tree out/species_tree.nwk \
-    --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/
+# 4. DNA sequences along the gene trees (from a genomes run written with --write trace)
+zombi2 sequence --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq/
 ```
 
 `species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
 full output (see [gene trees & output](guide/gene-trees-and-output.md)); `trait` reads a tree and
-writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)).
+writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)). To **couple**
+levels so one drives another, see [`coevolve`](coevolution_models.md).
 
 Run `zombi2 <command> -h` for a command's options — each command's help groups its flags into
 labelled model sections (the general options, then one section per model), so the parameters of
@@ -68,19 +66,13 @@ zombi2 species --mode forward --age 6 --sampling-fraction 0.5 -o out/   # 50% sa
 ```
 
 **Mass extinctions** (forward only). `--mass-extinction AGE FRACTION` fires an instantaneous,
-tree-wide pulse: at `AGE` before the present, every lineage then alive dies with probability
-`FRACTION`. Repeat the flag for several pulses. Unlike raising `--death` over an episodic epoch
-(which spreads extra extinction across a window), a pulse wipes out a fraction of the standing
-diversity in a single instant. It needs `--age` (the pulse time is an age before a fixed present):
+tree-wide survival pulse — at `AGE` before the present, each live lineage dies with probability
+`FRACTION` — and is repeatable for several pulses (needs `--age`). See the
+[diversification models](models/diversification.md#mass-extinctions-overlay) catalog for details.
 
 ```bash
 zombi2 species --mode forward --age 5 --mass-extinction 2.5 0.75 -o out/        # 75% die at age 2.5
-zombi2 species --mode forward --age 5 \
-    --mass-extinction 1.0 0.5 --mass-extinction 2.5 0.75 -o out/                 # two pulses
 ```
-
-The pulse's victims become extinct `e*` leaves, so a downstream `zombi2 genomes` run sees the
-mass extinction's genomic aftermath (families lost with the dead clades, transfers from the dead).
 
 **Per-lineage & diversity-dependent rates** (forward only). `--diversification` picks a
 heterogeneous-rate process instead of constant-rate birth–death. `clads` gives every lineage its
@@ -170,20 +162,14 @@ extinction along branches plus cladogenetic range splits at speciations. Set the
 optionally cap the range with `--max-range-size`, and pin the root range with `--root-range`
 (e.g. `A`). Ranges are written as `{A,B}`.
 
-## Fitting rates to a profile (ABC) — experimental
+## `sequence` — substitution branch lengths and DNA/protein alignments
 
-The inverse of `genomes` — fitting D/T/L/O rates to an **empirical copy-number profile** by
-**Approximate Bayesian Computation** — is **inference, not simulation**, so it lives outside the
-core as a planned Phase-3 Extension (archived under `ZOMBI2_FUTURE/abc-inference/`). There is no
-`zombi2 abc` command in this release.
-
-## `sequence` — substitution branch lengths
-
-`genomes` produces gene trees in **time** units. `sequence` rescales them into
-**substitutions/site** under a gene × lineage clock, as a separate step — so you can retune the
-rate model without re-simulating gene content. It reads a prior `genomes` run's `species_tree.nwk`
-and `Events_trace.tsv` (so run `genomes` with `trace` in `--write`), replays the genealogy, and
-writes the phylograms:
+`genomes` produces gene trees in **time** units. `sequence` is a separate step that (1) **rescales**
+them into **substitutions/site** under a gene × lineage clock, and (2) optionally **simulates a
+sequence alignment** along each rescaled tree — so you can retune the rate model or draw sequences
+without re-simulating gene content. It reads a prior `genomes` run's `species_tree.nwk` and
+`Events_trace.tsv` (so run `genomes` with `trace` in `--write`), replays the genealogy, and writes
+the phylograms:
 
 ```bash
 zombi2 genomes  -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
@@ -191,52 +177,48 @@ zombi2 genomes  -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 
 zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
 ```
 
-The model is `rate(family g, species branch b) = R_b · s_g`: a **shared lineage clock** `R_b`
-(either `--branch-speed` autocorrelated lognormal, or `--branch-bins` for the discrete-bin GTDB
-model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. It writes
+The rescaling model is `rate(family g, species branch b) = R_b · s_g`: a **shared lineage clock**
+`R_b` (either `--branch-speed` autocorrelated lognormal, or `--branch-bins` for the discrete-bin
+GTDB model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. It writes
 `gene_trees/<family>_extant_subst.nwk` (+ `_complete_subst.nwk`) and, for reproducibility,
 `gene_family_speeds.tsv` / `branch_rates.tsv`. See
 [Rate variation](guide/rate-variation.md#family-sequence-evolution) for the model.
 
-## `coevolve --couple traits:genes` — trait-conditioned gene families
-
-The **`traits:genes`** edge of [`coevolve`](coevolution_models.md) links the two halves of
-the toolkit: it evolves a phenotypic trait along the tree, then evolves a **panel** of gene
-families whose loss and gain **depend on the local trait value**, so the resulting profile carries
-a known, trait-linked signal (the forward generator behind reading gene content as a record of a
-trait's history — e.g. dating the tree from the Great Oxidation Event). It simulates the trait
-with any [`trait`](#trait-a-phenotypic-trait) model (`--trait-model`), builds the coupling, and
-writes the gene-family output alongside the trait and a coupling manifest. (This was the standalone
-`coevolve-genetrait` command before it was folded into `coevolve`.)
+**Simulating sequences.** Add `--subst-model` and `sequence` also evolves a DNA or protein
+alignment down each rescaled gene tree, writing `alignments/<family>.fasta` alongside the
+phylograms. Pick a DNA model (`jc69`, `k80`, `hky85`, `gtr`) or a protein one (`poisson`, `lg`,
+`wag`, `jtt`, `dayhoff`) — DNA vs protein is auto-detected from the name. `--seq-length` sets the
+alignment length (default `300`), `--gamma-shape` adds across-site rate heterogeneity, and the
+DNA-model knobs are `--kappa` (k80/hky85 transition/transversion ratio), `--base-freqs A C G T`
+(hky85/gtr) and `--gtr-rates AC AG AT CG CT GT` (gtr). Seed each family's root from real sequences
+with `--root-fasta FILE` (a FASTA keyed by family id, whose per-family length overrides
+`--seq-length`) instead of a random draw:
 
 ```bash
-T=out/species_tree.nwk
-
-# a binary aerobic(1)/anaerobic(0) trait; 30% of a 40-family panel respond to it
-zombi2 coevolve --couple traits:genes -t $T \
-    --trait-model mk --states 2 --rate 0.3 --trait-center \
-    --panel 40 --responsive 0.3 --weight 1 --effect-loss 3 \
-    --loss 0.4 --trans 1.0 --write all --seed 7 -o out/
+zombi2 sequence --genomes run/ --subst-model hky85 --kappa 4 --seed 7 -o seq/
 ```
 
-A *responsive* family is retained where the trait favours it (loss scaled by
-`exp(-effect_loss · weight · trait)`) and purged where it does not; gain is field-blind
-horizontal transfer, so the **net** gene content of a lineage tracks its trait. `--responsive`
-chooses which families respond — a count (`8`), a fraction (`0.3`), an id/index list
-(`F3,F7,12`), or `@file` of ids — and `--signed` randomises the weight signs so some families
-co-occur with a high trait value and others with a low one. `--trait-center` centers a discrete
-trait's states (recommended for a binary character, giving a symmetric two-sided coupling), and
-`--trait-steps K` sets the within-branch resolution for a continuous trait (discrete traits use
-their exact stochastic map). `--effect-gain` optionally scales a lineage's transfer activity by
-the trait too (off by default).
+This writes one `alignments/<family>.fasta` per gene family (plus the rescaled `gene_trees/`).
 
-It writes the gene-family files selected by `--write` (as [`genomes`](#choosing-the-output-and-the-rust-engine)),
-and always adds **`traits.tsv`** / **`trait_tree.nwk`** (the trait at every node) and
-**`coupling.tsv`** (the per-family weights and effect sizes — the trait↔gene linkage on record
-for downstream inference). Reuse a precomputed trait instead of simulating one with
-`--trait-file traits.tsv` (a `node`/`value` table over **every** node — tips and ancestors —
-with numeric values, as `zombi2 trait` writes). See
-[Trait-linked gene families](guide/trait-linked-genomes.md) for the model.
+## `coevolve` — coupled models
+
+Everything above is a **pipeline**: build a tree, then overlay a trait or gene families on it,
+each stage independent. `coevolve` is for the case where one level **drives** another. A coupling
+is a **directed edge** `driver:target` — the driver's state modulates the target's rates — selected
+with the repeatable flag `coevolve --couple driver:target`. There are six edges among the three
+levels **species** / **traits** / **genes** (e.g. `traits:species` = a trait sets speciation, the
+SSE models; `traits:genes` = a trait sets gene loss/gain; and their reverses). Edges that point
+*into* species grow the tree as an output (forward-only, no `-t`); the rest are overlays on a given
+tree.
+
+```bash
+# a trait sets speciation/extinction and the tree is grown jointly with it (BiSSE)
+zombi2 coevolve --couple traits:species --sse-model bisse \
+    --lambda0 1 --lambda1 3 --q01 0.1 --q10 0.1 --tips 200 --seed 1 -o out/
+```
+
+See **[coevolution models](coevolution_models.md)** for the full reference — all six edges, their
+parameters, the joint (both-arrow) models, and the CLI options.
 
 ## Options
 
@@ -310,37 +292,26 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--family-speed SIGMA` | per-family intrinsic substitution speed `~ LogNormal(0, SIGMA)`, constant per family (`0` = every family the same) |
 | `--branch-speed SIGMA` | shared lineage clock — autocorrelated lognormal relaxed clock, drift `SIGMA` per `√time` (`0` = strict). Exclusive with `--branch-bins` |
 | `--branch-bins R1,R2,...` | alternative lineage clock — the discrete-bin GTDB model: ordered rate multipliers, a Markov walk between adjacent bins (`--branch-switch-rate`, `--branch-up-bias`) |
+| `--subst-model MODEL` | simulate an alignment per family: DNA (`jc69`, `k80`, `hky85`, `gtr`) or protein (`poisson`, `lg`, `wag`, `jtt`, `dayhoff`); auto-detected. Omit to only rescale the trees (no sequences) |
+| `--seq-length N` | alignment length in sites (default `300`); ignored where `--root-fasta` seeds a family's root |
+| `--root-fasta FILE` | FASTA (optionally `.gz`) of per-family root sequences keyed by family id — seeds each family's root instead of a random draw; its length overrides `--seq-length` per family |
+| `--gamma-shape ALPHA` | discrete-Gamma across-site rate heterogeneity shape (default: none) |
+| `--kappa K` | [DNA k80/hky85] transition/transversion ratio (default `2.0`) |
+| `--base-freqs A C G T` | [DNA hky85/gtr] equilibrium base frequencies (default equal) |
+| `--gtr-rates AC AG AT CG CT GT` | [DNA gtr] the 6 exchangeabilities (default all `1`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 
-### `coevolve --couple traits:genes`
-
-| Option | Meaning |
-| --- | --- |
-| `--couple traits:genes` | select the trait-conditioned-genes edge (required) |
-| `--tree` / `-t` | input species tree in Newick format (required) |
-| `--trait-model {bm,ou,eb,mk,threshold}` | trait to evolve then couple to gene families (default `bm`); its parameters are the [`trait`](#trait-a-phenotypic-trait) flags (`--sigma2`, `--alpha`/`--theta`, `--rate`, `--states`/`--ordered`/`--q-matrix`, `--thresholds`, …) |
-| `--trait-file TSV` | reuse a precomputed trait instead — a numeric `node`/`value` table over **every** node (as `zombi2 trait` writes); overrides `--trait-model` |
-| `--trait-center` | [discrete] center the state values around their mean (two-sided coupling; recommended for a binary trait) |
-| `--trait-steps K` | [continuous] within-branch resolution — sub-segment each branch into K pieces (default `16`; ignored for discrete traits) |
-| `--panel` | number of gene families in the panel (default `50`) |
-| `--loss` `--trans` `--dup` `--orig` | panel base rates — baseline per-copy loss (default `0.5`), transfer/HGT gain (default `1.0`), duplication, origination |
-| `--responsive SPEC` | which families respond: a count, a fraction (e.g. `0.3`), an id/index list (`F3,F7,12`), or `@FILE` (default `0.3`) |
-| `--weight` / `--signed` | coupling weight of each responsive family (default `1.0`) / randomise its sign |
-| `--effect-loss` | retention coupling strength: loss scales by `exp(-effect_loss · weight · trait)` (default `2.0`; `0` = uncoupled) |
-| `--effect-gain` | optional donor-side HGT-activity coupling: transfer scales by `exp(effect_gain · trait)` (default `0`) |
-| `--write {profiles,trace,trees,events,transfers,summary,all}` | which gene-family files to write (default `profiles trees`); `traits.tsv` / `trait_tree.nwk` / `coupling.tsv` are always written too |
-| `--sparse` / `--annotate-species` | sparse profile table / label internal gene-tree nodes (as in `genomes`) |
-| `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
-
-Run `zombi2 <command> -h` for the authoritative list.
+Run `zombi2 <command> -h` for the authoritative list. For the `coevolve` options, see
+[coevolution models](coevolution_models.md#cli-reference).
 
 ## Choosing the output, and the Rust engine
 
 The built-in model runs on the native **Rust** engine automatically — there is no flag to turn
 it on, and no pure-Python fallback for it (which keeps results reproducible against one engine).
-The `genomes` command therefore needs the compiled `zombi2_core` extension; it is **not** built
-by `pip install`, so build it once (see [the Rust engine](guide/rust-engine.md)) or the command
-exits with a build hint.
+The `genomes` command therefore needs the compiled `zombi2_core` extension, but `pip install
+zombi2` pulls a prebuilt engine wheel (Linux/macOS/Windows, CPython 3.10+), so nothing extra is
+needed. From a source checkout you build it once from `rust/` (see
+[the Rust engine](guide/rust-engine.md)); if it is missing the command exits with a build hint.
 
 `--write` selects which files to write — any of `profiles`, `trace`, `trees`, `events`,
 `transfers`, `summary`, or `all` (default: `profiles trees`); `species_tree.nwk` is always
@@ -380,75 +351,11 @@ only what you ask for.
 
 ## Nucleotide genomes (`--genome-model nucleotide`)
 
-`--genome-model nucleotide` switches `genomes` to a **nucleotide-resolution** model: each genome is
-a circular sequence that evolves by **variable-length structural events** — inversion, deletion,
-tandem duplication, transposition, HGT transfer and origination. Genes are not predefined; they
-**emerge** as *blocks* — maximal intervals of ancestral sequence with a single shared history — so
-you still get a phylogenetic profile and per-block gene trees, but derived from real sequence
-structure rather than an atomic gene-family model.
-
-The shared `--dup` / `--trans` / `--loss` / `--orig` flags become **per-nucleotide** rates here
-(so use small values, on the order of `1e-3`); `--inversion` and `--transposition` are the extra
-structural events, `--root-length` sets the starting chromosome length, and `--mean-length` the mean
-segment length of an inversion/transposition (in nt). `--initial-chromosomes` seeds root chromosomes
-(default `1`).
-
-```bash
-zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
-    --inversion 0.001 --dup 0.0006 --loss 0.0006 --root-length 1000 --seed 1 -o out/
-```
-
-`--write profiles` writes the emergent block profile (`Profiles.tsv` / `Presence.tsv`, blocks ×
-species) plus `blocks.tsv` and the per-leaf `Mosaics.tsv`, taking the fast Rust path; the default
-`profiles trees` also writes the per-block `gene_trees/` and their reconciliations
-(`Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv`). `--sparse`
-applies to the profile as usual. (The family-model `events` / `transfers` / `summary` outputs do
-not apply to this model.)
-
-**Genes & intergenes.** Pass `--genes genes.tsv` (a BED/TSV of `start end [name]` intervals on the
-root chromosome) to declare genes explicitly. Event breakpoints then fall only in intergene
-positions, so **genes are never split** — each gene is one block, each intergene stretch fragments
-into intergene blocks. `--pseudogenization P` makes a loss that hits a gene demote it to intergene
-with probability `P` (sequence retained, a state change in the gene's tree); `--replacement P`
-makes a transfer a homologous replacement (the copy replaces the recipient's syntenic locus, found
-via flanking genes of matching identity and orientation; additive when there is no homolog). Genic mode runs on the Python engine and
-adds `genes.tsv` (the annotation), `Gene_trees/` and `Intergene_trees/` (the two tree sets), a
-`kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
-
-```bash
-zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
-    --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
-    --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
-```
-
-**Starting from a real genome.** `--gff FILE` copies a real annotation's chromosome length and
-gene coordinates (the intergenes are the gaps), so a simulation can start from an actual bacterium.
-Overlapping genes — common in bacteria — are trimmed to be disjoint (each gene's start clipped to
-the previous gene's end; a swallowed gene dropped), and the count is reported. The file may be
-gzipped; for a chromosome-plus-plasmids file the most-annotated sequence is used unless
-`--gff-seqid ID` selects another. Genes keep their annotation names (locus tag / `Name`).
-
-```bash
-# evolve the E. coli K-12 chromosome (from its RefSeq GFF) along a tree
-zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
-    --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
-    --write profiles trees -o out/
-```
-
-**Sequences and ancestral genomes.** `--write ancestral` simulates the DNA and reconstructs the
-genome at **every** node of the tree (the root reproduces the input genome). It writes
-`Architecture/<node>.tsv` (each node's oriented gene/intergene mosaic), gzipped
-`Genomes/<node>.fasta.gz` (the full assembled DNA of every node), and `Gene_alignments/<gene>.fasta`
-(the extant per-gene alignments). Pick the substitution model with `--subst-model {jc69,k80,hky85,
-gtr}` (`--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`). `--genome-fasta
-FILE` seeds the root from the real genome DNA (so the reconstructed root is byte-identical to the
-input); without it, root sequences are drawn at random.
-
-```bash
-zombi2 genomes -t out/species_tree.nwk --genome-model nucleotide \
-    --gff ecoli.gff --genome-fasta ecoli.fna --subst-model hky85 --subst-rate 0.05 \
-    --write ancestral -o out/
-```
+`--genome-model nucleotide` switches `genomes` to a **nucleotide-resolution** model — genomes evolve
+by variable-length structural events (inversion, deletion, tandem duplication, transposition,
+transfer, origination), genes emerge as blocks, and the model can start from a real GFF genome and
+even simulate ancestral DNA. It is a substantial model with its own flags; see
+[nucleotide genomes](guide/nucleotide-genomes.md) for the full walkthrough.
 
 ## Scope
 
