@@ -23,6 +23,7 @@ out/
 
 # Built docs site
 site/
+_site/
 
 # Private didactic material (kept locally, not published)
 docs/non_independence.pdf
