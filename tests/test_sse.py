@@ -329,3 +329,72 @@ def test_cladogenesis_off_leaves_traits_unchanged():
     a = z.simulate_traits(tree, z.BrownianMotion(0.5), seed=9).to_newick()
     b = z.simulate_traits(tree, z.BrownianMotion(0.5), cladogenesis=z.Cladogenesis(), seed=9).to_newick()
     assert a == b
+
+
+# --------------------------------------------------------------------------- MuSSE tip-fraction bias
+def _musse_tip_state_fractions(model, *, age, reps, seed=0):
+    """Aggregate fraction of extant tips in each state over many independent trees."""
+    rng = np.random.default_rng(seed)
+    counts = np.zeros(model.k)
+    total = 0
+    for _ in range(reps):
+        res = z.simulate_sse(model, age=age, rng=rng)
+        for v in res.values.values():
+            counts[int(v)] += 1
+            total += 1
+    return counts / total
+
+
+def test_musse_fastest_speciation_state_over_represented_in_tips():
+    """MuSSE (k=3): the highest-speciation state is over-represented among standing tips.
+
+    States 0/1/2 share extinction and a symmetric transition matrix, but state 2 speciates
+    3x faster. The state-independent baseline is 1/3 each; the SSE effect must push state 2's
+    tip fraction well above it (observed ~0.79, std ~0.01 over seeds -> threshold 0.55 clears
+    by ~20 sigma).
+    """
+    Q = [[-0.4, 0.2, 0.2], [0.2, -0.4, 0.2], [0.2, 0.2, -0.4]]
+    m = z.MuSSE(birth=[1.0, 1.0, 3.0], death=[0.3, 0.3, 0.3], Q=Q, states=[0, 1, 2])
+    fracs = _musse_tip_state_fractions(m, age=1.8, reps=150, seed=0)
+    assert abs(fracs.sum() - 1.0) < 1e-9
+    assert fracs[2] > 0.55                       # fastest-speciating state clearly above 1/3
+    assert fracs[2] > fracs[0] and fracs[2] > fracs[1]
+
+
+# --------------------------------------------------------------------------- ClaSSE jump-kernel law
+def _collect_cladogenetic_jumps(*, jump_sigma2, n_trees, n_tips, age, seed):
+    """Every non-root node's value minus its parent's, over ``n_trees`` fixed trees.
+
+    Anagenesis is nulled (``BrownianMotion(sigma2=0)`` -> ``evolve`` returns its input
+    unchanged), so the ONLY difference between a node and its parent is the single
+    cladogenetic jump applied as the branch is born. Each such difference is therefore an
+    independent draw of the ClaSSE continuous jump kernel ``Normal(0, jump_sigma2)``.
+    """
+    rng = np.random.default_rng(seed)
+    jumps = []
+    for _ in range(n_trees):
+        tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=n_tips, age=age, rng=rng)
+        res = z.simulate_traits(tree, z.BrownianMotion(sigma2=0.0, x0=0.0),
+                                cladogenesis=z.Cladogenesis(jump_sigma2=jump_sigma2), rng=rng)
+        nv = res.node_values
+        for node in tree.nodes_preorder():
+            if node.parent is not None:
+                jumps.append(nv[node] - nv[node.parent])
+    return np.asarray(jumps)
+
+
+def test_classe_continuous_jumps_are_normal_zero_jump_sigma2():
+    """ClaSSE cladogenetic jumps are distributed ``Normal(0, jump_sigma2)``.
+
+    Statistical oracle: with anagenetic diffusion switched off, each parent->child step is
+    exactly one speciation jump, so the empirical mean must be ~0 and the empirical variance
+    must match the ``jump_sigma2`` parameter. Tolerances are set several sigma wide:
+    for n~60k jumps and sigma2=2, sd(mean)~0.0058 and sd(var)~0.012, so 0.05 / 0.06 bands
+    are ~8.6 / ~5.2 sigma clearances.
+    """
+    jump_sigma2 = 2.0
+    jumps = _collect_cladogenetic_jumps(jump_sigma2=jump_sigma2, n_trees=15,
+                                        n_tips=2000, age=6.0, seed=20260707)
+    assert jumps.size > 50000
+    assert abs(jumps.mean() - 0.0) < 0.05                      # mean-zero jump
+    assert abs(jumps.var(ddof=1) - jump_sigma2) < 0.06         # variance == jump_sigma2
