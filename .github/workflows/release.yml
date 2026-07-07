@@ -104,10 +104,40 @@ jobs:
 
   # ---- publishing (gated, Trusted Publishing / OIDC) ---------------------
 
-  publish-testpypi:
-    name: publish to TestPyPI
+  # Each package publishes from its own job with its own GitHub Environment.
+  # PyPI Trusted Publishing keys on (owner, repo, workflow, environment), and a
+  # *pending* publisher must be unique on those four fields -- so two
+  # not-yet-created projects cannot share one environment. Hence:
+  #   zombi2      -> environments `testpypi` / `pypi`
+  #   zombi2_core -> environments `testpypi-core` / `pypi-core`
+  # The zombi2 jobs wait on the core job so the exactly-pinned engine is
+  # already on the index before the front end that depends on it.
+
+  publish-testpypi-core:
+    name: publish zombi2_core to TestPyPI
     if: github.event_name == 'workflow_dispatch' && inputs.testpypi
-    needs: [core-wheels, core-sdist, zombi2-dist]
+    needs: [core-wheels, core-sdist]
+    runs-on: ubuntu-latest
+    environment: testpypi-core
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-core-*
+          path: dist-core
+          merge-multiple: true
+      - name: Publish zombi2_core
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-core
+          repository-url: https://test.pypi.org/legacy/
+          attestations: false
+
+  publish-testpypi-zombi2:
+    name: publish zombi2 to TestPyPI
+    if: github.event_name == 'workflow_dispatch' && inputs.testpypi
+    needs: [zombi2-dist, publish-testpypi-core]
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -115,19 +145,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: dist-core-*
-          path: dist-core
-          merge-multiple: true
-      - uses: actions/download-artifact@v4
-        with:
           name: dist-zombi2
           path: dist-zombi2
-      - name: Publish zombi2_core
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist-core
-          repository-url: https://test.pypi.org/legacy/
-          attestations: false
       - name: Publish zombi2
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -135,12 +154,12 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           attestations: false
 
-  publish-pypi:
-    name: publish to PyPI
+  publish-pypi-core:
+    name: publish zombi2_core to PyPI
     if: github.event_name == 'release'
-    needs: [core-wheels, core-sdist, zombi2-dist]
+    needs: [core-wheels, core-sdist]
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: pypi-core
     permissions:
       id-token: write
     steps:
@@ -149,14 +168,24 @@ jobs:
           pattern: dist-core-*
           path: dist-core
           merge-multiple: true
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist-zombi2
-          path: dist-zombi2
       - name: Publish zombi2_core
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-core
+
+  publish-pypi-zombi2:
+    name: publish zombi2 to PyPI
+    if: github.event_name == 'release'
+    needs: [zombi2-dist, publish-pypi-core]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-zombi2
+          path: dist-zombi2
       - name: Publish zombi2
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
