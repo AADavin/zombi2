@@ -1,4 +1,6 @@
-# ZOMBI2
+<h1>
+  <img src="assets/logo.svg" alt="ZOMBI2 logo" height="38" align="middle">&nbsp;ZOMBI2
+</h1>
 
 [![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
