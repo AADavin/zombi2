@@ -149,14 +149,17 @@ def main():
 
 
 def _rate_bar(d, x, y, w, h):
-    grad = draw.LinearGradient(x, y, x + w, y)
-    for i in range(21):
-        t = i / 20.0
-        grad.add_stop(t, C.rate_hex(C.RATE_LO * (C.RATE_HI / C.RATE_LO) ** t))
-    d.append(grad)
-    d.append(draw.Rectangle(x, y, w, h, fill=grad, stroke=INK, stroke_width=0.8))
+    # discrete solid-colour cells, NOT a LinearGradient: macOS Preview flattens an axial-shading
+    # gradient to a single colour, so a gradient colour bar reads as solid there. Cells render
+    # identically everywhere.
+    n = 64
+    for i in range(n):
+        t = i / (n - 1)
+        d.append(draw.Rectangle(x + (i / n) * w, y, w / n + 0.7, h,
+                                fill=C.rate_hex(C.RATE_LO * (C.RATE_HI / C.RATE_LO) ** t), stroke="none"))
+    d.append(draw.Rectangle(x, y, w, h, fill="none", stroke=INK, stroke_width=0.8))
     for tx, lab, anc in ((x, "slow", "start"), (x + w / 2, "R_b = 1", "middle"), (x + w, "fast", "end")):
-        d.append(draw.Text(lab, FS_TICK, tx, y + h + 16, font_family=FONT, text_anchor=anc, fill=MUTED))
+        d.append(draw.Text(lab, FS_TICK, tx, y + h + 23, font_family=FONT, text_anchor=anc, fill=MUTED))
 
 
 if __name__ == "__main__":

@@ -93,7 +93,7 @@ def panel_model(d, cx0, cy0):
                        text_anchor="middle", fill=INK))
     d.append(draw.Text("fast speciation", FS_TICK, cx0 + gx, cy0 + 120, font_family=FONT,
                        text_anchor="middle", fill=INK))
-    d.append(draw.Text("gain = transfer (proportional to prevalence) + origination", FS_TICK,
+    d.append(draw.Text("gain = transfer (proportional to prevalence) + origination", FS_TICK - 1,
                        cx0 + gx / 2, cy0 - 96, font_family=FONT, text_anchor="middle", fill=MUTED,
                        font_style="italic"))
     d.append(draw.Text("carriers speciate faster, so the driver's clades grow", FS_ANNOT,

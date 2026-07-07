@@ -191,14 +191,23 @@ def render():
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     ly = 82
     lty = ly + 0.34 * FS_TICK   # L#1: text baseline vertically centred on the legend marker
-    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=INK, stroke_width=5.2))
-    d.append(draw.Text("modifier present", FS_TICK, W / 2 - 260, lty, font_family=FONT,
+    # spaced, page-centred legend (previously "modifier present" ran into the "absent" swatch)
+    cwf = 0.55 * FS_TICK
+    seg, g1, gap = 32, 8, 46
+    b1 = seg + g1 + cwf * len("modifier present")
+    b2 = seg + g1 + cwf * len("absent")
+    b3 = 13 + g1 + cwf * len("tip trait value")
+    x = W / 2 - (b1 + gap + b2 + gap + b3) / 2
+    d.append(draw.Line(x, ly, x + seg, ly, stroke=INK, stroke_width=5.2))
+    d.append(draw.Text("modifier present", FS_TICK, x + seg + g1, lty, font_family=FONT,
                        text_anchor="start", fill=INK))
-    d.append(draw.Line(W / 2 - 110, ly, W / 2 - 78, ly, stroke=GREY, stroke_width=2.4))
-    d.append(draw.Text("absent", FS_TICK, W / 2 - 70, lty, font_family=FONT,
+    x += b1 + gap
+    d.append(draw.Line(x, ly, x + seg, ly, stroke=GREY, stroke_width=2.4))
+    d.append(draw.Text("absent", FS_TICK, x + seg + g1, lty, font_family=FONT,
                        text_anchor="start", fill=INK))
-    d.append(draw.Circle(W / 2 + 40, ly, 6.5, fill=INK, stroke=INK, stroke_width=1.8))
-    d.append(draw.Text("tip trait value", FS_TICK, W / 2 + 54, lty, font_family=FONT,
+    x += b2 + gap
+    d.append(draw.Circle(x + 6.5, ly, 6.5, fill=INK, stroke=INK, stroke_width=1.8))
+    d.append(draw.Text("tip trait value", FS_TICK, x + 13 + g1, lty, font_family=FONT,
                        text_anchor="start", fill=INK))
 
     # shared title baseline; panel A's trajectory plot is vertically centred against panel B's tree

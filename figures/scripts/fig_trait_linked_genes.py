@@ -79,7 +79,7 @@ def panel_model(d, ox, oy, pw, ph, title_y):
     d.append(resp)
     d.append(draw.Line(x_at(xlo), y_at(BASE_LOSS), x_at(xhi), y_at(BASE_LOSS),
                        stroke=MUTED, stroke_width=3.0, stroke_dasharray="7,5"))
-    d.append(draw.Text("responsive (w>0)", FS_TICK, x_at(0.2), y_at(BASE_LOSS * np.exp(-EFFECT_LOSS * 0.2)) - 14,
+    d.append(draw.Text("responsive (w>0)", FS_TICK, x_at(0.55), y_at(BASE_LOSS * np.exp(-EFFECT_LOSS * 0.2)) - 14,
                        font_family=FONT, text_anchor="start", fill=INK, font_weight="bold"))
     d.append(draw.Text("inert (w=0)", FS_TICK, x_at(-2.4), y_at(BASE_LOSS) - 12, font_family=FONT,
                        text_anchor="start", fill=MUTED))
