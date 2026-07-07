@@ -12,7 +12,7 @@ Ornstein-Uhlenbeck figures, so the family reads together:
 
 The continuous gradient flowing into a binary tip pattern is exactly the model's point.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_threshold.py
+Run:  python figures/scripts/fig_trait_threshold.py
 """
 
 from __future__ import annotations

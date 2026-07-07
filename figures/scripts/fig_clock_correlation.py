@@ -14,7 +14,7 @@ branch's rate.
 
 House style: painted trees, viridis rate scale shared with the family figure, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_clock_correlation.py
+Run:  python figures/scripts/fig_clock_correlation.py
 """
 
 from __future__ import annotations

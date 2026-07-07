@@ -381,7 +381,7 @@ _VS_ZOMBI1_DIR = Path(__file__).resolve().parent / "vs_zombi1"
 
 
 def _zombi1_dir() -> Path:
-    return Path(os.environ.get("ZOMBI1_DIR", "/Users/aadria/Desktop/Github/ZOMBI"))
+    return Path(os.environ.get("ZOMBI1_DIR", "../ZOMBI"))
 
 
 def _zombi1_gm(n: int, seed: int, timeout: float) -> dict | None:

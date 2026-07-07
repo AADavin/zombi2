@@ -16,7 +16,7 @@ substitutions accumulating along the branches. Longer branches carry more change
 House style: B&W graphs; the four bases are a categorical set, so they (and only they) get
 four colour-blind-safe colours, as the DEC areas do.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_seq_subst_models.py
+Run:  python figures/scripts/fig_seq_subst_models.py
 """
 
 from __future__ import annotations

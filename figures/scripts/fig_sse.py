@@ -14,7 +14,7 @@ the diversification signal is written into the shape of the tree itself.
 
 House style: B&W, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_sse.py
+Run:  python figures/scripts/fig_sse.py
 """
 
 from __future__ import annotations

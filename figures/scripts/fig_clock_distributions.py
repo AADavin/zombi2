@@ -14,7 +14,7 @@ differ in how far individual branches stray from 1.
 
 House style: B&W line plots, curves labelled in place (no legend box), one centered title.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_clock_distributions.py
+Run:  python figures/scripts/fig_clock_distributions.py
 """
 
 from __future__ import annotations

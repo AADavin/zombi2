@@ -8,7 +8,7 @@ extinction (loss) events are marked where they happen on the branches.
 
 Areas use the same colours as the DEC schematic (categorical exception to the B&W house style).
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_dec_tree.py
+Run:  python figures/scripts/fig_dec_tree.py
 """
 
 from __future__ import annotations

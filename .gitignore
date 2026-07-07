@@ -28,6 +28,11 @@ site/
 docs/non_independence.pdf
 docs/non_independence.tex
 
+# Local publication-prep working files (not part of the public repo)
+PUBLICATION_READINESS_REPORT.md
+PUBLICATION_READINESS_REPORT.pdf
+coleman_biorxiv.pdf
+
 # --- Generated artifacts: regenerable outputs; the sources that produce them ARE tracked ---
 
 # Offline single-file docs mirror (rebuild with tools/build_docs_html.py)

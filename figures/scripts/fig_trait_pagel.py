@@ -17,7 +17,7 @@ This figure is produced in two palettes from one run: a soft, low-saturation COL
 colour, "present" (state 1) is drawn in a muted accent hue; in B&W it is near-black. The BW look
 is preserved so the monochrome figure can always be regenerated.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_pagel.py
+Run:  python figures/scripts/fig_trait_pagel.py
 """
 
 from __future__ import annotations
