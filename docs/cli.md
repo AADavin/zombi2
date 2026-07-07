@@ -182,7 +182,7 @@ The rescaling model is `rate(family g, species branch b) = R_b · s_g`: a **shar
 GTDB model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. It writes
 `gene_trees/<family>_extant_subst.nwk` (+ `_complete_subst.nwk`) and, for reproducibility,
 `gene_family_speeds.tsv` / `branch_rates.tsv`. See
-[Rate variation](guide/rate-variation.md#family-sequence-evolution) for the model.
+[Sequences](guide/sequences.md) for the model.
 
 **Simulating sequences.** Add `--subst-model` and `sequence` also evolves a DNA or protein
 alignment down each rescaled gene tree, writing `alignments/<family>.fasta` alongside the
