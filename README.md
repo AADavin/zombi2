@@ -2,6 +2,8 @@
   <img src="assets/logo.svg" alt="ZOMBI2 logo" height="38" align="middle">&nbsp;ZOMBI2
 </h1>
 
+**[🌐 Website](https://aadavin.github.io/zombi2/)** · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Quickstart](https://aadavin.github.io/zombi2/docs/quickstart/)
+
 [![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
 [![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://aadavin.github.io/zombi2/docs/)
