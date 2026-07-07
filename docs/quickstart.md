@@ -58,5 +58,5 @@ counts. See the full [command-line interface](cli.md) for every option.
 - [Gene families & rates](guide/genomes.md) — shared vs per-family sampled rates.
 - [Transfers](guide/genomes.md) — replacement, distance, self-transfer.
 - [Bounding growth](guide/genomes.md) — caps and carrying capacity.
-- [Gene trees & output](guide/gene-trees-and-output.md).
+- [Gene trees & output](guide/genomes.md#gene-trees-output).
 - [Ordered genomes](guide/genomes.md) — gene order, inversions, transpositions.
