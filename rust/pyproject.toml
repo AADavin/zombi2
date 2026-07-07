@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Adrian A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death"]
-license = "GPL-3.0-or-later"
+license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
