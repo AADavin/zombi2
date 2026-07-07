@@ -85,6 +85,4 @@ line — `shared` (the default) and `per-genome`; per-family rates are reached t
 
 The level and the rate model are independent: any rate model can drive any unordered run, and the
 choice never affects *which* events fire, only *how often* each family fires them. Chapter 8 works
-through the rate models in detail. Gene-family *coupling* — where families gain and lose
-non-independently (a Potts/Ising panel) — is not part of this release's CLI or manual; it is
-available through the Python API (`zombi2.simulate_coupled`).
+through the rate models in detail.

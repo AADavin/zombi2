@@ -59,8 +59,6 @@ NAMESPACES = {
         "evolve_on_tree", "read_fasta", "write_fasta",
     ],
     "coevolve": [
-        "CouplingSpec", "PottsRates", "pathway_blocks", "simulate_coupled",
-        "CoupledResult",
         "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
         "TraitLinkedResult", "simulate_trait_linked_genomes",
         "GeneDiversification", "GeneDiversificationResult",
@@ -121,7 +119,7 @@ def test_from_import_style_works():
     from zombi2.traits import OrnsteinUhlenbeck
     from zombi2.sequences import lg, StrictClock, UncorrelatedLogNormalClock
     from zombi2.genomes import simulate_genomes
-    from zombi2.coevolve import simulate_coupled
+    from zombi2.coevolve import simulate_trait_linked_genomes
     from zombi2.distributions import Gamma
 
     assert DiversityDependent is z.DiversityDependent
@@ -131,13 +129,13 @@ def test_from_import_style_works():
     assert StrictClock is z.StrictClock
     assert UncorrelatedLogNormalClock is z.UncorrelatedLogNormalClock
     assert simulate_genomes is z.simulate_genomes
-    assert simulate_coupled is z.simulate_coupled
+    assert simulate_trait_linked_genomes is z.simulate_trait_linked_genomes
     assert Gamma is z.Gamma
 
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 133   # 132 joint-model set + CorrelatedBinaryK (Pagel k-trait)
+    assert len(z.__all__) == 128   # joint-model set + CorrelatedBinaryK, minus the 5 archived coupling names
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 
