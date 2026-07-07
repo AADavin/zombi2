@@ -1,8 +1,7 @@
 """The phylogenetic profile matrix — families x extant species.
 
-This is the key v1 output and the σ-sample dataset the future inverse-Potts / DCA
-validation will consume. It is read directly off the final genome state at each extant
-leaf; no gene trees are needed.
+This is the key v1 output: a presence/copy-number panel over the extant leaves. It is read
+directly off the final genome state at each extant leaf; no gene trees are needed.
 
 **Sparse by construction.** A copy-number profile is overwhelmingly zero — each gene
 family is present in only a handful of species — so the dense ``families x species``

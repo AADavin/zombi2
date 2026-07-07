@@ -13,8 +13,7 @@ Four layers:
 
 The recovery test uses a near-star tree (all lineages split just below the root, then evolve
 independently for the whole age) to isolate the injected trait→gene signal from the shared-
-ancestry confounding a normal birth–death tree would add — the same device as
-``tests/test_coupling.py``.
+ancestry confounding a normal birth–death tree would add.
 """
 
 import itertools

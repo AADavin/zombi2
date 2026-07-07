@@ -9,7 +9,6 @@ copy). This one interface handles every planned variation as a subclass:
 * per-family sampled — each family draws its own D/T/L at first sighting; emit one entry
   per family so the target family is chosen *weighted by its own rate*.
 * genome-wise (future) — size-independent totals; emit ``family=None`` constant entries.
-* Potts / coupled (future) — read ``genome.presence_vector(order)``.
 
 **Growth control.** A family's copy number is a birth-death process; with duplication >
 loss it grows like ``e^{(d-l)t}``. Two mechanisms:
@@ -83,9 +82,8 @@ class RateModel(ABC):
         stays donor-limited. Default ``1.0``: every transfer establishes, the caller skips the
         RNG draw, and this default never inspects ``selection`` (whose ``genes`` are only
         populated at extraction for some genome types) — so existing models keep byte-identical
-        streams. A coupled model (see :class:`~zombi2.coupling.PottsRates`) overrides this to
-        bias establishment by the recipient's local field, putting part of the coupling on the
-        *gain* channel."""
+        streams. A subclass may override this to bias establishment by the recipient genome's
+        current content, putting part of any coupling on the *gain* channel."""
         return 1.0
 
     def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
