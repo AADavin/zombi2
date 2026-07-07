@@ -8,7 +8,7 @@ in the same painted-tree house style as the Ornstein-Uhlenbeck figure, so the tw
 This module also exports the shared viridis colormap (VIRIDIS / viridis / hexc) used by the other
 continuous-trait figures.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_bm.py
+Run:  python figures/scripts/fig_trait_bm.py
 """
 
 from __future__ import annotations

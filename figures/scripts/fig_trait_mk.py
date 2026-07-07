@@ -13,7 +13,7 @@ This figure is produced in two palettes from one run: a soft, low-saturation COL
 three categorical states are three greys (light / mid / dark), the one readable monochrome device
 for a small categorical set; in colour they become three muted, print-friendly hues.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_mk.py
+Run:  python figures/scripts/fig_trait_mk.py
 """
 
 from __future__ import annotations

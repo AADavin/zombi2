@@ -11,7 +11,7 @@ toward whichever optimum its current regime sits under, so the tips split into t
 
 House style: painted tree, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_multioptimum.py
+Run:  python figures/scripts/fig_trait_multioptimum.py
 """
 
 from __future__ import annotations

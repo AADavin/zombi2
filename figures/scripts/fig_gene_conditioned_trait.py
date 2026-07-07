@@ -13,7 +13,7 @@ toward theta_absent. A discrete genomic event thus reads out as a shift in a con
 
 House style: B&W, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_gene_conditioned_trait.py
+Run:  python figures/scripts/fig_gene_conditioned_trait.py
 """
 
 from __future__ import annotations

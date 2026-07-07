@@ -15,7 +15,7 @@ explain the diversity. This is the null a raw BiSSE fit would wrongly read as a 
 
 House style: B&W, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_sse_hisse.py
+Run:  python figures/scripts/fig_sse_hisse.py
 """
 
 from __future__ import annotations

@@ -13,7 +13,7 @@ autocorrelated clocks vary the rate smoothly down the tree.
 
 House style: painted trees, one centered title, ASCII text, shared viridis rate bar.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_clock_family.py
+Run:  python figures/scripts/fig_clock_family.py
 """
 
 from __future__ import annotations

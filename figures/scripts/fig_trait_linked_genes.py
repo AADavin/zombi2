@@ -15,7 +15,7 @@ favours them, and inert families carry no trait signal.
 
 House style: viridis for the continuous trait; B&W presence cells; one centered title.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_linked_genes.py
+Run:  python figures/scripts/fig_trait_linked_genes.py
 """
 
 from __future__ import annotations
