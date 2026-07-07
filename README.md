@@ -1,7 +1,7 @@
 # ZOMBI2
 
 [![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
 **A simulator suite for genome evolution.**
@@ -122,4 +122,4 @@ repository* button). A dedicated ZOMBI2 paper is in preparation; until then, cit
 
 ## License
 
-ZOMBI2 is released under the [GNU General Public License v3.0 or later](LICENSE).
+ZOMBI2 is released under the [MIT License](LICENSE).

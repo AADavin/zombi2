@@ -20,4 +20,4 @@ CPython 3.10 and newer (built against the stable ABI). If no wheel matches your
 platform, `pip` builds it from source, which requires a
 [Rust toolchain](https://rustup.rs).
 
-Licensed under GPL-3.0-or-later, the same as ZOMBI2.
+Licensed under the MIT License, the same as ZOMBI2.

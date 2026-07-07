@@ -33,7 +33,7 @@ First public release. ZOMBI2 is a ground-up redesign of
 - **Command-line interface** — `zombi2 species | genomes | trait | sequence | coevolve`, with
   grouped, sectioned help and a per-run reproducibility manifest (version, seed, full command
   line and resolved parameters).
-- **Packaging** — GPL-3.0-or-later license, `CITATION.cff`, and PyPI metadata.
+- **Packaging** — MIT license, `CITATION.cff`, and PyPI metadata.
 
 ### Notes
 

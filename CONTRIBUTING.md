@@ -73,6 +73,6 @@ build it.
 
 ## License
 
-ZOMBI2 is released under the **GNU General Public License v3.0 or later** (see
+ZOMBI2 is released under the **MIT License** (see
 [`LICENSE`](LICENSE)). By contributing, you agree that your contributions are licensed under the
 same terms.
