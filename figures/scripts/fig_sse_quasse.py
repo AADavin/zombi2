@@ -11,7 +11,7 @@ faster and the tree fills with high (yellow) values.
 
 House style: viridis for the continuous trait (as in the BM/OU figures), one centered title.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_sse_quasse.py
+Run:  python figures/scripts/fig_sse_quasse.py
 """
 
 from __future__ import annotations

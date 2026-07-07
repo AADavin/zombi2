@@ -5,7 +5,7 @@ state, compute every event's rate and their total R; draw a waiting time from an
 Exponential(R); stop if the clock has passed the target age, otherwise choose one
 event proportional to its rate, apply it, and go round again.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_gillespie_loop.py
+Run:  python figures/scripts/fig_gillespie_loop.py
 """
 
 from __future__ import annotations

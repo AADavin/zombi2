@@ -10,7 +10,7 @@ Three panels, left to right, walk through a single iteration of the algorithm:
 House style: B&W plus the ZOMBI Set1 event accents (duplication blue, transfer green,
 loss red) so the same events keep the same colour across the manual.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_gillespie_step.py
+Run:  python figures/scripts/fig_gillespie_step.py
 """
 
 from __future__ import annotations

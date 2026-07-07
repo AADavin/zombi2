@@ -17,7 +17,7 @@ carries R_b.
 
 House style: painted trees, viridis rate scale, ASCII text (R_b, s_g written out).
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_seq_gene_lineage.py
+Run:  python figures/scripts/fig_seq_gene_lineage.py
 """
 
 from __future__ import annotations

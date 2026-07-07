@@ -14,7 +14,7 @@ bars show each extant genome's size.
 
 House style: B&W, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_punctuational_genome.py
+Run:  python figures/scripts/fig_punctuational_genome.py
 """
 
 from __future__ import annotations

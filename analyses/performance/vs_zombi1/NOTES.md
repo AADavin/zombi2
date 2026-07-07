@@ -1,7 +1,7 @@
 # ZOMBI 1 — genome-step (`Gm`) rate semantics & benchmarking notes
 
-Everything below is derived from reading the ZOMBI 1 source at
-`/Users/aadria/Desktop/Github/ZOMBI` (nothing in that repo was modified).
+Everything below is derived from reading the ZOMBI 1 source (a local ZOMBI v1
+checkout, pointed at by `$ZOMBI1_DIR`; nothing in that repo was modified).
 
 ## 1. Parameter-file syntax (`GenomeParameters.tsv` / `SpeciesTreeParameters.tsv`)
 
