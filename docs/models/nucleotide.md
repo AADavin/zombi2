@@ -1,5 +1,7 @@
 # Nucleotide genomes
 
+> **Tutorial:** see the [Nucleotide genomes](../guide/nucleotide-genomes.md) guide.
+
 The **nucleotide** level works one level down from [ordered chromosomes](ordered.md): a genome is a
 sequence of individual nucleotides and events act on variable-length **segments** of them, so
 paralogy, xenology, gene order and orientation are all resolved at nucleotide resolution. Surviving

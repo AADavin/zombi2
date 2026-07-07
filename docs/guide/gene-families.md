@@ -1,5 +1,7 @@
 # Gene families & rates
 
+> **Reference:** see the [Gene-family models](../models/gene-family.md) catalog page.
+
 Along the fixed species tree, ZOMBI2 runs one forward continuous-time (Gillespie) process
 over all co-existing branches, with four core events:
 
@@ -21,9 +23,11 @@ transfer (curved arrow) placed on the branches where the Gillespie process fires
 
 ## Rate models
 
-Rates are supplied by a **rate model**. Two ship today; both are subclasses of `RateModel`.
+Rates are supplied by a **rate model**, all subclasses of `RateModel`. Several ship: `SharedRates`
+(every family the same), `FamilySampledRates` (per-family sampled, ZOMBI1 style), `PerGenomeRates`
+(constant per-genome rates), and `BranchRates` (rates vary per species-tree branch).
 
-### Uniform rates — every family the same
+### Shared rates — every family the same
 
 ```python
 from zombi2.genomes import SharedRates, simulate_genomes

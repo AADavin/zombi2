@@ -1,5 +1,7 @@
 # Nucleotide genomes
 
+> **Reference:** see the [Nucleotide-genome model](../models/nucleotide.md) catalog page.
+
 The standard gene-family model ([gene families & rates](gene-families.md)) treats each gene
 as an indivisible token. The **nucleotide genome** model works one level down: a genome is a
 sequence of individual nucleotides, and structural events act on **variable-length segments**

@@ -1,5 +1,7 @@
 # Protein substitution models
 
+> **Tutorial:** see the [Sequences](../guide/sequences.md) guide.
+
 Once a `genomes` run's gene trees have been rescaled from time into substitutions per site by the
 relaxed molecular clock, ZOMBI2 can evolve an **amino-acid alignment** along each tree. A protein substitution model is a 20-state **time-reversible** rate matrix `Q_ij = S_ij · π_j`,
 built from a symmetric exchangeability matrix `S` and the stationary amino-acid frequencies `π`, and

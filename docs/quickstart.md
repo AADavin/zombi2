@@ -55,7 +55,7 @@ counts. See the full [command-line interface](cli.md) for every option.
 ## Next steps
 
 - [Species trees](guide/species-trees.md) — models and conditioning.
-- [Gene families & rates](guide/gene-families.md) — uniform vs per-family sampled rates.
+- [Gene families & rates](guide/gene-families.md) — shared vs per-family sampled rates.
 - [Transfers](guide/transfers.md) — replacement, distance, self-transfer.
 - [Bounding growth](guide/growth.md) — caps and carrying capacity.
 - [Gene trees & output](guide/gene-trees-and-output.md).
