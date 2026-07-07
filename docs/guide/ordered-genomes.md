@@ -17,15 +17,15 @@ orientation — the substrate for segment duplications, inversions and transposi
 small factory:
 
 ```python
-import zombi2 as z
+from zombi2.genomes import SharedRates, simulate_genomes, OrderedGenome
 
-rates = z.SharedRates(
+rates = SharedRates(
     duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
     inversion=0.3, transposition=0.3,      # rearrangement rates (ordered genomes only)
 )
-genomes = z.simulate_genomes(
+genomes = simulate_genomes(
     tree, rates, initial_families=30, seed=1,
-    genome_factory=lambda ids: z.OrderedGenome(ids, extension=0.5),
+    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),
 )
 
 leaf = next(iter(genomes.leaf_genomes.values()))

@@ -7,13 +7,14 @@ many. `run_replicates` runs them across CPU cores: each worker runs one full sim
 processes.
 
 ```python
-import zombi2 as z
+from zombi2.species import BirthDeath
+from zombi2.genomes import run_replicates
 
-summaries = z.run_replicates(
+summaries = run_replicates(
     100, "runs/",                         # 100 replicates -> runs/replicate_0000/, ...
-    z.BirthDeath(birth=1.0, death=0.3),   # species-tree model
+    BirthDeath(birth=1.0, death=0.3),     # species-tree model
     n_tips=50, age=8.0,
-    duplication=0.1, transfer=0.05, loss=0.15, origination=0.5,  # or rates=z.SharedRates(...)
+    duplication=0.1, transfer=0.05, loss=0.15, origination=0.5,  # or rates=SharedRates(...)
     initial_families=100, max_family_size=0.5,
     seed=42,                              # base seed -> reproducible, independent per replicate
     processes=None,                       # default: all cores; processes=1 = serial
@@ -37,7 +38,7 @@ The species-tree and gene-family parameters mirror
 
     1. **Call `run_replicates` under an `if __name__ == "__main__":` guard** in your script.
     2. **Every argument must be picklable** — use the built-in models/distributions, and
-       `functools.partial(z.OrderedGenome, extension=0.5)` rather than a `lambda` for a
+       `functools.partial(OrderedGenome, extension=0.5)` rather than a `lambda` for a
        `genome_factory`.
 
 ## When it helps

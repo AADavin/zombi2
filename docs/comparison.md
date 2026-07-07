@@ -10,7 +10,7 @@ the output format — while rebuilding the internals around clean interfaces.
 - **The DTLO model** — duplication, transfer, loss, and origination of gene families
   along a species tree.
 - **Per-family sampled rates** — the ZOMBI-1 style where each family draws its own D/T/L
-  from distributions is available as `z.FamilySampledRates(...)`.
+  from distributions is available as `FamilySampledRates(...)`.
 - **Output format** — `Genomes.write("out/")` produces the familiar files: the species
   tree, per-family event tables, reconstructed complete and extant gene trees, a transfer
   log, a per-family summary, and presence/copy-number matrices. See
@@ -29,24 +29,24 @@ the output format — while rebuilding the internals around clean interfaces.
 - **More rate models out of the box.** Beyond uniform and family-sampled rates, there are
   genome-wise rates and rate variation across the branches of the tree. See
   [rate variation](guide/rate-variation.md).
-- **Richer transfers.** A `z.TransferModel` controls additive vs replacement transfers,
+- **Richer transfers.** A `TransferModel` controls additive vs replacement transfers,
   phylogenetic-distance-weighted recipient choice, and self-transfers. See
   [transfers](guide/transfers.md).
-- **Gene order and rearrangements.** An optional `z.OrderedGenome` puts genes on an ordered
+- **Gene order and rearrangements.** An optional `OrderedGenome` puts genes on an ordered
   chromosome and adds inversions and transpositions. See
   [ordered genomes](guide/ordered-genomes.md).
 - **Principled growth control.** A hard `max_family_size` cap (absolute or a fraction of
   the number of species) and a soft logistic `carrying_capacity`. See
   [bounding growth](guide/growth.md).
-- **Ghost lineages.** `z.add_ghost_lineages` un-prunes the reconstructed tree, grafting back
+- **Ghost lineages.** `add_ghost_lineages` un-prunes the reconstructed tree, grafting back
   the extinct/unsampled lineages the backward process leaves out. See
   [ghost lineages](guide/ghost-lineages.md).
 - **Scale.** The built-in model runs on a native **Rust** engine, making large trees
-  (thousands to tens of thousands of tips) practical; `z.run_replicates` parallelises
+  (thousands to tens of thousands of tips) practical; `run_replicates` parallelises
   independent replicates across cores. See [the Rust engine](guide/rust-engine.md)
   and [running in parallel](guide/parallel.md).
-- **Distributions.** Rate distributions accept the built-ins (`z.Gamma`, `z.Exponential`,
-  `z.LogNormal`, `z.Uniform`, `z.Fixed`), any `scipy.stats` frozen distribution, or a plain
+- **Distributions.** Rate distributions accept the built-ins (`Gamma`, `Exponential`,
+  `LogNormal`, `Uniform`, `Fixed`), any `scipy.stats` frozen distribution, or a plain
   `rng -> float` callable.
 
 ## On the roadmap

@@ -26,9 +26,12 @@ is **per branch**. Event lengths follow a geometric model with mean `1/(1 − ex
 nucleotides (`extension=0.99` → ~100 nt).
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=20, age=5.0, seed=1)
+from zombi2.species import simulate_species_tree, BirthDeath
+from zombi2.genomes import simulate_nucleotide_genomes
 
-result = z.simulate_nucleotide_genomes(
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=20, age=5.0, seed=1)
+
+result = simulate_nucleotide_genomes(
     tree, root_length=1000,
     duplication=1e-4, transfer=5e-5, loss=1.5e-4,
     inversion=1e-3, transposition=5e-5, origination=0.2, seed=1)
@@ -114,8 +117,10 @@ intervals on the root chromosome — to declare **genes** up front. Everything e
 - **Origination** mints a brand-new gene (its own gene tree), as in the base model.
 
 ```python
+from zombi2.genomes import simulate_nucleotide_genomes
+
 genes = [(100, 180, "dnaA"), (300, 360, "gyrB"), (500, 620, "rpoB")]
-result = z.simulate_nucleotide_genomes(
+result = simulate_nucleotide_genomes(
     tree, inversion=1e-3, loss=8e-4, duplication=5e-4, transfer=5e-4,
     root_length=1000, extension=0.97, gene_intervals=genes,
     pseudogenization=0.3, replacement=0.4, seed=1)
@@ -149,10 +154,12 @@ overlaps are removed by trimming — each gene's start is clipped to the previou
 gene swallowed whole is dropped:
 
 ```python
-g = z.read_gff("GCF_000005845.2_ASM584v2_genomic.gff")   # E. coli K-12 MG1655
+from zombi2.genomes import read_gff, simulate_nucleotide_genomes
+
+g = read_gff("GCF_000005845.2_ASM584v2_genomic.gff")     # E. coli K-12 MG1655
 g.length, len(g.genes), g.n_trimmed, g.n_dropped         # 4641652, 4480, 768, 26
 
-result = z.simulate_nucleotide_genomes(
+result = simulate_nucleotide_genomes(
     tree, root_length=g.length, gene_intervals=g.genes,
     inversion=2e-6, loss=1.5e-6, extension=0.999, pseudogenization=0.3, seed=1)
 ```
@@ -179,10 +186,13 @@ and a sequence is evolved down it under a nucleotide substitution model (`jc69`,
 in genome order, the sequence of each segment's lineage (reverse-complemented on the − strand):
 
 ```python
-res = z.simulate_nucleotide_genomes(tree, root_length=g.length, gene_intervals=g.genes,
-                                    retain_internal=True, seed=1)          # keep every node's genome
-res.simulate_sequences(z.hky85(2.0), subst_rate=0.05,
-                       root_fasta=z.read_fasta("ecoli.fna")[g.seqid])      # real genome as the root
+from zombi2.genomes import simulate_nucleotide_genomes
+from zombi2.sequences import hky85, read_fasta
+
+res = simulate_nucleotide_genomes(tree, root_length=g.length, gene_intervals=g.genes,
+                                  retain_internal=True, seed=1)            # keep every node's genome
+res.simulate_sequences(hky85(2.0), subst_rate=0.05,
+                       root_fasta=read_fasta("ecoli.fna")[g.seqid])        # real genome as the root
 
 res.node_sequence(tree.root)     # == the input genome, exactly
 res.node_sequence(leaf)          # the evolved genome at any node
@@ -217,6 +227,8 @@ much faster, and enough for `profile_matrix()`, `leaf_mosaic()`, and `trace_back
 **requires** the built extension (see [the Rust engine](rust-engine.md)):
 
 ```python
-result = z.simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,
-                                       inversion=1e-3, seed=1, output="profiles")
+from zombi2.genomes import simulate_nucleotide_genomes
+
+result = simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,
+                                     inversion=1e-3, seed=1, output="profiles")
 ```

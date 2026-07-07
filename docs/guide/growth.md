@@ -9,8 +9,10 @@ duplication and transfer create copies, so both must be reined in.
 A single ceiling on family size, enforced across **all** copy-creating events:
 
 ```python
-z.simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.3,
-                   max_family_size=0.5)     # cap = round(0.5 · N_species)
+from zombi2.genomes import simulate_genomes
+
+simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.3,
+                 max_family_size=0.5)     # cap = round(0.5 · N_species)
 ```
 
 - an **integer** is an absolute cap (`max_family_size=20`);
@@ -28,7 +30,9 @@ rate is scaled by `max(0, 1 − n/K)`, so family size settles *around* `K` with 
 stationary distribution.
 
 ```python
-z.SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+from zombi2.genomes import SharedRates
+
+SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 !!! note "Which to use?"
