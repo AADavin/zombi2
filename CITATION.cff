@@ -12,7 +12,7 @@ authors:
     family-names: "Davin"
     email: "aaredav@gmail.com"
 version: "0.2.0"
-license: "GPL-3.0-or-later"
+license: "MIT"
 repository-code: "https://github.com/AADavin/zombi2"
 url: "https://github.com/AADavin/zombi2"
 keywords:
