@@ -37,6 +37,17 @@ OUT_DIR = Path(__file__).resolve().parent.parent
 W, H = 1200, 620          # trimmed height: content ends ~570, this leaves a tidy bottom margin
 N_TIPS = 14
 
+# C#1: build the viridis ramp with an OBJECT-BOUNDING-BOX gradient (0..1 along the bar's own box)
+# instead of absolute userSpaceOnUse coords. The latter silently collapse to the first stop when
+# rsvg-convert rasterizes the SVG for the PDF (the bar shows solid blue); objectBoundingBox fills
+# the rect regardless of where it is placed. Horizontal ramp: x1=0,y1=0 -> x2=1,y2=0.
+def _viridis_bar_gradient():
+    grad = draw.LinearGradient(0, 0, 1, 0, gradientUnits="objectBoundingBox")
+    for t, c in VIRIDIS:
+        grad.add_stop(t, hexc(c))
+    return grad
+
+
 # lambda(x) rises sigmoidally with the trait; mu flat; slow diffusion
 SPEC = lambda x: 0.6 + 2.6 / (1.0 + np.exp(-1.6 * x))     # noqa: E731
 EXT = lambda x: 0.3                                        # noqa: E731
@@ -45,20 +56,21 @@ XLO, XHI = -3.2, 3.2
 
 
 # --------------------------------------------------------------------------- panel A: the model
-def panel_model(d, ox, oy, pw, ph, title_y):
-    d.append(draw.Text("A   the model", FS_LABEL, ox, title_y, font_family=FONT,
+def panel_model(d, ox, oy, pw, ph, title_y, bar_y):
+    # P#1: panel letter at the top-left corner; panel title centred over the panel.
+    d.append(draw.Text("A", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("the model", FS_LABEL, ox + pw / 2, title_y, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
     x_at = lambda x: ox + (x - XLO) / (XHI - XLO) * pw      # noqa: E731
     rmax = SPEC(XHI) * 1.08
     y_at = lambda r: oy + ph - (r / rmax) * ph              # noqa: E731
 
-    # viridis strip along the trait axis
-    grad = draw.LinearGradient(ox, 0, ox + pw, 0)
-    for t, c in VIRIDIS:
-        grad.add_stop(t, hexc(c))
+    # viridis strip along the trait axis (C#1: objectBoundingBox gradient), shared bar height bar_y
+    grad = _viridis_bar_gradient()
     d.append(grad)
-    d.append(draw.Rectangle(ox, oy + ph + 10, pw, 12, fill=grad, stroke=INK, stroke_width=0.8))
-    d.append(draw.Text("trait value  x", FS_TICK, ox + pw / 2, oy + ph + 46, font_family=FONT,
+    d.append(draw.Rectangle(ox, bar_y, pw, 14, fill=grad, stroke=INK, stroke_width=0.8))
+    d.append(draw.Text("trait value  x", FS_TICK, ox + pw / 2, bar_y + 34, font_family=FONT,
                        text_anchor="middle", fill=MUTED))
 
     # axes
@@ -103,7 +115,7 @@ def _pick(seed_range):
     return best
 
 
-def panel_realization(d, ox, oy, pw, ph, title_y):
+def panel_realization(d, ox, oy, pw, ph, title_y, bar_y):
     _, seed, res, ete, vals = _pick(range(1, 160))
     lo, hi = min(vals.values()), max(vals.values())
     norm = lambda v: (v - lo) / (hi - lo) if hi > lo else 0.5   # noqa: E731
@@ -113,8 +125,11 @@ def panel_realization(d, ox, oy, pw, ph, title_y):
     x_at = lambda t: ox + 40 + (t / present) * (pw - 150)       # noqa: E731
     y_at = lambda k: oy + 40 + (k / max(1, nleaf - 1)) * (ph - 96)   # noqa: E731
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, title_y, font_family=FONT,
+    # P#1: panel letter at the top-left corner; panel title centred over the panel.
+    d.append(draw.Text("B", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("a simulated realization", FS_LABEL, ox + pw / 2, title_y, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
 
     for n in ete.traverse():
         if n.is_root():
@@ -142,17 +157,16 @@ def panel_realization(d, ox, oy, pw, ph, title_y):
             d.append(draw.Rectangle(colc - 8, y - 8, 16, 16, fill=col(n.name),
                                     stroke=INK, stroke_width=1.0))
 
-    # colour bar -- tuck it just under the tree (its actual bottom row), not far below the panel
-    grad = draw.LinearGradient(ox, 0, ox + 200, 0)
-    for t, c in VIRIDIS:
-        grad.add_stop(t, hexc(c))
+    # colour bar (C#1: objectBoundingBox gradient). Centred in the panel and pinned to the SAME
+    # height bar_y as panel A's trait strip so the two bars line up across the figure.
+    bw = 200
+    bx = ox + (pw - bw) / 2
+    grad = _viridis_bar_gradient()
     d.append(grad)
-    tree_bot = y_at(nleaf - 1)
-    by = tree_bot + 40
-    d.append(draw.Rectangle(ox, by, 200, 14, fill=grad, stroke=INK, stroke_width=0.8))
-    d.append(draw.Text(f"{lo:+.1f}", FS_TICK, ox, by + 30, font_family=FONT, text_anchor="start", fill="#555"))
-    d.append(draw.Text(f"{hi:+.1f}", FS_TICK, ox + 200, by + 30, font_family=FONT, text_anchor="end", fill="#555"))
-    d.append(draw.Text("trait value", FS_TICK, ox + 100, by + 30, font_family=FONT,
+    d.append(draw.Rectangle(bx, bar_y, bw, 14, fill=grad, stroke=INK, stroke_width=0.8))
+    d.append(draw.Text(f"{lo:+.1f}", FS_TICK, bx, bar_y + 34, font_family=FONT, text_anchor="start", fill="#555"))
+    d.append(draw.Text(f"{hi:+.1f}", FS_TICK, bx + bw, bar_y + 34, font_family=FONT, text_anchor="end", fill="#555"))
+    d.append(draw.Text("trait value", FS_TICK, bx + bw / 2, bar_y + 34, font_family=FONT,
                        text_anchor="middle", fill=MUTED))
     return seed
 
@@ -164,11 +178,12 @@ def render():
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
 
     # both panels share a title baseline and a common plotting top so A and B line up cleanly;
-    # panel A's trait strip and panel B's colour bar then sit at comparable heights.
+    # a single shared bar_y puts panel A's trait strip and panel B's colour bar at the SAME height.
     title_y = 150
     top = 200
-    panel_model(d, 110, top, 360, 300, title_y)
-    seed = panel_realization(d, 620, top, 520, 356, title_y)
+    bar_y = 526
+    panel_model(d, 110, top, 360, 300, title_y, bar_y)
+    seed = panel_realization(d, 620, top, 520, 356, title_y, bar_y)
 
     name = "sse_quasse"
     out = OUT_DIR / name

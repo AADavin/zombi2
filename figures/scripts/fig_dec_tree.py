@@ -34,6 +34,7 @@ W, H = 1460, 620
 AREA_COLOR = {"A": "#4477AA", "B": "#EE6677", "C": "#228833"}
 DISP, EXT = "#2f8f4e", "#cc4b3c"                 # dispersal (gain) green, extinction (loss) red
 CELL = 24
+FS_AREA = 14                                     # small area letter inside a range cell / legend swatch
 N_TIPS, AGE, TREE_SEED, BIO_SEED = 9, 1.0, 3, 1
 
 
@@ -48,8 +49,9 @@ def range_cells(d, cx, cy, areas):
     for i, a in enumerate(areas):
         x, fill = x0 + i * CELL, AREA_COLOR[a]
         d.append(draw.Rectangle(x, cy - CELL / 2, CELL, CELL, fill=fill, stroke=INK, stroke_width=1.2))
-        d.append(draw.Text(a, FS_TICK, x + CELL / 2, cy, font_family=FONT, text_anchor="middle",
-                           dominant_baseline="central", font_weight="bold",
+        # smaller area letter, centred in its cell (explicit y offset = reliable vertical centring)
+        d.append(draw.Text(a, FS_AREA, x + CELL / 2, cy + 0.34 * FS_AREA, font_family=FONT,
+                           text_anchor="middle", font_weight="bold",
                            fill="white" if _lum(fill) < 150 else INK))
 
 
@@ -66,7 +68,8 @@ def render():
 
     tree = zombi_to_ete3(ztree)
     tfo, present, ys, nleaf = _layout(tree)
-    ox, oy, pw, ph = 60, 150, 1240, 400
+    # wider tree: span most of the page width, leaving room for root cell (left) + tip cells (right)
+    ox, oy, pw, ph = 60, 150, 1420, 400
     x_at = lambda t: ox + 90 + (t / present) * (pw - 320)      # noqa: E731
     y_at = lambda k: oy + 30 + (k / max(1, nleaf - 1)) * (ph - 60)
 
@@ -124,8 +127,9 @@ def render():
     for i, a in enumerate("ABC"):
         x = lx + i * 66
         d.append(draw.Rectangle(x, ly - 9, 18, 18, fill=AREA_COLOR[a], stroke=INK, stroke_width=1.1))
-        d.append(draw.Text(a, FS_TICK, x + 9, ly, font_family=FONT, text_anchor="middle",
-                           dominant_baseline="central", font_weight="bold",
+        # legend swatch letter: small and centred in its 18x18 square (square middle y = ly)
+        d.append(draw.Text(a, FS_AREA, x + 9, ly + 0.34 * FS_AREA, font_family=FONT,
+                           text_anchor="middle", font_weight="bold",
                            fill="white" if _lum(AREA_COLOR[a]) < 150 else INK))
     d.append(draw.Lines(lx + 230, ly - 8, lx + 223, ly + 5, lx + 237, ly + 5, close=True,
                         fill=DISP, stroke=INK, stroke_width=0.8))

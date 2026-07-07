@@ -43,42 +43,42 @@ def arrowhead(d, hx, hy, ax, ay, col=INK, ah=13.0):
                         close=True, fill=col))
 
 
-# ---- event glyphs (small, centred on (x, y)) --------------------------------
+# ---- event glyphs (centred on (x, y)) ---------------------------------------
 def g_speciation(d, x, y):
     # one ancestor above splitting into two descendants below (forward in time)
     c = ACCENT["speciation"]
-    d.append(draw.Line(x, y - 13, x, y, stroke=c, stroke_width=3.0))
-    d.append(draw.Line(x, y, x - 11, y + 12, stroke=c, stroke_width=3.0))
-    d.append(draw.Line(x, y, x + 11, y + 12, stroke=c, stroke_width=3.0))
+    d.append(draw.Line(x, y - 18, x, y, stroke=c, stroke_width=3.8))
+    d.append(draw.Line(x, y, x - 15, y + 16, stroke=c, stroke_width=3.8))
+    d.append(draw.Line(x, y, x + 15, y + 16, stroke=c, stroke_width=3.8))
 
 
 def g_cross(d, x, y, col=INK):
-    r = 9
-    d.append(draw.Line(x - r, y - r, x + r, y + r, stroke=col, stroke_width=3.0))
-    d.append(draw.Line(x - r, y + r, x + r, y - r, stroke=col, stroke_width=3.0))
+    r = 12
+    d.append(draw.Line(x - r, y - r, x + r, y + r, stroke=col, stroke_width=3.8))
+    d.append(draw.Line(x - r, y + r, x + r, y - r, stroke=col, stroke_width=3.8))
 
 
 def g_square(d, x, y):
-    s = 16
+    s = 22
     d.append(draw.Rectangle(x - s / 2, y - s / 2, s, s, fill=INK))
 
 
 def g_transfer(d, x, y):
-    p = draw.Path(fill="none", stroke=INK, stroke_width=3.0)
-    p.M(x - 12, y + 8).Q(x, y - 20, x + 12, y + 8)
+    p = draw.Path(fill="none", stroke=INK, stroke_width=3.8)
+    p.M(x - 16, y + 11).Q(x, y - 27, x + 16, y + 11)
     d.append(p)
-    arrowhead(d, x + 12, y + 8, x + 4, y - 4, INK, ah=9.0)
+    arrowhead(d, x + 16, y + 11, x + 5, y - 6, INK, ah=12.0)
 
 
 def g_ring(d, x, y):
-    d.append(draw.Circle(x, y, 8, fill="none", stroke=INK, stroke_width=3.0))
+    d.append(draw.Circle(x, y, 11, fill="none", stroke=INK, stroke_width=3.8))
 
 
 def g_state(d, x, y):
-    d.append(draw.Rectangle(x - 22, y - 8, 15, 15, fill="#dddddd", stroke=INK, stroke_width=1.6))
-    d.append(draw.Rectangle(x + 8, y - 8, 15, 15, fill=INK))
-    d.append(draw.Line(x - 5, y, x + 6, y, stroke=INK, stroke_width=2.4))
-    arrowhead(d, x + 6, y, x - 3, y, INK, ah=7.0)
+    d.append(draw.Rectangle(x - 29, y - 10, 20, 20, fill="#dddddd", stroke=INK, stroke_width=1.8))
+    d.append(draw.Rectangle(x + 10, y - 10, 20, 20, fill=INK))
+    d.append(draw.Line(x - 6, y, x + 8, y, stroke=INK, stroke_width=2.8))
+    arrowhead(d, x + 8, y, x - 4, y, INK, ah=9.0)
 
 
 # (title, rate line, [ (glyph, label), ... ])
@@ -94,8 +94,10 @@ LEVELS = [
 
 CARD_X, CARD_W, CARD_H = 50, 700, 104
 YS = [143, 283, 423]
-GLYPH_CENTER = 526          # centre of the event-glyph group (right of the text block)
-GSTEP = 100                 # spacing between glyphs; the 4-wide row must stay inside the card
+TEXT_CX = 195               # centre of the title/rate text column (left area of the card)
+GLYPH_CENTER = 540          # centre of the event-glyph group (right of the text block)
+GSTEP = 112                 # spacing between glyphs; the 4-wide row must stay inside the card
+FS_CAP = 18                 # glyph caption size (a touch smaller than the block text)
 
 
 def render():
@@ -106,15 +108,17 @@ def render():
     for (title, rate, events), cy in zip(LEVELS, YS):
         d.append(draw.Rectangle(CARD_X, cy - CARD_H / 2, CARD_W, CARD_H, rx=16, ry=16,
                                 fill="white", stroke=INK, stroke_width=2.4))
-        text(d, title, CARD_X + 28, cy - 22, FS_LABEL, anchor="start", weight="bold")
-        text(d, rate, CARD_X + 28, cy + 8, FS_TICK, anchor="start", fill=MUTED)
+        # block text: title + rate stacked, centred in the text column and centred
+        # vertically on the card's mid-line (aligned with the rounded square)
+        text(d, title, TEXT_CX, cy - 14, FS_LABEL, anchor="middle", weight="bold")
+        text(d, rate, TEXT_CX, cy + 16, FS_TICK, anchor="middle", fill=MUTED)
         # event glyphs, centred as a group and kept clear of the text block and the border
         n = len(events)
         start_x = GLYPH_CENTER - (n - 1) * GSTEP / 2
         for i, (glyph, label) in enumerate(events):
             gx = start_x + i * GSTEP
-            glyph(d, gx, cy - 4)
-            text(d, label, gx, cy + 22, FS_TICK)
+            glyph(d, gx, cy - 8)
+            text(d, label, gx, cy + 26, FS_CAP)
 
     # ---- the engine box on the right ----------------------------------------
     ex0, ew = CARD_X + CARD_W + 64, 374

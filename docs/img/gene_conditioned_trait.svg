@@ -6,12 +6,13 @@
 <rect x="0" y="0" width="1200" height="612" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Gene-conditioned trait (genes to traits)</text>
 <path d="M300.0,82 L332.0,82" stroke="#1a1a1a" stroke-width="5.2" />
-<text x="340.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">modifier present</text>
+<text x="340.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">modifier present</text>
 <path d="M490.0,82 L522.0,82" stroke="#9a9a9a" stroke-width="2.4" />
-<text x="530.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">absent</text>
+<text x="530.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">absent</text>
 <circle cx="640.0" cy="82" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="654.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">tip trait value</text>
-<text x="90" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the mechanism</text>
+<text x="654.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">tip trait value</text>
+<text x="90" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
+<text x="240.0" y="150" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">the mechanism</text>
 <path d="M90,210 L90,510" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M90,510 L390,510" stroke="#1a1a1a" stroke-width="1.4" />
 <path d="M90,467.14285714285717 L390,467.14285714285717" stroke="#8a8a8a" stroke-width="2.0" stroke-dasharray="6,5" />
@@ -26,7 +27,8 @@
 <path d="M219.8,448.5930069283034 L230.2,448.5930069283034" stroke="#1a1a1a" stroke-width="2.2" />
 <path d="M225.0,443.3930069283034 L225.0,453.7930069283034" stroke="#1a1a1a" stroke-width="2.2" />
 <text x="209.0" y="422.5930069283034" font-size="22" font-family="Helvetica" text-anchor="end" fill="#1a1a1a" font-style="italic">gene gained</text>
-<text x="500" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B   a simulated realization</text>
+<text x="500" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B</text>
+<text x="830.0" y="150" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">a simulated realization</text>
 <path d="M500.0,232.86363636363637 L638.1732885024471,232.86363636363637" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M500.0,379.4545454545455 L575.340190141321,379.4545454545455" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />
 <path d="M638.1732885024471,209.0 L750.0,209.0" stroke="#9a9a9a" stroke-width="2.4" stroke-linecap="butt" />

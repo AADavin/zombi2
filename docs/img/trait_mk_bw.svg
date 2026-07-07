@@ -6,11 +6,11 @@
 <rect x="0" y="0" width="1200" height="660" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A discrete character under the Mk model</text>
 <rect x="450.0" y="74" width="18" height="18" fill="#1f1f1f" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="476.0" y="83" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">state A</text>
+<text x="476.0" y="90.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">state A</text>
 <rect x="560.0" y="74" width="18" height="18" fill="#8a8a8a" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="586.0" y="83" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">state B</text>
+<text x="586.0" y="90.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">state B</text>
 <rect x="670.0" y="74" width="18" height="18" fill="#cccccc" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="696.0" y="83" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">state C</text>
+<text x="696.0" y="90.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">state C</text>
 <text x="150" y="126" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   the model</text>
 <path d="M279.5861837798008,269.1896323499957 Q227.05124503538997,339.16212816274293,194.6070395182176,420.4237026460337" fill="none" stroke="#1a1a1a" stroke-width="3.4" stroke-linecap="round" />
 <path d="M194.6070395182176,420.4237026460337 L194.16567520736007,409.4325608698077 L202.49692335235815,412.7588651993707 Z" fill="#1a1a1a" />

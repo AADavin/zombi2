@@ -86,9 +86,10 @@ def main():
                                -style.height / 2 + 44, font_weight="bold",
                                font_family=style.font_family, text_anchor="middle",
                                dominant_baseline="central", fill=INK))
-    # legend, single column in the open lower-left quadrant (the tree radiates right):
-    # a gloss for the per-epoch b/d labels + the dashed = extinct convention
-    lx, ly = -style.width / 2 + 34, style.height / 2 - 168
+    # legend, single column in the open upper-left corner (the oldest epoch's
+    # first band is empty up top before the crown fans out): a gloss for the
+    # per-epoch b/d labels + the dashed = extinct convention
+    lx, ly = -style.width / 2 + 34, y0 + 30
     d.drawing.append(draw.Text("b = birth rate,  d = death rate", FS_LABEL, lx, ly,
                                font_family=style.font_family, text_anchor="start",
                                dominant_baseline="central", fill=INK))

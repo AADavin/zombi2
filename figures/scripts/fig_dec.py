@@ -29,6 +29,7 @@ W, H = 1210, 720
 # (Adrian's call): a distinct, colour-blind-safe hue per area (Paul Tol 'bright').
 AREA_COLOR = {"A": "#4477AA", "B": "#EE6677", "C": "#228833"}
 CELL = 26
+FS_AREA = 15                                             # small area letter inside a range cell
 DISP = "#2f8f4e"                                          # dispersal (gain) arrowhead — green
 EXT = "#cc4b3c"                                           # local-extinction (loss) arrowhead — red
 
@@ -49,8 +50,9 @@ def range_chip(d, cx, cy, areas):
     for i, a in enumerate(areas):
         x, fill = x0 + i * CELL, _acol(a)
         d.append(draw.Rectangle(x, cy - CELL / 2, CELL, CELL, fill=fill, stroke=INK, stroke_width=1.3))
-        d.append(draw.Text(a, FS_TICK, x + CELL / 2, cy, font_family=FONT, text_anchor="middle",
-                           dominant_baseline="central", fill="white" if _lum(fill) < 150 else INK,
+        # smaller area letter, centred in its cell (explicit y offset = reliable vertical centring)
+        d.append(draw.Text(a, FS_AREA, x + CELL / 2, cy + 0.34 * FS_AREA, font_family=FONT,
+                           text_anchor="middle", fill="white" if _lum(fill) < 150 else INK,
                            font_weight="bold"))
     d.append(draw.Rectangle(x0, cy - CELL / 2, total, CELL, fill="none", stroke=INK, stroke_width=1.3))
     return total
