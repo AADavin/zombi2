@@ -1,5 +1,6 @@
 site_name: ZOMBI2
 site_description: Simulation of species trees and gene families in phylogenetics
+site_url: https://aadavin.github.io/zombi2/
 repo_url: https://github.com/AADavin/zombi2
 repo_name: AADavin/zombi2
 docs_dir: docs
