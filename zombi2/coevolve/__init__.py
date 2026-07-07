@@ -7,10 +7,13 @@ can write::
 
 Every name here is the *same object* as the corresponding top-level
 ``zombi2`` attribute -- this module is a thin, additive namespace over the
-implementation modules (:mod:`zombi2.coupling`, :mod:`zombi2.trait_coupling`,
-:mod:`zombi2.gene_diversification`, :mod:`zombi2.cladogenetic_genome`,
-:mod:`zombi2.gene_conditioned_trait`, :mod:`zombi2.sse`); it does not redefine
-anything.
+implementation modules (:mod:`zombi2.coevolve.coupling`,
+:mod:`zombi2.coevolve.trait_coupling`,
+:mod:`zombi2.coevolve.gene_diversification`,
+:mod:`zombi2.coevolve.cladogenetic_genome`,
+:mod:`zombi2.coevolve.gene_conditioned_trait`,
+:mod:`zombi2.coevolve.trait_gene_feedback`, :mod:`zombi2.coevolve.sse`);
+it does not redefine anything.
 """
 
 from __future__ import annotations

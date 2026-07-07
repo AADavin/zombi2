@@ -6,14 +6,14 @@ Re-exports the trait / biogeography public API so users can write::
 
 Every name here is the *same object* as the corresponding top-level
 ``zombi2`` attribute -- this module is a thin, additive namespace over the
-implementation modules (:mod:`zombi2._traits_impl` and
-:mod:`zombi2.biogeography`); it does not redefine anything.
+implementation modules (:mod:`zombi2.traits.models` and
+:mod:`zombi2.traits.biogeography`); it does not redefine anything.
 
-Historical note: the trait *implementation* used to live in this file
+Historical note: the trait *implementation* used to live in a flat module
 (``zombi2/traits.py``). To make room for this scikit-learn-style namespace
 without breaking ``from zombi2.traits import ...`` (which still works, because
 every public trait name is re-exported below), the implementation was moved
-verbatim to :mod:`zombi2._traits_impl`. The private helper ``_expm`` is also
+verbatim to :mod:`zombi2.traits.models`. The private helper ``_expm`` is also
 re-exported so existing callers keep working.
 """
 
