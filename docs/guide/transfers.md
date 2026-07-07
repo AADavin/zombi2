@@ -4,11 +4,11 @@ Rates decide *how often* a transfer fires (the [rate model](gene-families.md)); 
 **`TransferModel`** decides *what a transfer does*.
 
 ```python
-import zombi2 as z
+from zombi2.genomes import simulate_genomes, TransferModel
 
-genomes = z.simulate_genomes(
+genomes = simulate_genomes(
     tree, transfer=0.3, ...,
-    transfers=z.TransferModel(
+    transfers=TransferModel(
         replacement=0.2,      # additive vs replacement
         distance_decay=2.0,   # recipient choice by phylogenetic distance
         allow_self=False,     # self-transfer = duplication
@@ -48,9 +48,11 @@ a second copy in the same genome — mechanically a **duplication**. This lets y
 explicit duplications and run a transfer/loss-only model:
 
 ```python
-z.simulate_genomes(tree, transfer=1.0, duplication=0.0,
-                   transfers=z.TransferModel(allow_self=True),
-                   max_family_size=0.5, seed=1)   # cap it — self-transfers grow like D
+from zombi2.genomes import simulate_genomes, TransferModel
+
+simulate_genomes(tree, transfer=1.0, duplication=0.0,
+                 transfers=TransferModel(allow_self=True),
+                 max_family_size=0.5, seed=1)   # cap it — self-transfers grow like D
 ```
 
 !!! warning

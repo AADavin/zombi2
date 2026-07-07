@@ -9,14 +9,16 @@ studies that read gene content as a record of a trait's history (e.g. timing the
 tree from the Great Oxidation Event, Davin 2025).
 
 ```python
-import zombi2 as z
+from zombi2.species import simulate_species_tree, BirthDeath
+from zombi2.traits import Mk
+from zombi2.coevolve import TraitGeneCoupling, simulate_trait_linked_genomes
 
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=60, age=6.0, seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=60, age=6.0, seed=1)
 
 # a binary aerobic(1)/anaerobic(0) trait, then genes conditioned on it
-coupling = z.TraitGeneCoupling.build(n_families=40, responsive=0.3, weight=1.0,
-                                     effect_loss=3.0, base_loss=0.5, transfer=1.0, seed=1)
-res = z.simulate_trait_linked_genomes(tree, z.Mk.equal_rates(2, 0.4), coupling, seed=2)
+coupling = TraitGeneCoupling.build(n_families=40, responsive=0.3, weight=1.0,
+                                   effect_loss=3.0, base_loss=0.5, transfer=1.0, seed=1)
+res = simulate_trait_linked_genomes(tree, Mk.equal_rates(2, 0.4), coupling, seed=2)
 
 res.profiles.presence()        # panel families × extant species (0/1) — the trait-linked data
 res.trait.labeled_values()     # the trait at the tips, from the same run
@@ -60,11 +62,13 @@ association into the profiles.
 `responsive` selector is the flexible part:
 
 ```python
-z.TraitGeneCoupling.build(50, 8)                       # 8 families, chosen at random
-z.TraitGeneCoupling.build(50, 0.3)                     # a random 30% of the panel
-z.TraitGeneCoupling.build(50, ["F3", "F7", 12])        # exactly these families (id or index)
-z.TraitGeneCoupling.build(50, 10, signed=True)         # half favoured by a high trait value,
-                                                       # half by a low one
+from zombi2.coevolve import TraitGeneCoupling
+
+TraitGeneCoupling.build(50, 8)                       # 8 families, chosen at random
+TraitGeneCoupling.build(50, 0.3)                     # a random 30% of the panel
+TraitGeneCoupling.build(50, ["F3", "F7", 12])        # exactly these families (id or index)
+TraitGeneCoupling.build(50, 10, signed=True)         # half favoured by a high trait value,
+                                                     # half by a low one
 ```
 
 `weight` sets each responsive family's magnitude; `signed=True` randomises its sign so some
@@ -85,7 +89,10 @@ The trait value varies *along* each branch, and the simulation follows it exactl
   endpoints and held constant across each piece.
 
 ```python
-z.simulate_trait_linked_genomes(tree, z.BrownianMotion(0.6), coupling, trait_steps=24, seed=1)
+from zombi2.traits import BrownianMotion
+from zombi2.coevolve import simulate_trait_linked_genomes
+
+simulate_trait_linked_genomes(tree, BrownianMotion(0.6), coupling, trait_steps=24, seed=1)
 ```
 
 For a binary trait it is usually best to **center** the two states around zero
@@ -94,9 +101,11 @@ state and *down* in the other — a symmetric, two-sided coupling — rather tha
 loss in the "on" state:
 
 ```python
-coupling = z.TraitGeneCoupling.build(40, 0.3, weight=1.0, effect_loss=3.0,
-                                     base_loss=0.5, transfer=1.0,
-                                     state_values=[-1.0, 1.0], seed=1)
+from zombi2.coevolve import TraitGeneCoupling
+
+coupling = TraitGeneCoupling.build(40, 0.3, weight=1.0, effect_loss=3.0,
+                                   base_loss=0.5, transfer=1.0,
+                                   state_values=[-1.0, 1.0], seed=1)
 ```
 
 ## Reusing an already-simulated trait
@@ -106,8 +115,11 @@ already-simulated `TraitResult`, so you can inspect or reuse the exact trait the
 conditioned on:
 
 ```python
-trait = z.simulate_traits(tree, z.Mk.equal_rates(2, 0.4), seed=2)
-res = z.simulate_trait_linked_genomes(tree, trait, coupling, seed=3)
+from zombi2.traits import simulate_traits, Mk
+from zombi2.coevolve import simulate_trait_linked_genomes
+
+trait = simulate_traits(tree, Mk.equal_rates(2, 0.4), seed=2)
+res = simulate_trait_linked_genomes(tree, trait, coupling, seed=3)
 assert res.trait is trait
 ```
 

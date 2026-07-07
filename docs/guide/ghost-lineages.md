@@ -7,7 +7,7 @@ produced lineages that **went extinct before the present** (or were simply not s
 Those lineages are invisible in the reconstructed tree, yet they were part of the history —
 for example, an extinct lineage could have been the donor of a horizontal transfer.
 
-`z.add_ghost_lineages` **un-prunes** the tree: it grafts those dead ("ghost") lineages back
+`add_ghost_lineages` **un-prunes** the tree: it grafts those dead ("ghost") lineages back
 on, so the tree again reflects the full process rather than just the survivors.
 
 <figure markdown="span">
@@ -33,10 +33,12 @@ attachment intensity, the h-transform sampler, and why un-pruning is exact — s
 Pass the **same model** you used to build the tree:
 
 ```python
-model = z.BirthDeath(birth=1.0, death=0.5)
-tree = z.simulate_species_tree(model, n_tips=50, age=5.0, seed=1)
+from zombi2.species import BirthDeath, simulate_species_tree, add_ghost_lineages
 
-z.add_ghost_lineages(tree, model, seed=7)   # grafts ghosts in place, and returns the tree
+model = BirthDeath(birth=1.0, death=0.5)
+tree = simulate_species_tree(model, n_tips=50, age=5.0, seed=1)
+
+add_ghost_lineages(tree, model, seed=7)   # grafts ghosts in place, and returns the tree
 ```
 
 The function mutates `tree` **in place** (and also returns it, so you can chain).
@@ -89,7 +91,7 @@ samplers are available:
   regime, and statistically equivalent.
 
 ```python
-z.add_ghost_lineages(tree, model, method="htransform", seed=7)
+add_ghost_lineages(tree, model, method="htransform", seed=7)
 ```
 
 ## Why un-prune?

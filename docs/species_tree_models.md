@@ -67,13 +67,15 @@ tree with [`add_ghost_lineages`](ghost_lineages.md); pass either to `simulate_ge
 transfers use the dead lineages automatically.
 
 ```python
+from zombi2.species import simulate_species_tree, BirthDeath, prune
+
 # grow for a fixed crown age (number of extant tips is random):
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.4), age=5.0, direction="forward", seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.4), age=5.0, direction="forward", seed=1)
 
 # ...or grow until N extant lineages coexist (age is random):
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
 
-recon = z.prune(tree)   # the reconstructed (survivors-only) counterpart
+recon = prune(tree)   # the reconstructed (survivors-only) counterpart
 ```
 
 Conventions match the backward crown tree: rooted at the crown (`time == 0`), present at
@@ -100,12 +102,14 @@ and TESS's explicit mass-extinction birth–death (Stadler 2011; Höhna et al. 2
 on top of whatever background diversification model you use.
 
 ```python
+from zombi2.species import simulate_species_tree, BirthDeath, EpisodicBirthDeath
+
 # a constant-rate radiation punctuated by two cataclysms (75% then 50% die):
-m = z.BirthDeath(1.0, 0.3, mass_extinctions=[(1.0, 0.75), (2.5, 0.5)])
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
+m = BirthDeath(1.0, 0.3, mass_extinctions=[(1.0, 0.75), (2.5, 0.5)])
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 
 # pulses compose with an episodic background, too:
-m = z.EpisodicBirthDeath([1.0, 1.4], [0.2, 0.3], [2.0], mass_extinctions=[(1.0, 0.8)])
+m = EpisodicBirthDeath([1.0, 1.4], [0.2, 0.3], [2.0], mass_extinctions=[(1.0, 0.8)])
 ```
 
 Because a pulse's time is an age before the present, mass extinctions require **age mode** (a
@@ -130,9 +134,11 @@ so every sample is a terminal tip and the tree stays binary (the gene-family mac
 unaffected).
 
 ```python
-m = z.BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
-tree = z.simulate_species_tree(m, age=6.0, direction="forward", seed=1)   # complete tree + fossils
-fbd = z.prune(tree, keep="sampled")   # the sampled tree: dated fossil tips + sampled extant tips
+from zombi2.species import simulate_species_tree, BirthDeath, prune
+
+m = BirthDeath(birth=1.0, death=0.5, fossilization=0.5, sampling_fraction=0.9)
+tree = simulate_species_tree(m, age=6.0, direction="forward", seed=1)   # complete tree + fossils
+fbd = prune(tree, keep="sampled")   # the sampled tree: dated fossil tips + sampled extant tips
 ```
 
 Fossil tips carry `sampled=True, is_extant=False` at their (past) sampling times; sampled extant
@@ -170,8 +176,10 @@ generates the heavy among-lineage rate variation ClaDS was designed to capture, 
 forward cousin of the relaxed-clock `RateVariation` ZOMBI2 already applies to gene rates.
 
 ```python
-m = z.ClaDS(lambda_0=1.0, alpha=0.9, sigma=0.2, turnover=0.1)
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n_tips=…
+from zombi2.species import simulate_species_tree, ClaDS
+
+m = ClaDS(lambda_0=1.0, alpha=0.9, sigma=0.2, turnover=0.1)
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)   # or n_tips=…
 ```
 
 **Diversity-dependent (density-dependent) birth–death** (`DiversityDependent`; Rabosky & Lovette
@@ -181,8 +189,10 @@ near `K` (with `μ=0`) or near the equilibrium `n* = K·(1 − μ/λ₀)` — a 
 macroevolutionary analogue of the per-family `carrying_capacity` ZOMBI2 offers for genes.
 
 ```python
-m = z.DiversityDependent(lambda_0=2.0, death=0.2, carrying_capacity=50)
-tree = z.simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or n_tips ≤ K
+from zombi2.species import simulate_species_tree, DiversityDependent
+
+m = DiversityDependent(lambda_0=2.0, death=0.2, carrying_capacity=50)
+tree = simulate_species_tree(m, age=15.0, direction="forward", seed=1)   # or n_tips ≤ K
 ```
 
 Both support `age` **and** `n_tips` mode (their rates don't reference age-before-present), reject
@@ -200,9 +210,11 @@ of the node/time-specific rate shifts not yet implemented (you can't name an unb
 run, so the shifted lineage is drawn at random — contemporaneous lineages are exchangeable).
 
 ```python
+from zombi2.species import simulate_species_tree, CladeShiftBirthDeath
+
 # a slow background; at age 3 one clade starts diversifying fast
-m = z.CladeShiftBirthDeath(0.6, 0.4, clade_shifts=[(3.0, 2.0, 0.1)])
-tree = z.simulate_species_tree(m, age=5.0, direction="forward", seed=1)
+m = CladeShiftBirthDeath(0.6, 0.4, clade_shifts=[(3.0, 2.0, 0.1)])
+tree = simulate_species_tree(m, age=5.0, direction="forward", seed=1)
 ```
 
 Because the shift schedule is in ages before the present, this model is **age mode only** (unlike

@@ -1,15 +1,14 @@
 # Cookbook
 
-Task-oriented recipes. Every snippet is self-contained and runnable as-is; each assumes:
-
-```python
-import zombi2 as z
-```
+Task-oriented recipes. Every snippet is self-contained and runnable as-is; each imports
+the symbols it uses from ZOMBI2's namespaced API.
 
 Where a recipe needs a species tree, it uses this one:
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3), n_tips=100, age=5.0, seed=1)
+from zombi2.species import simulate_species_tree, BirthDeath
+
+tree = simulate_species_tree(BirthDeath(birth=1.0, death=0.3), n_tips=100, age=5.0, seed=1)
 ```
 
 For the concepts behind these, see the [user guide](guide/species-trees.md) and the
@@ -20,15 +19,19 @@ For the concepts behind these, see the [user guide](guide/species-trees.md) and 
 ### A pure-birth (Yule) tree
 
 ```python
-tree = z.simulate_species_tree(z.Yule(birth=1.0), n_tips=100, age=5.0, seed=1)
+from zombi2.species import simulate_species_tree, Yule
+
+tree = simulate_species_tree(Yule(birth=1.0), n_tips=100, age=5.0, seed=1)
 ```
 
-`z.Yule(b)` is exactly `z.BirthDeath(b, death=0)`.
+`Yule(b)` is exactly `BirthDeath(b, death=0)`.
 
 ### A birth–death tree conditioned on the number of tips
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(birth=1.0, death=0.3), n_tips=5000, age=5.0, seed=1)
+from zombi2.species import simulate_species_tree, BirthDeath
+
+tree = simulate_species_tree(BirthDeath(birth=1.0, death=0.3), n_tips=5000, age=5.0, seed=1)
 ```
 
 You get *exactly* `n_tips` extant species at the given `age` (the tree is a reconstructed,
@@ -37,8 +40,10 @@ conditioned birth–death process).
 ### Interpret the age as stem instead of crown
 
 ```python
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=100, age=5.0,
-                               age_type="stem", seed=1)   # default is "crown"
+from zombi2.species import simulate_species_tree, BirthDeath
+
+tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=100, age=5.0,
+                             age_type="stem", seed=1)   # default is "crown"
 ```
 
 ### Episodic (skyline) rates with incomplete sampling
@@ -47,18 +52,23 @@ Rates are piecewise-constant through time, ordered from the present backward; `s
 the epoch boundaries as ages. `sampling_fraction=ρ` models incomplete extant sampling.
 
 ```python
-model = z.EpisodicBirthDeath(birth=[1.0, 2.0], death=[0.3, 0.1], shifts=[2.0],
-                             sampling_fraction=0.5)
-tree = z.simulate_species_tree(model, n_tips=100, age=5.0, seed=1)
+from zombi2.species import simulate_species_tree, EpisodicBirthDeath
+
+model = EpisodicBirthDeath(birth=[1.0, 2.0], death=[0.3, 0.1], shifts=[2.0],
+                           sampling_fraction=0.5)
+tree = simulate_species_tree(model, n_tips=100, age=5.0, seed=1)
 ```
 
 ### Use your own species tree (from Newick)
 
 ```python
-with open("my_tree.nwk") as f:
-    tree = z.read_newick(f.read())
+from zombi2 import read_newick
+from zombi2.genomes import simulate_genomes
 
-genomes = z.simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, seed=1)
+with open("my_tree.nwk") as f:
+    tree = read_newick(f.read())
+
+genomes = simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, seed=1)
 ```
 
 Branch lengths are read as durations. (This is what the CLI's `genomes` subcommand does.)
@@ -69,10 +79,12 @@ Un-prune the reconstructed tree — graft back the lineages that went extinct (o
 sampled). Pass the **same model** you built the tree with; ghosts are added in place:
 
 ```python
-model = z.BirthDeath(birth=1.0, death=0.5)
-tree = z.simulate_species_tree(model, n_tips=100, age=5.0, seed=1)
+from zombi2.species import simulate_species_tree, BirthDeath, add_ghost_lineages
 
-z.add_ghost_lineages(tree, model, seed=7)   # method="htransform" for a rejection-free sampler
+model = BirthDeath(birth=1.0, death=0.5)
+tree = simulate_species_tree(model, n_tips=100, age=5.0, seed=1)
+
+add_ghost_lineages(tree, model, seed=7)   # method="htransform" for a rejection-free sampler
 
 ghosts = [n for n in tree.leaves() if not n.is_extant]   # extinct (e*) tips; extant tips untouched
 ```
@@ -88,11 +100,13 @@ lineages. Give **exactly one** of `age` (grow for that long; survivor count is r
 `n_tips` (condition on that many extant tips):
 
 ```python
+from zombi2.species import simulate_species_tree, BirthDeath
+
 # grow forward for a fixed age -> complete tree, random number of survivors
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), age=5.0, direction="forward", seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.5), age=5.0, direction="forward", seed=1)
 
 # ...or condition on N extant tips (extinct lineages still included)
-tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
+tree = simulate_species_tree(BirthDeath(1.0, 0.5), n_tips=50, direction="forward", seed=1)
 
 extinct = [n for n in tree.leaves() if not n.is_extant]
 ```
@@ -108,8 +122,10 @@ This is the native alternative to un-pruning a backward tree
 The keyword shorthand builds a `SharedRates` for you:
 
 ```python
-genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, initial_families=40, seed=42)
+from zombi2.genomes import simulate_genomes
+
+genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                           origination=0.5, initial_families=40, seed=42)
 ```
 
 ### Per-family rates drawn from distributions (ZOMBI-1 style)
@@ -117,9 +133,12 @@ genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
 Each family samples its own D/T/L once, from the given distributions:
 
 ```python
-genomes = z.simulate_genomes(tree, z.FamilySampledRates(
-    duplication=z.Gamma(2, 0.06), transfer=z.Exponential(0.08),
-    loss=z.Gamma(2, 0.07), origination=0.5), initial_families=40, seed=42)
+from zombi2 import Gamma, Exponential
+from zombi2.genomes import simulate_genomes, FamilySampledRates
+
+genomes = simulate_genomes(tree, FamilySampledRates(
+    duplication=Gamma(2, 0.06), transfer=Exponential(0.08),
+    loss=Gamma(2, 0.07), origination=0.5), initial_families=40, seed=42)
 ```
 
 ### Genome-wise (per-genome) rates
@@ -128,7 +147,9 @@ Each event type fires at a constant per-genome rate (independent of copy number)
 sizes grow linearly rather than exponentially:
 
 ```python
-genomes = z.simulate_genomes(tree, z.PerGenomeRates(
+from zombi2.genomes import simulate_genomes, PerGenomeRates
+
+genomes = simulate_genomes(tree, PerGenomeRates(
     duplication=0.5, transfer=0.3, loss=0.4, origination=0.5), seed=42)
 ```
 
@@ -139,34 +160,40 @@ plain `rng -> float` callable:
 
 ```python
 import scipy.stats as st
+from zombi2 import Gamma
+from zombi2.genomes import FamilySampledRates
 
-z.FamilySampledRates(duplication=z.Gamma(2, 0.06), loss=0.2, origination=0.5)   # built-in
-z.FamilySampledRates(duplication=st.gamma(2, scale=0.06), loss=0.2, origination=0.5)  # scipy
-z.FamilySampledRates(duplication=lambda rng: rng.gamma(2, 0.06), loss=0.2, origination=0.5)  # callable
+FamilySampledRates(duplication=Gamma(2, 0.06), loss=0.2, origination=0.5)   # built-in
+FamilySampledRates(duplication=st.gamma(2, scale=0.06), loss=0.2, origination=0.5)  # scipy
+FamilySampledRates(duplication=lambda rng: rng.gamma(2, 0.06), loss=0.2, origination=0.5)  # callable
 ```
 
-Built-ins: `z.Gamma`, `z.Exponential`, `z.LogNormal`, `z.Uniform`, `z.Fixed`.
+Built-ins: `Gamma`, `Exponential`, `LogNormal`, `Uniform`, `Fixed` (all from `zombi2`).
 
 ## Transfers
 
-Pass a `z.TransferModel` to control what a transfer does (see [transfers](guide/transfers.md)).
+Pass a `TransferModel` (from `zombi2.genomes`) to control what a transfer does (see [transfers](guide/transfers.md)).
 
 ### Additive vs replacement
 
 ```python
+from zombi2.genomes import simulate_genomes, TransferModel
+
 # additive (default): recipient gains a copy (net +1)
-z.simulate_genomes(tree, transfer=0.3, loss=0.2, origination=0.5, seed=1)
+simulate_genomes(tree, transfer=0.3, loss=0.2, origination=0.5, seed=1)
 
 # replacement: with prob 0.2 the transfer also removes a pre-existing copy (net 0)
-z.simulate_genomes(tree, transfer=0.3, loss=0.2, origination=0.5,
-                   transfers=z.TransferModel(replacement=0.2), seed=1)
+simulate_genomes(tree, transfer=0.3, loss=0.2, origination=0.5,
+                 transfers=TransferModel(replacement=0.2), seed=1)
 ```
 
 ### Prefer phylogenetically nearby recipients
 
 ```python
-z.simulate_genomes(tree, transfer=0.3, loss=0.2, origination=0.5,
-                   transfers=z.TransferModel(distance_decay=2.0), seed=1)
+from zombi2.genomes import simulate_genomes, TransferModel
+
+simulate_genomes(tree, transfer=0.3, loss=0.2, origination=0.5,
+                 transfers=TransferModel(distance_decay=2.0), seed=1)
 ```
 
 `distance_decay=None` (default) picks recipients uniformly; larger values favour close
@@ -178,9 +205,11 @@ With `allow_self=True` a lineage can transfer to itself — mechanically a dupli
 you can drop explicit duplications entirely. Pair it with a growth cap:
 
 ```python
-z.simulate_genomes(tree, transfer=1.0, duplication=0.0, loss=0.3, origination=0.5,
-                   transfers=z.TransferModel(allow_self=True),
-                   max_family_size=0.5, seed=1)
+from zombi2.genomes import simulate_genomes, TransferModel
+
+simulate_genomes(tree, transfer=1.0, duplication=0.0, loss=0.3, origination=0.5,
+                 transfers=TransferModel(allow_self=True),
+                 max_family_size=0.5, seed=1)
 ```
 
 ## Controlling family growth
@@ -194,8 +223,10 @@ controls (see [bounding growth](guide/growth.md)).
 species:
 
 ```python
-z.simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.5,
-                   max_family_size=0.5, seed=1)   # cap = round(0.5 * N_species)
+from zombi2.genomes import simulate_genomes
+
+simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.5,
+                 max_family_size=0.5, seed=1)   # cap = round(0.5 * N_species)
 ```
 
 ### A soft cap
@@ -204,7 +235,9 @@ z.simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.
 dependence; family size settles around `K`:
 
 ```python
-z.simulate_genomes(tree, z.SharedRates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), seed=1)
+from zombi2.genomes import simulate_genomes, SharedRates
+
+simulate_genomes(tree, SharedRates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), seed=1)
 ```
 
 ## Gene order & rearrangements
@@ -214,11 +247,13 @@ rates live on `SharedRates`; the ordered genome is selected via `genome_factory`
 [ordered genomes](guide/ordered-genomes.md)):
 
 ```python
-genomes = z.simulate_genomes(
+from zombi2.genomes import simulate_genomes, SharedRates, OrderedGenome
+
+genomes = simulate_genomes(
     tree,
-    z.SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
-                   inversion=0.3, transposition=0.3),
-    genome_factory=lambda ids: z.OrderedGenome(ids, extension=0.5),
+    SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
+                inversion=0.3, transposition=0.3),
+    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),
     seed=1)
 ```
 
@@ -227,11 +262,13 @@ next gene).
 
 ## Getting results out
 
-`z.simulate_genomes(...)` returns a `Genomes` object:
+`simulate_genomes(...)` returns a `Genomes` object:
 
 ```python
-genomes = z.simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                             origination=0.5, seed=42)
+from zombi2.genomes import simulate_genomes
+
+genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
+                           origination=0.5, seed=42)
 ```
 
 ### The presence/copy-number matrix
@@ -270,11 +307,13 @@ See [gene trees & output](guide/gene-trees-and-output.md) for the file layout.
 Pass a `seed` for a reproducible run, or hand in your own NumPy generator with `rng`:
 
 ```python
-z.simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, seed=42)
+from zombi2.genomes import simulate_genomes
+
+simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5, seed=42)
 
 import numpy as np
-z.simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5,
-                   rng=np.random.default_rng(42))
+simulate_genomes(tree, duplication=0.2, loss=0.2, origination=0.5,
+                 rng=np.random.default_rng(42))
 ```
 
 The same seed and inputs reproduce a run within one engine. (Python and Rust engines use
@@ -284,13 +323,16 @@ different RNG streams — see the [FAQ](faq.md).)
 
 ### Many replicates in parallel
 
-`z.run_replicates` runs independent replicates across CPU cores, writing each to
+`run_replicates` runs independent replicates across CPU cores, writing each to
 `outdir/replicate_<i>/` and returning a summary per replicate (see
 [running in parallel](guide/parallel.md)):
 
 ```python
-summaries = z.run_replicates(
-    100, "batch/", z.BirthDeath(1.0, 0.3),
+from zombi2.species import BirthDeath
+from zombi2.genomes import run_replicates
+
+summaries = run_replicates(
+    100, "batch/", BirthDeath(1.0, 0.3),
     n_tips=200, age=5.0,
     duplication=0.2, transfer=0.1, loss=0.25, origination=0.5,
     seed=0)                 # processes=None uses all cores; processes=1 runs serially
@@ -303,9 +345,11 @@ copy-number/presence matrix — not the event log or gene trees — pass `output
 skip the genealogy entirely (much faster; the right path for large datasets):
 
 ```python
-pm = z.simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
-                        origination=0.5, max_family_size=0.3, seed=42,
-                        output="profiles")     # -> ProfileMatrix, no event log / gene trees
+from zombi2.genomes import simulate_genomes
+
+pm = simulate_genomes(tree, duplication=0.05, transfer=0.03, loss=0.1,
+                      origination=0.5, max_family_size=0.3, seed=42,
+                      output="profiles")       # -> ProfileMatrix, no event log / gene trees
 
 pm.matrix.shape                                # (n_families, n_extant_species)
 ```
