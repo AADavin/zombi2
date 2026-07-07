@@ -60,14 +60,14 @@ result = simulate_sse(model, n_tips=40, seed=1)   # tips end up biased toward th
 ZOMBI2 is **interface-first**: one Gillespie simulator programs only against `Genome`,
 `RateModel` and `EventSampler` protocols, so new genome representations, rate models and
 event types drop in as subclasses without touching the engine. See
-[Extending ZOMBI2](guide/extending.md).
+[Extending ZOMBI2](contributing/adding-a-model.md).
 
 ## Where next
 
 - New to ZOMBI2? Start with [Installation](installation.md) and the
   [Quickstart](quickstart.md).
 - Then work through the **User guide** in the navigation, or browse the
-  [**model catalog**](models/birth-death.md).
+  [**model catalog**](guide/species-trees.md).
 - Prefer a narrative? The
   [**Concepts & Tutorial manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf)
   walks through every model with worked examples and figures.

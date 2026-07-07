@@ -30,7 +30,7 @@ the batch is **reproducible and independent of the number of processes** (serial
 parallel give identical results).
 
 The species-tree and gene-family parameters mirror
-[`simulate_species_tree`](species-trees.md) and [`simulate_genomes`](gene-families.md)
+[`simulate_species_tree`](species-trees.md) and [`simulate_genomes`](genomes.md)
 (`rates`, `transfers`, `max_family_size`, `genome_factory`, …).
 
 !!! warning "Two multiprocessing rules"
