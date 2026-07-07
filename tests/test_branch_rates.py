@@ -5,12 +5,14 @@ import numpy as np
 from zombi2 import (
     BirthDeath,
     BranchRates,
+    GenomeSimulator,
     LogNormal,
     SharedRates,
     simulate_genomes,
     simulate_species_tree,
 )
 from zombi2.genomes.events import EventType
+from zombi2.tree import Tree, TreeNode
 
 
 def _base():
@@ -86,3 +88,60 @@ def test_bad_source_count_rejected():
         BranchRates(_base())  # no source
     with pytest.raises(ValueError):
         BranchRates(_base(), autocorr_sigma=0.5, factors={})  # two sources
+
+
+def _two_leaf_tree(stem_age: float) -> Tree:
+    """A root that immediately speciates into two leaf branches of length ``stem_age``."""
+    root = TreeNode(name="root", time=0.0)
+    root.add_child(TreeNode(name="A", time=stem_age))
+    root.add_child(TreeNode(name="B", time=stem_age))
+    return Tree(root, total_age=stem_age)
+
+
+def _mean_losses_on_A(factor, *, families, loss, age, reps, seed0):
+    """Mean number of LOSS events on branch ``A`` when its D/T/L is scaled by ``factor``.
+
+    Loss-only dynamics make each branch a pure-death process: the ``families`` single
+    copies entering branch ``A`` are each removed independently at per-copy rate
+    ``loss * factor``, with no size-growth feedback (loss only shrinks the genome).
+    """
+    tree = _two_leaf_tree(age)
+    counts = np.empty(reps)
+    for i in range(reps):
+        rng = np.random.default_rng(seed0 + i)
+        rates = BranchRates(SharedRates(loss=loss), factors={"A": factor})
+        res = GenomeSimulator().simulate(tree, rates, rng, initial_size=families)
+        counts[i] = sum(1 for r in res.event_log
+                        if r.event is EventType.LOSS and r.branch == "A")
+    return counts.mean(), counts.std(ddof=1) / np.sqrt(reps)
+
+
+def test_branch_factor_scales_event_count_proportionally():
+    # Pure-death (loss-only) branch: M single copies each survive to the branch tip with
+    # probability exp(-loss*factor*age), so the expected number of losses on branch A is the
+    # closed form  M * (1 - exp(-loss*factor*age)).  A branch scaled by ``factor`` therefore
+    # yields ``factor`` times the events of the unscaled branch in the low-rate (linear) regime.
+    M, loss, age = 500, 0.1, 0.1          # loss*age = 0.01 -> deeply linear (1 - e^-x ~= x)
+    reps = 800
+
+    def expected(factor):
+        return M * (1.0 - np.exp(-loss * factor * age))
+
+    # (1) ORACLE: each factor's mean matches its own closed-form expectation (within 4%).
+    means = {}
+    for factor in (1.0, 2.0, 4.0):
+        mean, se = _mean_losses_on_A(factor, families=M, loss=loss, age=age,
+                                     reps=reps, seed0=7000 + int(factor) * 1000)
+        means[factor] = mean
+        exact = expected(factor)
+        # clears its tolerance by ~2.5-3.7 sigma: |mean - exact| is a fraction of a se here.
+        assert abs(mean - exact) <= 0.04 * exact, (
+            f"factor {factor}: mean {mean:.3f} vs closed-form {exact:.3f} "
+            f"(se {se:.3f}) — model disagrees with pure-death theory")
+
+    # (2) CALIBRATION: the event count scales ~ factor (ratio ~ f), not merely "more".
+    base = means[1.0]
+    for factor in (2.0, 4.0):
+        ratio = means[factor] / base
+        assert abs(ratio - factor) <= 0.06 * factor, (
+            f"factor {factor}: event-count ratio {ratio:.3f} is not ~{factor}")
