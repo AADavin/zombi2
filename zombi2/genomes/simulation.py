@@ -379,6 +379,7 @@ def simulate_genomes(
     origination: float = 0.0,
     initial_families: int = 20,
     transfers=None,
+    conversions=None,
     max_family_size=None,
     seed: int | None = None,
     rng: np.random.Generator | None = None,
@@ -397,6 +398,10 @@ def simulate_genomes(
     :class:`~zombi2.SharedRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
     transfer mechanics; ``max_family_size`` (int absolute, or float as a multiple of the
     number of species) bounds family growth across duplication and transfer.
+
+    ``conversions`` sets intra-genome gene-conversion directionality — any object with a ``bias``
+    attribute (the experimental :class:`zombi2.experimental.ConversionModel`); it has an effect only
+    with the experimental :class:`zombi2.experimental.GeneConversionRates`, and is otherwise inert.
 
     Engine (automatic, not a user choice): the **built-in** model — the default
     ``UnorderedGenome`` with a plain :class:`~zombi2.SharedRates` — runs on the compiled
@@ -466,7 +471,7 @@ def simulate_genomes(
         rng = np.random.default_rng(seed)
     result = GenomeSimulator(sampler).simulate(
         species_tree, rates, rng, initial_size=initial_families, transfers=transfers,
-        max_family_size=max_family_size, genome_factory=genome_factory,
+        conversions=conversions, max_family_size=max_family_size, genome_factory=genome_factory,
     )
     profiles = ProfileMatrix.from_leaf_genomes(result.leaf_genomes)
     if output == "profiles":
