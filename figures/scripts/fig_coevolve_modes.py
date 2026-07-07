@@ -61,7 +61,7 @@ def _head(d, hx, hy, ax, ay, col, ah=13.0):
                         close=True, fill=col))
 
 
-def arrow(d, c1, c2, side, bend, label, col, lw, label_gap=34):
+def arrow(d, c1, c2, side, bend, label, col, lw, label_gap=34, label_dx=0.0, label_dy=0.0):
     """Curved directed arrow c1->c2; bows to `side` (+1/-1). Coloured `col`, matching its label.
 
     `label_gap` is how far past the curve's control point the label sits (smaller = closer to
@@ -83,7 +83,7 @@ def arrow(d, c1, c2, side, bend, label, col, lw, label_gap=34):
     p.M(sx, sy).Q(cx, cy, ex, ey)
     d.append(p)
     _head(d, ex, ey, cx, cy, col)
-    lx, ly = cx + ox * label_gap, cy + oy * label_gap
+    lx, ly = cx + ox * label_gap + label_dx, cy + oy * label_gap + label_dy
     d.append(draw.Text(label, FS_MODEL, lx, ly, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=col, font_weight="bold"))
 
@@ -127,7 +127,7 @@ def render():
     # directed edges (bow outward), coloured to match their labels; into-S edges heavy
     arrow(d, T, S, +1, 58, "trait-driven",     COL["trait-driven"],     LW_INTO_S)
     arrow(d, S, T, -1, 58, "cladogenetic",     COL["cladogenetic"],     LW_OVERLAY)
-    arrow(d, G, S, -1, 58, "key innovation",   COL["key innovation"],   LW_INTO_S)
+    arrow(d, G, S, -1, 58, "key innovation",   COL["key innovation"],   LW_INTO_S, label_dx=-24)
     arrow(d, S, G, +1, 58, "punctuational",    COL["punctuational"],    LW_OVERLAY)
     arrow(d, T, G, +1, 52, "trait-linked",     COL["trait-linked"],     LW_OVERLAY, label_gap=4)
     arrow(d, G, T, -1, 52, "gene-conditioned", COL["gene-conditioned"], LW_OVERLAY, label_gap=4)

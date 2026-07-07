@@ -5,12 +5,12 @@
 </defs>
 <rect x="0" y="0" width="1200" height="612" fill="white" />
 <text x="600.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Gene-conditioned trait (genes to traits)</text>
-<path d="M300.0,82 L332.0,82" stroke="#1a1a1a" stroke-width="5.2" />
-<text x="340.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">modifier present</text>
-<path d="M490.0,82 L522.0,82" stroke="#9a9a9a" stroke-width="2.4" />
-<text x="530.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">absent</text>
-<circle cx="640.0" cy="82" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="654.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">tip trait value</text>
+<path d="M279.65,82 L311.65,82" stroke="#1a1a1a" stroke-width="5.2" />
+<text x="319.65" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">modifier present</text>
+<path d="M559.25,82 L591.25,82" stroke="#9a9a9a" stroke-width="2.4" />
+<text x="599.25" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">absent</text>
+<circle cx="724.35" cy="82" r="6.5" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.8" />
+<text x="738.85" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">tip trait value</text>
 <text x="90" y="150" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
 <text x="240.0" y="150" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">the mechanism</text>
 <path d="M90,210 L90,510" stroke="#1a1a1a" stroke-width="1.4" />
