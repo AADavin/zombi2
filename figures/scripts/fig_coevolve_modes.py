@@ -126,8 +126,8 @@ def render():
 
     # directed edges (bow outward), coloured to match their labels; into-S edges heavy
     arrow(d, T, S, +1, 58, "trait-driven",     COL["trait-driven"],     LW_INTO_S)
-    arrow(d, S, T, -1, 58, "cladogenetic",     COL["cladogenetic"],     LW_OVERLAY)
-    arrow(d, G, S, -1, 58, "key innovation",   COL["key innovation"],   LW_INTO_S, label_dx=-24)
+    arrow(d, S, T, -1, 58, "cladogenetic",     COL["cladogenetic"],     LW_OVERLAY, label_dy=-20)
+    arrow(d, G, S, -1, 58, "key innovation",   COL["key innovation"],   LW_INTO_S, label_dx=-24, label_dy=18)
     arrow(d, S, G, +1, 58, "punctuational",    COL["punctuational"],    LW_OVERLAY)
     arrow(d, T, G, +1, 52, "trait-linked",     COL["trait-linked"],     LW_OVERLAY, label_gap=4)
     arrow(d, G, T, -1, 52, "gene-conditioned", COL["gene-conditioned"], LW_OVERLAY, label_gap=4)
