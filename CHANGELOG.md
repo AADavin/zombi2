@@ -3,12 +3,13 @@
 All notable changes to ZOMBI2 are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
-project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Until the
-first tagged release the changelog tracks the development line under **Unreleased**.
+project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-First public development line (`0.2.0.dev0`). ZOMBI2 is a ground-up redesign of
+## [0.2.0] - 2026-07-07
+
+First public release. ZOMBI2 is a ground-up redesign of
 [ZOMBI](https://github.com/AADavin/Zombi).
 
 ### Added

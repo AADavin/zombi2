@@ -22,7 +22,7 @@ Public API::
 
 from __future__ import annotations
 
-__version__ = "0.2.0.dev0"
+__version__ = "0.2.0"
 
 # Low-level primitives (kept at top level only; no scikit-style namespace).
 from zombi2.genomes.events import EventType, GeneOp, EventRecord, Selection, Region, TargetParams
