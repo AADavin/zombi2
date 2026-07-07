@@ -61,15 +61,11 @@ and you run whichever you need — a species tree, then genomes and/or traits al
 sequences along the resulting gene trees — composed into one seeded, reproducible run.
 
 <p align="center">
-  <img src="docs/img/four_levels.svg" alt="The four levels of evolution ZOMBI2 simulates: species trees, genomes, traits, and sequences" width="460">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/four_levels_dark.svg">
+    <img alt="The four levels of evolution ZOMBI2 simulates: species trees, genomes, traits, and sequences" src="docs/img/four_levels.svg" width="460">
+  </picture>
 </p>
-
-A cross-cutting mode, **coevolution**, couples any two levels so they drive each other
-(`coevolve --couple driver:target`).
-
----
-
-## Models
 
 A broad library, grouped by the level it acts on. Each links to its guide.
 
@@ -88,9 +84,15 @@ A broad library, grouped by the level it acts on. Each links to its guide.
   (JC/K80/HKY/GTR + Gamma, and empirical amino-acid models) along the gene trees, with a family
   of [relaxed molecular clocks](docs/guide/rate-variation.md) (strict, uncorrelated
   lognormal/gamma, autocorrelated, Cox–Ingersoll–Ross) rescaling time into substitutions.
-- **[Coevolution](docs/coevolution_models.md)** — couple any two levels with
-  `coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic
-  change, key innovations, and [trait-linked gene families](docs/guide/trait-linked-genomes.md).
+
+---
+
+## Combining levels
+
+**Coevolution** couples any two levels so they drive each other with
+`coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic change,
+key innovations, and [trait-linked gene families](docs/guide/trait-linked-genomes.md). See the
+[coevolution models](docs/coevolution_models.md) guide.
 
 ---
 
