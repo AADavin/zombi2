@@ -5,7 +5,7 @@ number that actually fire is random: with rate lambda, the count follows a Poiss
 distribution with mean lambda. Two panels (a low and a higher rate) show how the count is
 scattered around the mean, never exactly equal to it -- often zero or one at a low rate.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_gillespie_poisson.py
+Run:  python figures/scripts/fig_gillespie_poisson.py
 """
 
 from __future__ import annotations

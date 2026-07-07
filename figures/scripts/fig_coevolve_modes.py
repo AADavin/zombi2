@@ -13,7 +13,7 @@ Colour: the three circles use the ZOMBI palette (teal / sage / terracotta). The 
 -- green (echoing T) for species<->traits, teal (echoing S) for species<->genes, terracotta (echoing
 G) for traits<->genes; the label is always the dark shade so it stays legible on white.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_coevolve_modes.py
+Run:  python figures/scripts/fig_coevolve_modes.py
 """
 
 from __future__ import annotations

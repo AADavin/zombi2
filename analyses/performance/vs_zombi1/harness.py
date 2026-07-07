@@ -30,8 +30,9 @@ import sys
 import time
 
 # ---- Fixed locations -------------------------------------------------------
-# ZOMBI 1 checkout: override with $ZOMBI1_DIR, else the default clone location.
-ZOMBI_DIR = os.environ.get("ZOMBI1_DIR", "/Users/aadria/Desktop/Github/ZOMBI")
+# ZOMBI 1 checkout: set $ZOMBI1_DIR to your local ZOMBI v1 clone (default: a
+# sibling `../ZOMBI`). The vs-ZOMBI1 benchmark is skipped if it is not found.
+ZOMBI_DIR = os.environ.get("ZOMBI1_DIR", "../ZOMBI")
 BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 SP_TEMPLATE = os.path.join(BENCH_DIR, "SpeciesTreeParameters_template.tsv")
 GENOME_PARAMS = os.path.join(BENCH_DIR, "GenomeParameters_bench.tsv")

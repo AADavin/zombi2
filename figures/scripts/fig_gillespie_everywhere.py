@@ -9,7 +9,7 @@ Event markers follow the manual convention: filled square = duplication, black a
 transfer, cross = loss / extinction, ring = origination. The speciation glyph is a lineage
 splitting into two forward in time (one ancestor above, two descendants below).
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_gillespie_everywhere.py
+Run:  python figures/scripts/fig_gillespie_everywhere.py
 """
 
 from __future__ import annotations

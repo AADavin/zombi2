@@ -12,7 +12,7 @@ reference points; in the stem panel part of A is spent on the stem before the cr
 
 House style: B&W, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_age_crown.py
+Run:  python figures/scripts/fig_age_crown.py
 """
 
 from __future__ import annotations

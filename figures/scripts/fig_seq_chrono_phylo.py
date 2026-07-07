@@ -16,7 +16,7 @@ alignment.
 
 House style: painted trees, viridis rate scale, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_seq_chrono_phylo.py
+Run:  python figures/scripts/fig_seq_chrono_phylo.py
 """
 
 from __future__ import annotations

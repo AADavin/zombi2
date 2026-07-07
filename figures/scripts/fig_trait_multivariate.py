@@ -8,7 +8,7 @@ R (upright circle).
 
 House style: B&W, one centered title, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_multivariate.py
+Run:  python figures/scripts/fig_trait_multivariate.py
 """
 
 from __future__ import annotations

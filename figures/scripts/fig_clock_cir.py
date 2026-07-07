@@ -15,7 +15,7 @@ paths of the instantaneous rate against elapsed time.
 
 House style: B&W paths, the long-run mean drawn as a dashed reference, ASCII text.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_clock_cir.py
+Run:  python figures/scripts/fig_clock_cir.py
 """
 
 from __future__ import annotations

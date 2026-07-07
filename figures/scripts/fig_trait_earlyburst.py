@@ -6,7 +6,7 @@ early) while recent branches barely change (tips within a young clade stay simil
 of Brownian motion's even spread. A grey strip under the tree shows the rate decaying from fast
 (dark, early) to slow (light, late). Same painted-tree style as the BM / OU figures.
 
-Run:  /Users/aadria/miniconda3/bin/python figures/scripts/fig_trait_earlyburst.py
+Run:  python figures/scripts/fig_trait_earlyburst.py
 """
 
 from __future__ import annotations
