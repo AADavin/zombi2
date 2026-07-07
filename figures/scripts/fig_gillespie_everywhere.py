@@ -95,8 +95,10 @@ LEVELS = [
 CARD_X, CARD_W, CARD_H = 50, 700, 104
 YS = [143, 283, 423]
 TEXT_CX = 195               # centre of the title/rate text column (left area of the card)
-GLYPH_CENTER = 540          # centre of the event-glyph group (right of the text block)
-GSTEP = 112                 # spacing between glyphs; the 4-wide row must stay inside the card
+GLYPH_CENTER = 527          # centre of the event-glyph group, positioned so the widest (4-glyph)
+                            # row's captions clear BOTH the text column on the left and the card
+                            # border on the right
+GSTEP = 100                 # spacing between glyphs; tightened so the 4-wide row fits the band
 FS_CAP = 18                 # glyph caption size (a touch smaller than the block text)
 
 
@@ -121,7 +123,7 @@ def render():
             text(d, label, gx, cy + 26, FS_CAP)
 
     # ---- the engine box on the right ----------------------------------------
-    ex0, ew = CARD_X + CARD_W + 64, 374
+    ex0, ew = CARD_X + CARD_W + 64, 340   # width hugs the step list so the centred title reads centred
     ey0 = YS[0] - CARD_H / 2
     eh = (YS[-1] + CARD_H / 2) - ey0
     d.append(draw.Rectangle(ex0, ey0, ew, eh, rx=18, ry=18, fill="#f2f2f2", stroke=INK,

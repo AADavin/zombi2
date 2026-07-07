@@ -10,10 +10,10 @@
 <text x="369.3236422770414" y="391.1030352308679" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#0072B2" font-weight="bold">trait-driven</text>
 <path d="M569.0318784535601,313.1779790959897 Q484.5568342166478,487.1306951805398,328.68900670079574,601.5894251993069" fill="none" stroke="#56B4E9" stroke-width="2.8" stroke-linecap="round" />
 <path d="M328.68900670079574,601.5894251993069 L335.1190762551869,590.2910091366151 L341.39412688357754,598.8362595411833 Z" fill="#56B4E9" />
-<text x="510.6763577229586" y="508.8969647691321" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#56B4E9" font-weight="bold">cladogenetic</text>
+<text x="510.6763577229586" y="488.8969647691321" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#56B4E9" font-weight="bold">cladogenetic</text>
 <path d="M851.3109932992043,601.5894251993069 Q695.4431657833522,487.1306951805398,610.9681215464399,313.1779790959897" fill="none" stroke="#D55E00" stroke-width="4.6" stroke-linecap="round" />
 <path d="M610.9681215464399,313.1779790959897 L620.9217969343613,321.54005696407296 L611.3850660952402,326.1712911157646 Z" fill="#D55E00" />
-<text x="645.3236422770415" y="508.8969647691321" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#D55E00" font-weight="bold">key innovation</text>
+<text x="645.3236422770415" y="526.8969647691322" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#D55E00" font-weight="bold">key innovation</text>
 <path d="M628.6890067007957,298.41057480069315 Q784.5568342166478,412.8693048194602,869.0318784535601,586.8220209040103" fill="none" stroke="#E69F00" stroke-width="2.8" stroke-linecap="round" />
 <path d="M869.0318784535601,586.8220209040103 L859.0782030656387,578.459943035927 L868.6149339047598,573.8287088842354 Z" fill="#E69F00" />
 <text x="810.6763577229585" y="391.1030352308679" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#E69F00" font-weight="bold">punctuational</text>
@@ -40,13 +40,13 @@
 <text x="590.0" y="630.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">trait-gene feedback</text>
 <circle cx="590.0" cy="270" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="590.0" y="266" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">S</text>
-<text x="590.0" y="294" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">species</text>
+<text x="590.0" y="293" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">species</text>
 <circle cx="290.0" cy="630" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="290.0" y="626" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">T</text>
-<text x="290.0" y="654" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">traits</text>
+<text x="290.0" y="653" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">traits</text>
 <circle cx="890.0" cy="630" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="890.0" y="626" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">G</text>
-<text x="890.0" y="654" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">genes</text>
+<text x="890.0" y="653" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">genes</text>
 <path d="M60,108 L104,108" stroke="#1a1a1a" stroke-width="4.6" stroke-linecap="round" />
 <text x="116" y="108" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">into S: the tree is grown as an OUTPUT</text>
 <path d="M60,138 L104,138" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
