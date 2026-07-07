@@ -1,5 +1,5 @@
 <h1>
-  <img src="assets/logo.svg" alt="ZOMBI2 logo" height="38" align="middle">&nbsp;ZOMBI2
+  ZOMBI2&nbsp;<img src="assets/logo.svg" alt="ZOMBI2 logo" height="38" align="middle">
 </h1>
 
 **[🌐 Website](https://aadavin.github.io/zombi2/)** · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Quickstart](https://aadavin.github.io/zombi2/docs/quickstart/)
