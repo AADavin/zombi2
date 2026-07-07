@@ -67,53 +67,33 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quickstart: quickstart.md
-  - Command-line interface: cli.md
-  - User guide:
+  - Get started:
+      - Installation: installation.md
+      - Quickstart: quickstart.md
+  - Guide:
       - Species trees: guide/species-trees.md
-      - Ghost lineages: guide/ghost-lineages.md
       - Genomes: guide/genomes.md
-      - Gene families & rates: guide/gene-families.md
-      - Transfers: guide/transfers.md
-      - Bounding growth: guide/growth.md
       - Gene trees & output: guide/gene-trees-and-output.md
-      - Ordered genomes: guide/ordered-genomes.md
-      - Nucleotide genomes: guide/nucleotide-genomes.md
-      - Trait evolution: guide/traits.md
-      - Trait-linked gene families: guide/trait-linked-genomes.md
+      - Traits: guide/traits.md
       - Sequences: guide/sequences.md
+      - Coevolution: guide/coevolution.md
       - Running in parallel: guide/parallel.md
-      - Rust engine: guide/rust-engine.md
-      - Extending ZOMBI2: guide/extending.md
-  - Model catalog:
-      - Species trees:
-          - Basic (birth–death & Yule): models/birth-death.md
-          - Advanced (heterogeneous rates): models/advanced-diversification.md
-      - Genomes:
-          - Unordered (gene families): models/gene-family.md
-          - Ordered chromosomes: models/ordered.md
-          - Nucleotide genomes: models/nucleotide.md
-      - Traits:
-          - Continuous-trait models: models/continuous-traits.md
-          - Discrete-trait models: models/discrete-traits.md
-          - Biogeography (DEC): models/biogeography.md
-      - Sequences:
-          - DNA substitution models: models/dna-substitution.md
-          - Protein substitution models: models/protein-substitution.md
-          - Relaxed clocks: models/relaxed-clocks.md
-      - Coevolution: models/coevolution.md
   - Cookbook: cookbook.md
+  - Reference:
+      - Command line: cli.md
+      - Python API: reference/api.md
+      - The Rust engine: guide/rust-engine.md
+  - About:
+      - FAQ: faq.md
+      - Comparison with ZOMBI 1: comparison.md
+      - Validation: validation.md
+      - References: references.md
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
-  - FAQ: faq.md
-  - Comparison with ZOMBI1: comparison.md
-  - Validation: validation.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
       - Model lifecycle: contributing/model-lifecycle.md
       - Conventions: contributing/conventions.md
-  - Publishing a release: publishing.md
-  - API reference: reference/api.md
+      - Publishing a release: publishing.md

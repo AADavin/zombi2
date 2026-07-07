@@ -90,7 +90,7 @@ ghosts = [n for n in tree.leaves() if not n.is_extant]   # extinct (e*) tips; ex
 ```
 
 Only birth–death with extinction (or `sampling_fraction < 1`) produces ghosts — a pure-birth
-tree has none. See [ghost lineages](guide/ghost-lineages.md).
+tree has none. See [ghost lineages](guide/species-trees.md).
 
 ### A forward (complete) tree with extinct lineages
 
@@ -112,7 +112,7 @@ extinct = [n for n in tree.leaves() if not n.is_extant]
 ```
 
 This is the native alternative to un-pruning a backward tree
-([ghost lineages](guide/ghost-lineages.md)), and it also supports fossilized birth–death
+([ghost lineages](guide/species-trees.md)), and it also supports fossilized birth–death
 (dated/fossil tips). See [species trees](guide/species-trees.md).
 
 ## Gene families: rate models
@@ -172,7 +172,7 @@ Built-ins: `Gamma`, `Exponential`, `LogNormal`, `Uniform`, `Fixed` (all from `zo
 
 ## Transfers
 
-Pass a `TransferModel` (from `zombi2.genomes`) to control what a transfer does (see [transfers](guide/transfers.md)).
+Pass a `TransferModel` (from `zombi2.genomes`) to control what a transfer does (see [transfers](guide/genomes.md)).
 
 ### Additive vs replacement
 
@@ -215,7 +215,7 @@ simulate_genomes(tree, transfer=1.0, duplication=0.0, loss=0.3, origination=0.5,
 ## Controlling family growth
 
 Both duplication and transfer create copies, so families can grow like `e^{(d−l)t}`. Two
-controls (see [bounding growth](guide/growth.md)).
+controls (see [bounding growth](guide/genomes.md)).
 
 ### A hard cap
 
@@ -244,7 +244,7 @@ simulate_genomes(tree, SharedRates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), se
 
 Put genes on an ordered chromosome and enable inversions/transpositions. The rearrangement
 rates live on `SharedRates`; the ordered genome is selected via `genome_factory` (see
-[ordered genomes](guide/ordered-genomes.md)):
+[ordered genomes](guide/genomes.md)):
 
 ```python
 from zombi2.genomes import simulate_genomes, SharedRates, OrderedGenome
