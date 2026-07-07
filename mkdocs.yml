@@ -54,7 +54,7 @@ nav:
   - User guide:
       - Species trees: guide/species-trees.md
       - Ghost lineages: guide/ghost-lineages.md
-      - Ghost lineages — how it works: ghost_lineages.md
+      - Genomes: guide/genomes.md
       - Gene families & rates: guide/gene-families.md
       - Transfers: guide/transfers.md
       - Bounding growth: guide/growth.md
@@ -62,6 +62,7 @@ nav:
       - Gene-family coupling: guide/coupling.md
       - Ordered genomes: guide/ordered-genomes.md
       - Nucleotide genomes: guide/nucleotide-genomes.md
+      - Sequences: guide/sequences.md
       - Rate variation: guide/rate-variation.md
       - Trait evolution: guide/traits.md
       - Trait-linked gene families: guide/trait-linked-genomes.md
@@ -82,7 +83,7 @@ nav:
           - DNA substitution models: models/dna-substitution.md
           - Protein substitution models: models/protein-substitution.md
           - Relaxed clocks: models/relaxed-clocks.md
-      - Combining levels:
+      - Coevolution:
           - State-dependent diversification (SSE): models/sse.md
           - Coupled models: models/coevolution.md
   - Cookbook: cookbook.md

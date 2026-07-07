@@ -1,17 +1,16 @@
 # ZOMBI2
 
 **ZOMBI2** simulates phylogenetic evolution end to end — **species trees**, then
-**gene families**, **phenotypic traits** and molecular **sequences** along them, plus
-**coupled (coevolving)** processes. It is a ground-up redesign of
-[ZOMBI](https://github.com/AADavin/Zombi), with a fast Rust engine, a composable Python
-library and a command-line interface.
+**gene families**, **phenotypic traits** and molecular **sequences** along them. It is a
+ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi), with a fast Rust engine, a
+composable Python library and a command-line interface.
 
-The workflow is two symmetric steps:
+<figure markdown="span">
+  ![The four levels of evolution ZOMBI2 simulates: species trees, then genomes, traits and sequences along them.](img/four_levels.svg){ width="440" }
+</figure>
 
-1. Simulate a **species tree** *backward* in time — a reconstructed birth–death process
-   conditioned on the number of extant species.
-2. Simulate **gene families** *forward* in time along that fixed tree — duplication,
-   transfer, loss and origination, with optional gene order and rearrangements.
+The four levels can be **simulated independently** — run whichever you need along a shared
+species tree:
 
 ```python
 from zombi2.species import BirthDeath, simulate_species_tree
@@ -26,6 +25,16 @@ complete, extant = genomes.gene_trees()["1"]
 genomes.write("out/")                   # trees, event tables, transfers, profiles
 ```
 
+Or **coupled**, so one level drives another — here a trait drives diversification:
+
+```python
+from zombi2.coevolve import BiSSE, simulate_sse
+
+# state 1 speciates 3x faster than state 0 (trait-dependent diversification)
+model = BiSSE(lambda0=1.0, lambda1=3.0, mu0=0.3, mu1=0.3, q01=0.4, q10=0.4)
+result = simulate_sse(model, n_tips=40, seed=1)   # tips end up biased toward the fast state
+```
+
 ## What's in the box
 
 - **Species trees** — backward (reconstructed) and forward (complete) birth–death and
@@ -33,21 +42,18 @@ genomes.write("out/")                   # trees, event tables, transfers, profil
   heterogeneous-rate diversification (ClaDS, diversity-dependent, clade shifts), mass
   extinctions and ghost lineages. The Rust engine scales to millions of tips.
 - **Gene families** — duplication / transfer / loss / origination along the tree, with
-  uniform (`SharedRates`), per-family-sampled (`FamilySampledRates`, ZOMBI-1 style) and
+  uniform (`SharedRates`), per-family-sampled (`FamilySampledRates`, ZOMBI1 style) and
   genome-wise rate models; transfers additive or **replacement** with distance-weighted
-  recipients; ordered chromosomes with **inversions** and **transpositions**;
-  nucleotide-resolution genomes; and a **Potts model of gene-family coupling**
-  (non-independence). Output as full event logs, compact event traces, or counts-only
-  sparse **profile matrices**.
+  recipients; ordered chromosomes with **inversions** and **transpositions**; and
+  nucleotide-resolution genomes. Output as full event logs, compact event traces, or
+  counts-only sparse **profile matrices**.
 - **Traits** — Brownian motion, Ornstein–Uhlenbeck, early burst, Mk, threshold and
-  related models, plus **DEC biogeography**, evolved along a phylogeny.
+  related models, plus DEC biogeography, evolved along a phylogeny.
 - **Sequences** — a gene × lineage **relaxed-clock** family that rescales gene trees from
   time into substitutions/site, plus nucleotide substitution models (JC / K80 / HKY / GTR
   + Γ).
 - **Coevolution** — couple species, traits and genes along six directed edges with
   `coevolve --couple driver:target`.
-- **Growth control** — a hard family-size cap (`max_family_size`, absolute or a fraction
-  of the number of species) and a soft logistic `carrying_capacity`.
 
 ## Design philosophy
 
@@ -60,7 +66,8 @@ event types drop in as subclasses without touching the engine. See
 
 - New to ZOMBI2? Start with [Installation](installation.md) and the
   [Quickstart](quickstart.md).
-- Then work through the **User guide** in the navigation.
-- Heterogeneous-rate diversification, mass extinctions and the **Potts model of
-  gene-family coupling** (the non-independence of gene families) are all implemented — the
-  [command-line reference](cli.md) and the user guide cover them.
+- Then work through the **User guide** in the navigation, or browse the
+  [**model catalog**](models/diversification.md).
+- Prefer a narrative? The
+  [**Concepts & Tutorial manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf)
+  walks through every model with worked examples and figures.

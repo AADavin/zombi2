@@ -24,7 +24,7 @@ for s in summaries:                       # small per-replicate summaries come b
     print(s["replicate"], s["seed"], s["n_families"], s["n_events"], s["path"])
 ```
 
-Each replicate `i` is written to `outdir/replicate_<i>/` (the full ZOMBI-1-style output —
+Each replicate `i` is written to `outdir/replicate_<i>/` (the full ZOMBI1-style output —
 trees, event tables, transfers, profiles) with an independent seed derived from `seed`, so
 the batch is **reproducible and independent of the number of processes** (serial and
 parallel give identical results).

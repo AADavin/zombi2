@@ -42,7 +42,7 @@ genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
                            origination=0.5, initial_families=40, seed=42)
 ```
 
-### Per-family sampled rates — ZOMBI-1 style
+### Per-family sampled rates — ZOMBI1 style
 
 Give each family its **own** D/T/L, drawn from distributions the first time the family
 appears and kept for its lifetime:

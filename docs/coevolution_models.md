@@ -1,4 +1,4 @@
-# Coevolution: coupled species, traits and gene families — a design
+# Coevolution: coupled species, traits and gene families
 
 ZOMBI2 simulates in a **pipeline**: build a species tree, then evolve a trait along it, then
 evolve gene families along it (optionally conditioned on the trait). That works because today's
@@ -219,6 +219,74 @@ It writes `traits.tsv` (per node: modifier presence 0/1 and the trait value) and
 modifier sit near `theta_present`**, those without near `theta_absent`.
 
 Only the full three-way `--all` remains on the roadmap below.
+
+## CLI reference
+
+Every edge is one `zombi2 coevolve --couple driver:target` invocation; the examples throughout
+this page are the authoritative per-edge usage, and `zombi2 coevolve -h` prints the full flag set.
+The one edge whose flags differ most from `genomes`/`trait` is **`traits:genes`** (trait-conditioned
+gene families), documented in full here.
+
+### `traits:genes` — trait-conditioned gene families
+
+The **`traits:genes`** edge links the two halves of the toolkit: it evolves a phenotypic trait
+along the tree, then evolves a **panel** of gene families whose loss and gain **depend on the local
+trait value**, so the resulting profile carries a known, trait-linked signal (the forward generator
+behind reading gene content as a record of a trait's history — e.g. dating the tree from the Great
+Oxidation Event). It simulates the trait with any [`trait`](cli.md#trait-a-phenotypic-trait) model
+(`--trait-model`), builds the coupling, and writes the gene-family output alongside the trait and a
+coupling manifest. (This was the standalone `coevolve-genetrait` command before it was folded into
+`coevolve`.)
+
+```bash
+T=out/species_tree.nwk
+
+# a binary aerobic(1)/anaerobic(0) trait; 30% of a 40-family panel respond to it
+zombi2 coevolve --couple traits:genes -t $T \
+    --trait-model mk --states 2 --rate 0.3 --trait-center \
+    --panel 40 --responsive 0.3 --weight 1 --effect-loss 3 \
+    --loss 0.4 --trans 1.0 --write all --seed 7 -o out/
+```
+
+A *responsive* family is retained where the trait favours it (loss scaled by
+`exp(-effect_loss · weight · trait)`) and purged where it does not; gain is field-blind
+horizontal transfer, so the **net** gene content of a lineage tracks its trait. `--responsive`
+chooses which families respond — a count (`8`), a fraction (`0.3`), an id/index list
+(`F3,F7,12`), or `@file` of ids — and `--signed` randomises the weight signs so some families
+co-occur with a high trait value and others with a low one. `--trait-center` centers a discrete
+trait's states (recommended for a binary character, giving a symmetric two-sided coupling), and
+`--trait-steps K` sets the within-branch resolution for a continuous trait (discrete traits use
+their exact stochastic map). `--effect-gain` optionally scales a lineage's transfer activity by
+the trait too (off by default).
+
+It writes the gene-family files selected by `--write` (as [`genomes`](cli.md#choosing-the-output-and-the-rust-engine)),
+and always adds **`traits.tsv`** / **`trait_tree.nwk`** (the trait at every node) and
+**`coupling.tsv`** (the per-family weights and effect sizes — the trait↔gene linkage on record
+for downstream inference). Reuse a precomputed trait instead of simulating one with
+`--trait-file traits.tsv` (a `node`/`value` table over **every** node — tips and ancestors —
+with numeric values, as `zombi2 trait` writes). See
+[Trait-linked gene families](guide/trait-linked-genomes.md) for the model.
+
+| Option | Meaning |
+| --- | --- |
+| `--couple traits:genes` | select the trait-conditioned-genes edge (required) |
+| `--tree` / `-t` | input species tree in Newick format (required) |
+| `--trait-model {bm,ou,eb,mk,threshold}` | trait to evolve then couple to gene families (default `bm`); its parameters are the [`trait`](cli.md#trait-a-phenotypic-trait) flags (`--sigma2`, `--alpha`/`--theta`, `--rate`, `--states`/`--ordered`/`--q-matrix`, `--thresholds`, …) |
+| `--trait-file TSV` | reuse a precomputed trait instead — a numeric `node`/`value` table over **every** node (as `zombi2 trait` writes); overrides `--trait-model` |
+| `--trait-center` | [discrete] center the state values around their mean (two-sided coupling; recommended for a binary trait) |
+| `--trait-steps K` | [continuous] within-branch resolution — sub-segment each branch into K pieces (default `16`; ignored for discrete traits) |
+| `--panel` | number of gene families in the panel (default `50`) |
+| `--loss` `--trans` `--dup` `--orig` | panel base rates — baseline per-copy loss (default `0.5`), transfer/HGT gain (default `1.0`), duplication, origination |
+| `--responsive SPEC` | which families respond: a count, a fraction (e.g. `0.3`), an id/index list (`F3,F7,12`), or `@FILE` (default `0.3`) |
+| `--weight` / `--signed` | coupling weight of each responsive family (default `1.0`) / randomise its sign |
+| `--effect-loss` | retention coupling strength: loss scales by `exp(-effect_loss · weight · trait)` (default `2.0`; `0` = uncoupled) |
+| `--effect-gain` | optional donor-side HGT-activity coupling: transfer scales by `exp(effect_gain · trait)` (default `0`) |
+| `--write {profiles,trace,trees,events,transfers,summary,all}` | which gene-family files to write (default `profiles trees`); `traits.tsv` / `trait_tree.nwk` / `coupling.tsv` are always written too |
+| `--sparse` / `--annotate-species` | sparse profile table / label internal gene-tree nodes (as in `genomes`) |
+| `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
+
+For the into-species edges (`traits:species`, `genes:species`) and the other overlay edges, the
+per-edge examples above list their flags; `zombi2 coevolve -h` is the authoritative list.
 
 ## The engine: one generic per-lineage state
 

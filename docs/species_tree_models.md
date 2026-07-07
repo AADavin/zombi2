@@ -63,7 +63,7 @@ whole downstream gene-family machinery are untouched.
 `simulate_species_tree(..., direction="forward")` runs the birth–death process *forward* and returns the
 **complete** tree — extinct lineages included natively (`is_extant=False` leaves at their death
 times). It is the second route to a complete tree, alongside grafting ghosts onto a backward
-tree with [`add_ghost_lineages`](ghost_lineages.md); pass either to `simulate_genomes` and
+tree with [`add_ghost_lineages`](guide/ghost-lineages.md); pass either to `simulate_genomes` and
 transfers use the dead lineages automatically.
 
 ```python
