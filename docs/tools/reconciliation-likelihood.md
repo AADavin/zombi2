@@ -98,7 +98,37 @@ You can also drive the underlying engines directly (`undated_loglik`, `dated_log
 
 ### Command line
 
-The `genomes` command can score every extant family in one pass:
+Two entry points, for the two situations.
+
+#### Score gene trees you already have — `zombi2 tools reconcile`
+
+Given a gene tree and a species tree (from a ZOMBI2 run, or anywhere), evaluate the
+reconciliation log-likelihood at a **given** set of DTL rates — the direct CLI counterpart of
+`reconciliation_likelihood()`. It *evaluates* the likelihood at the rates you pass; it does
+**not** fit or optimise them.
+
+```bash
+# one log-likelihood, printed to stdout (dated model)
+zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15
+
+# all three models, written into out/Reconciliation_likelihoods.tsv
+zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk \
+    --dup 0.1 --trans 0.05 --loss 0.15 --model dated undated reldated -o out/
+```
+
+`-g` is a Newick file of one or more reconciled gene trees (one per line; tip labels
+`<species>|<gid>`, the species matching a leaf of the dated `-t` species tree). With a single
+tree and a single model the bare log-likelihood is printed — handy for scripting,
+`ll=$(zombi2 tools reconcile …)`; otherwise a `family / extant_copies / <model>_loglik…` table
+is printed, and `-o DIR` writes that table as `DIR/Reconciliation_likelihoods.tsv` (the same
+file `genomes --score-likelihoods` produces). Flags mirror the API: `--model` (one or more of
+`dated undated reldated`, default `dated`), `--n-steps` (dated grid resolution),
+`--origination` (`root`|`uniform`).
+
+#### Score a whole simulation in one pass — `genomes --score-likelihoods`
+
+When you are *simulating* the families anyway, `genomes` can score every extant family it
+generates in the same run:
 
 ```bash
 zombi2 genomes --tree species_tree.nwk \
@@ -118,6 +148,8 @@ counts-only / trace fast paths do not reconstruct gene trees).
   maps each model name to its log-likelihood.
 - **CLI / `write_scores_tsv`** — `Reconciliation_likelihoods.tsv`, one row per extant family:
   `family`, `extant_copies`, and a `<model>_loglik` column for each scored model.
+- **CLI `tools reconcile`** — prints the bare log-likelihood to stdout for a single tree and a
+  single model, else the same table; `-o DIR` writes it as `DIR/Reconciliation_likelihoods.tsv`.
 
 ## Validation
 
