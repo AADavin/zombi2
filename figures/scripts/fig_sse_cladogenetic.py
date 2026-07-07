@@ -191,16 +191,18 @@ def render(bw=False):
                        FS_TITLE, W / 2, 44, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
 
-    # shared legend, centered under the title
+    # shared legend, centered under the title. L#1: text baselines set explicitly so each label is
+    # vertically centred on its marker, and the two items are pushed well apart so they never touch.
     ly = 80
-    items_x = W / 2 - 330
+    ty = ly + 0.34 * FS_TICK
+    items_x = W / 2 - 400
     d.append(draw.Circle(items_x, ly, 5.0, fill="white", stroke=INK, stroke_width=2.0))
-    d.append(draw.Text("change along a branch (anagenetic)", FS_TICK, items_x + 14, ly,
-                       font_family=FONT, text_anchor="start", dominant_baseline="central", fill=INK))
-    dx = W / 2 + 30
+    d.append(draw.Text("change along a branch (anagenetic)", FS_TICK, items_x + 18, ty,
+                       font_family=FONT, text_anchor="start", fill=INK))
+    dx = W / 2 + 110
     _diamond(d, dx, ly, True)
-    d.append(draw.Text("change at a split (cladogenetic)", FS_TICK, dx + 14, ly,
-                       font_family=FONT, text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("change at a split (cladogenetic)", FS_TICK, dx + 18, ty,
+                       font_family=FONT, text_anchor="start", fill=INK))
 
     tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=N_TIPS, age=AGE,
                                  direction="backward", seed=TREE_SEED)
@@ -211,9 +213,6 @@ def render(bw=False):
            "A   anagenetic (BiSSE): change accrues with time")
     _panel(d, 660, 158, 520, 420, tree, res_c, "clado",
            "B   cladogenetic (ClaSSE): change injected at the split")
-
-    d.append(draw.Text("same tree, same Gillespie -- only the consequence of a speciation differs",
-                       FS_TICK, W / 2, H - 22, font_family=FONT, text_anchor="middle", fill=MUTED))
 
     name = "sse_cladogenetic"
     suffix = "_bw" if bw else ""

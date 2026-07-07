@@ -45,6 +45,7 @@ COL = {
 }
 DBL = "#555555"                       # bidirectional (joint) double-headed arrows
 LW_INTO_S, LW_OVERLAY = 4.6, 2.8      # weight encodes into-S (tree is an output) vs overlay
+FS_MODEL = FS_TICK - 2                 # model-name labels, a touch smaller than the body ticks
 
 
 def edge_point(cx, cy, tx, ty, r):
@@ -60,7 +61,7 @@ def _head(d, hx, hy, ax, ay, col, ah=13.0):
                         close=True, fill=col))
 
 
-def arrow(d, c1, c2, side, bend, label, col, lw, label_gap=34):
+def arrow(d, c1, c2, side, bend, label, col, lw, label_gap=34, label_dx=0.0, label_dy=0.0):
     """Curved directed arrow c1->c2; bows to `side` (+1/-1). Coloured `col`, matching its label.
 
     `label_gap` is how far past the curve's control point the label sits (smaller = closer to
@@ -82,8 +83,8 @@ def arrow(d, c1, c2, side, bend, label, col, lw, label_gap=34):
     p.M(sx, sy).Q(cx, cy, ex, ey)
     d.append(p)
     _head(d, ex, ey, cx, cy, col)
-    lx, ly = cx + ox * label_gap, cy + oy * label_gap
-    d.append(draw.Text(label, FS_TICK, lx, ly, font_family=FONT, text_anchor="middle",
+    lx, ly = cx + ox * label_gap + label_dx, cy + oy * label_gap + label_dy
+    d.append(draw.Text(label, FS_MODEL, lx, ly, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=col, font_weight="bold"))
 
 
@@ -98,10 +99,10 @@ def biarrow(d, c1, c2, label, col=DBL, lw=3.2):
     _head(d, sx, sy, ex, ey, col, ah=12.0)
     _head(d, ex, ey, sx, sy, col, ah=12.0)
     mx, my = (sx + ex) / 2, (sy + ey) / 2
-    tw = 0.55 * FS_TICK * len(label) + 16
-    th = FS_TICK + 12
+    tw = 0.55 * FS_MODEL * len(label) + 16
+    th = FS_MODEL + 12
     d.append(draw.Rectangle(mx - tw / 2, my - th / 2, tw, th, fill="white", stroke="none"))
-    d.append(draw.Text(label, FS_TICK, mx, my, font_family=FONT, text_anchor="middle",
+    d.append(draw.Text(label, FS_MODEL, mx, my, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=col, font_weight="bold"))
 
 
@@ -126,7 +127,7 @@ def render():
     # directed edges (bow outward), coloured to match their labels; into-S edges heavy
     arrow(d, T, S, +1, 58, "trait-driven",     COL["trait-driven"],     LW_INTO_S)
     arrow(d, S, T, -1, 58, "cladogenetic",     COL["cladogenetic"],     LW_OVERLAY)
-    arrow(d, G, S, -1, 58, "key innovation",   COL["key innovation"],   LW_INTO_S)
+    arrow(d, G, S, -1, 58, "key innovation",   COL["key innovation"],   LW_INTO_S, label_dx=-24)
     arrow(d, S, G, +1, 58, "punctuational",    COL["punctuational"],    LW_OVERLAY)
     arrow(d, T, G, +1, 52, "trait-linked",     COL["trait-linked"],     LW_OVERLAY, label_gap=4)
     arrow(d, G, T, -1, 52, "gene-conditioned", COL["gene-conditioned"], LW_OVERLAY, label_gap=4)
@@ -156,10 +157,6 @@ def render():
     d.append(draw.Text("both edges at once: the joint (bidirectional) model", FS_TICK, lx + 56,
                        ly + 60, font_family=FONT, text_anchor="start", dominant_baseline="central",
                        fill=DBL))
-
-    d.append(draw.Text("each arrow driver -> target = one model; a double arrow = both edges "
-                       "(--couple driver:target)", FS_TICK, W / 2, H - 24, font_family=FONT,
-                       text_anchor="middle", fill=MUTED))
 
     name = "coevolve_modes"
     out = OUT_DIR / name

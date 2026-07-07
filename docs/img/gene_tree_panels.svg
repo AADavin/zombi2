@@ -44,8 +44,8 @@
 <text x="331.99974560010173" y="318.0" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">J_2</text>
 <rect x="-173.7933284826686" y="-194.71428571428572" width="26.0" height="26.0" fill="#1a1a1a" opacity="1.0" />
 <path d="M270.0339167864332,53.1317501439269 L257.0339167864332,75.6484106423223 L283.0339167864332,75.6484106423223 Z" fill="#1a1a1a" opacity="1.0" />
-<text x="248.03391678643322" y="-16.0" font-size="30" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">donor-kept copy</text>
-<text x="248.03391678643322" y="120.28571428571433" font-size="30" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">transferred copy</text>
+<text x="240.03391678643322" y="34.071428571428584" font-size="23" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">donor-kept copy</text>
+<text x="240.03391678643322" y="102.21428571428575" font-size="23" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">transferred copy</text>
 <path d="M-326.2956052817579,-331.0 L-300.2956052817579,-305.0" stroke="#1a1a1a" stroke-width="4.0" stroke-linecap="round" />
 <path d="M-326.2956052817579,-305.0 L-300.2956052817579,-331.0" stroke="#1a1a1a" stroke-width="4.0" stroke-linecap="round" />
 <path d="M-332.0,334.0 L317.99974560010173,334.0" stroke="black" stroke-width="1.8" />
@@ -98,8 +98,8 @@
 <text x="331.99974560010173" y="318.0" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">J_2</text>
 <rect x="-173.7933284826686" y="-278.0" width="26.0" height="26.0" fill="#1a1a1a" opacity="1.0" />
 <path d="M270.0339167864332,11.488893001069732 L257.0339167864332,34.00555349946514 L283.0339167864332,34.00555349946514 Z" fill="#1a1a1a" opacity="1.0" />
-<text x="248.03391678643322" y="-69.0" font-size="30" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">donor-kept copy</text>
-<text x="248.03391678643322" y="90.0" font-size="30" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">transferred copy</text>
+<text x="240.03391678643322" y="-13.25" font-size="23" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">donor-kept copy</text>
+<text x="240.03391678643322" y="66.25" font-size="23" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="end" dominant-baseline="middle">transferred copy</text>
 <path d="M-332.0,334.0 L188.72198531120586,334.0" stroke="black" stroke-width="1.8" />
 <path d="M-318.0,334.0 L-318.0,342.0" stroke="black" stroke-width="1.8" />
 <text x="-318.0" y="372.0" font-size="30" text-anchor="middle" font-family="Helvetica">0.0</text>

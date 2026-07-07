@@ -7,73 +7,73 @@
 <text x="670.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Substitution models over the four bases</text>
 <text x="165.0" y="139" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">JC69</text>
 <text x="165.0" y="161" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">equal rates, equal freqs</text>
-<path d="M90,205 L240,205" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M90,355 L240,355" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M90,205 L90,355" stroke="#9a9a9a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M240,205 L240,355" stroke="#9a9a9a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M90,205 L240,355" stroke="#9a9a9a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M240,205 L90,355" stroke="#9a9a9a" stroke-width="8.4" stroke-linecap="round" />
-<circle cx="90" cy="205" r="32.0" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="90" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<circle cx="240" cy="205" r="32.0" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="240" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">G</text>
-<circle cx="90" cy="355" r="32.0" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="90" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<circle cx="240" cy="355" r="32.0" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="240" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">T</text>
+<path d="M90,205 L240,205" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M90,355 L240,355" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M90,205 L90,355" stroke="#9a9a9a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M240,205 L240,355" stroke="#9a9a9a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M90,205 L240,355" stroke="#9a9a9a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M240,205 L90,355" stroke="#9a9a9a" stroke-width="10.0" stroke-linecap="round" />
+<circle cx="90" cy="205" r="31.5" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="90" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">A</text>
+<circle cx="240" cy="205" r="31.5" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="240" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">G</text>
+<circle cx="90" cy="355" r="31.5" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="90" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">C</text>
+<circle cx="240" cy="355" r="31.5" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="240" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">T</text>
 <text x="465.0" y="139" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">K80</text>
 <text x="465.0" y="161" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">transition bias (kappa)</text>
-<path d="M390,205 L540,205" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M390,355 L540,355" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M390,205 L390,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<path d="M540,205 L540,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<path d="M390,205 L540,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<path d="M540,205 L390,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<circle cx="390" cy="205" r="32.0" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="390" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<circle cx="540" cy="205" r="32.0" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="540" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">G</text>
-<circle cx="390" cy="355" r="32.0" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="390" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<circle cx="540" cy="355" r="32.0" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="540" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">T</text>
+<path d="M390,205 L540,205" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M390,355 L540,355" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M390,205 L390,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<path d="M540,205 L540,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<path d="M390,205 L540,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<path d="M540,205 L390,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<circle cx="390" cy="205" r="31.5" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="390" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">A</text>
+<circle cx="540" cy="205" r="31.5" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="540" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">G</text>
+<circle cx="390" cy="355" r="31.5" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="390" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">C</text>
+<circle cx="540" cy="355" r="31.5" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="540" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">T</text>
 <text x="765.0" y="139" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">HKY85</text>
 <text x="765.0" y="161" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">kappa + unequal freqs</text>
-<path d="M690,205 L840,205" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M690,355 L840,355" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M690,205 L690,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<path d="M840,205 L840,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<path d="M690,205 L840,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<path d="M840,205 L690,355" stroke="#9a9a9a" stroke-width="3.733333333333333" stroke-linecap="round" />
-<circle cx="690" cy="205" r="28.168143377105217" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="690" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<circle cx="840" cy="205" r="35.4" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="840" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">G</text>
-<circle cx="690" cy="355" r="34.82523644247402" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="690" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<circle cx="840" cy="355" r="28.168143377105217" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="840" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">T</text>
+<path d="M690,205 L840,205" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M690,355 L840,355" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M690,205 L690,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<path d="M840,205 L840,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<path d="M690,205 L840,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<path d="M840,205 L690,355" stroke="#9a9a9a" stroke-width="4.133333333333334" stroke-linecap="round" />
+<circle cx="690" cy="205" r="26.87923171945041" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="690" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">A</text>
+<circle cx="840" cy="205" r="35.599999999999994" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="840" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">G</text>
+<circle cx="690" cy="355" r="34.906902768865734" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="690" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">C</text>
+<circle cx="840" cy="355" r="26.87923171945041" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="840" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">T</text>
 <text x="1065.0" y="139" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">GTR</text>
 <text x="1065.0" y="161" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a" font-style="italic">six free rates + freqs</text>
-<path d="M990,205 L1140,205" stroke="#1a1a1a" stroke-width="8.4" stroke-linecap="round" />
-<path d="M990,355 L1140,355" stroke="#1a1a1a" stroke-width="6.8193548387096765" stroke-linecap="round" />
-<path d="M990,205 L990,355" stroke="#9a9a9a" stroke-width="2.9806451612903224" stroke-linecap="round" />
-<path d="M1140,205 L1140,355" stroke="#9a9a9a" stroke-width="4.335483870967742" stroke-linecap="round" />
-<path d="M990,205 L1140,355" stroke="#9a9a9a" stroke-width="2.529032258064516" stroke-linecap="round" />
-<path d="M1140,205 L990,355" stroke="#9a9a9a" stroke-width="5.464516129032258" stroke-linecap="round" />
-<circle cx="990" cy="205" r="28.168143377105217" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="990" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">A</text>
-<circle cx="1140" cy="205" r="35.4" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1140" y="206" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">G</text>
-<circle cx="990" cy="355" r="34.82523644247402" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="990" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<circle cx="1140" cy="355" r="28.168143377105217" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
-<text x="1140" y="356" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">T</text>
-<path d="M370.0,433 L400.0,433" stroke="#1a1a1a" stroke-width="6" />
-<text x="408.0" y="438" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">transition (A&lt;-&gt;G, C&lt;-&gt;T)</text>
-<path d="M650.0,433 L680.0,433" stroke="#9a9a9a" stroke-width="3" />
-<text x="688.0" y="438" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">transversion</text>
-<text x="880.0" y="438" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">edge width = rate;   node area = base frequency</text>
+<path d="M990,205 L1140,205" stroke="#1a1a1a" stroke-width="10.0" stroke-linecap="round" />
+<path d="M990,355 L1140,355" stroke="#1a1a1a" stroke-width="8.012903225806452" stroke-linecap="round" />
+<path d="M990,205 L990,355" stroke="#9a9a9a" stroke-width="3.1870967741935483" stroke-linecap="round" />
+<path d="M1140,205 L1140,355" stroke="#9a9a9a" stroke-width="4.890322580645162" stroke-linecap="round" />
+<path d="M990,205 L1140,355" stroke="#9a9a9a" stroke-width="2.6193548387096772" stroke-linecap="round" />
+<path d="M1140,205 L990,355" stroke="#9a9a9a" stroke-width="6.3096774193548395" stroke-linecap="round" />
+<circle cx="990" cy="205" r="26.87923171945041" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="990" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">A</text>
+<circle cx="1140" cy="205" r="35.599999999999994" fill="#228833" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="1140" y="212.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">G</text>
+<circle cx="990" cy="355" r="34.906902768865734" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="990" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">C</text>
+<circle cx="1140" cy="355" r="26.87923171945041" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.4" />
+<text x="1140" y="362.48" font-size="22" font-family="Helvetica" text-anchor="middle" fill="white" font-weight="bold">T</text>
+<path d="M69.79999999999995,433 L99.79999999999995,433" stroke="#1a1a1a" stroke-width="6" />
+<text x="111.79999999999995" y="440.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">transition (A&lt;-&gt;G, C&lt;-&gt;T)</text>
+<path d="M464.3,433 L494.3,433" stroke="#9a9a9a" stroke-width="3" />
+<text x="506.3" y="440.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">transversion</text>
+<text x="701.5" y="440.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">edge width = rate;   node area = base frequency</text>
 <text x="90" y="525" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">An HKY85 alignment simulated down the phylogram</text>
 <path d="M90.0,592.5 L247.97479724922985,592.5" stroke="#1a1a1a" stroke-width="2.4" stroke-linecap="round" />
 <path d="M90.0,701.25 L122.8763628882678,701.25" stroke="#1a1a1a" stroke-width="2.4" stroke-linecap="round" />
@@ -800,12 +800,4 @@
 <text x="1067.5" y="766" font-size="13" font-family="Courier" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">G</text>
 <rect x="1075" y="753.0" width="13.6" height="24" fill="#EE6677" stroke="none" />
 <text x="1082.5" y="766" font-size="13" font-family="Courier" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="bold">C</text>
-<rect x="430" y="795" width="20" height="20" fill="#4477AA" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="458" y="810" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">A</text>
-<rect x="522" y="795" width="20" height="20" fill="#EE6677" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="550" y="810" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">C</text>
-<rect x="614" y="795" width="20" height="20" fill="#228833" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="642" y="810" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">G</text>
-<rect x="706" y="795" width="20" height="20" fill="#CCBB44" stroke="#1a1a1a" stroke-width="1.0" />
-<text x="734" y="810" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">T</text>
 </svg>

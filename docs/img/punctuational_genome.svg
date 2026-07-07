@@ -6,9 +6,9 @@
 <rect x="0" y="0" width="1220" height="664" fill="white" />
 <text x="610.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Gradual vs punctuational genome (species to genes)</text>
 <circle cx="360.0" cy="82" r="6.5" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="374.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">gene turnover along a branch</text>
+<text x="374.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">gene turnover along a branch</text>
 <path d="M680.0,75.5 L686.5,82 L680.0,88.5 L673.5,82 Z" fill="#1a1a1a" />
-<text x="694.0" y="82" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">turnover at a speciation</text>
+<text x="694.0" y="89.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">turnover at a speciation</text>
 <text x="70" y="152" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   gradual: gene content drifts along branches</text>
 <path d="M104.0,202.0 L434.0,202.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="butt" />
 <circle cx="269.0" cy="202.0" r="7.5" fill="white" stroke="#1a1a1a" stroke-width="2.0" />

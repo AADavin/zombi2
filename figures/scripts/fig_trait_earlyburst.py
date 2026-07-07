@@ -77,12 +77,15 @@ def main():
     grad.add_stop(1.0, "#ededed")
     d.drawing.append(grad)
     d.drawing.append(draw.Rectangle(x0, strip_y, x1 - x0, strip_h, fill=grad, stroke=INK, stroke_width=0.5))
-    d.drawing.append(draw.Text("rate: fast", FS_TICK, x0 + 10, strip_y + strip_h / 2,
+    # Baseline is placed explicitly (renderer-independent) so the text's visual centre
+    # (~0.35*font above the baseline) lands on the strip's mid-height.
+    label_y = strip_y + strip_h / 2 + FS_TICK * 0.35
+    d.drawing.append(draw.Text("rate: fast", FS_TICK, x0 + 10, label_y,
                                font_family=style.font_family,
-                               text_anchor="start", dominant_baseline="central", fill="white"))
-    d.drawing.append(draw.Text("slow", FS_TICK, x1 - 10, strip_y + strip_h / 2,
+                               text_anchor="start", fill="white"))
+    d.drawing.append(draw.Text("slow", FS_TICK, x1 - 10, label_y,
                                font_family=style.font_family,
-                               text_anchor="end", dominant_baseline="central", fill=INK))
+                               text_anchor="end", fill=INK))
 
     d.plot_continuous_variable(node_to_rgb, stroke_width=BRANCH_W)
 

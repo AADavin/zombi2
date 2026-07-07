@@ -55,8 +55,11 @@ N_TIPS, AGE, TREE_SEED, TRAIT_SEED = 11, 1.0, 3, 9
 # --------------------------------------------------------------------------- panel A: the model
 def panel_model(d, cx0, cy0):
     gx = gy = 176
-    d.append(draw.Text("A   the model", FS_LABEL, cx0 - 40, cy0 - 146, font_family=FONT,
+    # P#1: panel letter top-left; title horizontally centred over the panel
+    d.append(draw.Text("A", FS_LABEL, cx0 - 40, cy0 - 146, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("the model", FS_LABEL, cx0 + gx / 2, cy0 - 146, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
     P = {"0s": (cx0, cy0), "1s": (cx0 + gx, cy0),
          "0f": (cx0, cy0 + gy), "1f": (cx0 + gx, cy0 + gy)}
     B = 15
@@ -106,8 +109,11 @@ def panel_realization(d, ox, oy, pw, ph):
     x_at = lambda t: ox + 60 + (t / present) * (pw - 210)      # noqa: E731
     y_at = lambda k: oy + 40 + (k / max(1, nleaf - 1)) * (ph - 90)
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, oy - 24, font_family=FONT,
+    # P#1: panel letter top-left; title centred over the panel's content (tree + chips)
+    d.append(draw.Text("B", FS_LABEL, ox, oy - 24, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("a simulated realization", FS_LABEL, ox + pw / 2, oy - 24,
+                       font_family=FONT, text_anchor="middle", fill=INK, font_weight="bold"))
 
     def seg(x1, x2, y, fast):
         d.append(draw.Line(x1, y, x2, y, stroke=FAST_INK if fast else GREY,
@@ -155,17 +161,27 @@ def render_one(name):
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Hidden rate classes (corHMM)", FS_TITLE, W / 2, 46, font_family=FONT,
                        text_anchor="middle", font_weight="bold", fill=INK))
-    # legend: hidden-class branch shading + observed chips
+    # legend: hidden-class branch shading + observed chips.
+    # Laid out left-to-right with generous gaps (no overlaps) and centred as a block;
+    # L#1: text baseline set explicitly so each label is vertically centred on its marker.
     ly = 82
-    d.append(draw.Line(W / 2 - 300, ly, W / 2 - 268, ly, stroke=FAST_INK, stroke_width=5.2))
-    d.append(draw.Text("hidden: fast", FS_TICK, W / 2 - 260, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Line(W / 2 - 150, ly, W / 2 - 118, ly, stroke=GREY, stroke_width=2.4))
-    d.append(draw.Text("hidden: slow", FS_TICK, W / 2 - 110, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
-    d.append(draw.Circle(W / 2 + 12, ly, 4.6, fill="white", stroke=INK, stroke_width=1.8))
-    d.append(draw.Text("observed change", FS_TICK, W / 2 + 24, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    ty = ly + 0.34 * FS_TICK
+    MARK, GAPT, GAPE = 32, 12, 46      # marker length, marker->text gap, entry->entry gap
+    entries = [("hidden: fast", 118, "fastline"),
+               ("hidden: slow", 126, "slowline"),
+               ("observed change", 173, "circle")]
+    total = sum(MARK + GAPT + w for _, w, _ in entries) + GAPE * (len(entries) - 1)
+    x = W / 2 - total / 2
+    for label, tw, kind in entries:
+        if kind == "fastline":
+            d.append(draw.Line(x, ly, x + MARK, ly, stroke=FAST_INK, stroke_width=5.2))
+        elif kind == "slowline":
+            d.append(draw.Line(x, ly, x + MARK, ly, stroke=GREY, stroke_width=2.4))
+        else:
+            d.append(draw.Circle(x + MARK / 2, ly, 4.6, fill="white", stroke=INK, stroke_width=1.8))
+        d.append(draw.Text(label, FS_TICK, x + MARK + GAPT, ty, font_family=FONT,
+                           text_anchor="start", fill=INK))
+        x += MARK + GAPT + tw + GAPE
 
     panel_model(d, 212, 272)
     panel_realization(d, 520, 150, 620, 470)

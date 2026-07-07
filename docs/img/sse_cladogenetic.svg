@@ -5,10 +5,10 @@
 </defs>
 <rect x="0" y="0" width="1220" height="690" fill="white" />
 <text x="610.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Where the change happens: anagenetic vs cladogenetic</text>
-<circle cx="280.0" cy="80" r="5.0" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="294.0" y="80" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">change along a branch (anagenetic)</text>
-<path d="M640.0,72.5 L647.5,80 L640.0,87.5 L632.5,80 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="654.0" y="80" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">change at a split (cladogenetic)</text>
+<circle cx="210.0" cy="80" r="5.0" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
+<text x="228.0" y="87.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">change along a branch (anagenetic)</text>
+<path d="M720.0,72.5 L727.5,80 L720.0,87.5 L712.5,80 Z" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="2.0" />
+<text x="738.0" y="87.48" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">change at a split (cladogenetic)</text>
 <text x="70" y="152" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A   anagenetic (BiSSE): change accrues with time</text>
 <path d="M110.0,202.0 L125.28107264176676,202.0" stroke="#2f7d84" stroke-width="5.2" stroke-linecap="butt" />
 <circle cx="125.28107264176676" cy="202.0" r="5.0" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
@@ -134,5 +134,4 @@
 <path d="M1070.0,570 L1070.0,576" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="1070.0" y="592" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">1.00</text>
 <text x="885.0" y="614" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">time (root to present)</text>
-<text x="610.0" y="668" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">same tree, same Gillespie -- only the consequence of a speciation differs</text>
 </svg>

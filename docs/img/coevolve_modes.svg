@@ -7,37 +7,37 @@
 <text x="590.0" y="48" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Coevolve mode: directed edges and their joint models</text>
 <path d="M310.96812154643993,586.8220209040103 Q395.4431657833522,412.8693048194602,551.3109932992043,298.41057480069315" fill="none" stroke="#0072B2" stroke-width="4.6" stroke-linecap="round" />
 <path d="M551.3109932992043,298.41057480069315 L544.8809237448131,309.70899086338494 L538.6058731164225,301.1637404588168 Z" fill="#0072B2" />
-<text x="369.3236422770414" y="391.1030352308679" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#0072B2" font-weight="bold">trait-driven</text>
+<text x="369.3236422770414" y="391.1030352308679" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#0072B2" font-weight="bold">trait-driven</text>
 <path d="M569.0318784535601,313.1779790959897 Q484.5568342166478,487.1306951805398,328.68900670079574,601.5894251993069" fill="none" stroke="#56B4E9" stroke-width="2.8" stroke-linecap="round" />
 <path d="M328.68900670079574,601.5894251993069 L335.1190762551869,590.2910091366151 L341.39412688357754,598.8362595411833 Z" fill="#56B4E9" />
-<text x="510.6763577229586" y="508.8969647691321" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#56B4E9" font-weight="bold">cladogenetic</text>
+<text x="510.6763577229586" y="508.8969647691321" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#56B4E9" font-weight="bold">cladogenetic</text>
 <path d="M851.3109932992043,601.5894251993069 Q695.4431657833522,487.1306951805398,610.9681215464399,313.1779790959897" fill="none" stroke="#D55E00" stroke-width="4.6" stroke-linecap="round" />
 <path d="M610.9681215464399,313.1779790959897 L620.9217969343613,321.54005696407296 L611.3850660952402,326.1712911157646 Z" fill="#D55E00" />
-<text x="669.3236422770415" y="508.8969647691321" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#D55E00" font-weight="bold">key innovation</text>
+<text x="645.3236422770415" y="508.8969647691321" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#D55E00" font-weight="bold">key innovation</text>
 <path d="M628.6890067007957,298.41057480069315 Q784.5568342166478,412.8693048194602,869.0318784535601,586.8220209040103" fill="none" stroke="#E69F00" stroke-width="2.8" stroke-linecap="round" />
 <path d="M869.0318784535601,586.8220209040103 L859.0782030656387,578.459943035927 L868.6149339047598,573.8287088842354 Z" fill="#E69F00" />
-<text x="810.6763577229585" y="391.1030352308679" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#E69F00" font-weight="bold">punctuational</text>
+<text x="810.6763577229585" y="391.1030352308679" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#E69F00" font-weight="bold">punctuational</text>
 <path d="M337.29478497918274,621.802237270275 Q590.0,578.0,842.7052150208173,621.802237270275" fill="none" stroke="#009E73" stroke-width="2.8" stroke-linecap="round" />
 <path d="M842.7052150208173,621.802237270275 L830.1041339569018,624.9979775633261 L831.9147758228066,614.5519667984901 Z" fill="#009E73" />
-<text x="590.0" y="574.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#009E73" font-weight="bold">trait-linked</text>
+<text x="590.0" y="574.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#009E73" font-weight="bold">trait-linked</text>
 <path d="M842.7052150208173,638.197762729725 Q590.0,682.0,337.29478497918274,638.197762729725" fill="none" stroke="#8E5AA8" stroke-width="2.8" stroke-linecap="round" />
 <path d="M337.29478497918274,638.197762729725 L349.89586604309824,635.0020224366739 L348.0852241771933,645.4480332015099 Z" fill="#8E5AA8" />
-<text x="590.0" y="686.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8E5AA8" font-weight="bold">gene-conditioned</text>
+<text x="590.0" y="686.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8E5AA8" font-weight="bold">gene-conditioned</text>
 <path d="M320.728851183895,593.1253785793259 L559.271148816105,306.87462142067403" stroke="#555555" stroke-width="3.2" stroke-linecap="round" />
 <path d="M320.728851183895,593.1253785793259 L323.9843916408008,581.5754237597844 L331.5023978092479,587.840428900157 Z" fill="#555555" />
 <path d="M559.271148816105,306.87462142067403 L556.0156083591992,318.4245762402155 L548.4976021907521,312.15957109984294 Z" fill="#555555" />
-<rect x="395.7" y="433.0" width="88.60000000000001" height="34" fill="white" stroke="none" />
-<text x="440.0" y="450.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">ClaSSE</text>
+<rect x="399.0" y="434.0" width="82.0" height="32" fill="white" stroke="none" />
+<text x="440.0" y="450.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">ClaSSE</text>
 <path d="M859.271148816105,593.125378579326 L620.728851183895,306.87462142067403" stroke="#555555" stroke-width="3.2" stroke-linecap="round" />
 <path d="M859.271148816105,593.125378579326 L848.4976021907521,587.8404289001571 L856.0156083591992,581.5754237597845 Z" fill="#555555" />
 <path d="M620.728851183895,306.87462142067403 L631.5023978092479,312.15957109984294 L623.9843916408008,318.4245762402155 Z" fill="#555555" />
-<rect x="623.1" y="433.0" width="233.8" height="34" fill="white" stroke="none" />
-<text x="740.0" y="450.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">co-diversification</text>
+<rect x="633.0" y="434.0" width="214.0" height="32" fill="white" stroke="none" />
+<text x="740.0" y="450.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">co-diversification</text>
 <path d="M338.0,630.0 L842.0,630.0" stroke="#555555" stroke-width="3.2" stroke-linecap="round" />
 <path d="M338.0,630.0 L348.9570672837477,625.1068745632851 L348.9570672837477,634.8931254367149 Z" fill="#555555" />
 <path d="M842.0,630.0 L831.0429327162523,634.8931254367149 L831.0429327162523,625.1068745632851 Z" fill="#555555" />
-<rect x="467.04999999999995" y="613.0" width="245.90000000000003" height="34" fill="white" stroke="none" />
-<text x="590.0" y="630.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">trait-gene feedback</text>
+<rect x="477.5" y="614.0" width="225.0" height="32" fill="white" stroke="none" />
+<text x="590.0" y="630.0" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#555555" font-weight="bold">trait-gene feedback</text>
 <circle cx="590.0" cy="270" r="48" fill="white" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="590.0" y="266" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="#1a1a1a">S</text>
 <text x="590.0" y="294" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a">species</text>
@@ -55,5 +55,4 @@
 <path d="M66,168 L74.21780046281077,164.33015592246386 L74.21780046281077,171.66984407753614 Z" fill="#555555" />
 <path d="M98,168 L89.78219953718923,171.66984407753614 L89.78219953718923,164.33015592246386 Z" fill="#555555" />
 <text x="116" y="168" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#555555">both edges at once: the joint (bidirectional) model</text>
-<text x="590.0" y="796" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">each arrow driver -&gt; target = one model; a double arrow = both edges (--couple driver:target)</text>
 </svg>

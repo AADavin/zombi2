@@ -48,8 +48,8 @@ def graph_panel(d, ox, oy, s, title, subtitle, rates, freqs):
     """One exchange graph. rates: dict of frozenset({x,y}) -> rate; freqs: dict base->freq."""
     pos = {"A": (ox, oy), "G": (ox + s, oy), "C": (ox, oy + s), "T": (ox + s, oy + s)}
     rmax = max(rates.values())
-    ew = lambda r: 1.4 + 7.0 * (r / rmax)                 # noqa: E731  edge width by rate
-    nr = lambda b: 15 + 34 * math.sqrt(freqs[b])          # noqa: E731  node radius by freq
+    ew = lambda r: 1.2 + 8.8 * (r / rmax)                 # noqa: E731  edge width by rate
+    nr = lambda b: 11 + 41 * math.sqrt(freqs[b])          # noqa: E731  node radius by freq
 
     d.append(draw.Text(title, FS_LABEL, ox + s / 2, oy - 66, font_family=FONT,
                        text_anchor="middle", font_weight="bold", fill=INK))
@@ -67,8 +67,8 @@ def graph_panel(d, ox, oy, s, title, subtitle, rates, freqs):
     # nodes
     for b, (x, y) in pos.items():
         d.append(draw.Circle(x, y, nr(b), fill=BASE_COL[b], stroke=INK, stroke_width=1.4))
-        d.append(draw.Text(b, FS_LABEL, x, y + 1, font_family=FONT, text_anchor="middle",
-                           dominant_baseline="central", fill="white", font_weight="bold"))
+        d.append(draw.Text(b, FS_LABEL, x, y + 0.34 * FS_LABEL, font_family=FONT,
+                           text_anchor="middle", fill="white", font_weight="bold"))
 
 
 def expm_reversible(Q):
@@ -159,13 +159,7 @@ def alignment_panel(d, ox, oy, tree, seqs, dist):
             d.append(draw.Text(base, 13, ax + c * cw + cw / 2, y + 1, font_family="Courier",
                                text_anchor="middle", dominant_baseline="central", fill="white",
                                font_weight="bold"))
-    # base colour legend
-    lx = ax
-    ly = y_at(len(leaves) - 1) + rh
-    for i, b in enumerate(BASES):
-        d.append(draw.Rectangle(lx + i * 92, ly, 20, 20, fill=BASE_COL[b], stroke=INK, stroke_width=1.0))
-        d.append(draw.Text(b, FS_TICK, lx + i * 92 + 28, ly + 15, font_family=FONT,
-                           text_anchor="start", fill=INK))
+    # (base-colour legend removed -- each alignment cell already carries its letter)
     return ax + ncol * cw
 
 
@@ -193,16 +187,27 @@ def main():
     graph_panel(d, xs[3], gy, s, "GTR", "six free rates + freqs",
                 rates_dict(3.1, 2.4, 0.7, 1.3, 0.5, 1.8), unf)
 
-    # shared legend under the graphs
+    # shared legend under the graphs -- laid out left-to-right, then centred on the page so the
+    # three blocks sit as one balanced row (previously it ran off to the right and the transition
+    # label collided with the transversion swatch).
     lgy = gy + s + 78
-    d.append(draw.Line(W / 2 - 300, lgy, W / 2 - 270, lgy, stroke=INK, stroke_width=6))
-    d.append(draw.Text("transition (A<->G, C<->T)", FS_TICK, W / 2 - 262, lgy + 5, font_family=FONT,
-                       text_anchor="start", fill=INK))
-    d.append(draw.Line(W / 2 - 20, lgy, W / 2 + 10, lgy, stroke="#9a9a9a", stroke_width=3))
-    d.append(draw.Text("transversion", FS_TICK, W / 2 + 18, lgy + 5, font_family=FONT,
-                       text_anchor="start", fill=INK))
-    d.append(draw.Text("edge width = rate;   node area = base frequency", FS_TICK, W / 2 + 210,
-                       lgy + 5, font_family=FONT, text_anchor="start", fill=MUTED))
+    ty = lgy + 0.34 * FS_TICK
+    cwf = 0.55 * FS_TICK                                   # approx character width at FS_TICK
+    seg, g1, gap = 30, 12, 50                              # swatch line, line->text gap, block gap
+    t1 = "transition (A<->G, C<->T)"
+    t2 = "transversion"
+    t3 = "edge width = rate;   node area = base frequency"
+    wA = seg + g1 + cwf * len(t1)
+    wB = seg + g1 + cwf * len(t2)
+    wC = cwf * len(t3)
+    x = W / 2 - (wA + gap + wB + gap + wC) / 2
+    d.append(draw.Line(x, lgy, x + seg, lgy, stroke=INK, stroke_width=6))
+    d.append(draw.Text(t1, FS_TICK, x + seg + g1, ty, font_family=FONT, text_anchor="start", fill=INK))
+    x += wA + gap
+    d.append(draw.Line(x, lgy, x + seg, lgy, stroke="#9a9a9a", stroke_width=3))
+    d.append(draw.Text(t2, FS_TICK, x + seg + g1, ty, font_family=FONT, text_anchor="start", fill=INK))
+    x += wB + gap
+    d.append(draw.Text(t3, FS_TICK, x, ty, font_family=FONT, text_anchor="start", fill=MUTED))
 
     # --- bottom: a simulated alignment ------------------------------------
     tree = C.build_tree(n_tips=8, seed=11)

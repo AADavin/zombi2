@@ -77,6 +77,7 @@ FS_TITLE_P = 46
 FS_PANEL = 40
 FS_LABEL_P = 34
 FS_ANNOT_P = 30
+FS_XFER = 23           # donor-kept / transferred copy labels (kept small & tidy)
 FS_TICK_P = 30
 MARKER_R = 13.0
 FOOTER = 130
@@ -132,24 +133,31 @@ def panel(nwk_path, label, subtitle, *, complete):
     # duplication square
     if DUP_NODE in name2node:
         d._draw_shape_at(*name2node[DUP_NODE].coordinates, "square", INK, r=MARKER_R)
-    # transfer triangle + donor/transferred copy labels. Place the labels toward
-    # whichever side has room: to the LEFT (anchored end) when the transfer sits
-    # in the right third of the tree (so the text can't run off the panel or hit
-    # the tip labels), otherwise to the RIGHT. This keeps the figure robust to
-    # where the transfer happens to fall.
+    # transfer triangle + donor/transferred copy labels. The labels sit to the
+    # LEFT of the triangle (anchored end) when the transfer is in the right of
+    # the tree, otherwise to the RIGHT; the donor-kept label is lifted ABOVE its
+    # branch and the transferred label dropped BELOW its branch so neither runs
+    # over a branch line, a tip label or the other label. They are drawn at a
+    # SMALL font (smaller than the annotation size) to stay compact.
     if TRANSFER_NODE in name2node:
         tn = name2node[TRANSFER_NODE]
         d._draw_shape_at(*tn.coordinates, "triangle", INK, r=MARKER_R)
-        xn = tn.coordinates[0]
+        xn, yn = tn.coordinates
         right_edge = d.root_x + present * d.sf
         put_left = xn > d.root_x + 0.62 * (right_edge - d.root_x)
         anchor = "end" if put_left else "start"
-        dx = -22 if put_left else 22
-        for role, child in (("donor-kept copy", TRANSFER_KEPT),
-                            ("transferred copy", TRANSFER_MOVED)):
+        dx = -30 if put_left else 30
+        # donor-kept label above the triangle (toward the kept G/H clade),
+        # transferred label below it (toward the transferred J lineage). Both are
+        # placed relative to the triangle's y so they straddle it symmetrically,
+        # each roughly halfway to the copy it names, clear of the horizontal
+        # in-branch and of the tip labels.
+        for role, child, frac in (("donor-kept copy", TRANSFER_KEPT, 0.5),
+                                  ("transferred copy", TRANSFER_MOVED, 0.5)):
             if child in name2node:
                 cy = name2node[child].coordinates[1]
-                d.add_text(role, xn + dx, cy - 16, font_size=FS_ANNOT_P,
+                ly = yn + (cy - yn) * frac
+                d.add_text(role, xn + dx, ly, font_size=FS_XFER,
                            color=MUTED, text_anchor=anchor)
     # loss crosses (complete panel only; extant has none)
     for lf in loss_tips:
