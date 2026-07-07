@@ -48,8 +48,8 @@
 <text x="455" y="261" text-anchor="middle" font-size="12" fill="#555555">DNA / protein</text>
 </g>
 
-<line x1="150" y1="307" x2="182" y2="307" stroke="#1a1a1a" stroke-width="1.6" marker-end="url(#ae)"/>
-<text x="190" y="311" font-size="12" fill="#333333">conditioned on</text>
-<line x1="360" y1="307" x2="392" y2="307" stroke="#777777" stroke-width="1.6" stroke-dasharray="4 3"/>
-<text x="400" y="311" font-size="12" fill="#333333">coupled (coevolve)</text>
+<line x1="119" y1="307" x2="149" y2="307" stroke="#1a1a1a" stroke-width="1.6" marker-end="url(#ae)"/>
+<text x="157" y="311" font-size="12" fill="#333333">conditioned on</text>
+<line x1="467" y1="307" x2="497" y2="307" stroke="#777777" stroke-width="1.6" stroke-dasharray="4 3"/>
+<text x="505" y="311" font-size="12" fill="#333333">coupled (coevolve)</text>
 </svg>
