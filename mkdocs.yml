@@ -71,6 +71,20 @@ nav:
   - Model catalog:
       - Species trees:
           - Diversification models: models/diversification.md
+      - Genomes:
+          - Gene-family evolution (DTL): models/gene-family.md
+          - Genome structure: models/genome-structure.md
+      - Traits:
+          - Continuous-trait models: models/continuous-traits.md
+          - Discrete-trait models: models/discrete-traits.md
+          - Biogeography (DEC): models/biogeography.md
+      - Sequences:
+          - DNA substitution models: models/dna-substitution.md
+          - Protein substitution models: models/protein-substitution.md
+          - Relaxed clocks: models/relaxed-clocks.md
+      - Combining levels:
+          - State-dependent diversification (SSE): models/sse.md
+          - Coupled models: models/coevolution.md
   - Cookbook: cookbook.md
   - FAQ: faq.md
   - Comparison with ZOMBI-1: comparison.md
