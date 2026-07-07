@@ -300,7 +300,7 @@ for record in genomes.event_log.records[:10]:
 genomes.write("out/")   # species tree, event tables, gene trees, transfers, profiles
 ```
 
-See [gene trees & output](guide/gene-trees-and-output.md) for the file layout.
+See [gene trees & output](guide/genomes.md#gene-trees-output) for the file layout.
 
 ## Reproducibility
 

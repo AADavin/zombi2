@@ -73,7 +73,6 @@ nav:
   - Guide:
       - Species trees: guide/species-trees.md
       - Genomes: guide/genomes.md
-      - Gene trees & output: guide/gene-trees-and-output.md
       - Traits: guide/traits.md
       - Sequences: guide/sequences.md
       - Coevolution: guide/coevolution.md

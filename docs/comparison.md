@@ -14,7 +14,7 @@ the output format — while rebuilding the internals around clean interfaces.
 - **Output format** — `Genomes.write("out/")` produces the familiar files: the species
   tree, per-family event tables, reconstructed complete and extant gene trees, a transfer
   log, a per-family summary, and presence/copy-number matrices. See
-  [gene trees & output](guide/gene-trees-and-output.md).
+  [gene trees & output](guide/genomes.md#gene-trees-output).
 
 ## What's new or different
 
