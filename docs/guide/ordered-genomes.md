@@ -1,5 +1,7 @@
 # Ordered genomes
 
+> **Reference:** see the [Ordered-genome model](../models/ordered.md) catalog page.
+
 By default a genome is **order-free** (`UnorderedGenome`): a multiset of gene families with
 copy numbers — all you need for phylogenetic profiles. When gene *order* matters (synteny,
 operons, rearrangements) use **`OrderedGenome`**, the basic ZOMBI1 model: a circular

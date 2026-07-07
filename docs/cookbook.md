@@ -117,7 +117,7 @@ This is the native alternative to un-pruning a backward tree
 
 ## Gene families: rate models
 
-### The same rates for every family (uniform)
+### The same rates for every family (shared)
 
 The keyword shorthand builds a `SharedRates` for you:
 
@@ -290,7 +290,7 @@ complete, extant = genomes.gene_trees()[family]   # full history, and pruned-to-
 ### The event log
 
 ```python
-for record in genomes.event_log[:10]:
+for record in genomes.event_log.records[:10]:
     print(record.time, record.event, record.family)
 ```
 

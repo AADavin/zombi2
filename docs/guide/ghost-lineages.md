@@ -141,4 +141,3 @@ lineage absent from the sampled species tree (Szöllősi, Tannier, Lartillot & D
 
 See also the [cookbook](../cookbook.md#add-ghost-extinct-lineages) for the short recipe and
 [species trees](species-trees.md) for the underlying model.
-</content>

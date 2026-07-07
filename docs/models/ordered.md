@@ -1,5 +1,7 @@
 # Ordered chromosomes
 
+> **Tutorial:** see the [Ordered genomes](../guide/ordered-genomes.md) guide.
+
 By default a genome in ZOMBI2 is **order-free** — a multiset of gene families with copy numbers, all
 you need for phylogenetic profiles (see [gene families](gene-family.md)). The **ordered** level adds
 one more thing genes carry: **position**. Genes sit on an ordered, circular chromosome, each with a

@@ -34,7 +34,7 @@ the output format — while rebuilding the internals around clean interfaces.
   [nucleotide genomes](guide/nucleotide-genomes.md).
 - **Coevolution modes.** Couple any two levels along a directed edge (`coevolve --couple
   driver:target`) — state-dependent diversification (SSE), cladogenetic change, key
-  innovations, and trait-linked gene families. See [coevolution](coevolution_models.md).
+  innovations, and trait-linked gene families. See [coevolution](models/coevolution.md).
 - **Principled growth control.** A hard `max_family_size` cap (absolute or a fraction of
   the number of species) and a soft logistic `carrying_capacity`. See
   [bounding growth](guide/growth.md).

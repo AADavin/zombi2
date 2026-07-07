@@ -40,9 +40,6 @@ Monte-Carlo tolerance:
 - The **Rust and pure-Python** gene-family engines agree on mean family count within 15 %
   (`test_rust.py::test_rust_matches_python_engine`) — the compiled fast path is held to the
   reference implementation.
-- Injected gene-family coupling is recovered: `+J` produces co-occurrence, `−J` avoidance,
-  `J=0` none, on a near-star tree that isolates the signal from shared ancestry
-  (`test_coupling.py`).
 
 ### Invariants — structural laws that must hold
 

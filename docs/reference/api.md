@@ -54,14 +54,6 @@ Auto-generated from the source docstrings.
 ::: zombi2.traits.biogeography.simulate_biogeography
 ::: zombi2.traits.biogeography.DEC
 
-## Gene-family coupling (Potts)
-
-::: zombi2.coevolve.coupling.simulate_coupled
-::: zombi2.coevolve.coupling.CouplingSpec
-::: zombi2.coevolve.coupling.pathway_blocks
-::: zombi2.coevolve.coupling.PottsRates
-::: zombi2.coevolve.coupling.CoupledResult
-
 ## Trait-linked gene families
 
 ::: zombi2.coevolve.trait_coupling.simulate_trait_linked_genomes

@@ -1,5 +1,7 @@
 # Trait-linked gene families
 
+> **Reference:** see the [Coevolution models](../models/coevolution.md) catalog page.
+
 Gene families and phenotypic traits do not evolve independently. A lineage that becomes
 aerobic retains and acquires oxygen-using gene families; one that reverts to anaeroby sheds
 them. ZOMBI2 can simulate that link directly: evolve a trait down the tree, then evolve a
@@ -24,9 +26,8 @@ res.trait.labeled_values()     # the trait at the tips, from the same run
 ```
 
 This is the *genes-conditioned-on-a-trait* direction. It reuses the trait models of
-[Trait evolution](traits.md) and the coupled rate machinery of the
-[gene-family coupling model](../coupling_model.md); only the family-side rate model is new, so
-the whole output pipeline (profiles, gene trees, reconciliations) applies unchanged.
+[Trait evolution](traits.md); only the family-side rate model is new, so the whole output
+pipeline (profiles, gene trees, reconciliations) applies unchanged.
 
 ## The model
 
@@ -42,16 +43,15 @@ so where the trait favours a responsive family (`w_i·s` large and positive) it 
 and where it does not (`w_i·s` negative) it is purged faster than the baseline. Inert families
 (`w_i = 0`) always lose at `base_loss`.
 
-**Gain is horizontal transfer** — a field-blind influx, exactly as in the
-[coupling model](../coupling_model.md): a family flows into a lineage at a constant rate, and
-the trait-modulated *loss* then selectively retains it — kept where the trait favours it,
+**Gain is horizontal transfer** — a field-blind influx: a family flows into a lineage at a
+constant rate, and the trait-modulated *loss* then selectively retains it — kept where the trait
+favours it,
 purged where it does not. So the **net** gene content of a lineage tracks its trait even though
 the influx itself is trait-blind. That differential retention is what writes the trait↔gene
 association into the profiles.
 
 !!! note "Why retention, not a gain switch"
-    Coupling through *loss* is the mechanism that produces a clean, datable signal (it is the
-    validated device of the Potts coupling model). `effect_gain` optionally scales a lineage's
+    Coupling through *loss* is the mechanism that produces a clean, datable signal. `effect_gain` optionally scales a lineage's
     transfer (HGT) *activity* by `exp(effect_gain · s)`, but it is a donor-side effect and is
     **off by default** — the retention channel already makes net gene content track the trait.
 
@@ -169,7 +169,7 @@ Useful options:
   as `zombi2 trait` writes with its all-nodes output.
 - `--effect-gain` turns on the optional donor-side HGT-activity coupling.
 
-See the [coevolution models CLI reference](../coevolution_models.md#traitsgenes-trait-conditioned-gene-families)
+See the [coevolution catalog page](../models/coevolution.md#trait-conditioned-gene-families-traitsgenes)
 for the full option table.
 
 ## What it recovers
@@ -189,7 +189,7 @@ regain it, is lost tree-wide and the inert rows go all-zero.
 ## Roadmap
 
 `coevolve --couple traits:genes` is the **`traits:genes`** edge of a broader coupled-simulation
-design — see [Coevolution (coupled models)](../coevolution_models.md), which generalises it to a
+design — see the [Coevolution](../models/coevolution.md) catalog page, which generalises it to a
 directed graph over species, traits and gene families (`zombi2 coevolve --couple driver:target`).
 It was formerly the standalone `coevolve-genetrait` command, now folded into `coevolve`.
 Planned next:

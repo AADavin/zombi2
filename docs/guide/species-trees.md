@@ -1,5 +1,7 @@
 # Species trees
 
+> **Reference:** see the [Birth–death models](../models/birth-death.md) catalog page.
+
 ZOMBI2 simulates the species tree **backward in time** as a *reconstructed birth–death
 process* conditioned on the number of extant tips. Concretely, it draws the internal-node
 ages i.i.d. from the reconstructed-process CDF and assembles a ranked tree by uniform
@@ -82,8 +84,8 @@ EpisodicBirthDeath(birth=[1.0], death=[0.3], shifts=[], sampling_fraction=0.25)
     This covers episodic *diversification* and incomplete *extant* sampling — both keep
     the tree ultrametric. Serial sampling *through time* (dated tips / fossils, as in the
     fossilized birth–death process) needs forward simulation with retained extinct
-    lineages — it ships in forward mode; see
-    [fossilized birth–death](../species_tree_models.md).
+    lineages — it ships in forward mode; see the
+    [birth–death](../models/birth-death.md) catalog page.
 
 ## Mass extinctions (instantaneous pulses)
 
@@ -205,6 +207,7 @@ adopt a new speciation/extinction regime — here sparking a fast-diversifying c
 ## Related models
 
 Trait-dependent diversification — the SSE family, tying rates to the traits ZOMBI2 simulates —
-ships under the `coevolve` command (`--couple traits:species`). See
-[species-tree models](../species_tree_models.md) for the full menu, including the few models
-not yet implemented.
+ships under the `coevolve` command (`--couple traits:species`); see the
+[coevolution](../models/coevolution.md) catalog page. The heterogeneous-rate forward models
+(ClaDS, diversity-dependent, clade-shift, episodic, mass extinctions) are catalogued on the
+[advanced diversification](../models/advanced-diversification.md) page.

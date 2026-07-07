@@ -1,5 +1,8 @@
 # Sequences
 
+> **Reference:** see the [DNA-substitution](../models/dna-substitution.md) and
+> [relaxed-clock](../models/relaxed-clocks.md) catalog pages.
+
 Once the gene trees exist (in **time** units), ZOMBI2 turns them into evolving **molecular
 sequences** in two stages — a relaxed clock, then a substitution process — run by the
 [`zombi2 sequence`](../cli.md) command (or `SequenceEvolution` / `evolve_on_tree` in Python).
