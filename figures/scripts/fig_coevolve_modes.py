@@ -110,7 +110,7 @@ def node(d, cx, cy, letter, name):
     d.append(draw.Circle(cx, cy, R, fill="white", stroke=INK, stroke_width=2.6))
     d.append(draw.Text(letter, FS_TITLE, cx, cy - 4, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", font_weight="bold", fill=INK))
-    d.append(draw.Text(name, FS_TICK, cx, cy + 24, font_family=FONT, text_anchor="middle",
+    d.append(draw.Text(name, FS_TICK - 4, cx, cy + 23, font_family=FONT, text_anchor="middle",
                        dominant_baseline="central", fill=MUTED))
 
 

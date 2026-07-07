@@ -123,7 +123,7 @@ def render():
             text(d, label, gx, cy + 26, FS_CAP)
 
     # ---- the engine box on the right ----------------------------------------
-    ex0, ew = CARD_X + CARD_W + 64, 374
+    ex0, ew = CARD_X + CARD_W + 64, 340   # width hugs the step list so the centred title reads centred
     ey0 = YS[0] - CARD_H / 2
     eh = (YS[-1] + CARD_H / 2) - ey0
     d.append(draw.Rectangle(ex0, ey0, ew, eh, rx=18, ry=18, fill="#f2f2f2", stroke=INK,
