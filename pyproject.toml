@@ -32,6 +32,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/AADavin/zombi2"
+Documentation = "https://aadavin.github.io/zombi2/"
 Repository = "https://github.com/AADavin/zombi2"
 Issues = "https://github.com/AADavin/zombi2/issues"
 
