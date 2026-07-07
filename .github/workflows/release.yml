@@ -37,8 +37,11 @@ jobs:
         platform:
           - { runner: ubuntu-latest, target: x86_64, manylinux: auto }
           - { runner: ubuntu-latest, target: aarch64, manylinux: auto }
-          - { runner: macos-13, target: x86_64 }
+          # Both macOS wheels build on the Apple Silicon runner: arm64 natively
+          # and x86_64 cross-compiled. GitHub's Intel macos-13 runners are being
+          # retired and queue indefinitely, which used to stall the whole matrix.
           - { runner: macos-14, target: aarch64 }
+          - { runner: macos-14, target: x86_64 }
           - { runner: windows-latest, target: x64 }
     steps:
       - uses: actions/checkout@v5
