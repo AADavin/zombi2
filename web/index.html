@@ -161,6 +161,7 @@
   .hero-tag { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: var(--accent-strong); background: var(--accent-soft); padding: 5px 12px; border-radius: 999px; margin-bottom: 24px; }
   .hero h1 { font-size: clamp(2.5rem, 5.6vw, 3.6rem); letter-spacing: -0.025em; }
   .hero h1 .n { color: var(--accent); }
+  .hero-mark { width: 0.82em; height: 0.82em; margin-left: 0.34em; vertical-align: -0.06em; }
   .hero .lede { font-size: clamp(1.15rem, 2.3vw, 1.4rem); color: var(--body); max-width: 40ch; margin-top: 18px; }
   .hero .sub { margin-top: 20px; max-width: 62ch; color: var(--muted); }
   .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
@@ -334,7 +335,7 @@
         <circle class="ghost-tip" cx="330" cy="300" r="3.6" fill="var(--bg)" stroke="var(--ghost)" stroke-width="1.6"/>
       </svg>
       <div class="wrap hero-inner">
-        <h1>ZOMBI<span class="n">2</span></h1>
+        <h1>ZOMBI<span class="n">2</span><svg class="hero-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 25.5V18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18L7.5 9.5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18V7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18L21 10" stroke="var(--ghost)" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 3"/><circle cx="14" cy="18" r="1.9" fill="var(--accent)"/><circle cx="7.5" cy="9.5" r="1.9" fill="var(--accent)"/><circle cx="14" cy="7" r="1.9" fill="var(--accent)"/><circle cx="21" cy="10" r="1.7" fill="var(--bg)" stroke="var(--ghost)" stroke-width="1.5"/></svg></h1>
         <p class="lede">Simulating genome and phylogenetic evolution — the living and the dead.</p>
         <p class="sub">Evolve life end to end — <b>species trees</b>, then <b>genomes</b>, <b>traits</b> and molecular <b>sequences</b> along them, plus <b>coupled</b> processes. A ground-up redesign of ZOMBI, with a fast Rust engine, a composable Python library and a command-line interface.</p>
         <div class="hero-actions">
