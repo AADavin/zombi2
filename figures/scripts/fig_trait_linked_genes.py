@@ -48,8 +48,11 @@ BASE_LOSS, EFFECT_LOSS, TRANSFER, SIGMA2 = 1.0, 2.6, 0.9, 1.3
 
 # --------------------------------------------------------------------------- panel A: the mechanism
 def panel_model(d, ox, oy, pw, ph, title_y):
-    d.append(draw.Text("A   the mechanism", FS_LABEL, ox, title_y, font_family=FONT,
+    # P#1: panel letter top-left of the panel; title horizontally centred over the panel
+    d.append(draw.Text("A", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("the mechanism", FS_LABEL, ox + pw / 2, title_y, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
     xlo, xhi = -2.6, 2.6
     x_at = lambda x: ox + (x - xlo) / (xhi - xlo) * pw        # noqa: E731
     rmax = BASE_LOSS * 1.15
@@ -76,7 +79,7 @@ def panel_model(d, ox, oy, pw, ph, title_y):
     d.append(resp)
     d.append(draw.Line(x_at(xlo), y_at(BASE_LOSS), x_at(xhi), y_at(BASE_LOSS),
                        stroke=MUTED, stroke_width=3.0, stroke_dasharray="7,5"))
-    d.append(draw.Text("responsive (w>0)", FS_TICK, x_at(0.2), y_at(BASE_LOSS * np.exp(-EFFECT_LOSS * 0.2)) - 14,
+    d.append(draw.Text("responsive (w>0)", FS_TICK, x_at(0.55), y_at(BASE_LOSS * np.exp(-EFFECT_LOSS * 0.2)) - 14,
                        font_family=FONT, text_anchor="start", fill=INK, font_weight="bold"))
     d.append(draw.Text("inert (w=0)", FS_TICK, x_at(-2.4), y_at(BASE_LOSS) - 12, font_family=FONT,
                        text_anchor="start", fill=MUTED))
@@ -138,8 +141,11 @@ def panel_realization(d, ox, oy, pw, ph, title_y):
     x_at = lambda t: ox + (t / present) * tw                    # noqa: E731
     y_at = lambda k: oy + 30 + (k / max(1, nleaf - 1)) * (ph - 70)   # noqa: E731
 
-    d.append(draw.Text("B   a simulated realization", FS_LABEL, ox, title_y, font_family=FONT,
+    # P#1: panel letter top-left of the panel; title horizontally centred over the panel
+    d.append(draw.Text("B", FS_LABEL, ox, title_y, font_family=FONT,
                        text_anchor="start", fill=INK, font_weight="bold"))
+    d.append(draw.Text("a simulated realization", FS_LABEL, ox + pw / 2, title_y, font_family=FONT,
+                       text_anchor="middle", fill=INK, font_weight="bold"))
 
     for n in ete.traverse():
         if n.is_root():
@@ -189,17 +195,20 @@ def render():
     d.append(draw.Text("Trait-linked gene families (traits to genes)", FS_TITLE, W / 2, 46,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     ly = 82
+    lty = ly + 0.34 * FS_TICK   # L#1: text baseline vertically centred on the legend square
     d.append(draw.Rectangle(W / 2 - 250, ly - 9, 18, 18, fill=INK, stroke="#cccccc", stroke_width=0.8))
-    d.append(draw.Text("family present", FS_TICK, W / 2 - 224, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("family present", FS_TICK, W / 2 - 224, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
     d.append(draw.Rectangle(W / 2 - 60, ly - 9, 18, 18, fill="white", stroke="#cccccc", stroke_width=0.8))
-    d.append(draw.Text("absent", FS_TICK, W / 2 - 34, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("absent", FS_TICK, W / 2 - 34, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
 
     # shared title baseline; panel A's plot is vertically centred against panel B's tree so the two
-    # panels read as co-equal (previously A sat low-left and B dominated the top-right).
+    # panels read as co-equal (previously A sat low-left and B dominated the top-right). Panel A's
+    # height (ph=328) is chosen so its x-axis label ("trait value s", at oy+ph+42 = 595) lands on the
+    # SAME baseline as panel B's x-axis label ("gene families", at y=595), and makes the A plot taller.
     title_y = 150
-    panel_model(d, 120, 225, 300, 250, title_y)
+    panel_model(d, 120, 225, 300, 328, title_y)
     corr = panel_realization(d, 590, 175, 900, 430, title_y)
 
     name = "trait_linked_genes"

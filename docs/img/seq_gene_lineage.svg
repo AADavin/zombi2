@@ -2,29 +2,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1340" height="780" viewBox="0 0 1340 780">
 <defs>
-<linearGradient x1="100" y1="646" x2="410" y2="646" gradientUnits="userSpaceOnUse" id="d0">
-<stop offset="0.0" stop-color="#440154" />
-<stop offset="0.05" stop-color="#42115f" />
-<stop offset="0.1" stop-color="#40216a" />
-<stop offset="0.15" stop-color="#3f3275" />
-<stop offset="0.2" stop-color="#3d4280" />
-<stop offset="0.25" stop-color="#3b528b" />
-<stop offset="0.3" stop-color="#365f8b" />
-<stop offset="0.35" stop-color="#316b8b" />
-<stop offset="0.4" stop-color="#2b788c" />
-<stop offset="0.45" stop-color="#26848c" />
-<stop offset="0.5" stop-color="#21918c" />
-<stop offset="0.55" stop-color="#2d9c84" />
-<stop offset="0.6" stop-color="#39a77b" />
-<stop offset="0.65" stop-color="#46b373" />
-<stop offset="0.7" stop-color="#52be6a" />
-<stop offset="0.75" stop-color="#5ec962" />
-<stop offset="0.8" stop-color="#7ecf56" />
-<stop offset="0.85" stop-color="#9ed54a" />
-<stop offset="0.9" stop-color="#bddb3d" />
-<stop offset="0.95" stop-color="#dde131" />
-<stop offset="1.0" stop-color="#fde725" />
-</linearGradient>
 </defs>
 <rect x="0" y="0" width="1340" height="780" fill="white" />
 <text x="670.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The gene x lineage clock: one shared pattern, one speed per family</text>
@@ -82,11 +59,74 @@
 <circle cx="416.04535775749815" cy="543.0909090909091" r="2.6" fill="#52be6b" stroke="white" stroke-width="0.5" />
 <circle cx="418.9271756059172" cy="578.5454545454545" r="2.6" fill="#69cb5e" stroke="white" stroke-width="0.5" />
 <circle cx="418.58684111362777" cy="614.0" r="2.6" fill="#65ca5f" stroke="white" stroke-width="0.5" />
-<use xlink:href="#d0" />
-<rect x="100" y="646" width="310" height="15" fill="url(#d0)" stroke="#1a1a1a" stroke-width="0.8" />
-<text x="100" y="677" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
-<text x="255.0" y="677" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R_b = 1</text>
-<text x="410" y="677" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>
+<rect x="100.0" y="646" width="5.54375" height="15" fill="#440154" stroke="none" />
+<rect x="104.84375" y="646" width="5.54375" height="15" fill="#430657" stroke="none" />
+<rect x="109.6875" y="646" width="5.54375" height="15" fill="#430b5b" stroke="none" />
+<rect x="114.53125" y="646" width="5.54375" height="15" fill="#42105e" stroke="none" />
+<rect x="119.375" y="646" width="5.54375" height="15" fill="#421662" stroke="none" />
+<rect x="124.21875" y="646" width="5.54375" height="15" fill="#411b65" stroke="none" />
+<rect x="129.0625" y="646" width="5.54375" height="15" fill="#412069" stroke="none" />
+<rect x="133.90625" y="646" width="5.54375" height="15" fill="#40256c" stroke="none" />
+<rect x="138.75" y="646" width="5.54375" height="15" fill="#3f2a70" stroke="none" />
+<rect x="143.59375" y="646" width="5.54375" height="15" fill="#3f2f73" stroke="none" />
+<rect x="148.4375" y="646" width="5.54375" height="15" fill="#3e3477" stroke="none" />
+<rect x="153.28125" y="646" width="5.54375" height="15" fill="#3e3a7a" stroke="none" />
+<rect x="158.125" y="646" width="5.54375" height="15" fill="#3d3f7e" stroke="none" />
+<rect x="162.96875" y="646" width="5.54375" height="15" fill="#3d4481" stroke="none" />
+<rect x="167.8125" y="646" width="5.54375" height="15" fill="#3c4985" stroke="none" />
+<rect x="172.65625" y="646" width="5.54375" height="15" fill="#3b4e88" stroke="none" />
+<rect x="177.5" y="646" width="5.54375" height="15" fill="#3b538b" stroke="none" />
+<rect x="182.34375" y="646" width="5.54375" height="15" fill="#39578b" stroke="none" />
+<rect x="187.1875" y="646" width="5.54375" height="15" fill="#375b8b" stroke="none" />
+<rect x="192.03125" y="646" width="5.54375" height="15" fill="#365f8b" stroke="none" />
+<rect x="196.875" y="646" width="5.54375" height="15" fill="#34638b" stroke="none" />
+<rect x="201.71875" y="646" width="5.54375" height="15" fill="#32678b" stroke="none" />
+<rect x="206.5625" y="646" width="5.54375" height="15" fill="#316b8b" stroke="none" />
+<rect x="211.40625" y="646" width="5.54375" height="15" fill="#2f6f8b" stroke="none" />
+<rect x="216.25" y="646" width="5.54375" height="15" fill="#2d738c" stroke="none" />
+<rect x="221.09375" y="646" width="5.54375" height="15" fill="#2c778c" stroke="none" />
+<rect x="225.9375" y="646" width="5.54375" height="15" fill="#2a7b8c" stroke="none" />
+<rect x="230.78125" y="646" width="5.54375" height="15" fill="#287f8c" stroke="none" />
+<rect x="235.625" y="646" width="5.54375" height="15" fill="#27838c" stroke="none" />
+<rect x="240.46875" y="646" width="5.54375" height="15" fill="#25878c" stroke="none" />
+<rect x="245.3125" y="646" width="5.54375" height="15" fill="#238b8c" stroke="none" />
+<rect x="250.15625" y="646" width="5.54375" height="15" fill="#228f8c" stroke="none" />
+<rect x="255.0" y="646" width="5.54375" height="15" fill="#23938b" stroke="none" />
+<rect x="259.84375" y="646" width="5.54375" height="15" fill="#279688" stroke="none" />
+<rect x="264.6875" y="646" width="5.54375" height="15" fill="#2b9a85" stroke="none" />
+<rect x="269.53125" y="646" width="5.54375" height="15" fill="#2f9d83" stroke="none" />
+<rect x="274.375" y="646" width="5.54375" height="15" fill="#32a180" stroke="none" />
+<rect x="279.21875" y="646" width="5.54375" height="15" fill="#36a57d" stroke="none" />
+<rect x="284.0625" y="646" width="5.54375" height="15" fill="#3aa87b" stroke="none" />
+<rect x="288.90625" y="646" width="5.54375" height="15" fill="#3eac78" stroke="none" />
+<rect x="293.75" y="646" width="5.54375" height="15" fill="#42af75" stroke="none" />
+<rect x="298.59375" y="646" width="5.54375" height="15" fill="#46b373" stroke="none" />
+<rect x="303.4375" y="646" width="5.54375" height="15" fill="#4ab670" stroke="none" />
+<rect x="308.28125" y="646" width="5.54375" height="15" fill="#4eba6d" stroke="none" />
+<rect x="313.125" y="646" width="5.54375" height="15" fill="#51bd6b" stroke="none" />
+<rect x="317.96875" y="646" width="5.54375" height="15" fill="#55c168" stroke="none" />
+<rect x="322.8125" y="646" width="5.54375" height="15" fill="#59c565" stroke="none" />
+<rect x="327.65625" y="646" width="5.54375" height="15" fill="#5dc863" stroke="none" />
+<rect x="332.5" y="646" width="5.54375" height="15" fill="#66ca5f" stroke="none" />
+<rect x="337.34375" y="646" width="5.54375" height="15" fill="#70cc5b" stroke="none" />
+<rect x="342.1875" y="646" width="5.54375" height="15" fill="#7ace57" stroke="none" />
+<rect x="347.03125" y="646" width="5.54375" height="15" fill="#84d053" stroke="none" />
+<rect x="351.875" y="646" width="5.54375" height="15" fill="#8ed250" stroke="none" />
+<rect x="356.71875" y="646" width="5.54375" height="15" fill="#98d44c" stroke="none" />
+<rect x="361.5625" y="646" width="5.54375" height="15" fill="#a2d648" stroke="none" />
+<rect x="366.40625" y="646" width="5.54375" height="15" fill="#acd844" stroke="none" />
+<rect x="371.25" y="646" width="5.54375" height="15" fill="#b6da40" stroke="none" />
+<rect x="376.09375" y="646" width="5.54375" height="15" fill="#c0dc3c" stroke="none" />
+<rect x="380.9375" y="646" width="5.54375" height="15" fill="#cbdd38" stroke="none" />
+<rect x="385.78125" y="646" width="5.54375" height="15" fill="#d5df34" stroke="none" />
+<rect x="390.625" y="646" width="5.54375" height="15" fill="#dfe131" stroke="none" />
+<rect x="395.46875" y="646" width="5.54375" height="15" fill="#e9e32d" stroke="none" />
+<rect x="400.3125" y="646" width="5.54375" height="15" fill="#f3e529" stroke="none" />
+<rect x="405.15625" y="646" width="5.54375" height="15" fill="#fde725" stroke="none" />
+<rect x="100" y="646" width="310" height="15" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
+<text x="100" y="684" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
+<text x="255.0" y="684" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">R_b = 1</text>
+<text x="410" y="684" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>
 <text x="620" y="180" font-size="22" font-family="Helvetica" text-anchor="start" font-weight="bold" fill="#1a1a1a">Family g1:  s_g = 0.6</text>
 <text x="880" y="180" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">(slow-evolving gene)</text>
 <path d="M620.0,207.0 L648.7633320428613,207.0" stroke="#3f3174" stroke-width="3.0" stroke-linecap="round" />

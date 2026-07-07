@@ -122,14 +122,15 @@ def render(bw=False):
                        font_weight="bold", fill=INK))
 
     ly = 82
+    lty = ly + 0.34 * FS_TICK   # L#1: text baseline vertically centred on the legend marker
     d.append(draw.Circle(W / 2 - 250, ly, 6.5, fill="white", stroke=INK, stroke_width=2.0))
-    d.append(draw.Text("gene turnover along a branch", FS_TICK, W / 2 - 236, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("gene turnover along a branch", FS_TICK, W / 2 - 236, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
     dx = W / 2 + 70
     r = 6.5
     d.append(draw.Lines(dx, ly - r, dx + r, ly, dx, ly + r, dx - r, ly, close=True, fill=INK))
-    d.append(draw.Text("turnover at a speciation", FS_TICK, dx + 14, ly, font_family=FONT,
-                       text_anchor="start", dominant_baseline="central", fill=INK))
+    d.append(draw.Text("turnover at a speciation", FS_TICK, dx + 14, lty, font_family=FONT,
+                       text_anchor="start", fill=INK))
 
     tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=N_TIPS, age=AGE,
                                  direction="backward", seed=TREE_SEED)

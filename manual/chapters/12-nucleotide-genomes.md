@@ -67,7 +67,7 @@ result.trace_back(leaf)    # every nucleotide's ancestral origin: [(source, src_
 `leaf_mosaic` gives the leaf as a sequence of blocks with orientation; `trace_back` resolves each
 nucleotide to where it came from.
 
-![A leaf genome (bottom) traced back to its ancestral coordinates (top): collinear stretches keep the gradient, an inversion shows it reversed.](figures/nucleotide_segments.pdf)
+![A leaf genome (bottom) traced back to its ancestral coordinates (top): collinear stretches keep the gradient, an inversion shows it reversed.](figures/nucleotide_segments.pdf){width=72%}
 
 ## Per-block gene trees and reconciliation
 

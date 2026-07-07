@@ -416,16 +416,8 @@ contains both single edges as limits. **What it recovers:** a trait–gene-conte
 *emergent* rather than built in; the decoupled control (`--effect-loss 0` with equal thetas) shows
 none.
 
-## A note on inference
-
-::: warning
-State-dependent diversification models are notorious for high false-positive rates in *inference*: a
-neutral trait can look strongly diversification-linked [@maddison2015unreplicated]. ZOMBI2 is a
-**forward generator**, so it is not itself fooled — but the whole point of generating these scenarios
-is to test downstream inference, so it is worth generating the null (a zero-effect coupling, or the
-coupling simply absent) as a control. Every edge in this chapter offers one: the `HiSSE` hidden-state
-model for `traits:species`, and the inert families that `traits:genes` leaves untouched. Generate the
-null alongside the signal and check that a method can tell them apart.
-:::
-
-![The `traits:species` null in action — HiSSE. **A**, the model: diversification is set by an *unobserved* class (a slow regime and a fast one; the fork width is the speciation rate), and it is the *same* in both observed columns, so the observed trait is neutral for diversification. **B**, one realization: branches heavy in the fast hidden class, light in the slow one. The bushy, speciose clades are the fast-hidden ones — but the observed tip states (the `obs` chips) are scattered across them and cannot explain the diversity. A raw BiSSE fit would wrongly read this as a trait effect; generating it is how you check that your inference does not.](figures/sse_hisse.pdf){width=100%}
+<!-- TODO (null coevolve models): the old single-example "A note on inference" section (HiSSE for
+     traits:species + Fig sse_hisse) was removed per review. Replace it with a proper treatment of
+     the NULL / no-effect control for EVERY coevolve edge -- the zero-coupling (or coupling-absent)
+     scenario you generate alongside the signal so downstream inference can be checked for its
+     ability to tell them apart. All six edges, not just the two the old note happened to mention. -->

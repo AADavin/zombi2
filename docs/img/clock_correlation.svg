@@ -2,35 +2,75 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1300" height="940" viewBox="0 0 1300 940">
 <defs>
-<linearGradient x1="475.0" y1="84" x2="825.0" y2="84" gradientUnits="userSpaceOnUse" id="d0">
-<stop offset="0.0" stop-color="#440154" />
-<stop offset="0.05" stop-color="#42115f" />
-<stop offset="0.1" stop-color="#40216a" />
-<stop offset="0.15" stop-color="#3f3275" />
-<stop offset="0.2" stop-color="#3d4280" />
-<stop offset="0.25" stop-color="#3b528b" />
-<stop offset="0.3" stop-color="#365f8b" />
-<stop offset="0.35" stop-color="#316b8b" />
-<stop offset="0.4" stop-color="#2b788c" />
-<stop offset="0.45" stop-color="#26848c" />
-<stop offset="0.5" stop-color="#21918c" />
-<stop offset="0.55" stop-color="#2d9c84" />
-<stop offset="0.6" stop-color="#39a77b" />
-<stop offset="0.65" stop-color="#46b373" />
-<stop offset="0.7" stop-color="#52be6a" />
-<stop offset="0.75" stop-color="#5ec962" />
-<stop offset="0.8" stop-color="#7ecf56" />
-<stop offset="0.85" stop-color="#9ed54a" />
-<stop offset="0.9" stop-color="#bddb3d" />
-<stop offset="0.95" stop-color="#dde131" />
-<stop offset="1.0" stop-color="#fde725" />
-</linearGradient>
 </defs>
 <rect x="0" y="0" width="1300" height="940" fill="white" />
 <text x="650.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Uncorrelated vs autocorrelated clocks</text>
-<use xlink:href="#d0" />
 <text x="650.0" y="76" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">branch rate multiplier</text>
-<rect x="475.0" y="84" width="350" height="16" fill="url(#d0)" stroke="#1a1a1a" stroke-width="0.8" />
+<rect x="475.0" y="84" width="6.16875" height="16" fill="#440154" stroke="none" />
+<rect x="480.46875" y="84" width="6.16875" height="16" fill="#430657" stroke="none" />
+<rect x="485.9375" y="84" width="6.16875" height="16" fill="#430b5b" stroke="none" />
+<rect x="491.40625" y="84" width="6.16875" height="16" fill="#42105e" stroke="none" />
+<rect x="496.875" y="84" width="6.16875" height="16" fill="#421662" stroke="none" />
+<rect x="502.34375" y="84" width="6.16875" height="16" fill="#411b65" stroke="none" />
+<rect x="507.8125" y="84" width="6.16875" height="16" fill="#412069" stroke="none" />
+<rect x="513.28125" y="84" width="6.16875" height="16" fill="#40256c" stroke="none" />
+<rect x="518.75" y="84" width="6.16875" height="16" fill="#3f2a70" stroke="none" />
+<rect x="524.21875" y="84" width="6.16875" height="16" fill="#3f2f73" stroke="none" />
+<rect x="529.6875" y="84" width="6.16875" height="16" fill="#3e3477" stroke="none" />
+<rect x="535.15625" y="84" width="6.16875" height="16" fill="#3e3a7a" stroke="none" />
+<rect x="540.625" y="84" width="6.16875" height="16" fill="#3d3f7e" stroke="none" />
+<rect x="546.09375" y="84" width="6.16875" height="16" fill="#3d4481" stroke="none" />
+<rect x="551.5625" y="84" width="6.16875" height="16" fill="#3c4985" stroke="none" />
+<rect x="557.03125" y="84" width="6.16875" height="16" fill="#3b4e88" stroke="none" />
+<rect x="562.5" y="84" width="6.16875" height="16" fill="#3b538b" stroke="none" />
+<rect x="567.96875" y="84" width="6.16875" height="16" fill="#39578b" stroke="none" />
+<rect x="573.4375" y="84" width="6.16875" height="16" fill="#375b8b" stroke="none" />
+<rect x="578.90625" y="84" width="6.16875" height="16" fill="#365f8b" stroke="none" />
+<rect x="584.375" y="84" width="6.16875" height="16" fill="#34638b" stroke="none" />
+<rect x="589.84375" y="84" width="6.16875" height="16" fill="#32678b" stroke="none" />
+<rect x="595.3125" y="84" width="6.16875" height="16" fill="#316b8b" stroke="none" />
+<rect x="600.78125" y="84" width="6.16875" height="16" fill="#2f6f8b" stroke="none" />
+<rect x="606.25" y="84" width="6.16875" height="16" fill="#2d738c" stroke="none" />
+<rect x="611.71875" y="84" width="6.16875" height="16" fill="#2c778c" stroke="none" />
+<rect x="617.1875" y="84" width="6.16875" height="16" fill="#2a7b8c" stroke="none" />
+<rect x="622.65625" y="84" width="6.16875" height="16" fill="#287f8c" stroke="none" />
+<rect x="628.125" y="84" width="6.16875" height="16" fill="#27838c" stroke="none" />
+<rect x="633.59375" y="84" width="6.16875" height="16" fill="#25878c" stroke="none" />
+<rect x="639.0625" y="84" width="6.16875" height="16" fill="#238b8c" stroke="none" />
+<rect x="644.53125" y="84" width="6.16875" height="16" fill="#228f8c" stroke="none" />
+<rect x="650.0" y="84" width="6.16875" height="16" fill="#23938b" stroke="none" />
+<rect x="655.46875" y="84" width="6.16875" height="16" fill="#279688" stroke="none" />
+<rect x="660.9375" y="84" width="6.16875" height="16" fill="#2b9a85" stroke="none" />
+<rect x="666.40625" y="84" width="6.16875" height="16" fill="#2f9d83" stroke="none" />
+<rect x="671.875" y="84" width="6.16875" height="16" fill="#32a180" stroke="none" />
+<rect x="677.34375" y="84" width="6.16875" height="16" fill="#36a57d" stroke="none" />
+<rect x="682.8125" y="84" width="6.16875" height="16" fill="#3aa87b" stroke="none" />
+<rect x="688.28125" y="84" width="6.16875" height="16" fill="#3eac78" stroke="none" />
+<rect x="693.75" y="84" width="6.16875" height="16" fill="#42af75" stroke="none" />
+<rect x="699.21875" y="84" width="6.16875" height="16" fill="#46b373" stroke="none" />
+<rect x="704.6875" y="84" width="6.16875" height="16" fill="#4ab670" stroke="none" />
+<rect x="710.15625" y="84" width="6.16875" height="16" fill="#4eba6d" stroke="none" />
+<rect x="715.625" y="84" width="6.16875" height="16" fill="#51bd6b" stroke="none" />
+<rect x="721.09375" y="84" width="6.16875" height="16" fill="#55c168" stroke="none" />
+<rect x="726.5625" y="84" width="6.16875" height="16" fill="#59c565" stroke="none" />
+<rect x="732.03125" y="84" width="6.16875" height="16" fill="#5dc863" stroke="none" />
+<rect x="737.5" y="84" width="6.16875" height="16" fill="#66ca5f" stroke="none" />
+<rect x="742.96875" y="84" width="6.16875" height="16" fill="#70cc5b" stroke="none" />
+<rect x="748.4375" y="84" width="6.16875" height="16" fill="#7ace57" stroke="none" />
+<rect x="753.90625" y="84" width="6.16875" height="16" fill="#84d053" stroke="none" />
+<rect x="759.375" y="84" width="6.16875" height="16" fill="#8ed250" stroke="none" />
+<rect x="764.84375" y="84" width="6.16875" height="16" fill="#98d44c" stroke="none" />
+<rect x="770.3125" y="84" width="6.16875" height="16" fill="#a2d648" stroke="none" />
+<rect x="775.78125" y="84" width="6.16875" height="16" fill="#acd844" stroke="none" />
+<rect x="781.25" y="84" width="6.16875" height="16" fill="#b6da40" stroke="none" />
+<rect x="786.71875" y="84" width="6.16875" height="16" fill="#c0dc3c" stroke="none" />
+<rect x="792.1875" y="84" width="6.16875" height="16" fill="#cbdd38" stroke="none" />
+<rect x="797.65625" y="84" width="6.16875" height="16" fill="#d5df34" stroke="none" />
+<rect x="803.125" y="84" width="6.16875" height="16" fill="#dfe131" stroke="none" />
+<rect x="808.59375" y="84" width="6.16875" height="16" fill="#e9e32d" stroke="none" />
+<rect x="814.0625" y="84" width="6.16875" height="16" fill="#f3e529" stroke="none" />
+<rect x="819.53125" y="84" width="6.16875" height="16" fill="#fde725" stroke="none" />
+<rect x="475.0" y="84" width="350" height="16" fill="none" stroke="#1a1a1a" stroke-width="0.8" />
 <text x="475.0" y="116" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a">slow</text>
 <text x="650.0" y="116" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1x</text>
 <text x="825.0" y="116" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">fast</text>

@@ -23,7 +23,6 @@
 <circle cx="347.6" cy="328.35" r="4.5" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <circle cx="347.6" cy="353.55" r="4.5" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
 <circle cx="347.6" cy="304.725" r="6.0" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="453.20000000000005" y="300.0" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#8a8a8a">Normal(x0, sigma^2 t)</text>
 <text x="900.0" y="124" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">discrete</text>
 <path d="M720,450 L720,150" stroke="#1a1a1a" stroke-width="1.6" />
 <path d="M720,450 L1080,450" stroke="#1a1a1a" stroke-width="1.6" />

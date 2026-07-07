@@ -86,11 +86,11 @@ representation simply also tracks where the affected genes sit and which way the
 On top of duplication, transfer and loss, ordered genomes add two rearrangement events. An
 *inversion* reverses a segment in place and flips the strand of every gene it contains.
 
-![An inversion reverses a chromosomal segment and flips the orientation of each gene in it.](figures/genome_inversion.pdf)
+![An inversion reverses a chromosomal segment and flips the orientation of each gene in it.](figures/genome_inversion.pdf){width=72%}
 
 A *transposition* cuts a segment out and pastes it elsewhere on the chromosome.
 
-![A transposition moves a chromosomal segment to a new location.](figures/genome_transposition.pdf)
+![A transposition moves a chromosomal segment to a new location.](figures/genome_transposition.pdf){width=72%}
 
 Inversions and transpositions change gene order and orientation but *not* gene content.
 
