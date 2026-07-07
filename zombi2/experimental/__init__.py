@@ -65,3 +65,8 @@ def warn_experimental(name: str) -> None:
 # is re-exported from ``zombi2``, drops its ``warn_experimental`` call, and gains a
 # CLI surface + a catalog page. See docs/contributing/model-lifecycle.md.
 # ---------------------------------------------------------------------------
+
+# Imported after warn_experimental is defined (the models import it), so this line stays here.
+from zombi2.experimental.gene_conversion import ConversionModel, GeneConversionRates  # noqa: E402
+
+__all__ += ["ConversionModel", "GeneConversionRates"]
