@@ -4,7 +4,7 @@ Unlike :func:`~zombi2.simulate_traits`, which drops a trait onto a *fixed* tree,
 trait and the tree **co-evolve**: a lineage's discrete state sets its speciation and
 extinction rates, so the character shapes the shape of the tree (Maddison, Midford & Otto
 2007). This is the BiSSE / MuSSE family (``diversitree``), the ``traits:species`` edge of the
-:doc:`coevolution model <coevolution_models>`.
+:doc:`coevolution model <models/coevolution>`.
 
 The process runs **forward** from a crown of two lineages (the same convention as
 :func:`~zombi2.simulate_species_tree(..., direction="forward")`): each live lineage carries a

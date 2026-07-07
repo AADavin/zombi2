@@ -1001,7 +1001,7 @@ class Cladogenesis:
     puts change *at* each branching event: as a daughter lineage is born, its trait jumps away
     from the ancestor's value. This is the punctuational model of trait evolution (Bokma 2008)
     and the cladogenetic half of ClaSSE (Goldberg & Igić 2012) — the ``species:traits`` edge of
-    the :doc:`coevolution model <coevolution_models>`, where *speciation drives the trait*.
+    the :doc:`coevolution model <models/coevolution>`, where *speciation drives the trait*.
 
     Both daughters jump independently. Combine with an anagenetic model for a punctuational trait
     (change both along branches and at nodes), or set the anagenetic rate to zero for pure

@@ -92,7 +92,7 @@ A broad library, grouped by the level it acts on. Each links to its guide.
 **Coevolution** couples any two levels so they drive each other with
 `coevolve --couple driver:target`: state-dependent diversification (SSE), cladogenetic change,
 key innovations, and trait-linked gene families. See the
-[coevolution models](docs/coevolution_models.md) guide.
+[coevolution models](docs/models/coevolution.md) guide.
 
 ---
 
