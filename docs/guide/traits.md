@@ -143,7 +143,7 @@ exact stochastic character map), and the tips inherit whatever state they end in
 
 The transition structure is entirely in the `Q` you pass: `equal_rates` is all-to-all at one
 rate, `symmetric` makes `i→j` and `j→i` equal, `ordered` is the tridiagonal nearest-neighbour
-chain (the character-state analogue of [`RateVariation`](rate-variation.md)), and the raw
+chain (the character-state analogue of [`RateVariation`](sequences.md)), and the raw
 constructor takes an arbitrary Markov chain. From the CLI, `--model mk` is equal-rates by
 default, `--ordered` gives the adjacent-only chain, and `--q-matrix FILE` reads an arbitrary `Q`.
 

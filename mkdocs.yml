@@ -61,10 +61,9 @@ nav:
       - Gene trees & output: guide/gene-trees-and-output.md
       - Ordered genomes: guide/ordered-genomes.md
       - Nucleotide genomes: guide/nucleotide-genomes.md
-      - Sequences: guide/sequences.md
-      - Rate variation: guide/rate-variation.md
       - Trait evolution: guide/traits.md
       - Trait-linked gene families: guide/trait-linked-genomes.md
+      - Sequences: guide/sequences.md
       - Running in parallel: guide/parallel.md
       - Rust engine: guide/rust-engine.md
       - Extending ZOMBI2: guide/extending.md

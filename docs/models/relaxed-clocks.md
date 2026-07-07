@@ -1,6 +1,6 @@
 # Relaxed clocks
 
-> **Tutorial:** see the [Rate variation](../guide/rate-variation.md) guide.
+> **Tutorial:** see the [Sequences](../guide/sequences.md) guide.
 
 ZOMBI2 species trees and gene trees are **timetrees** — every branch length is an amount of *time*.
 Sequence evolution accumulates *substitutions per site*, which is time multiplied by an evolutionary
