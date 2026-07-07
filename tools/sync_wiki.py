@@ -51,7 +51,7 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("contributing.md",                 "Contributing",               "Contributing",            None),
     ("reference/api.md",                "API-Reference",              "API reference",           None),
     ("species_tree_models.md",          "Species-Tree-Models-Roadmap","Species-tree models",     "Roadmap"),
-    ("coevolution_models.md",           "Coevolution-Coupled-Models", "Coevolution (coupled models)", "Roadmap"),
+    ("models/coevolution.md",           "Coevolution-Coupled-Models", "Coevolution (coupled models)", "Roadmap"),
 ]
 
 # Pages we cannot faithfully mirror (mkdocstrings autodoc renders only under MkDocs).

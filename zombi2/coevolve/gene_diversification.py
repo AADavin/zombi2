@@ -4,7 +4,7 @@ Here a lineage's **gene content** sets its speciation and extinction rates, so t
 depends on the genes it carries — and, because a gene is gained horizontally at a rate that grows
 with how prevalent it already is (transfer is frequency-dependent), the tree and the gene content
 must grow **together** in one forward Gillespie. This is the ``genes:species`` arrow of the
-:doc:`coevolution model <coevolution_models>`, and the one edge that genuinely merges the
+:doc:`coevolution model <models/coevolution>`, and the one edge that genuinely merges the
 species-tree and gene processes rather than layering them.
 
 To keep it tractable (and exact under ZOMBI's independent-family assumption) only a small panel of
