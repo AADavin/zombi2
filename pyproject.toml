@@ -4,7 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zombi2"
-version = "0.2.0"
+# Single-sourced from zombi2/__init__.py (__version__) via [tool.hatch.version].
+dynamic = ["version"]
 description = "A phylogenetic simulator of species trees and gene families"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,8 +13,9 @@ authors = [{ name = "Adrian A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
 # zombi2_core is the compiled Rust engine for the built-in gene-family model.
 # It ships as prebuilt binary wheels and is released in lockstep with zombi2,
-# so the version is pinned exactly. For local development, install it first
-# (`pip install ./rust`) before an editable install of zombi2.
+# so the version is pinned exactly -- bump this pin to match rust/Cargo.toml on
+# each release. For local development, install it first (`pip install ./rust`)
+# before an editable install of zombi2.
 dependencies = ["numpy>=1.24", "zombi2_core==0.2.0"]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -39,6 +41,9 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 
 [project.scripts]
 zombi2 = "zombi2.cli:main"
+
+[tool.hatch.version]
+path = "zombi2/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["zombi2"]
