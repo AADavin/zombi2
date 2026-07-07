@@ -25,20 +25,25 @@ step and nothing is uploaded.
 Do this once per index (PyPI and, if you want a dry run, TestPyPI).
 
 1. **Create the GitHub environments.** In the repo, *Settings → Environments*,
-   add `pypi` and `testpypi`. Optionally add required reviewers to `pypi` for an
-   extra manual gate before anything is uploaded.
+   add all four: `pypi`, `pypi-core`, `testpypi`, and `testpypi-core` (one per
+   package per index — see step 2 for why). Optionally add required reviewers to
+   `pypi` / `pypi-core` for an extra manual gate before anything is uploaded.
 
 2. **Register a trusted publisher for each package.** On
-   [PyPI](https://pypi.org/manage/account/publishing/) (and
-   [TestPyPI](https://test.pypi.org/manage/account/publishing/)), add a *pending*
-   GitHub publisher for **both** `zombi2` and `zombi2_core` with:
+   [PyPI](https://pypi.org/manage/account/publishing/) and
+   [TestPyPI](https://test.pypi.org/manage/account/publishing/), add a *pending*
+   GitHub publisher for **both** `zombi2` and `zombi2_core`. They share the same
+   owner `AADavin`, repository `zombi2`, and workflow filename `release.yml`, but
+   each package uses its **own environment**. This is required: PyPI refuses two
+   *pending* publishers that match on owner/repo/workflow/environment, so the
+   environment is what tells them apart.
 
-   | Field             | Value          |
-   | ----------------- | -------------- |
-   | Owner             | `AADavin`      |
-   | Repository        | `zombi2`       |
-   | Workflow filename | `release.yml`  |
-   | Environment       | `pypi` (or `testpypi`) |
+   | PyPI project  | Index         | Environment     |
+   | ------------- | ------------- | --------------- |
+   | `zombi2`      | pypi.org      | `pypi`          |
+   | `zombi2_core` | pypi.org      | `pypi-core`     |
+   | `zombi2`      | test.pypi.org | `testpypi`      |
+   | `zombi2_core` | test.pypi.org | `testpypi-core` |
 
    That's four registrations total (two packages × two indexes). PyPI turns each
    pending publisher into a real project the first time it receives an upload.
