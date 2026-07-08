@@ -394,19 +394,24 @@ simulate_traits(tree, mou, seed=2)                                         # tip
 
 ## Pagel's tree transforms
 
-Pagel's (1999) λ, κ and δ transform the tree's branch/node lengths; run any trait model on the result to model departures from a strict clock.
+Pagel's (1999) λ, κ and δ rescale a tree's branch/node lengths *before* you run a trait model on it — each warps the **tempo of trait evolution** so a Brownian or OU trait can depart from a constant, strictly time-proportional rate. (This is the 1999 tree-transform family, distinct from the 1994 [correlated-character model](#correlated-binary-characters-pagel-1994) above that also carries Pagel's name.) Each is a *deterministic*, one-parameter map `Tree → Tree`; the randomness comes from the trait model you then run on the result.
 
 ```python
 from zombi2.traits import simulate_traits, BrownianMotion, pagel_lambda, pagel_delta, pagel_kappa
 
-simulate_traits(pagel_lambda(tree, 0.5), BrownianMotion(0.5), seed=1)      # scale signal
+simulate_traits(pagel_lambda(tree, 0.5), BrownianMotion(0.5), seed=1)      # reshape tempo
 pagel_delta(tree, 2.0)       # node depths ^delta (>1 late, <1 early change)
 pagel_kappa(tree, 0.0)       # branch lengths ^kappa (0 = speciational: unit branches)
 ```
 
-- **λ** scales internal (shared) depths while holding tip depths fixed: `1` is the original tree (full phylogenetic signal), `0` a star tree (independent tips).
-- **δ** raises node depths to a power (root and tips fixed).
+- **λ** scales internal (shared) depths while holding tip depths fixed: `1` is the original tree (full phylogenetic signal), `0` a star tree (independent tips) — it tunes a Brownian trait's shared-vs-tip-specific covariance, which no molecular clock does.
+- **δ** raises node depths to a power (root and tips fixed): above `1` concentrates change late, below `1` early.
 - **κ** raises each branch length to a power; `0` gives a speciational model (change per speciation event, not per unit time).
+
+![Pagel's 1999 tree transforms on one small tree at three parameter values each: lambda scales internal depths while pinning the tips (original → star); delta bends node depths early vs late; kappa collapses toward equal, speciational branches.](../img/pagel_transforms.svg)
+
+!!! note "Not the molecular clocks of the sequence chapter"
+    Pagel's transforms reshape the timetree a **trait** model (BM/OU/Mk) evolves over — a deterministic warp of *trait tempo*. The [relaxed molecular clocks](sequences.md) instead turn a timetree into a *substitution* phylogram (subs/site) for **sequence** simulation, drawing random per-branch rates. Different object transformed, different model consuming it, different units — neither subsumes the other.
 
 ## Biogeography (DEC)
 
