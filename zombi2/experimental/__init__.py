@@ -77,10 +77,16 @@ from zombi2.experimental.selection import (  # noqa: E402
 
 __all__ += ["Critic", "ESM2Critic", "FixedProfileCritic", "PLMSelection"]
 
-from zombi2.experimental.codon_selection import CodonSelection, translate  # noqa: E402
+from zombi2.experimental.codon_selection import (  # noqa: E402
+    CodonSelection, calibrate_beta, translate,
+)
 
-__all__ += ["CodonSelection", "translate"]
+__all__ += ["CodonSelection", "calibrate_beta", "translate"]
 
 from zombi2.experimental.genome_selection import CDS, GenomeSelection, read_cds_gff  # noqa: E402
 
 __all__ += ["CDS", "GenomeSelection", "read_cds_gff"]
+
+from zombi2.experimental.realism import frechet_esm_distance  # noqa: E402
+
+__all__ += ["frechet_esm_distance"]
