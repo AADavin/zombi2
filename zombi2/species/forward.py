@@ -461,6 +461,16 @@ def simulate_forward(
     if n_tips is not None:
         _check_n_tips(n_tips, max_lineages)
         n_tips = int(n_tips)
+        # n_tips mode stops on the count of *standing* lineages; present-day sampling (ρ<1) then
+        # subsamples them, so the run would return ~ρ·n_tips sampled tips, not n_tips. Reject the
+        # combination (backward simulation rejects ρ<1 too) — use age mode for incomplete sampling.
+        rho = getattr(model, "sampling_fraction", 1.0)
+        if rho < 1.0:
+            raise ValueError(
+                f"n_tips mode requires complete sampling, but sampling_fraction={rho:g}; it counts "
+                "standing lineages, so ρ<1 would yield ~ρ·n_tips sampled tips rather than n_tips. "
+                "Use age mode with sampling_fraction<1, or set sampling_fraction=1 for n_tips mode."
+            )
     if isinstance(model, DiversityDependent) and n_tips is not None and n_tips > model.K:
         raise ValueError(
             f"n_tips ({n_tips}) exceeds the carrying capacity K ({model.K:g}); a diversity-"

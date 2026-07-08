@@ -415,9 +415,3 @@ setting `--theta-present` equal to `--theta-absent` recovers pure `traits:genes`
 contains both single edges as limits. **What it recovers:** a trait–gene-content association that is
 *emergent* rather than built in; the decoupled control (`--effect-loss 0` with equal thetas) shows
 none.
-
-<!-- TODO (null coevolve models): the old single-example "A note on inference" section (HiSSE for
-     traits:species + Fig sse_hisse) was removed per review. Replace it with a proper treatment of
-     the NULL / no-effect control for EVERY coevolve edge -- the zero-coupling (or coupling-absent)
-     scenario you generate alongside the signal so downstream inference can be checked for its
-     ability to tell them apart. All six edges, not just the two the old note happened to mention. -->

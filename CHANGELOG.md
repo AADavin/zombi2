@@ -30,14 +30,15 @@ First public release. ZOMBI2 is a ground-up redesign of
   plus nucleotide substitution models (JC, K80, HKY, GTR + Gamma).
 - **Coevolution** — a unified `coevolve` command that couples species, traits and genes along
   six directed edges via `--couple driver:target`.
-- **Command-line interface** — `zombi2 species | genomes | trait | sequence | coevolve`, with
-  grouped, sectioned help and a per-run reproducibility manifest (version, seed, full command
+- **Command-line interface** — `zombi2 species | genomes | trait | sequence | coevolve | tools`,
+  with grouped, sectioned help and a per-run reproducibility manifest (version, seed, full command
   line and resolved parameters).
 - **Packaging** — MIT license, `CITATION.cff`, and PyPI metadata.
 
 ### Notes
 
-- ABC inference of DTL rates from an empirical copy-number profile (`zombi2.matching`) is
-  available as an experimental Python API but is withheld from the command line in this release.
+- ABC inference of DTL rates from an empirical copy-number profile (`zombi2.matching`) is **not**
+  part of this release: it has been moved to a separate future-extensions archive and is neither
+  importable from `zombi2` nor exposed on the command line.
 - The default (built-in) gene-family engine is a compiled Rust extension; build it once with
   maturin (see [installation](docs/installation.md)).

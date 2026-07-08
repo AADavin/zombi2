@@ -56,7 +56,7 @@ from zombi2.genomes.transfers import TransferModel
 from zombi2.tree import Tree
 
 #: Clamp on the loss/gain exponent so an extreme ``effect·w·s`` never overflows ``exp`` (or
-#: drives the Gillespie loop into an instant loss/gain hot cycle). Matches :mod:`zombi2.coupling`.
+#: drives the Gillespie loop into an instant loss/gain hot cycle).
 _MAX_EXPONENT = 40.0
 
 
