@@ -41,8 +41,9 @@ over time independently of what is already present.
 
 Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
 four rates vary across gene families**. Chapter 7 summarises the rate models in a table; this
-section works through them. Two of them are available on the command line, `shared` (the default)
-and `per-genome`; per-family rates are Python-API for now.
+section works through them. `shared` (the default), `per-genome` and `family` are available on the
+command line; explicit per-family and per-branch rate tables are supplied from files with
+`--family-rates` / `--branch-rates` (below).
 
 ### Shared rates
 
@@ -101,6 +102,17 @@ Each distribution argument accepts a built-in (`Gamma(shape, scale)`, `Exponenti
 `LogNormal(mu, sigma)`, `Uniform(low, high)`, `Fixed(value)`), any `scipy.stats` frozen
 distribution, or a callable `rng -> float`. Negative draws are clipped to 0.
 
+To instead **fix** particular families' rates by hand, pass a `rates` table — a
+`{family_id: (dup, transfer, loss)}` map. Listed families use exactly those rates; families not
+listed fall back to the distributions above (so with the default rates of `0`, only the tabulated
+families are active):
+
+```python
+rates = FamilySampledRates(rates={"1": (3, 2, 1), "2": (4, 0, 1)})   # families 1 and 2, rest inert
+```
+
+The same table is read from a TSV on the command line with `--family-rates` (below).
+
 ::: note
 `initial_families` sets how many families the root genome starts with, each originated at time 0.
 Additional families continue to appear over the run at the origination rate.
@@ -115,6 +127,20 @@ zombi2 genomes --tree species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 \
     --initial-families 40 --seed 42 -o out/
 ```
+
+Custom rate tables are supplied from TSV files. `--family-rates` gives named families their own
+rates (columns `family duplication transfer loss`; unlisted families fall back to `--dup/--trans/
+--loss`), and `--branch-rates` gives named branches a transfer **emission** factor and/or
+**receptivity** weight (columns `branch emission receptivity`, either optional):
+
+```bash
+zombi2 genomes --tree species_tree.nwk \
+    --family-rates families.tsv --branch-rates branches.tsv \
+    --initial-families 40 --seed 42 -o out/
+```
+
+A `--branch-rates` file with only a `receptivity` column stays on the fast Rust engine; one with an
+`emission` column (or `--family-rates`) runs on the Python engine.
 
 `simulate_genomes` returns a `Genomes` object exposing the input `species_tree`, the `profiles`
 matrix (families $\times$ extant species), the chronological `event_log`, the per-family
@@ -148,6 +174,31 @@ Setting `distance_decay=`$\lambda$ favours phylogenetically close recipients: a 
 weighted by $\exp(-\lambda d)$, where $d = 2(t - t_{\mathrm{MRCA}})$ is the patristic distance
 between donor and candidate at the transfer time $t$. Larger $\lambda$ means more local transfers;
 distant transfers are damped but never forbidden.
+
+### Transfer emission and receptivity
+
+A branch can be made more prone to transfer in two independent ways — as a **donor** or as a
+**recipient**:
+
+- **Emission** (how often a branch *donates*) is a *rate*, so it is scaled per branch with
+  `BranchRates`, restricted to transfer with `events=("transfer",)`:
+
+  ```python
+  # branch i3 donates transfers 5x as often (its duplication/loss are untouched)
+  rates = BranchRates(SharedRates(transfer=0.2), factors={"i3": 5.0}, events=("transfer",))
+  ```
+
+- **Receptivity** (how likely a branch is to *receive*) is a *selection weight* on recipient choice,
+  set on the `TransferModel`. Each candidate's weight is multiplied by its receptivity (branches not
+  listed default to `1`), composing with `distance_decay`:
+
+  ```python
+  # branch i7 receives transfers 10x as readily as an equidistant unlisted branch
+  simulate_genomes(tree, transfer=0.3, transfers=TransferModel(receptivity={"i7": 10.0}))
+  ```
+
+  A weight of `0` makes a branch never receive; receptivity is honoured by both the Python and the
+  Rust engines. On the command line both dials come from one `--branch-rates` file (below).
 
 ### Additive versus replacement
 

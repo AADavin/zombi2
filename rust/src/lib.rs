@@ -105,11 +105,13 @@ impl Fenwick {
 }
 
 /// Transfer mechanics (mirrors Python's TransferModel). `decay < 0` means uniform recipient.
-#[derive(Clone, Copy)]
+/// `receptivity` is a per-node absorption weight (indexed by node id); empty = unweighted.
+#[derive(Clone)]
 struct Transfers {
     replacement: f64,
     decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
 }
 
 /// Choose a transfer recipient among the alive branches: uniform, or weighted by
@@ -130,8 +132,9 @@ fn choose_recipient(
     if k == 0 || (!tr.allow_self && k < 2) {
         return None;
     }
-    if tr.decay < 0.0 {
-        // uniform recipient
+    let has_recept = !tr.receptivity.is_empty();
+    if tr.decay < 0.0 && !has_recept {
+        // uniform recipient — unchanged fast path (byte-identical to the pre-receptivity engine)
         if tr.allow_self {
             return Some(alive_list[rng.uniform(k as u64) as usize]);
         }
@@ -142,38 +145,50 @@ fn choose_recipient(
         }
         return Some(alive_list[j]);
     }
-    // distance-weighted: mark the donor's ancestor chain, then walk each candidate up to it
-    let mut anc: std::collections::HashSet<usize> = std::collections::HashSet::new();
-    let mut node = donor as i64;
-    while node >= 0 {
-        anc.insert(node as usize);
-        node = parent[node as usize];
-    }
-    let mut dists: Vec<f64> = Vec::with_capacity(k);
-    for &r in alive_list {
-        if r == donor {
-            dists.push(if tr.allow_self { 0.0 } else { f64::INFINITY });
-            continue;
+    // weighted: a per-candidate base (uniform 1, or distance exp(-decay*(d-dmin))) times the
+    // per-branch receptivity weight (1 when unlisted / no receptivity given).
+    let recept = |r: usize| -> f64 { if has_recept { tr.receptivity[r] } else { 1.0 } };
+    let weights: Vec<f64> = if tr.decay < 0.0 {
+        alive_list
+            .iter()
+            .map(|&r| if r == donor && !tr.allow_self { 0.0 } else { recept(r) })
+            .collect()
+    } else {
+        // distance-weighted: mark the donor's ancestor chain, then walk each candidate up to it
+        let mut anc: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut node = donor as i64;
+        while node >= 0 {
+            anc.insert(node as usize);
+            node = parent[node as usize];
         }
-        let mut n = r;
-        while !anc.contains(&n) {
-            n = parent[n] as usize;
+        let dists: Vec<f64> = alive_list
+            .iter()
+            .map(|&r| {
+                if r == donor {
+                    if tr.allow_self { 0.0 } else { f64::INFINITY }
+                } else {
+                    let mut n = r;
+                    while !anc.contains(&n) {
+                        n = parent[n] as usize;
+                    }
+                    2.0 * (t - time[n])
+                }
+            })
+            .collect();
+        let dmin = dists.iter().cloned().fold(f64::INFINITY, f64::min);
+        if !dmin.is_finite() {
+            return None;
         }
-        dists.push(2.0 * (t - time[n]));
-    }
-    let dmin = dists.iter().cloned().fold(f64::INFINITY, f64::min);
-    if !dmin.is_finite() {
-        return None;
-    }
-    let mut total = 0.0;
-    let weights: Vec<f64> = dists
-        .iter()
-        .map(|&d| {
-            let w = if d.is_finite() { (-tr.decay * (d - dmin)).exp() } else { 0.0 };
-            total += w;
-            w
-        })
-        .collect();
+        alive_list
+            .iter()
+            .zip(dists.iter())
+            .map(|(&r, &d)| {
+                let base = if d.is_finite() { (-tr.decay * (d - dmin)).exp() } else { 0.0 };
+                base * recept(r)
+            })
+            .collect()
+    };
+    let total: f64 = weights.iter().sum();
     if total <= 0.0 {
         return None;
     }
@@ -557,10 +572,11 @@ fn simulate_profiles(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
 ) -> PyResult<ProfileCoo> {
     let children = build_children(n_nodes, &parent);
     let order = time_order(n_nodes, &parent, &time);
-    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let tr = Transfers { replacement, decay: distance_decay, allow_self, receptivity };
     let group = run_profile_copy(
         &children, &extant_leaf, &parent, &time, &order, root, n_nodes,
         tr, duplication, transfer, loss, origination, cap, seed, initial_size,
@@ -597,12 +613,13 @@ fn simulate_profiles_parallel(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
     n_copies: usize,
     n_threads: usize,
 ) -> PyResult<ProfileCoo> {
     let children = build_children(n_nodes, &parent);
     let order = time_order(n_nodes, &parent, &time);
-    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let tr = Transfers { replacement, decay: distance_decay, allow_self, receptivity };
     let k = n_copies.max(1);
     let o_k = origination / (k as f64);
     let base = initial_size / k;
@@ -625,7 +642,7 @@ fn simulate_profiles_parallel(
             .map(|&(seed_c, init_c)| {
                 run_profile_copy(
                     &children, &extant_leaf, &parent, &time, &order, root, n_nodes,
-                    tr, duplication, transfer, loss, o_k, cap, seed_c, init_c,
+                    tr.clone(), duplication, transfer, loss, o_k, cap, seed_c, init_c,
                 )
             })
             .collect()
@@ -1034,8 +1051,9 @@ fn simulate_log(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
 ) -> PyResult<(LogColumns, Vec<(usize, Vec<(u64, u64)>)>)> {
-    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let tr = Transfers { replacement, decay: distance_decay, allow_self, receptivity };
     let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
         duplication, transfer, loss, origination, initial_size, cap, seed, tr, true)?;
     Ok(((r.ev, r.br, r.tm, r.dn, r.rc, r.fm, r.g0, r.g1, r.g2), leaves))
@@ -1063,8 +1081,9 @@ fn simulate_trace(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
 ) -> PyResult<(LogColumns, ProfileCoo)> {
-    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let tr = Transfers { replacement, decay: distance_decay, allow_self, receptivity };
     let (r, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
         duplication, transfer, loss, origination, initial_size, cap, seed, tr, false)?;
     // The trace path needs leaves only for the copy-number profile — aggregate each leaf's genes
@@ -1433,10 +1452,11 @@ fn simulate_and_write(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
     total_age: f64,
     outdir: String,
 ) -> PyResult<(usize, usize, usize)> {
-    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let tr = Transfers { replacement, decay: distance_decay, allow_self, receptivity };
     let (rec, leaves) = run_log(n_nodes, &parent, &time, &extant_leaf, root,
         duplication, transfer, loss, origination, initial_size, cap, seed, tr, true)?;
     let (n_families, n_species) = write_outputs(&rec, &leaves, &names, total_age, &outdir)
@@ -1842,6 +1862,7 @@ fn simulate_nucleotide(
     replacement: f64,
     distance_decay: f64,
     allow_self: bool,
+    receptivity: Vec<f64>,
 ) -> PyResult<Vec<(usize, Vec<(u32, i64, i64, i8)>)>> {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); n_nodes];
     for (node, &p) in parent.iter().enumerate() {
@@ -1849,7 +1870,7 @@ fn simulate_nucleotide(
             children[p as usize].push(node);
         }
     }
-    let tr = Transfers { replacement, decay: distance_decay, allow_self };
+    let tr = Transfers { replacement, decay: distance_decay, allow_self, receptivity };
     let mut eng = NEngine {
         children,
         extant_leaf,

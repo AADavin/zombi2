@@ -119,8 +119,21 @@ Distribution arguments accept:
 - any **scipy.stats frozen distribution** (e.g. `scipy.stats.gamma(2, scale=0.1)`);
 - a **callable** `rng -> float`.
 
-Negative draws are clipped to 0. Origination stays a single per-branch rate. Python API only. Also
-honours an optional `carrying_capacity`.
+Negative draws are clipped to 0. Origination stays a single per-branch rate. Also honours an
+optional `carrying_capacity`.
+
+To **fix** specific families' rates by hand instead of sampling, pass a `rates` table —
+`{family_id: (dup, transfer, loss)}`. Listed families use exactly those values; unlisted families
+fall back to the distributions (so with the default rates of `0`, only the tabulated families are
+active):
+
+```python
+# family 1 = D3/T2/L1, family 2 = D4/T0/L1, every other family inert
+rates = FamilySampledRates(rates={"1": (3, 2, 1), "2": (4, 0, 1)})
+```
+
+From the command line the same table is read from a TSV with `--family-rates` (which selects
+`--rate-model family`); see [custom rate tables](#custom-rate-tables-from-files).
 
 #### PerGenomeRates — genome-wise rates
 
@@ -144,9 +157,10 @@ genome-wise models are far less prone to runaway growth. Selected on the CLI wit
 #### BranchRates — branch-wise rates
 
 `BranchRates` makes rates vary **per species-tree branch** by scaling any base rate model
-with a per-branch factor (one scalar per branch, scaling duplication/transfer/loss
-together; origination is left unscaled). It composes with the base model, so branch and
-family heterogeneity combine. Choose one factor source:
+with a per-branch factor. By default the factor scales duplication/transfer/loss together
+(origination is left unscaled); pass `events=("transfer",)` to scale **only** transfer — the
+transfer-*emission* dial (how often a branch donates). It composes with the base model, so branch
+and family heterogeneity combine. Choose one factor source:
 
 ```python
 from zombi2.genomes import SharedRates, BranchRates, simulate_genomes
@@ -162,10 +176,15 @@ simulate_genomes(tree, BranchRates(base, per_branch=LogNormal(0.0, 0.5)), seed=1
 
 # 3. an explicit {branch_name: factor} map (branches not listed keep root_rate)
 simulate_genomes(tree, BranchRates(base, factors={"i3": 10.0}), seed=1)
+
+# 4. transfer-emission only: branch i3 donates transfers 5x as often (its D/L untouched)
+simulate_genomes(tree, BranchRates(base, factors={"i3": 5.0}, events=("transfer",)), seed=1)
 ```
 
 For the relaxed clock, `factor(child) = factor(parent) · exp(N(0, σ·√branch_length))`, so
-the drift accumulates with time and `σ = 0` recovers the base model. Python API only.
+the drift accumulates with time and `σ = 0` recovers the base model. The per-branch factor map is
+also read from a TSV with `--branch-rates` (its `emission` column); see [custom rate
+tables](#custom-rate-tables-from-files).
 
 ### Seeding the root genome
 
@@ -175,9 +194,11 @@ time 0). Additional families appear over time at the origination rate.
 ### Command line
 
 Bare `--dup/--trans/--loss/--orig` selects `SharedRates` (the default `--rate-model shared`, Rust engine);
-`--rate-model per-genome` selects `PerGenomeRates` (Python). `FamilySampledRates` and `BranchRates` are
-Python-API only. `--write` selects the output parts (default `profiles trees`); `species_tree.nwk` is
-always copied through, and the run writes a `genomes.log` manifest.
+`--rate-model per-genome` selects `PerGenomeRates` (Python). Explicit per-family and per-branch rates
+come from files: `--family-rates FILE` (a `FamilySampledRates` table) and `--branch-rates FILE`
+(per-branch transfer emission and/or receptivity) — see [custom rate
+tables](#custom-rate-tables-from-files). `--write` selects the output parts (default `profiles trees`);
+`species_tree.nwk` is always copied through, and the run writes a `genomes.log` manifest.
 
 ```bash
 # a species tree to evolve genomes along
@@ -280,6 +301,11 @@ full walkthrough of the outputs see [Gene trees & output](#gene-trees-output).
   branch — in the low-rate (linear) regime each factor's mean loss count matches its own closed-form
   pure-death expectation `M·(1 − exp(−loss·f·age))`, and the event-count ratio calibrates to `f`
   rather than merely being "more" (`test_branch_rates.py::test_branch_factor_scales_event_count_proportionally`).
+- **Per-family / per-branch controls.** An explicit `FamilySampledRates` table drives only the listed
+  families (the rest inert); `BranchRates(events=("transfer",))` scales a branch's transfer weight and
+  leaves D/L untouched; and transfer `receptivity` selects recipients in proportion to their weight —
+  verified as a frequency oracle on the recipient chooser, with the **Rust and Python engines agreeing**
+  and a no-receptivity run byte-identical to before (`test_rate_controls.py`).
 
 ## Transfers
 
@@ -323,6 +349,47 @@ transfers are damped but never forbidden.
     Distance weighting computes, per transfer, the MRCA time of the donor with every
     co-existing lineage (`O(alive · depth)`). It is the one hot spot; for very large trees
     it can be swapped for a sparse-table LCA later.
+
+### Per-branch receptivity (absorption)
+
+`receptivity` biases **which** branch receives a transfer — the absorption counterpart to the
+transfer *emission* rate scaled by [`BranchRates`](#branchrates-branch-wise-rates). Pass a
+`{branch_name: weight}` map; each candidate's selection weight is multiplied by its receptivity
+(branches not listed default to `1`), composing with `distance_decay`:
+
+```python
+# branch i7 receives transfers 10x as readily as an equidistant unlisted branch; i9 never receives
+simulate_genomes(tree, transfer=0.3,
+                 transfers=TransferModel(receptivity={"i7": 10.0, "i9": 0.0}))
+```
+
+Receptivity is applied by **both** the Python engine and the Rust built-in engine (so a plain
+`SharedRates` run keeps its speed), and a run with no receptivity is byte-identical to before. From
+the command line it is the `receptivity` column of a `--branch-rates` file
+([below](#custom-rate-tables-from-files)).
+
+### Custom rate tables from files
+
+The per-family and per-branch tables above are read from small TSVs on the command line, so you can
+drive a simulation from hand-specified rates without writing Python:
+
+```
+# families.tsv                # branches.tsv
+family  duplication  transfer  loss     branch  emission  receptivity
+1       3            2         1        i3      5.0       1.0
+2       4            0         1        i7      1.0       10.0
+```
+
+```bash
+zombi2 genomes -t species_tree.nwk \
+    --family-rates families.tsv --branch-rates branches.tsv \
+    --initial-families 40 --seed 42 -o out/
+```
+
+`read_family_rates(path)` and `read_branch_rates(path)` (both in `zombi2.genomes`) parse the same
+files in Python, returning the `{family: (d,t,l)}` map and the `(emission, receptivity)` pair the
+models consume. Either `--branch-rates` column is optional; a header row is honoured, otherwise
+columns are positional.
 
 ### Self-transfer
 
