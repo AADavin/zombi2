@@ -252,6 +252,7 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | `--genome-model {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
 | `--rate-model {shared,per-genome}` | rate heterogeneity for the unordered level: `shared` (default, Rust): same per-copy rates for all families; `per-genome` (Python): constant per-genome rates, linear growth |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
+| `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, `--rate-model shared`; runs on the Python engine |
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |

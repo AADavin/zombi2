@@ -71,6 +71,7 @@ def eligible(rates, genome_factory, sampler) -> bool:
         and rates.carrying_capacity is None
         and not rates.inversion
         and not rates.transposition
+        and not rates.conversion
     )
 
 
@@ -106,6 +107,8 @@ def _resolve_rates(rates):
         unsupported.append("inversion")
     if rates.transposition:
         unsupported.append("transposition")
+    if rates.conversion:
+        unsupported.append("conversion")
     if unsupported:
         raise ValueError(
             f"the Rust engine does not support {', '.join(unsupported)}; "
