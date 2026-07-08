@@ -51,9 +51,10 @@ def test_fixedprofilecritic_is_experimental():
         FixedProfileCritic(_peaked_profile("ACDE"))
 
 
-def test_live_mode_not_yet_implemented():
-    with pytest.raises(NotImplementedError):
-        PLMSelection(FixedProfileCritic(_peaked_profile("ACDE")), mode="live")
+def test_live_mode_is_available():
+    # P3 implements the live/epistatic mode (see test_selection_live.py); it must construct cleanly
+    sel = PLMSelection(FixedProfileCritic(_peaked_profile("ACDE")), mode="live", refresh=0.5)
+    assert sel.mode == "live"
 
 
 def test_exports_stay_in_the_experimental_namespace():
