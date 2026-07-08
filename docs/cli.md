@@ -250,9 +250,11 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
 | `--genome-model {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
-| `--rate-model {shared,per-genome}` | rate heterogeneity for the unordered level: `shared` (default, Rust): same per-copy rates for all families; `per-genome` (Python): constant per-genome rates, linear growth |
+| `--rate-model {shared,per-genome,family}` | rate heterogeneity for the unordered level: `shared` (default, Rust): same per-copy rates for all families; `per-genome` (Python): constant per-genome rates, linear growth; `family` (Python): each family its own rates, from `--family-rates` |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
 | `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, `--rate-model shared`; runs on the Python engine |
+| `--family-rates FILE` | TSV of explicit per-family rates (`family duplication transfer loss`); selects `--rate-model family`; unlisted families fall back to `--dup/--trans/--loss` [unordered, Python] |
+| `--branch-rates FILE` | TSV of per-branch transfer `emission` (donation-rate factor) and/or `receptivity` (absorption weight) (`branch emission receptivity`, either optional) [unordered; receptivity-only stays on Rust] |
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
