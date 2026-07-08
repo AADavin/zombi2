@@ -77,6 +77,23 @@ def _cross(x, y, r, w=4.5):
     return (_line(x - r, y - r, x + r, y + r, w=w) + _line(x - r, y + r, x + r, y - r, w=w))
 
 
+def _conv(x, y, r):
+    """Conversion glyph: an OPEN (white-filled) circle with a centred cross -- distinct from the
+    solid dot used for origination and from the bare cross used for loss."""
+    cr = r * 0.58
+    return (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="white" stroke="{INK}" '
+            f'stroke-width="3.2" />' + _cross(x, y, cr, w=3.2))
+
+
+def _draw_conv_glyph(d, x, y, r):
+    """Same glyph, appended to a phylustrator drawer (Panel B)."""
+    cr = r * 0.58
+    d.drawing.append(draw.Circle(x, y, r, fill="white", stroke=INK, stroke_width=3.2))
+    for x1, y1, x2, y2 in ((x - cr, y - cr, x + cr, y + cr), (x - cr, y + cr, x + cr, y - cr)):
+        d.drawing.append(draw.Line(x1, y1, x2, y2, stroke=INK, stroke_width=3.2,
+                                   stroke_linecap="round"))
+
+
 def panel_a() -> str:
     """The mechanism, as a raw SVG group of size (PW, PH). Time runs top (past) -> bottom (present)."""
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{PW}" height="{PH}" '
@@ -103,26 +120,23 @@ def panel_a() -> str:
 
     # family origin -> duplication (single ancestral lineage)
     o.append(_line(xroot, 200, xroot, y_dup))
-    # duplication: horizontal split + square glyph
+    # duplication: horizontal split + square glyph (glyph carries the identity; no label)
     o.append(_line(xX, y_dup, xY, y_dup))
     o.append(_square(xroot, y_dup, MARKER_R))
-    o.append(_t(xroot, y_dup - 30, "duplication", FS_ANNOT_P, anchor="middle"))
 
     # copy X: solid all the way down (the template that survives)
     o.append(_line(xX, y_dup, xX, y_pres))
-    # copy Y BEFORE conversion: its own history, later erased -> dashed, capped by a cross
+    # copy Y BEFORE conversion: its own history, later erased -> dashed, capped by a loss cross
     o.append(_line(xY, y_dup, xY, y_conv, dash="9,7", cap="butt"))
-    o.append(_cross(xY, y_conv, MARKER_R - 1))
 
-    # conversion: X donates a copy that overwrites Y. Circle on X's lineage; connector to Y;
-    # Y's position continues solid below (now occupied by the converted copy of X).
-    o.append(_circle(xX, y_conv, MARKER_R))
+    # conversion: X donates a copy that overwrites Y. Connector to Y drawn first; Y's position
+    # continues solid below (now occupied by the converted copy of X); loss cross on the old Y;
+    # the conversion glyph sits on X's lineage last, on top.
     o.append(_line(xX, y_conv, xY, y_conv))
     o.append(_line(xY, y_conv, xY, y_pres))
+    o.append(_cross(xY, y_conv, MARKER_R - 1))
+    o.append(_conv(xX, y_conv, MARKER_R))
     o.append(_t(xX - 26, y_conv, "conversion", FS_ANNOT_P, anchor="end"))
-    # direction annotation over the connector
-    o.append(_t((xX + xY) / 2, y_conv - 22, "template overwrites the other copy",
-                FS_ANNOT_P - 4, anchor="middle", color=MUTED))
 
     # tips at the present
     o.append(_t(xX, y_pres + 34, "copy 1", FS_ANNOT_P, anchor="middle"))
@@ -149,23 +163,28 @@ def panel_a() -> str:
 # ============================================================================= Panel B (real output)
 
 def build_scenario():
-    """Find a small, legible family carrying exactly one conversion (reproducible seed search)."""
+    """Find a small, legible family with EXACTLY one duplication and one conversion (and as few
+    extra losses as possible), by a reproducible seed search."""
     model = z.BirthDeath(birth=1.0, death=0.3)
-    for seed in range(1, 600):
+    for seed in range(1, 1200):
         tree = z.simulate_species_tree(model, n_tips=6, age=1.0, direction="backward", seed=seed)
         g = z.simulate_genomes(
-            tree, z.SharedRates(duplication=0.7, conversion=2.4, loss=0.15, origination=0.5),
-            conversions=z.ConversionModel(bias=1.0), initial_families=10, seed=seed)
+            tree, z.SharedRates(duplication=0.5, conversion=2.2, loss=0.06, origination=0.5),
+            conversions=z.ConversionModel(bias=1.0), initial_families=12, seed=seed)
         trees = g.gene_trees()
         for fam, records in g.gene_families.items():
+            dups = [r for r in records if r.event is EventType.DUPLICATION]
             convs = [r for r in records if r.event is EventType.CONVERSION]
-            if len(convs) != 1 or fam not in trees:
+            losses = [r for r in records if r.event is EventType.LOSS]
+            if len(dups) != 1 or len(convs) != 1 or fam not in trees:
                 continue
             complete, _extant = trees[fam]
             n_tips = complete.count(",") + 1
-            if 4 <= n_tips <= 7:
+            # the conversion itself contributes one loss (the overwritten copy); allow at most one
+            # more so the tree stays legible
+            if 4 <= n_tips <= 7 and len(losses) <= 2:
                 return tree, g, fam, records, convs[0], complete, seed
-    raise RuntimeError("no clean single-conversion family found in the seed range")
+    raise RuntimeError("no clean single-duplication single-conversion family found")
 
 
 def _species_letters(tree):
@@ -182,7 +201,9 @@ def panel_b(complete_nwk: str, records, conv_record, species_letter):
     tree = read_newick(str(nwk_path))
     present = annotate_depths(tree)
     mark_survival(tree, present, tol=1e-6 * present)
-    name2node = {n.name: n for n in tree.traverse()}
+    # gid -> node, resolving internal nodes (named by gid) AND tips (named "<species>_<gid>"), so a
+    # conversion/duplication child gid can be located even when it is a tip
+    gid2node = {(n.name.split("_")[-1] if "_" in n.name else n.name): n for n in tree.traverse()}
 
     # tips like <species-letter>_<copy>; blank + collect the loss tips
     loss_tips, copies = [], {}
@@ -204,18 +225,18 @@ def panel_b(complete_nwk: str, records, conv_record, species_letter):
     dup_nodes = {r.genes[0].gid for r in records if r.event is EventType.DUPLICATION}
     conv_node = conv_record.genes[0].gid
     for gid in dup_nodes:
-        if gid in name2node and gid != conv_node:
-            d._draw_shape_at(*name2node[gid].coordinates, "square", INK, r=MARKER_R)
-    if conv_node in name2node:
-        cx, cy = name2node[conv_node].coordinates
-        d.drawing.append(draw.Circle(cx, cy, MARKER_R, fill=INK))
-        # name the two products of the conversion
-        for role, gid, dy in (("donor copy", conv_record.genes[1].gid, -22),
-                              ("converted copy", conv_record.genes[2].gid, 22)):
-            child = name2node.get(gid)
-            if child is not None:
-                d.add_text(role, cx + 24, (cy + child.coordinates[1]) / 2 + dy,
-                           font_size=FS_TICK_P - 4, color=MUTED, text_anchor="start")
+        if gid in gid2node and gid != conv_node:
+            d._draw_shape_at(*gid2node[gid].coordinates, "square", INK, r=MARKER_R)
+    if conv_node in gid2node:
+        cx, cy = gid2node[conv_node].coordinates
+        # name the two products of the conversion; place the labels to the LEFT of the node (into
+        # the open incoming-branch space) so they never collide with the tip labels at the edge —
+        # donor above the branch, converted below, matching the two children's vertical order
+        d.add_text("donor copy", cx - 22, cy - 28, font_size=FS_TICK_P - 4, color=MUTED,
+                   text_anchor="end")
+        d.add_text("converted copy", cx - 22, cy + 28, font_size=FS_TICK_P - 4, color=MUTED,
+                   text_anchor="end")
+        _draw_conv_glyph(d, cx, cy, MARKER_R)   # glyph on top, after the labels
     for lf in loss_tips:
         _draw_cross_ink(d, *lf.coordinates, MARKER_R, stroke_width=4.0)
 
@@ -238,7 +259,7 @@ def _footer_legend(cx, y):
         out.append(_t(tx, y, s, FS_LABEL_P))
 
     out.append(_square(x, y, r)); text(x + r + 14, "Duplication"); x += 300
-    out.append(_circle(x, y, r)); text(x + r + 14, "Conversion"); x += 300
+    out.append(_conv(x, y, r)); text(x + r + 14, "Conversion"); x += 300
     out.append(_cross(x, y, r)); text(x + r + 14, "Loss"); x += 190
     out.append(_line(x, y, x + 54, y)); text(x + 66, "surviving copy"); x += 370
     out.append(_line(x, y, x + 54, y, dash="8,6", cap="butt")); text(x + 66, "overwritten / lost")
