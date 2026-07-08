@@ -14,7 +14,7 @@ import pytest
 import zombi2.experimental as ex
 from zombi2.experimental.codon_selection import (
     GENETIC_CODE, SENSE_CODONS, STOP_CODONS, CodonSelection, _CODON_AA, _codon_mutation,
-    _codon_site_model, translate,
+    _codon_site_model, calibrate_beta, translate,
 )
 from zombi2.experimental.selection import FixedProfileCritic
 from zombi2.sequences.models import AMINO_ACIDS, hky85
@@ -117,6 +117,17 @@ def test_dnds_is_one_at_beta_zero_and_decreases_monotonically_toward_zero():
     assert abs(omegas[0] - 1.0) < 1e-9, omegas                       # neutral => omega == 1
     assert all(omegas[i + 1] < omegas[i] for i in range(len(betas) - 1)), omegas   # strictly down
     assert omegas[-1] < 1e-3, omegas                                 # -> 0 under strong selection
+
+
+def test_calibrate_beta_inverts_dnds():
+    # ask for a target dN/dS, get the beta whose model yields it (the usable inverse of dnds)
+    critic = FixedProfileCritic(_peaked("MQIFVKTLTGKTITLEVE", hi=0.9))
+    prot = "MQIFVKTLTGKTITLEVE"
+    for target in (0.7, 0.3, 0.1):
+        beta = calibrate_beta(critic, prot, target)
+        assert abs(CodonSelection(critic, beta=beta).dnds(prot) - target) < 1e-3, (target, beta)
+    with pytest.raises(ValueError, match="target_dnds"):
+        calibrate_beta(critic, prot, 1.5)                       # outside (0, 1)
 
 
 def test_synonymous_flux_stays_neutral_dS_is_one():

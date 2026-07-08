@@ -28,10 +28,12 @@ import math
 import numpy as np
 
 from zombi2.experimental import warn_experimental
-from zombi2.experimental.selection import Critic, _evolve_frozen, _hb_fixation
+from zombi2.experimental.selection import (
+    Critic, FixedProfileCritic, _ExpmSite, _evolve_frozen, _hb_fixation,
+)
 from zombi2.sequences.models import AMINO_ACIDS, BASES, SubstitutionModel, hky85
 
-__all__ = ["CodonSelection", "GENETIC_CODE", "SENSE_CODONS", "translate"]
+__all__ = ["CodonSelection", "GENETIC_CODE", "SENSE_CODONS", "calibrate_beta", "translate"]
 
 # --------------------------------------------------------------------------- #
 # The standard genetic code
@@ -111,49 +113,8 @@ def _codon_targets(pi_mut: np.ndarray, F: np.ndarray) -> np.ndarray:
     return t / t.sum()
 
 
-_expm = None
-
-
-def _get_expm():
-    """Lazily fetch ``scipy.linalg.expm`` (part of ``zombi2[selection]``), cached."""
-    global _expm
-    if _expm is None:
-        try:
-            from scipy.linalg import expm
-        except ImportError as exc:  # pragma: no cover - only without the extra installed
-            raise ImportError("codon sequence evolution needs scipy; install it with "
-                              "pip install 'zombi2[selection]'") from exc
-        _expm = expm
-    return _expm
-
-
-class _CodonSite:
-    """A per-codon-site rate matrix with ``P(t) = exp(Qt)`` via scipy's ``expm`` (Padé /
-    scaling-and-squaring). This deliberately avoids an eigendecomposition: the near-delta stationaries
-    of strong codon selection make the ``sqrt(pi)`` symmetrised form (used by
-    :class:`~zombi2.sequences.models.SubstitutionModel`) *and* a general eig of ``Q`` (via
-    ``inv(V)``) ill-conditioned, corrupting ``P(t)``; ``expm`` is robust to both. ``.Q`` and
-    ``.stationary`` are exposed; ``.p_matrix(t)`` is the transition matrix over branch length ``t``."""
-
-    __slots__ = ("Q", "stationary", "_cache")
-
-    def __init__(self, Q: np.ndarray, stationary: np.ndarray):
-        self.Q = Q
-        self.stationary = stationary
-        self._cache: dict = {}                       # memoize P(t) by rounded t (cf. evolve_on_tree)
-
-    def p_matrix(self, t: float) -> np.ndarray:
-        key = round(float(t), 12)
-        P = self._cache.get(key)
-        if P is None:
-            P = np.clip(_get_expm()(self.Q * key), 0.0, None)
-            P /= P.sum(1, keepdims=True)
-            self._cache[key] = P
-        return P
-
-
 def _codon_site_model(mu: np.ndarray, pi_mut: np.ndarray, aa_pref: np.ndarray,
-                      beta: float) -> _CodonSite:
+                      beta: float) -> _ExpmSite:
     """One codon Halpern--Bruno model for a site with amino-acid preference ``aa_pref`` (20,).
 
     All sites are scaled by the **same neutral rate** ``Σ pi_mut · (neutral exit rate)``, so a branch
@@ -171,7 +132,7 @@ def _codon_site_model(mu: np.ndarray, pi_mut: np.ndarray, aa_pref: np.ndarray,
     scale = float((pi_mut * mu.sum(1)).sum())                       # neutral mean rate (global)
     if scale <= 0:
         raise ValueError("degenerate mutation model (zero substitution rate)")
-    return _CodonSite(Q / scale, pi_target)
+    return _ExpmSite(Q / scale, pi_target)
 
 
 # --------------------------------------------------------------------------- #
@@ -212,7 +173,7 @@ class CodonSelection:
             raise ValueError(f"critic profile shape {prof.shape} != ({len(protein)}, 20)")
         return prof
 
-    def _site_models(self, protein: str) -> list[_CodonSite]:
+    def _site_models(self, protein: str) -> list[_ExpmSite]:
         prof = self._profile(protein)
         return [_codon_site_model(self.mu, self.pi_mut, prof[i], self.beta)
                 for i in range(len(protein))]
@@ -272,3 +233,30 @@ class CodonSelection:
             num += float((w * h * self._syn).sum())
             den += float((w * self._syn).sum())
         return num / den
+
+
+def calibrate_beta(critic: Critic, protein: str, target_dnds: float, *,
+                   nuc_model: SubstitutionModel | None = None, hi: float = 64.0,
+                   tol: float = 1e-4, max_iter: int = 64) -> float:
+    """Find the selection strength ``beta`` whose codon model gives expected dN/dS ≈ ``target_dnds``
+    (a value in ``(0, 1)``) for ``protein`` -- the usable inverse of :meth:`CodonSelection.dnds`, so a
+    user can ask for a target ω instead of guessing ``beta``. The critic is queried **once** (its
+    profile is reused across the search); ``dnds`` is monotone decreasing in ``beta``, so a bisection
+    on ``[0, hi]`` converges. Raises if ``target_dnds`` is unreachable below ``hi``."""
+    if not 0.0 < target_dnds < 1.0:
+        raise ValueError(f"target_dnds must be in (0, 1), got {target_dnds}")
+    fixed = FixedProfileCritic(critic.profile(protein))          # one critic call, reused for every beta
+
+    def omega(b: float) -> float:
+        return CodonSelection(fixed, beta=b, nuc_model=nuc_model).dnds(protein)
+
+    if omega(hi) > target_dnds:
+        raise ValueError(f"target dN/dS {target_dnds} needs beta > {hi}; pass a larger hi=")
+    lo, high = 0.0, float(hi)
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + high)
+        w = omega(mid)
+        if abs(w - target_dnds) <= tol:
+            return mid
+        lo, high = (mid, high) if w > target_dnds else (lo, mid)   # omega decreasing: too high -> raise beta
+    return 0.5 * (lo + high)
