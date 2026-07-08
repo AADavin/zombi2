@@ -1,9 +1,9 @@
 """Intra-genome gene conversion — validation (the hard rule in docs/validation.md).
 
-The model is **experimental** (``zombi2.experimental.GeneConversionRates`` + ``ConversionModel``): it
-already carries this full validation, so it is promotion-ready, but it is not yet in the core API,
-CLI, or catalog. The *engine capability* it drives (``EventType.CONVERSION``,
-``UnorderedGenome.convert``, the simulator dispatch, the reconciliation) lives in the core, dormant.
+Gene conversion is a **core** model: ``SharedRates(conversion=...)`` emits the events and
+``zombi2.ConversionModel`` sets the donor directionality. The *engine capability* it drives
+(``EventType.CONVERSION``, ``UnorderedGenome.convert``, the simulator dispatch, the reconciliation)
+lives in the core alongside it.
 
 A conversion overwrites one gene copy of a family with a copy of *another* copy of the **same
 family** in the same genome: non-reciprocal (the donor is unchanged), copy-number-neutral (a
@@ -13,24 +13,25 @@ evolution, and the gene-tree distortion the feature exists to produce).
 
 The suite, strongest first (see docs/validation.md):
 
-* **Reduction / determinism** — at rate 0 the experimental rate model is byte-identical to plain
-  ``SharedRates`` on the same engine; a fixed seed reproduces a conversion run exactly.
+* **Reduction / determinism** — at rate 0 the model emits exactly the weights of a plain
+  ``SharedRates`` (byte-identical log on the same engine); a fixed seed reproduces a run exactly.
 * **Invariant** — ``convert`` conserves copy number and has the right genealogical shape; a hand-built
   log reconstructs to the converted copy coalescing with the donor at the conversion time.
 * **Oracle** — the mean within-family coalescence depth of a stable two-copy family matches ``1/(2c)``.
 * **Bias** — the directional knob tilts the donor toward the family's oldest lineage.
-* **Experimental surface** — the models warn, and route to the pure-Python engine.
+* **Core surface** — the public API carries it and it routes to the pure-Python engine.
 * **Trace** — a conversion survives the ``Events_trace.tsv`` round-trip and the compact-trace expansion.
 """
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
 import zombi2 as z
-import zombi2.experimental as ex
-from zombi2.experimental import ConversionModel, GeneConversionRates
+from zombi2.genomes.conversion import ConversionModel
 from zombi2.genomes.events import EventRecord, EventType, GeneOp
 from zombi2.genomes.genome import Gene, IdManager, UnorderedGenome
 from zombi2.genomes.genome_sim import GenomeSimulator
@@ -65,12 +66,12 @@ def _nodes_by_gid(root) -> dict:
 # --------------------------------------------------------------------------- reduction / determinism
 
 def test_conversion_zero_is_byte_identical_to_no_conversion():
-    """At ``conversion=0`` the experimental rate model emits exactly the same weights as plain
-    ``SharedRates``, so — driven on the same (Python) engine with the same seed — the whole event log
-    is byte-identical. The conversion machinery adds nothing until it is switched on."""
+    """At ``conversion=0`` the model emits exactly the same weights as a plain ``SharedRates`` with
+    no conversion argument, so — driven on the same (Python) engine with the same seed — the whole
+    event log is byte-identical. The conversion machinery adds nothing until it is switched on."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=10, age=4.0, seed=1)
     with_conv = GenomeSimulator().simulate(
-        tree, GeneConversionRates(duplication=0.5, loss=0.1, origination=0.2, conversion=0.0),
+        tree, SharedRates(duplication=0.5, loss=0.1, origination=0.2, conversion=0.0),
         np.random.default_rng(7), initial_size=6)
     without = GenomeSimulator().simulate(
         tree, SharedRates(duplication=0.5, loss=0.1, origination=0.2),
@@ -84,7 +85,7 @@ def test_conversion_run_is_deterministic():
 
     def run():
         return z.simulate_genomes(
-            tree, GeneConversionRates(duplication=0.6, loss=0.1, conversion=1.0),
+            tree, SharedRates(duplication=0.6, loss=0.1, conversion=1.0),
             conversions=ConversionModel(bias=0.5), initial_families=6, seed=13)
 
     assert events_trace_from_log(run().event_log) == events_trace_from_log(run().event_log)
@@ -161,7 +162,7 @@ def test_conversion_homogenizes_coalescence_depth_matches_theory(c):
     depths: list[float] = []
     for i in range(n_reps):
         g = z.simulate_genomes(_pair_tree(tau),
-                               GeneConversionRates(duplication=5.0, conversion=c),
+                               SharedRates(duplication=5.0, conversion=c),
                                initial_families=1, max_family_size=2, seed=1000 + i)
         records = g.gene_families.get("1", [])
         for tip in ("n0", "n1"):
@@ -198,28 +199,29 @@ def test_bias_directs_donor_toward_oldest():
     assert f0 < f_half < f1
 
 
-# ------------------------------------------------------------------------------------- experimental
+# --------------------------------------------------------------------------------------- core surface
 
-def test_gene_conversion_models_are_experimental():
-    """Both entry points warn on construction, per the experimental lifecycle."""
-    ex._warned.discard("GeneConversionRates")
-    ex._warned.discard("ConversionModel")
-    with pytest.warns(ex.ExperimentalWarning, match="GeneConversionRates"):
-        GeneConversionRates(duplication=0.1, conversion=0.1)
-    with pytest.warns(ex.ExperimentalWarning, match="ConversionModel"):
+def test_conversion_is_in_the_core_public_api():
+    """Promoted to the core: ``ConversionModel`` is on the top-level namespace and ``SharedRates``
+    takes a ``conversion`` rate, both constructed **without** an experimental (or any) warning."""
+    assert z.ConversionModel is ConversionModel
+    assert "ConversionModel" in z.__all__
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning (e.g. a leftover ExperimentalWarning) fails
+        SharedRates(duplication=0.1, conversion=0.1)
         ConversionModel(bias=0.5)
 
 
 def test_conversion_runs_on_the_python_engine():
-    """``GeneConversionRates`` is a ``SharedRates`` *subclass*, so it is not the built-in model and
-    is not Rust-eligible — it runs on the pure-Python engine, where conversions actually happen (the
-    counts-only Rust path would silently drop them)."""
+    """``SharedRates(conversion>0)`` is deliberately **not** Rust-eligible — the counts-only Rust
+    path tracks copy-number profiles, not gene-tree shape, so it would silently drop conversions —
+    while a plain ``SharedRates`` still takes the Rust path (no regression)."""
     from zombi2 import _rust
 
-    assert not _rust.eligible(GeneConversionRates(duplication=0.2, conversion=0.5),
-                              UnorderedGenome, None)
+    assert not _rust.eligible(SharedRates(duplication=0.2, conversion=0.5), UnorderedGenome, None)
+    assert _rust.eligible(SharedRates(duplication=0.2), UnorderedGenome, None)
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.0), n_tips=6, age=4.0, seed=1)
-    g = z.simulate_genomes(tree, GeneConversionRates(duplication=0.6, conversion=1.5),
+    g = z.simulate_genomes(tree, SharedRates(duplication=0.6, conversion=1.5),
                            initial_families=4, seed=3)
     assert any(r.event is EventType.CONVERSION for r in g.event_log)
 
@@ -230,7 +232,7 @@ def test_conversion_survives_events_trace_roundtrip():
     """A conversion (a 3-id ``C`` row + its paired ``L`` row) survives writing and re-reading
     ``Events_trace.tsv``."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=8, age=4.0, seed=5)
-    g = z.simulate_genomes(tree, GeneConversionRates(duplication=0.5, conversion=1.0),
+    g = z.simulate_genomes(tree, SharedRates(duplication=0.5, conversion=1.0),
                            initial_families=5, seed=9)
     families = read_events_trace(events_trace_from_log(g.event_log))
     before = sum(1 for r in g.event_log if r.event is EventType.CONVERSION)
@@ -259,3 +261,26 @@ def test_expand_trace_handles_conversion():
     assert conv, "conversion dropped or misrouted during compact-trace expansion"
     # both children of the expanded conversion sit on the conversion's own branch (n0), not elsewhere
     assert all(r.branch == "n0" and r.recipient == "n0" for r in conv)
+
+
+# ----------------------------------------------------------------------------------------------- CLI
+
+def test_cli_conversion_writes_conversion_events(tmp_path):
+    """End-to-end: ``zombi2 genomes --conversion`` runs, takes the full (Python) path, and records
+    conversion (``C``) events in the written event log."""
+    from zombi2.cli import main
+
+    st = tmp_path / "st"
+    main(["species", "--birth", "1.0", "--death", "0.2", "--tips", "10", "--age", "4.0",
+          "--seed", "4", "-o", str(st)])
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", str(st / "species_tree.nwk"),
+               "--dup", "0.6", "--conversion", "1.5", "--conversion-bias", "1.0",
+               "--initial-families", "6", "--seed", "3", "--write", "events", "-o", str(out)])
+    assert rc == 0
+    # events are written per family under gene_family_events/<fam>_events.tsv (columns:
+    # time event branch donor recipient nodes); a conversion is the event code 'C'
+    event_files = list((out / "gene_family_events").glob("*_events.tsv"))
+    assert event_files
+    codes = {line.split("\t")[1] for f in event_files for line in f.read_text().splitlines()[1:]}
+    assert "C" in codes  # at least one conversion fired through the CLI
