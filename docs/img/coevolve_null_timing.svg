@@ -1,46 +1,58 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1000" height="470" viewBox="0 0 1000 470">
+     width="1000" height="480" viewBox="0 0 1000 480">
 <defs>
 </defs>
-<rect x="0" y="0" width="1000" height="470" fill="white" />
-<text x="500.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Timing null: the same change, moved off the speciations</text>
-<text x="185" y="96" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">COUPLED (at speciation)</text>
-<path d="M60,220 L110,220" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M110,140 L110,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M110,140 L180,140" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M180,100 L180,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M180,100 L290,100" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M180,180 L290,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M110,300 L180,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M180,260 L180,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M180,260 L290,260" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M180,340 L290,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M120,132 L120,148" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M120,292 L120,308" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M190,92 L190,108" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M190,172 L190,188" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M190,252 L190,268" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M190,332 L190,348" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<text x="185" y="396" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">change AT the nodes</text>
-<text x="185" y="424" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ sharply (punctuational)</text>
-<text x="685" y="96" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">TIMING null (along branches)</text>
-<path d="M560,220 L610,220" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M610,140 L610,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M610,140 L680,140" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M680,100 L680,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M680,100 L790,100" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M680,180 L790,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M610,300 L680,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M680,260 L680,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M680,260 L790,260" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M680,340 L790,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M650,132 L650,148" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M650,292 L650,308" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M745,92 L745,108" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M770,172 L770,188" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M735,252 L735,268" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<path d="M755,332 L755,348" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
-<text x="685" y="396" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">same amount, spread ALONG branches</text>
-<text x="685" y="424" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ only by shared branch length</text>
+<rect x="0" y="0" width="1000" height="480" fill="white" />
+<text x="500.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Timing null: the same change, moved off the speciations</text>
+<text x="205" y="100" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">COUPLED (at speciation)</text>
+<path d="M68,255 L115,255" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M115,190 L115,320" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M115,190 L180,190" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M115,320 L180,320" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M180,160 L180,220" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M180,160 L250,160" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M180,220 L340,220" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M250,140 L250,180" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M250,140 L340,140" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M250,180 L340,180" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M180,290 L180,350" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M180,290 L340,290" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M180,350 L250,350" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M250,330 L250,370" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M250,330 L340,330" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M250,370 L340,370" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M132,181 L132,199" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M132,311 L132,329" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M198,211 L198,229" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M268,131 L268,149" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M198,281 L198,299" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M268,321 L268,339" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<text x="205" y="400" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">change AT the nodes</text>
+<text x="205" y="428" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ sharply (punctuational)</text>
+<text x="705" y="100" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">TIMING null (along branches)</text>
+<path d="M568,255 L615,255" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M615,190 L615,320" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M615,190 L680,190" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M615,320 L680,320" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M680,160 L680,220" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M680,160 L750,160" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M680,220 L840,220" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M750,140 L750,180" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M750,140 L840,140" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M750,180 L840,180" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M680,290 L680,350" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M680,290 L840,290" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M680,350 L750,350" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M750,330 L750,370" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M750,330 L840,330" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M750,370 L840,370" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M648,181 L648,199" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M780,211 L780,229" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M798,131 L798,149" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M648,311 L648,329" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M778,281 L778,299" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M802,361 L802,379" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<text x="705" y="400" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">same amount, spread ALONG branches</text>
+<text x="705" y="428" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ only by shared branch length</text>
 </svg>

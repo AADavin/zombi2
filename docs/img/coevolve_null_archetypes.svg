@@ -1,97 +1,117 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1180" height="640" viewBox="0 0 1180 640">
+     width="1200" height="560" viewBox="0 0 1200 560">
 <defs>
 </defs>
-<rect x="0" y="0" width="1180" height="640" fill="white" />
-<text x="590.0" y="48" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A null keeps the tree's variation -- it cuts only the trait's grip on it</text>
-<text x="68" y="104" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
-<text x="180" y="104" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">COUPLED</text>
-<path d="M75,250 L110,250" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M110,150 L110,315" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M110,150 L178,150" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,100 L178,200" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,100 L265,100" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,120 L265,120" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,140 L265,140" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,160 L265,160" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,180 L265,180" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M178,200 L265,200" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M110,315 L165,315" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M165,290 L165,340" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M165,290 L265,290" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M165,315 L265,315" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M165,340 L265,340" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<rect x="265" y="89" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="109" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="129" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="149" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="169" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="189" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="279" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="304" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="265" y="329" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="180" y="402" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">trait fills the fast clade</text>
-<text x="180" y="430" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the claim: looks causal</text>
-<text x="468" y="104" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B</text>
-<text x="580" y="104" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">NEUTRAL null</text>
-<path d="M475,222 L510,222" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M510,165 L510,278" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M510,165 L568,165" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,118 L568,210" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,118 L665,118" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,148 L665,148" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,178 L665,178" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,210 L665,210" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M510,278 L568,278" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,235 L568,325" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,235 L665,235" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,265 L665,265" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,295 L665,295" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M568,325 L665,325" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<rect x="665" y="107" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="137" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="167" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="199" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="224" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="254" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="284" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="665" y="314" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="580" y="402" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">no fast clade at all</text>
-<text x="580" y="430" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the strawman: nothing to explain</text>
-<text x="868" y="104" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">C</text>
-<text x="980" y="104" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">CID null</text>
-<path d="M875,250 L910,250" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M910,150 L910,315" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
-<path d="M910,150 L978,150" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,100 L978,200" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,100 L1065,100" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,120 L1065,120" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,140 L1065,140" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,160 L1065,160" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,180 L1065,180" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M978,200 L1065,200" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<path d="M910,315 L965,315" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M965,290 L965,340" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M965,290 L1065,290" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M965,315 L1065,315" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<path d="M965,340 L1065,340" stroke="#1a1a1a" stroke-width="2.2" stroke-linecap="round" />
-<rect x="1065" y="89" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="109" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="129" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="149" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="169" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="189" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="279" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="304" width="22" height="22" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<rect x="1065" y="329" width="22" height="22" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="980" y="402" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">same fast clade, trait scattered</text>
-<text x="980" y="430" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the honest, worthy opponent</text>
-<rect x="120.0" y="476" width="18" height="18" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="146.0" y="491" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">trait present</text>
-<rect x="340.0" y="476" width="18" height="18" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="366.0" y="491" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">trait absent</text>
-<path d="M550.0,485 L582.0,485" stroke="#1a1a1a" stroke-width="4.4" stroke-linecap="round" />
-<text x="594.0" y="491" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">fast-diversifying (bushy) clade</text>
-<text x="590.0" y="548" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">Panels A and C are the same tree: identical heterogeneity -- the only difference is whether the trait tracks it.</text>
+<rect x="0" y="0" width="1200" height="560" fill="white" />
+<text x="600.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">A null keeps the tree's variation -- it cuts only the trait's grip on it</text>
+<text x="36" y="76" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">A</text>
+<text x="180" y="76" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">COUPLED</text>
+<path d="M48,218.3125 L101.44,218.3125" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M101.44,154.375 L101.44,282.25" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M101.44,154.375 L144.56,154.375" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M144.56,119.5 L144.56,189.25" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M144.56,119.5 L203.36,119.5" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M203.36,104.0 L203.36,135.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M203.36,104.0 L270.0,104.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="276" y="94.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M203.36,135.0 L270.0,135.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="276" y="125.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M144.56,189.25 L181.8,189.25" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M181.8,166.0 L181.8,212.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M181.8,166.0 L270.0,166.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="276" y="156.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M181.8,212.5 L230.8,212.5" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M230.8,197.0 L230.8,228.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M230.8,197.0 L270.0,197.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="276" y="187.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M230.8,228.0 L270.0,228.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="276" y="218.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M101.44,282.25 L132.8,282.25" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M132.8,259.0 L132.8,305.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M132.8,259.0 L270.0,259.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="276" y="249.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M132.8,305.5 L175.92000000000002,305.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M175.92000000000002,290.0 L175.92000000000002,321.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M175.92000000000002,290.0 L270.0,290.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="276" y="280.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M175.92000000000002,321.0 L270.0,321.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="276" y="311.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="180" y="388" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">trait fills the fast clade</text>
+<text x="180" y="416" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the claim: looks causal</text>
+<text x="436" y="76" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">B</text>
+<text x="580" y="76" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">NEUTRAL null</text>
+<path d="M448,212.5 L501.44,212.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M501.44,150.5 L501.44,274.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M501.44,150.5 L564.16,150.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M564.16,119.5 L564.16,181.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M564.16,119.5 L617.0799999999999,119.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,104.0 L617.0799999999999,135.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,104.0 L670.0,104.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="94.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M617.0799999999999,135.0 L670.0,135.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="125.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M564.16,181.5 L617.0799999999999,181.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,166.0 L617.0799999999999,197.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,166.0 L670.0,166.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="156.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M617.0799999999999,197.0 L670.0,197.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="187.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M501.44,274.5 L564.16,274.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M564.16,243.5 L564.16,305.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M564.16,243.5 L617.0799999999999,243.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,228.0 L617.0799999999999,259.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,228.0 L670.0,228.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="218.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M617.0799999999999,259.0 L670.0,259.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="249.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M564.16,305.5 L617.0799999999999,305.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,290.0 L617.0799999999999,321.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M617.0799999999999,290.0 L670.0,290.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="280.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M617.0799999999999,321.0 L670.0,321.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="676" y="311.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="580" y="388" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">no fast clade at all</text>
+<text x="580" y="416" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the strawman: nothing to explain</text>
+<text x="836" y="76" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">C</text>
+<text x="980" y="76" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">CID null</text>
+<path d="M848,218.3125 L901.44,218.3125" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M901.44,154.375 L901.44,282.25" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M901.44,154.375 L944.56,154.375" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M944.56,119.5 L944.56,189.25" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M944.56,119.5 L1003.36,119.5" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M1003.36,104.0 L1003.36,135.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M1003.36,104.0 L1070.0,104.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="1076" y="94.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M1003.36,135.0 L1070.0,135.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="1076" y="125.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M944.56,189.25 L981.8,189.25" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M981.8,166.0 L981.8,212.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M981.8,166.0 L1070.0,166.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="1076" y="156.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M981.8,212.5 L1030.8,212.5" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<path d="M1030.8,197.0 L1030.8,228.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M1030.8,197.0 L1070.0,197.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="1076" y="187.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M1030.8,228.0 L1070.0,228.0" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<rect x="1076" y="218.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M901.44,282.25 L932.8,282.25" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M932.8,259.0 L932.8,305.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M932.8,259.0 L1070.0,259.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="1076" y="249.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M932.8,305.5 L975.92,305.5" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M975.92,290.0 L975.92,321.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<path d="M975.92,290.0 L1070.0,290.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="1076" y="280.0" width="20" height="20" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<path d="M975.92,321.0 L1070.0,321.0" stroke="#1a1a1a" stroke-width="2.3" stroke-linecap="round" />
+<rect x="1076" y="311.0" width="20" height="20" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="980" y="388" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">same fast clade, trait scattered</text>
+<text x="980" y="416" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">the honest, worthy opponent</text>
+<rect x="130.0" y="460" width="18" height="18" fill="#2f7d84" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="156.0" y="475" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">trait present</text>
+<rect x="350.0" y="460" width="18" height="18" fill="white" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="376.0" y="475" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">trait absent</text>
+<path d="M560.0,469 L592.0,469" stroke="#1a1a1a" stroke-width="4.2" stroke-linecap="round" />
+<text x="604.0" y="475" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">fast-diversifying (heavy, bushy) clade</text>
+<text x="600.0" y="524" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">Panels A and C are the same tree: identical heterogeneity -- the only difference is whether the trait tracks it.</text>
 </svg>
