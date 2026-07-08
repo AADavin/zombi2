@@ -1,8 +1,8 @@
 """Figure: the timing null -- the same change, moved off the speciation events.
 
 The companion to the null archetypes (docs/guide/coevolution_nulls.md), for the two at-speciation
-edges (species:traits, species:genes). Two copies of the same tree; each teal tick is one unit of
-change (a trait jump, or a gene gain/loss).
+edges (species:traits, species:genes). Two copies of the same 6-tip tree; each teal tick is one
+unit of change (a trait jump, or a gene gain/loss).
 
   * COUPLED: change happens AT each speciation -- the ticks cluster at the nodes, so sister tips
     differ sharply (the punctuational signature).
@@ -28,30 +28,48 @@ from zombi_style import FONT, INK, MUTED, STATE_ON, FS_TITLE, FS_LABEL, FS_TICK
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1000, 470
+W, H = 1000, 480
 GREY = "#9a9a9a"
+BR_W = 2.6
+Y_OFF = 40            # push the tree down, clear of the panel titles
 TICK = STATE_ON       # a unit of change; -> INK in B&W
 
 
+def _br(d, ox, x1, y1, x2, y2):
+    d.append(draw.Line(ox + x1, y1 + Y_OFF, ox + x2, y2 + Y_OFF, stroke=INK, stroke_width=BR_W,
+                       stroke_linecap="round"))
+
+
+def _tick(d, ox, x, y):
+    """One unit of change: a short heavy teal bar across the (horizontal) branch."""
+    d.append(draw.Line(ox + x, y + Y_OFF - 9, ox + x, y + Y_OFF + 9, stroke=TICK, stroke_width=5.4,
+                       stroke_linecap="round"))
+
+
+# A balanced 6-tip tree: ((t1,t2),t3) over (t4,(t5,t6)). Coordinates are local to a panel origin.
 def _tree(d, ox):
-    """A balanced 4-tip tree. Returns nothing; branches are horizontal, forks vertical."""
-    def L(x1, y1, x2, y2):
-        d.append(draw.Line(x1, y1, x2, y2, stroke=INK, stroke_width=2.8, stroke_linecap="round"))
-    L(ox + 20, 220, ox + 70, 220)             # root stem
-    L(ox + 70, 140, ox + 70, 300)             # root fork
-    L(ox + 70, 140, ox + 140, 140)            # upper clade stem
-    L(ox + 140, 100, ox + 140, 180)           # upper fork
-    L(ox + 140, 100, ox + 250, 100)           # tips
-    L(ox + 140, 180, ox + 250, 180)
-    L(ox + 70, 300, ox + 140, 300)            # lower clade stem
-    L(ox + 140, 260, ox + 140, 340)           # lower fork
-    L(ox + 140, 260, ox + 250, 260)
-    L(ox + 140, 340, ox + 250, 340)
+    _br(d, ox, 28, 215, 75, 215)          # root stem
+    _br(d, ox, 75, 150, 75, 280)          # root fork
+    _br(d, ox, 75, 150, 140, 150)         # -> clade 1
+    _br(d, ox, 75, 280, 140, 280)         # -> clade 2
+    _br(d, ox, 140, 120, 140, 180)        # clade-1 fork
+    _br(d, ox, 140, 120, 210, 120)        # -> (t1,t2)
+    _br(d, ox, 140, 180, 300, 180)        # -> t3
+    _br(d, ox, 210, 100, 210, 140)        # (t1,t2) fork
+    _br(d, ox, 210, 100, 300, 100)        # t1
+    _br(d, ox, 210, 140, 300, 140)        # t2
+    _br(d, ox, 140, 250, 140, 310)        # clade-2 fork
+    _br(d, ox, 140, 250, 300, 250)        # -> t4
+    _br(d, ox, 140, 310, 210, 310)        # -> (t5,t6)
+    _br(d, ox, 210, 290, 210, 330)        # (t5,t6) fork
+    _br(d, ox, 210, 290, 300, 290)        # t5
+    _br(d, ox, 210, 330, 300, 330)        # t6
 
 
-def _tick(d, x, y):
-    """One unit of change: a short teal bar across the (horizontal) branch."""
-    d.append(draw.Line(x, y - 8, x, y + 8, stroke=TICK, stroke_width=5, stroke_linecap="round"))
+# Six ticks per panel (same count = same amount of change). AT-node positions sit just past a fork;
+# ALONG-branch positions sit at branch midpoints, spread out.
+_AT_NODES = [(92, 150), (92, 280), (158, 180), (228, 100), (158, 250), (228, 290)]
+_ALONG = [(108, 150), (240, 180), (258, 100), (108, 280), (238, 250), (262, 330)]
 
 
 def render(bw=False):
@@ -61,34 +79,30 @@ def render(bw=False):
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("Timing null: the same change, moved off the speciations",
-                       FS_TITLE, W / 2, 44, font_family=FONT, text_anchor="middle",
+                       FS_TITLE, W / 2, 46, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
 
     oxA, oxB = 40, 540
-    cxA, cxB = oxA + 145, oxB + 145
+    cxA, cxB = oxA + 165, oxB + 165
 
-    # --- COUPLED: ticks cluster just after each node (change AT speciation) ---
-    d.append(draw.Text("COUPLED (at speciation)", FS_LABEL, cxA, 96, font_family=FONT,
+    d.append(draw.Text("COUPLED (at speciation)", FS_LABEL, cxA, 100, font_family=FONT,
                        text_anchor="middle", fill=INK, font_weight="bold"))
     _tree(d, oxA)
-    for x, y in [(oxA + 80, 140), (oxA + 80, 300),
-                 (oxA + 150, 100), (oxA + 150, 180), (oxA + 150, 260), (oxA + 150, 340)]:
-        _tick(d, x, y)
-    d.append(draw.Text("change AT the nodes", FS_TICK, cxA, 396, font_family=FONT,
+    for x, y in _AT_NODES:
+        _tick(d, oxA, x, y)
+    d.append(draw.Text("change AT the nodes", FS_TICK, cxA, 400, font_family=FONT,
                        text_anchor="middle", fill=INK, font_style="italic"))
-    d.append(draw.Text("sisters differ sharply (punctuational)", FS_TICK, cxA, 424,
+    d.append(draw.Text("sisters differ sharply (punctuational)", FS_TICK, cxA, 428,
                        font_family=FONT, text_anchor="middle", fill=MUTED))
 
-    # --- TIMING null: same six ticks, spread along the branches ---
-    d.append(draw.Text("TIMING null (along branches)", FS_LABEL, cxB, 96, font_family=FONT,
+    d.append(draw.Text("TIMING null (along branches)", FS_LABEL, cxB, 100, font_family=FONT,
                        text_anchor="middle", fill=INK, font_weight="bold"))
     _tree(d, oxB)
-    for x, y in [(oxB + 110, 140), (oxB + 110, 300),
-                 (oxB + 205, 100), (oxB + 230, 180), (oxB + 195, 260), (oxB + 215, 340)]:
-        _tick(d, x, y)
-    d.append(draw.Text("same amount, spread ALONG branches", FS_TICK, cxB, 396, font_family=FONT,
+    for x, y in _ALONG:
+        _tick(d, oxB, x, y)
+    d.append(draw.Text("same amount, spread ALONG branches", FS_TICK, cxB, 400, font_family=FONT,
                        text_anchor="middle", fill=INK, font_style="italic"))
-    d.append(draw.Text("sisters differ only by shared branch length", FS_TICK, cxB, 424,
+    d.append(draw.Text("sisters differ only by shared branch length", FS_TICK, cxB, 428,
                        font_family=FONT, text_anchor="middle", fill=MUTED))
 
     name = "coevolve_null_timing"

@@ -1,13 +1,13 @@
 """Figure: the three archetypes of a coevolution null -- coupled vs neutral vs CID.
 
-The didactic centrepiece for null models (docs/guide/coevolution_nulls.md). Three schematic trees
-for the traits:species edge; a tip chip is the OBSERVED binary trait, a bushy/thick clade is
-fast-diversifying.
+The didactic centrepiece for null models (docs/guide/coevolution_nulls.md). Three schematic but
+*proper bifurcating* trees for the traits:species edge; a tip chip is the OBSERVED binary trait,
+and a fast-diversifying clade is drawn densely branched with heavy branches.
 
   * COUPLED (the claim): the trait fills the fast clade, so a raw BiSSE fit reads it as causal.
   * NEUTRAL null (the strawman): a balanced tree -- no fast clade at all, nothing to explain.
-  * CID null (the honest test): the SAME fast clade as the coupled panel, but the trait is spread
-    across fast and slow, so a trustworthy detector should stay quiet. A and C are the same tree.
+  * CID null (the honest test): the SAME tree as the coupled panel, but the trait is scattered
+    across fast and slow clades, so a trustworthy detector should stay quiet.
 
 House style: one centred title, ASCII text, colour + preserved B&W. ON = trait present (filled).
 
@@ -24,76 +24,106 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cairosvg
 import drawsvg as draw
 
-from zombi_style import (FONT, INK, MUTED, STATE_ON, STATE_OFF,
-                         FS_TITLE, FS_LABEL, FS_TICK)
+from zombi_style import (FONT, INK, MUTED, STATE_ON, FS_TITLE, FS_LABEL, FS_TICK)
 
 OUT_DIR = Path(__file__).resolve().parent.parent
 
-W, H = 1180, 640
+W, H = 1200, 560
 GREY = "#9a9a9a"
-W_FAST, W_SLOW, W_MED = 4.4, 2.2, 2.8
+W_FAST, W_SLOW, W_CONN = 4.2, 2.3, 2.3
+Y_TOP, Y_GAP = 104, 31                     # 8 tips: y = 104 .. 104 + 7*31 = 321
+ON_COL = STATE_ON                          # chip fill (observed trait); -> INK in B&W
 
-# Chip fill = observed trait (filled = state 1). ON swaps to INK in B&W (chips stay a separate
-# channel from the branch ink either way, so the observed trait reads distinctly).
-ON_COL = STATE_ON
+
+# --------------------------------------------------------------------------- tree model + drawer
+def _assign(node, ctr):
+    """Post-order: give each leaf an increasing y-index (tip order) and each internal node the
+    mean of its children; internal x = its stored depth, leaves sit at the tips (depth 1)."""
+    if "kids" not in node:
+        node["_x"], node["_y"] = 1.0, float(ctr[0])
+        ctr[0] += 1
+    else:
+        node["_x"] = node["x"]
+        for k in node["kids"]:
+            _assign(k, ctr)
+        node["_y"] = sum(k["_y"] for k in node["kids"]) / len(node["kids"])
+
+
+def _leaves(node, out):
+    if "kids" not in node:
+        out.append(node)
+    else:
+        for k in node["kids"]:
+            _leaves(k, out)
 
 
 def _line(d, x1, y1, x2, y2, w):
     d.append(draw.Line(x1, y1, x2, y2, stroke=INK, stroke_width=w, stroke_linecap="round"))
 
 
-def _chip(d, cx, cy, on, s=11):
+def _chip(d, cx, cy, on, s=10):
     d.append(draw.Rectangle(cx - s, cy - s, 2 * s, 2 * s,
                             fill=(ON_COL if on else "white"), stroke=INK, stroke_width=1.6))
 
 
-def _bushy(d, ox, chips):
-    """A fast (bushy, 6-tip, thick) clade over a slow (3-tip, thin) clade. `chips` = 9 bools."""
-    _line(d, ox + 15, 250, ox + 50, 250, W_MED)              # root stem
-    _line(d, ox + 50, 150, ox + 50, 315, W_MED)              # root fork
-    _line(d, ox + 50, 150, ox + 118, 150, W_FAST)            # fast clade stem
-    _line(d, ox + 118, 100, ox + 118, 200, W_FAST)
-    fast_ys = [100, 120, 140, 160, 180, 200]
-    for y in fast_ys:
-        _line(d, ox + 118, y, ox + 205, y, W_FAST)
-    _line(d, ox + 50, 315, ox + 105, 315, W_SLOW)            # slow clade stem
-    _line(d, ox + 105, 290, ox + 105, 340, W_SLOW)
-    slow_ys = [290, 315, 340]
-    for y in slow_ys:
-        _line(d, ox + 105, y, ox + 205, y, W_SLOW)
-    for y, c in zip(fast_ys + slow_ys, chips):
-        _chip(d, ox + 216, y, c)
+def _draw(d, node, parent_px, X, chip_x, fast=False):
+    """Rectangular cladogram: a horizontal branch into each node + a vertical connector across an
+    internal node's children. ``fast`` (inherited) thickens a fast-diversifying clade."""
+    fast = fast or node.get("fast", False)
+    x, y = X(node["_x"]), Y_TOP + node["_y"] * Y_GAP
+    _line(d, parent_px, y, x, y, W_FAST if fast else W_SLOW)          # incoming branch
+    if "kids" in node:
+        ys = [Y_TOP + k["_y"] * Y_GAP for k in node["kids"]]
+        _line(d, x, min(ys), x, max(ys), W_CONN)                     # vertical connector
+        for k in node["kids"]:
+            _draw(d, k, x, X, chip_x, fast)
+    else:
+        _chip(d, chip_x, y, node["chip"])
 
 
-def _balanced(d, ox, chips):
-    """Two equal 4-tip clades, no bushiness -- no diversification structure. `chips` = 8 bools."""
-    _line(d, ox + 15, 222, ox + 50, 222, W_MED)
-    _line(d, ox + 50, 165, ox + 50, 278, W_MED)
-    _line(d, ox + 50, 165, ox + 108, 165, W_MED)
-    _line(d, ox + 108, 118, ox + 108, 210, W_MED)
-    top = [118, 148, 178, 210]
-    for y in top:
-        _line(d, ox + 108, y, ox + 205, y, W_MED)
-    _line(d, ox + 50, 278, ox + 108, 278, W_MED)
-    _line(d, ox + 108, 235, ox + 108, 325, W_MED)
-    bot = [235, 265, 295, 325]
-    for y in bot:
-        _line(d, ox + 108, y, ox + 205, y, W_MED)
-    for y, c in zip(top + bot, chips):
-        _chip(d, ox + 216, y, c)
-
-
-def _caption(d, cx, key, muted):
-    d.append(draw.Text(key, FS_TICK, cx, 402, font_family=FONT, text_anchor="middle",
+def _panel(d, ox, letter, title, tree, chips, cap1, cap2):
+    _assign(tree, [0])
+    leaves = []
+    _leaves(tree, leaves)
+    for lf, c in zip(leaves, chips):
+        lf["chip"] = c
+    cx = ox + 150
+    X = lambda depth: ox + 44 + depth * 196                          # noqa: E731  depth -> px
+    chip_x = ox + 44 + 196 + 16
+    # header: panel letter far left, short title centred (kept clear of the top chip)
+    d.append(draw.Text(letter, FS_LABEL, ox + 6, 76, font_family=FONT, text_anchor="start",
+                       fill=INK, font_weight="bold"))
+    d.append(draw.Text(title, FS_LABEL, cx, 76, font_family=FONT, text_anchor="middle",
+                       fill=INK, font_weight="bold"))
+    _draw(d, tree, ox + 18, X, chip_x)                               # root stem starts at ox+18
+    d.append(draw.Text(cap1, FS_TICK, cx, 388, font_family=FONT, text_anchor="middle",
                        fill=INK, font_style="italic"))
-    d.append(draw.Text(muted, FS_TICK, cx, 430, font_family=FONT, text_anchor="middle", fill=MUTED))
+    d.append(draw.Text(cap2, FS_TICK, cx, 416, font_family=FONT, text_anchor="middle", fill=MUTED))
 
 
-def _header(d, ox, cx, letter, title):
-    d.append(draw.Text(letter, FS_LABEL, ox + 8, 104, font_family=FONT, text_anchor="start",
-                       fill=INK, font_weight="bold"))
-    d.append(draw.Text(title, FS_LABEL, cx, 104, font_family=FONT, text_anchor="middle",
-                       fill=INK, font_weight="bold"))
+# --------------------------------------------------------------------------- the three trees
+def _ref_tree():
+    """Bushy 5-tip fast clade (heavy, forks packed near the tips) over a sparse 3-tip slow clade."""
+    return {"x": 0.14, "kids": [
+        {"x": 0.36, "fast": True, "kids": [
+            {"x": 0.66, "kids": [{}, {}]},
+            {"x": 0.55, "kids": [{}, {"x": 0.80, "kids": [{}, {}]}]},
+        ]},
+        {"x": 0.30, "kids": [
+            {},
+            {"x": 0.52, "kids": [{}, {}]},
+        ]},
+    ]}
+
+
+def _balanced_tree():
+    def quad():
+        return {"x": 0.46, "kids": [{"x": 0.73, "kids": [{}, {}]}, {"x": 0.73, "kids": [{}, {}]}]}
+    return {"x": 0.14, "kids": [quad(), quad()]}
+
+
+T = True
+F = False
 
 
 def render(bw=False):
@@ -103,27 +133,18 @@ def render(bw=False):
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
     d.append(draw.Text("A null keeps the tree's variation -- it cuts only the trait's grip on it",
-                       FS_TITLE, W / 2, 48, font_family=FONT, text_anchor="middle",
+                       FS_TITLE, W / 2, 44, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
 
-    # three panels: coupled / neutral / cid
-    oxA, oxB, oxC = 60, 460, 860
-    cxA, cxB, cxC = oxA + 120, oxB + 120, oxC + 120
-
-    _header(d, oxA, cxA, "A", "COUPLED")
-    _bushy(d, oxA, [True, True, True, True, True, True, False, False, False])   # trait fills fast clade
-    _caption(d, cxA, "trait fills the fast clade", "the claim: looks causal")
-
-    _header(d, oxB, cxB, "B", "NEUTRAL null")
-    _balanced(d, oxB, [True, False, True, False, False, True, False, True])     # scattered, no fast clade
-    _caption(d, cxB, "no fast clade at all", "the strawman: nothing to explain")
-
-    _header(d, oxC, cxC, "C", "CID null")
-    _bushy(d, oxC, [True, False, True, False, True, False, False, True, False])  # same tree, scattered
-    _caption(d, cxC, "same fast clade, trait scattered", "the honest, worthy opponent")
+    _panel(d, 30, "A", "COUPLED", _ref_tree(), [T, T, T, T, T, F, F, F],
+           "trait fills the fast clade", "the claim: looks causal")
+    _panel(d, 430, "B", "NEUTRAL null", _balanced_tree(), [T, F, F, T, F, T, F, T],
+           "no fast clade at all", "the strawman: nothing to explain")
+    _panel(d, 830, "C", "CID null", _ref_tree(), [T, F, T, F, T, F, T, F],
+           "same fast clade, trait scattered", "the honest, worthy opponent")
 
     # legend
-    ly = 486
+    ly = 470
     d.append(draw.Rectangle(W / 2 - 470, ly - 10, 18, 18, fill=ON_COL, stroke=INK, stroke_width=1.6))
     d.append(draw.Text("trait present", FS_TICK, W / 2 - 444, ly + 5, font_family=FONT,
                        text_anchor="start", fill=INK))
@@ -131,11 +152,11 @@ def render(bw=False):
     d.append(draw.Text("trait absent", FS_TICK, W / 2 - 224, ly + 5, font_family=FONT,
                        text_anchor="start", fill=INK))
     _line(d, W / 2 - 40, ly - 1, W / 2 - 8, ly - 1, W_FAST)
-    d.append(draw.Text("fast-diversifying (bushy) clade", FS_TICK, W / 2 + 4, ly + 5,
+    d.append(draw.Text("fast-diversifying (heavy, bushy) clade", FS_TICK, W / 2 + 4, ly + 5,
                        font_family=FONT, text_anchor="start", fill=INK))
     d.append(draw.Text("Panels A and C are the same tree: identical heterogeneity -- the only "
                        "difference is whether the trait tracks it.",
-                       FS_TICK, W / 2, 548, font_family=FONT, text_anchor="middle", fill=MUTED))
+                       FS_TICK, W / 2, 524, font_family=FONT, text_anchor="middle", fill=MUTED))
 
     name = "coevolve_null_archetypes"
     suffix = "_bw" if bw else ""
@@ -148,5 +169,5 @@ def render(bw=False):
 
 
 if __name__ == "__main__":
-    render(bw=False)   # colour -> coevolve_null_archetypes.svg (embedded)
-    render(bw=True)    # preserved B&W
+    render(bw=False)
+    render(bw=True)
