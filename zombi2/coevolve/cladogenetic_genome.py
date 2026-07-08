@@ -29,12 +29,27 @@ which the extant presence/absence profile is built.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 
 import numpy as np
 
 from zombi2.genomes.profiles import ProfileMatrix
 from zombi2.tree import Tree
+
+
+def _branch_count_and_length(tree: Tree):
+    """``(number of branches, total branch length)`` of ``tree`` — every parent→child edge.
+
+    Used by the ``timing`` null to spread an at-speciation burst into a matched anagenetic rate
+    (``rate = per_event_probability · n_branches / total_length``)."""
+    n = 0
+    total = 0.0
+    for node in tree.nodes():
+        for child in node.children:
+            n += 1
+            total += float(child.time - node.time)
+    return n, total
 
 
 class CladogeneticGenome:
@@ -70,6 +85,44 @@ class CladogeneticGenome:
         self.origination = float(origination)
         self.cladogenetic_loss = float(cladogenetic_loss)
         self.cladogenetic_gain = float(cladogenetic_gain)
+
+    def null(self, kind="neutral", *, tree=None, **kwargs):
+        """Decoupled **null** for the ``species:genes`` arrow (speciation → gene turnover).
+        See :doc:`the null-models guide </guide/coevolution_nulls>`.
+
+        * ``"neutral"`` — no speciation burst (``cladogenetic_loss = cladogenetic_gain = 0``);
+          gene content changes only along branches. The naive null.
+        * ``"timing"`` — the **punctuation-anywhere** null: the *same expected* gene turnover, but
+          spread **along branches** instead of piled at speciations. The per-node burst
+          probability is converted analytically to an anagenetic rate over the tree's branches
+          (``extra = p · n_branches / total_length``), so sister tips no longer differ *because*
+          of their split. Needs the ``tree`` (to match in expectation) and is deterministic in the
+          parameters — no realized run is inspected.
+        """
+        kind = kind.lower()
+        if kind == "neutral":
+            m = copy.copy(self)
+            m.cladogenetic_loss = 0.0
+            m.cladogenetic_gain = 0.0
+            return m
+        if kind == "timing":
+            if tree is None:
+                raise ValueError("the species:genes 'timing' null needs the tree to match the "
+                                 "anagenetic rate analytically; pass tree=")
+            n_branches, total_len = _branch_count_and_length(tree)
+            if total_len <= 0.0:
+                raise ValueError("tree has zero total branch length; cannot spread the burst")
+            per_len = n_branches / total_len          # 1 / mean branch length
+            m = copy.copy(self)
+            m.loss = self.loss + self.cladogenetic_loss * per_len
+            m.origination = self.origination + self.cladogenetic_gain * per_len
+            m.cladogenetic_loss = 0.0
+            m.cladogenetic_gain = 0.0
+            return m
+        if kind == "cid":
+            raise ValueError("species:genes has no 'cid' null (its driver is the speciation "
+                             "process, not a state); use kind='neutral' or 'timing'")
+        raise ValueError(f"unknown null kind {kind!r}; expected 'neutral' or 'timing'")
 
     def __repr__(self):
         return (f"CladogeneticGenome(initial_families={self.initial_families}, "

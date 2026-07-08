@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1000" height="470" viewBox="0 0 1000 470">
+<defs>
+</defs>
+<rect x="0" y="0" width="1000" height="470" fill="white" />
+<text x="500.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Timing null: the same change, moved off the speciations</text>
+<text x="185" y="96" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">COUPLED (at speciation)</text>
+<path d="M60,220 L110,220" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M110,140 L110,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M110,140 L180,140" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M180,100 L180,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M180,100 L290,100" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M180,180 L290,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M110,300 L180,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M180,260 L180,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M180,260 L290,260" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M180,340 L290,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M120,132 L120,148" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M120,292 L120,308" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M190,92 L190,108" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M190,172 L190,188" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M190,252 L190,268" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M190,332 L190,348" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<text x="185" y="396" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">change AT the nodes</text>
+<text x="185" y="424" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ sharply (punctuational)</text>
+<text x="685" y="96" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">TIMING null (along branches)</text>
+<path d="M560,220 L610,220" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M610,140 L610,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M610,140 L680,140" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M680,100 L680,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M680,100 L790,100" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M680,180 L790,180" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M610,300 L680,300" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M680,260 L680,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M680,260 L790,260" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M680,340 L790,340" stroke="#1a1a1a" stroke-width="2.8" stroke-linecap="round" />
+<path d="M650,132 L650,148" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M650,292 L650,308" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M745,92 L745,108" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M770,172 L770,188" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M735,252 L735,268" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<path d="M755,332 L755,348" stroke="#2f7d84" stroke-width="5" stroke-linecap="round" />
+<text x="685" y="396" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">same amount, spread ALONG branches</text>
+<text x="685" y="424" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ only by shared branch length</text>
+</svg>

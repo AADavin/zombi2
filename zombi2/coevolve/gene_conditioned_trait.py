@@ -22,6 +22,7 @@ is gained or lost along a branch (its history is simulated first, as a two-state
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 
 import numpy as np
@@ -69,6 +70,28 @@ class GeneConditionedTrait:
         self.sigma2 = float(sigma2)
         self.x0 = (float(x0) if x0 is not None
                    else (self.theta_present if root_gene else self.theta_absent))
+
+    def null(self, kind="neutral", **kwargs):
+        """Decoupled **null** for the ``genes:traits`` arrow (gene presence → trait optimum).
+
+        ``"neutral"`` sets ``theta_present = theta_absent``, so the modifier no longer shifts the
+        optimum and the trait is plain OU regardless of the gene. The character-independent
+        (``"cid"``) null is a **workflow** — evolve the modifier-shaped trait, then observe a
+        *neutral overlay genome* and withhold the modifier; the CLI ``--null cid`` builds it.
+        """
+        kind = kind.lower()
+        if kind == "neutral":
+            m = copy.copy(self)
+            m.theta_present = self.theta_absent
+            return m
+        if kind == "cid":
+            raise TypeError(
+                "the genes:traits CID null is a workflow (observe a neutral overlay genome, hide "
+                "the modifier), not a model transform; use the CLI `--null cid` — see "
+                "docs/guide/coevolution_nulls.md")
+        if kind == "timing":
+            raise ValueError("genes:traits has no 'timing' null; use kind='neutral'")
+        raise ValueError(f"unknown null kind {kind!r}; expected 'neutral'")
 
     def _ou_step(self, x: float, present: bool, dt: float, rng) -> float:
         """Exact OU transition over ``dt`` toward the optimum selected by the gene state."""

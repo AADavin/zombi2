@@ -85,6 +85,38 @@ class MuSSE:
         pi = np.clip(np.linalg.solve(A, b), 0.0, None)
         return pi / pi.sum()
 
+    def null(self, kind="neutral", **kwargs):
+        """Return a decoupled **null** model — the same process with the ``traits:species``
+        arrow (character → diversification) cut. See :doc:`the null-models guide
+        </guide/coevolution_nulls>`.
+
+        ``kind``:
+
+        * ``"neutral"`` — the character no longer sets the rates: every state gets the same
+          speciation and extinction rate (the mean of the per-state rates), while the
+          anagenetic ``Q`` is left untouched so the character still evolves. This is the
+          naive constant-rate null.
+        * ``"cid"`` — a Character-Independent Diversification null (:class:`CID`), defined for
+          a **binary** character only; use :meth:`BiSSE.null`.
+
+        There is no ``"timing"`` null for this edge (no at-speciation event to redistribute).
+        """
+        kind = kind.lower()
+        if kind == "neutral":
+            lam = float(self.lambdas.mean())
+            mu = float(self.mus.mean())
+            return MuSSE(birth=[lam] * self.k, death=[mu] * self.k, Q=self.Q,
+                         states=list(self.states))
+        if kind == "cid":
+            raise TypeError(
+                "a CID null is defined for a binary (BiSSE) character; use "
+                "BiSSE.null(kind='cid'), or build zombi2.coevolve.CID directly")
+        if kind == "timing":
+            raise ValueError(
+                "traits:species has no 'timing' null (there is no at-speciation event to "
+                "decouple); use kind='neutral' or, for a binary trait, 'cid'")
+        raise ValueError(f"unknown null kind {kind!r}; expected 'neutral' or 'cid'")
+
     def __repr__(self) -> str:
         return f"MuSSE(k={self.k})"
 
@@ -112,6 +144,37 @@ class BiSSE(MuSSE):
             raise ValueError("transition rates q01, q10 must be >= 0")
         super().__init__(birth=[lambda0, lambda1], death=[mu0, mu1],
                          Q=[[0.0, q01], [q10, 0.0]], states=list(states))
+
+    def null(self, kind="cid", *, n_hidden=2, hidden_switch=None, **kwargs):
+        """Return a decoupled **null** for the ``traits:species`` arrow.
+
+        ``kind``:
+
+        * ``"cid"`` *(default)* — a :class:`CID` null: the observed rate spread is preserved
+          but reassigned to a **hidden** class uncorrelated with the observed trait, which
+          keeps its own transitions (``q01``/``q10``) but no longer sets the rates. With
+          ``n_hidden=2`` (the canonical **CID-2**) the two hidden regimes carry this model's
+          two observed rate pairs exactly; ``n_hidden>2`` spreads that many regimes across the
+          same rate range (e.g. ``n_hidden=4`` = **CID-4**). ``hidden_switch`` sets how fast
+          lineages move between regimes (default: the larger observed transition rate).
+        * ``"neutral"`` — the constant-rate null (see :meth:`MuSSE.null`).
+        """
+        kind = kind.lower()
+        if kind == "cid":
+            q01, q10 = float(self.Q[0, 1]), float(self.Q[1, 0])
+            switch = float(hidden_switch) if hidden_switch is not None else max(q01, q10, 1e-9)
+            l0, l1 = float(self.lambdas[0]), float(self.lambdas[1])
+            m0, m1 = float(self.mus[0]), float(self.mus[1])
+            if n_hidden < 2:
+                raise ValueError(f"a CID null needs n_hidden >= 2, got {n_hidden}")
+            if n_hidden == 2:                       # CID-2: the two observed rate pairs exactly
+                rates = [(l0, m0), (l1, m1)]
+            else:                                   # CID-H: H regimes bracketing the rate range
+                lam = np.linspace(min(l0, l1), max(l0, l1), n_hidden)
+                mu = np.linspace(min(m0, m1), max(m0, m1), n_hidden)
+                rates = list(zip(lam.tolist(), mu.tolist()))
+            return CID(rates, switch, q01=q01, q10=q10)
+        return super().null(kind, **kwargs)
 
     def __repr__(self) -> str:
         return (f"BiSSE(lambda0={self.lambdas[0]:g}, lambda1={self.lambdas[1]:g}, "
@@ -185,6 +248,80 @@ class HiSSE(MuSSE):
 
     def __repr__(self) -> str:
         return f"HiSSE(hidden={self._H})"
+
+
+class CID(HiSSE):
+    """Character-Independent Diversification — the honest null for the ``traits:species`` edge.
+
+    A :class:`HiSSE` constrained so that **within each hidden class the two observed states
+    share the same rates**: diversification varies across the unobserved *hidden* classes only,
+    never with the observed character. The tree therefore carries genuine rate heterogeneity
+    (fast and slow clades) that a raw :class:`BiSSE` fit cannot legitimately pin on the observed
+    trait — the null of Beaulieu & O'Meara (2016), and the model behind
+    :meth:`BiSSE.null(kind="cid") <BiSSE.null>`.
+
+    ``CID-2`` (two hidden classes) matches a :class:`BiSSE`'s rate spread; ``CID-4`` (four)
+    matches a full :class:`HiSSE`. See :doc:`the null-models guide </guide/coevolution_nulls>`.
+
+    Parameters
+    ----------
+    class_rates:
+        One ``(lambda, mu)`` pair per hidden class — the speciation and extinction rate of
+        *both* observed states in that class.
+    hidden_transition:
+        ``H x H`` switch-rate matrix between hidden classes, or a scalar for a symmetric
+        rate — how fast lineages move between diversification regimes.
+    q01, q10:
+        Anagenetic transition rates of the **observed** binary character (shared across
+        classes). At least one must be ``> 0`` so the observed character still evolves; a
+        frozen character would be trivially, uninterestingly independent of the rates.
+    hidden_states:
+        Optional labels for the ``H`` hidden classes (default ``0 .. H-1``).
+
+    Examples
+    --------
+    >>> CID.two(lambda_slow=0.5, lambda_fast=2.0, mu=0.2, switch=0.15)   # CID-2
+    CID(classes=2)
+    """
+
+    def __init__(self, class_rates, hidden_transition, *, q01=0.1, q10=0.1, hidden_states=None):
+        rates = [tuple(float(v) for v in r) for r in class_rates]
+        if len(rates) < 1:
+            raise ValueError("need at least one hidden class")
+        if any(len(r) != 2 for r in rates):
+            raise ValueError("each class_rates entry must be a (lambda, mu) pair")
+        if q01 < 0 or q10 < 0:
+            raise ValueError("observed transition rates q01, q10 must be >= 0")
+        if q01 == 0 and q10 == 0:
+            raise ValueError(
+                "a CID null needs the observed character to still evolve (q01 or q10 > 0); "
+                "with both 0 the observed state is frozen and trivially independent")
+        classes = [BiSSE(lam, lam, mu, mu, q01, q10) for (lam, mu) in rates]
+        super().__init__(classes, hidden_transition, hidden_states=hidden_states)
+        self._class_rates = rates
+        self._q = (float(q01), float(q10))
+
+    @classmethod
+    def two(cls, lambda_slow, lambda_fast, *, mu=0.0, mu_slow=None, mu_fast=None,
+            switch=0.1, q01=0.1, q10=0.1, hidden_states=None):
+        """**CID-2**: two hidden diversification regimes (slow, fast). ``mu`` is a shared
+        extinction rate; override per class with ``mu_slow`` / ``mu_fast``."""
+        ms = mu if mu_slow is None else mu_slow
+        mf = mu if mu_fast is None else mu_fast
+        return cls([(lambda_slow, ms), (lambda_fast, mf)], switch,
+                   q01=q01, q10=q10, hidden_states=hidden_states)
+
+    @classmethod
+    def four(cls, rates, *, switch=0.1, q01=0.1, q10=0.1, hidden_states=None):
+        """**CID-4**: four hidden regimes. ``rates`` is four ``(lambda, mu)`` pairs (or four
+        bare lambdas, taking a shared extinction of 0)."""
+        norm = [tuple(r) if isinstance(r, (tuple, list)) else (r, 0.0) for r in rates]
+        if len(norm) != 4:
+            raise ValueError("CID.four needs exactly four (lambda, mu) classes")
+        return cls(norm, switch, q01=q01, q10=q10, hidden_states=hidden_states)
+
+    def __repr__(self) -> str:
+        return f"CID(classes={self._H})"
 
 
 class QuaSSE:

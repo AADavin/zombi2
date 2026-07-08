@@ -80,6 +80,7 @@ nav:
       - Traits: guide/traits.md
       - Sequences: guide/sequences.md
       - Coevolution: guide/coevolution.md
+      - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
   - Cookbook: cookbook.md
   - Reference:
