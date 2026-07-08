@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 import pytest
-from scipy import stats
 
 from zombi2 import BirthDeath, Yule, simulate_species_tree
 
@@ -24,6 +23,7 @@ def _cdf(a, lam, mu, A):
 @pytest.mark.parametrize("lam,mu", [(1.0, 0.0), (1.0, 0.3), (1.0, 0.9), (0.7, 0.7)])
 def test_sample_age_matches_cdf(lam, mu):
     """The model's inverse-CDF sampler reproduces the analytic age distribution (KS)."""
+    stats = pytest.importorskip("scipy.stats")  # scipy is a [dev]-only dependency
     rng = np.random.default_rng(0)
     A = 5.0
     model = BirthDeath(lam, mu)
