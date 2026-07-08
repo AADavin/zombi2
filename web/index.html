@@ -237,13 +237,16 @@
   .term .s { color: #d8b26a; }
 
   /* ---------- models ---------- */
-  .cols3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 34px; margin-top: 40px; }
-  .cols3 h3 { font-size: 1.05rem; padding-bottom: 12px; border-bottom: 2px solid var(--accent-soft); }
+  .cols3 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px; margin-top: 40px; }
+  .cols3 h3 { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; padding-bottom: 12px; border-bottom: 2px solid var(--accent-soft); }
   .cols3 ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
   .cols3 li { font-size: 0.94rem; padding-left: 18px; position: relative; }
   .cols3 li::before { content: "›"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
   .cols3 li a { color: inherit; text-decoration: none; }
   .cols3 li a:hover { color: var(--accent); text-decoration: underline; }
+  .model-ico { width: 20px; height: 20px; color: var(--accent); flex: none; }
+  @media (max-width: 900px) { .cols3 { grid-template-columns: repeat(2, 1fr); gap: 30px; } }
+  @media (max-width: 520px) { .cols3 { grid-template-columns: 1fr; } }
 
   /* ---------- perf stats ---------- */
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 24px; margin-top: 38px; }
@@ -500,7 +503,7 @@ genomes.write(<span class="s">"out/"</span>)
         <p class="section-intro">Every model is reachable from the command line and as a first-class object in the Python API, so you can compose and extend them.</p>
         <div class="cols3">
           <div>
-            <h3>Species-tree models</h3>
+            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20v-6M12 14H6V8M12 14h6V6"/><circle cx="6" cy="8" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="1.6" fill="currentColor" stroke="none"/></svg>Species trees</h3>
             <ul>
               <li><a href="docs/guide/species-trees/#basic-models-birthdeath-yule">Backward &amp; forward birth–death</a></li>
               <li><a href="docs/guide/species-trees/#basic-models-birthdeath-yule">Yule (pure birth)</a></li>
@@ -512,25 +515,29 @@ genomes.write(<span class="s">"out/"</span>)
             </ul>
           </div>
           <div>
-            <h3>Genome models</h3>
+            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><g><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(72 12 12)"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(144 12 12)"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(216 12 12)"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(288 12 12)"/></g></svg>Genomes</h3>
             <ul>
               <li><a href="docs/guide/genomes/#sharedrates-every-family-the-same">Uniform DTL rates (Rust)</a></li>
               <li><a href="docs/guide/genomes/#familysampledrates-zombi1-style">Family-sampled rates (ZOMBI-1 style)</a></li>
               <li><a href="docs/guide/genomes/#pergenomerates-genome-wise-rates">Genome-wise rates</a></li>
               <li><a href="docs/guide/genomes/#ordered-chromosomes">Ordered chromosomes · inversions</a></li>
               <li><a href="docs/guide/genomes/#nucleotide-genomes">Nucleotide-resolution genomes</a></li>
-              <li><a href="docs/guide/coevolution/#trait-conditioned-gene-families-traitsgenes">Trait-linked gene families</a></li>
             </ul>
           </div>
           <div>
-            <h3>Traits &amp; sequences</h3>
+            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="8" cy="12" r="4.2" fill="var(--bg)"/><circle cx="16" cy="12" r="4.2" fill="currentColor" stroke="none"/></svg>Traits</h3>
             <ul>
               <li><a href="docs/guide/traits/#continuous-trait-models">Brownian motion · OU · early burst</a></li>
               <li><a href="docs/guide/traits/#discrete-trait-models">Mk · threshold (discrete)</a></li>
               <li><a href="docs/guide/traits/#biogeography-dec">DEC biogeography</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="9" font-weight="700" letter-spacing="0.5" fill="currentColor">ATC</text></svg>Sequences</h3>
+            <ul>
               <li><a href="docs/guide/sequences/#relaxed-molecular-clocks-time-into-substitutions">Relaxed molecular clocks</a></li>
               <li><a href="docs/guide/sequences/#dna-substitution-models">JC · K80 · HKY · GTR + Γ</a></li>
-              <li><a href="docs/guide/coevolution/#the-models">Coevolution — six directed edges</a></li>
+              <li><a href="docs/guide/sequences/#protein-substitution-models">LG · WAG · JTT (protein)</a></li>
             </ul>
           </div>
         </div>
