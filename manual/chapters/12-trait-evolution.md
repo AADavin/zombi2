@@ -274,23 +274,39 @@ optimum changes, and the continuous trait chases whichever optimum its lineage c
 
 ## Pagel's tree transforms
 
-Pagel's $\lambda$, $\kappa$ and $\delta$ transform the tree's branch and node lengths
-[@pagel1999inferring]; run any trait model on the transformed tree to model departures from a strict
-clock.
+Pagel's (1999) $\lambda$, $\kappa$ and $\delta$ rescale a tree's branch and node lengths *before* you
+run a trait model on it [@pagel1999inferring]. Each warps the **tempo of trait evolution** — how much
+expected trait change accrues along each branch — so a Brownian or OU trait can depart from a
+constant, strictly time-proportional rate. (This is the 1999 tree-transform family, distinct from the
+1994 correlated-character model earlier in this chapter, which also carries Pagel's name.) Each is a
+*deterministic*, one-parameter map `Tree` $\to$ `Tree`; the stochasticity still comes from whichever
+trait model you then evolve on the transformed tree.
 
 ```python
-# scale phylogenetic signal, then run any model on the transformed tree
+# reshape trait tempo, then run any model on the transformed tree
 simulate_traits(pagel_lambda(tree, 0.5), BrownianMotion(0.5), seed=1)
 pagel_delta(tree, 2.0)     # node depths ^delta (>1 late, <1 early change)
 pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational)
 ```
 
 - **$\lambda$** scales internal (shared) depths while holding tip depths fixed: `1` is the original
-  tree (full phylogenetic signal), `0` a star tree (independent tips).
+  tree (full phylogenetic signal), `0` a star tree (independent tips). It tunes how much of a
+  Brownian trait's covariance is shared versus tip-specific — something no molecular clock does.
 - **$\delta$** raises node depths to a power, root and tips fixed: values above `1` concentrate
-  change late, below `1` early.
-- **$\kappa$** raises each branch length to a power; `0` gives a speciational model, change per
-  speciation event rather than per unit time.
+  change late (toward the tips), below `1` early (toward the root).
+- **$\kappa$** raises each branch length to a power; `0` gives a speciational model — change accrues
+  per speciation event rather than per unit time.
+
+![Pagel's 1999 tree transforms, each shown on one small tree at three parameter values. **lambda** scales the internal (shared) depths while pinning the tips, interpolating from the original tree to a star; **delta** bends node depths toward the root (early change) or the present (late change); **kappa** raises branch lengths to a power, collapsing toward equal, speciational branches at `0`. The transform is applied to the tree; the trait model is then run on the result.](figures/pagel_transforms.pdf){width=100%}
+
+::: note
+These are **not** the molecular clocks of Chapter 15. Pagel's transforms reshape the timetree that a
+*continuous- or discrete-trait* model (BM/OU/Mk) evolves over — a deterministic warp of *trait
+tempo*. The relaxed clocks of Chapter 15 instead turn a timetree into a *substitution* phylogram
+(expected substitutions per site) to drive *sequence* simulation, drawing random per-branch rates.
+Different object transformed, different model consuming it, different units — neither can express the
+other.
+:::
 
 ## Historical biogeography (DEC)
 
