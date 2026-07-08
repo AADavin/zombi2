@@ -36,7 +36,9 @@ from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, simulate_sse
 from zombi2.coevolve.gene_diversification import (
     GeneDiversification, simulate_gene_diversification, simulate_co_diversification,
 )
-from zombi2.coevolve.cladogenetic_genome import CladogeneticGenome, simulate_cladogenetic_genome
+from zombi2.coevolve.cladogenetic_genome import (
+    CladogeneticGenome, simulate_cladogenetic_genome, _branch_count_and_length,
+)
 from zombi2.coevolve.gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
 from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
 from zombi2.coevolve.trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
@@ -874,6 +876,13 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
         transfer=args.trans, duplication=args.dup, origination=args.orig,
         state_values=state_values, rng=rng)
 
+    if args.null == "cid":
+        return _run_traits_genes_cid_null(args, parser)
+    if args.null == "timing":
+        parser.error("traits:genes has no 'timing' null; use --null neutral")
+    if args.null == "neutral":
+        coupling = coupling.null("neutral")
+
     # 3) run
     t0 = time.perf_counter()
     res = simulate_trait_linked_genomes(tree, result, coupling, trait_steps=args.trait_steps, rng=rng)
@@ -887,7 +896,11 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
     with open(os.path.join(args.out, "trait_tree.nwk"), "w") as f:
         f.write(res.trait.to_newick() + "\n")
     _write_coupling_manifest(args.out, coupling)
-    return (f"wrote [{' '.join(sorted(parts))}] + trait to {args.out}/ (trait={trait_desc}, "
+    if args.null == "neutral":
+        _write_null_manifest(args.out, "traits:genes", "neutral", cut="trait -> panel loss/gain",
+                             preserved="removed (effect_loss = effect_gain = 0; uncoupled panel)")
+    tag = " [neutral null]" if args.null == "neutral" else ""
+    return (f"wrote{tag} [{' '.join(sorted(parts))}] + trait to {args.out}/ (trait={trait_desc}, "
             f"panel {coupling.n_families} families, {coupling.n_responsive} responsive, "
             f"{len(tree.extant_leaves())} tips) in {dt:.3g} s")
 
@@ -926,6 +939,18 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
                    help="[into-species] stop when this many extant tips first coexist (age random)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
+    g.add_argument("--null", choices=("none", "neutral", "cid", "timing"), default="none",
+                   help="generate the matched DECOUPLED null instead of the coupled model — cut the "
+                        "driver→target arrow while keeping the target's variance (for calibrating a "
+                        "detector's false-positive rate). 'neutral' (all edges): the driver stops "
+                        "setting the rates. 'cid': the variance comes from a HIDDEN, uncorrelated "
+                        "driver (traits:species natively; the gene/trait edges via a neutral "
+                        "observed channel). 'timing': an at-speciation burst is spread along "
+                        "branches (species:traits, species:genes). See "
+                        "docs/guide/coevolution_nulls.md")
+    g.add_argument("--hidden", type=int, default=2, metavar="H",
+                   help="[--null cid, traits:species] number of hidden rate classes (2 = CID-2, "
+                        "4 = CID-4)")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
 
     g = p.add_argument_group("SSE model", "--couple traits:species (trait drives diversification)")
@@ -1111,6 +1136,196 @@ def _write_coevolve_outputs(out: str, tree: Tree, res: TraitResult) -> None:
         f.write(res.to_newick() + "\n")               # trait annotated on every node
 
 
+# --------------------------------------------------------------------------- null models (--null)
+def _write_null_manifest(out: str, edge: str, kind: str, *, cut: str, preserved: str,
+                         extra: dict | None = None) -> None:
+    """Record the null's provenance — which arrow was cut and how the target's variance was kept —
+    so a downstream calibration is self-documenting. See docs/guide/coevolution_nulls.md."""
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "null_manifest.tsv"), "w") as f:
+        f.write("field\tvalue\n")
+        f.write(f"null\t{kind}\n")
+        f.write(f"edge\t{edge}\n")
+        f.write(f"cut_arrow\t{cut}\n")
+        f.write(f"variance_preserved_by\t{preserved}\n")
+        for k, v in (extra or {}).items():
+            f.write(f"{k}\t{v}\n")
+
+
+def _null_sse_model(model, args: argparse.Namespace, parser: argparse.ArgumentParser):
+    """Apply ``--null`` to a traits:species SSE model; returns ``(null_model, manifest_kwargs)``."""
+    if args.null == "neutral":
+        return model.null("neutral"), dict(cut="trait -> (lambda, mu)",
+                                            preserved="removed (constant-rate birth-death)")
+    if args.null == "cid":
+        if not isinstance(model, BiSSE):
+            parser.error("--null cid needs --sse-model bisse (a binary character); MuSSE/QuaSSE "
+                         "have no CID null in this release — use --null neutral")
+        return (model.null("cid", n_hidden=args.hidden),
+                dict(cut="trait -> (lambda, mu)",
+                     preserved=f"a hidden CID class (CID-{args.hidden})",
+                     extra={"hidden_classes": args.hidden}))
+    parser.error("traits:species has no 'timing' null; use --null neutral or --null cid")
+
+
+def _null_species_traits_timing(args: argparse.Namespace, tree: Tree,
+                                parser: argparse.ArgumentParser):
+    """The species:traits ``timing`` null: drop cladogenesis, add a matched anagenetic rate so the
+    same expected change is spread **along branches** (analytic, from the tree's branch stats).
+    Returns ``(anagenetic_model, manifest_extra)``."""
+    n_branches, total_len = _branch_count_and_length(tree)
+    if total_len <= 0.0:
+        parser.error("tree has zero total branch length; cannot spread the cladogenetic change")
+    per_len = n_branches / total_len
+    if args.sse_model == "quasse":                         # continuous: boost Brownian diffusion
+        extra = args.clado_jump * per_len
+        return (BrownianMotion(sigma2=args.diffusion + extra, x0=args.root_value),
+                {"matched_sigma2_extra": f"{extra:.6g}"})
+    if args.sse_model == "bisse":                          # binary: boost the Mk transition rates
+        s = args.clado_shift * per_len
+        return Mk([[0.0, args.q01 + s], [args.q10 + s, 0.0]]), {"matched_rate_extra": f"{s:.6g}"}
+    parser.error("--null timing for species:traits supports --sse-model bisse or quasse (a matched "
+                 "anagenetic rate); musse timing is not implemented — use --null neutral")
+
+
+# The gene/trait CID nulls are the neutral-CHANNEL workflow: run the coupled model (so the target's
+# heterogeneity is real), then hand the analyst a *neutral channel of the observed type on the same
+# tree* — a neutral overlay genome, or a second independent neutral trait — while withholding the
+# driver as ground-truth. The neutral overlay uses a plain transfer/loss panel (recorded in the
+# manifest); re-run zombi2 genomes for other rates. See docs/guide/coevolution_nulls.md.
+_NULL_OVERLAY = dict(duplication=0.0, transfer=1.0, loss=0.5, origination=0.0)   # neutral genome
+
+
+def _run_genes_species_cid_null(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """genes:species CID null: the drivers shape a genuinely heterogeneous tree; a NEUTRAL overlay
+    genome is the decoupled observed channel; the drivers are withheld as ground-truth."""
+    if args.tree:
+        parser.error("genes:species grows the tree (it is an OUTPUT); give --age/--tips, not -t")
+    if (args.age is None) == (args.tips is None):
+        parser.error("genes:species grows the tree — give exactly one of --age or --tips")
+    model = GeneDiversification(
+        args.drivers, lambda0=args.lambda0, mu0=args.mu0,
+        driver_speciation=args.driver_speciation, driver_extinction=args.driver_extinction,
+        loss=args.driver_loss, origination=args.driver_origination,
+        transfer=args.driver_transfer, root_drivers=args.root_drivers)
+    t0 = time.perf_counter()
+    res = simulate_gene_diversification(model, age=args.age, n_tips=args.tips, seed=args.seed)
+    tree = prune(res.tree)                                  # extant-only, for a clean null dataset
+    seed2 = None if args.seed is None else args.seed + 1
+    profiles = simulate_genomes(tree, output="profiles", initial_families=args.genome_size,
+                                seed=seed2, **_NULL_OVERLAY)
+    dt = time.perf_counter() - t0
+
+    _write_profiles_only(args.out, tree, profiles)         # tree + OBSERVED neutral genome
+    with open(os.path.join(args.out, "drivers_ground_truth.tsv"), "w") as f:
+        f.write(res.to_tsv(nodes="all"))                   # the HIDDEN drivers (withheld from analysis)
+    _write_drivers_manifest(args.out, model)
+    _write_null_manifest(
+        args.out, "genes:species", "cid", cut="gene content -> (lambda, mu)",
+        preserved="a hidden driver panel (drivers_ground_truth.tsv) shaped the tree; Profiles.tsv is "
+                  "a neutral overlay genome, decoupled from diversification",
+        extra={"observed": f"neutral overlay: {args.genome_size} families, transfer=1.0 loss=0.5",
+               "hidden_drivers": model.n_drivers})
+    return (f"wrote genes:species [cid null] to {args.out}/ ({len(tree.leaves())} tips; "
+            f"{len(profiles.families)} neutral observed families, {model.n_drivers} hidden drivers) "
+            f"in {dt:.3g} s")
+
+
+def _run_genes_traits_cid_null(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """genes:traits CID null: a modifier gene shapes a trait with real optimum shifts; a NEUTRAL
+    overlay genome is the observed gene content; the modifier is withheld as ground-truth."""
+    if not args.tree:
+        parser.error("genes:traits runs on a GIVEN tree — pass -t/--tree")
+    if args.age is not None or args.tips is not None:
+        parser.error("genes:traits uses the given -t tree; --age/--tips only apply to into-species edges")
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    model = GeneConditionedTrait(
+        gene_gain=args.modifier_gain, gene_loss=args.modifier_loss, root_gene=args.root_modifier,
+        theta_absent=args.theta_absent, theta_present=args.theta_present,
+        alpha=args.trait_alpha, sigma2=args.trait_sigma2, x0=args.trait_x0)
+    t0 = time.perf_counter()
+    res = simulate_gene_conditioned_trait(tree, model, seed=args.seed)     # modifier shapes the trait
+    seed2 = None if args.seed is None else args.seed + 1
+    profiles = simulate_genomes(tree, output="profiles", initial_families=args.genome_size,
+                                seed=seed2, **_NULL_OVERLAY)
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick() + "\n")
+    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+        f.write(profiles.to_tsv())                         # OBSERVED neutral genome
+    with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+        f.write(profiles.to_tsv(presence=True))
+    with open(os.path.join(args.out, "traits.tsv"), "w") as f:  # the trait (real optimum shifts), observed
+        f.write("node\ttrait\n")
+        for n in tree.nodes():
+            f.write(f"{n.name}\t{res.node_trait[n]:.6g}\n")
+    with open(os.path.join(args.out, "modifier_ground_truth.tsv"), "w") as f:   # the HIDDEN modifier
+        f.write("node\tmodifier\n")
+        for n in tree.nodes():
+            f.write(f"{n.name}\t{int(res.gene.node_values[n])}\n")
+    _write_null_manifest(
+        args.out, "genes:traits", "cid", cut="gene presence -> trait optimum",
+        preserved="a hidden modifier (modifier_ground_truth.tsv) shifted the trait's optimum; "
+                  "Profiles.tsv is a neutral overlay genome, decoupled from the trait",
+        extra={"observed": f"neutral overlay: {args.genome_size} families, transfer=1.0 loss=0.5"})
+    return (f"wrote genes:traits [cid null] to {args.out}/ ({len(tree.extant_leaves())} tips; "
+            f"{len(profiles.families)} neutral observed families, hidden modifier) in {dt:.3g} s")
+
+
+def _run_traits_genes_cid_null(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    """traits:genes CID null: a HIDDEN trait drives the panel's retention; a SECOND, independent
+    neutral trait is the observed trait; the driving trait is withheld as ground-truth."""
+    if not args.tree:
+        parser.error("traits:genes runs on a GIVEN tree — pass -t/--tree")
+    if args.age is not None or args.tips is not None:
+        parser.error("traits:genes uses the given -t tree; --age/--tips only apply to into-species edges")
+    if args.trait_file:
+        parser.error("--null cid for traits:genes simulates its own hidden + observed traits; "
+                     "--trait-file is not supported here")
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
+    if args.panel < 1:
+        raise ValueError("--panel must be >= 1")
+    rng = np.random.default_rng(args.seed)
+
+    hidden_trait = simulate_traits(tree, _build_trait_model(args), rng=rng)   # drives the panel
+    state_values = None
+    if args.trait_center and hidden_trait.kind == "discrete":
+        k = len(hidden_trait.model.states)
+        state_values = [i - (k - 1) / 2.0 for i in range(k)]
+    coupling = TraitGeneCoupling.build(
+        args.panel, _parse_responsive(args.responsive), weight=args.weight, signed=args.signed,
+        effect_loss=args.effect_loss, effect_gain=args.effect_gain, base_loss=args.loss,
+        transfer=args.trans, duplication=args.dup, origination=args.orig,
+        state_values=state_values, rng=rng)
+    t0 = time.perf_counter()
+    res = simulate_trait_linked_genomes(tree, hidden_trait, coupling, trait_steps=args.trait_steps,
+                                        rng=rng)
+    observed_trait = simulate_traits(tree, _build_trait_model(args), rng=rng)   # independent, decoupled
+    dt = time.perf_counter() - t0
+
+    os.makedirs(args.out, exist_ok=True)
+    res.genomes().write(args.out, include=parts, sparse=args.sparse,
+                        annotate_species=args.annotate_species)   # the panel (shaped by hidden trait)
+    with open(os.path.join(args.out, "traits.tsv"), "w") as f:
+        f.write(observed_trait.to_tsv(nodes="all"))               # OBSERVED, decoupled trait
+    with open(os.path.join(args.out, "trait_ground_truth.tsv"), "w") as f:
+        f.write(hidden_trait.to_tsv(nodes="all"))                 # the HIDDEN driving trait
+    _write_coupling_manifest(args.out, coupling)
+    _write_null_manifest(
+        args.out, "traits:genes", "cid", cut="trait -> panel loss/gain",
+        preserved="a hidden trait (trait_ground_truth.tsv) shaped the panel; traits.tsv is a second, "
+                  "independent neutral trait, decoupled from the panel",
+        extra={"observed_trait": args.model, "responsive_families": coupling.n_responsive})
+    return (f"wrote traits:genes [cid null] to {args.out}/ (observed trait decoupled from a "
+            f"{coupling.n_families}-family panel shaped by a hidden trait, "
+            f"{len(tree.extant_leaves())} tips) in {dt:.3g} s")
+
+
 def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
     """Run the ``coevolve`` umbrella over the six directed edges (``--couple``): ``traits:species``
     (SSE), ``species:traits`` (cladogenetic) and their combination = **ClaSSE**; ``genes:species``
@@ -1129,6 +1344,12 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
                          f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
                          "docs/guide/coevolution.md for the full edge set")
     eset = set(edges)
+
+    # --null cuts a single directed arrow; a joint/both-arrows model has two, so decline it there
+    # (run the null for one arrow at a time). Each edge below applies its own archetype.
+    if args.null != "none" and len(eset) > 1:
+        parser.error("--null cuts a single directed edge; a joint (both-arrows) model has two — "
+                     "run the null for one arrow at a time (e.g. --couple traits:species --null cid)")
 
     # ---- joint (both-arrow) models: a node-pair with BOTH its directed edges on ----
     # species<->genes: driver gene content drives diversification AND bursts at each speciation
@@ -1194,12 +1415,28 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         with open(args.tree) as f:
             tree = read_newick(f.read())
         model, kind = _build_anagenetic_trait(args, parser)
+        nman = None
+        if args.null == "neutral":                         # drop the at-speciation jump entirely
+            clado = None
+            nman = dict(cut="speciation -> trait jump", preserved="removed (anagenetic change only)")
+        elif args.null == "timing":                        # spread the jump along branches (matched)
+            clado = None
+            model, extra = _null_species_traits_timing(args, tree, parser)
+            nman = dict(cut="speciation -> trait jump",
+                        preserved="spread along branches (matched anagenetic rate)", extra=extra)
+        elif args.null == "cid":
+            parser.error("species:traits has no 'cid' null (its driver is the speciation process, "
+                         "not a state); use --null neutral or --null timing")
         t0 = time.perf_counter()
         res = simulate_traits(tree, model, cladogenesis=clado,
                               root_state=args.root_state, seed=args.seed)
         dt = time.perf_counter() - t0
         _write_coevolve_outputs(args.out, tree, res)
-        return (f"wrote species:traits (cladogenetic {kind}) to {args.out}/ "
+        if nman is not None:
+            _write_null_manifest(args.out, "species:traits", args.null, **nman)
+        tag = f" [{args.null} null]" if args.null != "none" else ""
+        mode = "anagenetic" if args.null != "none" else "cladogenetic"
+        return (f"wrote species:traits{tag} ({mode} {kind}) to {args.out}/ "
                 f"({len(tree.extant_leaves())} tips{_sse_tip_signal(res)}) in {dt:.3g} s")
 
     # traits:species (SSE) or traits:species + species:traits (ClaSSE): an arrow INTO S, so the
@@ -1211,13 +1448,19 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         parser.error("traits:species grows the tree — give exactly one of --age or --tips")
 
     model = _build_sse_model(args, parser)
+    nman = None
+    if args.null != "none":                                # cut trait -> diversification
+        model, nman = _null_sse_model(model, args, parser)
     t0 = time.perf_counter()
     res = simulate_sse(model, age=args.age, n_tips=args.tips, root_state=args.root_state,
                        cladogenesis=clado, seed=args.seed)
     dt = time.perf_counter() - t0
     _write_coevolve_outputs(args.out, res.tree, res)
+    if nman is not None:
+        _write_null_manifest(args.out, "traits:species", args.null, **nman)
     n_extant = len(res.tree.extant_leaves())
-    edge_label = "traits:species+species:traits" if clado is not None else "traits:species"
+    tag = f" [{args.null} null]" if args.null != "none" else ""
+    edge_label = ("traits:species+species:traits" if clado is not None else "traits:species") + tag
     model_label = f"ClaSSE {args.sse_model}" if clado is not None else f"SSE {args.sse_model}"
     return (f"wrote {edge_label} ({model_label}) to {args.out}/ "
             f"({n_extant} extant tips{_sse_tip_signal(res)}) in {dt:.3g} s")
@@ -1252,6 +1495,12 @@ def _run_genes_species(args: argparse.Namespace, parser: argparse.ArgumentParser
         driver_speciation=args.driver_speciation, driver_extinction=args.driver_extinction,
         loss=args.driver_loss, origination=args.driver_origination,
         transfer=args.driver_transfer, root_drivers=args.root_drivers)
+    if args.null == "cid":
+        return _run_genes_species_cid_null(args, parser)
+    if args.null == "timing":
+        parser.error("genes:species has no 'timing' null; use --null neutral or --null cid")
+    if args.null == "neutral":
+        model = model.null("neutral")
     t0 = time.perf_counter()
     res = simulate_gene_diversification(model, age=args.age, n_tips=args.tips, seed=args.seed)
     dt = time.perf_counter() - t0
@@ -1266,7 +1515,11 @@ def _run_genes_species(args: argparse.Namespace, parser: argparse.ArgumentParser
     prev = " ".join(f"D{i}:{100 * p:.0f}%" for i, p in enumerate(res.tip_prevalence()))
     print(f"  overlay the neutral genome with: zombi2 genomes -t {args.out}/species_tree.nwk "
           f"--trans 1 --loss 0.5 --write profiles trees -o {args.out}")
-    return (f"wrote genes:species (key innovations) to {args.out}/ "
+    if args.null == "neutral":
+        _write_null_manifest(args.out, "genes:species", "neutral", cut="gene content -> (lambda, mu)",
+                             preserved="removed (drivers no longer set the rates)")
+    tag = " [neutral null]" if args.null == "neutral" else ""
+    return (f"wrote genes:species{tag} (key innovations) to {args.out}/ "
             f"({n_extant} extant tips, {model.n_drivers} drivers, tip prevalence {prev}) "
             f"in {dt:.3g} s")
 
@@ -1325,6 +1578,18 @@ def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser
     model = CladogeneticGenome(
         initial_families=args.genome_size, loss=args.gene_loss, origination=args.gene_origination,
         cladogenetic_loss=args.clado_gene_loss, cladogenetic_gain=args.clado_gene_gain)
+    nman = None
+    if args.null == "cid":
+        parser.error("species:genes has no 'cid' null (its driver is the speciation process, not a "
+                     "state); use --null neutral or --null timing")
+    if args.null == "neutral":
+        model = model.null("neutral")
+        nman = dict(cut="speciation -> gene burst", preserved="removed (anagenetic turnover only)")
+    elif args.null == "timing":
+        model = model.null("timing", tree=tree)
+        nman = dict(cut="speciation -> gene burst",
+                    preserved="spread along branches (matched anagenetic rate)",
+                    extra={"loss": f"{model.loss:.6g}", "origination": f"{model.origination:.6g}"})
     t0 = time.perf_counter()
     res = simulate_cladogenetic_genome(tree, model, seed=args.seed)
     dt = time.perf_counter() - t0
@@ -1344,7 +1609,10 @@ def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser
             f.write(f"{node.name}\t{sizes[node]}\n")
     tips = tree.extant_leaves()
     mean_size = sum(sizes[t] for t in tips) / len(tips) if tips else 0
-    return (f"wrote species:genes (cladogenetic genome) to {args.out}/ "
+    if nman is not None:
+        _write_null_manifest(args.out, "species:genes", args.null, **nman)
+    tag = f" [{args.null} null]" if args.null != "none" else ""
+    return (f"wrote species:genes{tag} (cladogenetic genome) to {args.out}/ "
             f"({len(tips)} tips, {len(pm.families)} families, mean genome {mean_size:.0f}) "
             f"in {dt:.3g} s")
 
@@ -1364,6 +1632,12 @@ def _run_genes_traits(args: argparse.Namespace, parser: argparse.ArgumentParser)
         gene_gain=args.modifier_gain, gene_loss=args.modifier_loss, root_gene=args.root_modifier,
         theta_absent=args.theta_absent, theta_present=args.theta_present,
         alpha=args.trait_alpha, sigma2=args.trait_sigma2, x0=args.trait_x0)
+    if args.null == "cid":
+        return _run_genes_traits_cid_null(args, parser)
+    if args.null == "timing":
+        parser.error("genes:traits has no 'timing' null; use --null neutral")
+    if args.null == "neutral":
+        model = model.null("neutral")
     t0 = time.perf_counter()
     res = simulate_gene_conditioned_trait(tree, model, seed=args.seed)
     dt = time.perf_counter() - t0
@@ -1382,7 +1656,11 @@ def _run_genes_traits(args: argparse.Namespace, parser: argparse.ArgumentParser)
     non = [tv[t] for t in tips if not gp[t]]
     car_m = f"{sum(car) / len(car):.2g}" if car else "-"
     non_m = f"{sum(non) / len(non):.2g}" if non else "-"
-    return (f"wrote genes:traits (gene-conditioned trait) to {args.out}/ "
+    if args.null == "neutral":
+        _write_null_manifest(args.out, "genes:traits", "neutral", cut="gene presence -> trait optimum",
+                             preserved="removed (theta_present = theta_absent; plain OU)")
+    tag = " [neutral null]" if args.null == "neutral" else ""
+    return (f"wrote genes:traits{tag} (gene-conditioned trait) to {args.out}/ "
             f"({len(tips)} tips; carrier trait mean {car_m} vs non-carrier {non_m}) in {dt:.3g} s")
 
 

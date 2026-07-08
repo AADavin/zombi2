@@ -510,6 +510,17 @@ the usual gene-family files chosen with `--write` ({profiles, trace, trees, even
 summary}, or `all`) plus `coupling.tsv`, the responsive-family manifest that records the exact
 trait↔gene linkage for downstream inference.
 
+## Null models
+
+Every edge above ships a matched **decoupled null** — the coupled process with its `driver → target`
+arrow cut, but the target's variance kept — so you can calibrate whether an inferred coupling is
+real (rather than the tree's own heterogeneity mistaken for one). Generate one by adding
+`--null {neutral,cid,timing}` to any `coevolve` run, or in Python with a coupling model's
+`.null(kind=...)` method (plus the `CID` factory for `traits:species`). Each run writes a
+`null_manifest.tsv` recording exactly which arrow was cut. See **[Null models of
+coevolution](coevolution_nulls.md)** for the taxonomy (neutral / character-independent / timing)
+and a worked treatment.
+
 ## Validation
 
 - **BiSSE** — a state that speciates 3× faster strongly biases the standing tips toward it

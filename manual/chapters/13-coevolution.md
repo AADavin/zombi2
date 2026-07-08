@@ -415,3 +415,77 @@ setting `--theta-present` equal to `--theta-absent` recovers pure `traits:genes`
 contains both single edges as limits. **What it recovers:** a trait–gene-content association that is
 *emergent* rather than built in; the decoupled control (`--effect-loss 0` with equal thetas) shows
 none.
+
+## Null models of coevolution
+
+Every model in this chapter is a *claim*: this driver shapes that target. The hard part is not
+simulating the claim but knowing, from data, whether it is true — and that is an inference problem
+with a famous trap. Fit a trait-dependent speciation model (BiSSE) and it will almost always report
+that your trait drives diversification, *even for a trait that does not* [@raboskygoldberg2015]. The
+reason is that real trees always carry rate heterogeneity from causes unrelated to the trait, and
+BiSSE's only way to describe a fast-diversifying clade is "the trait did it." Its naïve null — a
+constant-rate tree with *no* heterogeneity — is a strawman that real data beat for reasons that have
+nothing to do with the character. Imagine a clade of bacteria in which the aerobic lineages happen
+to be more diverse: did aerobiosis *cause* the radiation, or does it merely sit in a part of the tree
+that was diversifying quickly anyway?
+
+The fix is a null model that is as flexible as the alternative, minus the causal link: a dataset with
+the same amount of variation in the target, but where that variation is **not** produced by the
+driver [@beaulieu2016hisse]. ZOMBI2 gives every edge in this chapter exactly such a null, so
+"simulate coupled → simulate the matched null → run your detector on both → measure its
+false-positive rate" is a one-command workflow.
+
+![A null keeps the tree's variation and cuts only the trait's grip on it. Coupled — the trait fills
+the fast-diversifying clade, so it looks causal. Neutral — a balanced tree with no fast clade, a weak
+test. CID — the *same* fast clade as the coupled tree, but the trait is scattered across fast and slow
+clades: the honest test of whether the trait tracks diversification. Panels A and C are the same
+tree.](figures/coevolve_null_archetypes.pdf){width=100%}
+
+Cutting the arrow honestly takes one of three forms:
+
+- **`neutral`** — set the coupling strength to zero. The arrow is cut and nothing compensates, so the
+  target loses its coupling-induced variation. This is the naïve null (the constant-rate strawman
+  above): cheap, and the honest baseline for *"does my detector fire when there is truly no effect?"*
+- **`cid`** (character-independent diversification) — re-introduce the *same* variation, but source
+  it from a **hidden** driver uncorrelated with the observed one. This is the generalised HiSSE null:
+  the tree really has fast and slow clades, but the observed character cannot explain them (panel C
+  above). It is the *worthy opponent*, and it covers the four edges where a driver state sets a target
+  rate.
+- **`timing`** — for the two edges where change happens *at* speciation (`species:traits`,
+  `species:genes`) there is no hidden state to invoke; the honest null keeps the same amount of change
+  but spreads it **along the branches** instead of piling it at the nodes — the
+  punctuation-versus-gradual contrast [@pagel1999inferring]. The variance is matched analytically, from the
+  tree's branch statistics.
+
+![The timing null: the same change, moved off the speciations. Coupled — change happens at each
+speciation, so sister tips differ sharply (punctuational). Timing null — the same amount of change
+spread along the branches, so sisters differ only as much as their shared branch length
+allows.](figures/coevolve_null_timing.pdf){width=100%}
+
+For two of the four `cid` edges the null is almost free, because ZOMBI2 already produces a neutral
+channel. In `genes:species` the drivers shape a genuinely heterogeneous tree, while the **neutral bulk
+genome** — the families that do not touch diversification — is a whole panel of real genes decoupled
+from it. The null hands you that genome as the observed data and withholds the drivers as
+ground-truth; `genes:traits` reuses the same trick. Only `traits:genes` needs one extra ingredient: a
+second, independent neutral trait. (A neutral gene still carries a faint imprint of tree shape — bushy
+clades have short branches — but that shared-tree confound is a *feature* of a good null: it is exactly
+what a trustworthy detector must see through.)
+
+Generate any null by adding `--null` to the edge's command:
+
+```bash
+# the coupled claim: a trait drives diversification
+zombi2 coevolve --couple traits:species --lambda0 1 --lambda1 3 --tips 200 --seed 1 -o out/alt
+
+# its matched CID-2 null: same rate spread, no trait effect -- feed both to your detector
+zombi2 coevolve --couple traits:species --lambda0 1 --lambda1 3 --tips 200 --seed 1 \
+    --null cid --hidden 2 -o out/null
+
+# the punctuational genome, spread along branches (species:genes timing null)
+zombi2 coevolve --couple species:genes -t species_tree.nwk \
+    --clado-gene-loss 0.15 --clado-gene-gain 3 --null timing -o out/null_punct
+```
+
+Every null run also writes a `null_manifest.tsv` recording which arrow was cut and how the target's
+variance was preserved, so a downstream calibration is self-documenting. In Python the same nulls are
+a coupling model's `.null(kind=...)` method, plus a `CID` factory for the `traits:species` case.

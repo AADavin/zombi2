@@ -69,7 +69,7 @@ NAMESPACES = {
         "GeneConditionedTrait", "GeneConditionedTraitResult",
         "simulate_gene_conditioned_trait",
         "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
-        "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
+        "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "CID", "simulate_sse",
     ],
     "distributions": [
         "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform",
@@ -136,7 +136,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 131   # + ConversionModel + read_family_rates + read_branch_rates
+    assert len(z.__all__) == 132   # main's 131 + CID (the traits:species null)
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 
