@@ -409,6 +409,40 @@ simulate_genomes(tree, transfer=1.0, duplication=0.0,
     Self-transfers grow families exactly as duplications do, so pair them with a growth
     cap (see [Bounding growth](#bounding-growth)).
 
+## Gene conversion
+
+**Intra-genome gene conversion** is the intra-genome analogue of a transfer: within a *single*
+genome, one copy of a family overwrites ("converts") another copy of the **same family**. It is
+**non-reciprocal** (the donor/template is unchanged, the recipient is overwritten) and a
+**replacement, not a duplication** — copy number is unchanged. Repeated, it homogenises a family's
+copies (**concerted evolution**) and pulls their reconstructed within-family coalescences toward the
+present.
+
+`SharedRates` takes a per-copy `conversion` rate; a **`ConversionModel`** sets the donor
+directionality, exactly as a `TransferModel` sets what a transfer does:
+
+```python
+from zombi2.genomes import simulate_genomes, SharedRates, ConversionModel
+
+genomes = simulate_genomes(
+    tree,
+    SharedRates(duplication=0.4, loss=0.1, conversion=1.0),
+    conversions=ConversionModel(bias=0.0),   # 0 = unbiased donor; 1 = toward the founder
+    initial_families=40, seed=42,
+)
+```
+
+A conversion needs a donor **and** a recipient, so it fires only on families with **two or more
+copies**: a family with `n` copies is converted at total rate `conversion·n`. The **recipient** is
+always chosen uniformly; `bias` controls only the **donor** — `bias=0` draws it uniformly, `bias=1`
+always takes the family's oldest copy (the founder), homogenising the others toward it.
+
+!!! note
+    Conversion reshapes gene *trees* rather than copy-number profiles, so a model with
+    `conversion > 0` runs on the Python engine (never the Rust counts-only path). From the command
+    line: `--conversion RATE` and `--conversion-bias B`, on unordered genomes with `--rate-model
+    shared`.
+
 ## Bounding growth
 
 A family's copy number is a birth–death process in disguise: with duplication rate `d`

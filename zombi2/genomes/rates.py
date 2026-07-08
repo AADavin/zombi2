@@ -111,17 +111,29 @@ class RateModel(ABC):
 
 
 class SharedRates(RateModel):
-    """Every gene family shares the same per-copy D/T/L rates (v1 default)."""
+    """Every gene family shares the same per-copy D/T/L rates (v1 default).
+
+    An optional per-copy ``conversion`` rate adds **intra-genome gene conversion**: one copy of a
+    family overwrites ("converts") another copy of the *same* family in the same genome —
+    non-reciprocal and copy-number-neutral, the intra-genome analogue of transfer. It fires only on
+    families holding two or more copies (a family with ``n`` copies converts at total rate
+    ``conversion · n``), pulling within-family coalescences toward the present (concerted evolution).
+    Pair it with a :class:`~zombi2.genomes.conversion.ConversionModel` (via
+    ``simulate_genomes(..., conversions=...)``) to bias the donor; without one, conversion is
+    unbiased. Conversion shapes gene *trees* rather than copy-number profiles, so a model with
+    ``conversion > 0`` runs on the Python engine (never the Rust counts-only path).
+    """
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
                  *, inversion: float = 0.0, transposition: float = 0.0,
                  insertion: float = 0.0, deletion: float = 0.0,
+                 conversion: float = 0.0,
                  carrying_capacity: float | None = None):
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
                  ("transposition", transposition), ("insertion", insertion),
-                 ("deletion", deletion))
+                 ("deletion", deletion), ("conversion", conversion))
         for name, value in rates:
             if value < 0:
                 raise ValueError(f"{name} rate must be >= 0, got {value}")
@@ -135,6 +147,8 @@ class SharedRates(RateModel):
         # intergenic indels: only fired by the nucleotide genome (per-nucleotide rate)
         self.insertion = float(insertion)
         self.deletion = float(deletion)
+        # intra-genome gene conversion: only fired by multiset genomes with >= 2 copies of a family
+        self.conversion = float(conversion)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
 
     def _regulated(self) -> bool:
@@ -170,6 +184,15 @@ class SharedRates(RateModel):
                 out.append(EventWeight(EventType.INSERTION, None, self.insertion * n))
             if self.deletion > 0:
                 out.append(EventWeight(EventType.DELETION, None, self.deletion * n))
+        if self.conversion > 0 and n > 0:
+            # intra-genome gene conversion: a same-family copy overwrites another. It needs a donor
+            # AND a recipient, so only families with >= 2 copies qualify; a family with cn copies
+            # converts at total rate conversion * cn. Family-specific (never the family=None fast
+            # path), so the simulator is told which family to convert.
+            for family in genome.families():
+                cn = genome.copy_number(family)
+                if cn >= 2:
+                    out.append(EventWeight(EventType.CONVERSION, family, self.conversion * cn))
         if self.origination > 0:
             out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
         return out

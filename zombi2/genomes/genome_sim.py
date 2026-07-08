@@ -77,8 +77,8 @@ class GenomeSimulator:
 
         ``genome_factory(ids)`` builds the root genome; every other genome is produced by
         :meth:`Genome.clone_reminting`. ``transfers`` sets transfer mechanics; ``conversions`` sets
-        intra-genome gene-conversion directionality (any object with a ``bias`` attribute — the
-        experimental :class:`zombi2.experimental.ConversionModel`; ``None`` = unbiased);
+        intra-genome gene-conversion directionality (any object with a ``bias`` attribute — a
+        :class:`~zombi2.genomes.conversion.ConversionModel`; ``None`` = unbiased);
         ``max_family_size`` (int absolute, or float as a multiple of the species count) bounds family
         growth.
 
@@ -395,8 +395,8 @@ class GenomeSimulator:
             return (branch, recipient)
 
         if event is EventType.CONVERSION:
-            # Intra-genome gene conversion (activated by zombi2.experimental.GeneConversionRates,
-            # which emits the CONVERSION weights; dormant otherwise). The donor lineage bifurcates
+            # Intra-genome gene conversion (activated by SharedRates(conversion=...), which emits
+            # the CONVERSION weights; dormant otherwise). The donor lineage bifurcates
             # and the recipient copy of the same family is overwritten, so copy number is unchanged
             # and the converted copy coalesces with the donor at time t (concerted evolution). The
             # rate model only fires this on a family with >= 2 copies, so `family` is always set. It

@@ -24,6 +24,7 @@ from zombi2.sequences.clocks import (
 )
 from zombi2.genomes.genome import OrderedGenome
 from zombi2.genomes.rates import BranchRates, FamilySampledRates, PerGenomeRates, SharedRates
+from zombi2.genomes.conversion import ConversionModel
 from zombi2.genomes.read_rates import read_branch_rates, read_family_rates
 from zombi2.sequences.evolution import SequenceEvolution
 from zombi2.genomes.simulation import Genomes, simulate_genomes
@@ -249,6 +250,18 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
                         "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
+
+    g = p.add_argument_group(
+        "gene conversion",
+        "intra-genome (ectopic) gene conversion; --rate-model shared on unordered genomes")
+    g.add_argument("--conversion", type=float, default=0.0, metavar="RATE",
+                   help="per-copy intra-genome gene-conversion rate: one copy of a family overwrites "
+                        "another copy of the SAME family (concerted evolution), pulling their "
+                        "coalescence toward the present. Fires only on families with >= 2 copies")
+    g.add_argument("--conversion-bias", type=float, default=0.0, metavar="B",
+                   dest="conversion_bias",
+                   help="donor directionality in [0, 1]: 0 = donor drawn uniformly (default); "
+                        "1 = always the family's oldest copy (homogenise toward the founder)")
 
     g = p.add_argument_group(
         "custom rate tables",
@@ -1485,14 +1498,23 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if family_mode and args.rate_model == "per-genome":
         parser.error("--family-rates is itself a per-family model; do not also pass "
                      "--rate-model per-genome")
+    if args.conversion and family_mode:
+        parser.error("gene conversion (--conversion) needs --rate-model shared; the per-family "
+                     "table carries no conversion rate")
 
     rates = None  # None => use the D/T/L/O shorthand (plain shared, unordered — the Rust fast path)
     if args.rate_model == "per-genome":
+        if args.conversion:
+            parser.error("gene conversion (--conversion) needs --rate-model shared; "
+                         "per-genome rates do not carry it")
         if ordered and (args.inversion is not None or args.transposition is not None):
             parser.error("rearrangements (--inversion/--transposition) need --rate-model shared; "
                          "per-genome rates do not carry them")
         rates = PerGenomeRates(args.dup, args.trans, args.loss, args.orig)
     elif ordered:  # shared per-copy rates + rearrangements on an ordered chromosome
+        if args.conversion:
+            parser.error("gene conversion (--conversion) is only supported on unordered genomes "
+                         "(--genome-model unordered)")
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
@@ -1507,16 +1529,21 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     transfers = None
     if args.branch_rates is not None:
         emission, receptivity = read_branch_rates(args.branch_rates)
-        if rates is None:
-            rates = SharedRates(args.dup, args.trans, args.loss, args.orig)
+        if rates is None:  # plain shared base — carry the conversion rate through the overlay
+            rates = SharedRates(args.dup, args.trans, args.loss, args.orig,
+                                conversion=args.conversion)
         if emission:
             rates = BranchRates(rates, factors=emission, events=("transfer",))
         if receptivity:
             transfers = TransferModel(receptivity=receptivity)
 
-    model_kw = (dict(rates=rates) if rates is not None else
-                dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
-                     origination=args.orig))
+    if rates is None:  # plain shared (unordered): D/T/L/O shorthand + optional gene conversion
+        model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
+                        origination=args.orig, conversion=args.conversion)
+    else:
+        model_kw = dict(rates=rates)
+    if args.conversion:
+        model_kw["conversions"] = ConversionModel(bias=args.conversion_bias)
     if transfers is not None:
         model_kw["transfers"] = transfers
     rate_kw = dict(**model_kw, initial_families=initial_families,
@@ -1530,13 +1557,16 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     score = getattr(args, "score_likelihoods", False)
 
     t0 = time.perf_counter()
-    if parts == {"profiles"} and not score and not ordered:
-        # counts-only Rust fast path: no genealogy reconstructed (parallel when --threads > 1)
+    if parts == {"profiles"} and not score and not ordered and not args.conversion:
+        # counts-only Rust fast path: no genealogy reconstructed (parallel when --threads > 1).
+        # Conversion only reshapes gene trees (copy numbers are unchanged), so it has no bearing on
+        # a profiles-only run and stays on the full path below.
         profiles = simulate_genomes(tree, output="profiles", threads=args.threads, **rate_kw)
         dt = time.perf_counter() - t0
         _write_profiles_only(args.out, tree, profiles, sparse=args.sparse)
         n_families = len(profiles.families)
-    elif "trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered:
+    elif ("trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered
+          and not args.conversion):
         # event-trace fast path: compact Events_trace.tsv (+ profile), no per-event objects,
         # no gene-tree reconstruction — near counts-only speed, trees reconstructable later
         trace = simulate_genomes(tree, output="trace", **rate_kw)

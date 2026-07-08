@@ -26,6 +26,7 @@ Where the model has a known analytic expectation, many seeded replicates are com
 | JC69 sequences | Jukes–Cantor distance recovered from 150k sites | `test_sequence_sim.py::test_jc_distance_recovered` |
 | HKY85 sequences | stationary base frequencies recovered to ±0.01 | `test_sequence_sim.py::test_stationary_frequencies_recovered` |
 | LG/WAG/JTT/Dayhoff | published amino-acid frequencies, to `1e-4` | `test_sequence_sim.py::test_empirical_aa_frequencies_match_published` |
+| Gene conversion | mean within-family coalescence depth `1/(2c)` on a stable two-copy family | `test_gene_conversion.py::test_conversion_homogenizes_coalescence_depth_matches_theory` |
 
 ### Statistical — reduction to a known case
 
