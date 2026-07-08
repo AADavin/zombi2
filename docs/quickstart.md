@@ -32,6 +32,7 @@ Everything is seeded: the same `seed` gives byte-identical results.
 | `gene_trees/<fid>_complete.nwk` / `_extant.nwk` | reconstructed gene trees (with / without losses) |
 | `Transfers.tsv` | every transfer (donor, recipient, ids) |
 | `Gene_family_summary.tsv` | per-family event counts and extant copies |
+| `Events_trace.tsv` | compact one-row-per-event trace (O/D/T/L), replayable by `zombi2 sequence` |
 | `Profiles.tsv` / `Presence.tsv` | families × species copy-number / presence matrix |
 
 The Python `write()` saves **all** of these by default. The `zombi2 genomes` **command line**
