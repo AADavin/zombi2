@@ -1,4 +1,5 @@
-"""Command-line interface for ZOMBI2 (``zombi2 species`` / ``genomes`` / ``trait``)."""
+"""Command-line interface for ZOMBI2 (``species`` / ``genomes`` / ``trait`` / ``sequence`` /
+``coevolve`` / ``tools`` subcommands)."""
 
 from __future__ import annotations
 
@@ -863,11 +864,11 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# coevolve: the directed-coupling umbrella (Phase 1: traits:species = SSE)
+# coevolve: the directed-coupling umbrella over {species, traits, genes}
 # ═══════════════════════════════════════════════════════════════════════════════
 _COEVOLVE_NODES = ("species", "traits", "genes")
-# every directed edge in the coevolution design (docs/models/coevolution.md); Phase 1
-# implements only traits:species.
+# every directed edge in the coevolution design (docs/guide/coevolution.md); all six directed
+# edges and the joint (both-arrow) models are implemented.
 _COEVOLVE_EDGES = {
     "traits:species", "genes:species", "species:traits",
     "species:genes", "traits:genes", "genes:traits",
@@ -883,7 +884,7 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
                         "combination = ClaSSE, 'genes:species' (key innovations), 'species:genes' "
                         "(cladogenetic genome), 'genes:traits' (a modifier gene switches a trait "
                         "optimum) and 'traits:genes' (a trait conditions a gene-family panel). "
-                        "Repeatable; default traits:species. See docs/models/coevolution.md for "
+                        "Repeatable; default traits:species. See docs/guide/coevolution.md for "
                         "the full edge set")
     g.add_argument("-t", "--tree", default=None, metavar="FILE",
                    help="input species tree (Newick) — required for the on-a-given-tree edges "
@@ -1097,17 +1098,8 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         if e not in _COEVOLVE_EDGES:
             parser.error(f"unknown --couple edge {e!r}: expected 'driver:target' over "
                          f"{{{', '.join(_COEVOLVE_NODES)}}} (e.g. traits:species); see "
-                         "docs/models/coevolution.md for the full edge set")
+                         "docs/guide/coevolution.md for the full edge set")
     eset = set(edges)
-    supported = {"traits:species", "species:traits", "genes:species", "species:genes",
-                 "genes:traits", "traits:genes"}
-    unsupported = eset - supported
-    if unsupported:
-        parser.error(f"--couple {', '.join(sorted(unsupported))} is planned but not yet "
-                     "implemented; the built edges are traits:species (SSE), species:traits "
-                     "(cladogenetic), their combination (ClaSSE), genes:species (key innovations), "
-                     "species:genes (cladogenetic genome), genes:traits (gene-conditioned trait), "
-                     "and traits:genes (trait-conditioned genes). See docs/models/coevolution.md")
 
     # ---- joint (both-arrow) models: a node-pair with BOTH its directed edges on ----
     # species<->genes: driver gene content drives diversification AND bursts at each speciation
@@ -1126,7 +1118,7 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         if eset != {"traits:genes"}:
             parser.error("traits:genes combines only with genes:traits (the trait-gene feedback "
                          "joint model); other combinations are future work — see "
-                         "docs/models/coevolution.md")
+                         "docs/guide/coevolution.md")
         return _run_traits_genes(args, parser)
 
     # genes:species — gene content drives diversification (a forward joint loop). Combines with
@@ -1135,7 +1127,7 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         if eset != {"genes:species"}:
             parser.error("genes:species combines only with species:genes (the co-diversification "
                          "joint model); other combinations are future work — see "
-                         "docs/models/coevolution.md")
+                         "docs/guide/coevolution.md")
         return _run_genes_species(args, parser)
 
     # genes:traits — gene content conditions a trait (a modifier gene switches the trait's OU
@@ -1144,7 +1136,7 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         if eset != {"genes:traits"}:
             parser.error("genes:traits combines only with traits:genes (the trait-gene feedback "
                          "joint model); other combinations are future work — see "
-                         "docs/models/coevolution.md")
+                         "docs/guide/coevolution.md")
         return _run_genes_traits(args, parser)
 
     # species:genes — speciation drives gene content (cladogenetic genome). An overlay edge (no
@@ -1153,7 +1145,7 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
         if eset != {"species:genes"}:
             parser.error("species:genes combines only with genes:species (the co-diversification "
                          "joint model); other combinations are future work — see "
-                         "docs/models/coevolution.md")
+                         "docs/guide/coevolution.md")
         return _run_species_genes(args, parser)
 
     traits_species = "traits:species" in eset      # SSE arrow (trait -> diversification), into S
@@ -1454,6 +1446,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
             parser.error("--initial-families is for the unordered genome level "
                          "(--genome-model unordered); the nucleotide model uses "
                          "--initial-chromosomes")
+        if getattr(args, "score_likelihoods", False):
+            parser.error("--score-likelihoods scores reconstructed gene-family trees, which the "
+                         "nucleotide genome model does not produce; use --genome-model "
+                         "unordered/ordered to score reconciliation likelihoods")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
