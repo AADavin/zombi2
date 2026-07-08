@@ -23,6 +23,9 @@ nucleotide levels add more; see Chapter 7 and their own chapters):
 | **Transfer (T)** | a copy is gained by another lineage alive at that time |
 | **Loss (L)** | a copy is removed |
 
+A fifth, optional event — **gene conversion (C)**, one copy of a family overwriting another copy of
+the same family — is covered in its own section below; it is off unless a `conversion` rate is set.
+
 Speciation is implicit: at each species-tree node the branch's genome is inherited, intact, by
 both children. No gene event is attached to the node itself; the four events fire only along the
 branches between nodes.
@@ -170,6 +173,64 @@ simulate_genomes(tree, transfer=1.0, duplication=0.0,
 ::: warning
 Self-transfers grow families exactly as duplications do, so always pair `allow_self=True` with a
 growth cap.
+:::
+
+## Gene conversion
+
+**Intra-genome gene conversion** is the intra-genome analogue of a transfer: within a *single*
+genome, one copy of a family overwrites ("converts") another copy of the **same family**. It is
+**non-reciprocal** (the donor/template copy is unchanged, the recipient is overwritten) and a
+**replacement, not a duplication** — the copy number does not change. Repeated, it homogenises a
+family's copies (**concerted evolution**) and, because the overwritten copy's own history is erased,
+it pulls the reconstructed within-family coalescences toward the present.
+
+![Intra-genome gene conversion. **A** — the mechanism: a duplication makes two copies; a later
+conversion has the template copy overwrite the other, so copy number is unchanged but the two
+surviving copies now coalesce at the conversion time, not at the (older) duplication. **B** — a
+complete gene tree from a run with conversion, with the conversion (filled circle) shown against the
+duplications (squares) and losses (crosses).](figures/gene_conversion.pdf){width=100%}
+
+The rate is a per-copy `conversion` rate on `SharedRates` (or the `conversion=` shorthand); a
+`ConversionModel` sets *what a conversion does* once it fires — the donor directionality — exactly as
+a `TransferModel` does for transfers:
+
+```python
+from zombi2 import simulate_genomes, SharedRates, ConversionModel
+
+genomes = simulate_genomes(
+    tree,
+    SharedRates(duplication=0.4, loss=0.1, conversion=1.0),
+    conversions=ConversionModel(bias=0.0),   # 0 = unbiased donor; 1 = toward the founder
+    initial_families=40, seed=42,
+)
+```
+
+A conversion needs both a donor and a recipient, so it fires only on families holding **two or more
+copies**: a family with $n$ copies is converted at total rate $c\,n$. On a long lineage that keeps a
+family at two copies, conversions arrive as a Poisson process of rate $2c$ and each resets the pair's
+coalescence, so the expected within-family coalescence depth is $1/(2c)$ — the oracle the model is
+validated against.
+
+### Donor directionality
+
+The **recipient** (overwritten) copy is always chosen uniformly; `ConversionModel(bias=…)` controls
+only the **donor**. `bias=0` (the default) draws the donor uniformly among the family's other copies.
+`bias=1` always picks the family's oldest lineage (the founder), homogenising the other copies
+*toward* it. In between, with probability `bias` the oldest copy donates. Bias is inert when a family
+holds exactly two copies (there is only one possible donor).
+
+### From the command line
+
+```bash
+zombi2 genomes --tree species_tree.nwk \
+    --dup 0.4 --loss 0.1 --conversion 1.0 --conversion-bias 1.0 \
+    --initial-families 40 --seed 42 -o out/
+```
+
+::: note
+Conversion reshapes gene *trees* rather than copy-number profiles, so a run with `--conversion` takes
+the full (Python) engine rather than the Rust counts-only fast path, and is supported on unordered
+genomes with `--rate-model shared`.
 :::
 
 ## Bounding growth

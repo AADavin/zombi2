@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1800" height="1030" viewBox="0 0 1800 1030">
+<rect x="0" y="0" width="1800" height="1030" fill="white" />
+<svg x="0" y="0" xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+<rect x="0" y="0" width="900" height="900" fill="white" />
+<text x="40.0" y="58.0" font-size="46" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="bold" fill="#1a1a1a">A</text>
+<text x="96.0" y="58.0" font-size="40" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">The mechanism</text>
+<line x1="96.0" y1="170.0" x2="96.0" y2="812.0" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="butt" />
+<polygon points="96,828 88,810 104,810" fill="#8a8a8a" />
+<text transform="rotate(-90 80 491)" x="80.0" y="491.0" font-size="30" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="normal" fill="#8a8a8a">time</text>
+<line x1="460.0" y1="200.0" x2="460.0" y2="300.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<line x1="360.0" y1="300.0" x2="560.0" y2="300.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<rect x="446.0" y="286.0" width="28.0" height="28.0" fill="#1a1a1a" />
+<text x="460.0" y="270.0" font-size="30" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">duplication</text>
+<line x1="360.0" y1="300.0" x2="360.0" y2="812.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<line x1="560.0" y1="300.0" x2="560.0" y2="585.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="butt" stroke-dasharray="9,7" />
+<line x1="547.0" y1="572.0" x2="573.0" y2="598.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" /><line x1="547.0" y1="598.0" x2="573.0" y2="572.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<circle cx="360.0" cy="585.0" r="14.0" fill="#1a1a1a" />
+<line x1="360.0" y1="585.0" x2="560.0" y2="585.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<line x1="560.0" y1="585.0" x2="560.0" y2="812.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<text x="334.0" y="585.0" font-size="30" font-family="Helvetica" text-anchor="end" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">conversion</text>
+<text x="460.0" y="563.0" font-size="26" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="normal" fill="#8a8a8a">template overwrites the other copy</text>
+<text x="360.0" y="846.0" font-size="30" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">copy 1</text>
+<text x="560.0" y="846.0" font-size="30" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">copy 2</text>
+<line x1="648.0" y1="585.0" x2="648.0" y2="812.0" stroke="#1a1a1a" stroke-width="2.4" stroke-linecap="butt" />
+<line x1="640.0" y1="585.0" x2="648.0" y2="585.0" stroke="#1a1a1a" stroke-width="2.4" stroke-linecap="butt" />
+<line x1="640.0" y1="812.0" x2="648.0" y2="812.0" stroke="#1a1a1a" stroke-width="2.4" stroke-linecap="butt" />
+<text x="662.0" y="680.5" font-size="26" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">copies coalesce</text>
+<text x="662.0" y="714.5" font-size="26" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">at the conversion,</text>
+<text x="662.0" y="746.5" font-size="26" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#8a8a8a">not the duplication</text>
+<text x="460.0" y="128.0" font-size="26" font-family="Helvetica" text-anchor="middle" dominant-baseline="middle" font-weight="normal" fill="#8a8a8a">copy number is unchanged: 2 copies before and after</text>
+</svg>
+<svg x="900" y="0" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="900" height="900" viewBox="-450.0 -450.0 900 900">
+<defs>
+</defs>
+<rect x="-450.0" y="-450.0" width="900" height="900" fill="white" />
+<path d="M-211.67018640702344,-310.0 L-55.09217470777395,-310.0" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
+<path d="M185.74363484153264,-206.66666666666669 L310.0,-206.66666666666669" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,-103.33333333333334 L310.0,-103.33333333333334" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M179.7736045481833,-155.0 L185.74363484153264,-155.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,-155.0 L185.74363484153264,-206.66666666666669" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,-155.0 L185.74363484153264,-103.33333333333334" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,0.0 L310.0,0.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M226.61693226644263,103.33333333333331 L309.9999999999999,103.33333333333331" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M226.61693226644263,206.66666666666663 L309.9999999999999,206.66666666666663" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,154.99999999999997 L226.61693226644263,154.99999999999997" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M226.61693226644263,154.99999999999997 L226.61693226644263,103.33333333333331" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M226.61693226644263,154.99999999999997 L226.61693226644263,206.66666666666663" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M179.7736045481833,77.49999999999999 L185.74363484153264,77.49999999999999" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,77.49999999999999 L185.74363484153264,0.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M185.74363484153264,77.49999999999999 L185.74363484153264,154.99999999999997" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M116.46230188090038,-38.75000000000001 L179.7736045481833,-38.75000000000001" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M179.7736045481833,-38.75000000000001 L179.7736045481833,-155.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M179.7736045481833,-38.75000000000001 L179.7736045481833,77.49999999999999" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M116.46230188090038,310.0 L179.7736045481833,310.0" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
+<path d="M-211.67018640702344,135.625 L116.46230188090038,135.625" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M116.46230188090038,135.625 L116.46230188090038,-38.75000000000001" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M116.46230188090038,135.625 L116.46230188090038,310.0" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
+<path d="M-225.67018640702344,-87.1875 L-211.67018640702344,-87.1875" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<path d="M-211.67018640702344,-87.1875 L-211.67018640702344,-310.0" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
+<path d="M-211.67018640702344,-87.1875 L-211.67018640702344,135.625" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<text x="-41.09217470777395" y="-310.0" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<text x="324.0" y="-206.66666666666669" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">E_1</text>
+<text x="324.0" y="-103.33333333333334" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">F_1</text>
+<text x="324.0" y="0.0" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">E_2</text>
+<text x="323.9999999999999" y="103.33333333333331" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">F_2</text>
+<text x="323.9999999999999" y="206.66666666666663" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle">F_3</text>
+<text x="193.7736045481833" y="310.0" font-size="30" fill="#1a1a1a" font-family="Helvetica" transform="" text-anchor="start" dominant-baseline="middle"></text>
+<rect x="102.46230188090038" y="121.625" width="28.0" height="28.0" fill="#1a1a1a" opacity="1.0" />
+<rect x="212.61693226644263" y="140.99999999999997" width="28.0" height="28.0" fill="#1a1a1a" opacity="1.0" />
+<circle cx="179.7736045481833" cy="-38.75000000000001" r="14.0" fill="#1a1a1a" />
+<text x="203.7736045481833" y="-118.875" font-size="26" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">donor copy</text>
+<text x="203.7736045481833" y="41.374999999999986" font-size="26" fill="#8a8a8a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">converted copy</text>
+<path d="M-69.09217470777395,-324.0 L-41.09217470777395,-296.0" stroke="#1a1a1a" stroke-width="4.0" stroke-linecap="round" />
+<path d="M-69.09217470777395,-296.0 L-41.09217470777395,-324.0" stroke="#1a1a1a" stroke-width="4.0" stroke-linecap="round" />
+<path d="M165.7736045481833,296.0 L193.7736045481833,324.0" stroke="#1a1a1a" stroke-width="4.0" stroke-linecap="round" />
+<path d="M165.7736045481833,324.0 L193.7736045481833,296.0" stroke="#1a1a1a" stroke-width="4.0" stroke-linecap="round" />
+<path d="M-324.0,326.0 L211.6707917946717,326.0" stroke="black" stroke-width="1.8" />
+<path d="M-310.0,326.0 L-310.0,334.0" stroke="black" stroke-width="1.8" />
+<text x="-310.0" y="364.0" font-size="30" text-anchor="middle" font-family="Helvetica">0.0</text>
+<path d="M-49.16460410266416,326.0 L-49.16460410266416,334.0" stroke="black" stroke-width="1.8" />
+<text x="-49.16460410266416" y="364.0" font-size="30" text-anchor="middle" font-family="Helvetica">0.2</text>
+<path d="M211.6707917946717,326.0 L211.6707917946717,334.0" stroke="black" stroke-width="1.8" />
+<text x="211.6707917946717" y="364.0" font-size="30" text-anchor="middle" font-family="Helvetica">0.4</text>
+<text x="-56.16460410266416" y="409.0" font-size="30" text-anchor="middle" font-family="Helvetica">Time (root to present)</text>
+<text x="-424.0" y="-392.0" font-size="46" fill="#1a1a1a" font-weight="bold" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">B</text>
+<text x="-360.0" y="-392.0" font-size="40" fill="#1a1a1a" font-weight="normal" font-family="Helvetica" text-anchor="start" dominant-baseline="middle">A complete gene tree</text>
+</svg>
+<rect x="265.0" y="950.0" width="30.0" height="30.0" fill="#1a1a1a" />
+<text x="309.0" y="965.0" font-size="34" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">Duplication</text>
+<circle cx="580.0" cy="965.0" r="15.0" fill="#1a1a1a" />
+<text x="609.0" y="965.0" font-size="34" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">Conversion</text>
+<line x1="865.0" y1="950.0" x2="895.0" y2="980.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" /><line x1="865.0" y1="980.0" x2="895.0" y2="950.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<text x="909.0" y="965.0" font-size="34" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">Loss</text>
+<line x1="1070.0" y1="965.0" x2="1124.0" y2="965.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="round" />
+<text x="1136.0" y="965.0" font-size="34" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">surviving copy</text>
+<line x1="1440.0" y1="965.0" x2="1494.0" y2="965.0" stroke="#1a1a1a" stroke-width="4.5" stroke-linecap="butt" stroke-dasharray="8,6" />
+<text x="1506.0" y="965.0" font-size="34" font-family="Helvetica" text-anchor="start" dominant-baseline="middle" font-weight="normal" fill="#1a1a1a">overwritten / lost</text>
+</svg>

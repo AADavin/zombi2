@@ -398,6 +398,7 @@ def simulate_genomes(
     transfer: float = 0.0,
     loss: float = 0.0,
     origination: float = 0.0,
+    conversion: float = 0.0,
     initial_families: int = 20,
     transfers=None,
     conversions=None,
@@ -415,14 +416,15 @@ def simulate_genomes(
 
     Provide either a rate model (``rates=z.SharedRates(...)`` /
     ``z.FamilySampledRates(...)``) or the convenience shorthand
-    (``duplication=..., transfer=..., loss=..., origination=...``), which builds a
+    (``duplication=..., transfer=..., loss=..., origination=..., conversion=...``), which builds a
     :class:`~zombi2.SharedRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
     transfer mechanics; ``max_family_size`` (int absolute, or float as a multiple of the
     number of species) bounds family growth across duplication and transfer.
 
-    ``conversions`` sets intra-genome gene-conversion directionality — any object with a ``bias``
-    attribute (the experimental :class:`zombi2.experimental.ConversionModel`); it has an effect only
-    with the experimental :class:`zombi2.experimental.GeneConversionRates`, and is otherwise inert.
+    ``conversion`` is the per-copy intra-genome gene-conversion rate (a copy of a family overwrites
+    another copy of the same family; concerted evolution), and ``conversions`` sets its donor
+    directionality — any object with a ``bias`` attribute (a :class:`~zombi2.ConversionModel`).
+    Conversion has an effect only when ``conversion > 0``; ``conversions`` without it is inert.
 
     Engine (automatic, not a user choice): the **built-in** model — the default
     ``UnorderedGenome`` with a plain :class:`~zombi2.SharedRates` — runs on the compiled
@@ -452,12 +454,13 @@ def simulate_genomes(
     if threads > 1 and output != "profiles":
         raise ValueError("threads>1 (parallel simulation) is only supported for output='profiles'")
 
-    shorthand = any((duplication, transfer, loss, origination))
+    shorthand = any((duplication, transfer, loss, origination, conversion))
     if rates is None:
-        rates = SharedRates(duplication, transfer, loss, origination)
+        rates = SharedRates(duplication, transfer, loss, origination, conversion=conversion)
     elif shorthand:
         raise ValueError(
-            "pass a rate model OR the duplication/transfer/loss/origination shorthand, not both"
+            "pass a rate model OR the duplication/transfer/loss/origination/conversion shorthand, "
+            "not both"
         )
 
     from zombi2 import _rust
