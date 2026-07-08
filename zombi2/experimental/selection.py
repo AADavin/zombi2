@@ -61,8 +61,9 @@ class Critic(ABC):
 
     def score(self, seqs: list[str]) -> np.ndarray:
         """Per-sequence fitness (e.g. mean pseudo-log-likelihood per residue), one value per input.
-        Used by the **live** particle filter (P3); optional for frozen-only critics."""
-        raise NotImplementedError("score() is only needed for mode='live' (the P3 particle filter)")
+        A whole-sequence readout for analysis/validation; neither the frozen nor the live overlay
+        needs it (both drive selection through :meth:`profile`). Optional for profile-only critics."""
+        raise NotImplementedError("this Critic implements profile() only, not score()")
 
 
 class FixedProfileCritic(Critic):
@@ -204,7 +205,7 @@ def _jump(site_models: list[SubstitutionModel], parent: np.ndarray, t: float,
     out = np.empty(parent.shape[0], dtype=np.int8)
     for i in range(parent.shape[0]):
         c = np.cumsum(site_models[i].p_matrix(t)[parent[i]])
-        c[-1] = 1.0
+        c /= c[-1]              # renormalise: P(t) rows can be ~1e-5 off for a near-delta stationary
         out[i] = np.searchsorted(c, r[i], side="right")
     return out
 
@@ -220,7 +221,7 @@ def _evolve_frozen(root, subst: dict, site_models: list[SubstitutionModel],
 
     def visit(node, parent_states):
         t = float(subst.get(node, 0.0))
-        states = parent_states if t <= 0.0 else _jump(site_models, parent_states, t, rng)
+        states = parent_states if t <= 1e-12 else _jump(site_models, parent_states, t, rng)
         out[node.gid] = states
         for child in node.children:
             visit(child, states)
@@ -240,32 +241,42 @@ class PLMSelection:
     critic:
         A :class:`Critic` (e.g. :class:`ESM2Critic`, or :class:`FixedProfileCritic`).
     mode:
-        ``"frozen"`` (the only mode in P1). ``"live"`` (the epistatic particle filter) is P3 and
-        raises :class:`NotImplementedError` for now.
+        ``"frozen"`` -- read the per-site preference **once** on the root, so sites are independent
+        (no epistasis). ``"live"`` -- the **epistatic** mode: re-read the preference from the *current*
+        sequence every ``refresh`` substitutions/site as it drifts, so each site feels the others'
+        changes. Both use the same Halpern--Bruno kernel; live just refreshes it.
     beta:
         Selection strength (a finite value ``>= 0``). ``0`` reduces to the neutral base model.
     model:
         The neutral (mutation) amino-acid model; defaults to :func:`~zombi2.sequences.models.lg`.
         Must be a 20-state protein model.
+    refresh:
+        Live mode only: how often (in substitutions/site, *along each lineage*) to re-evaluate the
+        critic on the current sequence. Smaller = finer epistasis + more critic calls; ``inf`` never
+        refreshes (identical to ``frozen``). Default ``0.25``.
     """
 
     def __init__(self, critic: Critic, *, mode: str = "frozen", beta: float = 1.0,
-                 model: SubstitutionModel | None = None):
+                 model: SubstitutionModel | None = None, refresh: float = 0.25):
         warn_experimental("PLMSelection")
         if mode not in ("frozen", "live"):
             raise ValueError(f"mode must be 'frozen' or 'live', got {mode!r}")
-        if mode == "live":
-            raise NotImplementedError(
-                "mode='live' is the epistatic particle filter (P3); only 'frozen' is implemented")
         try:
             beta = float(beta)
         except (TypeError, ValueError):
             raise ValueError(f"beta must be a number, got {beta!r}") from None
         if not math.isfinite(beta) or beta < 0:
             raise ValueError(f"beta must be a finite value >= 0, got {beta}")
+        try:                               # validated for both modes so a bad value can never linger
+            refresh = float(refresh)
+        except (TypeError, ValueError):
+            raise ValueError(f"refresh must be a number, got {refresh!r}") from None
+        if not refresh > 1e-9:             # allows inf (= never refresh); rejects <=0, nan, sub-epsilon
+            raise ValueError(f"refresh must be > 1e-9 substitutions/site, got {refresh}")
         self.critic = critic
         self.mode = mode
         self.beta = beta
+        self.refresh = refresh
         self.model = model if model is not None else lg()
         if self.model.k != 20 or self.model.alphabet != AMINO_ACIDS:
             raise ValueError("PLMSelection needs a 20-state amino-acid model (e.g. lg())")
@@ -277,21 +288,63 @@ class PLMSelection:
         self._check_profile(prof, root_protein)
         return _site_targets(prof, self.model, self.beta)
 
+    def _build_models(self, protein: str) -> list[SubstitutionModel]:
+        """The per-site Halpern--Bruno models for ``protein`` (validates the critic's profile shape)."""
+        prof = self.critic.profile(protein)
+        self._check_profile(prof, protein)
+        targets = _site_targets(prof, self.model, self.beta)
+        return _site_models(targets, self.model.Q, self.model.stationary, self.model.alphabet)
+
     def evolve_family(self, root, subst: dict, root_protein: str, *,
                       rng: np.random.Generator) -> dict:
-        """Evolve one gene family's protein down its node tree (frozen mode).
+        """Evolve one gene family's protein down its node tree.
 
         ``root`` is a tree node (any object with ``.gid`` and ``.children`` -- e.g. a reconciliation
         ``_Node``); ``subst`` maps each node to the substitution length of the branch ending at it
-        (as :func:`~zombi2.sequences.evolution._annotate` produces). Returns ``{node.gid: protein}``.
+        (as :func:`~zombi2.sequences.evolution._annotate` produces). In ``frozen`` mode the per-site
+        kernel is read once on the root; in ``live`` mode it is re-read from the current sequence
+        every ``refresh`` substitutions/site (epistasis). Returns ``{node.gid: protein}``.
         """
-        prof = self.critic.profile(root_protein)
-        self._check_profile(prof, root_protein)
-        targets = _site_targets(prof, self.model, self.beta)
-        site_models = _site_models(targets, self.model.Q, self.model.stationary, self.model.alphabet)
-        root_states = encode(root_protein, rng, self.model.stationary, self.model.alphabet)
-        evolved = _evolve_frozen(root, subst, site_models, root_states, rng)
-        return {gid: decode(st, self.model.alphabet) for gid, st in evolved.items()}
+        alphabet = self.model.alphabet
+        root_states = encode(root_protein, rng, self.model.stationary, alphabet)
+        # build the kernel from the *concrete* root sequence actually placed at the root (resolving any
+        # ambiguity codes), so frozen and live see the same sequence -- keeping refresh=inf exactly frozen
+        root_seq = decode(root_states, alphabet)
+        if self.mode == "frozen":
+            evolved = _evolve_frozen(root, subst, self._build_models(root_seq), root_states, rng)
+        else:
+            evolved = self._evolve_live(root, subst, root_states, rng)
+        return {gid: decode(st, alphabet) for gid, st in evolved.items()}
+
+    def _evolve_live(self, root, subst: dict, root_states: np.ndarray,
+                     rng: np.random.Generator) -> dict:
+        """Live/epistatic descent: evolve under the Halpern--Bruno kernel, re-reading the critic on the
+        current sequence every ``self.refresh`` substitutions/site along each lineage (the profile
+        therefore tracks the drifting context). Children inherit the parent's committed sequence and
+        its current kernel; each then refreshes on its own schedule."""
+        alphabet = self.model.alphabet
+        out: dict = {}
+
+        def build(states: np.ndarray) -> list:
+            return self._build_models(decode(states, alphabet))
+
+        def visit(node, parent_states, models, accrued):
+            states = parent_states
+            remaining = float(subst.get(node, 0.0))
+            while remaining > 1e-12:
+                step = min(self.refresh - accrued, remaining)
+                states = _jump(models, states, step, rng)
+                accrued += step
+                remaining -= step
+                if accrued >= self.refresh - 1e-12:        # drifted a full refresh interval -> re-read
+                    models = build(states)
+                    accrued = 0.0
+            out[node.gid] = states
+            for child in node.children:
+                visit(child, states, models, accrued)
+
+        visit(root, root_states, build(root_states), 0.0)
+        return out
 
     def evolve_families(self, node_trees: dict, root_seqs: dict, *,
                         seed: int | None = None) -> dict:
