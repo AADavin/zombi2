@@ -93,14 +93,16 @@ the genome block shifted +1):**
 - **Ch7 `07-genome-evolution-overview.md` "Genome evolution"** — generalities: 3 levels, the
   level×rate two-axes framing, levels table + rate-model table, and a new **"Events, by level"**
   section (Adrián's key point — explicit per-level events + the "each level adds to the one below"
-  nesting, with a summary table). Fixed accuracy: **`--genome-model` exposes only `unordered` /
-  `nucleotide`; ordered is Python-only** (`OrderedGenome` factory) — the levels table now says so.
+  nesting, with a summary table). Fixed accuracy of the levels table. (At the time of this pass
+  `--genome-model` exposed only `unordered` / `nucleotide`; `--genome-model ordered` was added as a
+  CLI level on 2026-07-05 — see below — so ordered is no longer Python-only.)
 - **Ch8 `08-unordered-genomes.md` "Unordered genomes"** — the four events (heading renamed
   **"The four unordered events"**), rates (shared/per-genome/family), transfers, growth. Rate-model
   table moved up to Ch7; Rates section back-references it.
-- **Ch9** gene-trees-and-output (was 8) · **Ch10** coupling (was 9) · **Ch11** ordered (was 10) ·
-  **Ch12** nucleotide (was 11) · **Ch13** trait (was 12) · **Ch14** coevolution (was 13) ·
-  **Ch15** sequences (was 14).
+- Current chapter order (the former **coupling** chapter was removed with the Potts purge and the
+  files renumbered to close the gap): **Ch9** gene-trees-and-output · **Ch10** ordered ·
+  **Ch11** nucleotide · **Ch12** trait · **Ch13** coevolution · **Ch14** sequences ·
+  **Ch15** molecular clocks.
 - **Ordered is now a CLI level too (2026-07-05):** `--genome-model ordered` added (was Python-only).
   Wires `SharedRates(inversion=,transposition=)` + `genome_factory=OrderedGenome(ids, extension=)`;
   reuses `--inversion/--transposition` (per gene copy for ordered, per nt for nucleotide) and

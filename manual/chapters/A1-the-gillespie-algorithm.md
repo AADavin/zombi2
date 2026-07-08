@@ -260,7 +260,7 @@ timing machinery — total rate, exponential wait, proportional choice — never
 is why ZOMBI2 factors it into one shared component that every simulator reuses, and why
 understanding this one appendix carries you through all the chapters that use it. This engine
 is everywhere in the manual: it grows the species trees of Chapter 4, races the duplications,
-transfers and losses of the genome chapters, and flips the discrete traits of Chapter 13 —
+transfers and losses of the genome chapters, and flips the discrete traits of Chapter 12 —
 the same loop throughout, differing only in the events on its menu.
 
 ## …except when it isn't
@@ -274,7 +274,7 @@ The first is **sequence substitution along a fixed branch**. Once a gene tree an
 lengths are settled, evolving a DNA sequence down a branch does not require the individual
 substitution events — only the base at each end. The probability of ending in each state
 after a branch of length $t$ is given exactly by the matrix exponential $P(t) = e^{Qt}$, so
-ZOMBI2 draws each site's final base straight from $P(t)$ in a single step (Chapter 15).
+ZOMBI2 draws each site's final base straight from $P(t)$ in a single step (Chapter 14).
 Running Gillespie here would generate — and then discard — thousands of intermediate
 substitutions.
 
