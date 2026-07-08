@@ -76,3 +76,7 @@ from zombi2.experimental.selection import (  # noqa: E402
 )
 
 __all__ += ["Critic", "ESM2Critic", "FixedProfileCritic", "PLMSelection"]
+
+from zombi2.experimental.codon_selection import CodonSelection, translate  # noqa: E402
+
+__all__ += ["CodonSelection", "translate"]
