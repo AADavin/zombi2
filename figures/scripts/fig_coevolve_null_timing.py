@@ -66,9 +66,11 @@ def _tree(d, ox):
     _br(d, ox, 210, 330, 300, 330)        # t6
 
 
-# Six ticks per panel (same count = same amount of change). AT-node positions sit just past a fork;
-# ALONG-branch positions sit at branch midpoints, spread out.
-_AT_NODES = [(92, 150), (92, 280), (158, 180), (228, 100), (158, 250), (228, 290)]
+# Six ticks per panel (same count = same amount of change). AT-node positions sit right at a fork
+# (a daughter branch's origin, +3 px past the node x, so the tick touches the split); ALONG-branch
+# positions sit at branch midpoints, spread out. The internal node x-coords are 75 (root), 140
+# (both deep clade forks) and 210 (both shallow forks).
+_AT_NODES = [(78, 150), (78, 280), (143, 180), (213, 100), (143, 250), (213, 290)]
 _ALONG = [(108, 150), (240, 180), (258, 100), (108, 280), (238, 250), (262, 330)]
 
 
