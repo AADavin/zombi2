@@ -1087,3 +1087,30 @@ def test_renamed_flags_work_and_old_names_rejected(tmp_path):
                  "-o", str(out)]) == 0
     with pytest.raises(SystemExit):                    # old species --model is gone
         main(["species", "--model", "backward", "-o", str(tmp_path / "old")])
+
+
+def test_genomes_ordered_transposition_fires(tmp_path):
+    """`genomes --genome-model ordered --transposition` moves gene segments within the genome;
+    the events surface as transposition ('P') rows in Events_trace.tsv (Python engine, no Rust)."""
+    sp = tmp_path / "sp"
+    assert main(["species", "--tips", "8", "--seed", "1", "-o", str(sp)]) == 0
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"),
+               "--genome-model", "ordered", "--rate-model", "shared",
+               "--dup", "0.1", "--loss", "0.1", "--transposition", "0.5",
+               "--initial-families", "15", "--seed", "3", "--write", "trace", "-o", str(out)])
+    assert rc == 0
+    trace = (out / "Events_trace.tsv").read_text().splitlines()
+    assert trace[0].startswith("time\tevent\tbranch")
+    n_transpositions = sum(1 for ln in trace[1:] if ln.split("\t")[1] == "P")
+    assert n_transpositions > 0
+
+
+def test_genomes_transposition_needs_shared_rate_model(tmp_path):
+    """Rearrangements ride on the shared per-copy rate model; `--rate-model per-genome` rejects
+    them with a clear error rather than silently ignoring the flag."""
+    sp = tmp_path / "sp"
+    assert main(["species", "--tips", "8", "--seed", "1", "-o", str(sp)]) == 0
+    with pytest.raises(SystemExit):
+        main(["genomes", "-t", str(sp / "species_tree.nwk"), "--genome-model", "ordered",
+              "--rate-model", "per-genome", "--transposition", "0.3", "-o", str(tmp_path / "g")])

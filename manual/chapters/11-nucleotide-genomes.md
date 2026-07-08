@@ -128,6 +128,24 @@ where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `gene
 annotation, including originated genes), gene and intergene trees under `Gene_trees/` and
 `Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
+### BED gene annotations
+
+Adding `bed` to `--write` (genic mode) emits the gene annotations in standard **BED6**, ready for a
+genome browser (IGV, JBrowse, UCSC) or `bedtools`. Two things are written: `genes.bed`, the root
+(seed) genome's genes keyed to the input sequence name (the GFF/FASTA seqid), and one
+`BED/<node>.bed` per node giving that node's genes at their coordinates *after* the rearrangements
+on the path from the root, keyed to the node id so a leaf's BED lines up with its
+`Genomes/<node>.fasta.gz` (from `--write ancestral`). Columns are
+`chrom  chromStart  chromEnd  name  score  strand`, 0-based half-open — the convention ZOMBI2 uses
+internally, so no conversion is needed. `strand` is orientation *relative to the root* (every gene
+is `+` at the root; an inversion flips it), not a GFF coding strand, which the genic model does not
+track.
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+  --gff ecoli.gff --transposition 2e-6 --inversion 2e-6 --write bed -o out/
+```
+
 ### Starting from a real genome (GFF)
 
 Instead of writing intervals by hand, point the model at a real annotation — e.g. a RefSeq bacterial

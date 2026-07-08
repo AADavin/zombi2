@@ -96,12 +96,17 @@ The `genomes` command writes a chosen subset of parts (`--write PART ...`); the 
 | `events` | `gene_family_events/<family>_events.tsv` (per-family detail) |
 | `transfers` | `Transfers.tsv` |
 | `summary` | `Gene_family_summary.tsv` |
+| `branch_events` | `Branch_events.tsv` (per-species-branch event counts, with `is_extant`) |
+| `bed` | [nucleotide, genic] `genes.bed` + `BED/<node>.bed` (BED6 gene annotations) |
+| `ancestral` | [nucleotide] `Architecture/`, `Genomes/<node>.fasta.gz`, `Gene_alignments/` |
 
 Representative schemas (quote these when adding a related output):
 
 ```
 # Profiles.tsv          family  n0  n1  n2 ...        (copy counts)
 # Events_trace.tsv      time  event  branch  donor  recipient  family  parent  child1  child2
+# Branch_events.tsv     branch  time  is_leaf  is_extant  origination  duplication  transfer_in  transfer_out  loss  inversion  transposition  total
+# <node>.bed            chrom  chromStart  chromEnd  name  score  strand      (BED6, 0-based half-open)
 # species_nodes.tsv     name  time  is_leaf  is_extant
 ```
 

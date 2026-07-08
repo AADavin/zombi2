@@ -262,13 +262,13 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | `--branch-rates FILE` | TSV of per-branch transfer `emission` (donation-rate factor) and/or `receptivity` (absorption weight) (`branch emission receptivity`, either optional) [unordered; receptivity-only stays on Rust] |
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
-| `--inversion` `--transposition` | [nucleotide] per-nucleotide inversion / transposition rates |
+| `--inversion` `--transposition` | [ordered/nucleotide] inversion / transposition (a segment moved elsewhere in the genome) rates — per gene copy for `ordered`, per nucleotide for `nucleotide` |
 | `--initial-chromosomes` | [nucleotide] number of root chromosomes seeded at the root (default: 1) |
 | `--root-length` `--mean-length` | [ordered/nucleotide] root chromosome length (nt) / mean inversion–transposition segment length (geometric; genes for ordered, nt for nucleotide) |
 | `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies the chromosome length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. `--gff-seqid ID` picks a sequence in a multi-record file |
 | `--genes FILE` | [nucleotide] BED/TSV of gene intervals (`start end [name]`) on the root chromosome — enables *genic mode* (genes are never split; genes & intergenes recovered as separate tree sets) |
 | `--pseudogenization` `--replacement` | [nucleotide, genic] probability a loss demotes a gene to intergene (sequence retained) / a transfer is a homologous replacement |
-| `--write {profiles,trace,trees,events,transfers,summary,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the counts-only fast path; `trace` (± `profiles`) → the compact `Events_trace.tsv` fast path — see below |
+| `--write {profiles,trace,trees,events,transfers,summary,branch_events,ancestral,bed,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the counts-only fast path; `trace` (± `profiles`) → the compact `Events_trace.tsv` fast path; `branch_events` → per-species-branch event counts (`Branch_events.tsv`, with an `is_extant` flag); `ancestral`/`bed` are nucleotide-only ([see below](#nucleotide-genomes-genome-model-nucleotide)) — see below |
 | `--sparse` | write the profile as a sparse `Profiles_sparse.tsv` instead of the dense matrix (needs `profiles` in `--write`) |
 | `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
@@ -322,9 +322,14 @@ needed. From a source checkout you build it once from `rust/` (see
 [the Rust engine](guide/rust-engine.md)); if it is missing the command exits with a build hint.
 
 `--write` selects which files to write — any of `profiles`, `trace`, `trees`, `events`,
-`transfers`, `summary`, or `all` (default: `profiles trees`); `species_tree.nwk` is always
-written, and a component you don't ask for does no work (e.g. omitting `trees` skips the gene-tree
-reconstruction). Asking for **only** `profiles` takes the Rust counts-only fast path (no
+`transfers`, `summary`, `branch_events`, or `all` (default: `profiles trees`); `species_tree.nwk`
+is always written, and a component you don't ask for does no work (e.g. omitting `trees` skips the
+gene-tree reconstruction). `branch_events` writes `Branch_events.tsv` — one row per species-tree
+branch with the count of each event that fired on it (D/T/L/O, plus inversion/transposition for
+ordered genomes; transfers split into `transfer_out`/`transfer_in`) and an `is_extant` flag, so the
+extant-tree view is a filter. The nucleotide model adds two more parts, `ancestral` (simulate DNA +
+reconstruct every node's genome) and `bed` (BED gene annotations), described in the nucleotide
+section. Asking for **only** `profiles` takes the Rust counts-only fast path (no
 genealogy); `--sparse` then writes the profile as a scalable `Profiles_sparse.tsv` long table
 instead of the dense matrix:
 

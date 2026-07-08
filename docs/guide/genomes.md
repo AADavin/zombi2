@@ -275,6 +275,13 @@ The returned `Genomes` object (and `--write`) exposes:
   family's D/T/L/S events map onto the species tree.
 - **Events trace** — `Events_trace.tsv`, one compact chronological log of every event, from which gene
   trees can be reconstructed on demand. Also `Transfers.tsv` and `Gene_family_summary.tsv`.
+- **Per-branch event counts** — `--write branch_events` writes `Branch_events.tsv`: one row per branch
+  of the species tree with the number of each event that fired on it (`origination`, `duplication`,
+  `transfer_out`, `transfer_in`, `loss`, and `inversion`/`transposition` for ordered genomes) plus a
+  `total`. An `is_extant` column (derived from node times: extant = ancestral to a present-day leaf)
+  makes the **extant-tree** view a filter — `awk -F'\t' 'NR==1||$4==1'`. `transfer_out` counts
+  transfers donated by the branch, `transfer_in` those it received, so summed over all branches the two
+  equal the number of transfers.
 
 Node and family names follow the [standard naming](../contributing/conventions.md#naming) (`g*` gene
 lineages, plain integers for families); event codes are **O**rigination, **D**uplication, **T**ransfer,
@@ -745,6 +752,28 @@ where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `gene
 annotation, including originated genes), gene/intergene trees under `Gene_trees/` and
 `Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
 
+#### BED gene annotations
+
+`--write bed` emits the gene annotations in standard **BED6** so they load straight into a genome
+browser (IGV, JBrowse, UCSC) or `bedtools`:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+  --gff ecoli.gff --transposition 2e-6 --inversion 2e-6 --write bed -o out/
+```
+
+- `genes.bed` — the **root (seed)** genome's genes, using the input sequence name as the chromosome
+  (the GFF/FASTA seqid), so it overlays the original genome.
+- `BED/<node>.bed` — every node's genes at their coordinates on **that node's** genome, *after* the
+  rearrangements on the path from the root. The chromosome is the node id, matching
+  `Genomes/<node>.fasta.gz` from `--write ancestral`, so a leaf's BED and FASTA line up in a browser.
+
+Columns are `chrom  chromStart  chromEnd  name  score  strand` (0-based half-open, the convention
+ZOMBI2 uses internally). `strand` is orientation **relative to the root** — every gene is `+` at the
+root and an inversion flips it — not a GFF coding strand (the genic model does not track that). BED
+needs declared genes (`--genes`/`--gff`); it drives the Python engine and can combine with
+`ancestral`.
+
 #### Starting from a real genome (GFF)
 
 Instead of writing intervals by hand, point the model at a real annotation — e.g. a RefSeq
@@ -815,7 +844,8 @@ zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
 
 writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node), gzipped
 `Genomes/<node>.fasta.gz` (the full assembled DNA of every node — `root.fasta.gz` reproduces the
-input), and `Gene_alignments/<gene>.fasta` (the extant per-gene alignments). Substitution-model
+input), and `Gene_alignments/<gene>.fasta` (the extant per-gene alignments). Add `bed` to `--write`
+for a `BED/<node>.bed` that annotates the genes on each of those FASTA files. Substitution-model
 options: `--subst-model`, `--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`.
 Sequence simulation runs on the Python engine and scales to real genomes (E. coli's 4.6 Mbp in a
 few seconds). See [Sequences](sequences.md) for the substitution models in detail.
@@ -854,7 +884,8 @@ The nucleotide level emits the block-based architecture: `Profiles.tsv`/`Presenc
 gives every leaf as an ordered signed block sequence, `gene_trees/` holds one reconstructed tree per
 block, and `Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv` record
 the block reconciliations. `--write ancestral` additionally simulates DNA and reconstructs the genome
-at every node. `species_tree.nwk` is always written and `genomes.log` is the run manifest.
+at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `BED/<node>.bed`).
+`species_tree.nwk` is always written and `genomes.log` is the run manifest.
 
 ### Validation
 
