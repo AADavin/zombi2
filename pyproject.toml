@@ -9,7 +9,7 @@ dynamic = ["version"]
 description = "A phylogenetic simulator of species trees and gene families"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "Adrian A. Davin" }]
+authors = [{ name = "Adrián A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
 # zombi2_core is the compiled Rust engine for the built-in gene-family model.
 # It ships as prebuilt binary wheels and is released in lockstep with zombi2,
@@ -27,6 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
 

@@ -11,6 +11,8 @@ authors:
   - given-names: "Adrián A."
     family-names: "Davin"
     email: "aaredav@gmail.com"
+# Keep in sync with zombi2/__init__.py __version__ and the zombi2_core== pin in
+# pyproject.toml on each release (see docs/publishing.md).
 version: "0.2.0"
 license: "MIT"
 repository-code: "https://github.com/AADavin/zombi2"

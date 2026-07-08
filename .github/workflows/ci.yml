@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v5
 
@@ -68,14 +68,11 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      # The docs build imports zombi2 (via mkdocstrings) but does not exercise
-      # the compiled engine -- zombi2._rust degrades gracefully when zombi2_core
-      # is absent. Install without deps to skip the compiled-engine pin (no Rust
-      # toolchain needed here), then add just what the docs build imports.
-      - name: Install ZOMBI2 (docs deps, engine-free)
-        run: |
-          pip install -e . --no-deps
-          pip install "numpy>=1.24" mkdocs-material "mkdocstrings[python]"
+      # Install the docs toolchain from the [docs] extra so it stays the single
+      # source of truth. zombi2_core resolves from PyPI as a prebuilt abi3 wheel
+      # (no Rust toolchain needed here); the docs build only needs zombi2 importable.
+      - name: Install ZOMBI2 (docs extra)
+        run: pip install -e ".[docs]"
 
       - name: Build the documentation (strict)
         run: mkdocs build --strict
