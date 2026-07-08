@@ -43,8 +43,9 @@ zombi2 genomes --tree run/species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42       -o run/
 ```
 
-`zombi2 <command> -h` documents each of `species`, `genomes`, `trait`, `sequence`, and
-`coevolve`; see the [quickstart](docs/quickstart.md) and [CLI reference](docs/cli.md).
+`zombi2 <command> -h` documents each of `species`, `genomes`, `trait`, `sequence`, `coevolve`,
+and `tools` (analysis utilities, e.g. reconciliation likelihoods); see the
+[quickstart](docs/quickstart.md) and [CLI reference](docs/cli.md).
 
 From Python, every model is a first-class object you can compose:
 

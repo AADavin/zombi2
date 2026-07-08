@@ -823,7 +823,7 @@ genomes.write("out/")
 ### The event log directly
 
 ```python
-from zombi2.events import EventType
+from zombi2 import EventType
 for r in genomes.event_log:
     if r.event is EventType.TRANSFER:
         print(r.time, r.donor, "->", r.recipient, [op.gid for op in r.genes])
