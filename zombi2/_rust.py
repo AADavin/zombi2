@@ -162,6 +162,16 @@ def _transfer_params(transfers):
             bool(transfers.allow_self))
 
 
+def _receptivity(transfers, nodes):
+    """Per-node transfer-absorption weights for Rust, indexed to match ``nodes`` (the pre-order
+    node list). Empty list = unweighted (the byte-identical fast path); a branch not in the map
+    defaults to 1.0."""
+    recept = getattr(transfers, "receptivity", None) if transfers is not None else None
+    if not recept:
+        return []
+    return [float(recept.get(n.name, 1.0)) for n in nodes]
+
+
 # --- profiles (counts only; the fast ABC / σ-dataset path) -----------------------
 
 def profiles(species_tree, rates, *, initial_size, transfers, max_family_size, seed):
@@ -173,10 +183,11 @@ def profiles(species_tree, rates, *, initial_size, transfers, max_family_size, s
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
+    recept = _receptivity(transfers, nodes)
 
     result = _core.simulate_profiles(
         len(nodes), parent, times, extant_leaf, root,
-        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself, recept,
     )
     return _assemble_profiles(result, nodes)
 
@@ -196,11 +207,12 @@ def profiles_parallel(species_tree, rates, *, initial_size, transfers, max_famil
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
+    recept = _receptivity(transfers, nodes)
 
     # copies = threads (one balanced Poisson-thinned copy per worker); pool size = threads
     result = _core.simulate_profiles_parallel(
         len(nodes), parent, times, extant_leaf, root,
-        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself, recept,
         int(threads), int(threads),
     )
     return _assemble_profiles(result, nodes)
@@ -359,10 +371,11 @@ def trace(species_tree, rates, *, initial_size, transfers, max_family_size, seed
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
+    recept = _receptivity(transfers, nodes)
 
     cols, leaf_coo = _core.simulate_trace(
         len(nodes), parent, times, extant_leaf, root,
-        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself, recept,
     )
     # leaf_coo is the flat COO profile buffers (per-family counts, no per-gene objects); assemble
     # straight from it. The compact trace's leaf identities are recovered by replaying against the
@@ -383,10 +396,11 @@ def genomes(species_tree, rates, *, initial_size, transfers, max_family_size, se
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     cap, seed_val = _cap_and_seed(max_family_size, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
+    recept = _receptivity(transfers, nodes)
 
     cols, leaves = _core.simulate_log(
         len(nodes), parent, times, extant_leaf, root,
-        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself,
+        d, t, l, o, int(initial_size), cap, seed_val, rep, dec, aself, recept,
     )
 
     leaf_genomes = {nodes[li]: _RustGenome(pairs) for li, pairs in leaves}
@@ -436,12 +450,13 @@ def nucleotide(species_tree, *, inversion, loss, duplication, transfer, transpos
     nodes, parent, times, extant_leaf, root = _tree_arrays(species_tree)
     _, seed_val = _cap_and_seed(None, sum(extant_leaf), seed)
     rep, dec, aself = _transfer_params(transfers)
+    recept = _receptivity(transfers, nodes)
 
     leaves = _core.simulate_nucleotide(
         len(nodes), parent, times, extant_leaf, root,
         float(inversion), float(loss), float(duplication), float(transfer),
         float(transposition), float(origination), int(root_length), float(extension),
-        int(initial_size), seed_val, rep, dec, aself,
+        int(initial_size), seed_val, rep, dec, aself, recept,
     )
 
     leaf_genomes = {}

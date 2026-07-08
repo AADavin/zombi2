@@ -30,14 +30,30 @@ class TransferModel:
         If ``True``, the donor lineage itself is an eligible recipient. A self-transfer
         creates a second copy in the same genome — mechanically a duplication — which lets
         one drop explicit duplications and run a transfer/loss-only model.
+    receptivity:
+        Per-branch **absorption** weights: a ``{branch_name: weight}`` map that biases which
+        lineage *receives* a transfer (the counterpart to transfer *emission*, which is a rate and
+        is scaled per branch via :class:`~zombi2.genomes.rates.BranchRates`). ``None`` (default)
+        leaves recipient choice unweighted. Otherwise each candidate's selection weight is
+        multiplied by its receptivity (branches not listed default to ``1.0``), composing with
+        ``distance_decay`` if that is also set. A branch with weight ``0`` never receives; a branch
+        with weight ``2`` is twice as likely as an unlisted one at the same distance. Reachable from
+        the CLI via ``--branch-rates FILE`` (see
+        :func:`~zombi2.genomes.read_rates.read_branch_rates`).
     """
 
     replacement: float = 0.0
     distance_decay: float | None = None
     allow_self: bool = False
+    receptivity: dict | None = None
 
     def __post_init__(self):
         if not (0.0 <= self.replacement <= 1.0):
             raise ValueError(f"replacement must be in [0, 1], got {self.replacement}")
         if self.distance_decay is not None and self.distance_decay < 0:
             raise ValueError(f"distance_decay must be >= 0, got {self.distance_decay}")
+        if self.receptivity is not None:
+            recept = {str(k): float(v) for k, v in self.receptivity.items()}
+            if any(v < 0 for v in recept.values()):
+                raise ValueError("receptivity weights must be >= 0")
+            self.receptivity = recept or None

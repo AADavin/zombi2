@@ -212,10 +212,20 @@ class PerGenomeRates(RateModel):
 
 
 class FamilySampledRates(RateModel):
-    """Each gene family draws its OWN D/T/L rates from distributions (ZOMBI-1 style)."""
+    """Each gene family has its OWN duplication/transfer/loss rates (ZOMBI-1 style).
+
+    By default every family **draws** its ``(d, t, l)`` from the given distributions at first
+    sighting. Pass ``rates`` to instead **fix** the rates of specific families by name: a
+    ``{family_id: (dup, transfer, loss)}`` map (e.g. ``{"1": (3, 2, 1), "2": (4, 0, 1)}``). Listed
+    families use their tabulated triple; families **not** listed fall back to drawing from the
+    distributions — so with the default rates of ``0`` (``Fixed(0)``) the unlisted families are
+    simply inert, and the tabulated ones are exactly as specified. This is the hand-specified
+    per-family model reachable from the CLI via ``--family-rates FILE`` (see
+    :func:`~zombi2.genomes.read_rates.read_family_rates`).
+    """
 
     def __init__(self, duplication=0.0, transfer=0.0, loss=0.0, origination: float = 0.0,
-                 *, carrying_capacity: float | None = None):
+                 *, rates: dict | None = None, carrying_capacity: float | None = None):
         self._dup = as_distribution(duplication)
         self._trans = as_distribution(transfer)
         self._loss = as_distribution(loss)
@@ -223,6 +233,12 @@ class FamilySampledRates(RateModel):
             raise ValueError(f"origination rate must be >= 0, got {origination}")
         self.origination = float(origination)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
+        self._fixed: dict[str, tuple[float, float, float]] = {}
+        for fam, triple in (rates or {}).items():
+            d, t, l = triple
+            if min(d, t, l) < 0:
+                raise ValueError(f"family {fam!r}: rates must be >= 0, got {triple}")
+            self._fixed[str(fam)] = (float(d), float(t), float(l))
         self._family_rates: dict[str, tuple[float, float, float]] = {}
 
     def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
@@ -230,7 +246,11 @@ class FamilySampledRates(RateModel):
         self._family_rates = {}
 
     def rates_for(self, family: str) -> tuple[float, float, float]:
-        """The (dup, transfer, loss) rates for a family, sampled and cached on first use."""
+        """The (dup, transfer, loss) rates for a family: the tabulated triple if the family is in
+        the ``rates`` map, otherwise sampled from the distributions and cached on first use."""
+        fixed = self._fixed.get(family)
+        if fixed is not None:
+            return fixed
         cached = self._family_rates.get(family)
         if cached is None:
             rng = self._rng
@@ -262,14 +282,43 @@ class FamilySampledRates(RateModel):
         return out
 
 
+_EVENT_BY_NAME = {
+    "duplication": EventType.DUPLICATION,
+    "transfer": EventType.TRANSFER,
+    "loss": EventType.LOSS,
+}
+
+
+def _resolve_events(events) -> frozenset:
+    """Normalise a set of scalable event kinds (names or ``EventType``) to a frozenset. ``None``
+    means all of duplication/transfer/loss (the default)."""
+    if events is None:
+        return frozenset((EventType.DUPLICATION, EventType.TRANSFER, EventType.LOSS))
+    out = set()
+    for e in events:
+        if isinstance(e, EventType):
+            out.add(e)
+        else:
+            key = str(e).lower()
+            if key not in _EVENT_BY_NAME:
+                raise ValueError(f"unknown event {e!r}; use duplication / transfer / loss")
+            out.add(_EVENT_BY_NAME[key])
+    if not out:
+        raise ValueError("events must name at least one of duplication / transfer / loss")
+    return frozenset(out)
+
+
 class BranchRates(RateModel):
     """Make rates vary per species-tree branch by scaling a base rate model.
 
-    Wraps any base rate model (``SharedRates``, ``FamilySampledRates``, ...) and
-    multiplies its duplication/transfer/loss weights on each branch by a per-branch
-    factor (a single scalar scaling D/T/L together; origination is left unscaled). This
-    composes with the base model, so branch heterogeneity and family/uniform rates
-    combine into a two-factor model.
+    Wraps any base rate model (``SharedRates``, ``FamilySampledRates``, ...) and multiplies its
+    weights on each branch by a per-branch factor. By default the factor scales
+    duplication/transfer/loss together (origination is left unscaled); pass ``events`` to restrict it
+    to specific event kinds — e.g. ``events=("transfer",)`` makes a branch more (or less) prone to
+    **donating** a transfer without touching its duplication/loss. This is the transfer-*emission*
+    dial; its counterpart, transfer *receptivity* (how likely a branch is to **receive**), lives on
+    :class:`~zombi2.genomes.transfers.TransferModel`. It composes with the base model, so branch
+    heterogeneity and family/uniform rates combine into a two-factor model.
 
     Provide exactly one factor source:
 
@@ -282,11 +331,13 @@ class BranchRates(RateModel):
     * ``factors`` — an explicit ``{branch_name: factor}`` map (branches not listed use
       ``root_rate``).
 
-    ``root_rate`` is the factor of the root branch (default 1.0).
+    ``root_rate`` is the factor of the root branch (default 1.0). ``events`` selects which event
+    kinds the factor scales (default: duplication, transfer, loss).
     """
 
     def __init__(self, base: RateModel, *, autocorr_sigma: float | None = None,
-                 per_branch=None, factors: dict | None = None, root_rate: float = 1.0):
+                 per_branch=None, factors: dict | None = None, root_rate: float = 1.0,
+                 events=None):
         sources = [autocorr_sigma is not None, per_branch is not None, factors is not None]
         if sum(sources) != 1:
             raise ValueError("specify exactly one of autocorr_sigma, per_branch, or factors")
@@ -297,9 +348,8 @@ class BranchRates(RateModel):
         self.per_branch = as_distribution(per_branch) if per_branch is not None else None
         self.explicit = dict(factors) if factors is not None else None
         self.root_rate = float(root_rate)
+        self._scaled = _resolve_events(events)
         self._factor: dict[str, float] = {}
-
-    _SCALED = (EventType.DUPLICATION, EventType.TRANSFER, EventType.LOSS)
 
     def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
         super().bind(rng, max_family_size, tree)
@@ -330,7 +380,7 @@ class BranchRates(RateModel):
         factor = self._branch_factor(branch)
         out = []
         for ew in self.base.event_weights(genome, branch, time):
-            if ew.event in self._SCALED and factor != 1.0:
+            if ew.event in self._scaled and factor != 1.0:
                 out.append(EventWeight(ew.event, ew.family, ew.rate * factor))
             else:
                 out.append(ew)
