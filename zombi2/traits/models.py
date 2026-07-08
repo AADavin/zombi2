@@ -6,7 +6,7 @@ a structure). This is the classic phylogenetic-comparative-methods setting (Fels
 1985): given a tree, drop a value at the root and let it wander down every branch to the
 tips.
 
-The engine is the same preorder walk that :mod:`~zombi2.rate_variation` already uses — each
+The engine is the same preorder walk that :mod:`~zombi2.sequences.clocks` already uses — each
 node inherits its parent's end-state and then evolves across its own branch — so a trait
 model needs only to answer *"starting from state ``x``, where do I end up after ``dt`` units
 of time?"*. Two families share that one driver:

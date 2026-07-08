@@ -310,10 +310,10 @@ def _build_event_log(cols, nodes) -> EventLog:
 
 def events_trace_tsv(columns, nodes) -> str:
     """Serialise the raw Rust event columns as the compact ``Events_trace.tsv`` text — the fast
-    path behind ``output="trace"``. This never builds an :class:`~zombi2.events.EventRecord`;
+    path behind ``output="trace"``. This never builds an :class:`~zombi2.genomes.events.EventRecord`;
     it formats the columns directly, which is the whole point (object construction is the wall
     on large trees). The format matches the record-based
-    :func:`zombi2.simulation.events_trace_from_log` exactly (g-prefixed gids, 1-based families)."""
+    :func:`zombi2.genomes.simulation.events_trace_from_log` exactly (g-prefixed gids, 1-based families)."""
     from zombi2.genomes.simulation import EVENTS_TRACE_HEADER
 
     ev, br, tm, dn, rc, fm, g0, g1, g2 = columns
@@ -352,7 +352,7 @@ def trace(species_tree, rates, *, initial_size, transfers, max_family_size, seed
     speciations). The returned columns are therefore O/D/T/L only — ~6x smaller than the full
     log in the low-rate regime — and the per-event Python objects are never built. The
     genealogy is reconstructed on demand by replaying the trace against the species tree
-    (:func:`zombi2.reconciliation.expand_trace`). This is the path behind
+    (:func:`zombi2.genomes.reconciliation.expand_trace`). This is the path behind
     ``simulate_genomes(..., output="trace")``."""
     require()
     d, t, l, o = _resolve_rates(rates)
