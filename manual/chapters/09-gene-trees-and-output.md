@@ -112,7 +112,7 @@ zombi2 genomes -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.1 \
 ```
 
 The selectable components are exactly `Genomes.WRITE_PARTS`: `profiles`, `trace`, `trees`, `events`,
-`transfers`, `summary` (the CLI also accepts `all`). Each maps to these paths:
+`transfers`, `summary`, `branch_events` (the CLI also accepts `all`). Each maps to these paths:
 
 | Component | Path(s) written |
 |---|---|
@@ -123,6 +123,7 @@ The selectable components are exactly `Genomes.WRITE_PARTS`: `profiles`, `trace`
 | `transfers` | `Transfers.tsv` — one row per transfer |
 | `summary` | `Gene_family_summary.tsv` — per-family origin, event counts, copies |
 | `trace` | `Events_trace.tsv` — the whole genealogy in one file |
+| `branch_events` | `Branch_events.tsv` — per-species-branch event counts, with an `is_extant` flag |
 
 `species_nodes.tsv` carries `name`, `time`, `is_leaf`, `is_extant` per node. A per-family events file
 has columns `time`, `event`, `branch`, `donor`, `recipient`, `nodes`, where `nodes` is a
@@ -130,6 +131,13 @@ has columns `time`, `event`, `branch`, `donor`, `recipient`, `nodes`, where `nod
 `recipient_branch`, `parent_id`, `donor_copy_id`, `transfer_id`. `Gene_family_summary.tsv` reports,
 per family, the origin time and branch, the D / T / L / speciation counts, and the extant copy and
 species-present totals — the last two taken from the sparse profile so no dense matrix is built.
+
+`Branch_events.tsv` transposes the event log onto the *species* tree: one row per branch, with
+`origination`, `duplication`, `transfer_in`, `transfer_out`, `loss`, `inversion`, `transposition`
+and a `total` (the events that fired on the branch — `transfer_out` counts, `transfer_in` does not,
+as it fired on the donor). The `is_extant` column, derived from node times (extant = ancestral to a
+present-day leaf), makes the per-branch table of the *extant* tree a one-line filter,
+`awk -F'\t' 'NR==1 || $4==1'`.
 
 ### Sparse profiles
 

@@ -21,6 +21,102 @@ from zombi2.tree import Tree
 #: (O/D/T/L/S), the scalable alternative to the per-family ``gene_family_events/`` directory.
 EVENTS_TRACE_HEADER = ("time\tevent\tbranch\tdonor\trecipient\tfamily\tparent\tchild1\tchild2")
 
+#: Header of the per-species-branch event summary (``Branch_events.tsv``): one row per branch of
+#: the species tree, with the count of each gene-family event that fired on it. Transfers are split
+#: into ``transfer_out`` (this branch is the donor) and ``transfer_in`` (the recipient). ``is_extant``
+#: flags the branches that survive to the present, so a table restricted to the *extant* tree is
+#: just this file filtered to ``is_extant == 1``.
+BRANCH_EVENTS_HEADER = (
+    "branch\ttime\tis_leaf\tis_extant\torigination\tduplication\ttransfer_in\ttransfer_out"
+    "\tloss\tinversion\ttransposition\ttotal"
+)
+
+#: Event kinds that are counted, per firing branch, in ``Branch_events.tsv`` (transfers are handled
+#: separately because they touch two branches). The value is the column name.
+_BRANCH_EVENT_COLUMNS = {
+    EventType.ORIGINATION: "origination",
+    EventType.DUPLICATION: "duplication",
+    EventType.LOSS: "loss",
+    EventType.INVERSION: "inversion",
+    EventType.TRANSPOSITION: "transposition",
+}
+
+#: Every count column (order-free); ``_TOTAL_COLUMNS`` is the subset summed into ``total`` — the
+#: events that fired *on* the branch (``transfer_in`` is excluded: it fired on the donor).
+_COUNTED_COLUMNS = ("origination", "duplication", "transfer_in", "transfer_out", "loss",
+                    "inversion", "transposition")
+_TOTAL_COLUMNS = ("origination", "duplication", "transfer_out", "loss", "inversion", "transposition")
+
+
+def _extant_branches(species_tree) -> set:
+    """Names of the branches on the *extant* species tree — those ancestral to a present-day leaf.
+
+    A leaf is present-day when it sits at the tree's maximum depth (``total_age``); an internal
+    branch is extant when any descendant leaf is. This is derived from node *times*, so it is
+    correct even for a tree loaded from a plain Newick (which carries no extant flag) — a leaf that
+    died before the present sits above ``total_age``'s depth and is not counted. In an ultrametric
+    (fully-sampled) tree every leaf is present-day, so every branch is extant.
+    """
+    total_age = species_tree.total_age
+    tol = 1e-9 * (abs(total_age) or 1.0)
+    extant: set = set()
+    # reversed preorder visits every node after all its descendants (a valid post-order)
+    for node in reversed(list(species_tree.nodes_preorder())):
+        if node.is_leaf():
+            if abs(node.time - total_age) <= tol:
+                extant.add(node.name)
+        elif any(c.name in extant for c in node.children):
+            extant.add(node.name)
+    return extant
+
+
+def branch_events_table(event_log, species_tree) -> str:
+    """Aggregate an :class:`~zombi2.events.EventLog` into per-species-branch event counts.
+
+    One row per branch of ``species_tree`` — *every* branch, including those on which nothing
+    happened — carrying how many of each event *fired on* that branch: originations,
+    duplications, losses and (for ordered genomes) inversions and transpositions, plus
+    ``transfer_out`` (the branch was the transfer donor). ``transfer_in`` counts transfers the
+    branch *received* (it was the recipient). ``total`` is the number of events that fired on the
+    branch — it therefore includes ``transfer_out`` but not ``transfer_in`` (that event fired on
+    the donor). ``is_extant`` marks branches reaching the present, so the per-branch table for the
+    *extant* species tree is this file filtered to ``is_extant == 1``.
+
+    Counts follow the event log's own granularity, so a multi-gene transfer on an ordered genome
+    contributes one row per gene — matching ``Transfers.tsv``. The compact trace path routes here
+    through :meth:`Genomes.write`, so speciation markers are already reinstated.
+    """
+    counts: dict[str, dict[str, int]] = {}
+
+    def bump(branch: str, column: str) -> None:
+        row = counts.get(branch)
+        if row is None:
+            row = counts[branch] = dict.fromkeys(_COUNTED_COLUMNS, 0)
+        row[column] += 1
+
+    for r in event_log:
+        if r.event is EventType.TRANSFER:
+            bump(r.branch, "transfer_out")
+            if r.recipient is not None:
+                bump(r.recipient, "transfer_in")
+        else:
+            column = _BRANCH_EVENT_COLUMNS.get(r.event)
+            if column is not None:
+                bump(r.branch, column)
+
+    zero = dict.fromkeys(_COUNTED_COLUMNS, 0)
+    extant = _extant_branches(species_tree)
+    rows = [BRANCH_EVENTS_HEADER]
+    for n in species_tree.nodes_preorder():
+        c = counts.get(n.name, zero)
+        total = sum(c[k] for k in _TOTAL_COLUMNS)
+        rows.append(
+            f"{n.name}\t{n.time:.10g}\t{int(n.is_leaf())}\t{int(n.name in extant)}\t"
+            f"{c['origination']}\t{c['duplication']}\t{c['transfer_in']}\t{c['transfer_out']}\t"
+            f"{c['loss']}\t{c['inversion']}\t{c['transposition']}\t{total}"
+        )
+    return "\n".join(rows) + "\n"
+
 
 def _write_tree_and_nodes(out: Path, tree: Tree) -> None:
     """Write the always-present ``species_tree.nwk`` + ``species_nodes.tsv`` pair."""
@@ -183,7 +279,7 @@ class Genomes:
 
     # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
     # are always written; the CLI's --write maps onto these names.
-    WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary")
+    WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary", "branch_events")
 
     # --- output ------------------------------------------------------------
     def write(self, outdir: str | Path, *, include=None, sparse: bool = False,
@@ -192,14 +288,18 @@ class Genomes:
 
         ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`
         (``"profiles"``, ``"trace"``, ``"trees"``, ``"events"``, ``"transfers"``,
-        ``"summary"``); ``None`` (the default) writes them all. ``species_tree.nwk`` and
-        ``species_nodes.tsv`` are always written. Omitted components do no work — notably
-        ``"trees"`` drives the (expensive) gene-tree reconstruction.
+        ``"summary"``, ``"branch_events"``); ``None`` (the default) writes them all.
+        ``species_tree.nwk`` and ``species_nodes.tsv`` are always written. Omitted components do
+        no work — notably ``"trees"`` drives the (expensive) gene-tree reconstruction.
 
         ``"trace"`` writes the compact single-file event log ``Events_trace.tsv`` (one row per
         event); it is the scalable alternative to ``"events"`` (per-family files) and is the
         record from which gene trees can be reconstructed later on demand. See
         :class:`GenomeTrace` for the fast path that produces it without materialising the log.
+
+        ``"branch_events"`` writes ``Branch_events.tsv`` — the per-species-branch event counts
+        (D/T/L/O and, for ordered genomes, inversion/transposition), one row per branch with an
+        ``is_extant`` flag so the extant-tree view is a filter (see :func:`branch_events_table`).
 
         With ``sparse=True`` the copy-number profile is written as a single sparse long
         table (``Profiles_sparse.tsv``) instead of the dense ``Profiles.tsv`` /
@@ -254,6 +354,12 @@ class Genomes:
                     p, dc, tc = (op.gid for op in r.genes)
                     tr_lines.append(f"{r.time:.10g}\t{r.family}\t{r.donor}\t{r.recipient}\t{p}\t{dc}\t{tc}")
             (out / "Transfers.tsv").write_text("\n".join(tr_lines) + "\n")
+
+        if "branch_events" in want:
+            # per-species-branch event counts (see branch_events_table); is_extant column
+            # makes the extant-tree view a filter.
+            (out / "Branch_events.tsv").write_text(
+                branch_events_table(self.event_log, self.species_tree))
 
         if "summary" in want:
             # per-family summary

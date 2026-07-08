@@ -281,14 +281,19 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="write", nargs="+", metavar="PART",
-                   choices=(*Genomes.WRITE_PARTS, "ancestral", "all"), default=["profiles", "trees"],
+                   choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "all"),
+                   default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
-                        "transfers, summary} or 'all' (default: profiles trees). species_tree.nwk "
-                        "is always written; 'profiles' alone takes the fast Rust counts-only path; "
-                        "'trace' (optionally with 'profiles') writes the compact single-file event "
-                        "log Events_trace.tsv near counts-only speed, from which gene trees can be "
-                        "reconstructed later on demand. [nucleotide] 'ancestral' simulates DNA and "
-                        "reconstructs the genome (architecture + gzipped FASTA) at every node")
+                        "transfers, summary, branch_events} or 'all' (default: profiles trees). "
+                        "species_tree.nwk is always written; 'profiles' alone takes the fast Rust "
+                        "counts-only path; 'trace' (optionally with 'profiles') writes the compact "
+                        "single-file event log Events_trace.tsv near counts-only speed, from which "
+                        "gene trees can be reconstructed later on demand; 'branch_events' writes "
+                        "Branch_events.tsv, the per-species-branch event counts (with an is_extant "
+                        "flag). [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
+                        "(architecture + gzipped FASTA) at every node; 'bed' writes BED gene "
+                        "annotations — genes.bed for the root genome and BED/<node>.bed per node "
+                        "(needs --genes/--gff)")
     g.add_argument("--sparse", action="store_true",
                    help="write the profile as a sparse long table (Profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense matrix — "
@@ -1965,11 +1970,12 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
-    want = parts & {"profiles", "trees", "ancestral"}
+    want = parts & {"profiles", "trees", "ancestral", "bed"}
     if not want:
-        raise ValueError("the nucleotide model writes 'profiles', 'trees' and/or 'ancestral'; "
-                         "--write events/transfers/summary do not apply to it")
+        raise ValueError("the nucleotide model writes 'profiles', 'trees', 'ancestral' and/or "
+                         "'bed'; --write events/transfers/summary/branch_events do not apply to it")
     ancestral = "ancestral" in want
+    bed = "bed" in want
     initial_chromosomes = 1 if args.initial_chromosomes is None else args.initial_chromosomes
     args.initial_chromosomes = initial_chromosomes  # record the effective value in the params log
     # the structural knobs are shared with the ordered level, so their defaults are resolved here
@@ -1989,6 +1995,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     else:
         genes = None
     genic = bool(genes)
+    if bed and not genic:
+        raise ValueError("--write bed annotates genes on each genome, so it needs gene "
+                         "coordinates: supply --genes or --gff")
     transfers = TransferModel(replacement=0.0) if genic else None  # homologous repl. is genome-side
     indels = bool(args.insertion or args.deletion)
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
@@ -1997,10 +2006,11 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                   indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
                   gene_intervals=genes, pseudogenization=args.pseudogenization,
-                  replacement=args.replacement, transfers=transfers, retain_internal=ancestral)
+                  replacement=args.replacement, transfers=transfers,
+                  retain_internal=ancestral or bed)  # bed annotates every node's genome
 
     t0 = time.perf_counter()
-    if "trees" in want or genic or ancestral or indels:  # these need the Python engine
+    if "trees" in want or genic or ancestral or bed or indels:  # these need the Python engine
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2035,6 +2045,8 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
             _write_pseudogenizations(args.out, result)
     if ancestral:
         _write_ancestral(args.out, result, tree, args, gff_info)
+    if bed:
+        _write_bed(args.out, result, tree, gff_info)
 
     if gff_info is not None:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
@@ -2113,6 +2125,49 @@ def _read_gene_intervals(path: str) -> list[tuple]:
     if not out:
         raise ValueError(f"no gene intervals found in {path!r} (expected 'start end [name]' lines)")
     return out
+
+
+def _write_bed(out: str, result, tree, gff_info) -> None:
+    """Write BED gene annotations — one BED6 feature per gene on each genome.
+
+    ``genes.bed`` is the root (seed) genome's annotation, using the input sequence name as the
+    chromosome (the GFF/FASTA seqid when a real genome was supplied) so it loads against the
+    original genome. ``BED/<node>.bed`` is the annotation of every node's genome *after*
+    rearrangements — genes at their coordinates on that node's chromosome, whose chromosome name
+    is the node id to match ``Genomes/<node>.fasta.gz`` (written by ``--write ancestral``).
+
+    Columns are standard BED6: ``chrom  chromStart  chromEnd  name  score  strand`` — 0-based,
+    half-open, the same coordinate convention ZOMBI2 uses internally, so no conversion is needed.
+    Only gene blocks are emitted (intergenes are the gaps); the score field is a constant 0.
+
+    ``strand`` is the gene's orientation *relative to the root genome* — every gene is ``+`` at the
+    root, and an inversion during evolution flips it. It is not a GFF-annotated coding strand: the
+    genic model does not track that (``read_gff`` reads only coordinates), so ``genes.bed`` is
+    always all ``+``.
+    """
+    def bed_rows(node, chrom: str) -> list[str]:
+        rows, offset = [], 0
+        for block_id, strand in result.node_mosaic(node):
+            block = result._block_by_id[block_id]
+            if block.kind == "gene":
+                rows.append(f"{chrom}\t{offset}\t{offset + block.length}\t"
+                            f"{block.gene_id}\t0\t{'+' if strand > 0 else '-'}")
+            offset += block.length
+        return rows
+
+    def write_bed(path: str, rows: list[str]) -> None:
+        with open(path, "w") as f:
+            f.write("\n".join(rows) + ("\n" if rows else ""))
+
+    # root (seed) annotation — chromosome named after the input sequence when known
+    root_chrom = gff_info.seqid if gff_info is not None else "root_chromosome"
+    write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_chrom))
+
+    # every node's genome (ancestral + extant), each keyed to its own FASTA record id
+    bdir = os.path.join(out, "BED")
+    os.makedirs(bdir, exist_ok=True)
+    for node in tree.nodes_preorder():
+        write_bed(os.path.join(bdir, f"{node.name}.bed"), bed_rows(node, node.name))
 
 
 def _write_genes_table(out: str, registry) -> None:

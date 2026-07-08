@@ -7,6 +7,23 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
+### Added
+
+- **Per-branch event tables** — `zombi2 genomes --write branch_events` writes `Branch_events.tsv`,
+  one row per species-tree branch with the count of each event that fired on it (origination,
+  duplication, `transfer_out`/`transfer_in`, loss, and inversion/transposition for ordered
+  genomes) plus a `total`. An `is_extant` column, derived from node times, makes the extant-tree
+  view a simple filter. Exposed on the API as `zombi2.genomes.simulation.branch_events_table`.
+- **BED gene annotations** — `zombi2 genomes --genome-model nucleotide --write bed` (genic mode)
+  writes `genes.bed` for the root genome and `BED/<node>.bed` for every node's genome after
+  rearrangements, in standard BED6 (0-based half-open), ready for genome browsers and `bedtools`.
+  Per-node BED chromosomes match `Genomes/<node>.fasta.gz` from `--write ancestral`.
+
+### Changed
+
+- Documented that `--transposition` (a segment moved elsewhere in the genome) applies to both the
+  `ordered` and `nucleotide` genome models, not only `nucleotide`.
+
 ## [0.2.0] - 2026-07-07
 
 First public release. ZOMBI2 is a ground-up redesign of
