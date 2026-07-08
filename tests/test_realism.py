@@ -38,6 +38,47 @@ def test_module_has_no_top_level_ml_imports():
     assert "torch" not in top and "esm" not in top and "scipy" not in top, top
 
 
+class _StubCritic:
+    """Duck-typed critic: maps each sequence (used as a lookup key) to a fixed embedding row, so the
+    covariance/sqrtm machinery can be tested without torch/esm."""
+
+    def __init__(self, table):
+        self.table = table
+
+    def embed(self, seqs):
+        return np.array([self.table[s] for s in seqs], dtype=float)
+
+
+def test_frechet_is_zero_for_a_set_versus_itself():
+    # the headline contract: FID(X, X) == 0. Exercises the sqrtm(Sa @ Sa) = Sa path that the
+    # discrimination test never touches (there dmu dominates).
+    rng = np.random.default_rng(0)
+    n, dim = 6, 8
+    rows = rng.normal(size=(n, dim))
+    crit = _StubCritic({f"s{i}": rows[i] for i in range(n)})
+    X = [f"s{i}" for i in range(n)]
+    assert frechet_esm_distance(X, X, crit) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_frechet_covariance_term_drives_the_distance_when_means_match():
+    # two sets with the SAME mean but different spread -> the ||dmu||^2 term is ~0, so a nonzero
+    # distance can only come from the covariance/sqrtm term. A mean-only metric would score ~0 here.
+    rng = np.random.default_rng(1)
+    n, dim = 40, 6
+    base = rng.normal(size=(n, dim))
+    base -= base.mean(0)                                          # centre -> zero mean
+    A, B = base, 3.0 * base                                       # same zero mean, 9x the covariance
+    table = {}
+    ak = [f"a{i}" for i in range(n)]
+    bk = [f"b{i}" for i in range(n)]
+    for i in range(n):
+        table[ak[i]], table[bk[i]] = A[i], B[i]
+    crit = _StubCritic(table)
+    dmu = A.mean(0) - B.mean(0)
+    assert float(dmu @ dmu) < 1e-6                                # means match -> mean-only distance ~0
+    assert frechet_esm_distance(ak, bk, crit) > 5.0              # ... so the covariance term drives it
+
+
 def test_frechet_esm_discriminates_same_family_from_different_protein():
     pytest.importorskip("torch")
     pytest.importorskip("esm")
