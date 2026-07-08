@@ -196,7 +196,8 @@ def test_evolve_families_batches_and_is_reproducible():
 
 def test_selection_module_has_no_top_level_ml_imports():
     # lazy-import contract: torch/esm are imported ONLY inside ESM2Critic, never at module load, so
-    # `import zombi2.experimental.selection` and the whole frozen path work without zombi2[selection].
+    # `import zombi2.experimental.selection` costs nothing extra. (scipy is also lazy but IS needed to
+    # evolve -- the kernel's matrix exponential -- so it is not asserted absent here.)
     from zombi2.experimental import selection
     tree = ast.parse(inspect.getsource(selection))
     top: set[str] = set()

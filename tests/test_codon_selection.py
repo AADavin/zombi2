@@ -128,6 +128,8 @@ def test_calibrate_beta_inverts_dnds():
         assert abs(CodonSelection(critic, beta=beta).dnds(prot) - target) < 1e-3, (target, beta)
     with pytest.raises(ValueError, match="target_dnds"):
         calibrate_beta(critic, prot, 1.5)                       # outside (0, 1)
+    with pytest.raises(ValueError, match="did not reach tol"):
+        calibrate_beta(critic, prot, 0.3, max_iter=2)          # too few iterations -> raise, not a silent miss
 
 
 def test_synonymous_flux_stays_neutral_dS_is_one():

@@ -26,9 +26,11 @@ Two modes share one engine (see the design doc):
 * **live** (P3): a particle filter that re-scores the *current* sequence at time-slices to capture
   epistasis. Not implemented here.
 
-Nothing in this module imports ``torch``/``esm`` at module load -- only :class:`ESM2Critic`
-imports them, lazily, in its constructor. So ``import zombi2.experimental.selection`` and the whole
-frozen path work without the optional ``zombi2[selection]`` dependencies.
+Nothing in this module imports ``torch``/``esm``/``scipy`` at module load: :class:`ESM2Critic`
+imports ``torch``/``esm`` lazily in its constructor, and the substitution kernel imports ``scipy``
+lazily the first time it evolves. So ``import zombi2.experimental.selection`` costs nothing extra --
+but *evolving* a family needs ``scipy`` for the matrix exponential (part of ``zombi2[selection]``),
+even the frozen path with a :class:`FixedProfileCritic` (which itself needs neither torch nor esm).
 """
 from __future__ import annotations
 
@@ -214,8 +216,10 @@ class _ExpmSite:
     for any state count (20 amino acids or 61 sense codons). This deliberately avoids an
     eigendecomposition: the near-delta stationaries of strong selection make both the ``sqrt(pi)``
     symmetrised form (:class:`~zombi2.sequences.models.SubstitutionModel`) and a general eig of ``Q``
-    ill-conditioned, corrupting ``P(t)``; ``expm`` is robust. ``.Q`` / ``.stationary`` are exposed;
-    ``.p_matrix(t)`` is memoized by (rounded) branch length."""
+    ill-conditioned, corrupting ``P(t)``; ``expm`` is robust. The cost is one O(k^3) matrix
+    exponential per *distinct* branch length (vs an amortised single eigendecomposition per site),
+    which the (rounded-``t``) memo below amortises over repeated branch lengths -- fine for the
+    small-tree / GPU regime this feature targets. ``.Q`` / ``.stationary`` are exposed."""
 
     __slots__ = ("Q", "stationary", "_cache")
 

@@ -32,8 +32,17 @@ def frechet_esm_distance(seqs_a, seqs_b, critic: Critic) -> float:
     if len(A) < 2 or len(B) < 2:
         raise ValueError("need at least 2 sequences per set to estimate a covariance")
     dmu = A.mean(0) - B.mean(0)
-    Sa, Sb = np.cov(A, rowvar=False), np.cov(B, rowvar=False)
+    Sa = np.atleast_2d(np.cov(A, rowvar=False))
+    Sb = np.atleast_2d(np.cov(B, rowvar=False))
+    d = Sa.shape[0]
+    ridge = 1e-10 * (np.trace(Sa) + np.trace(Sb)) / (2.0 * d)     # keep Sa @ Sb strictly PSD -> real sqrt
+    Sa = Sa + ridge * np.eye(d)
+    Sb = Sb + ridge * np.eye(d)
     cov = sqrtm(Sa @ Sb)
     if np.iscomplexobj(cov):
+        imag = float(np.abs(cov.imag).max())
+        if imag > 1e-6 * (1.0 + float(np.abs(cov.real).max())):
+            raise ValueError(f"Fréchet sqrtm has a large imaginary part ({imag:.2e}); the embedding "
+                             "covariances look degenerate (too few or collinear sequences?)")
         cov = cov.real
     return float(dmu @ dmu + np.trace(Sa + Sb - 2.0 * cov))

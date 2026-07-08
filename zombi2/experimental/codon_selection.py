@@ -242,7 +242,9 @@ def calibrate_beta(critic: Critic, protein: str, target_dnds: float, *,
     (a value in ``(0, 1)``) for ``protein`` -- the usable inverse of :meth:`CodonSelection.dnds`, so a
     user can ask for a target ω instead of guessing ``beta``. The critic is queried **once** (its
     profile is reused across the search); ``dnds`` is monotone decreasing in ``beta``, so a bisection
-    on ``[0, hi]`` converges. Raises if ``target_dnds`` is unreachable below ``hi``."""
+    on ``[0, hi]`` converges to the *smallest* beta reaching the target. Raises if ``target_dnds`` is
+    unreachable below ``hi``, or if the search does not reach ``tol`` within ``max_iter`` iterations
+    (e.g. a target so small it sits on the dN/dS underflow plateau -- raise ``tol`` or lower it)."""
     if not 0.0 < target_dnds < 1.0:
         raise ValueError(f"target_dnds must be in (0, 1), got {target_dnds}")
     fixed = FixedProfileCritic(critic.profile(protein))          # one critic call, reused for every beta
@@ -256,7 +258,14 @@ def calibrate_beta(critic: Critic, protein: str, target_dnds: float, *,
     for _ in range(max_iter):
         mid = 0.5 * (lo + high)
         w = omega(mid)
-        if abs(w - target_dnds) <= tol:
+        # accept only a genuine (positive) match: w underflowed to 0 means beta is too high, so keep
+        # lowering it -- otherwise a target below the underflow floor returns an arbitrary plateau beta.
+        if w > 0.0 and abs(w - target_dnds) <= tol:
             return mid
         lo, high = (mid, high) if w > target_dnds else (lo, mid)   # omega decreasing: too high -> raise beta
-    return 0.5 * (lo + high)
+    mid = 0.5 * (lo + high)
+    w = omega(mid)
+    if abs(w - target_dnds) > tol:
+        raise ValueError(f"calibrate_beta did not reach tol={tol} within max_iter={max_iter} "
+                         f"(best dN/dS {w:.4g} at beta {mid:.4g}); raise max_iter or tol")
+    return mid
