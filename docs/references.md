@@ -175,7 +175,11 @@ verified values were used.
 - **Beaulieu & O'Meara (2016)** — *Detecting Hidden Diversification Shifts in Models of
   Trait-Dependent Speciation and Extinction.* Syst. Biol. 65(4):583–601.
   [10.1093/sysbio/syw022](https://doi.org/10.1093/sysbio/syw022). `beaulieu2016hisse`
-  · HiSSE.
+  · HiSSE and the CID null.
+- **Rabosky & Goldberg (2015)** — *Model Inadequacy and Mistaken Inferences of Trait-Dependent
+  Speciation.* Syst. Biol. 64(2):340–355.
+  [10.1093/sysbio/syu131](https://doi.org/10.1093/sysbio/syu131). `raboskygoldberg2015`
+  · why a constant-rate null inflates false positives — the motivation for the null-model layer.
 - **Maddison & FitzJohn (2015)** — *The Unsolved Challenge to Phylogenetic Correlation Tests for
   Categorical Characters.* Syst. Biol. 64(1):127–136.
   [10.1093/sysbio/syu070](https://doi.org/10.1093/sysbio/syu070). `maddison2015unreplicated`

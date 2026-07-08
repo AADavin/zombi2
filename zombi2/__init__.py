@@ -79,7 +79,7 @@ from zombi2.coevolve import (
     CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
     GeneConditionedTrait, GeneConditionedTraitResult, simulate_gene_conditioned_trait,
     TraitGeneFeedback, TraitGeneFeedbackResult, simulate_trait_gene_feedback,
-    BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse,
+    BiSSE, MuSSE, HiSSE, QuaSSE, CID, simulate_sse,
 )
 # NOTE: ABC profile-matching inference has moved out of the core to
 # ``ZOMBI2_FUTURE/abc-inference/`` — inference is a Phase-3 Extension, not a core simulation
@@ -131,7 +131,7 @@ __all__ = [
     # historical biogeography (range evolution)
     "DEC", "simulate_biogeography",
     # state-dependent diversification (trait drives the tree — coevolve traits:species)
-    "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
+    "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "CID", "simulate_sse",
     # gene-content-dependent diversification (genes drive the tree — coevolve genes:species,
     # + species:genes = the co-diversification joint model)
     "GeneDiversification", "GeneDiversificationResult", "simulate_gene_diversification",
