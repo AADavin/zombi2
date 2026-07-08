@@ -182,7 +182,7 @@ class Genomes:
         )
 
     # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
-    # are always written; the CLI's --output maps onto these names.
+    # are always written; the CLI's --write maps onto these names.
     WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary")
 
     # --- output ------------------------------------------------------------
@@ -460,10 +460,6 @@ def simulate_genomes(
             "pass a rate model OR the duplication/transfer/loss/origination shorthand, not both"
         )
 
-    # Resolve an integer seed for the Rust engine when only an rng is supplied.
-    if seed is None and rng is not None:
-        seed = int(rng.integers(0, 2**63 - 1))
-
     from zombi2 import _rust
 
     # The Rust engine assumes a strictly binary species tree. Degree-two nodes (FBD sampled
@@ -473,6 +469,12 @@ def simulate_genomes(
     binary_tree = all(len(n.children) != 1 for n in species_tree.nodes_preorder())
     if _rust.eligible(rates, genome_factory, sampler) and binary_tree:
         _rust.require()  # one engine for the built-in model on a binary tree; no Python fallback
+        # Resolve an integer seed for the Rust engine when only an rng is supplied. Do this
+        # inside the Rust branch (not before engine selection): the Python path below draws
+        # directly from ``rng``, so deriving a seed there would consume a draw it never uses,
+        # making ``seed=x`` and ``rng=default_rng(x)`` diverge for Python-engine models.
+        if seed is None and rng is not None:
+            seed = int(rng.integers(0, 2**63 - 1))
         kw = dict(initial_size=initial_families, transfers=transfers,
                   max_family_size=max_family_size, seed=seed)
         if output == "profiles":

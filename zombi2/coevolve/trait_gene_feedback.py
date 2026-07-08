@@ -16,7 +16,7 @@ neither was imposed. Neither arrow points into S, so this is an **overlay** on a
 Because the trait (a continuous OU diffusion) and the panel (a jump process) each depend on the
 other's *current* value, they cannot be simulated one-then-the-other; they are integrated **together**
 along each branch in ``steps`` small pieces (piecewise-constant coupling within a piece — the same
-sub-segmenting :mod:`zombi2.trait_coupling` uses for a continuous trait covariate). Setting
+sub-segmenting :mod:`zombi2.coevolve.trait_coupling` uses for a continuous trait covariate). Setting
 ``effect_loss = 0`` recovers pure ``genes:traits``; setting ``theta_high = theta_low`` recovers pure
 ``traits:genes`` — the joint model contains both single edges as limits.
 

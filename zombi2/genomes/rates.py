@@ -48,6 +48,21 @@ def duplication_factor(n: int, carrying_capacity: float | None, max_copies: int 
     return 1.0
 
 
+def _check_carrying_capacity(carrying_capacity: float | None) -> float | None:
+    """Validate a soft carrying capacity ``K``: ``None`` (disabled) or a finite positive
+    value. A non-positive ``K`` is nonsensical — ``K=0`` divides by zero mid-simulation and
+    a negative ``K`` inverts the density term into runaway amplification — so reject it up
+    front (mirroring the species-side ``DiversityDependent`` guard)."""
+    if carrying_capacity is None:
+        return None
+    k = float(carrying_capacity)
+    if not math.isfinite(k) or k <= 0:
+        raise ValueError(
+            f"carrying_capacity must be a finite positive number, got {carrying_capacity}"
+        )
+    return k
+
+
 class RateModel(ABC):
     """Abstract rate model: turns a genome into weighted candidate events."""
 
@@ -71,7 +86,7 @@ class RateModel(ABC):
         as a consequence of a gene event — and which branch changes. The simulator pauses the
         Gillespie loop at each, refreshes that branch's cached weights, and continues, so a
         rate model whose weights follow an externally-imposed schedule (e.g. a trait value that
-        drifts/jumps along the branch, see :mod:`zombi2.trait_coupling`) stays exact without
+        drifts/jumps along the branch, see :mod:`zombi2.coevolve.trait_coupling`) stays exact without
         the blunt ``time_dependent`` full-refresh-every-event. Default: none — weights change
         only at events, so no extra refresh points are needed."""
         return []
@@ -120,7 +135,7 @@ class SharedRates(RateModel):
         # intergenic indels: only fired by the nucleotide genome (per-nucleotide rate)
         self.insertion = float(insertion)
         self.deletion = float(deletion)
-        self.carrying_capacity = carrying_capacity
+        self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
 
     def _regulated(self) -> bool:
         # Only the *soft* carrying capacity needs per-family duplication weights. A hard
@@ -207,7 +222,7 @@ class FamilySampledRates(RateModel):
         if origination < 0:
             raise ValueError(f"origination rate must be >= 0, got {origination}")
         self.origination = float(origination)
-        self.carrying_capacity = carrying_capacity
+        self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
         self._family_rates: dict[str, tuple[float, float, float]] = {}
 
     def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:

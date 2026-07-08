@@ -371,7 +371,7 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
 
     ``root`` is a tree node (``reconciliation._Node``: has ``.gid`` and ``.children``); ``subst`` maps
     each node to the substitution length of the branch **ending at it** (as
-    :func:`~zombi2.sequence_evolution._annotate` computes). The root's incoming sequence is
+    :func:`~zombi2.sequences.evolution._annotate` computes). The root's incoming sequence is
     ``root_seq`` (a DNA string) or, if ``None``, a fresh draw of ``length`` sites from the model's
     stationary frequencies. Each node's recorded sequence is its state at the end of its branch (a
     speciation/duplication/transfer/loss time, or the present for a tip); with ``subst=0`` a node
@@ -402,6 +402,11 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
         return P
 
     def sample(parent_states: np.ndarray, cum: np.ndarray) -> np.ndarray:
+        # P(t) rows are clipped, not renormalised, so a row's final cumulative can land a hair
+        # below 1.0 (~1e-15). Pin it to 1.0 so a maximal rng draw can't slip past every
+        # threshold and make ``argmax`` silently return state 0. ``cum`` is a fresh ``.cumsum``
+        # array (not the cached P), so mutating it here is safe.
+        cum[:, -1] = 1.0
         r = rng.random(parent_states.shape[0])
         return (r[:, None] < cum[parent_states]).argmax(1).astype(np.int8)
 
