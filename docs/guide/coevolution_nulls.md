@@ -172,9 +172,10 @@ generalises it. Two entry points:
 
 **A `.null(kind=...)` method on a coupling model**, returning a *model* with the arrow cut, so
 a coupled run and its matched null share every non-coupling parameter automatically. This covers
-the nulls that are a pure reparameterisation: `"neutral"` on **any** SSE/gene/trait model,
-`"cid"` on `BiSSE` (which returns a `CID`), and
-`"timing"` on the two at-speciation models:
+the nulls that are a pure reparameterisation: `"neutral"` on **any** SSE/gene/trait model (a
+`HiSSE`'s collapses its hidden classes to a constant-rate `BiSSE`; a `QuaSSE`'s is a constant
+speciation), `"cid"` on a discrete character — `BiSSE` (returns a `CID`) or `MuSSE` (the k-state
+generalisation) — and `"timing"` on the two at-speciation models:
 
 ```python
 from zombi2.coevolve import BiSSE, simulate_sse

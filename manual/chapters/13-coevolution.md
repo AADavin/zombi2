@@ -133,8 +133,10 @@ zombi2 coevolve --couple traits:species --sse-model bisse \
 It writes `species_tree.nwk` (the tree the trait's rates shaped), `traits.tsv` (every node — tips
 *and* ancestral states) and `trait_tree.nwk`. `--sse-model musse` takes `--birth`/`--death` vectors
 and a `--q-matrix` file; `--sse-model quasse` takes a sigmoidal speciation (`--spec-low/high/center/slope`)
-and Brownian `--diffusion`. **What it recovers:** the fast-speciating state accumulates lineages, so
-it dominates the standing tips — the diversification signal is written into the tree shape itself.
+and Brownian `--diffusion`; and `--sse-model hisse` adds `--hidden-classes` diversification regimes
+spanning the base rates up to `--hidden-scale`× faster (`--hidden-switch` between them). **What it
+recovers:** the fast-speciating state accumulates lineages, so it dominates the standing tips — the
+diversification signal is written into the tree shape itself.
 
 ![The continuous variant, QuaSSE. **A**, the model: the speciation rate is a rising function $\lambda(x)$ of the trait while extinction is flat, and the trait itself diffuses by Brownian motion (the axis is tinted with the viridis ramp used to paint the tree). **B**, one realization, each branch painted by its trait value: the high-value (yellow) lineages branch faster and proliferate, while the low-value (blue) lineages stay sparse and go extinct — the same "fast state fills the tips" signal as BiSSE, now on a continuous character.](figures/sse_quasse.pdf){width=100%}
 

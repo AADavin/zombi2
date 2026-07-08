@@ -32,7 +32,7 @@ from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
 )
 from zombi2.species.sim import simulate_species_tree
-from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, simulate_sse
+from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, HiSSE, simulate_sse
 from zombi2.coevolve.gene_diversification import (
     GeneDiversification, simulate_gene_diversification, simulate_co_diversification,
 )
@@ -954,10 +954,11 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
 
     g = p.add_argument_group("SSE model", "--couple traits:species (trait drives diversification)")
-    g.add_argument("--sse-model", dest="sse_model", choices=("bisse", "musse", "quasse"),
+    g.add_argument("--sse-model", dest="sse_model", choices=("bisse", "musse", "quasse", "hisse"),
                    default="bisse", metavar="MODEL",
                    help="which state-dependent model drives diversification: bisse (binary trait), "
-                        "musse (k-state), quasse (continuous trait) (default: bisse)")
+                        "musse (k-state), quasse (continuous trait), hisse (binary trait + hidden "
+                        "diversification classes) (default: bisse)")
     g.add_argument("--root-state", type=int, default=None, metavar="I",
                    help="[bisse/musse] root state index (default: the character's stationary "
                         "distribution)")
@@ -992,6 +993,17 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--diffusion", type=float, default=1.0, metavar="S2",
                    help="trait diffusion rate sigma^2 (Brownian motion)")
     g.add_argument("--root-value", type=float, default=0.0, metavar="X0", help="root trait value x0")
+
+    g = p.add_argument_group("HiSSE", "--sse-model hisse (binary trait + hidden diversification "
+                                      "classes)")
+    g.add_argument("--hidden-classes", dest="hidden_classes", type=int, default=2, metavar="H",
+                   help="number of hidden diversification classes (>= 2; default 2)")
+    g.add_argument("--hidden-scale", dest="hidden_scale", type=float, default=3.0, metavar="S",
+                   help="speciation spread across the hidden classes: the classes span the base "
+                        "--lambda0/--lambda1 up to S times faster (geometric; default 3.0). The "
+                        "observed transitions --q01/--q10 and extinction --mu0/--mu1 are shared")
+    g.add_argument("--hidden-switch", dest="hidden_switch", type=float, default=0.1, metavar="RATE",
+                   help="rate of switching between hidden classes (symmetric; default 0.1)")
 
     g = p.add_argument_group("cladogenetic kernel",
                              "--couple species:traits (speciation jumps the trait)")
@@ -1102,6 +1114,18 @@ def _build_sse_model(args: argparse.Namespace, parser: argparse.ArgumentParser):
             parser.error("--sse-model musse needs --birth and --death (k rates each) plus "
                          "--q-matrix (a k x k transition-rate matrix file)")
         return MuSSE(birth=args.birth, death=args.death, Q=_read_q_matrix(args.q_matrix))
+    if args.sse_model == "hisse":
+        H = args.hidden_classes
+        if H < 2:
+            parser.error("--sse-model hisse needs --hidden-classes >= 2")
+        if args.hidden_scale <= 0:
+            parser.error("--hidden-scale must be > 0")
+        # H hidden classes spanning the base rates up to hidden_scale x faster (geometric); the
+        # observed trait (q01/q10) and extinction (mu0/mu1) are shared across classes.
+        factors = np.geomspace(1.0, args.hidden_scale, H)
+        classes = [BiSSE(args.lambda0 * f, args.lambda1 * f, args.mu0, args.mu1, args.q01, args.q10)
+                   for f in factors]
+        return HiSSE(classes, hidden_transition=args.hidden_switch)
     # quasse: sigmoidal speciation in the trait + constant extinction (bounded for exact thinning)
     spec = QuaSSE.sigmoid(args.spec_low, args.spec_high, args.spec_center, args.spec_slope)
     bound = max(args.spec_low, args.spec_high) + args.qmu
@@ -1156,11 +1180,15 @@ def _null_sse_model(model, args: argparse.Namespace, parser: argparse.ArgumentPa
     """Apply ``--null`` to a traits:species SSE model; returns ``(null_model, manifest_kwargs)``."""
     if args.null == "neutral":
         return model.null("neutral"), dict(cut="trait -> (lambda, mu)",
-                                            preserved="removed (constant-rate birth-death)")
+                                            preserved="removed (rates no longer depend on the trait)")
     if args.null == "cid":
-        if not isinstance(model, BiSSE):
-            parser.error("--null cid needs --sse-model bisse (a binary character); MuSSE/QuaSSE "
-                         "have no CID null in this release — use --null neutral")
+        if isinstance(model, QuaSSE):
+            parser.error("--null cid needs a discrete character (bisse/musse); QuaSSE is "
+                         "continuous — use --null neutral")
+        if isinstance(model, HiSSE):
+            parser.error("--sse-model hisse is already a hidden-state model; its null is "
+                         "--null neutral (a constant-rate tree)")
+        # bisse -> the binary CID; musse -> the k-state CID (both hide the hidden class in output)
         return (model.null("cid", n_hidden=args.hidden),
                 dict(cut="trait -> (lambda, mu)",
                      preserved=f"a hidden CID class (CID-{args.hidden})",
