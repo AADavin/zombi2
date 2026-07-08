@@ -85,6 +85,10 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.genomes.transfers.TransferModel
 
+## Gene conversion
+
+::: zombi2.genomes.conversion.ConversionModel
+
 ## Genomes
 
 ::: zombi2.genomes.genome.Gene

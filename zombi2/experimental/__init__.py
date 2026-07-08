@@ -64,9 +64,7 @@ def warn_experimental(name: str) -> None:
 # On promotion to the core a model LEAVES this package: it moves to a core module,
 # is re-exported from ``zombi2``, drops its ``warn_experimental`` call, and gains a
 # CLI surface + a catalog page. See docs/contributing/model-lifecycle.md.
+#
+# (Intra-genome gene conversion was promoted to the core in this way: it is now
+# ``SharedRates(conversion=...)`` + ``zombi2.ConversionModel`` with a ``--conversion`` CLI flag.)
 # ---------------------------------------------------------------------------
-
-# Imported after warn_experimental is defined (the models import it), so this line stays here.
-from zombi2.experimental.gene_conversion import ConversionModel, GeneConversionRates  # noqa: E402
-
-__all__ += ["ConversionModel", "GeneConversionRates"]

@@ -26,6 +26,7 @@ from zombi2.genomes.rates import (
     EventWeight,
 )
 from zombi2.genomes.transfers import TransferModel
+from zombi2.genomes.conversion import ConversionModel
 from zombi2.genomes.genome_sim import GenomeSimulator, GenomeResult
 from zombi2.genomes.profiles import ProfileMatrix
 from zombi2.genomes.reconciliation import build_gene_trees
@@ -37,7 +38,7 @@ __all__ = [
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "GffGenome",
     "RateModel", "SharedRates", "PerGenomeRates", "FamilySampledRates",
-    "BranchRates", "EventWeight", "TransferModel",
+    "BranchRates", "EventWeight", "TransferModel", "ConversionModel",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",
     "simulate_genomes", "Genomes", "GenomeTrace", "read_events_trace",
     "build_gene_trees", "run_replicates",

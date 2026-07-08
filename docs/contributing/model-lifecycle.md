@@ -53,11 +53,12 @@ the apply method, the dispatch branch, the reconciliation), inert until somethin
 `warn_experimental`. The core stays byte-identical when the feature is off, and the surface still
 gates behind the experimental door.
 
-The worked example is **intra-genome gene conversion**
-(`zombi2.experimental.GeneConversionRates` / `ConversionModel`): the `CONVERSION` event, its
-application, and its reconciliation are dormant in the core engine; the rate model that turns them on
-lives in `experimental`. On promotion the surface moves into the core and gains a CLI flag and a
-catalog page — the engine capability is already there.
+The worked example is **intra-genome gene conversion**, which travelled this whole path: the
+`CONVERSION` event, its application, and its reconciliation went into the core engine as a dormant
+capability, while the rate model that turns them on first staged in `zombi2.experimental`. Once it
+cleared the bar it was **promoted**: the rate folded into `SharedRates(conversion=...)`, the mechanics
+became `zombi2.ConversionModel`, it gained a `--conversion` CLI flag, dropped `warn_experimental`, and
+the experimental module was removed — the engine capability was already in place.
 
 ### Promotion to the core
 
