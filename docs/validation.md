@@ -40,6 +40,11 @@ Monte-Carlo tolerance:
 - The **Rust and pure-Python** gene-family engines agree on mean family count within 15 %
   (`test_rust.py::test_rust_matches_python_engine`) — the compiled fast path is held to the
   reference implementation.
+- **Transfer receptivity** lands about the same share of transfers on a boosted branch under both
+  the Rust and Python engines, and a run with no receptivity is byte-identical to a plain run
+  (`test_rate_controls.py::test_rust_and_python_agree_on_receptivity`,
+  `::test_receptivity_off_is_byte_identical`) — recipient choice is also a frequency oracle:
+  candidates are chosen in proportion to their weight (`::test_receptivity_makes_selection_proportional_to_weight`).
 
 ### Invariants — structural laws that must hold
 

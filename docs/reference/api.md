@@ -70,6 +70,8 @@ Auto-generated from the source docstrings.
 ::: zombi2.genomes.rates.FamilySampledRates
 ::: zombi2.genomes.rates.BranchRates
 ::: zombi2.genomes.rates.EventWeight
+::: zombi2.genomes.read_rates.read_family_rates
+::: zombi2.genomes.read_rates.read_branch_rates
 
 ## Distributions
 

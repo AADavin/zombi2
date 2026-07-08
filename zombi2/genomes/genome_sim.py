@@ -317,35 +317,44 @@ class GenomeSimulator:
                 return ew
         return kept[-1]
 
-    # --- recipient choice (uniform, or phylogenetic-distance weighted) -----
+    # --- recipient choice (uniform, distance-weighted, and/or per-branch receptivity) -----
     def _choose_recipient(self, donor, alive, t, rng):
         candidates = list(alive) if self._transfers.allow_self else [x for x in alive if x is not donor]
         if not candidates:
             return None
         decay = self._transfers.distance_decay
+        recept = self._transfers.receptivity
+        if decay is None and recept is None:
+            return candidates[int(rng.integers(len(candidates)))]  # uniform fast path (unchanged)
+
         if decay is None:
-            return candidates[int(rng.integers(len(candidates)))]
-
-        # patristic distance at time t between two co-existing lineages is 2*(t - t_MRCA);
-        # we only need t_MRCA. Mark the donor's ancestor chain once, then walk each
-        # candidate up to the first marked node. O(alive * depth) — the optimisable hotspot.
-        ancestors = set()
-        node = donor
-        while node is not None:
-            ancestors.add(node)
-            node = node.parent
-
-        def mrca_time(r):
-            if r is donor:
-                return t  # self-transfer: distance 0
-            node = r
-            while node not in ancestors:
+            weights = [1.0] * len(candidates)
+        else:
+            # patristic distance at time t between two co-existing lineages is 2*(t - t_MRCA);
+            # we only need t_MRCA. Mark the donor's ancestor chain once, then walk each
+            # candidate up to the first marked node. O(alive * depth) — the optimisable hotspot.
+            ancestors = set()
+            node = donor
+            while node is not None:
+                ancestors.add(node)
                 node = node.parent
-            return node.time
 
-        distances = [2.0 * (t - mrca_time(r)) for r in candidates]
-        dmin = min(distances)
-        weights = [math.exp(-decay * (d - dmin)) for d in distances]  # softmax-stable
+            def mrca_time(r):
+                if r is donor:
+                    return t  # self-transfer: distance 0
+                node = r
+                while node not in ancestors:
+                    node = node.parent
+                return node.time
+
+            distances = [2.0 * (t - mrca_time(r)) for r in candidates]
+            dmin = min(distances)
+            weights = [math.exp(-decay * (d - dmin)) for d in distances]  # softmax-stable
+
+        if recept is not None:  # per-branch absorption weight (branches not listed default to 1)
+            weights = [w * recept.get(c.name, 1.0) for w, c in zip(weights, candidates)]
+        if sum(weights) <= 0.0:  # every eligible recipient has zero receptivity — no transfer
+            return None
         return candidates[self.sampler.choose_index(weights, rng)]
 
     # --- apply a single event; return the set of branches whose genome changed ----

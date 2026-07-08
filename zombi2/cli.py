@@ -23,7 +23,8 @@ from zombi2.sequences.clocks import (
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
 from zombi2.genomes.genome import OrderedGenome
-from zombi2.genomes.rates import PerGenomeRates, SharedRates
+from zombi2.genomes.rates import BranchRates, FamilySampledRates, PerGenomeRates, SharedRates
+from zombi2.genomes.read_rates import read_branch_rates, read_family_rates
 from zombi2.sequences.evolution import SequenceEvolution
 from zombi2.genomes.simulation import Genomes, simulate_genomes
 from zombi2.species.model import (
@@ -220,11 +221,12 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
                         "(see the nucleotide sections)")
-    g.add_argument("--rate-model", choices=("shared", "per-genome"),
+    g.add_argument("--rate-model", choices=("shared", "per-genome", "family"),
                    default="shared", metavar="MODEL",
                    help="rate heterogeneity within the unordered/ordered genome levels: shared: "
                         "same per-copy rates for every family (Rust for unordered; default); "
-                        "per-genome: constant per-genome rates, linear growth (Python). "
+                        "per-genome: constant per-genome rates, linear growth (Python); "
+                        "family: each family has its own rates, from --family-rates (Python). "
                         "Rearrangements (--inversion/--transposition on ordered genomes) need "
                         "shared")
     g.add_argument("--seed", type=int, default=None, metavar="N",
@@ -247,6 +249,20 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
                         "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
+
+    g = p.add_argument_group(
+        "custom rate tables",
+        "user-supplied per-family and per-branch rates (unordered genomes; Python engine "
+        "except a receptivity-only --branch-rates, which stays on Rust)")
+    g.add_argument("--family-rates", metavar="FILE", dest="family_rates",
+                   help="TSV of explicit per-family duplication/transfer/loss rates "
+                        "(columns: family duplication transfer loss). Selects --rate-model family; "
+                        "families not listed fall back to --dup/--trans/--loss")
+    g.add_argument("--branch-rates", metavar="FILE", dest="branch_rates",
+                   help="TSV of per-branch transfer emission (donation-rate factor) and/or "
+                        "receptivity (absorption weight) (columns: branch emission receptivity). "
+                        "Emission scales that branch's transfer rate; receptivity biases which "
+                        "branch receives")
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="write", nargs="+", metavar="PART",
@@ -1459,20 +1475,50 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     ordered = args.genome_model == "ordered"
     initial_families = 20 if args.initial_families is None else args.initial_families
     args.initial_families = initial_families  # record the effective value in the params log
+    # user-supplied custom rate tables are unordered-only (Python engine, except a
+    # receptivity-only --branch-rates on a plain SharedRates, which stays on Rust)
+    if (args.family_rates or args.branch_rates) and args.genome_model != "unordered":
+        parser.error("--family-rates / --branch-rates are only for --genome-model unordered")
+    family_mode = args.rate_model == "family" or args.family_rates is not None
+    if args.rate_model == "family" and args.family_rates is None:
+        parser.error("--rate-model family needs a --family-rates FILE")
+    if family_mode and args.rate_model == "per-genome":
+        parser.error("--family-rates is itself a per-family model; do not also pass "
+                     "--rate-model per-genome")
+
+    rates = None  # None => use the D/T/L/O shorthand (plain shared, unordered — the Rust fast path)
     if args.rate_model == "per-genome":
         if ordered and (args.inversion is not None or args.transposition is not None):
             parser.error("rearrangements (--inversion/--transposition) need --rate-model shared; "
                          "per-genome rates do not carry them")
-        model_kw = dict(rates=PerGenomeRates(args.dup, args.trans, args.loss, args.orig))
+        rates = PerGenomeRates(args.dup, args.trans, args.loss, args.orig)
     elif ordered:  # shared per-copy rates + rearrangements on an ordered chromosome
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
-        model_kw = dict(rates=SharedRates(args.dup, args.trans, args.loss, args.orig,
-                                          inversion=inv, transposition=tps))
-    else:  # shared (unordered)
-        model_kw = dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
-                        origination=args.orig)
+        rates = SharedRates(args.dup, args.trans, args.loss, args.orig,
+                            inversion=inv, transposition=tps)
+    elif family_mode:  # each family its own rates, from the table (unlisted -> --dup/--trans/--loss)
+        rates = FamilySampledRates(duplication=args.dup, transfer=args.trans, loss=args.loss,
+                                   origination=args.orig,
+                                   rates=read_family_rates(args.family_rates))
+
+    # --branch-rates overlay: per-branch transfer emission (BranchRates) + receptivity (TransferModel)
+    transfers = None
+    if args.branch_rates is not None:
+        emission, receptivity = read_branch_rates(args.branch_rates)
+        if rates is None:
+            rates = SharedRates(args.dup, args.trans, args.loss, args.orig)
+        if emission:
+            rates = BranchRates(rates, factors=emission, events=("transfer",))
+        if receptivity:
+            transfers = TransferModel(receptivity=receptivity)
+
+    model_kw = (dict(rates=rates) if rates is not None else
+                dict(duplication=args.dup, transfer=args.trans, loss=args.loss,
+                     origination=args.orig))
+    if transfers is not None:
+        model_kw["transfers"] = transfers
     rate_kw = dict(**model_kw, initial_families=initial_families,
                    max_family_size=args.max_family_size, seed=args.seed)
     if ordered:
