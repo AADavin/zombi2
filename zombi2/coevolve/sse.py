@@ -398,6 +398,14 @@ def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages, clado=None):
         node, x = live[idx]
         lam, mu = spec(x), ext(x)
         total = lam + mu
+        if total > bound * (1.0 + 1e-9):
+            # A rate_bound below the true speciation+extinction breaks rejection sampling:
+            # total/bound > 1 accepts (almost) every candidate, silently biasing the tree.
+            # Fail loudly rather than return a wrong tree.
+            raise ValueError(
+                f"rate_bound={bound:g} is below speciation+extinction={total:g} at trait "
+                f"x={x:g}; it must be a true upper bound over all reachable trait values"
+            )
         if total <= 0.0 or rng.random() >= total / bound:       # thinned out
             continue
         node.time = t

@@ -17,7 +17,7 @@ Yes — the built-in model runs on Rust automatically, so `zombi2 genomes` uses 
 
 Call `simulate_genomes` with `output="profiles"` — it runs the Rust engine over per-family
 counts only (no event log or gene trees), which is the right path for large presence/absence
-datasets and for ABC:
+datasets:
 
 ```python
 from zombi2.genomes import simulate_genomes

@@ -209,7 +209,7 @@ def _annotate(root: _Node, segments: dict, s_g: float, subst: dict) -> None:
 def _prune_subst(node: _Node, subst: dict):
     """Prune to extant lineages, summing substitution lengths across suppressed degree-2 nodes.
 
-    Mirrors :func:`~zombi2.reconciliation._prune` but tracks branch lengths in the ``out`` map
+    Mirrors :func:`~zombi2.genomes.reconciliation._prune` but tracks branch lengths in the ``out`` map
     (keyed by the freshly built pruned nodes) instead of relying on ``end - birth``.
     """
     out: dict = {}

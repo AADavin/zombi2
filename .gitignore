@@ -54,9 +54,6 @@ analyses/**/figs/*.svg
 # ...except the performance overview embedded in README.md
 !analyses/performance/figures/overview.png
 
-# Compiled coupling explainer (keep the .tex)
-/docs/coupling_explained.pdf
-
 # LaTeX build artifacts
 *.aux
 *.log

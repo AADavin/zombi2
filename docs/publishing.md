@@ -50,8 +50,8 @@ Do this once per index (PyPI and, if you want a dry run, TestPyPI).
 
 ## Cutting a release
 
-1. **Bump the version.** Each package's version is single-sourced, so there are
-   just two files to edit, plus the lockstep pin:
+1. **Bump the version.** Each package's version is single-sourced from a build file,
+   so there are just two files to edit, plus the lockstep pin and the citation metadata:
    - `zombi2/__init__.py` → `__version__` — the zombi2 version (`pyproject.toml`
      declares `dynamic = ["version"]` and hatchling reads it from here).
    - `rust/Cargo.toml` → `[package].version` — the engine version (`rust/pyproject.toml`
@@ -59,8 +59,9 @@ Do this once per index (PyPI and, if you want a dry run, TestPyPI).
      SemVer, e.g. `0.2.0`.
    - `pyproject.toml` → the `zombi2_core==<version>` pin, bumped to match
      `rust/Cargo.toml` so the two stay in lockstep.
+   - `CITATION.cff` → `version` — not build-derived, so bump it by hand to match.
 
-   All three must land on the same version number.
+   All four must land on the same version number.
 
 2. **Dry run on TestPyPI (recommended).** Push the bump, then run the *Release*
    workflow manually (*Actions → Release → Run workflow*) with **testpypi**

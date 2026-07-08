@@ -29,12 +29,11 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      # mkdocstrings imports zombi2 (numpy only; the compiled engine degrades
-      # gracefully and is not needed to render docs).
-      - name: Install docs dependencies (engine-free)
-        run: |
-          pip install -e . --no-deps
-          pip install "numpy>=1.24" mkdocs-material "mkdocstrings[python]"
+      # Install the docs toolchain from the [docs] extra (single source of truth).
+      # zombi2_core resolves from PyPI as a prebuilt abi3 wheel; mkdocstrings only
+      # needs zombi2 importable to render docstrings.
+      - name: Install docs dependencies
+        run: pip install -e ".[docs]"
       - name: Build the docs (strict) into /docs/
         run: mkdocs build --strict --site-dir _site/docs
       - name: Add the landing page at the site root

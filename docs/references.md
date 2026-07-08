@@ -197,18 +197,22 @@ verified values were used.
 
 ## Inference — Approximate Bayesian Computation
 
+*Not part of the shipped release — ABC inference of DTL rates is a deferred extension (see the
+project changelog); these entries document the method, not a current `zombi2` command.*
+
 - **Beaumont, Zhang & Balding (2002)** — *Approximate Bayesian Computation in Population Genetics.*
   Genetics 162(4):2025–2035.
   [10.1093/genetics/162.4.2025](https://doi.org/10.1093/genetics/162.4.2025). `beaumont2002abc`
-  · the ABC regression adjustment (`--regression-adjust`).
+  · the ABC regression adjustment.
 - **Toni, Welch, Strelkowa, Ipsen & Stumpf (2009)** — *Approximate Bayesian computation scheme for
   parameter inference and model selection in dynamical systems.* J. R. Soc. Interface 6(31):187–202.
   [10.1098/rsif.2008.0172](https://doi.org/10.1098/rsif.2008.0172). `toni2009abcsmc`
-  · ABC-SMC (`--smc`).
+  · ABC-SMC.
 
 ---
 
 *Status: 42 verified against Crossref/DOI, 1 flagged UNVERIFIED (the GTDB rate-variation clock).
-Open confirmation for you: which paper the GTDB discrete-bin clock comes from. The same 42 entries
-are in [`references.bib`](references.bib) (BibTeX, same keys) for the LaTeX/pandoc PDF build —
-validated with `biber --tool`.*
+Open confirmation for you: which paper the GTDB discrete-bin clock comes from. All 42 keys on this
+page are in [`references.bib`](references.bib) (BibTeX), which additionally carries 9 entries used
+only by the LaTeX/pandoc manual build (amino-acid replacement models, relaxed clocks, the Gillespie
+appendix), for 51 in total — validated with `biber --tool`.*
