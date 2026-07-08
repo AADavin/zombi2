@@ -22,12 +22,12 @@
 <path d="M250,330 L250,370" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M250,330 L340,330" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M250,370 L340,370" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<path d="M132,181 L132,199" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
-<path d="M132,311 L132,329" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
-<path d="M198,211 L198,229" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
-<path d="M268,131 L268,149" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
-<path d="M198,281 L198,299" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
-<path d="M268,321 L268,339" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M118,181 L118,199" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M118,311 L118,329" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M183,211 L183,229" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M253,131 L253,149" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M183,281 L183,299" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
+<path d="M253,321 L253,339" stroke="#2f7d84" stroke-width="5.4" stroke-linecap="round" />
 <text x="205" y="400" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-style="italic">change AT the nodes</text>
 <text x="205" y="428" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">sisters differ sharply (punctuational)</text>
 <text x="705" y="100" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">TIMING null (along branches)</text>

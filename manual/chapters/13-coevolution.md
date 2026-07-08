@@ -477,15 +477,18 @@ Generate any null by adding `--null` to the edge's command:
 
 ```bash
 # the coupled claim: a trait drives diversification
-zombi2 coevolve --couple traits:species --lambda0 1 --lambda1 3 --tips 200 --seed 1 -o out/alt
+zombi2 coevolve --couple traits:species \
+    --lambda0 1 --lambda1 3 --tips 200 --seed 1 -o out/alt
 
-# its matched CID-2 null: same rate spread, no trait effect -- feed both to your detector
-zombi2 coevolve --couple traits:species --lambda0 1 --lambda1 3 --tips 200 --seed 1 \
+# its matched CID-2 null: same rate spread, no trait effect
+zombi2 coevolve --couple traits:species \
+    --lambda0 1 --lambda1 3 --tips 200 --seed 1 \
     --null cid --hidden 2 -o out/null
 
-# the punctuational genome, spread along branches (species:genes timing null)
+# the punctuational genome, spread along branches (species:genes)
 zombi2 coevolve --couple species:genes -t species_tree.nwk \
-    --clado-gene-loss 0.15 --clado-gene-gain 3 --null timing -o out/null_punct
+    --clado-gene-loss 0.15 --clado-gene-gain 3 \
+    --null timing -o out/null_punct
 ```
 
 Every null run also writes a `null_manifest.tsv` recording which arrow was cut and how the target's
