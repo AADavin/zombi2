@@ -37,8 +37,8 @@ models* below).
 | Level (`--genome-model`) | A genome is… | Chapter |
 |---|---|---|
 | **unordered** | a *set* of gene families (presence/absence) | Chapter 8 |
-| **ordered** | genes on a chromosome (order matters, length does not) | Chapter 11 |
-| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | Chapter 12 |
+| **ordered** | genes on a chromosome (order matters, length does not) | Chapter 10 |
+| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | Chapter 11 |
 
 ## Events, by level
 

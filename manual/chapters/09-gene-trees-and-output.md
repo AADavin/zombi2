@@ -20,7 +20,7 @@ of which is the source lineage and the rest its descendants. Each gene row expos
 gene-lineage id) and `.role`.
 
 ```python
-from zombi2.events import EventType
+from zombi2 import EventType
 
 for r in genomes.event_log:
     if r.event is EventType.TRANSFER:

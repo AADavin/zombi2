@@ -130,7 +130,7 @@ P.to_tsv()      # tab-separated text (as written to Profiles.tsv)
 If you want the raw events instead of reconstructed trees, iterate the event log directly:
 
 ```python
-from zombi2.events import EventType
+from zombi2 import EventType
 
 for r in genomes.event_log:
     if r.event is EventType.TRANSFER:
