@@ -68,3 +68,11 @@ def warn_experimental(name: str) -> None:
 # (Intra-genome gene conversion was promoted to the core in this way: it is now
 # ``SharedRates(conversion=...)`` + ``zombi2.ConversionModel`` with a ``--conversion`` CLI flag.)
 # ---------------------------------------------------------------------------
+
+# Imported after warn_experimental is defined (the model imports it). ESM2Critic imports torch/esm
+# lazily, so this line does NOT pull the optional zombi2[selection] dependencies.
+from zombi2.experimental.selection import (  # noqa: E402
+    Critic, ESM2Critic, FixedProfileCritic, PLMSelection,
+)
+
+__all__ += ["Critic", "ESM2Critic", "FixedProfileCritic", "PLMSelection"]
