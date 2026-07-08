@@ -378,3 +378,95 @@ def test_cli_traits_genes_cid_observed_trait_is_decoupled(tmp_path):
     # shared-tree imprint (the confound a real detector must see through) — never the causal signal
     assert gap_hidden > 0.3
     assert gap_hidden > gap_observed + 0.15
+
+
+# =========================================================================== MuSSE / QuaSSE / HiSSE nulls
+def test_musse_kstate_cid_is_character_independent_and_hides_the_hidden_class():
+    Q = [[0, 0.2, 0.2], [0.2, 0, 0.2], [0.2, 0.2, 0]]
+    alt = z.MuSSE(birth=[1, 1, 3], death=[0.2, 0.2, 0.2], Q=Q)   # observed state 2 fast
+    cid = alt.null("cid", n_hidden=2)
+    assert cid.k == 6                                            # 3 observed x 2 hidden
+    b = cid.lambdas                                              # rate set by hidden class only
+    assert b[0] == b[2] == b[4] and b[1] == b[3] == b[5]
+    assert cid.discretize(0) == cid.discretize(1) == 0          # collapses to observed
+    assert cid.discretize(4) == cid.discretize(5) == 2
+    res = z.simulate_sse(cid, age=1.4, seed=1)
+    assert set(res.labeled_values().values()) <= {0, 1, 2}     # output shows observed only
+
+
+def test_musse_cid_needs_two_hidden():
+    alt = z.MuSSE(birth=[1, 2], death=[0.2, 0.2], Q=[[0, 0.2], [0.2, 0]])
+    with pytest.raises(ValueError, match="n_hidden >= 2"):
+        alt.null("cid", n_hidden=1)
+
+
+def test_quasse_neutral_is_constant_speciation():
+    spec = z.QuaSSE.sigmoid(0.4, 3.0, center=0.0, slope=3.0)
+    alt = z.QuaSSE(spec, lambda x: 0.2, sigma2=0.5, rate_bound=3.4, x0=-1.5)
+    null = alt.null("neutral")
+    assert null.speciation(-10) == null.speciation(10)          # trait-independent now
+    assert null.speciation(0.0) == pytest.approx(spec(-1.5))    # constant = rate at x0
+    assert alt.null("neutral", rate=1.0).speciation(99) == 1.0  # overridable
+
+
+def test_quasse_neutral_removes_the_trait_bias():
+    spec = z.QuaSSE.sigmoid(0.4, 3.0, center=0.0, slope=3.0)
+    alt = z.QuaSSE(spec, lambda x: 0.2, sigma2=0.5, rate_bound=3.4, x0=-1.5)
+
+    def mean_x(m, reps=40, seed=0):
+        rng = np.random.default_rng(seed)
+        return float(np.mean([v for _ in range(reps)
+                              for v in z.simulate_sse(m, age=2.0, rng=rng).labeled_values().values()]))
+    assert mean_x(alt) > mean_x(alt.null("neutral"))            # coupling pulls tips high; null doesn't
+
+
+def test_quasse_has_no_cid_null():
+    alt = z.QuaSSE(z.QuaSSE.sigmoid(0.4, 3, 0, 3), lambda x: 0.2, sigma2=0.5, rate_bound=3.4)
+    with pytest.raises(TypeError, match="no 'cid'"):
+        alt.null("cid")
+
+
+def test_hisse_neutral_collapses_to_a_constant_rate_bisse():
+    fast, slow = z.BiSSE(2.5, 2.5, 0.2, 0.2, 0.3, 0.3), z.BiSSE(0.4, 0.4, 0.2, 0.2, 0.3, 0.3)
+    hisse = z.HiSSE([fast, slow], hidden_transition=0.15)
+    null = hisse.null("neutral")
+    assert isinstance(null, z.BiSSE)
+    assert null.lambdas[0] == null.lambdas[1]                   # constant-rate on the observed trait
+    assert np.isclose(null.Q[0, 1], 0.3) and np.isclose(null.Q[1, 0], 0.3)   # observed transitions kept
+    assert set(z.simulate_sse(null, age=1.5, seed=1).labeled_values().values()) <= {0, 1}
+
+
+def test_hisse_has_no_cid_null():
+    hisse = z.HiSSE([z.BiSSE(2, 2, .2, .2, .3, .3), z.BiSSE(.4, .4, .2, .2, .3, .3)], 0.15)
+    with pytest.raises(ValueError, match="already a hidden-state"):
+        hisse.null("cid")
+
+
+def test_cli_sse_model_hisse_runs(tmp_path):
+    out = tmp_path / "o"
+    rc = main(["coevolve", "--couple", "traits:species", "--sse-model", "hisse",
+               "--hidden-classes", "2", "--hidden-scale", "4", "--hidden-switch", "0.15",
+               "--lambda0", "0.6", "--lambda1", "0.6", "--q01", "0.3", "--q10", "0.3",
+               "--tips", "100", "--seed", "1", "-o", str(out)])
+    assert rc == 0 and (out / "species_tree.nwk").exists()
+
+
+def test_cli_musse_cid_writes_observed_states_only(tmp_path):
+    q = tmp_path / "q3.txt"
+    q.write_text("0 0.2 0.2\n0.2 0 0.2\n0.2 0.2 0\n")
+    out = tmp_path / "o"
+    rc = main(["coevolve", "--couple", "traits:species", "--sse-model", "musse",
+               "--birth", "1", "1", "3", "--death", "0.2", "0.2", "0.2", "--q-matrix", str(q),
+               "--tips", "100", "--seed", "1", "--null", "cid", "-o", str(out)])
+    assert rc == 0
+    states = {r.split("\t")[1] for r in (out / "traits.tsv").read_text().splitlines()[1:]}
+    assert states <= {"0", "1", "2"}                            # observed only, no (o, h) leak
+
+
+def test_cli_hisse_and_quasse_cid_rejected(tmp_path):
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:species", "--sse-model", "hisse", "--tips", "40",
+              "--null", "cid", "-o", str(tmp_path / "a")])
+    with pytest.raises(SystemExit):
+        main(["coevolve", "--couple", "traits:species", "--sse-model", "quasse", "--tips", "40",
+              "--null", "cid", "-o", str(tmp_path / "b")])
