@@ -80,3 +80,7 @@ __all__ += ["Critic", "ESM2Critic", "FixedProfileCritic", "PLMSelection"]
 from zombi2.experimental.codon_selection import CodonSelection, translate  # noqa: E402
 
 __all__ += ["CodonSelection", "translate"]
+
+from zombi2.experimental.genome_selection import CDS, GenomeSelection, read_cds_gff  # noqa: E402
+
+__all__ += ["CDS", "GenomeSelection", "read_cds_gff"]
