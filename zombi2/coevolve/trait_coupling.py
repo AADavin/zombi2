@@ -40,6 +40,7 @@ coupled run reuses the whole pipeline (profiles, gene trees, reconciliations) vi
 
 from __future__ import annotations
 
+import copy
 import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
@@ -215,6 +216,31 @@ class TraitGeneCoupling:
         }
         if self.state_values is not None:
             self.state_values = np.asarray(self.state_values, dtype=float)
+
+    def null(self, kind="neutral", **kwargs):
+        """Decoupled **null** for the ``traits:genes`` arrow (trait → gene retention).
+
+        ``"neutral"`` cuts both coupling channels (``effect_loss = effect_gain = 0``): every
+        family, responsive or not, evolves at its base rates, so the panel no longer tracks the
+        trait. The character-independent (``"cid"``) null is a **workflow** — drive the panel with
+        a *hidden* trait while observing a *second, independent neutral trait* — not a model
+        transform; the CLI ``--null cid`` builds it. See
+        :doc:`the null-models guide </guide/coevolution_nulls>`.
+        """
+        kind = kind.lower()
+        if kind == "neutral":
+            m = copy.copy(self)
+            m.effect_loss = 0.0
+            m.effect_gain = 0.0
+            return m
+        if kind == "cid":
+            raise TypeError(
+                "the traits:genes CID null is a workflow (a hidden trait drives the panel, an "
+                "independent neutral trait is observed), not a model transform; use the CLI "
+                "`--null cid` — see docs/guide/coevolution_nulls.md")
+        if kind == "timing":
+            raise ValueError("traits:genes has no 'timing' null; use kind='neutral'")
+        raise ValueError(f"unknown null kind {kind!r}; expected 'neutral'")
 
     @property
     def responsive_ids(self) -> list[str]:

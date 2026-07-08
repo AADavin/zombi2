@@ -35,7 +35,7 @@ from zombi2.coevolve.gene_conditioned_trait import (
 from zombi2.coevolve.trait_gene_feedback import (
     TraitGeneFeedback, TraitGeneFeedbackResult, simulate_trait_gene_feedback,
 )
-from zombi2.coevolve.sse import BiSSE, MuSSE, HiSSE, QuaSSE, simulate_sse
+from zombi2.coevolve.sse import BiSSE, MuSSE, HiSSE, QuaSSE, CID, simulate_sse
 
 __all__ = [
     "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
@@ -47,5 +47,5 @@ __all__ = [
     "GeneConditionedTrait", "GeneConditionedTraitResult",
     "simulate_gene_conditioned_trait",
     "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
-    "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "simulate_sse",
+    "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "CID", "simulate_sse",
 ]

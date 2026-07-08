@@ -30,6 +30,7 @@ Each live lineage carries a set of present drivers ``S`` and competes to:
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 
 import numpy as np
@@ -119,6 +120,32 @@ class GeneDiversification:
         else:
             lam, mu = self.lambda0, self.mu0
         return lam, mu
+
+    def null(self, kind="neutral", **kwargs):
+        """Decoupled **null** for the ``genes:species`` arrow (gene content → diversification).
+        See :doc:`the null-models guide </guide/coevolution_nulls>`.
+
+        ``"neutral"`` zeroes every driver's effect on the rates (β = 0): the drivers still spread
+        and vary, but no longer set λ/μ, so the tree is constant-rate. The character-independent
+        (``"cid"``) null for this edge is a **workflow**, not a model transform — grow the
+        driver-shaped tree, then analyse a *neutral overlay genome* while withholding the drivers;
+        the CLI ``--null cid`` builds it for you.
+        """
+        kind = kind.lower()
+        if kind == "neutral":
+            m = copy.copy(self)
+            m.beta_lambda = np.zeros_like(self.beta_lambda)
+            m.beta_mu = np.zeros_like(self.beta_mu)
+            return m
+        if kind == "cid":
+            raise TypeError(
+                "the genes:species CID null is a workflow (grow the driver-shaped tree, then "
+                "observe a neutral overlay genome and withhold the drivers), not a model "
+                "transform; use the CLI `--null cid` — see docs/guide/coevolution_nulls.md")
+        if kind == "timing":
+            raise ValueError("genes:species has no 'timing' null (its driver is a gene state, not "
+                             "an at-speciation event); use kind='neutral' (or 'cid' via the CLI)")
+        raise ValueError(f"unknown null kind {kind!r}; expected 'neutral'")
 
     @property
     def is_co_diversification(self) -> bool:

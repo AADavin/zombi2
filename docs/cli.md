@@ -217,6 +217,11 @@ zombi2 coevolve --couple traits:species --sse-model bisse \
     --lambda0 1 --lambda1 3 --q01 0.1 --q10 0.1 --tips 200 --seed 1 -o out/
 ```
 
+Add **`--null {neutral,cid,timing}`** to any edge to generate its matched *decoupled* null instead
+of the coupled model — the arrow cut but the target's variance kept, for calibrating a detector's
+false-positive rate (writes a `null_manifest.tsv` recording what was cut). See **[null models of
+coevolution](guide/coevolution_nulls.md)**.
+
 See **[coevolution models](guide/coevolution.md)** for the full reference — all six edges, their
 parameters, the joint (both-arrow) models, and the CLI options.
 

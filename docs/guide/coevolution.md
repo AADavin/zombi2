@@ -66,7 +66,9 @@ variants, each its own diversification regime, with switch rates between classes
 2016). It is the honest null for SSE inference — rate heterogeneity that lives on a *hidden* class is
 not falsely pinned on the observed character. Build it from one `BiSSE` per hidden class plus a
 `hidden_transition` matrix (or a scalar for a symmetric rate); the tips report the **observed** state,
-with the `(observed, hidden)` pair still available per node. **Python-only** (no `--sse-model hisse`).
+with the `(observed, hidden)` pair still available per node. On the CLI, `--sse-model hisse` builds
+`--hidden-classes` regimes spanning the base rates up to `--hidden-scale`× faster (`--hidden-switch`
+between them); for full per-class control use the Python API.
 
 **QuaSSE.** A **continuous** trait diffuses (Brownian motion, `sigma2`, optional `drift`) along every
 lineage and the rates are functions of its current value (FitzJohn 2010). The rate functions must be
@@ -306,9 +308,10 @@ and contains its two single edges as limits. `root_fraction` seeds the panel at 
 
 `--couple driver:target` selects the edge(s); the order reads as the arrow. Edges into species grow
 the tree (`--age`/`--tips`, no `-t`); the other edges overlay a tree you pass with `-t`. For SSE,
-`--sse-model` picks `bisse` (default), `musse`, or `quasse`, and `--root-state` sets the root state
-index for `bisse`/`musse` (default: the character's stationary distribution). HiSSE is not exposed on
-`--sse-model` — use the Python API for it. The overlay runs below reuse a tree from `zombi2 species`.
+`--sse-model` picks `bisse` (default), `musse`, `quasse`, or `hisse` (with `--hidden-classes`,
+`--hidden-scale`, `--hidden-switch`), and `--root-state` sets the root state index for
+`bisse`/`musse` (default: the character's stationary distribution). The overlay runs below reuse a
+tree from `zombi2 species`.
 
 ```bash
 T=out/species_tree.nwk
@@ -329,6 +332,11 @@ zombi2 coevolve --couple traits:species --sse-model musse \
 zombi2 coevolve --couple traits:species --sse-model quasse \
     --spec-low 0.4 --spec-high 3 --spec-center 0 --spec-slope 3 \
     --qmu 0.2 --diffusion 0.5 --root-value -1.5 --tips 200 --seed 1 -o out/quasse
+
+# HiSSE: a binary trait + 2 hidden diversification classes (the fast class speciates 4x faster)
+zombi2 coevolve --couple traits:species --sse-model hisse \
+    --lambda0 0.6 --lambda1 0.6 --q01 0.3 --q10 0.3 \
+    --hidden-classes 2 --hidden-scale 4 --hidden-switch 0.15 --tips 200 --seed 1 -o out/hisse
 
 # ClaSSE: both arrows — BiSSE rates + a cladogenetic state hop at each speciation
 zombi2 coevolve --couple traits:species --couple species:traits \
@@ -509,6 +517,17 @@ The **overlay** edges write onto the tree you passed. `species:genes` writes
 the usual gene-family files chosen with `--write` ({profiles, trace, trees, events, transfers,
 summary}, or `all`) plus `coupling.tsv`, the responsive-family manifest that records the exact
 trait↔gene linkage for downstream inference.
+
+## Null models
+
+Every edge above ships a matched **decoupled null** — the coupled process with its `driver → target`
+arrow cut, but the target's variance kept — so you can calibrate whether an inferred coupling is
+real (rather than the tree's own heterogeneity mistaken for one). Generate one by adding
+`--null {neutral,cid,timing}` to any `coevolve` run, or in Python with a coupling model's
+`.null(kind=...)` method (plus the `CID` factory for `traits:species`). Each run writes a
+`null_manifest.tsv` recording exactly which arrow was cut. See **[Null models of
+coevolution](coevolution_nulls.md)** for the taxonomy (neutral / character-independent / timing)
+and a worked treatment.
 
 ## Validation
 
