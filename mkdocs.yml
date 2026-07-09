@@ -83,6 +83,8 @@ nav:
       - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
   - Cookbook: cookbook.md
+  - Examples:
+      - RED benchmark (Snakemake): examples/red-benchmark.md
   - Experimental:
       - Language-model selection: experimental/language-model-selection.md
   - Reference:
