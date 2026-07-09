@@ -44,6 +44,10 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 # .codon_selection). Heavy, optional, all lazily imported: the default `pip install zombi2`
 # stays torch-free. scipy powers the robust codon matrix exponential (codon selection).
 selection = ["torch", "fair-esm", "scipy>=1.10"]
+# Snakemake benchmarking workflows (examples/). snakemake pulls pyyaml transitively, but the
+# Snakefile imports it directly, so pin it; matplotlib renders the summary figures; the SLURM
+# executor plugin is only needed to run on a cluster.
+bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 
 [project.scripts]
 zombi2 = "zombi2.cli:main"
