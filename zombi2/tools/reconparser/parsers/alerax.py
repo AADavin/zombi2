@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import re
 
-import ete3
 import pandas as pd
+
+from zombi2.tree import Tree, read_newick
 
 
 class AleRaxFamily:
@@ -50,9 +51,9 @@ class AleRaxFamily:
         self._summaries_dir = self.output_dir / "reconciliations" / "summaries"
 
         # Caches (None = not yet loaded)
-        self._consensus_tree: Optional[ete3.Tree] = None
-        self._sampled_gene_trees: Optional[List[ete3.Tree]] = None
-        self._rec_uml_tree: Optional[ete3.Tree] = None
+        self._consensus_tree: Optional[Tree] = None
+        self._sampled_gene_trees: Optional[List[Tree]] = None
+        self._rec_uml_tree: Optional[Tree] = None
         self._summary_transfers: Optional[pd.DataFrame] = None
         self._summary_perspecies: Optional[pd.DataFrame] = None
         self._event_counts: Dict[int, Dict[str, int]] = {}
@@ -129,7 +130,7 @@ class AleRaxFamily:
     #  Consensus tree (from summaries/)
     # ------------------------------------------------------------------
 
-    def get_consensus_tree(self) -> ete3.Tree:
+    def get_consensus_tree(self) -> Tree:
         """
         Return the majority-rule consensus gene tree.
 
@@ -138,7 +139,7 @@ class AleRaxFamily:
 
         Returns
         -------
-        ete3.Tree
+        Tree
             Consensus gene tree with support values.
 
         Raises
@@ -156,14 +157,14 @@ class AleRaxFamily:
         with open(path, "r") as f:
             tree_str = f.read().strip()
 
-        self._consensus_tree = ete3.Tree(tree_str, format=1)
+        self._consensus_tree = read_newick(tree_str)
         return self._consensus_tree
 
     # ------------------------------------------------------------------
     #  Sampled gene trees (from all/*.newick)
     # ------------------------------------------------------------------
 
-    def get_sampled_gene_trees(self) -> List[ete3.Tree]:
+    def get_sampled_gene_trees(self) -> List[Tree]:
         """
         Return all sampled gene trees for this family.
 
@@ -175,7 +176,7 @@ class AleRaxFamily:
 
         Returns
         -------
-        List[ete3.Tree]
+        List[Tree]
             All sampled gene trees.
         """
         if self._sampled_gene_trees is not None:
@@ -185,17 +186,17 @@ class AleRaxFamily:
         if not nwk.exists():
             raise FileNotFoundError(f"Newick file not found: {nwk}")
 
-        trees: List[ete3.Tree] = []
+        trees: List[Tree] = []
         with open(nwk, "r") as f:
             for line in f:
                 line = line.strip()
                 if line:
-                    trees.append(ete3.Tree(line, format=1))
+                    trees.append(read_newick(line))
 
         self._sampled_gene_trees = trees
         return self._sampled_gene_trees
 
-    def get_sampled_gene_tree(self, sample: int) -> ete3.Tree:
+    def get_sampled_gene_tree(self, sample: int) -> Tree:
         """
         Return a single sampled gene tree by index.
 
@@ -208,7 +209,7 @@ class AleRaxFamily:
 
         Returns
         -------
-        ete3.Tree
+        Tree
             The requested sampled gene tree.
         """
         # If all trees are already cached, just index
@@ -222,7 +223,7 @@ class AleRaxFamily:
         with open(nwk, "r") as f:
             for i, line in enumerate(f):
                 if i == sample:
-                    return ete3.Tree(line.strip(), format=1)
+                    return read_newick(line.strip())
 
         raise IndexError(
             f"Sample index {sample} out of range for family {self.family_name}"
@@ -232,7 +233,7 @@ class AleRaxFamily:
     #  Reconciled gene tree with annotations (from all/*.rec_uml)
     # ------------------------------------------------------------------
 
-    def get_reconciled_gene_tree(self) -> ete3.Tree:
+    def get_reconciled_gene_tree(self) -> Tree:
         """
         Return the annotated reconciled gene tree (.rec_uml format).
 
@@ -245,7 +246,7 @@ class AleRaxFamily:
 
         Returns
         -------
-        ete3.Tree
+        Tree
             Annotated reconciled gene tree.
         """
         if self._rec_uml_tree is not None:
@@ -258,7 +259,7 @@ class AleRaxFamily:
         with open(path, "r") as f:
             tree_str = f.read().strip()
 
-        self._rec_uml_tree = ete3.Tree(tree_str, format=1)
+        self._rec_uml_tree = read_newick(tree_str)
         return self._rec_uml_tree
 
     # ------------------------------------------------------------------
@@ -525,8 +526,8 @@ class AleRaxRun:
         # Caches
         self._families: Optional[List[str]] = None
         self._family_parsers: Dict[str, AleRaxFamily] = {}
-        self._species_tree: Optional[ete3.Tree] = None
-        self._starting_species_tree: Optional[ete3.Tree] = None
+        self._species_tree: Optional[Tree] = None
+        self._starting_species_tree: Optional[Tree] = None
         self._model_parameters: Optional[pd.DataFrame] = None
         self._per_fam_likelihoods: Optional[pd.DataFrame] = None
         self._global_transfers: Optional[pd.DataFrame] = None
@@ -611,13 +612,13 @@ class AleRaxRun:
     #  Species trees
     # ------------------------------------------------------------------
 
-    def get_species_tree(self) -> ete3.Tree:
+    def get_species_tree(self) -> Tree:
         """
         Return the inferred (optimised) species tree.
 
         Returns
         -------
-        ete3.Tree
+        Tree
         """
         if self._species_tree is not None:
             return self._species_tree
@@ -627,16 +628,16 @@ class AleRaxRun:
             raise FileNotFoundError(f"Inferred species tree not found: {path}")
 
         with open(path, "r") as f:
-            self._species_tree = ete3.Tree(f.read().strip(), format=1)
+            self._species_tree = read_newick(f.read().strip())
         return self._species_tree
 
-    def get_starting_species_tree(self) -> ete3.Tree:
+    def get_starting_species_tree(self) -> Tree:
         """
         Return the starting (input) species tree.
 
         Returns
         -------
-        ete3.Tree
+        Tree
         """
         if self._starting_species_tree is not None:
             return self._starting_species_tree
@@ -646,7 +647,7 @@ class AleRaxRun:
             raise FileNotFoundError(f"Starting species tree not found: {path}")
 
         with open(path, "r") as f:
-            self._starting_species_tree = ete3.Tree(f.read().strip(), format=1)
+            self._starting_species_tree = read_newick(f.read().strip())
         return self._starting_species_tree
 
     # ------------------------------------------------------------------
