@@ -83,6 +83,8 @@ nav:
       - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
   - Cookbook: cookbook.md
+  - Experimental:
+      - Language-model selection: experimental/language-model-selection.md
   - Reference:
       - Command line: cli.md
       - Python API: reference/api.md
