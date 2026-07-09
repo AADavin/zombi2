@@ -65,7 +65,7 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
-  tools                compute on ZOMBI2 outputs (reconcile: ALE likelihood; red: RED; parse: read ALE/AleRax output)
+  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)
 
 Experimental (unstable, opt-in)
   experimental         not-yet-validated models (selection: ESM2 codon selection, emergent dN/dS)
@@ -1964,6 +1964,130 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
     return 0
 
 
+_TREEDIST_COLS = ("tree", "n_leaves", "rf", "rf_norm", "rf_unrooted",
+                  "branch_score", "quartet", "quartet_norm", "matching", "matching_norm")
+
+
+def _treedist_row(label: str, c) -> str:
+    """One TSV line for a :class:`~zombi2.tools.treedist.TreeComparison` (blank when a metric was
+    skipped: quartet over max-leaves, or matching over max-leaves / SciPy missing)."""
+    quartet = "" if c.quartet is None else str(c.quartet)
+    quartet_norm = "" if c.quartet_normalized is None else f"{c.quartet_normalized:.6f}"
+    matching = "" if c.matching is None else str(c.matching)
+    matching_norm = "" if c.matching_normalized is None else f"{c.matching_normalized:.6f}"
+    return "\t".join((
+        label, str(c.n_leaves), str(c.rf), f"{c.rf_normalized:.6f}", str(c.rf_unrooted),
+        f"{c.branch_score:.6f}", quartet, quartet_norm, matching, matching_norm,
+    ))
+
+
+def _run_tools_treedist(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools treedist`` — RF, branch-score, and quartet distances between a reference
+    tree and one or more comparison trees (e.g. a simulated truth vs. inferred trees)."""
+    from .tools.treedist import compare_trees
+
+    def _read_trees(path):
+        with open(path) as f:
+            return [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+
+    ref = _read_trees(args.reference)
+    if len(ref) != 1:
+        parser.error(f"{args.reference} must contain exactly one reference tree (found {len(ref)})")
+    reference = read_newick(ref[0])
+
+    estimates = _read_trees(args.estimate)
+    if not estimates:
+        raise ValueError(f"no trees found in {args.estimate}")
+
+    rows = []
+    for i, nwk in enumerate(estimates, 1):
+        try:
+            c = compare_trees(reference, read_newick(nwk), quartet=not args.no_quartet,
+                              max_leaves=args.max_leaves, branch_score_order=args.branch_order)
+        except ValueError as e:
+            parser.error(f"tree {i} in {args.estimate}: {e}")
+        rows.append(_treedist_row(str(i) if len(estimates) > 1 else "1", c))
+
+    header = "\t".join(_TREEDIST_COLS)
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, "Tree_distances.tsv")
+        with open(path, "w") as f:
+            f.write(header + "\n" + "\n".join(rows) + "\n")
+        print(f"wrote {path} ({len(rows)} comparison(s))")
+    else:
+        print(header)
+        for r in rows:
+            print(r)
+    return 0
+
+
+_RECONACC_COLS = ("family", "n_nodes", "event_acc", "mapping_acc", "joint_acc",
+                  "transfers", "transfers_recovered")
+
+
+def _run_tools_recon_accuracy(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools recon-accuracy`` — node-by-node accuracy of an inferred reconciliation
+    against a true one, per family (paired by line) and pooled over all families."""
+    from .tools.recon_accuracy import reconciliation_accuracy
+
+    def _read(path):
+        with open(path) as f:
+            return [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+
+    truth, inferred = _read(args.truth), _read(args.inferred)
+    if len(truth) != len(inferred):
+        parser.error(f"--truth has {len(truth)} tree(s) but --inferred has {len(inferred)}; "
+                     "they are paired line by line and must match")
+    if not truth:
+        raise ValueError(f"no reconciled trees found in {args.truth}")
+
+    accs = []
+    for i, (t, e) in enumerate(zip(truth, inferred), 1):
+        try:
+            accs.append(reconciliation_accuracy(t, e))
+        except ValueError as err:
+            parser.error(f"family {i}: {err}")
+
+    rows = []
+    for i, a in enumerate(accs, 1):
+        rows.append("\t".join((
+            str(i), str(a.n_nodes), f"{a.event_accuracy:.6f}", f"{a.mapping_accuracy:.6f}",
+            f"{a.joint_accuracy:.6f}", str(a.transfer.n_true), str(a.transfer.both_correct),
+        )))
+
+    # pooled (micro-averaged over all nodes) summary
+    N = sum(a.n_nodes for a in accs)
+    ev = sum(round(a.event_accuracy * a.n_nodes) for a in accs)
+    mp = sum(round(a.mapping_accuracy * a.n_nodes) for a in accs)
+    jt = sum(round(a.joint_accuracy * a.n_nodes) for a in accs)
+    nT = sum(a.transfer.n_true for a in accs)
+    det = sum(a.transfer.detected for a in accs)
+    both = sum(a.transfer.both_correct for a in accs)
+    pooled = (
+        f"# pooled over {len(accs)} family(ies), {N} node(s): "
+        f"event_acc={ev / N:.4f} mapping_acc={mp / N:.4f} joint_acc={jt / N:.4f}"
+        if N else "# pooled: no internal nodes to score"
+    )
+    if nT:
+        pooled += f" | transfers: {det}/{nT} detected, {both}/{nT} donor+recipient recovered"
+
+    header = "\t".join(_RECONACC_COLS)
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, "Reconciliation_accuracy.tsv")
+        with open(path, "w") as f:
+            f.write(header + "\n" + "\n".join(rows) + "\n" + pooled + "\n")
+        print(f"wrote {path} ({len(rows)} family(ies))")
+        print(pooled)
+    else:
+        print(header)
+        for r in rows:
+            print(r)
+        print(pooled)
+    return 0
+
+
 def _run_tools_parse(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools parse`` — read an external reconciliation run (ALE or AleRax) and print a
     summary (rates, log-likelihood, top transfers); with -o, also write the tables as TSV."""
@@ -2605,8 +2729,9 @@ def _iter_leaves(node):
 
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
     """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
-    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood), ``red``
-    (RED) and ``parse`` (read external ALE / AleRax reconciliation output)."""
+    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood),
+    ``treedist`` (tree distances), ``recon-accuracy`` (reconciliation accuracy), ``red`` (RED)
+    and ``parse`` (read external ALE / AleRax reconciliation output)."""
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     rp = tsub.add_parser(
         "reconcile",
@@ -2627,6 +2752,46 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_tools_reconcile_args(rp)
+
+    tp = tsub.add_parser(
+        "treedist",
+        help="RF, branch-score, and quartet distances between two trees",
+        description=(
+            "Tree distances between a REFERENCE tree (e.g. a simulated truth) and one or more "
+            "comparison trees (e.g. inferred estimates), over their shared leaf set: rooted and "
+            "unrooted Robinson-Foulds, the Kuhner-Felsenstein branch score, and the quartet "
+            "distance. One output row per comparison tree."
+        ),
+        usage="zombi2 tools treedist -r FILE -e FILE [options]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # distances between a true species tree and an inferred one",
+            "  zombi2 tools treedist -r true_tree.nwk -e inferred_tree.nwk",
+            "",
+            "  # score many bootstrap/replicate trees against one reference, saved to out/",
+            "  zombi2 tools treedist -r true_tree.nwk -e replicates.nwk -o out/",
+        ),
+    )
+    _add_tools_treedist_args(tp)
+
+    ap = tsub.add_parser(
+        "recon-accuracy",
+        help="accuracy of an inferred reconciliation against a known (simulated) one",
+        description=(
+            "Node-by-node accuracy of an INFERRED reconciliation against the TRUE one for the "
+            "same gene tree: event-type accuracy and per-class precision/recall, species "
+            "(MRCA) mapping accuracy, and transfer donor/recipient recovery. Inputs are ZOMBI2 "
+            "annotated reconciled Newicks (as written by 'zombi2 genomes --write reconciliations'), "
+            "one family per line, --truth and --inferred paired by line."
+        ),
+        usage="zombi2 tools recon-accuracy -t FILE -i FILE [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # score inferred reconciliations against the simulated truth",
+            "  zombi2 tools recon-accuracy -t true_recon.nwk -i inferred_recon.nwk",
+        ),
+    )
+    _add_tools_recon_accuracy_args(ap)
 
     rp = tsub.add_parser(
         "red",
@@ -2699,6 +2864,39 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
                    help="where the family originates: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
+
+
+def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-r", "--reference", required=True, metavar="FILE",
+                   help="Newick file with exactly one reference tree (e.g. a simulated truth)")
+    g.add_argument("-e", "--estimate", required=True, metavar="FILE",
+                   help="Newick file of one or more comparison trees (one per line); each is "
+                        "compared to the reference and must share its leaf label set")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write Tree_distances.tsv into DIR (default: print the table to stdout)")
+
+    g = p.add_argument_group("metrics")
+    g.add_argument("--no-quartet", action="store_true",
+                   help="skip the quartet distance (it is O(n^4) in the number of leaves)")
+    g.add_argument("--max-leaves", type=int, default=100, metavar="N",
+                   help="quartet-distance guard: skip it above N leaves (default 100); raise to "
+                        "force it on larger trees")
+    g.add_argument("--branch-order", type=int, choices=(1, 2), default=2, metavar="P",
+                   help="branch-score norm: 2 = L2 / Kuhner-Felsenstein (default), 1 = L1")
+
+
+def _add_tools_recon_accuracy_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-t", "--truth", required=True, metavar="FILE",
+                   help="annotated reconciled Newick(s) of the TRUE reconciliation, one family "
+                        "per line (labels '<species>|<EVENT>', '<donor>|T>recipient', tips "
+                        "'<species>|<gid>')")
+    g.add_argument("-i", "--inferred", required=True, metavar="FILE",
+                   help="annotated reconciled Newick(s) of the INFERRED reconciliation, paired "
+                        "with --truth line by line (same gene-tree topology and tip labels)")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write Reconciliation_accuracy.tsv into DIR (default: print to stdout)")
 
 
 def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
@@ -3110,12 +3308,14 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE likelihood; red: RED; parse: read ALE/AleRax output)",
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)",
         "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
         "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
         "'zombi2 tools <tool> -h' for its options.\n\n"
         "Tools\n"
         "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)\n"
+        "  treedist             tree distances (RF, branch-score, quartet, matching) vs a reference\n"
+        "  recon-accuracy       accuracy of an inferred reconciliation vs a known one\n"
         "  red                  Relative Evolutionary Divergence of every node (Parks et al. 2018)\n"
         "  parse                read external ALE / AleRax reconciliation output (reconparser)",
         "zombi2 tools <tool> [options]",
@@ -3251,6 +3451,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "tools":
         if args.tools_command == "reconcile":
             return _run_tools_reconcile(args, parser)
+        if args.tools_command == "treedist":
+            return _run_tools_treedist(args, parser)
+        if args.tools_command == "recon-accuracy":
+            return _run_tools_recon_accuracy(args, parser)
         if args.tools_command == "red":
             return _run_tools_red(args, parser)
         if args.tools_command == "parse":
