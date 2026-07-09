@@ -48,7 +48,7 @@ opposite — **stable and validated**, just adjacent to (rather than part of) th
 | **Relative Evolutionary Divergence** (RED) | each node's rate-normalised relative age in `[0, 1]` (root 0, tips 1) — GTDB's rank-normalisation quantity (Parks et al. 2018) | [Relative Evolutionary Divergence](red.md) |
 | **Tree distances** (`treedist`) | Robinson–Foulds, branch-score, quartet, and matching distances between a true tree and an inferred one | [Tree distances](treedist.md) |
 | **Reconciliation accuracy** (`recon-accuracy`) | node-by-node event, mapping (MRCA), and transfer-recovery accuracy of an inferred reconciliation vs the true one | [Reconciliation accuracy](recon-accuracy.md) |
-| **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into `ete3` trees and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
+| **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into native `zombi2.tree.Tree` objects and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
 
 ## Roadmap
 

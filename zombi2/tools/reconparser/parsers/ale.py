@@ -2,9 +2,10 @@
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import ete3
 import pandas as pd
 import re
+
+from zombi2.tree import Tree, read_newick
 
 
 class ALEParser:
@@ -55,10 +56,10 @@ class ALEParser:
         self.uml_rec_path = Path(str(self.base_path) + '.uml_rec')
 
         # Cache for parsed data
-        self._consensus_tree: Optional[ete3.Tree] = None
+        self._consensus_tree: Optional[Tree] = None
         self._transfers: Optional[pd.DataFrame] = None
-        self._reconciled_tree: Optional[ete3.Tree] = None
-        self._reconciled_gene_trees: Optional[List[ete3.Tree]] = None
+        self._reconciled_tree: Optional[Tree] = None
+        self._reconciled_gene_trees: Optional[List[Tree]] = None
         self._ml_rates: Optional[Dict[str, float]] = None
         self._log_likelihood: Optional[float] = None
         self._branch_statistics: Optional[pd.DataFrame] = None
@@ -67,13 +68,13 @@ class ALEParser:
         # Cache for full uml_rec parse
         self._uml_rec_parsed: bool = False
 
-    def get_consensus_tree(self) -> ete3.Tree:
+    def get_consensus_tree(self) -> Tree:
         """
         Parse and return the consensus gene tree.
 
         Returns
         -------
-        ete3.Tree
+        Tree
             The consensus gene tree with support values
 
         Raises
@@ -101,8 +102,8 @@ class ALEParser:
             if tree_line is None:
                 raise ValueError("No tree found in consensus tree file")
 
-            # Parse the Newick tree (format=1 for standard format with support values)
-            self._consensus_tree = ete3.Tree(tree_line, format=1)
+            # Parse the Newick tree (internal-node names carry ALE's support values)
+            self._consensus_tree = read_newick(tree_line)
 
         return self._consensus_tree
 
@@ -195,7 +196,7 @@ class ALEParser:
         # Line 3: Species tree (S:)
         if line_idx < len(lines) and lines[line_idx].startswith('S:'):
             tree_str = lines[line_idx].split('S:', 1)[1].strip()
-            self._reconciled_tree = ete3.Tree(tree_str, format=1)
+            self._reconciled_tree = read_newick(tree_str)
             line_idx += 1
 
         # Skip empty lines
@@ -240,10 +241,12 @@ class ALEParser:
         while line_idx < len(lines) and lines[line_idx].strip().startswith('('):
             tree_str = lines[line_idx].strip()
             try:
-                # These trees have reconciliation annotations, format=1
-                tree = ete3.Tree(tree_str, format=1)
+                # These trees carry reconciliation annotations baked into the
+                # node names (e.g. ``.T@donor->recipient``); read_newick keeps
+                # them verbatim as ``TreeNode.name``.
+                tree = read_newick(tree_str)
                 reconciled_trees.append(tree)
-            except:
+            except Exception:
                 # If parsing fails, skip this tree
                 pass
             line_idx += 1
@@ -317,13 +320,13 @@ class ALEParser:
 
         self._uml_rec_parsed = True
 
-    def get_reconciled_tree(self) -> ete3.Tree:
+    def get_reconciled_tree(self) -> Tree:
         """
         Parse and return the reconciled species tree.
 
         Returns
         -------
-        ete3.Tree
+        Tree
             The reconciled species tree
 
         Raises
@@ -339,7 +342,7 @@ class ALEParser:
 
         return self._reconciled_tree
 
-    def get_reconciled_gene_trees(self) -> List[ete3.Tree]:
+    def get_reconciled_gene_trees(self) -> List[Tree]:
         """
         Parse and return all reconciled gene trees.
 
@@ -349,7 +352,7 @@ class ALEParser:
 
         Returns
         -------
-        List[ete3.Tree]
+        List[Tree]
             List of reconciled gene trees with annotations
 
         Raises
@@ -511,9 +514,9 @@ class ALEParser:
         -------
         Dict
             Dictionary containing all parsed data:
-            - 'consensus_tree': ete3.Tree or None
-            - 'species_tree': ete3.Tree or None
-            - 'reconciled_gene_trees': List[ete3.Tree] or None
+            - 'consensus_tree': Tree or None
+            - 'species_tree': Tree or None
+            - 'reconciled_gene_trees': List[Tree] or None
             - 'transfers': pd.DataFrame or None
             - 'ml_rates': Dict[str, float] or None
             - 'log_likelihood': float or None
