@@ -63,6 +63,48 @@ def test_bad_subst_model_is_rejected(tmp_path):
               "--genome-fasta", str(f), "-o", str(tmp_path / "o"), "--subst-model", "lg"])
 
 
+def test_gff_fasta_seqid_mismatch_errors_cleanly(tmp_path, capsys):
+    # a FASTA whose sequence is named differently from the GFF's CDS contig must NOT be silently paired
+    t, f, gff, genome = _write_inputs(tmp_path)
+    f.write_text(f">chrOTHER\n{genome}\n")                     # GFF is on 'seq1', FASTA is 'chrOTHER'
+    rc = main(["experimental", "selection", "-t", str(t), "--gff", str(gff),
+               "--genome-fasta", str(f), "--beta", "1.0", "-o", str(tmp_path / "o")])
+    assert rc == 1                                             # clean one-line error, not a traceback
+    assert "seq1" in capsys.readouterr().err
+
+
+class _PeakedCritic:
+    """Torch-free stub critic: a profile peaked on each protein's own residues (any length)."""
+
+    def profile(self, protein):
+        from zombi2.sequences.models import AMINO_ACIDS
+        idx = {a: i for i, a in enumerate(AMINO_ACIDS)}
+        P = np.full((len(protein), 20), (1 - 0.9) / 19)
+        for i, a in enumerate(protein):
+            P[i, idx[a]] = 0.9
+        return P
+
+
+def test_calibrate_beta_genomewide_hits_the_target(tmp_path):
+    # the fix for the OOM concat bug: calibrate one beta over MANY proteins (profiled independently),
+    # matching a length-weighted-mean dN/dS -- verified against the same weighted mean.
+    from zombi2.cli import _calibrate_beta_genomewide
+    from zombi2.experimental.codon_selection import CodonSelection
+    from zombi2.experimental.selection import FixedProfileCritic
+    from zombi2.experimental.codon_selection import translate
+    from zombi2.experimental.codon_selection import SENSE_CODONS
+
+    rng = np.random.default_rng(3)
+    proteins = [translate("".join(SENSE_CODONS[i] for i in rng.integers(len(SENSE_CODONS), size=n)))
+                for n in (18, 25, 12)]
+    crit = _PeakedCritic()
+    beta = _calibrate_beta_genomewide(crit, proteins, 0.3, None)
+    total = sum(len(p) for p in proteins)
+    got = sum(len(p) * CodonSelection(FixedProfileCritic(crit.profile(p)), beta=beta).dnds(p)
+              for p in proteins) / total
+    assert abs(got - 0.3) < 5e-3
+
+
 # --------------------------------------------------------------------------- #
 # end-to-end (needs the optional ESM2 deps)
 # --------------------------------------------------------------------------- #

@@ -6,9 +6,10 @@ may change without notice, and each will eventually be either **promoted** into
 the stable core (once validated and reviewed) or **removed**.
 
 Import experimental models explicitly from ``zombi2.experimental`` -- nothing here
-is re-exported into the top-level ``zombi2`` namespace, and nothing here is wired
-into the ``zombi2`` command line or the model catalog. That separation is what
-keeps the core surface small and stable.
+is re-exported into the top-level ``zombi2`` namespace or the model catalog. On the
+command line they are reached only through the explicitly-unstable
+``zombi2 experimental <model>`` group (never the stable top-level commands). That
+separation is what keeps the core surface small and stable.
 
 See the model lifecycle in ``docs/contributing/model-lifecycle.md`` for how a
 model moves ``idea -> experimental -> core``.
