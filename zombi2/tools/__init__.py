@@ -39,6 +39,23 @@ from .reconciliation import (
     score_reconciliations,
     write_scores_tsv,
 )
+from .treedist import (
+    robinson_foulds,
+    branch_score,
+    quartet_distance,
+    matching_distance,
+    compare_trees,
+    RFResult,
+    QuartetResult,
+    MatchingResult,
+    TreeComparison,
+)
+from .recon_accuracy import (
+    reconciliation_accuracy,
+    ReconAccuracy,
+    EventPR,
+    TransferRecovery,
+)
 
 __all__ = [
     "reconciliation_likelihood",
@@ -56,4 +73,19 @@ __all__ = [
     "FamilyScore",
     "score_reconciliations",
     "write_scores_tsv",
+    # tree distances
+    "robinson_foulds",
+    "branch_score",
+    "quartet_distance",
+    "matching_distance",
+    "compare_trees",
+    "RFResult",
+    "QuartetResult",
+    "MatchingResult",
+    "TreeComparison",
+    # reconciliation accuracy
+    "reconciliation_accuracy",
+    "ReconAccuracy",
+    "EventPR",
+    "TransferRecovery",
 ]
