@@ -94,6 +94,8 @@ nav:
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+  - Experimental:
+      - Language-model selection: experimental/language-model-selection.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
