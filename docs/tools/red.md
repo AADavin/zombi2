@@ -12,6 +12,13 @@ of the tree**: multiplying every branch by a constant leaves it unchanged. That 
 useful — on a *phylogram* (branch lengths in substitutions, distorted by rate variation) RED
 recovers an approximate, normalised timeline of relative node ages **without a molecular clock**.
 
+![One 16-tip tree shown three ways: a true ultrametric timetree, the same tree heavily perturbed into a phylogram with ragged tips, and the tree recovered by RED — ultrametric again and matching the first.](../img/red_recovery.svg)
+
+*One tree, three ways. **A** the true timetree (ultrametric, tips aligned at the present); **B** the same
+tree perturbed into a phylogram by a strong relaxed clock, so rate variation leaves the tips ragged
+(here root-to-tip depths span ~12×); **C** the tree RED recovers, placing each node at its RED value —
+ultrametric again, and back on panel A. Reproduce with `figures/scripts/fig_red_recovery.py`.*
+
 ## What it computes
 
 Assign `RED(root) = 0`. Visiting nodes from the root outward, for a non-root node *n* with parent *p*:
