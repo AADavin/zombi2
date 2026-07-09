@@ -12,21 +12,27 @@ It parses two formats:
 | **ALE** (`ALEml`, `ALEml_undated`) | v0.4, v1.0 | `.ucons_tree` (consensus gene tree), `.uTs` (transfers), `.uml_rec` (species tree, reconciled gene trees, ML D/T/L rates, log-likelihood, summary + per-branch event tables) |
 | **AleRax** | v1.2+ | a whole run directory — species trees, per-gene model parameters, per-family likelihoods, global and per-family transfers, per-species event counts, origination probabilities, coverage |
 
-Trees come back as [`ete3.Tree`](http://etetoolkit.org/) objects and tables as
-[`pandas`](https://pandas.pydata.org/) DataFrames. AleRax parsing is **lazy** — nothing is read
-until you ask for it, which matters for runs with thousands of families.
+Trees come back as native [`zombi2.tree.Tree`](../reference/api.md) objects — parsed with
+ZOMBI2's own `read_newick`, the same tree type the simulator produces — and tables as
+[`pandas`](https://pandas.pydata.org/) DataFrames. That means a parsed reconciliation drops
+straight into the rest of ZOMBI2 (the [reconciliation scorer](reconciliation-likelihood.md), the
+tree utilities) with no foreign tree type to convert. The reconciliation annotations ALE and
+AleRax bake into node names — `.T@donor->recipient` for transfers, `.D@…` for duplications,
+consensus support values — survive verbatim as each node's `name`. AleRax parsing is **lazy** —
+nothing is read until you ask for it, which matters for runs with thousands of families.
 
 ## Optional dependency
 
-reconparser needs `ete3` and `pandas`, which are **not** in the base install (`ete3` is heavy).
-Like the `selection` extra, they ship behind an opt-in extra:
+reconparser needs only `pandas` (for the table outputs), which is **not** in the base install;
+trees use ZOMBI2's built-in parser, so there is no `ete3` dependency. Like the `selection` extra,
+it ships behind an opt-in extra:
 
 ```bash
 pip install 'zombi2[reconparser]'
 ```
 
 Nothing is re-exported into the top-level `zombi2` namespace, so plain `import zombi2` never pulls
-in `ete3` — you only pay for it when you import the subpackage.
+in `pandas` — you only pay for it when you import the subpackage.
 
 ## From Python
 
