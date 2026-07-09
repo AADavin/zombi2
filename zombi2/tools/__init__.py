@@ -18,6 +18,14 @@ The first tool is **ALElite** (:mod:`zombi2.tools.reconciliation`): the ALE-styl
 reconciliation likelihood ``P(gene tree | species tree, DTL rates)`` of a simulated gene
 family, validated against closed-form oracles. See ``docs/tools/`` for the layer's scope and
 roadmap.
+
+Its interop complement is **reconparser** (:mod:`zombi2.tools.reconparser`): parsers that
+*read* the output of the established reconciliation programs (ALE, AleRax) into ``ete3`` trees
+and ``pandas`` DataFrames — the bridge for comparing a real reconciliation against a ZOMBI2
+simulation. It needs the optional ``reconparser`` extra (``pip install 'zombi2[reconparser]'``)
+and, like ``reconciliation``, is imported from its own submodule rather than re-exported here::
+
+    from zombi2.tools.reconparser import ALEParser, AleRaxRun, AleRaxFamily
 """
 
 from __future__ import annotations

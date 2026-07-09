@@ -97,6 +97,7 @@ nav:
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Parsing reconciliation output: tools/reconciliation-parsing.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md

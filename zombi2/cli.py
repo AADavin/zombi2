@@ -65,7 +65,7 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
-  tools                compute on ZOMBI2 outputs (reconcile: ALE reconciliation likelihood)
+  tools                compute on ZOMBI2 outputs (reconcile: ALE likelihood; parse: read ALE/AleRax output)
 
 Experimental (unstable, opt-in)
   experimental         not-yet-validated models (selection: ESM2 codon selection, emergent dN/dS)
@@ -1964,6 +1964,110 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
     return 0
 
 
+def _run_tools_parse(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools parse`` — read an external reconciliation run (ALE or AleRax) and print a
+    summary (rates, log-likelihood, top transfers); with -o, also write the tables as TSV."""
+    try:                                       # optional 'reconparser' extra (ete3, pandas)
+        from .tools.reconparser import ALEParser, AleRaxRun
+    except ImportError as e:
+        raise RuntimeError(str(e)) from e
+
+    tool = args.tool
+    if tool == "auto":
+        tool = "alerax" if os.path.isdir(args.path) else "ale"
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+
+    if tool == "ale":
+        p = ALEParser(args.path)
+        present = [k for k, ok in p.files_exist().items() if ok]
+        if not present:
+            raise FileNotFoundError(
+                f"no ALE output files found for base path {args.path!r} "
+                "(expected .ucons_tree / .uTs / .uml_rec) — is --tool right?")
+        print(f"ALE reconciliation: {p.base_path}")
+        print(f"  files present: {', '.join(present)}")
+        try:
+            print(f"  log-likelihood: {p.get_log_likelihood():.6f}")
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            r = p.get_ml_rates()
+            print(f"  ML rates:  D={r['duplications']:.4g}  "
+                  f"T={r['transfers']:.4g}  L={r['losses']:.4g}")
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            s = p.get_summary_statistics()
+            print(f"  total events:  D={s['total_duplications']:g}  "
+                  f"T={s['total_transfers']:g}  L={s['total_losses']:g}  "
+                  f"S={s['total_speciations']:g}")
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            tr = p.get_transfers()
+            print(f"  transfers: {len(tr)} edge(s)"
+                  + (f" (top {args.top} by frequency)" if len(tr) else ""))
+            for _, row in tr.nlargest(args.top, "freq").iterrows():
+                print(f"     {row['from']} -> {row['to']}   {row['freq']:.3f}")
+            if args.out:
+                tp = os.path.join(args.out, "ale_transfers.tsv")
+                tr.to_csv(tp, sep="\t", index=False)
+                print(f"  wrote {tp}")
+        except (FileNotFoundError, ValueError):
+            pass
+        if args.out:
+            try:
+                bs = p.get_branch_statistics()
+                bp = os.path.join(args.out, "ale_branch_statistics.tsv")
+                bs.to_csv(bp, sep="\t", index=False)
+                print(f"  wrote {bp}")
+            except (FileNotFoundError, ValueError):
+                pass
+        return 0
+
+    # tool == "alerax"
+    run = AleRaxRun(args.path)                  # raises NotADirectoryError on a non-dir path
+    print(f"AleRax run: {run.output_dir}")
+    try:
+        info = run.get_run_info()
+        bits = [f"version: {info.get('version', '?')}"]
+        if "num_families" in info:
+            bits.append(f"families: {info['num_families']}")
+        if "num_species" in info:
+            bits.append(f"species: {info['num_species']}")
+        print("  " + "   ".join(bits))
+    except (FileNotFoundError, ValueError):
+        pass
+    try:
+        print(f"  total log-likelihood: {run.get_total_log_likelihood():.6f}")
+    except (FileNotFoundError, ValueError):
+        pass
+    try:
+        tr = run.get_transfers()
+        score = "score" if "score" in tr.columns else tr.columns[-1]
+        print(f"  global transfers: {len(tr)} edge(s)"
+              + (f" (top {args.top} by {score})" if len(tr) else ""))
+        for _, row in tr.nlargest(args.top, score).iterrows():
+            print(f"     {row['from']} -> {row['to']}   {row[score]:.3f}")
+        if args.out:
+            tp = os.path.join(args.out, "alerax_transfers.tsv")
+            tr.to_csv(tp, sep="\t", index=False)
+            print(f"  wrote {tp}")
+    except (FileNotFoundError, ValueError):
+        pass
+    if args.out:
+        try:
+            lk = run.get_per_family_likelihoods()
+            lp = os.path.join(args.out, "alerax_per_family_likelihoods.tsv")
+            lk.to_csv(lp, sep="\t", index=False)
+            print(f"  wrote {lp}")
+        except (FileNotFoundError, ValueError):
+            pass
+    return 0
+
+
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
@@ -2474,7 +2578,8 @@ def _iter_leaves(node):
 
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
     """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
-    layer). Each tool is its own sub-subcommand — currently just ``reconcile`` (ALElite)."""
+    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood) and
+    ``parse`` (read external ALE / AleRax reconciliation output)."""
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     rp = tsub.add_parser(
         "reconcile",
@@ -2495,6 +2600,29 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_tools_reconcile_args(rp)
+
+    pp = tsub.add_parser(
+        "parse",
+        help="parse external reconciliation output (ALE, AleRax) and summarize it",
+        description=(
+            "Read the output of an established reconciliation program and print a summary — the "
+            "ML DTL rates, the log-likelihood, and the top transfers. Understands classic ALE "
+            "(.ucons_tree / .uTs / .uml_rec, v0.4 and v1.0) and AleRax run directories (v1.2+); "
+            "the tool is auto-detected from the path (a directory is an AleRax run). With -o it "
+            "also writes the transfer / per-branch tables as TSV. This is the reconparser interop "
+            "bridge — needs the optional extra:  pip install 'zombi2[reconparser]'."
+        ),
+        usage="zombi2 tools parse PATH [--tool auto|ale|alerax] [--top N] [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # summarize a classic ALE result (base path, without the .uml_rec extension)",
+            "  zombi2 tools parse results.ale",
+            "",
+            "  # summarize an AleRax run directory and save its transfer tables into out/",
+            "  zombi2 tools parse alerax_output/ --top 20 -o out/",
+        ),
+    )
+    _add_tools_parse_args(pp)
 
 
 def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
@@ -2525,6 +2653,20 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
                    help="where the family originates: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
+
+
+def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("path", metavar="PATH",
+                   help="the reconciliation output: an ALE base path (e.g. results.ale, or any "
+                        "of its .ucons_tree/.uTs/.uml_rec files) or an AleRax run directory")
+    g.add_argument("--tool", choices=("auto", "ale", "alerax"), default="auto", metavar="NAME",
+                   help="which reconciliation tool produced PATH (default: auto — a directory "
+                        "is treated as an AleRax run, anything else as classic ALE)")
+    g.add_argument("--top", type=int, default=10, metavar="N",
+                   help="how many top transfers (by frequency/score) to print (default: 10)")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="also write the transfer and per-branch/per-family tables as TSV into DIR")
 
 
 # --------------------------------------------------------------------------- #
@@ -2912,17 +3054,21 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE reconciliation likelihood)",
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE likelihood; parse: read ALE/AleRax output)",
         "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
         "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
         "'zombi2 tools <tool> -h' for its options.\n\n"
         "Tools\n"
-        "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)",
+        "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)\n"
+        "  parse                read external ALE / AleRax reconciliation output (reconparser)",
         "zombi2 tools <tool> [options]",
         _add_tools_args,
         epilog=_examples(
             "  # ALE reconciliation log-likelihood of a gene tree at given DTL rates",
             "  zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15",
+            "",
+            "  # summarize an existing ALE / AleRax reconciliation (needs zombi2[reconparser])",
+            "  zombi2 tools parse results.ale",
         ))
 
     _add_subcommand(
@@ -3045,6 +3191,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "tools":
         if args.tools_command == "reconcile":
             return _run_tools_reconcile(args, parser)
+        if args.tools_command == "parse":
+            return _run_tools_parse(args, parser)
         parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
 
     if args.command == "experimental":
