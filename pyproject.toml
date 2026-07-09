@@ -40,6 +40,10 @@ Issues = "https://github.com/AADavin/zombi2/issues"
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-cov", "scipy>=1.10"]
 docs = ["mkdocs-material", "mkdocstrings[python]"]
+# Experimental protein-language-model-guided selection (zombi2.experimental.selection +
+# .codon_selection). Heavy, optional, all lazily imported: the default `pip install zombi2`
+# stays torch-free. scipy powers the robust codon matrix exponential (codon selection).
+selection = ["torch", "fair-esm", "scipy>=1.10"]
 
 [project.scripts]
 zombi2 = "zombi2.cli:main"

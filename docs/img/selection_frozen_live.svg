@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1120" height="500" viewBox="0 0 1120 500">
+<defs>
+</defs>
+<rect x="0" y="0" width="1120" height="500" fill="white" />
+<text x="560.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Two ways to read the critic: frozen vs live</text>
+<circle cx="60" cy="84" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<text x="76" y="90" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">= one ESM2 read</text>
+<text x="280.0" y="132" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">FROZEN (default)</text>
+<path d="M70,255.0 L212.8,255.0" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M212.8,171.0 L482,171.0" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M212.8,305.40000000000003 L334.6,305.40000000000003" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M334.6,267.6 L482,267.6" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M334.6,343.20000000000005 L482,343.20000000000005" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M212.8,171.0 L212.8,343.20000000000005" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M334.6,267.6 L334.6,343.20000000000005" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<circle cx="72" cy="255.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<rect x="482" y="165.0" width="12" height="12" fill="#1a1a1a" stroke="white" stroke-width="1" />
+<rect x="482" y="261.6" width="12" height="12" fill="#1a1a1a" stroke="white" stroke-width="1" />
+<rect x="482" y="337.20000000000005" width="12" height="12" fill="#1a1a1a" stroke="white" stroke-width="1" />
+<text x="840.0" y="132" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">LIVE (epistatic)</text>
+<path d="M630,255.0 L772.8,255.0" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M772.8,171.0 L1042,171.0" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M772.8,305.40000000000003 L894.6,305.40000000000003" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M894.6,267.6 L1042,267.6" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M894.6,343.20000000000005 L1042,343.20000000000005" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M772.8,171.0 L772.8,343.20000000000005" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<path d="M894.6,267.6 L894.6,343.20000000000005" stroke="#1a1a1a" stroke-width="3.0" stroke-linecap="round" />
+<circle cx="653.8" cy="255.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="701.4" cy="255.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="749.0" cy="255.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="795.2333333333333" cy="171.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="840.0999999999999" cy="171.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="884.9666666666667" cy="171.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="929.8333333333333" cy="171.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="974.6999999999999" cy="171.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="1019.5666666666667" cy="171.0" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="803.25" cy="305.40000000000003" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="864.15" cy="305.40000000000003" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="919.1666666666667" cy="267.6" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="968.3" cy="267.6" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="1017.4333333333334" cy="267.6" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="919.1666666666667" cy="343.20000000000005" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="968.3" cy="343.20000000000005" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<circle cx="1017.4333333333334" cy="343.20000000000005" r="7.5" fill="#2f7d84" stroke="white" stroke-width="1.4" />
+<rect x="1042" y="165.0" width="12" height="12" fill="#1a1a1a" stroke="white" stroke-width="1" />
+<rect x="1042" y="261.6" width="12" height="12" fill="#1a1a1a" stroke="white" stroke-width="1" />
+<rect x="1042" y="337.20000000000005" width="12" height="12" fill="#1a1a1a" stroke="white" stroke-width="1" />
+<text x="70" y="410" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">read the critic ONCE, on the root protein</text>
+<text x="70" y="432" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-weight="normal">sites evolve independently (no epistasis)</text>
+<text x="70" y="454" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-weight="normal">one call per gene: cheap, exact, parallel</text>
+<text x="630" y="410" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">re-read the critic every 'refresh' subs/site</text>
+<text x="630" y="432" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-weight="normal">each site feels the others (within-gene epistasis)</text>
+<text x="630" y="454" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-weight="normal">many calls; refresh = infinity recovers frozen</text>
+</svg>
