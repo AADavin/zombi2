@@ -86,6 +86,7 @@ nav:
       - RED benchmark (Snakemake): examples/red-benchmark.md
   - Experimental:
       - Language-model selection: experimental/language-model-selection.md
+      - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
