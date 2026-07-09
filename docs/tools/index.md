@@ -46,7 +46,7 @@ opposite — **stable and validated**, just adjacent to (rather than part of) th
 | --- | --- | --- |
 | **Reconciliation likelihood** (ALElite) | the ALE marginal likelihood `P(gene tree \| species tree, DTL rates)` of a simulated gene family | [Reconciliation likelihood](reconciliation-likelihood.md) |
 | **Relative Evolutionary Divergence** (RED) | each node's rate-normalised relative age in `[0, 1]` (root 0, tips 1) — GTDB's rank-normalisation quantity (Parks et al. 2018) | [Relative Evolutionary Divergence](red.md) |
-| **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into `ete3` trees and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
+| **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into native `zombi2.tree.Tree` objects and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
 
 ## Roadmap
 

@@ -1967,7 +1967,7 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
 def _run_tools_parse(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools parse`` — read an external reconciliation run (ALE or AleRax) and print a
     summary (rates, log-likelihood, top transfers); with -o, also write the tables as TSV."""
-    try:                                       # optional 'reconparser' extra (ete3, pandas)
+    try:                                       # optional 'reconparser' extra (pandas)
         from .tools.reconparser import ALEParser, AleRaxRun
     except ImportError as e:
         raise RuntimeError(str(e)) from e
