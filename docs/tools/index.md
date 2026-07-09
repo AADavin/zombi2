@@ -45,6 +45,7 @@ opposite — **stable and validated**, just adjacent to (rather than part of) th
 | Tool | What it computes | Page |
 | --- | --- | --- |
 | **Reconciliation likelihood** (ALElite) | the ALE marginal likelihood `P(gene tree \| species tree, DTL rates)` of a simulated gene family | [Reconciliation likelihood](reconciliation-likelihood.md) |
+| **Relative Evolutionary Divergence** (RED) | each node's rate-normalised relative age in `[0, 1]` (root 0, tips 1) — GTDB's rank-normalisation quantity (Parks et al. 2018) | [Relative Evolutionary Divergence](red.md) |
 
 ## Roadmap
 
