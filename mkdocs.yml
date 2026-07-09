@@ -97,6 +97,8 @@ nav:
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Tree distances: tools/treedist.md
+      - Reconciliation accuracy: tools/recon-accuracy.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
