@@ -100,6 +100,7 @@ nav:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
       - Relative Evolutionary Divergence: tools/red.md
+      - Parsing reconciliation output: tools/reconciliation-parsing.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
