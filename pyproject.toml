@@ -48,6 +48,10 @@ selection = ["torch", "fair-esm", "scipy>=1.10"]
 # ete3 is heavy, so like `selection` it stays out of the base install and behind this extra;
 # `import zombi2` never imports ete3 — you only pay for it when you import the subpackage.
 reconparser = ["ete3>=3.1.2", "pandas>=2.0.0"]
+# Snakemake benchmarking workflows (examples/). snakemake pulls pyyaml transitively, but the
+# Snakefile imports it directly, so pin it; matplotlib renders the summary figures; the SLURM
+# executor plugin is only needed to run on a cluster.
+bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 
 [project.scripts]
 zombi2 = "zombi2.cli:main"

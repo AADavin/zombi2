@@ -1,0 +1,61 @@
+"""RED node-age benchmark — a ZOMBI2 parameter-sweep workflow.
+
+Simulate ultrametric time trees (known ages) → perturb branch rates across lineages with a
+relaxed clock → recover ages with Relative Evolutionary Divergence (RED, Parks et al. 2018) →
+aggregate accuracy vs the realized rate heterogeneity. Reproduces + generalizes the Rinke et al.
+(2021, GTDB) benchmark across tree sizes, extinction, and clock models.
+
+Run:   snakemake --cores 8
+Test:  snakemake --cores 4 --config cfg=config/test.yaml
+Dry:   snakemake -n
+
+The grid is chosen by one config file (default config/sweep.yaml), selected with
+`--config cfg=<path>`. It is loaded into `CFG` directly (not via `configfile:`) so a test grid
+fully *replaces* the default rather than merging with it.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+import yaml
+
+CFG_PATH = config.get("cfg", "config/sweep.yaml")     # `--config cfg=config/test.yaml`
+CFG = yaml.safe_load(open(CFG_PATH))
+
+SCRIPTS = Path(workflow.basedir) / "scripts"
+PYTHON = sys.executable                                # the interpreter running Snakemake (has zombi2)
+
+TREES = CFG["trees"]
+PERTS = CFG["perturbations"]
+REPS = int(CFG["replicates"])
+
+
+wildcard_constraints:
+    treeset=r"[A-Za-z0-9_]+",
+    tseed=r"\d+",
+    pert=r"[A-Za-z0-9_.]+",
+    cseed=r"\d+",
+
+
+def all_metrics(_wildcards=None):
+    """Every per-run metrics.tsv the sweep produces (the grid product from config)."""
+    files = []
+    for ts, cfg in TREES.items():
+        for tseed in cfg["seeds"]:
+            for pert in PERTS:
+                for cseed in range(REPS):
+                    files.append(f"results/runs/{ts}/s{tseed}/{pert}/r{cseed}/metrics.tsv")
+    return files
+
+
+rule all:
+    input:
+        "results/summary.tsv",
+        "results/figures/red_curve.png",
+        "results/figures/red_scatter.png",
+
+
+include: "rules/simulate.smk"
+include: "rules/analyze.smk"
+include: "rules/summarize.smk"
