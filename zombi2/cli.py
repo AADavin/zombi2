@@ -65,7 +65,7 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
-  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy)
+  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)
 
 Experimental (unstable, opt-in)
   experimental         not-yet-validated models (selection: ESM2 codon selection, emergent dN/dS)
@@ -2088,6 +2088,137 @@ def _run_tools_recon_accuracy(args: argparse.Namespace, parser: argparse.Argumen
     return 0
 
 
+def _run_tools_parse(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools parse`` — read an external reconciliation run (ALE or AleRax) and print a
+    summary (rates, log-likelihood, top transfers); with -o, also write the tables as TSV."""
+    try:                                       # optional 'reconparser' extra (ete3, pandas)
+        from .tools.reconparser import ALEParser, AleRaxRun
+    except ImportError as e:
+        raise RuntimeError(str(e)) from e
+
+    tool = args.tool
+    if tool == "auto":
+        tool = "alerax" if os.path.isdir(args.path) else "ale"
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+
+    if tool == "ale":
+        p = ALEParser(args.path)
+        present = [k for k, ok in p.files_exist().items() if ok]
+        if not present:
+            raise FileNotFoundError(
+                f"no ALE output files found for base path {args.path!r} "
+                "(expected .ucons_tree / .uTs / .uml_rec) — is --tool right?")
+        print(f"ALE reconciliation: {p.base_path}")
+        print(f"  files present: {', '.join(present)}")
+        try:
+            print(f"  log-likelihood: {p.get_log_likelihood():.6f}")
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            r = p.get_ml_rates()
+            print(f"  ML rates:  D={r['duplications']:.4g}  "
+                  f"T={r['transfers']:.4g}  L={r['losses']:.4g}")
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            s = p.get_summary_statistics()
+            print(f"  total events:  D={s['total_duplications']:g}  "
+                  f"T={s['total_transfers']:g}  L={s['total_losses']:g}  "
+                  f"S={s['total_speciations']:g}")
+        except (FileNotFoundError, ValueError):
+            pass
+        try:
+            tr = p.get_transfers()
+            print(f"  transfers: {len(tr)} edge(s)"
+                  + (f" (top {args.top} by frequency)" if len(tr) else ""))
+            for _, row in tr.nlargest(args.top, "freq").iterrows():
+                print(f"     {row['from']} -> {row['to']}   {row['freq']:.3f}")
+            if args.out:
+                tp = os.path.join(args.out, "ale_transfers.tsv")
+                tr.to_csv(tp, sep="\t", index=False)
+                print(f"  wrote {tp}")
+        except (FileNotFoundError, ValueError):
+            pass
+        if args.out:
+            try:
+                bs = p.get_branch_statistics()
+                bp = os.path.join(args.out, "ale_branch_statistics.tsv")
+                bs.to_csv(bp, sep="\t", index=False)
+                print(f"  wrote {bp}")
+            except (FileNotFoundError, ValueError):
+                pass
+        return 0
+
+    # tool == "alerax"
+    run = AleRaxRun(args.path)                  # raises NotADirectoryError on a non-dir path
+    print(f"AleRax run: {run.output_dir}")
+    try:
+        info = run.get_run_info()
+        bits = [f"version: {info.get('version', '?')}"]
+        if "num_families" in info:
+            bits.append(f"families: {info['num_families']}")
+        if "num_species" in info:
+            bits.append(f"species: {info['num_species']}")
+        print("  " + "   ".join(bits))
+    except (FileNotFoundError, ValueError):
+        pass
+    try:
+        print(f"  total log-likelihood: {run.get_total_log_likelihood():.6f}")
+    except (FileNotFoundError, ValueError):
+        pass
+    try:
+        tr = run.get_transfers()
+        score = "score" if "score" in tr.columns else tr.columns[-1]
+        print(f"  global transfers: {len(tr)} edge(s)"
+              + (f" (top {args.top} by {score})" if len(tr) else ""))
+        for _, row in tr.nlargest(args.top, score).iterrows():
+            print(f"     {row['from']} -> {row['to']}   {row[score]:.3f}")
+        if args.out:
+            tp = os.path.join(args.out, "alerax_transfers.tsv")
+            tr.to_csv(tp, sep="\t", index=False)
+            print(f"  wrote {tp}")
+    except (FileNotFoundError, ValueError):
+        pass
+    if args.out:
+        try:
+            lk = run.get_per_family_likelihoods()
+            lp = os.path.join(args.out, "alerax_per_family_likelihoods.tsv")
+            lk.to_csv(lp, sep="\t", index=False)
+            print(f"  wrote {lp}")
+        except (FileNotFoundError, ValueError):
+            pass
+    return 0
+
+
+def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools red`` — Relative Evolutionary Divergence of every node of a tree."""
+    from .tools import relative_evolutionary_divergence
+
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    if len(tree.leaves()) < 2:
+        parser.error(f"{args.tree} is not a usable tree — fewer than 2 tips "
+                     "(is it a valid Newick file?)")
+    red = relative_evolutionary_divergence(tree)
+    rows = [(n.name, n.is_leaf(), red[n]) for n in tree.nodes_preorder()]
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, "RED.tsv")
+        with open(path, "w") as f:
+            f.write("node\tis_leaf\tred\n")
+            for name, leaf, r in rows:
+                f.write(f"{name}\t{leaf}\t{r:.6f}\n")
+        print(f"wrote {path} ({len(rows)} node(s))")
+    else:
+        print("node\tis_leaf\tred")
+        for name, leaf, r in rows:
+            print(f"{name}\t{leaf}\t{r:.6f}")
+    return 0
+
+
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
@@ -2598,8 +2729,9 @@ def _iter_leaves(node):
 
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
     """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
-    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite reconciliation
-    likelihood) and ``treedist`` (tree distances against a reference)."""
+    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood),
+    ``treedist`` (tree distances), ``recon-accuracy`` (reconciliation accuracy), ``red`` (RED)
+    and ``parse`` (read external ALE / AleRax reconciliation output)."""
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     rp = tsub.add_parser(
         "reconcile",
@@ -2660,6 +2792,48 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_tools_recon_accuracy_args(ap)
+
+    rp = tsub.add_parser(
+        "red",
+        help="Relative Evolutionary Divergence (RED) of every node of a tree",
+        description=(
+            "Compute the Relative Evolutionary Divergence (RED, Parks et al. 2018) of every node "
+            "of a rooted tree: the root is 0, every leaf is 1, and each internal node sits at its "
+            "relative position along the root-to-tip path. RED is invariant to a global rate "
+            "rescaling, so on a phylogram it approximates each node's relative age without a "
+            "clock — GTDB's rank-normalisation quantity."
+        ),
+        usage="zombi2 tools red -t FILE [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # RED of every node (a phylogram recovers relative ages; a dated tree gives them exactly)",
+            "  zombi2 tools red -t species_tree.nwk -o out/",
+        ),
+    )
+    _add_tools_red_args(rp)
+
+    pp = tsub.add_parser(
+        "parse",
+        help="parse external reconciliation output (ALE, AleRax) and summarize it",
+        description=(
+            "Read the output of an established reconciliation program and print a summary — the "
+            "ML DTL rates, the log-likelihood, and the top transfers. Understands classic ALE "
+            "(.ucons_tree / .uTs / .uml_rec, v0.4 and v1.0) and AleRax run directories (v1.2+); "
+            "the tool is auto-detected from the path (a directory is an AleRax run). With -o it "
+            "also writes the transfer / per-branch tables as TSV. This is the reconparser interop "
+            "bridge — needs the optional extra:  pip install 'zombi2[reconparser]'."
+        ),
+        usage="zombi2 tools parse PATH [--tool auto|ale|alerax] [--top N] [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # summarize a classic ALE result (base path, without the .uml_rec extension)",
+            "  zombi2 tools parse results.ale",
+            "",
+            "  # summarize an AleRax run directory and save its transfer tables into out/",
+            "  zombi2 tools parse alerax_output/ --top 20 -o out/",
+        ),
+    )
+    _add_tools_parse_args(pp)
 
 
 def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
@@ -2723,6 +2897,30 @@ def _add_tools_recon_accuracy_args(p: argparse.ArgumentParser) -> None:
                         "with --truth line by line (same gene-tree topology and tip labels)")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
                    help="write Reconciliation_accuracy.tsv into DIR (default: print to stdout)")
+
+
+def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
+                   help="Newick tree (one tree). Branch lengths are read as-is: pass a phylogram "
+                        "(substitutions) to recover relative ages, or a dated tree for exact "
+                        "relative ages. Works with the trees 'zombi2 species'/'sequence' write.")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write RED.tsv (node, is_leaf, red) into DIR (default: print the table to stdout)")
+
+
+def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("path", metavar="PATH",
+                   help="the reconciliation output: an ALE base path (e.g. results.ale, or any "
+                        "of its .ucons_tree/.uTs/.uml_rec files) or an AleRax run directory")
+    g.add_argument("--tool", choices=("auto", "ale", "alerax"), default="auto", metavar="NAME",
+                   help="which reconciliation tool produced PATH (default: auto — a directory "
+                        "is treated as an AleRax run, anything else as classic ALE)")
+    g.add_argument("--top", type=int, default=10, metavar="N",
+                   help="how many top transfers (by frequency/score) to print (default: 10)")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="also write the transfer and per-branch/per-family tables as TSV into DIR")
 
 
 # --------------------------------------------------------------------------- #
@@ -3110,17 +3308,27 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE reconciliation likelihood)",
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)",
         "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
         "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
         "'zombi2 tools <tool> -h' for its options.\n\n"
         "Tools\n"
-        "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)",
+        "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)\n"
+        "  treedist             tree distances (RF, branch-score, quartet, matching) vs a reference\n"
+        "  recon-accuracy       accuracy of an inferred reconciliation vs a known one\n"
+        "  red                  Relative Evolutionary Divergence of every node (Parks et al. 2018)\n"
+        "  parse                read external ALE / AleRax reconciliation output (reconparser)",
         "zombi2 tools <tool> [options]",
         _add_tools_args,
         epilog=_examples(
             "  # ALE reconciliation log-likelihood of a gene tree at given DTL rates",
             "  zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15",
+            "",
+            "  # Relative Evolutionary Divergence of every node of a tree",
+            "  zombi2 tools red -t species_tree.nwk -o out/",
+            "",
+            "  # summarize an existing ALE / AleRax reconciliation (needs zombi2[reconparser])",
+            "  zombi2 tools parse results.ale",
         ))
 
     _add_subcommand(
@@ -3247,6 +3455,10 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             return _run_tools_treedist(args, parser)
         if args.tools_command == "recon-accuracy":
             return _run_tools_recon_accuracy(args, parser)
+        if args.tools_command == "red":
+            return _run_tools_red(args, parser)
+        if args.tools_command == "parse":
+            return _run_tools_parse(args, parser)
         parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
 
     if args.command == "experimental":

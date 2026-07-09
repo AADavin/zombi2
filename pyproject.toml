@@ -44,6 +44,14 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 # .codon_selection). Heavy, optional, all lazily imported: the default `pip install zombi2`
 # stays torch-free. scipy powers the robust codon matrix exponential (codon selection).
 selection = ["torch", "fair-esm", "scipy>=1.10"]
+# Parsers for external reconciliation-tool output (zombi2.tools.reconparser: ALE, AleRax).
+# ete3 is heavy, so like `selection` it stays out of the base install and behind this extra;
+# `import zombi2` never imports ete3 — you only pay for it when you import the subpackage.
+reconparser = ["ete3>=3.1.2", "pandas>=2.0.0"]
+# Snakemake benchmarking workflows (examples/). snakemake pulls pyyaml transitively, but the
+# Snakefile imports it directly, so pin it; matplotlib renders the summary figures; the SLURM
+# executor plugin is only needed to run on a cluster.
+bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 
 [project.scripts]
 zombi2 = "zombi2.cli:main"
@@ -68,4 +76,13 @@ ignore = [
     "E741",  # ambiguous names like `l` / `O` — conventional in the rate-matrix / math code
     "E702",  # multiple statements on one line (;) — tight COO sparse-assembly loops
     "E731",  # lambda assignment — occasional and deliberate
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The reconparser parsers are vendored from https://github.com/AADavin/reconparser and kept
+# close to upstream to make future syncs trivial; exempt their upstream idioms from our lint.
+"zombi2/tools/reconparser/parsers/*.py" = [
+    "F401",  # typing.Tuple imported but unused
+    "F841",  # a bookkeeping local (num_trees) assigned but unused
+    "E722",  # bare `except:` around best-effort tree parsing
 ]

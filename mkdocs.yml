@@ -83,6 +83,8 @@ nav:
       - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
   - Cookbook: cookbook.md
+  - Examples:
+      - RED benchmark (Snakemake): examples/red-benchmark.md
   - Experimental:
       - Language-model selection: experimental/language-model-selection.md
   - Reference:
@@ -97,8 +99,10 @@ nav:
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Relative Evolutionary Divergence: tools/red.md
       - Tree distances: tools/treedist.md
       - Reconciliation accuracy: tools/recon-accuracy.md
+      - Parsing reconciliation output: tools/reconciliation-parsing.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md

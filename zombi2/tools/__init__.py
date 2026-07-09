@@ -14,10 +14,22 @@ is a **distinct, labelled surface** — nothing here is re-exported into the top
 
     from zombi2.tools import reconciliation_likelihood
 
-The first tool is **ALElite** (:mod:`zombi2.tools.reconciliation`): the ALE-style marginal
+The tools so far are **ALElite** (:mod:`zombi2.tools.reconciliation`): the ALE-style marginal
 reconciliation likelihood ``P(gene tree | species tree, DTL rates)`` of a simulated gene
-family, validated against closed-form oracles. See ``docs/tools/`` for the layer's scope and
-roadmap.
+family, validated against closed-form oracles; and **RED** (:mod:`zombi2.tools.red`): the
+Relative Evolutionary Divergence of every node of a tree (Parks et al. 2018), GTDB's rate-
+normalised relative-age scale; and the **benchmarking** distances ``treedist`` (RF, branch-
+score, quartet, and matching tree distances) and ``recon-accuracy`` (node-by-node event,
+mapping, and transfer-recovery accuracy of a reconciliation against a simulated truth). See
+``docs/tools/`` for the layer's scope and roadmap.
+
+ALElite's interop complement is **reconparser** (:mod:`zombi2.tools.reconparser`): parsers that
+*read* the output of the established reconciliation programs (ALE, AleRax) into ``ete3`` trees
+and ``pandas`` DataFrames — the bridge for comparing a real reconciliation against a ZOMBI2
+simulation. It needs the optional ``reconparser`` extra (``pip install 'zombi2[reconparser]'``)
+and, like the others, is imported from its own submodule rather than re-exported here::
+
+    from zombi2.tools.reconparser import ALEParser, AleRaxRun, AleRaxFamily
 """
 
 from __future__ import annotations
@@ -39,6 +51,7 @@ from .reconciliation import (
     score_reconciliations,
     write_scores_tsv,
 )
+from .red import relative_evolutionary_divergence
 from .treedist import (
     robinson_foulds,
     branch_score,
@@ -73,6 +86,7 @@ __all__ = [
     "FamilyScore",
     "score_reconciliations",
     "write_scores_tsv",
+    "relative_evolutionary_divergence",
     # tree distances
     "robinson_foulds",
     "branch_score",
