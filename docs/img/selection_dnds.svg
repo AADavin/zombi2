@@ -5,28 +5,29 @@
 </defs>
 <rect x="0" y="0" width="1180" height="560" fill="white" />
 <text x="590.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Selection on coding DNA yields emergent dN/dS</text>
-<text x="315.0" y="122" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Codon substitution = mutation x selection</text>
+<text x="315.0" y="106" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Codon substitution = mutation x selection</text>
 <rect x="80" y="254.0" width="132" height="62" rx="8" fill="white" stroke="#8a8a8a" stroke-width="2.4" />
-<text x="146.0" y="280.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">ACA</text>
-<text x="146.0" y="302.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">Thr (current)</text>
+<text x="146.0" y="280.0" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">ACA</text>
+<text x="146.0" y="300.0" font-size="16" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">Thr (current)</text>
 <rect x="418" y="154" width="132" height="62" rx="8" fill="white" stroke="#4DAF4A" stroke-width="2.4" />
-<text x="484.0" y="180" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">ACG</text>
-<text x="484.0" y="202" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">Thr (same aa)</text>
+<text x="484.0" y="180" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">ACG</text>
+<text x="484.0" y="200" font-size="16" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">Thr (same aa)</text>
 <rect x="418" y="358" width="132" height="62" rx="8" fill="white" stroke="#E41A1C" stroke-width="2.4" />
-<text x="484.0" y="384" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">GCA</text>
-<text x="484.0" y="406" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">Ala (new aa)</text>
+<text x="484.0" y="384" font-size="20" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">GCA</text>
+<text x="484.0" y="404" font-size="16" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">Ala (new aa)</text>
 <path d="M216,266.0 L412,185.0" stroke="#4DAF4A" stroke-width="2.4" />
 <path d="M412,185.0 L399.07589736285627,183.5972986687914" stroke="#4DAF4A" stroke-width="2.4" />
 <path d="M412,185.0 L403.8367450733113,195.11737461013936" stroke="#4DAF4A" stroke-width="2.4" />
-<text x="314.0" y="215.5" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">1 nt change</text>
+<text x="314.0" y="195.5" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">1 nt change</text>
 <path d="M216,304.0 L412,389.0" stroke="#E41A1C" stroke-width="2.4" />
 <path d="M412,389.0 L404.0130370371777,378.7428842928187" stroke="#E41A1C" stroke-width="2.4" />
 <path d="M412,389.0 L399.0535602388933,390.1788543218039" stroke="#E41A1C" stroke-width="2.4" />
-<text x="314.0" y="336.5" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">1 nt change</text>
-<text x="484.0" y="142" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">synonymous: h = 1 (neutral)</text>
-<text x="484.0" y="442" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">non-synonymous: h(beta) from ESM2</text>
-<text x="80" y="480" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">mutation: neutral DNA model    selection: ESM2 on the amino acid</text>
-<text x="910.0" y="122" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Emergent dN/dS as selection strengthens</text>
+<text x="314.0" y="312.5" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">1 nt change</text>
+<text x="484.0" y="238" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">synonymous:</text>
+<text x="484.0" y="260" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#4DAF4A">h = 1 (neutral)</text>
+<text x="484.0" y="442" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">non-synonymous:</text>
+<text x="484.0" y="464" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#E41A1C">h(beta) from ESM2</text>
+<text x="910.0" y="106" font-size="22" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">Emergent dN/dS as selection strengthens</text>
 <path d="M720,130 L720,430" stroke="#1a1a1a" stroke-width="1.5" />
 <path d="M720,430 L1100,430" stroke="#1a1a1a" stroke-width="1.5" />
 <path d="M715,430.0 L720,430.0" stroke="#1a1a1a" stroke-width="1.5" />
@@ -41,30 +42,25 @@
 <text x="710" y="136.0" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a">1.00</text>
 <path d="M720.0,430 L720.0,435" stroke="#1a1a1a" stroke-width="1.5" />
 <text x="720.0" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
-<path d="M825.5555555555555,430 L825.5555555555555,435" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="825.5555555555555" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">5</text>
-<path d="M931.1111111111111,430 L931.1111111111111,435" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="931.1111111111111" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">10</text>
-<path d="M1036.6666666666667,430 L1036.6666666666667,435" stroke="#1a1a1a" stroke-width="1.5" />
-<text x="1036.6666666666667" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">15</text>
+<path d="M846.6666666666666,430 L846.6666666666666,435" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="846.6666666666666" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">1</text>
+<path d="M973.3333333333333,430 L973.3333333333333,435" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="973.3333333333333" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">2</text>
+<path d="M1100.0,430 L1100.0,435" stroke="#1a1a1a" stroke-width="1.5" />
+<text x="1100.0" y="452" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">3</text>
 <text x="910.0" y="478" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a">beta (selection strength)</text>
 <text x="658" y="280.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" transform="rotate(-90,658,280.0)">dN/dS (omega)</text>
 <path d="M720,130.0 L1100,130.0" stroke="#8a8a8a" stroke-width="1.2" stroke-dasharray="4,4" />
 <text x="1094" y="148.0" font-size="22" font-family="Helvetica" text-anchor="end" fill="#8a8a8a" font-style="italic">omega = 1 (neutral)</text>
-<path d="M720.0,130.0 L725.2777777777778,145.22053933457772 L730.5555555555555,211.8862771337294 L735.8333333333334,312.76331151252657 L741.1111111111111,384.3731870739615 L751.6666666666666,425.42466668554994 L762.2222222222222,429.59428617589003 L783.3333333333334,429.9970087184672 L804.4444444444445,429.9999788990206 L846.6666666666666,429.9999999990316 L910.0,430.0 L994.4444444444445,430.0 L1100.0,430.0" fill="none" stroke="#377EB8" stroke-width="3.2" />
+<path d="M720.0,130.0 L751.6666666666666,145.22053933457772 L783.3333333333334,211.8862771337294 L815.0,312.76331151252657 L846.6666666666666,384.3731870739615 L910.0,425.42466668554994 L973.3333333333333,429.59428617589003 L1100.0,429.9970087184672" fill="none" stroke="#377EB8" stroke-width="3.2" />
 <circle cx="720.0" cy="130.0" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="725.2777777777778" cy="145.22053933457772" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="730.5555555555555" cy="211.8862771337294" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="735.8333333333334" cy="312.76331151252657" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="741.1111111111111" cy="384.3731870739615" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="751.6666666666666" cy="425.42466668554994" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="762.2222222222222" cy="429.59428617589003" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="783.3333333333334" cy="429.9970087184672" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="804.4444444444445" cy="429.9999788990206" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="846.6666666666666" cy="429.9999999990316" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="910.0" cy="430.0" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="994.4444444444445" cy="430.0" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="1100.0" cy="430.0" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
-<circle cx="741.1111111111111" cy="384.3731870739615" r="5.5" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
-<text x="753.1111111111111" y="374.3731870739615" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">beta = 1: omega ~ 0.15</text>
+<circle cx="751.6666666666666" cy="145.22053933457772" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="783.3333333333334" cy="211.8862771337294" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="815.0" cy="312.76331151252657" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="846.6666666666666" cy="384.3731870739615" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="910.0" cy="425.42466668554994" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="973.3333333333333" cy="429.59428617589003" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="1100.0" cy="429.9970087184672" r="3.4" fill="#377EB8" stroke="white" stroke-width="0.8" />
+<circle cx="846.6666666666666" cy="384.3731870739615" r="5.5" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="858.6666666666666" y="374.3731870739615" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a">beta = 1: omega ~ 0.15</text>
 </svg>

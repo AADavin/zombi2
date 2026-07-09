@@ -124,14 +124,6 @@ let it evolve, with selection acting on its genes. This raises a structural ques
 transfer, invert, and are lost, so "the tree of a gene" is not the species tree — which ZOMBI2 already
 answers with its **block** decomposition.
 
-![The block-based pipeline. **(1)** The root genome is partitioned by its GFF into coding genes and the
-intergenic gaps between them. **(2)** The nucleotide model runs the full structural simulation and the
-outcome is traced back into *blocks* — maximal never-cut intervals, each carrying its own gene tree.
-Because a gene is never split by a breakpoint (ZOMBI2's "Design S"), a whole coding sequence is exactly
-one block and evolves as one unit down one tree: a **gene block** evolves under language-model codon
-selection, an **intergene block** drifts neutrally. **(3)** The evolved blocks are reassembled, in
-genome order, into the DNA at every node — the root reproducing the input genome exactly.](figures/selection_genome_blocks.pdf){width=100%}
-
 The important guarantees are that selection always runs **on a gene's own gene tree** (never the species
 tree), so duplications, transfers and speciations within a gene family all inherit the ancestral
 protein's constraint; and that mixing selected gene blocks with neutral intergene blocks reassembles
