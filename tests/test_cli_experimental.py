@@ -64,7 +64,10 @@ def test_bad_subst_model_is_rejected(tmp_path):
 
 
 def test_gff_fasta_seqid_mismatch_errors_cleanly(tmp_path, capsys):
-    # a FASTA whose sequence is named differently from the GFF's CDS contig must NOT be silently paired
+    # a FASTA whose sequence is named differently from the GFF's CDS contig must NOT be silently paired.
+    # needs the optional deps present, else the earlier dependency probe reports first (as on a bare CI).
+    pytest.importorskip("torch")
+    pytest.importorskip("esm")
     t, f, gff, genome = _write_inputs(tmp_path)
     f.write_text(f">chrOTHER\n{genome}\n")                     # GFF is on 'seq1', FASTA is 'chrOTHER'
     rc = main(["experimental", "selection", "-t", str(t), "--gff", str(gff),
