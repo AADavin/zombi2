@@ -26,9 +26,11 @@ Two modes share one engine (see the design doc):
 * **live** (P3): a particle filter that re-scores the *current* sequence at time-slices to capture
   epistasis. Not implemented here.
 
-Nothing in this module imports ``torch``/``esm`` at module load -- only :class:`ESM2Critic`
-imports them, lazily, in its constructor. So ``import zombi2.experimental.selection`` and the whole
-frozen path work without the optional ``zombi2[selection]`` dependencies.
+Nothing in this module imports ``torch``/``esm``/``scipy`` at module load: :class:`ESM2Critic`
+imports ``torch``/``esm`` lazily in its constructor, and the substitution kernel imports ``scipy``
+lazily the first time it evolves. So ``import zombi2.experimental.selection`` costs nothing extra --
+but *evolving* a family needs ``scipy`` for the matrix exponential (part of ``zombi2[selection]``),
+even the frozen path with a :class:`FixedProfileCritic` (which itself needs neither torch nor esm).
 """
 from __future__ import annotations
 
@@ -64,6 +66,12 @@ class Critic(ABC):
         A whole-sequence readout for analysis/validation; neither the frozen nor the live overlay
         needs it (both drive selection through :meth:`profile`). Optional for profile-only critics."""
         raise NotImplementedError("this Critic implements profile() only, not score()")
+
+    def embed(self, seqs: list[str]) -> np.ndarray:
+        """Mean-pooled per-sequence embeddings ``(n, dim)`` -- for realism metrics (e.g. the
+        Fréchet-ESM distance). Optional; only critics with an internal representation (like
+        :class:`ESM2Critic`) provide it."""
+        raise NotImplementedError("this Critic does not implement embed()")
 
 
 class FixedProfileCritic(Critic):
@@ -142,6 +150,20 @@ class ESM2Critic(Critic):
                    for i, s in enumerate(seqs)]
         return np.array(out)
 
+    def embed(self, seqs: list[str]) -> np.ndarray:
+        torch = self._torch
+        if not seqs:
+            return np.zeros((0, 0))
+        layer = self._model.num_layers
+        out = []
+        with torch.no_grad():
+            for s in seqs:
+                _, _, toks = self._bc([("x", s)])
+                reps = self._model(toks.to(self._device),
+                                   repr_layers=[layer])["representations"][layer][0]
+                out.append(reps[1:len(s) + 1].mean(0).tolist())    # mean-pool over residues
+        return np.array(out)
+
 
 # --------------------------------------------------------------------------- #
 # Frozen Halpern-Bruno mutation-selection kernel
@@ -173,12 +195,54 @@ def _hb_fixation(dF: np.ndarray) -> np.ndarray:
     return np.where(np.abs(dF) < 1e-9, 1.0, np.where(dF > 0.0, pos, neg))
 
 
-def _site_model(base_Q: np.ndarray, pi_target: np.ndarray, pi_mut: np.ndarray,
-                name: str, alphabet: str) -> SubstitutionModel:
+_expm = None
+
+
+def _get_expm():
+    """Lazily fetch ``scipy.linalg.expm`` (part of ``zombi2[selection]``), cached."""
+    global _expm
+    if _expm is None:
+        try:
+            from scipy.linalg import expm
+        except ImportError as exc:  # pragma: no cover - only without the extra installed
+            raise ImportError("selection needs scipy for the matrix exponential; install it with "
+                              "pip install 'zombi2[selection]'") from exc
+        _expm = expm
+    return _expm
+
+
+class _ExpmSite:
+    """A per-site rate matrix with ``P(t) = exp(Qt)`` via scipy's ``expm`` (Padé / scaling-and-squaring),
+    for any state count (20 amino acids or 61 sense codons). This deliberately avoids an
+    eigendecomposition: the near-delta stationaries of strong selection make both the ``sqrt(pi)``
+    symmetrised form (:class:`~zombi2.sequences.models.SubstitutionModel`) and a general eig of ``Q``
+    ill-conditioned, corrupting ``P(t)``; ``expm`` is robust. The cost is one O(k^3) matrix
+    exponential per *distinct* branch length (vs an amortised single eigendecomposition per site),
+    which the (rounded-``t``) memo below amortises over repeated branch lengths -- fine for the
+    small-tree / GPU regime this feature targets. ``.Q`` / ``.stationary`` are exposed."""
+
+    __slots__ = ("Q", "stationary", "_cache")
+
+    def __init__(self, Q: np.ndarray, stationary: np.ndarray):
+        self.Q = Q
+        self.stationary = stationary
+        self._cache: dict = {}
+
+    def p_matrix(self, t: float) -> np.ndarray:
+        key = round(float(t), 12)
+        P = self._cache.get(key)
+        if P is None:
+            P = np.clip(_get_expm()(self.Q * key), 0.0, None)
+            P /= P.sum(1, keepdims=True)
+            self._cache[key] = P
+        return P
+
+
+def _hb_kernel(base_Q: np.ndarray, pi_target: np.ndarray, pi_mut: np.ndarray) -> _ExpmSite:
     """One per-site Halpern--Bruno model: the neutral (base) rate ``mu_ab`` times the fixation factor
     ``h(F_b - F_a)`` for scaled fitness ``F = ln(pi_target / pi_mut)``. Reversible with stationary
-    ``pi_target`` (detailed balance holds); renormalised to mean rate 1. At ``F == 0`` (beta=0) it is
-    exactly the base model, since ``h(0) = 1``."""
+    ``pi_target`` (detailed balance); renormalised to mean rate 1; ``exp(Qt)`` via scipy. At ``F == 0``
+    (beta=0) it is exactly the base model, since ``h(0) = 1``."""
     logF = np.log(pi_target) - np.log(pi_mut)          # scaled fitness, up to an additive constant
     dF = logF[None, :] - logF[:, None]                 # dF[a, b] = F_b - F_a
     Q = np.array(base_Q, dtype=float)
@@ -188,14 +252,14 @@ def _site_model(base_Q: np.ndarray, pi_target: np.ndarray, pi_mut: np.ndarray,
     scale = -(pi_target * np.diag(Q)).sum()
     if scale <= 0:
         raise ValueError("degenerate per-site model (zero substitution rate)")
-    return SubstitutionModel(name, Q / scale, pi_target, alphabet)
+    return _ExpmSite(Q / scale, pi_target)
 
 
 def _site_models(targets: np.ndarray, base_Q: np.ndarray, pi_mut: np.ndarray,
-                 alphabet: str) -> list[SubstitutionModel]:
-    """One Halpern--Bruno model per site (stationary ``targets[i]``, neutral backbone ``base_Q``)."""
-    return [_site_model(base_Q, targets[i], pi_mut, f"HB[{i}]", alphabet)
-            for i in range(targets.shape[0])]
+                 alphabet: str) -> list[_ExpmSite]:
+    """One Halpern--Bruno model per site (stationary ``targets[i]``, neutral backbone ``base_Q``).
+    ``alphabet`` is accepted for signature stability but unused (the kernel is alphabet-agnostic)."""
+    return [_hb_kernel(base_Q, targets[i], pi_mut) for i in range(targets.shape[0])]
 
 
 def _jump(site_models: list[SubstitutionModel], parent: np.ndarray, t: float,
