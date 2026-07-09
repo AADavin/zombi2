@@ -86,6 +86,13 @@ nav:
       - RED benchmark (Snakemake): examples/red-benchmark.md
   - Experimental:
       - Language-model selection: experimental/language-model-selection.md
+  - Tools:
+      - Overview: tools/index.md
+      - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Relative Evolutionary Divergence: tools/red.md
+      - Tree distances: tools/treedist.md
+      - Reconciliation accuracy: tools/recon-accuracy.md
+      - Parsing reconciliation output: tools/reconciliation-parsing.md
   - Reference:
       - Command line: cli.md
       - Python API: reference/api.md
@@ -95,13 +102,6 @@ nav:
       - Comparison with ZOMBI 1: comparison.md
       - Validation: validation.md
       - References: references.md
-  - Tools:
-      - Overview: tools/index.md
-      - Reconciliation likelihood: tools/reconciliation-likelihood.md
-      - Relative Evolutionary Divergence: tools/red.md
-      - Tree distances: tools/treedist.md
-      - Reconciliation accuracy: tools/recon-accuracy.md
-      - Parsing reconciliation output: tools/reconciliation-parsing.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md
