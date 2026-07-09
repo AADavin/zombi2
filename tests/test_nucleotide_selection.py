@@ -146,6 +146,67 @@ def test_selection_suppresses_protein_divergence_in_the_block_pipeline():
     assert purifying < 0.5 * neutral                      # selection roughly halves it (or better)
 
 
+def test_neutral_gene_block_diverges_like_an_intergene_block():
+    # the codon /3 scale fix: at beta=0 a coding block must accrue ~the SAME neutral per-site
+    # divergence as a neighbouring intergene block on the same tree (before the fix it was ~3x too
+    # conserved because the codon clock was per-codon, not per-nucleotide-site).
+    rng = np.random.default_rng(0)
+    length = 300
+    gene = CDS(60, 150, +1, "g")                                  # 90 nt coding, + strand, mid-genome
+    g = list("".join("ACGT"[i] for i in rng.integers(4, size=length)))
+    g[gene.start:gene.end] = list(_stop_free(30, rng))
+    genome = "".join(g)
+    tree = _tree(n_tips=8, seed=11)
+    # no structural events -> genomes stay coordinate-aligned; beta=0 -> the codon path is neutral
+    result, report = simulate_nucleotide_selection(tree, genome, [gene], critic=_NativeCritic(0.9),
+                                                   beta=0.0, subst_rate=1.0, inversion=0.0, seed=9)
+    assert report.n_selected == 1                                 # the gene block did go through codon
+    leaves = list(result.leaf_genomes)
+
+    def region_div(lo, hi):
+        tot = n = 0
+        for lf in leaves:
+            s = result.node_sequence(lf)
+            tot += sum(genome[i] != s[i] for i in range(lo, hi))
+            n += hi - lo
+        return tot / n
+
+    gene_div = region_div(gene.start, gene.end)
+    inter_div = region_div(180, 270)                             # an intergene window of the same length
+    assert inter_div > 0.1
+    assert 0.55 * inter_div < gene_div < 1.7 * inter_div         # comparable (was ~1/3 before the fix)
+
+
+def test_gamma_is_applied_to_intergene_blocks():
+    # regression for the fix: gamma must actually change neutral (intergene) evolution on the seed
+    # chromosome (before the fix it was silently dropped there -> identical output).
+    from zombi2.sequences.models import GammaRates
+    rng = np.random.default_rng(0)
+    genome, cds = _genome_and_cds(rng)
+
+    def leaves_str(gamma):
+        tree = _tree(seed=11)
+        result, _ = simulate_nucleotide_selection(tree, genome, cds, critic=_NativeCritic(0.9),
+                                                   beta=1.0, subst_rate=0.8, gamma=gamma,
+                                                   inversion=0.0, seed=5)
+        return "".join(result.node_sequence(n)
+                       for n in sorted(result.leaf_genomes, key=lambda x: x.name))
+
+    assert leaves_str(GammaRates(0.1)) != leaves_str(None)
+
+
+def test_zero_divergence_reproduces_root_and_skips_selection():
+    rng = np.random.default_rng(0)
+    genome, cds = _genome_and_cds(rng)
+    tree = _tree()
+    # no structural events + no substitutions -> every node is the (upper-cased) root, no critic call
+    result, report = simulate_nucleotide_selection(tree, genome, cds, critic=_NativeCritic(0.9),
+                                                   beta=5.0, subst_rate=0.0, inversion=0.0, seed=1)
+    assert report.n_selected == 0 and report.n_neutral_fallback == 0
+    for n in tree.nodes_preorder():
+        assert result.node_sequence(n) == genome
+
+
 def test_beta_zero_is_neutral_and_beta_positive_is_purifying():
     # the configured codon model: dN/dS ~ 1 at beta=0, well below 1 under selection
     protein = translate(_stop_free(40, np.random.default_rng(6)))
