@@ -65,7 +65,7 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
-  tools                compute on ZOMBI2 outputs (reconcile: ALE likelihood; parse: read ALE/AleRax output)
+  tools                compute on ZOMBI2 outputs (reconcile: ALE likelihood; red: RED; parse: read ALE/AleRax output)
 
 Experimental (unstable, opt-in)
   experimental         not-yet-validated models (selection: ESM2 codon selection, emergent dN/dS)
@@ -2068,6 +2068,33 @@ def _run_tools_parse(args: argparse.Namespace, parser: argparse.ArgumentParser) 
     return 0
 
 
+def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools red`` — Relative Evolutionary Divergence of every node of a tree."""
+    from .tools import relative_evolutionary_divergence
+
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    if len(tree.leaves()) < 2:
+        parser.error(f"{args.tree} is not a usable tree — fewer than 2 tips "
+                     "(is it a valid Newick file?)")
+    red = relative_evolutionary_divergence(tree)
+    rows = [(n.name, n.is_leaf(), red[n]) for n in tree.nodes_preorder()]
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, "RED.tsv")
+        with open(path, "w") as f:
+            f.write("node\tis_leaf\tred\n")
+            for name, leaf, r in rows:
+                f.write(f"{name}\t{leaf}\t{r:.6f}\n")
+        print(f"wrote {path} ({len(rows)} node(s))")
+    else:
+        print("node\tis_leaf\tred")
+        for name, leaf, r in rows:
+            print(f"{name}\t{leaf}\t{r:.6f}")
+    return 0
+
+
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
@@ -2578,8 +2605,8 @@ def _iter_leaves(node):
 
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
     """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
-    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood) and
-    ``parse`` (read external ALE / AleRax reconciliation output)."""
+    layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood), ``red``
+    (RED) and ``parse`` (read external ALE / AleRax reconciliation output)."""
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     rp = tsub.add_parser(
         "reconcile",
@@ -2600,6 +2627,25 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_tools_reconcile_args(rp)
+
+    rp = tsub.add_parser(
+        "red",
+        help="Relative Evolutionary Divergence (RED) of every node of a tree",
+        description=(
+            "Compute the Relative Evolutionary Divergence (RED, Parks et al. 2018) of every node "
+            "of a rooted tree: the root is 0, every leaf is 1, and each internal node sits at its "
+            "relative position along the root-to-tip path. RED is invariant to a global rate "
+            "rescaling, so on a phylogram it approximates each node's relative age without a "
+            "clock — GTDB's rank-normalisation quantity."
+        ),
+        usage="zombi2 tools red -t FILE [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # RED of every node (a phylogram recovers relative ages; a dated tree gives them exactly)",
+            "  zombi2 tools red -t species_tree.nwk -o out/",
+        ),
+    )
+    _add_tools_red_args(rp)
 
     pp = tsub.add_parser(
         "parse",
@@ -2653,6 +2699,16 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
                    help="where the family originates: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
+
+
+def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
+                   help="Newick tree (one tree). Branch lengths are read as-is: pass a phylogram "
+                        "(substitutions) to recover relative ages, or a dated tree for exact "
+                        "relative ages. Works with the trees 'zombi2 species'/'sequence' write.")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write RED.tsv (node, is_leaf, red) into DIR (default: print the table to stdout)")
 
 
 def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
@@ -3054,18 +3110,22 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE likelihood; parse: read ALE/AleRax output)",
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile: ALE likelihood; red: RED; parse: read ALE/AleRax output)",
         "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
         "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
         "'zombi2 tools <tool> -h' for its options.\n\n"
         "Tools\n"
         "  reconcile            ALE reconciliation likelihood of a gene tree (ALElite)\n"
+        "  red                  Relative Evolutionary Divergence of every node (Parks et al. 2018)\n"
         "  parse                read external ALE / AleRax reconciliation output (reconparser)",
         "zombi2 tools <tool> [options]",
         _add_tools_args,
         epilog=_examples(
             "  # ALE reconciliation log-likelihood of a gene tree at given DTL rates",
             "  zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15",
+            "",
+            "  # Relative Evolutionary Divergence of every node of a tree",
+            "  zombi2 tools red -t species_tree.nwk -o out/",
             "",
             "  # summarize an existing ALE / AleRax reconciliation (needs zombi2[reconparser])",
             "  zombi2 tools parse results.ale",
@@ -3191,6 +3251,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "tools":
         if args.tools_command == "reconcile":
             return _run_tools_reconcile(args, parser)
+        if args.tools_command == "red":
+            return _run_tools_red(args, parser)
         if args.tools_command == "parse":
             return _run_tools_parse(args, parser)
         parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
