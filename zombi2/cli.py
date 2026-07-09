@@ -63,6 +63,9 @@ Traits & coevolution
 
 Analysis tools
   tools                compute on ZOMBI2 outputs (reconcile: ALE reconciliation likelihood)
+
+Experimental (unstable, opt-in)
+  experimental         not-yet-validated models (selection: ESM2 codon selection, emergent dN/dS)
 """
 
 
@@ -2227,34 +2230,96 @@ def _selection_cds_protein(genome: str, c, translate, reverse_complement):
     return None if "*" in prot else prot
 
 
+def _gff_contigs(path: str) -> set:
+    """The set of sequence ids carrying a CDS feature in a GFF3 (to pair the GFF with the FASTA)."""
+    import gzip
+    opener = gzip.open if str(path).endswith(".gz") else open
+    contigs: set = set()
+    with opener(path, "rt") as fh:
+        for line in fh:
+            if line.startswith("##FASTA"):
+                break
+            if line.startswith("#") or not line.strip():
+                continue
+            f = line.split("\t")
+            if len(f) >= 3 and f[2] == "CDS":
+                contigs.add(f[0])
+    return contigs
+
+
+def _calibrate_beta_genomewide(critic, proteins, target_dnds, nuc_model, *,
+                               hi: float = 64.0, tol: float = 1e-3, max_iter: int = 48) -> float:
+    """Find one ``beta`` whose LENGTH-WEIGHTED-MEAN expected dN/dS over ``proteins`` is ~ ``target_dnds``.
+
+    Each protein is profiled by the critic **once** (bounded by the CDS length, so tractable), then dN/dS
+    is analytic per beta — unlike a single genome-length concatenation, which would blow up the critic's
+    O(L^2) attention. dN/dS is monotone decreasing in beta, so a bisection on ``[0, hi]`` converges.
+    """
+    from zombi2.experimental.codon_selection import CodonSelection
+    from zombi2.experimental.selection import FixedProfileCritic
+    if not 0.0 < target_dnds < 1.0:
+        raise ValueError(f"--target-dnds must be in (0, 1), got {target_dnds}")
+    # one critic call per CDS, then a reusable analytic model per CDS (beta is set live in the loop)
+    models = [(CodonSelection(FixedProfileCritic(critic.profile(p)), beta=1.0, nuc_model=nuc_model), p)
+              for p in proteins]
+    total = float(sum(len(p) for _, p in models))
+
+    def omega(b: float) -> float:
+        acc = 0.0
+        for sel, p in models:
+            sel.beta = b
+            acc += len(p) * sel.dnds(p)
+        return acc / total
+
+    if omega(hi) > target_dnds:
+        raise ValueError(f"--target-dnds {target_dnds} needs beta > {hi}; choose a less extreme target")
+    lo, high = 0.0, float(hi)
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + high)
+        w = omega(mid)
+        if w > 0.0 and abs(w - target_dnds) <= tol:
+            return mid
+        lo, high = (mid, high) if w > target_dnds else (lo, mid)
+    mid = 0.5 * (lo + high)
+    if abs(omega(mid) - target_dnds) > tol:
+        raise ValueError(f"--target-dnds calibration did not converge within {max_iter} iterations; "
+                         "try a less extreme target")
+    return mid
+
+
 def _run_experimental_selection(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     print("zombi2: 'experimental selection' is unstable — APIs and outputs may change "
           "(zombi2.experimental).", file=sys.stderr)
-    try:
-        from zombi2.experimental import calibrate_beta, read_cds_gff, simulate_nucleotide_selection
-        from zombi2.experimental.codon_selection import translate
-        from zombi2.experimental.selection import ESM2Critic
-    except ImportError as e:
-        raise RuntimeError("experimental selection needs the optional dependencies; install them with "
-                           f"  pip install 'zombi2[selection]'  (torch, fair-esm, scipy). [{e}]")
+    import importlib.util
+    missing = [m for m in ("torch", "esm", "scipy") if importlib.util.find_spec(m) is None]
+    if missing:                                        # probe the ACTUAL optional deps (all lazy inside)
+        raise RuntimeError(f"experimental selection needs optional dependencies {missing}; install them "
+                           "with:  pip install 'zombi2[selection]'  (torch, fair-esm, scipy)")
+    from zombi2.experimental import read_cds_gff, simulate_nucleotide_selection
+    from zombi2.experimental.codon_selection import translate
+    from zombi2.experimental.selection import ESM2Critic
     from zombi2.sequences.models import GammaRates, make_model, read_fasta, reverse_complement
 
     with open(args.tree) as f:
         tree = read_newick(f.read())
     fa = read_fasta(args.genome_fasta)
+    # pick ONE sequence and use the same id for both the GFF and the FASTA, so CDS coordinates can
+    # never be silently applied to the wrong contig
     if args.gff_seqid is not None:
-        if args.gff_seqid not in fa:
-            raise ValueError(f"--gff-seqid {args.gff_seqid!r} not in the FASTA (have: "
-                             f"{', '.join(fa)})")
-        genome = fa[args.gff_seqid]
-    elif len(fa) == 1:
-        genome = next(iter(fa.values()))
+        seqid = args.gff_seqid
     else:
-        raise ValueError(f"--genome-fasta has {len(fa)} sequences; pass --gff-seqid to pick one")
-    genome = genome.upper()
-    cds = read_cds_gff(args.gff, seqid=args.gff_seqid)
+        contigs = _gff_contigs(args.gff)
+        if len(contigs) != 1:
+            raise ValueError(f"the GFF spans {len(contigs)} sequences {sorted(contigs)}; "
+                             "pass --gff-seqid to pick one")
+        seqid = next(iter(contigs))
+    if seqid not in fa:
+        raise ValueError(f"the GFF is annotated on {seqid!r} but --genome-fasta has no such sequence "
+                         f"(have: {', '.join(fa)}); supply the matching FASTA or --gff-seqid")
+    genome = fa[seqid].upper()
+    cds = read_cds_gff(args.gff, seqid=seqid)
     if not cds:
-        raise ValueError(f"no CDS features found in {args.gff!r}")
+        raise ValueError(f"no CDS features found for {seqid!r} in {args.gff!r}")
 
     model = make_model(args.subst_model, kappa=args.kappa, freqs=args.base_freqs, rates=args.gtr_rates)
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
@@ -2265,9 +2330,9 @@ def _run_experimental_selection(args: argparse.Namespace, parser: argparse.Argum
                                 for c in cds) if p]
         if not proteins:
             raise ValueError("no cleanly-translatable CDS to calibrate --target-dnds on")
-        beta = calibrate_beta(critic, "".join(proteins), args.target_dnds, nuc_model=model)
-        print(f"zombi2: calibrated beta = {beta:.4g} for target dN/dS = {args.target_dnds} "
-              f"(over {len(proteins)} CDS)", file=sys.stderr)
+        beta = _calibrate_beta_genomewide(critic, proteins, args.target_dnds, model)
+        print(f"zombi2: calibrated beta = {beta:.4g} for a genome-wide dN/dS ~ {args.target_dnds} "
+              f"(length-weighted over {len(proteins)} CDS)", file=sys.stderr)
     else:
         beta = 1.0 if args.beta is None else args.beta
 
