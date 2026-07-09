@@ -17,7 +17,6 @@ extra:
 theme:
   name: material
   features:
-    - navigation.sections
     - navigation.top
     - navigation.indexes
     - content.code.copy
