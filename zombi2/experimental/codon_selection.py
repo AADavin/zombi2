@@ -117,11 +117,15 @@ def _codon_site_model(mu: np.ndarray, pi_mut: np.ndarray, aa_pref: np.ndarray,
                       beta: float) -> _ExpmSite:
     """One codon Halpern--Bruno model for a site with amino-acid preference ``aa_pref`` (20,).
 
-    All sites are scaled by the **same neutral rate** ``Σ pi_mut · (neutral exit rate)``, so a branch
-    of length ``t`` is ``t`` expected substitutions per site *under neutrality*. A conserved site
-    therefore accrues *fewer* real substitutions (its own mean rate is below 1) -- emergent site-rate
-    heterogeneity, and the visible face of dN/dS < 1. (A per-site 'mean rate 1' scaling would erase
-    that heterogeneity and, for near-delta stationaries, underflow to 0.)
+    All sites are scaled by the **same** global neutral rate, so a branch of length ``t`` is ``t``
+    expected substitutions per **nucleotide site** under neutrality. The scale is the stationary-mean
+    codon exit rate ``Σ pi_mut · (neutral exit rate)`` divided by 3 (three nucleotide sites per codon):
+    this makes the codon clock a *per-nucleotide-site* clock, so coding and non-coding regions that
+    share one branch-length scale (e.g. the nucleotide genome model) diverge at the same neutral rate
+    -- without the /3 a codon block under-diverges ~3x versus a nucleotide block. A conserved site
+    therefore accrues *fewer* real substitutions (its own mean rate is below the global rate) --
+    emergent site-rate heterogeneity, and the visible face of dN/dS < 1. (A per-site 'mean rate 1'
+    scaling would erase that heterogeneity and, for near-delta stationaries, underflow to 0.)
     """
     F = beta * np.log(np.clip(aa_pref, 1e-12, None))[_CODON_AA]      # fitness per codon
     pi_target = _codon_targets(pi_mut, F)
@@ -129,7 +133,9 @@ def _codon_site_model(mu: np.ndarray, pi_mut: np.ndarray, aa_pref: np.ndarray,
     Q = mu * _hb_fixation(dF)                                        # off-diagonal (mu diagonal is 0)
     np.fill_diagonal(Q, 0.0)
     np.fill_diagonal(Q, -Q.sum(1))
-    scale = float((pi_mut * mu.sum(1)).sum())                       # neutral mean rate (global)
+    # /3: convert the per-codon neutral exit rate to a per-nucleotide-site rate (3 nt per codon), so the
+    # codon clock matches the nucleotide clock when both share a branch-length scale (genome models).
+    scale = float((pi_mut * mu.sum(1)).sum()) / 3.0                 # neutral mean rate per nt site (global)
     if scale <= 0:
         raise ValueError("degenerate mutation model (zero substitution rate)")
     return _ExpmSite(Q / scale, pi_target)

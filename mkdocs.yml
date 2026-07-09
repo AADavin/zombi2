@@ -82,6 +82,8 @@ nav:
       - Coevolution: guide/coevolution.md
       - Running in parallel: guide/parallel.md
   - Cookbook: cookbook.md
+  - Experimental:
+      - Language-model selection: experimental/language-model-selection.md
   - Reference:
       - Command line: cli.md
       - Python API: reference/api.md
