@@ -46,6 +46,8 @@ opposite — **stable and validated**, just adjacent to (rather than part of) th
 | --- | --- | --- |
 | **Reconciliation likelihood** (ALElite) | the ALE marginal likelihood `P(gene tree \| species tree, DTL rates)` of a simulated gene family | [Reconciliation likelihood](reconciliation-likelihood.md) |
 | **Relative Evolutionary Divergence** (RED) | each node's rate-normalised relative age in `[0, 1]` (root 0, tips 1) — GTDB's rank-normalisation quantity (Parks et al. 2018) | [Relative Evolutionary Divergence](red.md) |
+| **Tree distances** (`treedist`) | Robinson–Foulds, branch-score, quartet, and matching distances between a true tree and an inferred one | [Tree distances](treedist.md) |
+| **Reconciliation accuracy** (`recon-accuracy`) | node-by-node event, mapping (MRCA), and transfer-recovery accuracy of an inferred reconciliation vs the true one | [Reconciliation accuracy](recon-accuracy.md) |
 | **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into `ete3` trees and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
 
 ## Roadmap
@@ -63,6 +65,3 @@ schedule. Each would enter only after clearing the bar above.
 - **Interop exporters.** Convert ZOMBI2 reconciliations and gene trees into the formats other
   tools read — **recPhyloXML**, and **NHX** for ALE / GeneRax / Count — so a simulated scenario
   can be fed straight into an external reconciliation pipeline.
-- **Benchmarking tree / event distances.** Compare a simulated (true) tree or reconciliation to
-  an inferred one: Robinson–Foulds and related topology distances, plus event-level
-  (D/T/L/S mapping) agreement — the metrics a benchmark of an inference method needs.
