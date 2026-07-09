@@ -92,7 +92,7 @@ def test_beta_zero_reduces_to_the_neutral_codon_model():
     mu, pi_mut = _codon_mutation(nuc)
     Qn = mu.copy()
     np.fill_diagonal(Qn, -Qn.sum(1))
-    Qn = Qn / -(pi_mut * np.diag(Qn)).sum()                          # neutral codon Q, mean rate 1
+    Qn = Qn / (-(pi_mut * np.diag(Qn)).sum() / 3.0)                  # neutral codon Q, mean rate 1 per nt site
     m0 = _codon_site_model(mu, pi_mut, np.ones(20) / 20.0, 0.0)
     assert np.allclose(m0.Q, Qn, atol=1e-10)
     assert np.allclose(m0.stationary, pi_mut, atol=1e-12)
@@ -212,7 +212,7 @@ def test_mutation_backbone_matches_the_nucleotide_model_under_unequal_frequencie
     # beta=0 kernel + reversibility must also hold under this asymmetric backbone
     Qn = mu.copy()
     np.fill_diagonal(Qn, -Qn.sum(1))
-    Qn = Qn / -(pi_mut * np.diag(Qn)).sum()
+    Qn = Qn / (-(pi_mut * np.diag(Qn)).sum() / 3.0)                  # mean rate 1 per nt site
     m0 = _codon_site_model(mu, pi_mut, np.ones(20) / 20.0, 0.0)
     assert np.allclose(m0.Q, Qn, atol=1e-10) and np.allclose(m0.stationary, pi_mut, atol=1e-12)
     m = _codon_site_model(mu, pi_mut, _peaked("W", hi=0.9)[0], 4.0)
