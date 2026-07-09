@@ -45,6 +45,7 @@ opposite — **stable and validated**, just adjacent to (rather than part of) th
 | Tool | What it computes | Page |
 | --- | --- | --- |
 | **Reconciliation likelihood** (ALElite) | the ALE marginal likelihood `P(gene tree \| species tree, DTL rates)` of a simulated gene family | [Reconciliation likelihood](reconciliation-likelihood.md) |
+| **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into `ete3` trees and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
 
 ## Roadmap
 
