@@ -90,3 +90,9 @@ __all__ += ["CDS", "GenomeSelection", "read_cds_gff"]
 from zombi2.experimental.realism import frechet_esm_distance  # noqa: E402
 
 __all__ += ["frechet_esm_distance"]
+
+from zombi2.experimental.nucleotide_selection import (  # noqa: E402
+    BlockSelectionReport, NucleotideGenomeSelection, simulate_nucleotide_selection,
+)
+
+__all__ += ["BlockSelectionReport", "NucleotideGenomeSelection", "simulate_nucleotide_selection"]
