@@ -48,6 +48,7 @@ NAV: list[tuple[str, str, str, str | None]] = [
     ("cookbook.md",                     "Cookbook",                   "Cookbook",                None),
     ("faq.md",                          "FAQ",                        "FAQ",                     None),
     ("comparison.md",                   "Comparison-with-ZOMBI-1",    "Comparison with ZOMBI-1", None),
+    ("experimental/language-model-selection.md", "Language-Model-Selection", "Language-model selection", "Experimental"),
     ("contributing.md",                 "Contributing",               "Contributing",            None),
     ("reference/api.md",                "API-Reference",              "API reference",           None),
     ("species_tree_models.md",          "Species-Tree-Models-Roadmap","Species-tree models",     "Roadmap"),
