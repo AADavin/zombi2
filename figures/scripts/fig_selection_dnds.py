@@ -48,7 +48,9 @@ def _peaked(protein, hi=0.9):
 
 def _omega_curve():
     critic = _peaked(UBIQUITIN, hi=0.9)
-    betas = np.array([0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 9.0, 13.0, 18.0])
+    # omega has already collapsed to ~0 by beta ~ 1.5-2, so stop at 3: the steep drop
+    # plus a short tail that shows it stays there, without a long dead stretch of flat axis.
+    betas = np.array([0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0])
     omegas = np.array([CodonSelection(critic, beta=float(b)).dnds(UBIQUITIN) for b in betas])
     return betas, omegas
 
@@ -56,26 +58,29 @@ def _omega_curve():
 CBW, CBH = 132, 62
 
 
+FS_BOX, FS_BOX_SUB = 20, 16     # codon (bold) and its "aa (tag)" line, kept inside the box
+
+
 def _codon_box(d, x, y, codon, aa, tag, fill):
     d.append(draw.Rectangle(x, y, CBW, CBH, rx=8, fill="white", stroke=fill, stroke_width=2.4))
-    d.append(draw.Text(codon, FS_LABEL, x + CBW / 2, y + 26, font_family=FONT, text_anchor="middle",
+    d.append(draw.Text(codon, FS_BOX, x + CBW / 2, y + 26, font_family=FONT, text_anchor="middle",
                        fill=INK, font_weight="bold"))
-    d.append(draw.Text(f"{aa} ({tag})", FS_TICK, x + CBW / 2, y + 48, font_family=FONT,
+    d.append(draw.Text(f"{aa} ({tag})", FS_BOX_SUB, x + CBW / 2, y + 46, font_family=FONT,
                        text_anchor="middle", fill=fill))
 
 
-def _arrow(d, x0, y0, x1, y1, label, color):
+def _arrow(d, x0, y0, x1, y1, label, color, label_dy=-10):
     d.append(draw.Line(x0, y0, x1, y1, stroke=color, stroke_width=2.4))
     ang = np.arctan2(y1 - y0, x1 - x0)
     for da in (0.5, -0.5):
         d.append(draw.Line(x1, y1, x1 - 13 * np.cos(ang + da), y1 - 13 * np.sin(ang + da),
                            stroke=color, stroke_width=2.4))
-    d.append(draw.Text(label, FS_TICK, (x0 + x1) / 2, (y0 + y1) / 2 - 10, font_family=FONT,
+    d.append(draw.Text(label, FS_TICK, (x0 + x1) / 2, (y0 + y1) / 2 + label_dy, font_family=FONT,
                        text_anchor="middle", fill=color))
 
 
 def left_panel(d, ox, oy, pw, ph):
-    d.append(draw.Text("Codon substitution = mutation x selection", FS_LABEL, ox + pw / 2, oy - 8,
+    d.append(draw.Text("Codon substitution = mutation x selection", FS_LABEL, ox + pw / 2, oy - 24,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     cx, cy = ox, oy + (ph - CBH) / 2 - 10                       # current codon, left, vertically centred
     tx = ox + pw - CBW                                          # target column, right
@@ -83,19 +88,20 @@ def left_panel(d, ox, oy, pw, ph):
     _codon_box(d, cx, cy, "ACA", "Thr", "current", MUTED)
     _codon_box(d, tx, syn_y, "ACG", "Thr", "same aa", GOOD)
     _codon_box(d, tx, non_y, "GCA", "Ala", "new aa", SCRUT)
-    _arrow(d, cx + CBW + 4, cy + 12, tx - 6, syn_y + CBH / 2, "1 nt change", GOOD)
-    _arrow(d, cx + CBW + 4, cy + CBH - 12, tx - 6, non_y + CBH / 2, "1 nt change", SCRUT)
-    d.append(draw.Text("synonymous: h = 1 (neutral)", FS_TICK, tx + CBW / 2, syn_y - 12,
+    _arrow(d, cx + CBW + 4, cy + 12, tx - 6, syn_y + CBH / 2, "1 nt change", GOOD, label_dy=-30)
+    _arrow(d, cx + CBW + 4, cy + CBH - 12, tx - 6, non_y + CBH / 2, "1 nt change", SCRUT, label_dy=-34)
+    d.append(draw.Text("synonymous:", FS_TICK, tx + CBW / 2, syn_y + CBH + 22,
                        font_family=FONT, text_anchor="middle", fill=GOOD))
-    d.append(draw.Text("non-synonymous: h(beta) from ESM2", FS_TICK, tx + CBW / 2, non_y + CBH + 22,
+    d.append(draw.Text("h = 1 (neutral)", FS_TICK, tx + CBW / 2, syn_y + CBH + 44,
+                       font_family=FONT, text_anchor="middle", fill=GOOD))
+    d.append(draw.Text("non-synonymous:", FS_TICK, tx + CBW / 2, non_y + CBH + 22,
                        font_family=FONT, text_anchor="middle", fill=SCRUT))
-    d.append(draw.Text("mutation: neutral DNA model    selection: ESM2 on the amino acid",
-                       FS_TICK, ox, oy + ph + 20, font_family=FONT, text_anchor="start",
-                       fill=MUTED, font_style="italic"))
+    d.append(draw.Text("h(beta) from ESM2", FS_TICK, tx + CBW / 2, non_y + CBH + 44,
+                       font_family=FONT, text_anchor="middle", fill=SCRUT))
 
 
 def right_panel(d, ox, oy, pw, ph, betas, omegas):
-    d.append(draw.Text("Emergent dN/dS as selection strengthens", FS_LABEL, ox + pw / 2, oy - 8,
+    d.append(draw.Text("Emergent dN/dS as selection strengthens", FS_LABEL, ox + pw / 2, oy - 24,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     bmax = float(betas.max())
     x_at = lambda b: ox + (b / bmax) * pw            # noqa: E731
@@ -108,7 +114,7 @@ def right_panel(d, ox, oy, pw, ph, betas, omegas):
         d.append(draw.Line(ox - 5, yy, ox, yy, stroke=INK, stroke_width=1.5))
         d.append(draw.Text(f"{w:.2f}", FS_TICK, ox - 10, yy + 6, font_family=FONT,
                            text_anchor="end", fill=MUTED))
-    for b in (0, 5, 10, 15):
+    for b in (0, 1, 2, 3):
         xx = x_at(b)
         d.append(draw.Line(xx, oy + ph, xx, oy + ph + 5, stroke=INK, stroke_width=1.5))
         d.append(draw.Text(str(b), FS_TICK, xx, oy + ph + 22, font_family=FONT,

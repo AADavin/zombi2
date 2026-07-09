@@ -27,6 +27,8 @@ from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_TICK
 OUT = Path(__file__).resolve().parent.parent.parent / "docs" / "img"
 W, H = 1120, 500
 READ = "#2f7d84"        # a "critic read" marker (muted teal)
+SLICE = "#c4c4c4"       # faint grey time-slice guides (live panel)
+SLICE_STEP = 60.0       # spacing of the live-mode slices (the re-read 'resolution')
 BRANCH_W = 3.0
 
 
@@ -40,8 +42,28 @@ def _tree_segments(ox, oy, w, h):
     ymid = (yB + yC) / 2
     hseg = [(ox, cy, s1, cy), (s1, yA, tipx, yA), (s1, ymid, s2, ymid),
             (s2, yB, tipx, yB), (s2, yC, tipx, yC)]
-    vseg = [(s1, yA, s1, yC), (s2, yB, s2, yC)]
+    # s1 joins tip A (yA) to the (B,C) node (ymid); s2 joins tips B and C.
+    vseg = [(s1, yA, s1, ymid), (s2, yB, s2, yC)]
     return hseg, vseg, [(tipx, yA), (tipx, yB), (tipx, yC)]
+
+
+def _slice_xs(ox, w):
+    """Global time-slice x-positions; the gap between them is the 'resolution' at
+    which live re-reads the critic. Phased to thread between the internal nodes."""
+    tipx = ox + w - 8
+    xs, x = [], ox + 0.6 * SLICE_STEP
+    while x < tipx - 14:
+        xs.append(x)
+        x += SLICE_STEP
+    return xs
+
+
+def _slice_guides(d, ox, oy, w, h):
+    """Faint dashed verticals marking the time-slices at which live re-reads the critic."""
+    ytop, ybot = oy + 0.10 * h, oy + 0.92 * h
+    for x in _slice_xs(ox, w):
+        d.append(draw.Line(x, ytop - 12, x, ybot + 12, stroke=SLICE, stroke_width=1.4,
+                           stroke_dasharray="3,5"))
 
 
 def _draw_tree(d, ox, oy, w, h):
@@ -58,14 +80,16 @@ def _read_marker(d, x, y):
 def _panel(d, ox, oy, w, h, title, mode):
     d.append(draw.Text(title, FS_LABEL, ox + w / 2, oy - 18, font_family=FONT, text_anchor="middle",
                        font_weight="bold", fill=INK))
+    if mode == "live":
+        _slice_guides(d, ox, oy, w, h)                             # faint slice grid, behind the tree
     hseg, tips = _draw_tree(d, ox, oy, w, h)
     if mode == "frozen":
         _read_marker(d, hseg[0][0] + 2, hseg[0][1])                 # one read, at the root
     else:
-        for (x0, y0, x1, y1) in hseg:                               # reads spaced along every branch
-            n = max(1, int((x1 - x0) // 42))
-            for k in range(n):
-                _read_marker(d, x0 + (k + 0.5) * (x1 - x0) / n, y0)
+        for x in _slice_xs(ox, w):                                  # one read per lineage crossing each slice
+            for (x0, y0, x1, y1) in hseg:
+                if x0 <= x <= x1:
+                    _read_marker(d, x, y0)
     for (tx, ty) in tips:
         d.append(draw.Rectangle(tx, ty - 6, 12, 12, fill=INK, stroke="white", stroke_width=1))
 

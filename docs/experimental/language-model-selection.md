@@ -70,10 +70,6 @@ The flagship use starts from a **real annotated genome** at the root and evolves
 its genes. Genes duplicate, transfer, invert and are lost, so a gene's tree is not the species tree —
 ZOMBI2's **block** decomposition handles this.
 
-<figure markdown="span">
-  ![A GFF genome is decomposed into blocks; each gene block evolves under ESM2 codon selection on its own gene tree, each intergene block drifts neutrally, and blocks reassemble into the DNA at every node.](../img/selection_genome_blocks.svg){ width="900" }
-</figure>
-
 Because a gene is never split by a breakpoint, a whole coding sequence is exactly one **block** and
 evolves as one unit down **its own gene tree** (never the species tree): gene blocks get codon
 selection, intergene blocks drift neutrally, and everything reassembles into the genome at every node —
