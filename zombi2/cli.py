@@ -340,6 +340,11 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="mean length of an inversion/transposition segment (geometric): in genes "
                         "for --genome-model ordered (default 1 = single-gene events), in "
                         "nucleotides for nucleotide (default 100)")
+    g.add_argument("--transposition-flip", type=float, default=0.0, metavar="P",
+                   dest="transposition_flip",
+                   help="probability a transposed segment reinserts reverse-complemented "
+                        "(gene order reversed and strands flipped), for --genome-model ordered "
+                        "(default 0 = always keep orientation)")
 
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
@@ -1806,6 +1811,11 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     # receptivity-only --branch-rates on a plain SharedRates, which stays on Rust)
     if (args.family_rates or args.branch_rates) and args.genome_model != "unordered":
         parser.error("--family-rates / --branch-rates are only for --genome-model unordered")
+    if not (0.0 <= args.transposition_flip <= 1.0):
+        parser.error("--transposition-flip must be a probability in [0, 1]")
+    if args.transposition_flip and not ordered:
+        parser.error("--transposition-flip applies to transpositions on an ordered chromosome; "
+                     "use --genome-model ordered")
     family_mode = args.rate_model == "family" or args.family_rates is not None
     if args.rate_model == "family" and args.family_rates is None:
         parser.error("--rate-model family needs a --family-rates FILE")
@@ -1864,7 +1874,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                    max_family_size=args.max_family_size, seed=args.seed)
     if ordered:
         ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
-        rate_kw["genome_factory"] = lambda ids, _e=ext: OrderedGenome(ids, extension=_e)
+        flip = args.transposition_flip  # P(a transposed segment reinserts reverse-complemented)
+        rate_kw["genome_factory"] = (
+            lambda ids, _e=ext, _f=flip: OrderedGenome(ids, extension=_e, transposition_flip=_f)
+        )
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the
     # full path (the fast counts-only / trace paths don't reconstruct gene trees).
