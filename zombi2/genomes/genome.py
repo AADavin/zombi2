@@ -329,11 +329,18 @@ class OrderedGenome(Genome):
     The ``extension`` can also be supplied per event via ``TargetParams.extension`` from a
     rate model; the per-genome value is the fallback. Construct via a factory, e.g.
     ``genome_factory=lambda ids: OrderedGenome(ids, extension=0.5)``.
+
+    ``transposition_flip`` in [0, 1] is the probability that a transposed segment reinserts
+    in **reversed** orientation (gene order reversed and every strand flipped), modelling a
+    reverse-complemented reinsertion. The default ``0.0`` always preserves orientation, so
+    it leaves every existing run byte-identical.
     """
 
-    def __init__(self, ids: IdManager, extension: float | None = None):
+    def __init__(self, ids: IdManager, extension: float | None = None,
+                 transposition_flip: float = 0.0):
         self.ids = ids
         self.extension = extension
+        self.transposition_flip = transposition_flip
         self.chromosome: list[OrderedGene] = []
 
     # --- queries -----------------------------------------------------------
@@ -424,6 +431,15 @@ class OrderedGenome(Genome):
         if event is EventType.TRANSPOSITION:
             block = list(segment)
             del self.chromosome[:length]
+            # With probability ``transposition_flip`` the segment reinserts reverse-complemented:
+            # gene order reversed and every strand flipped (as for an inversion). The ``and`` guards
+            # the draw so ``transposition_flip == 0`` never consumes an ``rng`` value — an
+            # orientation-preserving run stays byte-identical to a flip-free implementation (the same
+            # pattern as biased gene conversion in :meth:`UnorderedGenome._choose_donor`).
+            if self.transposition_flip and rng.random() < self.transposition_flip:
+                for g in block:
+                    g.orientation = -g.orientation
+                block = list(reversed(block))
             j = int(rng.integers(len(self.chromosome) + 1))
             self.chromosome[j:j] = block
             return [[GeneOp(g.gid, g.family, "transposed") for g in block]]
@@ -462,7 +478,7 @@ class OrderedGenome(Genome):
 
     # --- speciation --------------------------------------------------------
     def clone_reminting(self) -> tuple["OrderedGenome", list[tuple[str, str, str]]]:
-        new = type(self)(self.ids, self.extension)
+        new = type(self)(self.ids, self.extension, self.transposition_flip)
         mapping = []
         for g in self.chromosome:
             ng = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
