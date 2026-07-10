@@ -345,6 +345,13 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="probability a transposed segment reinserts reverse-complemented "
                         "(gene order reversed and strands flipped), for --genome-model ordered "
                         "(default 0 = always keep orientation)")
+    g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
+                   help="number of chromosomes for --genome-model ordered (default 1). The root's "
+                        "initial families are spread across them and every rearrangement stays "
+                        "within a chromosome (no translocation/fission/fusion)")
+    g.add_argument("--linear-chromosomes", action="store_true", dest="linear_chromosomes",
+                   help="ordered chromosomes are linear (segments never wrap the origin), for "
+                        "--genome-model ordered (default: circular, as for bacteria)")
 
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
@@ -1816,6 +1823,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.transposition_flip and not ordered:
         parser.error("--transposition-flip applies to transpositions on an ordered chromosome; "
                      "use --genome-model ordered")
+    if args.n_chromosomes < 1:
+        parser.error("--n-chromosomes must be >= 1")
+    if (args.n_chromosomes != 1 or args.linear_chromosomes) and not ordered:
+        parser.error("--n-chromosomes / --linear-chromosomes apply to --genome-model ordered")
     family_mode = args.rate_model == "family" or args.family_rates is not None
     if args.rate_model == "family" and args.family_rates is None:
         parser.error("--rate-model family needs a --family-rates FILE")
@@ -1875,8 +1886,11 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if ordered:
         ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
         flip = args.transposition_flip  # P(a transposed segment reinserts reverse-complemented)
+        n_chrom = args.n_chromosomes     # number of chromosomes to seed at the root
+        circular = not args.linear_chromosomes  # linear = eukaryotic ends (no wrap); circular default
         rate_kw["genome_factory"] = (
-            lambda ids, _e=ext, _f=flip: OrderedGenome(ids, extension=_e, transposition_flip=_f)
+            lambda ids, _e=ext, _f=flip, _n=n_chrom, _c=circular: OrderedGenome(
+                ids, extension=_e, transposition_flip=_f, n_chromosomes=_n, circular=_c)
         )
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the

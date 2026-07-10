@@ -76,10 +76,10 @@ def test_flip_zero_never_draws_from_rng():
     (this is what keeps an orientation-preserving run byte-identical to a flip-free engine)."""
     ids = IdManager()
     genome = OrderedGenome(ids, extension=0.6, transposition_flip=0.0)
-    genome.chromosome = [
+    genome.chromosomes = [[
         OrderedGene("g1", "f1", 1), OrderedGene("g2", "f2", -1),
         OrderedGene("g3", "f3", 1), OrderedGene("g4", "f4", 1),
-    ]
+    ]]
     before = [(g.gid, g.family, g.orientation) for g in genome.chromosome]
     sel = _segment(genome, start=0, length=2)
     rng = _FakeRNG(insert_at=0, forbid_random=True)  # .random() would raise
@@ -97,7 +97,7 @@ def test_flip_one_reverses_order_and_flips_strands():
     genome = OrderedGenome(ids, extension=0.6, transposition_flip=1.0)
     a, b = OrderedGene("g1", "f1", 1), OrderedGene("g2", "f2", -1)
     c, d = OrderedGene("g3", "f3", 1), OrderedGene("g4", "f4", 1)
-    genome.chromosome = [a, b, c, d]
+    genome.chromosomes = [[a, b, c, d]]
     sel = _segment(genome, start=0, length=2)     # the block {a(+1), b(-1)}
     rng = _FakeRNG(random_value=0.0, insert_at=2)  # 0.0 < 1.0 -> flip; reinsert after [c, d]
     groups = genome.apply(EventType.TRANSPOSITION, sel, rng, TargetParams())
@@ -128,7 +128,7 @@ def test_flip_inherited_through_speciation_clone():
     """clone_reminting() (speciation) must carry ``transposition_flip`` to the child genome."""
     ids = IdManager()
     parent = OrderedGenome(ids, extension=0.6, transposition_flip=0.7)
-    parent.chromosome = [OrderedGene("g1", "f1", 1)]
+    parent.chromosomes = [[OrderedGene("g1", "f1", 1)]]
     child, _ = parent.clone_reminting()
     assert isinstance(child, OrderedGenome)
     assert child.transposition_flip == 0.7
