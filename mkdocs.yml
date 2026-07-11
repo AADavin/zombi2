@@ -89,6 +89,7 @@ nav:
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Undated simulation: tools/undated-simulation.md
       - Relative Evolutionary Divergence: tools/red.md
       - Tree distances: tools/treedist.md
       - Reconciliation accuracy: tools/recon-accuracy.md
