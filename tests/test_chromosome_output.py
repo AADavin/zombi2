@@ -7,6 +7,8 @@ output, so existing output folders are unchanged.
 """
 from collections import defaultdict
 
+import pytest
+
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
@@ -14,6 +16,7 @@ from zombi2 import (
     simulate_genomes,
     simulate_species_tree,
 )
+from zombi2.cli import main
 
 
 def _multichrom(seed=4, n_chromosomes=3, transfer=0.3, **rate_kw):
@@ -95,3 +98,53 @@ def test_single_chromosome_output_folder_is_unchanged(tmp_path):
     assert not (out / "Karyotype_trace.tsv").exists()
     g.write(out, include=["layout"])                        # exposes gene order even at one chromosome
     assert (out / "Gene_order.tsv").exists()
+
+
+# --- CLI: automatic inclusion + the chromosome-tier rate flags ------------------------
+
+def _species(tmp_path):
+    sp = tmp_path / "sp"
+    main(["species", "--birth", "1", "--death", "0.3", "--tips", "8", "--age", "3",
+          "--seed", "1", "-o", str(sp)])
+    return str(sp / "species_tree.nwk")
+
+
+def test_cli_multichromosome_auto_writes_layout(tmp_path):
+    """`--n-chromosomes > 1` auto-adds Gene_order.tsv; with no chromosome-tier events, no trace."""
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "ordered", "--n-chromosomes", "4",
+               "--dup", "0.2", "--loss", "0.2", "--orig", "0.3", "--inversion", "0.2",
+               "--initial-families", "15", "--seed", "3", "--write", "profiles", "-o", str(out)])
+    assert rc == 0
+    assert (out / "Gene_order.tsv").exists()
+    assert not (out / "Karyotype_trace.tsv").exists()
+
+
+def test_cli_fission_auto_writes_karyotype_trace(tmp_path):
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "ordered", "--n-chromosomes", "2",
+               "--dup", "0.2", "--loss", "0.2", "--orig", "0.3",
+               "--fission", "0.4", "--chromosome-origination", "0.3", "--chromosome-loss", "0.2",
+               "--initial-families", "15", "--seed", "3", "--write", "profiles", "-o", str(out)])
+    assert rc == 0
+    assert (out / "Gene_order.tsv").exists() and (out / "Karyotype_trace.tsv").exists()
+    assert len((out / "Karyotype_trace.tsv").read_text().splitlines()) > 1  # events recorded
+
+
+def test_cli_single_chromosome_writes_no_karyotype_files(tmp_path):
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "ordered",
+               "--dup", "0.2", "--loss", "0.2", "--orig", "0.3", "--inversion", "0.2",
+               "--initial-families", "15", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    assert not (out / "Gene_order.tsv").exists()
+    assert not (out / "Karyotype_trace.tsv").exists()
+
+
+def test_cli_rejects_chromosome_tier_rates_without_ordered(tmp_path):
+    tree = _species(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["genomes", "--tree", tree, "--fission", "0.1", "--seed", "1", "-o", str(tmp_path / "x")])
