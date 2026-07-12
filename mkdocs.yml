@@ -85,6 +85,7 @@ nav:
       - cookbook/index.md
       - Inversion rate from synteny: cookbook/synteny.md
       - Can you trust RED?: cookbook/red-validation.md
+      - Core-gene turnover rates: cookbook/universal-core-rates.md
   - Examples: examples.md
   - Experimental:
       - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md
