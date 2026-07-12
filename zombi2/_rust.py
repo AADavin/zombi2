@@ -426,6 +426,11 @@ class _FastNucGenome:
     def n_segments(self):
         return len(self._segments)
 
+    def _iter_segments(self):
+        # The Rust engine is single-chromosome; the shared reconstruction reads every genome
+        # through this all-chromosomes iterator, so expose the one flat segment list here.
+        return iter(self._segments)
+
     def size(self):
         return self._length
 
