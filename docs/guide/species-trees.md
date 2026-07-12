@@ -405,7 +405,7 @@ Intuition: a surviving lineage still speciates at rate `λ`; each side-branch in
 
 **Transfers from the dead.** Once grafted, ghosts are ordinary branches: the forward gene simulator sees them in `branches_alive_at(t)`, so horizontal transfers can draw ghost donors/recipients — a gene from a ghost donor surfaces in reconciliation as a transfer from a lineage absent from the sampled species tree (Szöllősi, Tannier, Lartillot & Daubin 2013).
 
-See also the [cookbook](../cookbook.md#add-ghost-extinct-lineages) for the short recipe.
+See also the [examples](../examples.md#add-ghost-extinct-lineages) for the short recipe.
 
 ## References
 
