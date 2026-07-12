@@ -329,71 +329,85 @@ class OrderedGene(Gene):
 
 @dataclass(slots=True)
 class Chromosome:
-    """One chromosome: an identified, topology-aware ordered run of genes.
+    """One chromosome: an identified, topology-aware ordered run of elements.
 
-    ``chrom_id`` is a stable identity minted from :meth:`IdManager.new_chromosome` — a *separate*
-    id space from genes and families, so introducing chromosomes never shifts a gene id.
-    ``circular`` is a **per-chromosome** topology: a circular chromosome wraps at the origin
-    (bacteria), a linear one has ends (eukaryotes). ``genes`` is the ordered ``list[OrderedGene]``.
+    The **shared container** for the chromosome tier: an identity (``chrom_id``), a per-chromosome
+    ``circular`` topology (circular wraps at the origin — bacteria; linear has ends — eukaryotes),
+    and an ordered ``elements`` list. ``elements`` are :class:`OrderedGene`s for the ordered model
+    and nucleotide ``Segment``s for the nucleotide model — the container is the same, and each model
+    brings its own coordinate arithmetic ("where is position X"). ``genes`` is a backward-compatible
+    alias for ``elements`` (the ordered case, where elements are genes).
 
-    Owns the **topology-aware segment algebra** (``segment`` / ``bring_to_front`` / ``insert`` /
-    ``remove`` / ``invert_block``): the structural moves an event makes on a single chromosome, with
-    the circular-vs-linear wrapping handled here once. :class:`OrderedGenome` orchestrates these plus
-    id minting and event logging. The same algebra is what fission / fusion / translocation and the
-    nucleotide model are meant to reuse.
+    ``chrom_id`` comes from :meth:`IdManager.new_chromosome` — a *separate* id space from genes and
+    families, so introducing chromosomes never shifts a gene id.
+
+    The coordinate-agnostic list moves (``bring_to_front`` / ``insert`` / ``remove``) are shared by
+    both models; ``segment`` / ``invert_block`` are the ordered model's index-based helpers (the
+    nucleotide model, working in base pairs with segment-splitting, supplies its own).
     """
 
     chrom_id: int
     circular: bool
-    genes: list[OrderedGene] = field(default_factory=list)
+    elements: list = field(default_factory=list)  # OrderedGene (ordered) or Segment (nucleotide)
+
+    @property
+    def genes(self) -> list:
+        """Backward-compatible alias for :attr:`elements` (the ordered model's elements are genes)."""
+        return self.elements
+
+    @genes.setter
+    def genes(self, value: list) -> None:
+        self.elements = value
 
     def __len__(self) -> int:
-        return len(self.genes)
+        return len(self.elements)
 
-    # --- topology-aware segment algebra ------------------------------------
-    def segment(self, start: int, length: int) -> tuple[tuple[OrderedGene, ...], int]:
-        """Read the contiguous ``length``-gene segment at ``start``, as ``(genes, length)``.
-
-        A circular chromosome follows the ring, so the segment may wrap the origin; a linear one
-        clamps the segment to the chromosome end so it never crosses it (the returned length is the
-        clamped one). Read-only — the chromosome is not modified."""
-        n = len(self.genes)
-        if self.circular:
-            return tuple(self.genes[(start + i) % n] for i in range(length)), length
-        length = min(length, n - start)
-        return tuple(self.genes[start + i] for i in range(length)), length
-
+    # --- list moves (coordinate-agnostic; shared by both models) -----------
     def bring_to_front(self, start: int) -> int:
-        """Rotate the ring so the segment at ``start`` begins at index 0, returning the new start.
+        """Rotate the ring so the run at index ``start`` begins at index 0, returning the new start.
 
         A circular chromosome has no privileged origin, so rotating it is a structural no-op that
-        makes a (possibly wrapped) segment contiguous for slicing, and it returns 0. A linear
-        chromosome is left untouched and ``start`` is returned unchanged."""
+        makes a (possibly wrapped) run contiguous for slicing, and it returns 0. A linear chromosome
+        is left untouched and ``start`` is returned unchanged."""
         if self.circular:
             if start:
-                self.genes = self.genes[start:] + self.genes[:start]
+                self.elements = self.elements[start:] + self.elements[:start]
             return 0
         return start
 
-    def insert(self, pos: int, genes) -> None:
-        """Insert ``genes`` in order so the first lands at index ``pos``."""
-        self.genes[pos:pos] = list(genes)
+    def insert(self, pos: int, items) -> None:
+        """Insert ``items`` in order so the first lands at index ``pos``."""
+        self.elements[pos:pos] = list(items)
 
-    def remove(self, gene: OrderedGene) -> bool:
-        """Remove ``gene`` by identity if present; return whether it was found."""
-        for i, g in enumerate(self.genes):
-            if g is gene:
-                del self.genes[i]
+    def remove(self, item) -> bool:
+        """Remove ``item`` by identity if present; return whether it was found."""
+        for i, x in enumerate(self.elements):
+            if x is item:
+                del self.elements[i]
                 return True
         return False
 
+    # --- ordered index-based helpers (the ordered model's "find / cut") ----
+    def segment(self, start: int, length: int) -> tuple[tuple, int]:
+        """Read the contiguous ``length``-element run at ``start``, as ``(elements, length)``.
+
+        A circular chromosome follows the ring, so the run may wrap the origin; a linear one clamps
+        it to the end (the returned length is the clamped one). Read-only. Index-based — the ordered
+        model's coordinate read (the nucleotide model reads by base-pair arc instead)."""
+        n = len(self.elements)
+        if self.circular:
+            return tuple(self.elements[(start + i) % n] for i in range(length)), length
+        length = min(length, n - start)
+        return tuple(self.elements[start + i] for i in range(length)), length
+
     @staticmethod
-    def invert_block(genes: list) -> list:
-        """Invert a block of oriented genes: flip every strand (in place) and return it reversed —
-        what an inversion does to a segment, and what a reverse-complemented transposition reuses."""
-        for g in genes:
-            g.orientation = -g.orientation
-        return list(reversed(genes))
+    def invert_block(items: list) -> list:
+        """Invert a block of oriented elements: flip every ``orientation`` (in place) and return it
+        reversed — what an inversion does to an ordered segment, and what a reverse-complemented
+        transposition reuses."""
+        for x in items:
+            x.orientation = -x.orientation
+        return list(reversed(items))
 
 
 class OrderedGenome(Genome):
