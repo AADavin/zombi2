@@ -99,6 +99,55 @@ Because rearrangements preserve gene content, they leave the profile matrix and 
 unchanged. They appear only in the event log and in the final chromosome order.
 :::
 
+## Multiple chromosomes
+
+So far the ordered genome has been a *single* chromosome. It can also be a **karyotype** of several
+chromosomes. In the Python API you pass `n_chromosomes`, and `circular` decides whether the
+chromosomes wrap at the origin (circular, as for a typical bacterium) or have two ends (linear, as
+for eukaryotic chromosomes):
+
+```python
+genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8, circular=False)
+```
+
+On the command line the same two knobs are `--n-chromosomes` and `--linear-chromosomes`:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model ordered \
+    --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
+    --inversion 0.3 --transposition 0.2 --mean-length 2 \
+    --n-chromosomes 8 --linear-chromosomes \
+    --initial-families 40 --seed 1 -o out/
+```
+
+The root's initial families are distributed across the chromosomes, and each chromosome then evolves.
+The gene events act **within** a single chromosome: a transposition, in particular, always re-inserts
+its segment on the *same* chromosome it was cut from, and a **transfer** is the one gene event that
+moves a copy *between* chromosomes — its landing chromosome is chosen uniformly at random (every
+chromosome equally likely, regardless of size), then a position within it.
+
+On top of these, a **chromosome tier** of events acts on whole chromosomes:
+
+- **fission** — one chromosome splits into two (a linear chromosome at one breakpoint; a circular one
+  at two, excising the arc between them into a new circular replicon);
+- **fusion** — two chromosomes merge into one;
+- **chromosome origination** — a de-novo replicon, a *plasmid*, appears;
+- **chromosome loss** — a whole chromosome, and every gene on it, is lost.
+
+Fission and fusion only move genes between chromosomes, so gene lineages are untouched; only
+chromosome loss ends the lineages it carries. Their rates default to zero (set `--fission`,
+`--fusion`, `--chromosome-origination`, `--chromosome-loss`, or the matching `SharedRates`
+arguments), so a single circular chromosome (`n_chromosomes=1`, the default) reproduces the
+single-chromosome model exactly, event for event.
+
+::: note
+The karyotype is written out when it is non-trivial: a run with more than one chromosome (or any
+chromosome-tier rate) also produces `Gene_order.tsv` — which chromosome each gene sits on, in order —
+and `Karyotype_trace.tsv`, the fission/fusion/origination/loss genealogy. A single-chromosome run's
+output is unchanged. In the Python API the same information is on `leaf.chromosomes` (a
+`dict` of `Chromosome` objects) and `genomes.event_log.chromosome_records`.
+:::
+
 ## How events reach the genome
 
 Inversion and transposition rates are emitted by `SharedRates` as candidate events, but a genome
