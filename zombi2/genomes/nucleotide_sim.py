@@ -544,7 +544,11 @@ def simulate_nucleotide_genomes(
     root of the tree (default 1); each is an independent full-length copy of the root chromosome
     under its own source namespace (in genic mode all copies share the same gene layout), so an
     ``N``-chromosome genome starts at ``N * root_length`` bp. Multi-chromosome genomes also arise
-    dynamically through the chromosome-tier events below.
+    dynamically through the chromosome-tier events below. For **heterogeneous** root chromosomes —
+    a real chromosome-plus-plasmids genome, each replicon its own length and genes — pass
+    ``root_chromosomes`` instead: a list of ``(length, gene_intervals)`` (e.g. from
+    :func:`~zombi2.read_gff_all` over a multi-sequence GFF). It is mutually exclusive with
+    ``gene_intervals`` / ``initial_chromosomes`` and requires ``output="genomes"``.
     ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
     additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
     carrying the extant leaf genomes, the event log, the segment registry, and the block
