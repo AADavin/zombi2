@@ -23,7 +23,9 @@ Decisions I couldn't make for you (the rest I'm proceeding on with sensible defa
 6. **§12.6 DEC figure floats into §12.7** in the PDF (a LaTeX float-placement drift, not a
    markdown ordering bug). Want figures pinned in place globally?
 7. Quick confirms I'll otherwise default on: homologous-replacement **orientation check** (add
-   it), **GFF multi-contig** (use the most-annotated contig + warn).
+   it). **GFF multi-contig** — DONE, better than the old "most-annotated + warn" plan: a
+   multi-sequence GFF now seeds one chromosome per sequence (`read_gff_all` / `--gff`), feeding the
+   chromosome tier (Ch11 §*Multiple chromosomes and the chromosome tier*).
 
 Autonomous progress log: Ch10 done · Ch13 prose pass done · Ch12 overview table done ·
 atoms→blocks rename running · INDELs next · Ch12 figures + namespace conversion pending a
