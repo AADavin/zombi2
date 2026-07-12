@@ -287,8 +287,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "all"),
                    default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
-                        "transfers, summary, branch_events, layout, karyotype} or 'all' (default: "
-                        "profiles trees). "
+                        "transfers, summary, branch_events, reconciliations, layout, karyotype} or "
+                        "'all' (default: profiles trees). 'reconciliations' writes "
+                        "Reconciled_complete/extant.nwk (tips <species>|<gid>) — the truth input for "
+                        "'tools recon-accuracy' and 'tools reconcile'. "
                         "species_tree.nwk is always written; 'profiles' alone takes the fast Rust "
                         "counts-only path; 'trace' (optionally with 'profiles') writes the compact "
                         "single-file event log Events_trace.tsv near counts-only speed, from which "
@@ -1815,9 +1817,26 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
-    if args.threads > 1 and parts != {"profiles"}:
-        raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
-                         "exactly --write profiles")
+    if args.threads > 1:
+        # --threads parallelises ONLY the counts-only Rust fast path: built-in shared rates on an
+        # unordered genome, profiles-only, no conversion / branch-rates / scoring. Reject every other
+        # combination up front with a flag-level message — otherwise per-genome/family rates crash
+        # deep in the engine and --conversion / ordered silently run serial (the threads ignored).
+        reason = None
+        if parts != {"profiles"}:
+            reason = "use it with exactly --write profiles"
+        elif args.genome_model != "unordered":
+            reason = f"--genome-model {args.genome_model} runs serially; use --genome-model unordered"
+        elif args.rate_model != "shared" or args.family_rates:
+            reason = "the built-in --rate-model shared is required (per-genome/family run on Python)"
+        elif args.conversion:
+            reason = "--conversion runs on the full (serial) path"
+        elif args.branch_rates:
+            reason = "--branch-rates runs on the full (serial) path"
+        elif getattr(args, "score_likelihoods", False):
+            reason = "--score-likelihoods forces the full (serial) gene-tree path"
+        if reason is not None:
+            parser.error(f"--threads > 1 parallelises only the counts-only path: {reason}")
 
     if args.genome_model == "nucleotide":
         if args.initial_families is not None:
@@ -2365,10 +2384,11 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
-    want = parts & {"profiles", "trees", "ancestral", "bed"}
+    want = parts & {"profiles", "trees", "reconciliations", "ancestral", "bed"}
     if not want:
-        raise ValueError("the nucleotide model writes 'profiles', 'trees', 'ancestral' and/or "
-                         "'bed'; --write events/transfers/summary/branch_events do not apply to it")
+        raise ValueError("the nucleotide model writes 'profiles', 'trees', 'reconciliations', "
+                         "'ancestral' and/or 'bed'; --write events/transfers/summary/branch_events "
+                         "do not apply to it")
     ancestral = "ancestral" in want
     bed = "bed" in want
     # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias
@@ -2436,8 +2456,8 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     t0 = time.perf_counter()
     # the Python engine is needed for the event log, the genic model, indels, the chromosome tier,
     # and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
-    if ("trees" in want or genic or ancestral or bed or indels or chrom_tier
-            or root_chromosomes is not None):
+    if ("trees" in want or "reconciliations" in want or genic or ancestral or bed or indels
+            or chrom_tier or root_chromosomes is not None):
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2465,9 +2485,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
             with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
                 f.write(pm.to_tsv(presence=True))
         _write_mosaics(args.out, result)
+    if "trees" in want or "reconciliations" in want:
+        result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
     if "trees" in want:
         _write_block_gene_trees(args.out, result, genic=genic)
-        result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
         if genic:
             _write_pseudogenizations(args.out, result)
     if ancestral:

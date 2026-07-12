@@ -125,6 +125,10 @@ file `genomes --score-likelihoods` produces). Flags mirror the API: `--model` (o
 `dated undated reldated`, default `dated`), `--n-steps` (dated grid resolution),
 `--origination` (`root`|`uniform`).
 
+Produce a `-g` file from a ZOMBI2 run with `zombi2 genomes … --write reconciliations`, which
+writes `Reconciled_extant.nwk` — one reconciled gene tree per line, tips `<species>|<gid>` — the
+exact input this tool reads (alongside `Reconciled_complete.nwk`).
+
 #### Score a whole simulation in one pass — `genomes --score-likelihoods`
 
 When you are *simulating* the families anyway, `genomes` can score every extant family it
