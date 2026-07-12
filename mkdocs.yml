@@ -84,6 +84,7 @@ nav:
   - Cookbook:
       - cookbook/index.md
       - Inversion rate from synteny: cookbook/synteny.md
+      - Clock rate heterogeneity: cookbook/clock-heterogeneity.md
       - RED node-age benchmark: cookbook/red-benchmark.md
   - Examples: examples.md
   - Experimental:
