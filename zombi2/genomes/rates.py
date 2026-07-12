@@ -129,11 +129,15 @@ class SharedRates(RateModel):
                  *, inversion: float = 0.0, transposition: float = 0.0,
                  insertion: float = 0.0, deletion: float = 0.0,
                  conversion: float = 0.0,
+                 chromosome_origination: float = 0.0, chromosome_loss: float = 0.0,
+                 fission: float = 0.0, fusion: float = 0.0,
                  carrying_capacity: float | None = None):
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
                  ("transposition", transposition), ("insertion", insertion),
-                 ("deletion", deletion), ("conversion", conversion))
+                 ("deletion", deletion), ("conversion", conversion),
+                 ("chromosome_origination", chromosome_origination),
+                 ("chromosome_loss", chromosome_loss), ("fission", fission), ("fusion", fusion))
         for name, value in rates:
             if value < 0:
                 raise ValueError(f"{name} rate must be >= 0, got {value}")
@@ -149,6 +153,12 @@ class SharedRates(RateModel):
         self.deletion = float(deletion)
         # intra-genome gene conversion: only fired by multiset genomes with >= 2 copies of a family
         self.conversion = float(conversion)
+        # chromosome-tier events: only fired by genomes that support them (OrderedGenome). Off by
+        # default (rate 0), so a run that does not set them is byte-identical to before.
+        self.chromosome_origination = float(chromosome_origination)
+        self.chromosome_loss = float(chromosome_loss)
+        self.fission = float(fission)
+        self.fusion = float(fusion)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
 
     def _regulated(self) -> bool:
@@ -195,6 +205,18 @@ class SharedRates(RateModel):
                     out.append(EventWeight(EventType.CONVERSION, family, self.conversion * cn))
         if self.origination > 0:
             out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
+        # chromosome-tier events (OrderedGenome opts in via supported_events; every branch is gated
+        # on rate > 0, so a model that leaves these at 0 adds nothing and stays byte-identical).
+        n_chrom = len(getattr(genome, "chromosomes", ()))
+        if self.chromosome_origination > 0:
+            out.append(EventWeight(EventType.CHROMOSOME_ORIGINATION, None, self.chromosome_origination))
+        if self.fission > 0 and n > 0:  # a chromosome needs genes to be worth splitting
+            out.append(EventWeight(EventType.FISSION, None, self.fission * n_chrom))
+        if n_chrom >= 2:  # loss / fusion need a spare chromosome (a genome keeps at least one)
+            if self.chromosome_loss > 0:
+                out.append(EventWeight(EventType.CHROMOSOME_LOSS, None, self.chromosome_loss * n_chrom))
+            if self.fusion > 0:
+                out.append(EventWeight(EventType.FUSION, None, self.fusion * n_chrom))
         return out
 
 

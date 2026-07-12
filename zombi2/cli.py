@@ -287,13 +287,17 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "all"),
                    default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
-                        "transfers, summary, branch_events} or 'all' (default: profiles trees). "
+                        "transfers, summary, branch_events, layout, karyotype} or 'all' (default: "
+                        "profiles trees). "
                         "species_tree.nwk is always written; 'profiles' alone takes the fast Rust "
                         "counts-only path; 'trace' (optionally with 'profiles') writes the compact "
                         "single-file event log Events_trace.tsv near counts-only speed, from which "
                         "gene trees can be reconstructed later on demand; 'branch_events' writes "
                         "Branch_events.tsv, the per-species-branch event counts (with an is_extant "
-                        "flag). [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
+                        "flag). [ordered] 'layout' writes Gene_order.tsv (which chromosome each gene "
+                        "sits on) and 'karyotype' writes Karyotype_trace.tsv (fission/fusion/"
+                        "origination/loss) — both added automatically for a multi-chromosome or "
+                        "fission/fusion run. [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
                         "(architecture + gzipped FASTA) at every node; 'bed' writes BED gene "
                         "annotations — genes.bed for the root genome and BED/<node>.bed per node "
                         "(needs --genes/--gff)")
@@ -345,6 +349,29 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="probability a transposed segment reinserts reverse-complemented "
                         "(gene order reversed and strands flipped), for --genome-model ordered "
                         "(default 0 = always keep orientation)")
+    g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
+                   help="number of chromosomes for --genome-model ordered (default 1). The root's "
+                        "initial families are spread across them; rearrangements stay within a "
+                        "chromosome (see --fission/--fusion for chromosome-level changes)")
+    g.add_argument("--linear-chromosomes", action="store_true", dest="linear_chromosomes",
+                   help="ordered chromosomes are linear (segments never wrap the origin), for "
+                        "--genome-model ordered (default: circular, as for bacteria)")
+    # chromosome-tier events (ordered genomes; off by default). When any is set — or with more than
+    # one chromosome — the run also writes Gene_order.tsv (layout) + Karyotype_trace.tsv.
+    g.add_argument("--fission", type=float, default=0.0, metavar="RATE",
+                   help="[ordered] chromosome fission rate, per chromosome: a chromosome splits in "
+                        "two (linear: one breakpoint; circular: two) (default 0 = off)")
+    g.add_argument("--fusion", type=float, default=0.0, metavar="RATE",
+                   help="[ordered] chromosome fusion rate, per chromosome: two chromosomes merge "
+                        "into one (default 0 = off)")
+    g.add_argument("--chromosome-origination", type=float, default=0.0, metavar="RATE",
+                   dest="chromosome_origination",
+                   help="[ordered] chromosome origination rate, per genome: a de-novo replicon "
+                        "(a plasmid) appears (default 0 = off)")
+    g.add_argument("--chromosome-loss", type=float, default=0.0, metavar="RATE",
+                   dest="chromosome_loss",
+                   help="[ordered] chromosome loss rate, per chromosome: a whole chromosome and its "
+                        "genes are lost (default 0 = off)")
 
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
@@ -1816,6 +1843,22 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.transposition_flip and not ordered:
         parser.error("--transposition-flip applies to transpositions on an ordered chromosome; "
                      "use --genome-model ordered")
+    if args.n_chromosomes < 1:
+        parser.error("--n-chromosomes must be >= 1")
+    if (args.n_chromosomes != 1 or args.linear_chromosomes) and not ordered:
+        parser.error("--n-chromosomes / --linear-chromosomes apply to --genome-model ordered")
+    chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
+                      or args.chromosome_loss)
+    if chrom_tier and not ordered:
+        parser.error("--fission / --fusion / --chromosome-origination / --chromosome-loss apply to "
+                     "--genome-model ordered")
+    if ordered and (args.n_chromosomes > 1 or chrom_tier):
+        # auto-surface the karyotype outputs when non-trivial, so a multi-chromosome or fission /
+        # fusion run captures its layout (and genealogy) without the user asking; single-chromosome
+        # runs are untouched.
+        parts.add("layout")
+        if chrom_tier:
+            parts.add("karyotype")
     family_mode = args.rate_model == "family" or args.family_rates is not None
     if args.rate_model == "family" and args.family_rates is None:
         parser.error("--rate-model family needs a --family-rates FILE")
@@ -1843,7 +1886,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
         rates = SharedRates(args.dup, args.trans, args.loss, args.orig,
-                            inversion=inv, transposition=tps)
+                            inversion=inv, transposition=tps,
+                            chromosome_origination=args.chromosome_origination,
+                            chromosome_loss=args.chromosome_loss,
+                            fission=args.fission, fusion=args.fusion)
     elif family_mode:  # each family its own rates, from the table (unlisted -> --dup/--trans/--loss)
         rates = FamilySampledRates(duplication=args.dup, transfer=args.trans, loss=args.loss,
                                    origination=args.orig,
@@ -1875,8 +1921,11 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if ordered:
         ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
         flip = args.transposition_flip  # P(a transposed segment reinserts reverse-complemented)
+        n_chrom = args.n_chromosomes     # number of chromosomes to seed at the root
+        circular = not args.linear_chromosomes  # linear = eukaryotic ends (no wrap); circular default
         rate_kw["genome_factory"] = (
-            lambda ids, _e=ext, _f=flip: OrderedGenome(ids, extension=_e, transposition_flip=_f)
+            lambda ids, _e=ext, _f=flip, _n=n_chrom, _c=circular: OrderedGenome(
+                ids, extension=_e, transposition_flip=_f, n_chromosomes=_n, circular=_c)
         )
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the

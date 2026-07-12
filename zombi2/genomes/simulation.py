@@ -279,18 +279,25 @@ class Genomes:
 
     # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
     # are always written; the CLI's --write maps onto these names.
-    WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary", "branch_events")
+    WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary", "branch_events",
+                   "layout", "karyotype")
+    #: Written only when explicitly requested (never by ``include=None``): meaningful only for
+    #: ordered genomes, so they stay out of a run's output unless asked for — single-chromosome
+    #: output is therefore unchanged.
+    _OPT_IN_PARTS = frozenset({"layout", "karyotype"})
 
     # --- output ------------------------------------------------------------
     def write(self, outdir: str | Path, *, include=None, sparse: bool = False,
               annotate_species: bool = False) -> None:
         """Write the ZOMBI-1-style output folder.
 
-        ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`
-        (``"profiles"``, ``"trace"``, ``"trees"``, ``"events"``, ``"transfers"``,
-        ``"summary"``, ``"branch_events"``); ``None`` (the default) writes them all.
-        ``species_tree.nwk`` and ``species_nodes.tsv`` are always written. Omitted components do
-        no work — notably ``"trees"`` drives the (expensive) gene-tree reconstruction.
+        ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`.
+        ``None`` (the default) writes them all **except** the opt-in ordered-genome parts
+        ``"layout"`` (``Gene_order.tsv`` — the per-leaf chromosome layout) and ``"karyotype"``
+        (``Karyotype_trace.tsv`` — the fission/fusion/origination/loss genealogy), which are written
+        only when asked for, so single-chromosome output is unchanged. ``species_tree.nwk`` and
+        ``species_nodes.tsv`` are always written. Omitted components do no work — notably ``"trees"``
+        drives the (expensive) gene-tree reconstruction.
 
         ``"trace"`` writes the compact single-file event log ``Events_trace.tsv`` (one row per
         event); it is the scalable alternative to ``"events"`` (per-family files) and is the
@@ -306,7 +313,7 @@ class Genomes:
         ``Presence.tsv`` pair — the latter is ``families × species`` (O(N²) in tip count)
         and is the one output that does not scale; the sparse form is O(present cells).
         """
-        want = set(self.WRITE_PARTS) if include is None else set(include)
+        want = (set(self.WRITE_PARTS) - self._OPT_IN_PARTS) if include is None else set(include)
         unknown = want - set(self.WRITE_PARTS)
         if unknown:
             raise ValueError(f"unknown write component(s) {sorted(unknown)}; "
@@ -390,6 +397,33 @@ class Genomes:
 
         if "profiles" in want:
             _write_profiles(out, self.profiles, sparse)
+
+        if "layout" in want:
+            # per-leaf ordered layout: which chromosome each gene sits on, and in what order. The
+            # karyotype is state that is otherwise unserialised; only ordered genomes have a layout,
+            # so other genome models contribute no rows.
+            lay = ["species\tchromosome\tposition\tfamily\tgid\torientation"]
+            for leaf, genome in sorted(self.leaf_genomes.items(), key=lambda kv: kv[0].name):
+                chroms = getattr(genome, "chromosomes", None)
+                if not isinstance(chroms, dict):
+                    continue
+                for chrom in chroms.values():
+                    for pos, g in enumerate(chrom.genes):
+                        strand = "+" if getattr(g, "orientation", 1) >= 0 else "-"
+                        lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{pos}\t"
+                                   f"{g.family}\t{g.gid}\t{strand}")
+            (out / "Gene_order.tsv").write_text("\n".join(lay) + "\n")
+
+        if "karyotype" in want:
+            # the chromosome-tier genealogy: fission / fusion / chromosome origination / loss, each
+            # with its source (parents) and resulting (children) chromosome ids. Empty (header only)
+            # when the karyotype never changed.
+            kar = ["time\tevent\tbranch\tparents\tchildren"]
+            for r in self.event_log.chromosome_records:
+                parents = ";".join(str(p) for p in r.parents)
+                children = ";".join(str(c) for c in r.children)
+                kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
+            (out / "Karyotype_trace.tsv").write_text("\n".join(kar) + "\n")
 
 
 @dataclass
