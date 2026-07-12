@@ -81,14 +81,18 @@ nav:
       - Coevolution: guide/coevolution.md
       - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
-  - Cookbook: cookbook.md
-  - Examples:
-      - RED benchmark (Snakemake): examples/red-benchmark.md
+  - Cookbook:
+      - cookbook/index.md
+      - Inversion rate from synteny: cookbook/synteny.md
+      - Can you trust RED?: cookbook/red-validation.md
+      - Core-gene turnover rates: cookbook/universal-core-rates.md
+  - Examples: examples.md
   - Experimental:
-      - Language-model selection: experimental/language-model-selection.md
+      - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Undated simulation: tools/undated-simulation.md
       - Relative Evolutionary Divergence: tools/red.md
       - Tree distances: tools/treedist.md
       - Reconciliation accuracy: tools/recon-accuracy.md
