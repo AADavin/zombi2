@@ -917,10 +917,11 @@ zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --write profiles trees -o out/
 ```
 
-The GFF may be gzipped. For a multi-sequence file (chromosome + plasmids), the most-annotated
-sequence is used by default; `--gff-seqid ID` (or `read_gff(..., seqid=...)`) picks another. The
-genes keep their annotation names (locus tag / `Name`), so `genes.tsv` and the trees are labelled
-with real gene ids.
+The GFF may be gzipped. A **multi-sequence** file (a chromosome plus its plasmids or secondary
+chromosomes) seeds **one chromosome per sequence** — see
+[Multiple chromosomes](#multiple-chromosomes-the-chromosome-tier) — while `--gff-seqid ID` (or
+`read_gff(..., seqid=...)`) instead picks a single sequence. The genes keep their annotation names
+(locus tag / `Name`), so `genes.tsv` and the trees are labelled with real gene ids.
 
 ### Sequences and ancestral genomes
 
