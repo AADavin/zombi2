@@ -203,26 +203,32 @@ class NucleotideGenome(Genome):
         return seg
 
     # --- queries ------------------------------------------------------------
+    def _iter_segments(self):
+        """Every segment across all chromosomes, in chromosome (insertion) then physical order."""
+        for chrom in self.chromosomes.values():
+            yield from chrom.elements
+
     def size(self) -> int:
-        return self._length  # nucleotide length -> inversion rate scales with genome size
+        # nucleotide length -> inversion rate scales with genome size (summed over chromosomes)
+        return sum(self._chrom_length(c) for c in self.chromosomes.values())
 
     def total_length(self) -> float:
-        return float(self._length)
+        return float(self.size())
 
     def n_segments(self) -> int:
-        return len(self._segments)
+        return sum(len(c.elements) for c in self.chromosomes.values())
 
     def families(self) -> list[str]:
-        return list(dict.fromkeys(s.source for s in self._segments))
+        return list(dict.fromkeys(s.source for s in self._iter_segments()))
 
     def copy_number(self, family: str) -> int:
-        return sum(1 for s in self._segments if s.source == family)
+        return sum(1 for s in self._iter_segments() if s.source == family)
 
     def genes(self) -> list[Gene]:
-        return [Gene(s.seg_id, s.source) for s in self._segments]
+        return [Gene(s.seg_id, s.source) for s in self._iter_segments()]
 
     def presence_vector(self, family_order) -> np.ndarray:
-        present = {s.source for s in self._segments}
+        present = {s.source for s in self._iter_segments()}
         return np.fromiter((1 if f in present else 0 for f in family_order),
                            dtype=np.int8, count=len(family_order))
 
@@ -240,7 +246,7 @@ class NucleotideGenome(Genome):
         the ground truth and by the post-processor.
         """
         out: list[tuple[str, int, int]] = []
-        for seg in self._segments:
+        for seg in self._iter_segments():
             if seg.strand == 1:
                 out.extend((seg.source, p, 1) for p in range(seg.src_start, seg.src_end))
             else:
