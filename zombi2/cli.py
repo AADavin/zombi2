@@ -2026,6 +2026,74 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
     return 0
 
 
+def _run_tools_simulate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools simulate`` — forward-simulate gene families under the ALE undated/reldated
+    model (the generative twin of 'reconcile') and write per-family ground-truth reconciliations."""
+    from .tools.reconciliation.undated import UndatedDTL
+    from .tools.reconciliation.undated_sim import simulate_undated
+
+    with open(args.species_tree) as f:
+        tree = read_newick(f.read())
+    if len(tree.leaves()) < 2:
+        parser.error(f"{args.species_tree} is not a usable species tree — fewer than 2 tips "
+                     "(is it a valid Newick file?)")
+    transfers = "dated" if args.model == "reldated" else "global"
+    model = UndatedDTL(args.dup, args.trans, args.loss)
+    try:
+        res = simulate_undated(tree, model, n_families=args.families,
+                               origination=args.origination, transfers=transfers,
+                               seed=args.seed, max_events=args.max_events)
+    except (ValueError, RuntimeError) as e:
+        parser.error(str(e))
+
+    c = res.event_counts
+    print(f"simulated {res.n_families} families under {args.model} "
+          f"(d={args.dup}, t={args.trans}, l={args.loss}): "
+          f"{res.n_surviving} survived, {res.n_extinct} went extinct")
+    print(f"events: {c.get('D', 0)} D, {c.get('T', 0)} T, {c.get('L', 0)} L, {c.get('S', 0)} S")
+
+    if args.score:
+        from .tools.reconciliation.undated import undated_joint_loglik
+        ll = undated_joint_loglik(res.gene_trees(), res.species_tree, model,
+                                  origination=args.origination, transfers=transfers,
+                                  n_extinct=res.n_extinct)
+        print(f"joint undated log-likelihood of the {res.n_surviving} survivors "
+              f"(+{res.n_extinct} extinct) under the generating odds: {ll:.6f}")
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        n_extant = _write_undated_sim(res, args.out)
+        print(f"wrote Reconciled_complete.nwk, Reconciled_extant.nwk ({n_extant} survivors), "
+              f"Reconciliation_events.tsv and Gene_family_profiles.tsv into {args.out}/")
+    return 0
+
+
+def _write_undated_sim(res, out: str) -> int:
+    """Write a simulated result's ground-truth reconciliations: bare annotated Newicks (one family
+    per line — the format 'recon-accuracy' reads) plus a flat S/D/T/L event table. Returns the
+    number of surviving (extant) families written."""
+    complete_lines, extant_lines = [], []
+    ev_lines = ["family\tevent\tspecies\trecipient\ttime\tgene"]
+    for i, recon in enumerate(res.reconciliations, 1):
+        if recon.complete is not None:
+            complete_lines.append(recon.complete)
+        if recon.extant is not None:
+            extant_lines.append(recon.extant)
+        for e in recon.events:
+            ev_lines.append(f"{i}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
+                            f"{e.time:.10g}\t{e.gene or ''}")
+    prof_lines = ["family\t" + "\t".join(res.leaf_names)]
+    for fam, counts in res.profile_rows():
+        prof_lines.append(fam + "\t" + "\t".join(str(c) for c in counts))
+    for name, lines in (("Reconciled_complete.nwk", complete_lines),
+                        ("Reconciled_extant.nwk", extant_lines),
+                        ("Reconciliation_events.tsv", ev_lines),
+                        ("Gene_family_profiles.tsv", prof_lines)):
+        with open(os.path.join(out, name), "w") as f:
+            f.write("\n".join(lines) + ("\n" if lines else ""))
+    return len(extant_lines)
+
+
 _TREEDIST_COLS = ("tree", "n_leaves", "rf", "rf_norm", "rf_unrooted",
                   "branch_score", "quartet", "quartet_norm", "matching", "matching_norm")
 
@@ -2792,6 +2860,7 @@ def _iter_leaves(node):
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
     """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
     layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood),
+    ``simulate`` (its generative twin — sample gene families under the undated model),
     ``treedist`` (tree distances), ``recon-accuracy`` (reconciliation accuracy), ``red`` (RED)
     and ``parse`` (read external ALE / AleRax reconciliation output)."""
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
@@ -2814,6 +2883,31 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_tools_reconcile_args(rp)
+
+    smp = tsub.add_parser(
+        "simulate",
+        help="simulate gene families under the ALE undated/reldated model (generative twin of 'reconcile')",
+        description=(
+            "Forward-simulate gene families under the ALEml_undated / GeneRax UndatedDTL model — "
+            "the exact generative twin of 'zombi2 tools reconcile' (simulate here, then score there, "
+            "and the rates round-trip). --dup/--trans/--loss are per-branch ODDS (dimensionless, "
+            "relative to a speciation), NOT per-unit-time rates, and the species tree needs no dates "
+            "(a cladogram is fine; unit branches are assumed). Writes a ground-truth reconciliation "
+            "per family (complete + extant annotated Newicks and an S/D/T/L event table) — the same "
+            "format 'zombi2 tools recon-accuracy' scores. For a dated, contemporaneous-transfer "
+            "forward simulation, use 'zombi2 genomes' instead."
+        ),
+        usage="zombi2 tools simulate -t FILE --dup D --trans T --loss L [-n N] [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # sample 200 families on a cladogram under undated odds, write ground-truth reconciliations",
+            "  zombi2 tools simulate -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.3 -n 200 -o truth/",
+            "",
+            "  # then score an inferred reconciliation against that truth",
+            "  zombi2 tools recon-accuracy -t truth/Reconciled_extant.nwk -i inferred_recon.nwk",
+        ),
+    )
+    _add_tools_simulate_args(smp)
 
     tp = tsub.add_parser(
         "treedist",
@@ -2843,7 +2937,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "Node-by-node accuracy of an INFERRED reconciliation against the TRUE one for the "
             "same gene tree: event-type accuracy and per-class precision/recall, species "
             "(MRCA) mapping accuracy, and transfer donor/recipient recovery. Inputs are ZOMBI2 "
-            "annotated reconciled Newicks (as written by 'zombi2 genomes --write reconciliations'), "
+            "annotated reconciled Newicks (as written by 'zombi2 tools simulate'), "
             "one family per line, --truth and --inferred paired by line."
         ),
         usage="zombi2 tools recon-accuracy -t FILE -i FILE [-o DIR]",
@@ -2926,6 +3020,38 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
                    help="where the family originates: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
+
+
+def _add_tools_simulate_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-t", "--species-tree", required=True, metavar="FILE",
+                   help="species-tree Newick; a cladogram with no branch lengths is fine for the "
+                        "undated model (unit branches are assumed) — reldated needs real dates")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write Reconciled_complete.nwk, Reconciled_extant.nwk and "
+                        "Reconciliation_events.tsv into DIR (default: print a summary to stdout)")
+
+    g = p.add_argument_group("DTL odds (per-branch, relative to a speciation — NOT per-unit-time)")
+    g.add_argument("--dup", type=float, default=0.0, metavar="ODDS", help="duplication odds d")
+    g.add_argument("--trans", type=float, default=0.0, metavar="ODDS", help="transfer odds t")
+    g.add_argument("--loss", type=float, default=0.0, metavar="ODDS", help="loss odds l")
+
+    g = p.add_argument_group("model")
+    g.add_argument("--model", choices=("undated", "reldated"), default="undated", metavar="MODEL",
+                   help="undated = a transfer may land on any branch (default); reldated = only on "
+                        "a branch that overlaps the donor in time (needs a dated tree)")
+    g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
+                   help="where each family originates: 'root' (default) or 'uniform' over branches")
+    g.add_argument("-n", "--families", type=int, default=100, metavar="N",
+                   help="number of families to simulate (default 100)")
+    g.add_argument("--seed", type=int, default=None, metavar="INT",
+                   help="random seed for a reproducible draw")
+    g.add_argument("--max-events", type=int, default=1_000_000, metavar="N",
+                   help="per-family event cap; guards against runaway families at supercritical "
+                        "odds (default 1000000)")
+    g.add_argument("--score", action="store_true",
+                   help="also report the joint undated log-likelihood of the simulated survivors "
+                        "(with the true extinct count) under the generating odds — a round-trip check")
 
 
 def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
@@ -3623,6 +3749,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "tools":
         if args.tools_command == "reconcile":
             return _run_tools_reconcile(args, parser)
+        if args.tools_command == "simulate":
+            return _run_tools_simulate(args, parser)
         if args.tools_command == "treedist":
             return _run_tools_treedist(args, parser)
         if args.tools_command == "recon-accuracy":
