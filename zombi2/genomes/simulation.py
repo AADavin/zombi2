@@ -594,6 +594,21 @@ def simulate_genomes(
     if threads > 1 and output != "profiles":
         raise ValueError("threads>1 (parallel simulation) is only supported for output='profiles'")
 
+    # Tree-shape contract: every engine (the Rust kernel and the pure-Python engine) assumes a
+    # bifurcating species tree. Degree-two nodes (FBD sampled ancestors) are handled by the Python
+    # engine's pass-through, but a polytomy (a node with >2 children) is supported by no engine: the
+    # Rust log/trace kernel underflows its alive-list index (a process-killing panic) and the Python
+    # engine's _speciate unpacks exactly two children. Reject it here with a clear, actionable error
+    # instead of a deep crash.
+    _polytomies = [n.name for n in species_tree.nodes_preorder() if len(n.children) > 2]
+    if _polytomies:
+        shown = ", ".join(str(x) for x in _polytomies[:5]) + ("..." if len(_polytomies) > 5 else "")
+        raise ValueError(
+            f"simulate_genomes requires a bifurcating species tree, but found {len(_polytomies)} "
+            f"polytomous node(s) with >2 children: {shown}. Resolve polytomies into bifurcations "
+            "(e.g. as zero-length internal branches) before simulating."
+        )
+
     shorthand = any((duplication, transfer, loss, origination, conversion))
     if rates is None:
         rates = SharedRates(duplication, transfer, loss, origination, conversion=conversion)
