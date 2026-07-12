@@ -1,10 +1,11 @@
-"""Stage 1 multiple chromosomes for the OrderedGenome model.
+"""Multiple chromosomes for the OrderedGenome model.
 
-An ordered genome can carry more than one chromosome (``n_chromosomes``), circular or
-linear. Every event stays *within* a chromosome (no translocation/fission/fusion yet):
-``draw_target`` picks a chromosome (size-weighted) then a segment within it, and ``apply``
-looks that chromosome up by chrom_id. The single-chromosome default (``n_chromosomes=1,
-circular=True``) must stay byte-identical to the pre-multichromosome engine.
+An ordered genome can carry more than one chromosome (``n_chromosomes``), circular or linear. The
+gene events covered here stay *within* a chromosome (whole-chromosome fission / fusion / plasmid /
+loss are the separate chromosome tier, tested in test_chromosome_events.py): ``draw_target`` picks a
+chromosome (size-weighted) then a segment within it, and ``apply`` looks that chromosome up by
+chrom_id. The single-chromosome default (``n_chromosomes=1, circular=True``) must stay
+byte-identical to the pre-multichromosome engine.
 """
 
 import numpy as np
@@ -185,8 +186,9 @@ def test_multichromosome_reproducible():
 # --- 6. transfer is the one event that moves a family across chromosomes --------------
 #
 # Rearrangements stay within a chromosome (section 3); a *transfer* inserts the segment into a
-# recipient chromosome chosen uniformly, so it is the only Stage-1 way a family reaches a new
-# chromosome. draw_target -> extract_segment -> choose_insertion_point -> insert_segment.
+# recipient chromosome chosen uniformly, so it is the one *gene* event by which a family reaches a
+# new chromosome (fission/fusion aside). draw_target -> extract_segment -> choose_insertion_point ->
+# insert_segment.
 
 def _one_gene_transfer_segment(ids, rng, family="X"):
     """Extract a single-gene transfer segment of ``family`` from a throwaway donor."""
@@ -240,7 +242,7 @@ def test_transfer_recipient_chromosome_is_uniform_not_size_weighted():
 
 def test_transfer_moves_families_across_chromosomes_end_to_end():
     """A full simulation with heavy transfer: some family ends up on more than one chromosome
-    within a single leaf, which under Stage 1 can only happen via a transfer landing elsewhere."""
+    within a single leaf, which (with no chromosome-tier events) can only happen via a transfer."""
     rates = SharedRates(duplication=0.2, loss=0.2, transfer=0.6, origination=0.1,
                         inversion=0.1, transposition=0.1)
     spanned = False

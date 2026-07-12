@@ -120,23 +120,32 @@ zombi2 genomes -t species_tree.nwk --genome-model ordered \
     --initial-families 40 --seed 1 -o out/
 ```
 
-The root's initial families are distributed across the chromosomes, and each chromosome then evolves
-under the events above. This is a deliberately conservative first stage: **every event acts within a
-single chromosome** — there is no translocation, chromosome fission or fusion. A transposition, in
-particular, always re-inserts its segment on the *same* chromosome it was cut from.
+The root's initial families are distributed across the chromosomes, and each chromosome then evolves.
+The gene events act **within** a single chromosome: a transposition, in particular, always re-inserts
+its segment on the *same* chromosome it was cut from, and a **transfer** is the one gene event that
+moves a copy *between* chromosomes — its landing chromosome is chosen uniformly at random (every
+chromosome equally likely, regardless of size), then a position within it.
 
-The one event that can move a gene between chromosomes is **transfer**. When a transferred segment
-arrives in a recipient genome its landing chromosome is chosen uniformly at random — every chromosome
-is equally likely, regardless of how many genes it already carries — and then a position within that
-chromosome. So transfer (and fresh origination) is what mixes families across the karyotype over
-time, while duplication, loss and rearrangement keep each family on the chromosome it already sits
-on. A single circular chromosome (`n_chromosomes=1`, the default) reproduces the single-chromosome
-model exactly, event for event.
+On top of these, a **chromosome tier** of events acts on whole chromosomes:
+
+- **fission** — one chromosome splits into two (a linear chromosome at one breakpoint; a circular one
+  at two, excising the arc between them into a new circular replicon);
+- **fusion** — two chromosomes merge into one;
+- **chromosome origination** — a de-novo replicon, a *plasmid*, appears;
+- **chromosome loss** — a whole chromosome, and every gene on it, is lost.
+
+Fission and fusion only move genes between chromosomes, so gene lineages are untouched; only
+chromosome loss ends the lineages it carries. Their rates default to zero (set `--fission`,
+`--fusion`, `--chromosome-origination`, `--chromosome-loss`, or the matching `SharedRates`
+arguments), so a single circular chromosome (`n_chromosomes=1`, the default) reproduces the
+single-chromosome model exactly, event for event.
 
 ::: note
-The karyotype is part of the *state*, not the *output*: which chromosome a gene sits on is available
-on `leaf.chromosomes` (a list of per-chromosome gene lists) in the Python API, but it is not written
-to `Profiles.tsv` or the event trace, which stay chromosome-agnostic.
+The karyotype is written out when it is non-trivial: a run with more than one chromosome (or any
+chromosome-tier rate) also produces `Gene_order.tsv` — which chromosome each gene sits on, in order —
+and `Karyotype_trace.tsv`, the fission/fusion/origination/loss genealogy. A single-chromosome run's
+output is unchanged. In the Python API the same information is on `leaf.chromosomes` (a
+`dict` of `Chromosome` objects) and `genomes.event_log.chromosome_records`.
 :::
 
 ## How events reach the genome
