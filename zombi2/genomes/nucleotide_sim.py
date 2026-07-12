@@ -523,6 +523,7 @@ def simulate_nucleotide_genomes(
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_chromosomes: int = 1,
+    root_chromosomes: list[tuple[int, list]] | None = None,
     transfers=None,
     gene_intervals=None,
     pseudogenization: float = 0.0,
@@ -601,10 +602,23 @@ def simulate_nucleotide_genomes(
     if not (0.0 <= replacement <= 1.0):
         raise ValueError(f"replacement must be in [0, 1], got {replacement}")
     pending_genes = _normalize_gene_intervals(gene_intervals, root_length)
+    if root_chromosomes is not None:
+        # explicit heterogeneous replicons (e.g. a multi-sequence GFF): each (length, gene_intervals)
+        # is its own chromosome. Mutually exclusive with the identical-copy knobs.
+        if gene_intervals is not None:
+            raise ValueError("give either gene_intervals or root_chromosomes, not both")
+        if initial_chromosomes != 1:
+            raise ValueError("root_chromosomes sets the chromosomes explicitly; "
+                             "leave initial_chromosomes=1")
+        if not root_chromosomes:
+            raise ValueError("root_chromosomes must be a non-empty list of (length, gene_intervals)")
+        root_chromosomes = [(int(length), _normalize_gene_intervals(genes, int(length)))
+                            for length, genes in root_chromosomes]
     if output == "profiles":
-        if pending_genes:
-            raise ValueError("gene intervals require the Python engine (output='genomes'); the "
-                             "Rust profiles path does not model genes/intergenes")
+        if pending_genes or root_chromosomes is not None:
+            raise ValueError("gene intervals / explicit root_chromosomes require the Python engine "
+                             "(output='genomes'); the Rust profiles path does not model "
+                             "genes/intergenes or heterogeneous chromosomes")
         if pseudogenization:
             raise ValueError("pseudogenization requires output='genomes' (the Python engine)")
         if insertion or deletion:
@@ -643,7 +657,8 @@ def simulate_nucleotide_genomes(
         return NucleotideGenome(ids, root_length=root_length, extension=extension,
                                 registry=registry, pseudogenization=pseudogenization,
                                 replacement=replacement, indel_mean_length=indel_mean_length,
-                                initial_chromosomes=initial_chromosomes)
+                                initial_chromosomes=initial_chromosomes,
+                                root_chromosomes=root_chromosomes)
 
     # One seed origination lays down all `initial_chromosomes` root chromosomes (the genome owns
     # the count); the walk then evolves them and fires any further per-branch originations.
@@ -655,12 +670,16 @@ def simulate_nucleotide_genomes(
     # build from all node genomes so internal breakpoints and ancestral-only material are covered.
     block_genomes = result.node_genomes if retain_internal else result.leaf_genomes
     blocks = _build_blocks(block_genomes, root_length, registry)
+    # with explicit heterogeneous replicons the root has no single length; report the genome total
+    # (only used to validate a supplied root_fasta, which is a single-chromosome feature).
+    effective_root_length = (sum(length for length, _ in root_chromosomes)
+                             if root_chromosomes is not None else root_length)
     return NucleotideResult(
         species_tree=species_tree,
         leaf_genomes=result.leaf_genomes,
         event_log=result.event_log,
         registry=registry,
         blocks=blocks,
-        root_length=root_length,
+        root_length=effective_root_length,
         node_genomes=result.node_genomes,
     )
