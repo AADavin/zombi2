@@ -390,6 +390,15 @@ class NucleotideGenome(Genome):
             r -= s
         return chroms[-1]  # pragma: no cover -- unreachable while total > 0
 
+    def _choose_chromosome_uniform(self, rng) -> int:
+        """Pick a chromosome uniformly (return its ``chrom_id``), for transfer insertion — every
+        chromosome is an equally likely recipient regardless of length (the Q4 behaviour, matching
+        ``OrderedGenome``). Draws nothing when there is a single chromosome (byte-identity)."""
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes))
+        cids = list(self.chromosomes)
+        return cids[int(rng.integers(len(cids)))]
+
     def _split_at(self, c: int, chrom: Chromosome | None = None) -> None:
         """Ensure a segment boundary at physical coordinate ``c`` on ``chrom`` (``0`` is always one).
 
@@ -880,23 +889,28 @@ class NucleotideGenome(Genome):
         return (li + 1, ri)
 
     def choose_insertion_point(self, segment, rng):
-        """Recipient side: a homologous span (replacement) or a physical position (additive).
+        """Recipient side: which chromosome, and where on it, the transferred copy lands.
 
-        Returns ``("homolog", (i_s, i_e))`` when a replacement transfer finds its syntenic locus,
-        else an integer physical position (snapped off any gene interior). No homolog → additive.
+        Returns ``(chrom_id, inner)`` where ``inner`` is ``("homolog", (i_s, i_e))`` when a
+        replacement transfer finds its syntenic locus, else an integer physical position (snapped
+        off any gene interior). The recipient chromosome is chosen **uniformly** (every chromosome
+        is an equally likely target — the Q4 behaviour); a replacement homolog, when present, is
+        honoured on whichever chromosome carries it. No homolog → additive.
         """
-        chrom = self.chromosomes[self._cid]   # single recipient chromosome (6e: pick one)
         if getattr(segment, "replacement", False) and self._registry.has_genes():
             # a self-transfer (recipient is the donor) still holds the arc's continuation
             # segments — homologous replacement would delete them, so fall back to additive
             cont_ids = set(segment.donor_cont_gids or ())
             is_self = any(seg.seg_id in cont_ids for seg in self._iter_segments())
             if not is_self:
-                span = self._find_homologous_span(segment, chrom)
-                if span is not None:
-                    return ("homolog", span)
+                for chrom in self.chromosomes.values():       # find the homolog wherever it sits
+                    span = self._find_homologous_span(segment, chrom)
+                    if span is not None:
+                        return (chrom.chrom_id, ("homolog", span))
+        cid = self._choose_chromosome_uniform(rng)            # uniform recipient chromosome
+        chrom = self.chromosomes[cid]
         at = int(rng.integers(self._chrom_length(chrom) + 1))  # any physical position, 0..length
-        return self._snap(at, chrom=chrom) if self._registry.has_genes() else at
+        return (cid, self._snap(at, chrom=chrom) if self._registry.has_genes() else at)
 
     def insert_segment(self, segment, at, rng) -> list[GeneOp]:
         """Recipient side: splice the transferred copy block in — homologously, or additively.
@@ -906,20 +920,21 @@ class NucleotideGenome(Genome):
         the driver fall back to its own random-removal replacement). :meth:`pop_replaced_segments`
         hands the removed list to the driver, which logs them as recipient losses.
         """
-        chrom = self.chromosomes[self._cid]   # single recipient chromosome (6e: from `at`)
+        cid, inner = at                        # (recipient chrom_id, position | homolog span)
+        chrom = self.chromosomes[cid]
         els = chrom.elements
         copies = list(segment.genes)
-        if isinstance(at, tuple) and at and at[0] == "homolog":
-            i_s, i_e = at[1]
+        if isinstance(inner, tuple) and inner and inner[0] == "homolog":
+            i_s, i_e = inner[1]
             removed = els[i_s:i_e]
             els[i_s:i_e] = copies
             self._last_replaced = removed
             return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]
-        if at is None or at >= self._chrom_length(chrom):
+        if inner is None or inner >= self._chrom_length(chrom):
             idx = len(els)
         else:
-            self._split_at(at, chrom)
-            idx = self._index_at(at, chrom)
+            self._split_at(inner, chrom)
+            idx = self._index_at(inner, chrom)
         els[idx:idx] = copies
         self._last_replaced = [] if self._registry.has_genes() else None
         return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]

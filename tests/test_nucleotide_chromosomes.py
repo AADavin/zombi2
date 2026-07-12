@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from zombi2 import BirthDeath, simulate_species_tree
-from zombi2.genomes.events import EventType, TargetParams
+from zombi2.genomes.events import EventType, Region, Selection, TargetParams
 from zombi2.genomes.genome import IdManager
 from zombi2.genomes.nucleotide_genome import NucleotideGenome, SegmentRegistry
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
@@ -209,6 +209,64 @@ def test_content_conserved_under_fission_and_fusion_only():
     for g in res.leaf_genomes.values():
         # every genome still spells out one contiguous circular history per chromosome
         assert sum(len(c) for c in g.chromosomes.values()) == g.n_segments()
+
+
+# --------------------------------------------------------------------------- #
+# Transfer is the gene event that carries a family to another chromosome
+# --------------------------------------------------------------------------- #
+def _multi_chrom_recipient(lengths):
+    """A genome whose chromosomes have exactly the given bp lengths (chromosome 0 seeded first)."""
+    g = NucleotideGenome(IdManager(), root_length=lengths[0], extension=0.9)
+    g.originate(np.random.default_rng(0), TargetParams())
+    for L in lengths[1:]:
+        chrom = g._new_root_chromosome()
+        chrom.elements.append(g._new_segment(g.ids.new_family(), 0, L, 1))
+    return g
+
+
+def _donor_segment(rng, ids):
+    """A one-segment additive transfer copy from a throwaway donor sharing ``ids`` (so its source
+    id does not collide with the recipient's own seed sources)."""
+    donor = NucleotideGenome(ids, root_length=30, extension=0.9)
+    donor.originate(rng, TargetParams())
+    return donor.extract_segment(Selection(genes=(), region=Region(0, 10, 6)), rng)
+
+
+def test_transfer_choose_returns_chromosome_and_position():
+    rng = np.random.default_rng(1)
+    rec = _multi_chrom_recipient([100, 50, 20])
+    seg = _donor_segment(rng, rec.ids)
+    at = rec.choose_insertion_point(seg, rng)
+    assert isinstance(at, tuple) and len(at) == 2            # (chrom_id, position)
+    cid, pos = at
+    assert cid in rec.chromosomes and isinstance(pos, int)
+
+
+def test_transfer_lands_on_the_chosen_chromosome():
+    rng = np.random.default_rng(2)
+    rec = _multi_chrom_recipient([100, 50, 20])
+    seg = _donor_segment(rng, rec.ids)
+    donor_source = seg.genes[0].source
+    at = rec.choose_insertion_point(seg, rng)
+    cid, _pos = at
+    rec.insert_segment(seg, at, rng)
+    on = {c for c, chrom in rec.chromosomes.items()
+          if any(s.source == donor_source for s in chrom.elements)}
+    assert on == {cid}                                       # landed on exactly the chosen chromosome
+
+
+def test_transfer_recipient_chromosome_is_uniform_not_size_weighted():
+    """The recipient chromosome is chosen uniformly: a tiny chromosome receives transfers about as
+    often as a large one (unlike the size-weighted choice that targets rearrangements)."""
+    rng = np.random.default_rng(3)
+    rec = _multi_chrom_recipient([10, 10, 10, 400])          # deliberately very uneven
+    seg = _donor_segment(rng, rec.ids)
+    hits = [rec.choose_insertion_point(seg, rng)[0] for _ in range(400)]
+    assert set(hits) == set(rec.chromosomes)                 # every chromosome reachable
+    cids = list(rec.chromosomes)
+    # under uniform(4) each is expected ~100; the tiny and the huge chromosome are hit comparably,
+    # which a bp-weighted choice (10/430 vs 400/430) never would.
+    assert hits.count(cids[0]) > 40 and hits.count(cids[3]) > 40
 
 
 def test_profiles_path_rejects_tier_events():
