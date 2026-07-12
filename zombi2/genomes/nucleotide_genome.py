@@ -326,38 +326,43 @@ class NucleotideGenome(Genome):
         self._registry.split_parent[right.seg_id] = seg.seg_id
         return left, right
 
-    def _split_at(self, c: int) -> None:
-        """Ensure a segment boundary at physical coordinate ``c`` (``0`` is always one).
+    def _chrom_length(self, chrom: Chromosome) -> int:
+        """Total nucleotide length of ``chrom`` (sum of its segment lengths)."""
+        return sum(seg.length for seg in chrom.elements)
 
-        The genic invariant — ``c`` never lands strictly inside a gene block — is enforced
-        upstream by :meth:`_snap`; the assertion here is the cheap safety net (a no-op for
-        intergene, where ``gene_id is None``).
+    def _split_at(self, c: int, chrom: Chromosome | None = None) -> None:
+        """Ensure a segment boundary at physical coordinate ``c`` on ``chrom`` (``0`` is always one).
+
+        ``chrom`` defaults to the genome's single chromosome (the migration is still one chromosome
+        end to end). The genic invariant — ``c`` never lands strictly inside a gene block — is enforced
+        upstream by :meth:`_snap`; the assertion here is the cheap safety net (a no-op for intergene).
         """
         if c == 0:
             return
+        els = (chrom if chrom is not None else self.chromosomes[self._cid]).elements
         pos = 0
-        for i, seg in enumerate(self._segments):
+        for i, seg in enumerate(els):
             if pos == c:
                 return  # already a boundary
             seglen = seg.length
             if pos < c < pos + seglen:
                 assert seg.gene_id is None, f"illegal split inside gene {seg.gene_id!r} at {c}"
-                self._segments[i:i + 1] = list(self._split_segment(seg, c - pos))
+                els[i:i + 1] = list(self._split_segment(seg, c - pos))
                 return
             pos += seglen
-        # c == self._length: a boundary (wrap point); no-op
+        # c == chromosome length: a boundary (wrap point); no-op
 
-    def _snap(self, c: int, direction: int = 0) -> int:
-        """Move ``c`` out of any gene interior to a legal breakpoint (a no-op in intergene).
+    def _snap(self, c: int, direction: int = 0, chrom: Chromosome | None = None) -> int:
+        """Move ``c`` out of any gene interior to a legal breakpoint on ``chrom`` (no-op in intergene).
 
         ``direction`` picks the boundary when ``c`` is inside a gene: ``-1`` = the gene's
         physical start, ``+1`` = its end, ``0`` = the nearer of the two. Positions in intergene
         (or on an existing boundary) are returned unchanged — cutting there is legal and is how
-        intergene blocks form. Walks the segment list (O(n), like :meth:`_split_at`) using the
-        accumulated positions, so it stays correct mid-mutation.
+        intergene blocks form. ``chrom`` defaults to the genome's single chromosome. Walks the
+        segment list (O(n), like :meth:`_split_at`), so it stays correct mid-mutation.
         """
         pos = 0
-        for seg in self._segments:
+        for seg in (chrom if chrom is not None else self.chromosomes[self._cid]).elements:
             nxt = pos + seg.length
             if c == pos:
                 return c                       # already a boundary
@@ -372,9 +377,10 @@ class NucleotideGenome(Genome):
             pos = nxt
         return c                               # c == total length: the wrap / append boundary
 
-    def _index_at(self, phys: int) -> int:
+    def _index_at(self, phys: int, chrom: Chromosome | None = None) -> int:
+        els = (chrom if chrom is not None else self.chromosomes[self._cid]).elements
         pos = 0
-        for i, seg in enumerate(self._segments):
+        for i, seg in enumerate(els):
             if pos == phys:
                 return i
             pos += seg.length
