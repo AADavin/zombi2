@@ -1036,7 +1036,11 @@ class Cladogenesis:
         if getattr(model, "kind", None) == "continuous":
             if self.jump_sigma2 <= 0.0:
                 return value
-            return float(value) + float(rng.normal(0.0, self.jump_sigma2 ** 0.5))
+            sd = self.jump_sigma2 ** 0.5
+            arr = np.asarray(value)
+            if arr.ndim == 0:                                     # scalar (univariate) trait
+                return float(value) + float(rng.normal(0.0, sd))
+            return arr + rng.normal(0.0, sd, size=arr.shape)      # per-dimension jump vector
         # discrete: with probability `shift`, hop to a uniformly chosen other state
         if self.shift <= 0.0 or rng.random() >= self.shift:
             return value
@@ -1242,7 +1246,10 @@ def simulate_traits(
         if node.parent is None:
             continue
         start = node_values[node.parent]
-        if clado is not None:                       # speciation jump as this branch is born
+        if clado is not None and len(node.parent.children) >= 2:
+            # a cladogenetic jump fires only at a real branching event; a degree-two node (a
+            # sampled ancestor) is the same lineage continuing, so its single child inherits the
+            # ancestor's value unchanged — matching simulate_biogeography's degree-two pass-through
             start = clado.apply(start, model, rng)
         if branch_hook is not None:
             end, segs = branch_hook(node, start, rng)

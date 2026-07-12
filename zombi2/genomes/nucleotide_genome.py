@@ -26,7 +26,8 @@ clones produced at speciation share the one registry (and the one :class:`IdMana
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import copy
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -993,6 +994,12 @@ class NucleotideGenome(Genome):
                 cchrom.elements.append(ns)
                 mapping.append((seg.seg_id, ns.seg_id, seg.source))
         return child, mapping
+
+    def snapshot(self) -> "NucleotideGenome":
+        new = copy.copy(self)          # shares ids/registry/config
+        new.chromosomes = {cid: replace(chrom, elements=[replace(s) for s in chrom.elements])
+                           for cid, chrom in self.chromosomes.items()}
+        return new
 
     # --- chromosome-tier events (origination / loss / fission / fusion) ------
     #

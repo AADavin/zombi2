@@ -513,7 +513,10 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages, clado=None)
         if n == 0:
             return None
         if n_tips is not None and n == n_tips:
-            end = t
+            # present strictly after the N-th birth: last event + Exp(total event rate over the N
+            # live lineages), the standard SSE-conditioned-on-N convention (avoids zero-length tips)
+            R = sum(lambdas[s.state] + mus[s.state] + out_rate[s.state] for s in live)
+            end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
             break
         if n > max_lineages:
             raise RuntimeError(
@@ -599,7 +602,9 @@ def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages, clado=None):
         if n == 0:
             return None
         if n_tips is not None and n == n_tips:
-            end = t
+            # present strictly after the N-th birth: last event + Exp(total rate); see _simulate_sse
+            R = sum(spec(L[1]) + ext(L[1]) for L in live)
+            end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
             break
         if n > max_lineages:
             raise RuntimeError(

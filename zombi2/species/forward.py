@@ -104,7 +104,13 @@ def _grow(view, age, n_tips, rng, max_lineages):
         if n == 0:
             return None
         if n_tips is not None and n == n_tips:
-            end = t
+            # place the present strictly after the N-th lineage appeared: the tree age is the last
+            # speciation time plus a memoryless waiting time to the next event (the standard
+            # birth-death-conditioned-on-N convention). Using end = t would give the two newest tips
+            # and their parent zero-length pendant edges — degenerate to an age-0 tree at n_tips == 2.
+            lam, mu, psi = view.rates(t)
+            R = n * (lam + mu + psi)
+            end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
             break
         if n > max_lineages:
             raise RuntimeError(
@@ -316,9 +322,6 @@ def _grow_gillespie(view, age, n_tips, rng, max_lineages):
         n = len(live)
         if n == 0:
             return None
-        if n_tips is not None and n == n_tips:
-            end = t
-            break
         if n > max_lineages:
             raise RuntimeError(
                 f"forward tree exceeded max_lineages={max_lineages}; explosive parameters — "
@@ -327,6 +330,10 @@ def _grow_gillespie(view, age, n_tips, rng, max_lineages):
         rates = [view.lineage_rates(state[i], n) for i in range(n)]  # (λ, μ) per lineage
         totals = [b + d for b, d in rates]
         total_rate = math.fsum(totals)
+        if n_tips is not None and n == n_tips:
+            # present strictly after the N-th birth: last event + Exp(total rate). See _grow.
+            end = t + rng.exponential(1.0 / total_rate) if total_rate > 0.0 else t
+            break
         if total_rate <= 0.0:
             # nothing stochastic can happen (e.g. diversity-dependent at capacity with μ=0): jump
             # to the next scheduled event, or coast to the present
