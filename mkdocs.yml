@@ -81,9 +81,11 @@ nav:
       - Coevolution: guide/coevolution.md
       - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
-  - Cookbook: cookbook.md
-  - Examples:
-      - RED benchmark (Snakemake): examples/red-benchmark.md
+  - Cookbook:
+      - cookbook/index.md
+      - Inversion rate from synteny: cookbook/synteny.md
+      - RED node-age benchmark: cookbook/red-benchmark.md
+  - Examples: examples.md
   - Experimental:
       - Language-model selection: experimental/language-model-selection.md
       - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md

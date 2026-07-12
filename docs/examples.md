@@ -1,7 +1,8 @@
-# Cookbook
+# Examples
 
-Task-oriented recipes. Every snippet is self-contained and runnable as-is; each imports
-the symbols it uses from ZOMBI2's namespaced API.
+Short, runnable examples of the ZOMBI2 API — self-contained snippets you can copy and adapt. Each
+imports the symbols it uses from ZOMBI2's namespaced API. (For worked, end-to-end recipes that
+anchor parameters to real data, see the [Cookbook](cookbook/index.md).)
 
 Where a recipe needs a species tree, it uses this one:
 
