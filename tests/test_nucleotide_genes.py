@@ -195,7 +195,8 @@ def test_replacement_transfer_lands_at_homolog_and_logs_losses():
                                np.random.default_rng(2))
     assert ts.replacement and ts.left_flank == ("1", "L", 1) and ts.right_flank == ("1", "R", 1)
     at = recipient.choose_insertion_point(ts, np.random.default_rng(3))
-    assert isinstance(at, tuple) and at[0] == "homolog"
+    _cid, inner = at                                  # at is (recipient chrom_id, homolog | position)
+    assert isinstance(inner, tuple) and inner[0] == "homolog"
     recipient.insert_segment(ts, at, np.random.default_rng(3))
     removed = recipient.pop_replaced_segments()
     # the recipient locus between L and R (intergene, gene M, intergene) was replaced by the copy
@@ -214,7 +215,7 @@ def test_replacement_requires_matching_flank_orientation():
                                np.random.default_rng(2))
     assert ts.left_flank == ("1", "L", 1)            # donor's flank is forward; recipient's is now -1
     at = recipient.choose_insertion_point(ts, np.random.default_rng(3))
-    assert isinstance(at, int)                        # orientation mismatch -> additive, not a homolog
+    assert isinstance(at[1], int)                     # orientation mismatch -> additive, not a homolog
     recipient.insert_segment(ts, at, np.random.default_rng(3))
     assert recipient.pop_replaced_segments() == []    # nothing replaced
 
@@ -226,7 +227,7 @@ def test_replacement_falls_back_to_additive_without_homolog():
     ts = donor.extract_segment(Selection(genes=(), region=Region(0, 30, 10)),
                                np.random.default_rng(2))
     at = other.choose_insertion_point(ts, np.random.default_rng(3))
-    assert isinstance(at, int)                       # additive, not a homolog span
+    assert isinstance(at[1], int)                    # additive, not a homolog span
     before = other.size()
     other.insert_segment(ts, at, np.random.default_rng(3))
     assert other.pop_replaced_segments() == []        # nothing removed
@@ -239,7 +240,7 @@ def test_self_transfer_replacement_falls_back_to_additive():
                            np.random.default_rng(2))
     # recipient is the donor itself: its continuation segments are present -> skip homology
     at = g.choose_insertion_point(ts, np.random.default_rng(3))
-    assert isinstance(at, int)
+    assert isinstance(at[1], int)
 
 
 def test_replacement_transfers_run_and_reconcile(tmp_path):
