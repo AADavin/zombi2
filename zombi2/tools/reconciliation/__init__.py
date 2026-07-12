@@ -20,6 +20,12 @@ Three model engines:
   ``_choose_recipient``. This is the faithful likelihood for a ZOMBI2 scenario; its rates are
   the per-unit-time δ/τ/λ a simulation was generated under.
 
+The **generative twin** of the undated engine is :func:`simulate_undated` (in
+:mod:`~zombi2.tools.reconciliation.undated_sim`): it draws gene-family histories *from* the undated
+model — the same per-branch odds — and returns ground-truth ZOMBI2 reconciliations. Simulate with
+it, score with :func:`undated_loglik`, and the rates round-trip; it doubles as a self-contained
+benchmark generator for ALE / ALErax.
+
 The convenience wrapper :func:`reconciliation_likelihood` is the one-call entry point: hand it
 a ZOMBI2 :class:`~zombi2.genomes.reconciliation.Reconciliation` (or an explicit gene
 tree + species tree) and DTL rates and it returns the log-likelihood of the family's **extant**
@@ -36,6 +42,7 @@ from __future__ import annotations
 from .species import SpeciesTree
 from .genetree import GeneTree
 from .undated import UndatedDTL, undated_loglik, reldated_loglik, undated_joint_loglik
+from .undated_sim import simulate_undated, UndatedSimResult
 from .dated import DatedDTL, dated_loglik, dated_extinction, dated_joint_loglik
 from .scoring import FamilyScore, score_reconciliations, write_scores_tsv
 
@@ -44,6 +51,7 @@ __all__ = [
     "ReconciliationLikelihood",
     "SpeciesTree", "GeneTree",
     "UndatedDTL", "undated_loglik", "reldated_loglik", "undated_joint_loglik",
+    "simulate_undated", "UndatedSimResult",
     "DatedDTL", "dated_loglik", "dated_extinction", "dated_joint_loglik",
     "FamilyScore", "score_reconciliations", "write_scores_tsv",
 ]
