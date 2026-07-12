@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from zombi2.genomes.events import EventType, GeneOp, Region, Selection, TransferSegment
-from zombi2.genomes.genome import Gene, Genome, IdManager
+from zombi2.genomes.genome import Chromosome, Gene, Genome, IdManager
 
 #: Smallest a chromosome may shrink to under deletion — the min-genome floor. A deletion is
 #: clamped so the genome never drops below this many nucleotides (guards against emptying the
@@ -171,7 +171,11 @@ class NucleotideGenome(Genome):
         self.root_length = int(root_length)
         self.extension = extension
         self._registry: SegmentRegistry = registry if registry is not None else SegmentRegistry()
-        self._segments: list[Segment] = []
+        # The shared Chromosome container (bp coordinates): one circular chromosome for now, whose
+        # ``elements`` are this genome's Segments. ``_segments`` is a view over it, so the engine is
+        # unchanged. The chrom_id is a separate id space, so minting it never perturbs a segment id.
+        self._cid = ids.new_chromosome()
+        self.chromosomes: dict[int, Chromosome] = {self._cid: Chromosome(self._cid, True)}
         self._length = 0  # total nucleotide length; O(1), maintained on every event
         # genic-model parameters (0 in the plain nucleotide model); inherited by clones
         self.pseudogenization = pseudogenization  # P(a loss on genes demotes instead of deletes)
@@ -180,6 +184,16 @@ class NucleotideGenome(Genome):
         # independent of `extension`, which drives the structural events). Inherited by clones.
         self.indel_mean_length = float(indel_mean_length)
         self._last_replaced: list[Segment] | None = None  # recipient homolog removed by a transfer
+
+    # --- single-chromosome container (parallel-change: the nucleotide engine still works in one
+    # flat circular sequence; ``_segments`` is a view over the one chromosome's elements) --------
+    @property
+    def _segments(self) -> list:
+        return self.chromosomes[self._cid].elements
+
+    @_segments.setter
+    def _segments(self, value: list) -> None:
+        self.chromosomes[self._cid].elements = value
 
     # --- minting ------------------------------------------------------------
     def _new_segment(self, source: str, a: int, b: int, strand: int,
