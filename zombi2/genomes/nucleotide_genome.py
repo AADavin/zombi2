@@ -242,7 +242,9 @@ class NucleotideGenome(Genome):
     def supported_events(self) -> frozenset[EventType]:
         return frozenset((EventType.ORIGINATION, EventType.INVERSION, EventType.LOSS,
                           EventType.DUPLICATION, EventType.TRANSFER, EventType.TRANSPOSITION,
-                          EventType.INSERTION, EventType.DELETION))
+                          EventType.INSERTION, EventType.DELETION,
+                          EventType.CHROMOSOME_ORIGINATION, EventType.CHROMOSOME_LOSS,
+                          EventType.FISSION, EventType.FUSION))
 
     # --- trace-back view: one cell per nucleotide, in physical order --------
     def to_cells(self) -> list[tuple[str, int, int]]:
@@ -921,3 +923,62 @@ class NucleotideGenome(Genome):
                 cchrom.elements.append(ns)
                 mapping.append((seg.seg_id, ns.seg_id, seg.source))
         return child, mapping
+
+    # --- chromosome-tier events (origination / loss / fission / fusion) ------
+    #
+    # One tier above the segment events: they act on whole chromosomes. Fission / fusion only move
+    # segments between chromosomes (segment ids untouched), so gene-tree reconstruction is unaffected;
+    # only chromosome LOSS ends the lineages it carries. All nucleotide chromosomes are circular.
+    def originate_chromosome(self, rng, params) -> int:
+        """Originate a new, empty circular chromosome — a de-novo replicon (a plasmid). Returns the
+        new chrom_id. Draws no rng."""
+        cid = self.ids.new_chromosome()
+        self.chromosomes[cid] = Chromosome(cid, True)
+        return cid
+
+    def lose_chromosome(self, rng) -> tuple[int, list[list[GeneOp]]]:
+        """Lose a whole chromosome (chosen uniformly) and every segment on it, returning its chrom_id
+        and one LOSS group per segment (so the caller can log the deaths). The caller guarantees
+        >= 2 chromosomes (a genome keeps at least one)."""
+        cids = list(self.chromosomes)
+        cid = cids[int(rng.integers(len(cids)))]
+        chrom = self.chromosomes.pop(cid)
+        groups = [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in chrom.elements]
+        return cid, groups
+
+    def fission(self, rng, params) -> tuple[int, int]:
+        """Split a circular chromosome into two by excising the arc between two breakpoints into a
+        new circular replicon (segments keep their ids; genes stay whole via snapping). The source
+        is bp-length-weighted. Returns (source_cid, new_cid)."""
+        chrom = self._choose_chromosome_weighted(rng)
+        new_cid = self.ids.new_chromosome()
+        L = self._chrom_length(chrom)
+        if L <= 1:                            # nothing meaningful to split
+            self.chromosomes[new_cid] = Chromosome(new_cid, True)
+            return chrom.chrom_id, new_cid
+        s = int(rng.integers(L))
+        ell = int(rng.integers(1, L))         # arc length in [1, L-1]
+        if self._registry.has_genes():        # snap so genes stay whole (start down, end up)
+            s2 = self._snap(s, -1, chrom)
+            e2 = self._snap((s + ell) % L, +1, chrom)
+            ell = (e2 - s2) % L or L
+            s = s2
+        i_s, i_e = self._arc_range(s, ell, chrom)   # splits the ends; handles a wrapping arc
+        arc = chrom.elements[i_s:i_e]
+        del chrom.elements[i_s:i_e]
+        self.chromosomes[new_cid] = Chromosome(new_cid, True, arc)
+        return chrom.chrom_id, new_cid
+
+    def fusion(self, rng, params) -> tuple[int, int]:
+        """Fuse two chromosomes into one: append the second's segments onto the first and drop the
+        second (segment ids untouched). The two are chosen uniformly; the caller guarantees >= 2
+        chromosomes. Returns (kept_cid, absorbed_cid)."""
+        cids = list(self.chromosomes)
+        m = len(cids)
+        i = int(rng.integers(m))
+        j = int(rng.integers(m - 1))
+        if j >= i:                            # a uniform partner distinct from i
+            j += 1
+        keep_cid, absorb_cid = cids[i], cids[j]
+        self.chromosomes[keep_cid].elements.extend(self.chromosomes.pop(absorb_cid).elements)
+        return keep_cid, absorb_cid
