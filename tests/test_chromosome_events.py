@@ -9,7 +9,14 @@ sampler wiring + gated rates (byte-identical when off) come in the next sub-step
 
 import numpy as np
 
-from zombi2 import OrderedGenome
+from zombi2 import (
+    BirthDeath,
+    OrderedGenome,
+    SharedRates,
+    simulate_genomes,
+    simulate_species_tree,
+)
+from zombi2.genomes.events import EventType
 from zombi2.genomes.genome import IdManager, OrderedGene
 
 
@@ -124,3 +131,53 @@ def test_content_conserved_over_a_mix_of_chromosome_events():
             alive -= {op.gid for grp in groups for op in grp}
         assert set(_gids(genome)) == alive             # the invariant holds after every event
     assert len(genome.chromosomes) >= 1                # a genome always keeps at least one chromosome
+
+
+# --- sampler integration: the events fire in a full simulation ------------------------
+
+def _chromo_rates():
+    return SharedRates(duplication=0.3, loss=0.2, transfer=0.1, origination=0.2,
+                       inversion=0.1, transposition=0.1,
+                       chromosome_origination=0.3, chromosome_loss=0.2, fission=0.3, fusion=0.2)
+
+
+def _ordered_2chrom(ids):
+    return OrderedGenome(ids, extension=0.6, n_chromosomes=2, circular=True)
+
+
+def test_chromosome_events_fire_and_are_recorded():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=4.0, seed=3)
+    g = simulate_genomes(tree, _chromo_rates(), initial_families=18, seed=3,
+                         genome_factory=_ordered_2chrom)
+    kinds = {r.event for r in g.event_log.chromosome_records}
+    assert len(g.event_log.chromosome_records) > 0
+    assert EventType.FISSION in kinds and EventType.CHROMOSOME_LOSS in kinds
+    assert {len(leaf.chromosomes) for leaf in g.leaf_genomes.values()} != {2}  # karyotypes diverged
+    assert all(len(leaf.chromosomes) >= 1 for leaf in g.leaf_genomes.values())  # never lose the last
+
+
+def test_chromosome_sim_is_reproducible():
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=5)
+
+    def fingerprint(g):
+        return {leaf.name: [tuple(x.family for x in c.genes) for c in genome.chromosomes.values()]
+                for leaf, genome in sorted(g.leaf_genomes.items(), key=lambda kv: kv[0].name)}
+
+    a = simulate_genomes(tree, _chromo_rates(), initial_families=15, seed=8,
+                         genome_factory=_ordered_2chrom)
+    b = simulate_genomes(tree, _chromo_rates(), initial_families=15, seed=8,
+                         genome_factory=_ordered_2chrom)
+    assert fingerprint(a) == fingerprint(b)
+    assert len(a.event_log.chromosome_records) == len(b.event_log.chromosome_records)
+
+
+def test_gene_trees_survive_chromosome_loss():
+    """Chromosome loss logs a LOSS for each gene it held, so gene-tree reconstruction still works."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=2)
+    rates = SharedRates(duplication=0.2, loss=0.1, origination=0.2,
+                        chromosome_origination=0.5, chromosome_loss=0.4)
+    g = simulate_genomes(tree, rates, initial_families=15, seed=2, genome_factory=_ordered_2chrom)
+    assert any(r.event is EventType.CHROMOSOME_LOSS for r in g.event_log.chromosome_records)
+    trees = g.gene_trees()          # must not raise despite whole-chromosome losses
+    recs = g.reconciliations()      # must not raise
+    assert len(trees) == len(recs) > 0

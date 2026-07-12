@@ -481,9 +481,11 @@ class OrderedGenome(Genome):
                            dtype=np.int8, count=len(family_order))
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset(
-            STOCHASTIC_EVENTS + (EventType.INVERSION, EventType.TRANSPOSITION)
-        )
+        return frozenset(STOCHASTIC_EVENTS + (
+            EventType.INVERSION, EventType.TRANSPOSITION,
+            EventType.CHROMOSOME_ORIGINATION, EventType.CHROMOSOME_LOSS,
+            EventType.FISSION, EventType.FUSION,
+        ))
 
     # --- helpers -----------------------------------------------------------
     def _segment_length(self, rng, chrom: "Chromosome", params: TargetParams) -> int:
