@@ -88,7 +88,6 @@ nav:
       - RED node-age benchmark: cookbook/red-benchmark.md
   - Examples: examples.md
   - Experimental:
-      - Language-model selection: experimental/language-model-selection.md
       - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md
   - Tools:
       - Overview: tools/index.md
