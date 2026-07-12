@@ -350,34 +350,37 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "(gene order reversed and strands flipped), for --genome-model ordered "
                         "(default 0 = always keep orientation)")
     g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
-                   help="number of chromosomes for --genome-model ordered (default 1). The root's "
-                        "initial families are spread across them; rearrangements stay within a "
-                        "chromosome (see --fission/--fusion for chromosome-level changes)")
+                   help="number of chromosomes seeded at the root, for --genome-model "
+                        "ordered/nucleotide (default 1). [ordered] the root's initial families are "
+                        "spread across them; [nucleotide] each is an independent full-length copy of "
+                        "the root chromosome. Rearrangements stay within a chromosome (see "
+                        "--fission/--fusion for chromosome-level changes)")
     g.add_argument("--linear-chromosomes", action="store_true", dest="linear_chromosomes",
                    help="ordered chromosomes are linear (segments never wrap the origin), for "
-                        "--genome-model ordered (default: circular, as for bacteria)")
-    # chromosome-tier events (ordered genomes; off by default). When any is set — or with more than
-    # one chromosome — the run also writes Gene_order.tsv (layout) + Karyotype_trace.tsv.
+                        "--genome-model ordered (default: circular, as for bacteria). Nucleotide "
+                        "chromosomes are always circular")
+    # chromosome-tier events (ordered + nucleotide genomes; off by default). When any is set — or
+    # with more than one chromosome — the run also writes the karyotype (Gene_order.tsv /
+    # Chromosomes.tsv layout) + Karyotype_trace.tsv.
     g.add_argument("--fission", type=float, default=0.0, metavar="RATE",
-                   help="[ordered] chromosome fission rate, per chromosome: a chromosome splits in "
-                        "two (linear: one breakpoint; circular: two) (default 0 = off)")
+                   help="[ordered/nucleotide] chromosome fission rate, per chromosome: a chromosome "
+                        "splits in two (linear: one breakpoint; circular: two) (default 0 = off)")
     g.add_argument("--fusion", type=float, default=0.0, metavar="RATE",
-                   help="[ordered] chromosome fusion rate, per chromosome: two chromosomes merge "
-                        "into one (default 0 = off)")
+                   help="[ordered/nucleotide] chromosome fusion rate, per chromosome: two "
+                        "chromosomes merge into one (default 0 = off)")
     g.add_argument("--chromosome-origination", type=float, default=0.0, metavar="RATE",
                    dest="chromosome_origination",
-                   help="[ordered] chromosome origination rate, per genome: a de-novo replicon "
-                        "(a plasmid) appears (default 0 = off)")
+                   help="[ordered/nucleotide] chromosome origination rate, per genome: a de-novo "
+                        "replicon (a plasmid) appears (default 0 = off)")
     g.add_argument("--chromosome-loss", type=float, default=0.0, metavar="RATE",
                    dest="chromosome_loss",
-                   help="[ordered] chromosome loss rate, per chromosome: a whole chromosome and its "
-                        "genes are lost (default 0 = off)")
+                   help="[ordered/nucleotide] chromosome loss rate, per chromosome: a whole "
+                        "chromosome and its genes are lost (default 0 = off)")
 
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
-                   help="number of root chromosomes seeded at the root, for --genome-model "
-                        "nucleotide (default: 1)")
+                   help="deprecated alias for --n-chromosomes (--genome-model nucleotide)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
     g.add_argument("--insertion", type=float, default=0.0, metavar="RATE",
@@ -1819,12 +1822,14 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.genome_model == "nucleotide":
         if args.initial_families is not None:
             parser.error("--initial-families is for the unordered genome level "
-                         "(--genome-model unordered); the nucleotide model uses "
-                         "--initial-chromosomes")
+                         "(--genome-model unordered); the nucleotide model uses --n-chromosomes")
         if getattr(args, "score_likelihoods", False):
             parser.error("--score-likelihoods scores reconstructed gene-family trees, which the "
                          "nucleotide genome model does not produce; use --genome-model "
                          "unordered/ordered to score reconciliation likelihoods")
+        if args.linear_chromosomes:
+            parser.error("--linear-chromosomes applies to --genome-model ordered; nucleotide "
+                         "chromosomes are always circular")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
@@ -1845,13 +1850,15 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                      "use --genome-model ordered")
     if args.n_chromosomes < 1:
         parser.error("--n-chromosomes must be >= 1")
-    if (args.n_chromosomes != 1 or args.linear_chromosomes) and not ordered:
-        parser.error("--n-chromosomes / --linear-chromosomes apply to --genome-model ordered")
+    if args.n_chromosomes != 1 and not ordered:  # nucleotide is handled in its own branch above
+        parser.error("--n-chromosomes applies to --genome-model ordered or nucleotide")
+    if args.linear_chromosomes and not ordered:
+        parser.error("--linear-chromosomes applies to --genome-model ordered")
     chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
                       or args.chromosome_loss)
     if chrom_tier and not ordered:
         parser.error("--fission / --fusion / --chromosome-origination / --chromosome-loss apply to "
-                     "--genome-model ordered")
+                     "--genome-model ordered or nucleotide")
     if ordered and (args.n_chromosomes > 1 or chrom_tier):
         # auto-surface the karyotype outputs when non-trivial, so a multi-chromosome or fission /
         # fusion run captures its layout (and genealogy) without the user asking; single-chromosome
@@ -2364,8 +2371,13 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                          "'bed'; --write events/transfers/summary/branch_events do not apply to it")
     ancestral = "ancestral" in want
     bed = "bed" in want
-    initial_chromosomes = 1 if args.initial_chromosomes is None else args.initial_chromosomes
-    args.initial_chromosomes = initial_chromosomes  # record the effective value in the params log
+    # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias
+    # that takes precedence when explicitly given.
+    initial_chromosomes = (args.initial_chromosomes if args.initial_chromosomes is not None
+                           else args.n_chromosomes)
+    if initial_chromosomes < 1:
+        raise ValueError("--n-chromosomes must be >= 1")
+    args.n_chromosomes = args.initial_chromosomes = initial_chromosomes  # effective value in the log
     # the structural knobs are shared with the ordered level, so their defaults are resolved here
     args.inversion = 0.001 if args.inversion is None else args.inversion
     args.transposition = 0.0 if args.transposition is None else args.transposition
@@ -2388,17 +2400,24 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                          "coordinates: supply --genes or --gff")
     transfers = TransferModel(replacement=0.0) if genic else None  # homologous repl. is genome-side
     indels = bool(args.insertion or args.deletion)
+    chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
+                      or args.chromosome_loss)
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
                   transfer=args.trans, transposition=args.transposition,
                   origination=args.orig, insertion=args.insertion, deletion=args.deletion,
                   indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
+                  fission=args.fission, fusion=args.fusion,
+                  chromosome_origination=args.chromosome_origination,
+                  chromosome_loss=args.chromosome_loss,
                   gene_intervals=genes, pseudogenization=args.pseudogenization,
                   replacement=args.replacement, transfers=transfers,
                   retain_internal=ancestral or bed)  # bed annotates every node's genome
 
     t0 = time.perf_counter()
-    if "trees" in want or genic or ancestral or bed or indels:  # these need the Python engine
+    # the Python engine is needed for the event log, the genic model, indels, and the chromosome
+    # tier (the Rust profiles path is single-chromosome and event-log-free).
+    if "trees" in want or genic or ancestral or bed or indels or chrom_tier:
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2435,6 +2454,13 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         _write_ancestral(args.out, result, tree, args, gff_info)
     if bed:
         _write_bed(args.out, result, tree, gff_info)
+    # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
+    # (Chromosomes.tsv) and the fission/fusion/origination/loss genealogy (Karyotype_trace.tsv).
+    # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
+    py_engine = any(isinstance(getattr(g, "chromosomes", None), dict)
+                    for g in result.leaf_genomes.values())
+    if py_engine and (chrom_tier or initial_chromosomes > 1):
+        _write_nucleotide_karyotype(args.out, result)
 
     if gff_info is not None:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
@@ -2444,6 +2470,36 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     return (f"wrote [{' '.join(sorted(want))}] (nucleotide{'/genic' if genic else ''}) to "
             f"{args.out}/ ({len(result.leaf_genomes)} tips, {len(result.blocks)} blocks{extra}) "
             f"in {dt:.3g} s")
+
+
+def _write_nucleotide_karyotype(out: str, result) -> None:
+    """Write the karyotype of a multi-chromosome / chromosome-tier nucleotide run.
+
+    ``Chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order
+    (``species chromosome position source start end strand``); ``Karyotype_trace.tsv`` — the
+    fission / fusion / origination / loss genealogy (``time event branch parents children``), one
+    row per chromosome-tier event (header-only if the karyotype never changed).
+    """
+    lay = ["species\tchromosome\tposition\tsource\tstart\tend\tstrand"]
+    for leaf, genome in sorted(result.leaf_genomes.items(), key=lambda kv: kv[0].name):
+        chroms = getattr(genome, "chromosomes", None)
+        if not isinstance(chroms, dict):
+            continue
+        for chrom in chroms.values():
+            for pos, s in enumerate(chrom.elements):
+                strand = "+" if s.strand >= 0 else "-"
+                lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{pos}\t{s.source}\t"
+                           f"{s.src_start}\t{s.src_end}\t{strand}")
+    with open(os.path.join(out, "Chromosomes.tsv"), "w") as f:
+        f.write("\n".join(lay) + "\n")
+
+    kar = ["time\tevent\tbranch\tparents\tchildren"]
+    for r in result.event_log.chromosome_records:
+        parents = ";".join(str(p) for p in r.parents)
+        children = ";".join(str(c) for c in r.children)
+        kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
+    with open(os.path.join(out, "Karyotype_trace.tsv"), "w") as f:
+        f.write("\n".join(kar) + "\n")
 
 
 def _write_ancestral(out: str, result, tree, args, gff_info) -> None:

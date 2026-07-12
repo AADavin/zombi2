@@ -146,5 +146,73 @@ def test_cli_single_chromosome_writes_no_karyotype_files(tmp_path):
 
 def test_cli_rejects_chromosome_tier_rates_without_ordered(tmp_path):
     tree = _species(tmp_path)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit):  # default genome model is unordered -> no chromosome tier
         main(["genomes", "--tree", tree, "--fission", "0.1", "--seed", "1", "-o", str(tmp_path / "x")])
+
+
+# --- CLI: the nucleotide model shares the unified chromosome tier ---------------------
+
+def _nuc_chrom_counts(path):
+    """species -> number of distinct chromosomes, from a Chromosomes.tsv layout file."""
+    lines = path.read_text().splitlines()
+    assert lines[0] == "species\tchromosome\tposition\tsource\tstart\tend\tstrand"
+    by = defaultdict(set)
+    for line in lines[1:]:
+        species, chrom = line.split("\t")[:2]
+        by[species].add(chrom)
+    return {k: len(v) for k, v in by.items()}
+
+
+def test_cli_nucleotide_n_chromosomes_writes_layout(tmp_path):
+    """`--genome-model nucleotide --n-chromosomes N` seeds N chromosomes and writes Chromosomes.tsv
+    (the unified flag; no chromosome-tier events -> no trace)."""
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--n-chromosomes", "3",
+               "--inversion", "0.01", "--root-length", "200", "--seed", "3",
+               "--write", "trees", "-o", str(out)])
+    assert rc == 0
+    assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {3}  # every leaf has 3
+    assert not (out / "Karyotype_trace.tsv").exists() or \
+        len((out / "Karyotype_trace.tsv").read_text().splitlines()) == 1     # header only
+
+
+def test_cli_nucleotide_fission_writes_karyotype_trace(tmp_path):
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide",
+               "--inversion", "0.01", "--loss", "0.005", "--fission", "0.4",
+               "--chromosome-origination", "0.2", "--chromosome-loss", "0.1",
+               "--root-length", "200", "--seed", "3", "--write", "profiles", "-o", str(out)])
+    assert rc == 0                                       # tier rates force the Python engine
+    assert (out / "Chromosomes.tsv").exists() and (out / "Karyotype_trace.tsv").exists()
+    events = [ln.split("\t")[1] for ln in (out / "Karyotype_trace.tsv").read_text().splitlines()[1:]]
+    assert "FI" in events                                # fission recorded
+
+
+def test_cli_nucleotide_single_chromosome_writes_no_karyotype_files(tmp_path):
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide",
+               "--inversion", "0.01", "--root-length", "200", "--seed", "3",
+               "--write", "trees", "-o", str(out)])
+    assert rc == 0
+    assert not (out / "Chromosomes.tsv").exists()
+    assert not (out / "Karyotype_trace.tsv").exists()
+
+
+def test_cli_nucleotide_initial_chromosomes_is_a_deprecated_alias(tmp_path):
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--initial-chromosomes", "2",
+               "--inversion", "0.01", "--root-length", "200", "--seed", "3",
+               "--write", "trees", "-o", str(out)])
+    assert rc == 0
+    assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {2}
+
+
+def test_cli_nucleotide_rejects_linear_chromosomes(tmp_path):
+    tree = _species(tmp_path)
+    with pytest.raises(SystemExit):  # nucleotide chromosomes are always circular
+        main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--linear-chromosomes",
+              "--seed", "1", "-o", str(tmp_path / "x")])

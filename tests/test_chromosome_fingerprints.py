@@ -74,11 +74,17 @@ def _ordered_run(seed, n_chromosomes, circular):
     )
 
 
-def _nucleotide_run(seed, initial_chromosomes):
+def _nucleotide_run(seed, initial_chromosomes=1, *, inversion=0.02, duplication=0.005, loss=0.005,
+                    transposition=0.01, transfer=0.0, origination=0.0, insertion=0.0, deletion=0.0,
+                    root_length=200, extension=0.9, gene_intervals=None, pseudogenization=0.0,
+                    replacement=0.0):
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=seed)
     return simulate_nucleotide_genomes(
-        tree, inversion=0.02, duplication=0.005, loss=0.005, transposition=0.01,
-        root_length=200, extension=0.9, initial_chromosomes=initial_chromosomes, seed=seed,
+        tree, inversion=inversion, duplication=duplication, loss=loss, transposition=transposition,
+        transfer=transfer, origination=origination, insertion=insertion, deletion=deletion,
+        root_length=root_length, extension=extension, initial_chromosomes=initial_chromosomes,
+        gene_intervals=gene_intervals, pseudogenization=pseudogenization, replacement=replacement,
+        seed=seed,
     )
 
 
@@ -94,6 +100,16 @@ CONFIGS = {
     "ordered/multi3-linear/s6":   ("ordered", lambda: _ordered_run(6, 3, False)),
     "nucleotide/single/s7":       ("nucleotide", lambda: _nucleotide_run(7, 1)),
     "nucleotide/multi3/s9":       ("nucleotide", lambda: _nucleotide_run(9, 3)),
+    # Stage-6 surface: cover every event the nucleotide migration touches.
+    "nucleotide/transfer/s3":     ("nucleotide", lambda: _nucleotide_run(3, 1, transfer=0.02, inversion=0.01)),
+    "nucleotide/origination/s4":  ("nucleotide", lambda: _nucleotide_run(4, 1, origination=0.05)),
+    "nucleotide/indels/s5":       ("nucleotide", lambda: _nucleotide_run(5, 1, insertion=0.01, deletion=0.01)),
+    "nucleotide/genic/s6":        ("nucleotide", lambda: _nucleotide_run(
+        6, 1, gene_intervals=[(20, 60), (100, 150)], loss=0.01, transfer=0.02,
+        pseudogenization=0.5, replacement=0.5)),
+    "nucleotide/rich-multi/s2":   ("nucleotide", lambda: _nucleotide_run(
+        2, 2, inversion=0.02, duplication=0.01, loss=0.01, transposition=0.01, transfer=0.02,
+        origination=0.03, insertion=0.005, deletion=0.005)),
 }
 
 _FINGERPRINT = {"ordered": _fingerprint_ordered, "nucleotide": _fingerprint_nucleotide}

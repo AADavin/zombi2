@@ -672,7 +672,8 @@ genome, or need per-block gene trees. Selecting the level is `--genome-model nuc
 ### The model
 
 `simulate_nucleotide_genomes` evolves a genome forward along a fixed species tree. It starts
-from `initial_chromosomes` chromosome(s) of `root_length` nucleotides at the root, and these events fire:
+from one chromosome of `root_length` nucleotides at the root (or
+[several](#multiple-chromosomes-the-chromosome-tier)), and these events fire:
 
 | Event | Effect |
 |---|---|
@@ -712,6 +713,47 @@ result = simulate_nucleotide_genomes(
 orientation (the reversed colour gradient), a tandem duplication lengthens it — each acting on
 a variable-length stretch of nucleotides.</figcaption>
 </figure>
+
+### Multiple chromosomes & the chromosome tier
+
+Like the [ordered model](#multiple-chromosomes), a nucleotide genome can carry **several
+chromosomes**. Set `initial_chromosomes` (Python) or `--n-chromosomes N` (CLI): each is an
+independent full-length copy of the root chromosome under its own source, so an `N`-chromosome
+genome starts at `N × root_length` nucleotides. All nucleotide chromosomes are circular. A single
+chromosome (the default) is byte-identical to the single-chromosome engine.
+
+Structural events act **within** a chromosome (the chromosome is chosen in proportion to its
+length), except **transfer**, whose recipient chromosome is chosen **uniformly** — so a transfer is
+how a block reaches a *different* chromosome. On top of that, the same **chromosome tier** as the
+ordered model acts on whole chromosomes, each an opt-in per-branch rate (default **0**):
+
+| Event | Effect |
+|---|---|
+| `fission` | a chromosome splits in two — an arc between two breakpoints becomes a new circular replicon (breakpoints snap to segment boundaries, so genes stay whole) |
+| `fusion` | two chromosomes merge into one |
+| `chromosome_origination` | a de-novo replicon — a **plasmid** — appears (empty) |
+| `chromosome_loss` | a whole chromosome, and every block on it, is lost |
+
+Fission and fusion only move blocks between chromosomes without touching their identity, so the
+per-block gene trees are unchanged; only chromosome loss ends lineages.
+
+```python
+result = simulate_nucleotide_genomes(
+    tree, root_length=500, initial_chromosomes=2, inversion=1e-3, loss=1e-4,
+    fission=1e-3, fusion=5e-4, chromosome_origination=2e-3, chromosome_loss=5e-4, seed=1)
+
+leaf = next(iter(result.leaf_genomes.values()))
+leaf.chromosomes                        # dict[chrom_id, Chromosome] — each has .elements (blocks)
+result.event_log.chromosome_records     # the fission / fusion / origination / loss genealogy
+```
+
+!!! note "Karyotype output"
+    A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`Chromosomes.tsv`**
+    — the per-leaf layout (`species · chromosome · position · source · start · end · strand`), i.e.
+    which chromosome each block sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). Both need the
+    Python engine (`--write trees`, or any chromosome-tier rate, which forces it). A single-chromosome
+    run's output is unchanged.
 
 ### Blocks: units of shared ancestry
 
@@ -927,7 +969,9 @@ result = simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,
 rates (per nucleotide), and `--mean-length` sets the segment length (in nucleotides). `--root-length`
 sets the root chromosome length; `--insertion`/`--deletion` with `--indel-mean-length` edit intergene
 positions; and declaring genes with `--genes` or `--gff` switches on genic mode
-(`--pseudogenization`, `--replacement`).
+(`--pseudogenization`, `--replacement`). `--n-chromosomes N` seeds several chromosomes and
+`--fission`/`--fusion`/`--chromosome-origination`/`--chromosome-loss` turn on the
+[chromosome tier](#multiple-chromosomes-the-chromosome-tier).
 
 ```bash
 # nucleotide: structural events at nucleotide resolution, blocks + per-block trees
@@ -942,7 +986,9 @@ gives every leaf as an ordered signed block sequence, `gene_trees/` holds one re
 block, and `Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv` record
 the block reconciliations. `--write ancestral` additionally simulates DNA and reconstructs the genome
 at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `BED/<node>.bed`).
-`species_tree.nwk` is always written and `genomes.log` is the run manifest.
+A [multi-chromosome or chromosome-tier](#multiple-chromosomes-the-chromosome-tier) run also writes
+`Chromosomes.tsv` (the per-leaf layout) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss
+genealogy). `species_tree.nwk` is always written and `genomes.log` is the run manifest.
 
 ### Validation
 
