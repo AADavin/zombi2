@@ -642,3 +642,63 @@ class OrderedGenome(Genome):
                 nchrom.genes.append(ng)
                 mapping.append((g.gid, ng.gid, g.family))
         return new, mapping
+
+    # --- chromosome-tier events (origination / loss / fission / fusion) -----
+    #
+    # These act on whole chromosomes, one tier above the gene events. Fission / fusion only move
+    # genes between chromosomes, so gene lineages (gids) are untouched and gene-tree reconstruction
+    # is unaffected; only chromosome LOSS ends gene lineages, so it reports them for the log.
+    def originate_chromosome(self, rng, params) -> int:
+        """Originate a new, empty chromosome — a de-novo replicon (a *plasmid* in the bacterial
+        case), with a fresh id and the genome's topology. Genes reach it later via origination or
+        transfer (both can target any chromosome). Returns the new chrom_id. Draws no rng."""
+        cid = self.ids.new_chromosome()
+        self.chromosomes[cid] = Chromosome(cid, self.circular)
+        return cid
+
+    def lose_chromosome(self, rng) -> tuple[int, list[list[GeneOp]]]:
+        """Lose an entire chromosome (chosen uniformly) and everything on it, returning its chrom_id
+        and one LOSS group per gene so the caller can log the gene deaths for gene-tree
+        reconstruction. The caller guarantees >= 2 chromosomes (a genome keeps at least one)."""
+        cid = self._choose_chromosome_uniform(rng)
+        chrom = self.chromosomes.pop(cid)
+        groups = [[GeneOp(g.gid, g.family, "lost")] for g in chrom.genes]
+        return cid, groups
+
+    def fission(self, rng, params) -> tuple[int, int]:
+        """Split one chromosome into two (genes keep their ids — fission only reorganises which
+        chromosome holds them). A **linear** chromosome is cut at ONE breakpoint (the prefix stays,
+        the suffix becomes a new chromosome); a **circular** one at TWO breakpoints, excising the arc
+        between them into a new circular replicon (the remainder stays circular). The source is
+        size-weighted, so bigger chromosomes fission more. Returns (source_cid, new_cid)."""
+        cid = self._choose_chromosome_weighted(rng)
+        chrom = self.chromosomes[cid]
+        n = len(chrom.genes)
+        new_cid = self.ids.new_chromosome()
+        if chrom.circular:
+            i, j = int(rng.integers(n + 1)), int(rng.integers(n + 1))
+            if i > j:
+                i, j = j, i
+            arc = chrom.genes[i:j]
+            chrom.genes = chrom.genes[:i] + chrom.genes[j:]
+            self.chromosomes[new_cid] = Chromosome(new_cid, True, arc)
+        else:
+            k = int(rng.integers(n + 1))
+            self.chromosomes[new_cid] = Chromosome(new_cid, False, chrom.genes[k:])
+            chrom.genes = chrom.genes[:k]
+        return cid, new_cid
+
+    def fusion(self, rng, params) -> tuple[int, int]:
+        """Fuse two chromosomes into one: append the second's genes onto the first and drop the
+        second (genes keep their ids). The two are chosen uniformly; the caller guarantees >= 2
+        chromosomes. Stage-1 genomes are topology-homogeneous, so the same-topology rule is met
+        automatically. Returns (kept_cid, absorbed_cid)."""
+        cids = list(self.chromosomes)
+        m = len(cids)
+        i = int(rng.integers(m))
+        j = int(rng.integers(m - 1))
+        if j >= i:  # a uniform partner distinct from i
+            j += 1
+        keep_cid, absorb_cid = cids[i], cids[j]
+        self.chromosomes[keep_cid].genes.extend(self.chromosomes.pop(absorb_cid).genes)
+        return keep_cid, absorb_cid
