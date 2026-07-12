@@ -341,6 +341,22 @@ class NucleotideGenome(Genome):
         """Total nucleotide length of ``chrom`` (sum of its segment lengths)."""
         return sum(seg.length for seg in chrom.elements)
 
+    def _choose_chromosome_weighted(self, rng) -> Chromosome:
+        """Pick a chromosome, weighted by its nucleotide length (where an event lands).
+
+        Short-circuits without drawing when there is only one chromosome, so a single-chromosome
+        genome consumes exactly the RNG draws of the pre-multichromosome engine (byte-identity)."""
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes.values()))
+        chroms = list(self.chromosomes.values())
+        sizes = [self._chrom_length(c) for c in chroms]
+        r = int(rng.integers(sum(sizes)))
+        for c, s in zip(chroms, sizes):
+            if r < s:
+                return c
+            r -= s
+        return chroms[-1]  # pragma: no cover -- unreachable while total > 0
+
     def _split_at(self, c: int, chrom: Chromosome | None = None) -> None:
         """Ensure a segment boundary at physical coordinate ``c`` on ``chrom`` (``0`` is always one).
 
@@ -701,7 +717,7 @@ class NucleotideGenome(Genome):
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if event not in self._TARGETABLE:
             raise ValueError(f"NucleotideGenome does not target {event!r}")
-        chrom = self.chromosomes[self._cid]   # single chromosome for now (6e: pick bp-length-weighted)
+        chrom = self._choose_chromosome_weighted(rng)   # bp-length-weighted; no draw if one chromosome
         if event in (EventType.INSERTION, EventType.DELETION):
             # indels self-draw their position + length inside apply() (intergene-clamped), so the
             # selection is a placeholder — no arc is chosen up front and no RNG is consumed here.
@@ -892,9 +908,16 @@ class NucleotideGenome(Genome):
                                  self.pseudogenization, self.replacement,
                                  self.indel_mean_length)
         mapping: list[tuple[str, str, str]] = []
-        for seg in self._segments:
-            ns = child._new_segment(seg.source, seg.src_start, seg.src_end, seg.strand,
-                                    seg.gene_id, seg.is_gene)
-            child._segments.append(ns)
-            mapping.append((seg.seg_id, ns.seg_id, seg.source))
+        for i, pchrom in enumerate(self.chromosomes.values()):
+            if i == 0:                       # the child already has its seed (main) chromosome, id 0
+                cchrom = child.chromosomes[child._cid]
+            else:                            # additional chromosomes get fresh ids
+                cid = self.ids.new_chromosome()
+                cchrom = Chromosome(cid, pchrom.circular)
+                child.chromosomes[cid] = cchrom
+            for seg in pchrom.elements:
+                ns = child._new_segment(seg.source, seg.src_start, seg.src_end, seg.strand,
+                                        seg.gene_id, seg.is_gene)
+                cchrom.elements.append(ns)
+                mapping.append((seg.seg_id, ns.seg_id, seg.source))
         return child, mapping
