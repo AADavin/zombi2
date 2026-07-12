@@ -46,8 +46,8 @@ def _fingerprint_ordered(genomes) -> str:
     """
     parts = []
     for leaf, genome in sorted(genomes.leaf_genomes.items(), key=lambda kv: kv[0].name):
-        chroms = ["|".join(f"{g.gid}:{g.family}:{g.orientation:+d}" for g in chrom)
-                  for chrom in genome.chromosomes]
+        chroms = ["|".join(f"{g.gid}:{g.family}:{g.orientation:+d}" for g in chrom.genes)
+                  for chrom in genome.chromosomes.values()]
         parts.append(f"{leaf.name}=" + "//".join(chroms))
     return ";".join(parts)
 

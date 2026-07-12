@@ -3,7 +3,7 @@
 An ordered genome can carry more than one chromosome (``n_chromosomes``), circular or
 linear. Every event stays *within* a chromosome (no translocation/fission/fusion yet):
 ``draw_target`` picks a chromosome (size-weighted) then a segment within it, and ``apply``
-indexes into that chromosome. The single-chromosome default (``n_chromosomes=1,
+looks that chromosome up by chrom_id. The single-chromosome default (``n_chromosomes=1,
 circular=True``) must stay byte-identical to the pre-multichromosome engine.
 """
 
@@ -44,8 +44,8 @@ def _rates():
 def test_default_matches_explicit_single_chromosome():
     """Passing the new defaults explicitly must change nothing (same seed -> identical leaves).
 
-    (A stronger cross-commit byte-identity check against the pre-change base is done outside
-    the test suite; here we prove the new parameters are inert at their defaults.)"""
+    (The cross-commit byte-identity check against the frozen pre-refactor baseline lives in
+    tests/test_chromosome_fingerprints.py; here we prove the new parameters are inert at defaults.)"""
     rates = _rates()
     for seed in (1, 2, 3, 7, 42):
         tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=3.0, seed=seed)
@@ -67,9 +67,9 @@ def test_four_chromosomes_structure_and_distribution():
     for leaf in g.leaf_genomes.values():
         assert isinstance(leaf, OrderedGenome)
         assert len(leaf.chromosomes) == 4                       # structure preserved to the leaves
-        assert leaf.size() == sum(len(c) for c in leaf.chromosomes)  # size flattens
+        assert leaf.size() == sum(len(c) for c in leaf.chromosomes.values())  # size flattens
         assert leaf.size() == len(leaf.chromosome)              # back-compat flattened view agrees
-        populated |= {i for i, c in enumerate(leaf.chromosomes) if c}
+        populated |= {i for i, c in enumerate(leaf.chromosomes.values()) if c}
     assert populated == {0, 1, 2, 3}                            # genes live on every chromosome
 
 
@@ -82,7 +82,7 @@ def test_root_originations_spread_across_chromosomes():
     for _ in range(30):
         genome.originate(rng, params)
     assert genome.size() == 30
-    assert all(len(c) >= 1 for c in genome.chromosomes)         # every chromosome got some families
+    assert all(len(c) >= 1 for c in genome.chromosomes.values())  # every chromosome got some families
 
 
 # --- 3. events stay within a chromosome -----------------------------------------------
@@ -92,11 +92,12 @@ def test_rearrangements_do_not_leak_genes_across_chromosomes():
     family was seeded on (membership changes only via transfer/origination, not fired here)."""
     ids = IdManager()
     genome = OrderedGenome(ids, extension=0.6, n_chromosomes=3, circular=True)
-    labels = {0: "A", 1: "B", 2: "C"}
-    for cidx, lab in labels.items():
+    labels = ["A", "B", "C"]
+    chroms = list(genome.chromosomes.values())               # stable positional handles
+    for chrom, lab in zip(chroms, labels):
         for k in range(6):
-            genome.chromosomes[cidx].append(OrderedGene(ids.new_gene(), f"{lab}{k}", 1))
-    home = {g.family: lab for cidx, lab in labels.items() for g in genome.chromosomes[cidx]}
+            chrom.genes.append(OrderedGene(ids.new_gene(), f"{lab}{k}", 1))
+    home = {g.family: lab for chrom, lab in zip(chroms, labels) for g in chrom.genes}
 
     rng = np.random.default_rng(0)
     params = TargetParams(extension=0.6)
@@ -105,9 +106,9 @@ def test_rearrangements_do_not_leak_genes_across_chromosomes():
         event = events[int(rng.integers(3))]
         sel = genome.draw_target(event, rng, params)
         genome.apply(event, sel, rng, params)
-        for cidx, lab in labels.items():
-            assert all(home[g.family] == lab for g in genome.chromosomes[cidx]), \
-                f"a gene leaked onto chromosome {cidx} ({lab}) after {event}"
+        for chrom, lab in zip(chroms, labels):
+            assert all(home[g.family] == lab for g in chrom.genes), \
+                f"a gene leaked onto chromosome {lab} after {event}"
     # duplications actually happened somewhere (content grew) but every chromosome kept its families
     assert genome.size() > 18
 
@@ -117,8 +118,9 @@ def test_rearrangements_do_not_leak_genes_across_chromosomes():
 def _seed_single(circular, extension, n=10):
     ids = IdManager()
     genome = OrderedGenome(ids, extension=extension, n_chromosomes=1, circular=circular)
+    chrom = next(iter(genome.chromosomes.values()))
     for k in range(n):
-        genome.chromosomes[0].append(OrderedGene(ids.new_gene(), f"f{k}", 1))
+        chrom.genes.append(OrderedGene(ids.new_gene(), f"f{k}", 1))
     return genome
 
 
@@ -130,7 +132,8 @@ def test_linear_segments_never_wrap_the_origin():
         sel = genome.draw_target(EventType.INVERSION, rng, params)
         r = sel.region
         assert r.start + r.length <= 10                          # clamped, never crosses the end
-        assert sel.genes == tuple(genome.chromosomes[0][r.start:r.start + r.length])
+        genes = next(iter(genome.chromosomes.values())).genes
+        assert sel.genes == tuple(genes[r.start:r.start + r.length])
 
 
 def test_circular_segments_may_wrap_the_origin():
@@ -151,19 +154,20 @@ def test_clone_reminting_preserves_n_chromosomes_and_circular():
     ids = IdManager()
     parent = OrderedGenome(ids, extension=0.6, transposition_flip=0.3,
                            n_chromosomes=4, circular=False)
-    for cidx in range(4):
+    for cidx, chrom in enumerate(parent.chromosomes.values()):
         for k in range(3):
-            parent.chromosomes[cidx].append(OrderedGene(ids.new_gene(), f"f{cidx}_{k}", 1))
+            chrom.genes.append(OrderedGene(ids.new_gene(), f"f{cidx}_{k}", 1))
     child, mapping = parent.clone_reminting()
 
     assert isinstance(child, OrderedGenome)
     assert len(child.chromosomes) == 4
     assert child.circular is False
+    assert all(c.circular is False for c in child.chromosomes.values())  # per-chromosome topology
     assert child.transposition_flip == 0.3
     assert child.extension == 0.6
-    for pc, cc in zip(parent.chromosomes, child.chromosomes):
-        assert [g.family for g in pc] == [g.family for g in cc]   # per-chromosome content copied
-        assert all(a.gid != b.gid for a, b in zip(pc, cc))        # ids re-minted (fresh lineages)
+    for pc, cc in zip(parent.chromosomes.values(), child.chromosomes.values()):
+        assert [g.family for g in pc.genes] == [g.family for g in cc.genes]  # content copied
+        assert all(a.gid != b.gid for a, b in zip(pc.genes, cc.genes))       # ids re-minted
     assert len(mapping) == parent.size()
 
 
@@ -187,7 +191,7 @@ def test_multichromosome_reproducible():
 def _one_gene_transfer_segment(ids, rng, family="X"):
     """Extract a single-gene transfer segment of ``family`` from a throwaway donor."""
     donor = OrderedGenome(ids, n_chromosomes=1, circular=True)
-    donor.chromosomes[0].append(OrderedGene(ids.new_gene(), family, 1))
+    next(iter(donor.chromosomes.values())).genes.append(OrderedGene(ids.new_gene(), family, 1))
     sel = donor.draw_target(EventType.TRANSFER, rng, TargetParams(), family=family)
     return donor.extract_segment(sel, rng)
 
@@ -200,17 +204,17 @@ def test_transfer_inserts_into_the_chosen_recipient_chromosome():
     segment = _one_gene_transfer_segment(ids, rng, family="X")
 
     recipient = OrderedGenome(ids, n_chromosomes=3, circular=True)
-    for cidx in range(3):
-        recipient.chromosomes[cidx].append(OrderedGene(ids.new_gene(), f"seed{cidx}", 1))
+    for cidx, chrom in enumerate(recipient.chromosomes.values()):
+        chrom.genes.append(OrderedGene(ids.new_gene(), f"seed{cidx}", 1))
 
     at = recipient.choose_insertion_point(segment, rng)
-    assert isinstance(at, tuple) and len(at) == 2          # (chromosome index, position)
-    cidx, _pos = at
+    assert isinstance(at, tuple) and len(at) == 2          # (chrom_id, position)
+    cid, _pos = at
     recipient.insert_segment(segment, at, rng)
 
-    on = {ci for ci, chrom in enumerate(recipient.chromosomes)
-          for g in chrom if g.family == "X"}
-    assert on == {cidx}                                    # landed on exactly the chosen chromosome
+    on = {c for c, chrom in recipient.chromosomes.items()
+          for g in chrom.genes if g.family == "X"}
+    assert on == {cid}                                     # landed on exactly the chosen chromosome
 
 
 def test_transfer_recipient_chromosome_is_uniform_not_size_weighted():
@@ -222,15 +226,16 @@ def test_transfer_recipient_chromosome_is_uniform_not_size_weighted():
     segment = _one_gene_transfer_segment(ids, rng, family="X")
 
     recipient = OrderedGenome(ids, n_chromosomes=4, circular=True)
-    for cidx, n in enumerate((1, 2, 3, 40)):               # deliberately very uneven sizes
+    rchroms = list(recipient.chromosomes.values())
+    for chrom, n in zip(rchroms, (1, 2, 3, 40)):           # deliberately very uneven sizes
         for _ in range(n):
-            recipient.chromosomes[cidx].append(OrderedGene(ids.new_gene(), "f", 1))
+            chrom.genes.append(OrderedGene(ids.new_gene(), "f", 1))
 
     hits = [recipient.choose_insertion_point(segment, rng)[0] for _ in range(400)]
-    assert set(hits) == {0, 1, 2, 3}                       # every chromosome reachable
+    assert set(hits) == set(recipient.chromosomes)         # every chromosome reachable (by chrom_id)
     # under uniform(4) each is expected ~100 times; the 1-gene and 40-gene chromosomes are hit at
     # comparable rates, which a size-weighted choice (0.02 vs 0.87) never would.
-    assert hits.count(0) > 40 and hits.count(3) > 40
+    assert hits.count(rchroms[0].chrom_id) > 40 and hits.count(rchroms[3].chrom_id) > 40
 
 
 def test_transfer_moves_families_across_chromosomes_end_to_end():
@@ -245,8 +250,8 @@ def test_transfer_moves_families_across_chromosomes_end_to_end():
                              genome_factory=_ordered(n_chromosomes=3, circular=True))
         for leaf in g.leaf_genomes.values():
             fam_chroms: dict = {}
-            for cidx, chrom in enumerate(leaf.chromosomes):
-                for gene in chrom:
+            for cidx, chrom in enumerate(leaf.chromosomes.values()):
+                for gene in chrom.genes:
                     fam_chroms.setdefault(gene.family, set()).add(cidx)
             if any(len(cs) >= 2 for cs in fam_chroms.values()):
                 spanned = True
