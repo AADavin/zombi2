@@ -20,7 +20,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from zombi2._sampling import EventSampler, Fenwick, NumpyEventSampler
-from zombi2.genomes.events import EventLog, EventRecord, EventType, GeneOp, Selection
+from zombi2.genomes.events import (
+    ChromosomeEvent, EventLog, EventRecord, EventType, GeneOp, Selection,
+)
 from zombi2.genomes.genome import Gene, Genome, IdManager, UnorderedGenome
 from zombi2.genomes.rates import RateModel
 from zombi2.genomes.transfers import TransferModel
@@ -420,6 +422,30 @@ class GenomeSimulator:
             log.add(EventRecord(EventType.CONVERSION, branch.name, t, donor_group,
                                 donor=branch.name, recipient=branch.name))
             log.add(EventRecord(EventType.LOSS, branch.name, t, loss_group))
+            return (branch,)
+
+        if event is EventType.CHROMOSOME_ORIGINATION:
+            new_cid = genome.originate_chromosome(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t, children=(new_cid,)))
+            return (branch,)
+
+        if event is EventType.CHROMOSOME_LOSS:
+            lost_cid, groups = genome.lose_chromosome(rng)
+            for group in groups:  # the genes on the lost chromosome die (gene-tree reconstruction)
+                log.add(EventRecord(EventType.LOSS, branch.name, t, group))
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t, parents=(lost_cid,)))
+            return (branch,)
+
+        if event is EventType.FISSION:
+            src, new_cid = genome.fission(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t,
+                                               parents=(src,), children=(src, new_cid)))
+            return (branch,)
+
+        if event is EventType.FUSION:
+            keep, absorbed = genome.fusion(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t,
+                                               parents=(keep, absorbed), children=(keep,)))
             return (branch,)
 
         # duplication / loss / inversion / transposition (one log record per group)

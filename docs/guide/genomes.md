@@ -505,7 +505,9 @@ operons, rearrangements) use **`OrderedGenome`**, the basic ZOMBI1 model: a circ
 chromosome of genes, each carrying a strand orientation, with no intergenic regions. Genes sit on
 an ordered, circular chromosome, and the chromosome evolves not just by gaining and losing genes but
 by *shuffling* them — inversions and transpositions rearrange contiguous segments so that gene
-**order** itself carries phylogenetic signal. Selecting the level is `--genome-model ordered`.
+**order** itself carries phylogenetic signal. Selecting the level is `--genome-model ordered`. A
+genome may hold a single chromosome (the default) or [several](#multiple-chromosomes), circular or
+linear.
 
 | Model | Substrate | Rearrangements | Reach for it when |
 | --- | --- | --- | --- |
@@ -535,6 +537,59 @@ Inversions and transpositions change gene order/orientation but **not** gene con
 they leave the profile matrix and the gene trees unchanged — they show up in the event log
 and in the final chromosome order. Rearrangement rates are per gene copy; segment length is set by
 `--mean-length` (in genes). Rearrangements require the `shared` rate model.
+
+### Multiple chromosomes
+
+An ordered genome can carry **several chromosomes** instead of one. Set `n_chromosomes` (Python) or
+`--n-chromosomes N` (CLI); the root's initial families are spread across the chromosomes, and
+`circular` (drop it with `--linear-chromosomes`) chooses whether chromosomes wrap at the origin
+(circular — the bacterial default) or have ends (linear — as for eukaryotes). A single circular
+chromosome (`n_chromosomes=1`) is the default and is byte-identical to the single-chromosome engine.
+
+Each chromosome is a first-class object with its own identity (`chrom_id`) and topology. The
+gene-level events act **within** a chromosome; a separate **chromosome tier** of events acts on whole
+chromosomes:
+
+| Tier | Event | Effect |
+|---|---|---|
+| gene | duplication / inversion / loss | on a segment of one chromosome (chosen in proportion to gene count) |
+| gene | **transposition** | re-inserts on the **same** chromosome |
+| gene | **transfer** | recipient chromosome chosen **uniformly**, so a copy may land on a *different* chromosome |
+| gene | origination | a uniformly-chosen chromosome |
+| **chromosome** | **fission** | one chromosome splits in two (linear: one breakpoint; circular: two, excising an arc into a new replicon) |
+| **chromosome** | **fusion** | two chromosomes merge into one |
+| **chromosome** | **origination** | a de-novo replicon — a **plasmid** — appears |
+| **chromosome** | **loss** | a whole chromosome, and every gene on it, is lost |
+
+The chromosome-tier rates default to **0**, so unless you turn them on the karyotype changes only by
+a transfer moving a gene to another chromosome (or a fresh origination). Fission / fusion / plasmid /
+loss are opt-in per-chromosome rates. Linear chromosomes never let a segment cross the ends; circular
+ones may wrap the origin (the ring is rotated to bring a wrapped segment together).
+
+```python
+from zombi2.genomes import SharedRates, OrderedGenome, simulate_genomes
+
+rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
+                    inversion=0.3, transposition=0.3,
+                    fission=0.01, fusion=0.01, chromosome_origination=0.02, chromosome_loss=0.01)
+genomes = simulate_genomes(
+    tree, rates, initial_families=30, seed=1,
+    # eight linear chromosomes (e.g. a small eukaryote)
+    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8, circular=False),
+)
+leaf = next(iter(genomes.leaf_genomes.values()))
+leaf.chromosomes    # dict[chrom_id, Chromosome] — each Chromosome has .genes (in order) and .circular
+leaf.chromosome     # flattened view of all genes (backward-compatible)
+genomes.event_log.chromosome_records   # the fission / fusion / origination / loss genealogy
+```
+
+!!! note "Output"
+    With more than one chromosome (or any chromosome-tier rate set), a run writes two extra files:
+    **`Gene_order.tsv`** — the layout (`species · chromosome · position · family · gid · orientation`),
+    i.e. which chromosome each gene sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). From the CLI both
+    are added automatically when the karyotype is non-trivial; elsewhere request them with
+    `--write layout karyotype`. A single-chromosome run's output is unchanged.
 
 ### How events reach the genome
 
@@ -589,7 +644,9 @@ The ordered level writes the usual gene-family output — `Profiles.tsv` / `Pres
 and presence matrices over extant leaves), `species_nodes.tsv`, and per-family reconstructed gene
 trees under `gene_trees/` when `trees` is requested; inversions and transpositions appear in the event
 log and the final chromosome order, not in the profiles. `species_tree.nwk` is always written and
-`genomes.log` is the run manifest.
+`genomes.log` is the run manifest. With [multiple chromosomes](#multiple-chromosomes) the karyotype
+is written too — `Gene_order.tsv` (which chromosome each gene sits on) and `Karyotype_trace.tsv`
+(the fission/fusion/origination/loss genealogy).
 
 ### Validation
 
@@ -615,7 +672,8 @@ genome, or need per-block gene trees. Selecting the level is `--genome-model nuc
 ### The model
 
 `simulate_nucleotide_genomes` evolves a genome forward along a fixed species tree. It starts
-from `initial_chromosomes` chromosome(s) of `root_length` nucleotides at the root, and these events fire:
+from one chromosome of `root_length` nucleotides at the root (or
+[several](#multiple-chromosomes-the-chromosome-tier)), and these events fire:
 
 | Event | Effect |
 |---|---|
@@ -655,6 +713,63 @@ result = simulate_nucleotide_genomes(
 orientation (the reversed colour gradient), a tandem duplication lengthens it — each acting on
 a variable-length stretch of nucleotides.</figcaption>
 </figure>
+
+### Multiple chromosomes & the chromosome tier
+
+Like the [ordered model](#multiple-chromosomes), a nucleotide genome can carry **several
+chromosomes**. Set `initial_chromosomes` (Python) or `--n-chromosomes N` (CLI): each is an
+independent full-length copy of the root chromosome under its own source, so an `N`-chromosome
+genome starts at `N × root_length` nucleotides. All nucleotide chromosomes are circular. A single
+chromosome (the default) is byte-identical to the single-chromosome engine.
+
+Structural events act **within** a chromosome (the chromosome is chosen in proportion to its
+length), except **transfer**, whose recipient chromosome is chosen **uniformly** — so a transfer is
+how a block reaches a *different* chromosome. On top of that, the same **chromosome tier** as the
+ordered model acts on whole chromosomes, each an opt-in per-branch rate (default **0**):
+
+| Event | Effect |
+|---|---|
+| `fission` | a chromosome splits in two — an arc between two breakpoints becomes a new circular replicon (breakpoints snap to segment boundaries, so genes stay whole) |
+| `fusion` | two chromosomes merge into one |
+| `chromosome_origination` | a de-novo replicon — a **plasmid** — appears (empty) |
+| `chromosome_loss` | a whole chromosome, and every block on it, is lost |
+
+Fission and fusion only move blocks between chromosomes without touching their identity, so the
+per-block gene trees are unchanged; only chromosome loss ends lineages.
+
+```python
+result = simulate_nucleotide_genomes(
+    tree, root_length=500, initial_chromosomes=2, inversion=1e-3, loss=1e-4,
+    fission=1e-3, fusion=5e-4, chromosome_origination=2e-3, chromosome_loss=5e-4, seed=1)
+
+leaf = next(iter(result.leaf_genomes.values()))
+leaf.chromosomes                        # dict[chrom_id, Chromosome] — each has .elements (blocks)
+result.event_log.chromosome_records     # the fission / fusion / origination / loss genealogy
+```
+
+**Starting from a real multi-replicon genome.** `initial_chromosomes` seeds *identical* copies; to
+seed **heterogeneous** chromosomes — a real bacterium's chromosome plus its plasmids, each its own
+length and genes — pass `root_chromosomes`, a list of `(length, gene_intervals)`. A multi-sequence
+GFF gives you exactly this via `read_gff_all` (one `GffGenome` per sequence, main chromosome first):
+
+```python
+from zombi2 import read_gff_all
+replicons = read_gff_all("genome.gff")                       # e.g. [chromosome, plasmid1, plasmid2]
+result = simulate_nucleotide_genomes(
+    tree, root_chromosomes=[(g.length, g.genes) for g in replicons],
+    inversion=1e-3, loss=1e-4, seed=1)
+```
+
+From the CLI, `--gff genome.gff` does this automatically: **every** sequence becomes a chromosome
+(use `--gff-seqid ID` to select a single one instead).
+
+!!! note "Karyotype output"
+    A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`Chromosomes.tsv`**
+    — the per-leaf layout (`species · chromosome · position · source · start · end · strand`), i.e.
+    which chromosome each block sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). Both need the
+    Python engine (`--write trees`, or any chromosome-tier rate, which forces it). A single-chromosome
+    run's output is unchanged.
 
 ### Blocks: units of shared ancestry
 
@@ -802,10 +917,11 @@ zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --write profiles trees -o out/
 ```
 
-The GFF may be gzipped. For a multi-sequence file (chromosome + plasmids), the most-annotated
-sequence is used by default; `--gff-seqid ID` (or `read_gff(..., seqid=...)`) picks another. The
-genes keep their annotation names (locus tag / `Name`), so `genes.tsv` and the trees are labelled
-with real gene ids.
+The GFF may be gzipped. A **multi-sequence** file (a chromosome plus its plasmids or secondary
+chromosomes) seeds **one chromosome per sequence** — see
+[Multiple chromosomes](#multiple-chromosomes-the-chromosome-tier) — while `--gff-seqid ID` (or
+`read_gff(..., seqid=...)`) instead picks a single sequence. The genes keep their annotation names
+(locus tag / `Name`), so `genes.tsv` and the trees are labelled with real gene ids.
 
 ### Sequences and ancestral genomes
 
@@ -870,7 +986,9 @@ result = simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,
 rates (per nucleotide), and `--mean-length` sets the segment length (in nucleotides). `--root-length`
 sets the root chromosome length; `--insertion`/`--deletion` with `--indel-mean-length` edit intergene
 positions; and declaring genes with `--genes` or `--gff` switches on genic mode
-(`--pseudogenization`, `--replacement`).
+(`--pseudogenization`, `--replacement`). `--n-chromosomes N` seeds several chromosomes and
+`--fission`/`--fusion`/`--chromosome-origination`/`--chromosome-loss` turn on the
+[chromosome tier](#multiple-chromosomes-the-chromosome-tier).
 
 ```bash
 # nucleotide: structural events at nucleotide resolution, blocks + per-block trees
@@ -885,7 +1003,9 @@ gives every leaf as an ordered signed block sequence, `gene_trees/` holds one re
 block, and `Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv` record
 the block reconciliations. `--write ancestral` additionally simulates DNA and reconstructs the genome
 at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `BED/<node>.bed`).
-`species_tree.nwk` is always written and `genomes.log` is the run manifest.
+A [multi-chromosome or chromosome-tier](#multiple-chromosomes-the-chromosome-tier) run also writes
+`Chromosomes.tsv` (the per-leaf layout) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss
+genealogy). `species_tree.nwk` is always written and `genomes.log` is the run manifest.
 
 ### Validation
 

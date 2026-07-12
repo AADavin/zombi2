@@ -185,7 +185,6 @@
   .cmd .prompt { color: var(--accent); user-select: none; }
   .cmd button { background: transparent; border: 1px solid #2b433f; color: var(--term-dim); border-radius: 6px; padding: 4px 9px; font-size: 0.75rem; font-family: var(--sans); cursor: pointer; }
   .cmd button:hover { color: var(--term-ink); border-color: #3f5c57; }
-  .release-links { display: flex; gap: 18px; margin-left: auto; font-size: 0.92rem; font-weight: 500; }
 
   /* ---------- generic section ---------- */
   .section { padding: 68px 0; }
@@ -275,7 +274,6 @@
   @media (max-width: 860px) {
     .split { grid-template-columns: 1fr; gap: 30px; }
     .foot-cols { grid-template-columns: 1fr 1fr; }
-    .release-links { margin-left: 0; width: 100%; }
   }
   @media (max-width: 680px) {
     .nav-links { position: fixed; inset: 62px 0 auto 0; flex-direction: column; align-items: stretch; gap: 0; background: #fff; border-bottom: 1px solid var(--border); padding: 8px 24px 16px; display: none; }
@@ -344,9 +342,9 @@
         <p class="lede">Simulating genome and phylogenetic evolution.</p>
         <p class="sub">Evolve life end to end — <b>species trees</b>, then <b>genomes</b>, <b>traits</b> and molecular <b>sequences</b> along them, plus <b>coupled</b> processes. A ground-up redesign of ZOMBI, with a fast Rust engine, a composable Python library and a command-line interface.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="#install">Get started</a>
-          <a class="btn btn-ghost" href="https://github.com/AADavin/zombi2">View on GitHub</a>
+          <a class="btn btn-primary" href="https://github.com/AADavin/zombi2">View on GitHub</a>
           <a class="btn btn-ghost" href="https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf">Read the PDF manual</a>
+          <a class="btn btn-ghost" href="docs/">Read the docs</a>
         </div>
       </div>
     </section>
@@ -363,11 +361,6 @@
             <span class="prompt">$</span>
             <code id="installcmd">pip install zombi2</code>
             <button data-copy="pip install zombi2">Copy</button>
-          </div>
-          <div class="release-links">
-            <a href="docs/">Documentation</a>
-            <a href="docs/quickstart/">Quickstart</a>
-            <a href="https://github.com/AADavin/zombi2/blob/main/CHANGELOG.md">Changelog</a>
           </div>
         </div>
       </div>
@@ -544,13 +537,13 @@ genomes.write(<span class="s">"out/"</span>)
       </div>
     </section>
 
-    <!-- ===================== EXPERIMENTAL ===================== -->
-    <section class="section" id="experimental">
+    <!-- ===================== COOKBOOK ===================== -->
+    <section class="section" id="cookbook">
       <div class="wrap">
-        <p class="eyebrow">Beyond the core</p>
-        <h2>Experimental</h2>
-        <p class="section-intro">Newer models and features behind an opt-in <code>experimental</code> namespace — promising, but not yet stabilised for the core release. First up: <b>language-model selection</b>, which uses a protein language model (ESM2) as a selection critic to evolve realistic sequences.</p>
-        <a class="btn btn-ghost" href="docs/experimental/language-model-selection/">Language-model selection →</a>
+        <p class="eyebrow">Data-anchored recipes</p>
+        <h2>Cookbook</h2>
+        <p class="section-intro">A simulator is only as trustworthy as its parameters. Each recipe takes a <b>pattern in real data</b>, finds the ZOMBI2 knob that controls it, and tunes it until simulations reproduce the pattern — pinning a defensible value and showing what the data can and cannot constrain. So far: a genome <b>inversion rate</b> from synteny decay (≈&nbsp;3–4&nbsp;×&nbsp;10⁻⁴ per gene·Myr in budding yeast), balanced <b>core-gene turnover</b> for bacteria and archaea (gain&nbsp;≈&nbsp;loss&nbsp;≈&nbsp;2&nbsp;×&nbsp;10⁻⁴ per gene copy), and a stress-test of whether <b>RED</b> faithfully recovers node ages under realistic clock heterogeneity.</p>
+        <a class="btn btn-ghost" href="docs/cookbook/">Browse the cookbook →</a>
       </div>
     </section>
 
@@ -559,7 +552,7 @@ genomes.write(<span class="s">"out/"</span>)
       <div class="wrap">
         <p class="eyebrow">Ecosystem</p>
         <h2>Tools</h2>
-        <p class="section-intro">Companion utilities that pair with ZOMBI2 — including <b>reconciliation likelihood</b> (ALE-style scoring of scenarios) and <b>relative evolutionary divergence</b> (RED node depths).</p>
+        <p class="section-intro">A validated <code>zombi2.tools</code> layer for analysing simulator output — <b>reconciliation likelihood</b> (ALE-style scoring), <b>relative evolutionary divergence</b> (RED node depths), <b>tree distances</b> (Robinson–Foulds, branch-score, quartet), <b>reconciliation accuracy</b> against the true history, and a <b>parser</b> that reads ALE / AleRax output into native trees and tables.</p>
         <a class="btn btn-ghost" href="docs/tools/">Explore the tools →</a>
       </div>
     </section>
