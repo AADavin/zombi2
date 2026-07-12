@@ -408,11 +408,12 @@ class OrderedGenome(Genome):
     Events act on a **contiguous segment** whose length is drawn from ``extension``
     (a per-step continuation probability; ``None`` -> single-gene events). Supported:
     duplication (tandem), loss, transfer, **inversion** (reverse + flip strands), and
-    **transposition** (cut and paste elsewhere). Every event stays **within one chromosome**
-    (no translocation / fission / fusion yet): ``draw_target`` first picks a chromosome
-    (size-weighted, returning its ``chrom_id``), then a segment within it, and ``apply`` looks
-    that chromosome up by id. A circular chromosome's segment may wrap (we rotate the ring to
-    bring it to the front); a linear chromosome's segment is clamped to the end.
+    **transposition** (cut and paste elsewhere). These gene events stay **within one chromosome**
+    (whole-chromosome fission / fusion / origination / loss are the separate chromosome tier —
+    :meth:`fission`, :meth:`fusion`, :meth:`originate_chromosome`, :meth:`lose_chromosome`):
+    ``draw_target`` first picks a chromosome (size-weighted, returning its ``chrom_id``), then a
+    segment within it, and ``apply`` looks that chromosome up by id. A circular chromosome's segment
+    may wrap (we rotate the ring to the front); a linear chromosome's segment is clamped to the end.
 
     The ``extension`` can also be supplied per event via ``TargetParams.extension`` from a
     rate model; the per-genome value is the fallback. Construct via a factory, e.g.
@@ -638,7 +639,7 @@ class OrderedGenome(Genome):
                          n_chromosomes=len(self.chromosomes), circular=self.circular)
         mapping = []
         for pchrom, nchrom in zip(self.chromosomes.values(), new.chromosomes.values()):
-            nchrom.circular = pchrom.circular  # preserve per-chromosome topology (Stage 1: homogeneous)
+            nchrom.circular = pchrom.circular  # per-chromosome topology (homogeneous today)
             for g in pchrom.genes:
                 ng = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
                 nchrom.genes.append(ng)
@@ -693,7 +694,7 @@ class OrderedGenome(Genome):
     def fusion(self, rng, params) -> tuple[int, int]:
         """Fuse two chromosomes into one: append the second's genes onto the first and drop the
         second (genes keep their ids). The two are chosen uniformly; the caller guarantees >= 2
-        chromosomes. Stage-1 genomes are topology-homogeneous, so the same-topology rule is met
+        chromosomes. Genomes are topology-homogeneous today, so the same-topology rule is met
         automatically. Returns (kept_cid, absorbed_cid)."""
         cids = list(self.chromosomes)
         m = len(cids)
