@@ -2385,16 +2385,34 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     if args.gff and args.genes:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None
+    gff_all = None
+    root_chromosomes = None
     if args.gff:                              # start from a real genome: length + gene coordinates
-        from zombi2.genomes.gff import read_gff
-        gff_info = read_gff(args.gff, seqid=args.gff_seqid)
-        genes = gff_info.genes
-        args.root_length = gff_info.length    # GFF is authoritative for the chromosome length
+        from zombi2.genomes.gff import read_gff, read_gff_all
+        if args.gff_seqid:                    # one named sequence -> a single chromosome
+            gff_info = read_gff(args.gff, seqid=args.gff_seqid)
+            genes = gff_info.genes
+            args.root_length = gff_info.length
+        else:
+            gff_all = read_gff_all(args.gff)  # every sequence becomes its own chromosome
+            if len(gff_all) == 1:
+                gff_info = gff_all[0]
+                genes = gff_info.genes
+                args.root_length = gff_info.length
+            else:                             # a multi-replicon genome -> heterogeneous chromosomes
+                if initial_chromosomes != 1:
+                    raise ValueError("--gff with several sequences already sets the chromosomes; "
+                                     "drop --n-chromosomes (or --gff-seqid to pick one sequence)")
+                root_chromosomes = [(g.length, g.genes) for g in gff_all]
+                genes = None
     elif args.genes:
         genes = _read_gene_intervals(args.genes)
     else:
         genes = None
-    genic = bool(genes)
+    genic = bool(genes) or root_chromosomes is not None
+    if root_chromosomes is not None and (ancestral or bed or args.genome_fasta):
+        raise ValueError("--write ancestral/bed and --genome-fasta are not yet supported for a "
+                         "multi-sequence GFF; use --gff-seqid to pick a single sequence for those")
     if bed and not genic:
         raise ValueError("--write bed annotates genes on each genome, so it needs gene "
                          "coordinates: supply --genes or --gff")
@@ -2410,14 +2428,16 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                   fission=args.fission, fusion=args.fusion,
                   chromosome_origination=args.chromosome_origination,
                   chromosome_loss=args.chromosome_loss,
-                  gene_intervals=genes, pseudogenization=args.pseudogenization,
+                  gene_intervals=genes, root_chromosomes=root_chromosomes,
+                  pseudogenization=args.pseudogenization,
                   replacement=args.replacement, transfers=transfers,
                   retain_internal=ancestral or bed)  # bed annotates every node's genome
 
     t0 = time.perf_counter()
-    # the Python engine is needed for the event log, the genic model, indels, and the chromosome
-    # tier (the Rust profiles path is single-chromosome and event-log-free).
-    if "trees" in want or genic or ancestral or bed or indels or chrom_tier:
+    # the Python engine is needed for the event log, the genic model, indels, the chromosome tier,
+    # and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
+    if ("trees" in want or genic or ancestral or bed or indels or chrom_tier
+            or root_chromosomes is not None):
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2459,10 +2479,15 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
     py_engine = any(isinstance(getattr(g, "chromosomes", None), dict)
                     for g in result.leaf_genomes.values())
-    if py_engine and (chrom_tier or initial_chromosomes > 1):
+    multi_chrom = initial_chromosomes > 1 or (root_chromosomes is not None
+                                              and len(root_chromosomes) > 1)
+    if py_engine and (chrom_tier or multi_chrom):
         _write_nucleotide_karyotype(args.out, result)
 
-    if gff_info is not None:
+    if gff_all is not None and len(gff_all) > 1:
+        print(f"  GFF: {len(gff_all)} sequences -> {len(gff_all)} chromosomes "
+              f"({', '.join(f'{g.seqid}:{g.length}bp/{len(g.genes)}g' for g in gff_all)})")
+    elif gff_info is not None:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
               f"-> {len(gff_info.genes)} after trimming ({gff_info.n_trimmed} trimmed, "
               f"{gff_info.n_dropped} dropped as overlapping)")

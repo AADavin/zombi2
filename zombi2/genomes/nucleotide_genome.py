@@ -92,20 +92,25 @@ class SegmentRegistry:
         lst.append(gi)
         lst.sort(key=lambda g: g.start)
 
-    def consume_pending_genes(self, source: str) -> list[GeneInterval]:
-        """Bind the user's pending intervals to the freshly-minted seed ``source`` and register.
+    def bind_genes(self, source: str, intervals) -> list[GeneInterval]:
+        """Register raw ``(start, end, name|None)`` ``intervals`` as genes under ``source``.
 
-        Called once per seed chromosome by :meth:`NucleotideGenome.originate` (a genome may seed
-        several initial chromosomes, each an independent copy under its own source). The template
-        is *not* consumed — each call re-registers the same intervals under ``source`` and returns
-        them sorted by start (also now in ``self.genes[source]``).
+        The seeding primitive for one chromosome: names default to ``gene1, gene2, …`` and the
+        result (sorted by start) is also stored in ``self.genes[source]``. A genome may bind several
+        chromosomes (each its own ``source``) — identical copies, or heterogeneous chromosomes read
+        from a multi-sequence GFF.
         """
         out: list[GeneInterval] = []
-        for k, (a, b, name) in enumerate(sorted(self._pending_genes)):
+        for k, (a, b, name) in enumerate(sorted(intervals)):
             gi = GeneInterval(name if name else f"gene{k + 1}", source, a, b)
             self.register_gene(gi)
             out.append(gi)
         return out
+
+    def consume_pending_genes(self, source: str) -> list[GeneInterval]:
+        """Bind the constructor's single pending-gene template under ``source`` (the identical-copy
+        seed path). Non-destructive — each initial chromosome re-binds the same template."""
+        return self.bind_genes(source, self._pending_genes)
 
     def gene_id_at(self, source: str, start: int, end: int) -> str | None:
         """The gene whose interval contains ``[start, end)`` (else ``None``) — block classifier."""
@@ -167,7 +172,8 @@ class NucleotideGenome(Genome):
     def __init__(self, ids: IdManager, root_length: int = 1000,
                  extension: float | None = 0.99, registry: SegmentRegistry | None = None,
                  pseudogenization: float = 0.0, replacement: float = 0.0,
-                 indel_mean_length: float = 10.0, initial_chromosomes: int = 1):
+                 indel_mean_length: float = 10.0, initial_chromosomes: int = 1,
+                 root_chromosomes: list[tuple[int, list]] | None = None):
         self.ids = ids
         self.root_length = int(root_length)
         self.extension = extension
@@ -180,10 +186,13 @@ class NucleotideGenome(Genome):
         # from :meth:`IdManager.new_chromosome`.
         self._cid = 0
         self.chromosomes: dict[int, Chromosome] = {self._cid: Chromosome(self._cid, True)}
-        # number of root chromosomes to lay down at seeding (default 1); each an independent copy of
-        # the root chromosome under its own source. ``_seeded`` flips true on the first origination
-        # so seeding happens exactly once, then every later origination adds a novel gene.
+        # what to lay down at seeding. By default ``initial_chromosomes`` identical copies of the
+        # root chromosome, each under its own source; or an explicit list of heterogeneous
+        # ``(length, gene_intervals)`` replicons (e.g. read from a multi-sequence GFF). ``_seeded``
+        # flips true on the first origination so seeding happens once, then later originations add
+        # a novel gene.
         self._initial_chromosomes = max(1, int(initial_chromosomes))
+        self._root_chromosomes = root_chromosomes
         self._seeded = False
         # genic-model parameters (0 in the plain nucleotide model); inherited by clones
         self.pseudogenization = pseudogenization  # P(a loss on genes demotes instead of deletes)
@@ -310,31 +319,44 @@ class NucleotideGenome(Genome):
         self.chromosomes[cid] = chrom
         return chrom
 
-    def _seed_root_chromosomes(self) -> list[GeneOp]:
-        """Lay down the ``initial_chromosomes`` root chromosomes, returning every origin op.
+    def _root_chromosome_specs(self) -> list[tuple[int, list]]:
+        """The ``(length, gene_intervals)`` of each root chromosome to seed.
 
-        Chromosome 0 is the one the constructor already created; each further chromosome is an
-        independent copy of the root — same length and (in genic mode) the same gene layout, but
-        under its own source namespace, so the copies are distinct lineages that evolve apart.
+        Either the explicit heterogeneous ``root_chromosomes`` (e.g. a multi-sequence GFF, each
+        replicon its own length and genes) or, by default, ``initial_chromosomes`` identical copies
+        of the root (``root_length`` + the shared gene template)."""
+        if self._root_chromosomes is not None:
+            return self._root_chromosomes
+        return [(self.root_length, self._registry._pending_genes)] * self._initial_chromosomes
+
+    def _seed_root_chromosomes(self) -> list[GeneOp]:
+        """Lay down the root chromosomes, returning every origin op.
+
+        Chromosome 0 is the one the constructor already created; each further chromosome mints a
+        fresh id. Every chromosome is an independent replicon under its own source namespace — so
+        identical copies, or the distinct replicons of a real multi-chromosome genome, evolve apart.
         """
         ops: list[GeneOp] = []
-        for k in range(self._initial_chromosomes):
+        for k, (length, genes) in enumerate(self._root_chromosome_specs()):
             chrom = self.chromosomes[self._cid] if k == 0 else self._new_root_chromosome()
             source = self.ids.new_family()
-            pending = self._registry.consume_pending_genes(source)
-            if pending:
-                ops.extend(self._seed_with_genes(source, pending, chrom))
+            if genes:
+                pending = self._registry.bind_genes(source, genes)
+                ops.extend(self._seed_with_genes(source, pending, chrom, length))
             else:
-                seg = self._new_segment(source, 0, self.root_length, 1)
+                seg = self._new_segment(source, 0, length, 1)
                 chrom.elements.append(seg)
                 ops.append(GeneOp(seg.seg_id, source, "origin"))
         return ops
 
-    def _seed_with_genes(self, source: str, pending: list[GeneInterval], chrom) -> list[GeneOp]:
-        """Tile ``chrom`` into intergene / gene segments (genes get their own block).
+    def _seed_with_genes(self, source: str, pending: list[GeneInterval], chrom,
+                         length: int | None = None) -> list[GeneOp]:
+        """Tile ``chrom`` (of ``length`` nt, default ``root_length``) into intergene / gene segments.
 
         One ORIGINATION row per seed segment, so each becomes the root of the blocks it covers.
         """
+        if length is None:
+            length = self.root_length
         ops: list[GeneOp] = []
         cursor = 0
         for gi in pending:                          # sorted, non-overlapping
@@ -346,8 +368,8 @@ class NucleotideGenome(Genome):
             chrom.elements.append(g)
             ops.append(GeneOp(g.seg_id, source, "origin"))
             cursor = gi.end
-        if cursor < self.root_length:
-            ig = self._new_segment(source, cursor, self.root_length, 1)
+        if cursor < length:
+            ig = self._new_segment(source, cursor, length, 1)
             chrom.elements.append(ig)
             ops.append(GeneOp(ig.seg_id, source, "origin"))
         return ops
@@ -954,7 +976,8 @@ class NucleotideGenome(Genome):
     def clone_reminting(self) -> tuple["NucleotideGenome", list[tuple[str, str, str]]]:
         child = NucleotideGenome(self.ids, self.root_length, self.extension, self._registry,
                                  self.pseudogenization, self.replacement,
-                                 self.indel_mean_length, self._initial_chromosomes)
+                                 self.indel_mean_length, self._initial_chromosomes,
+                                 self._root_chromosomes)
         child._seeded = True                 # a clone is seeded by copying, never by originate()
         mapping: list[tuple[str, str, str]] = []
         for i, pchrom in enumerate(self.chromosomes.values()):

@@ -216,3 +216,45 @@ def test_cli_nucleotide_rejects_linear_chromosomes(tmp_path):
     with pytest.raises(SystemExit):  # nucleotide chromosomes are always circular
         main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--linear-chromosomes",
               "--seed", "1", "-o", str(tmp_path / "x")])
+
+
+_MULTI_GFF = """\
+##gff-version 3
+##sequence-region chr1 1 600
+chr1\tx\tgene\t50\t140\t.\t+\t.\tID=gene-A1;locus_tag=A1
+chr1\tx\tgene\t200\t320\t.\t-\t.\tID=gene-A2;locus_tag=A2
+chr1\tx\tgene\t400\t500\t.\t+\t.\tID=gene-A3;locus_tag=A3
+##sequence-region plasmid 1 400
+plasmid\tx\tgene\t30\t120\t.\t+\t.\tID=gene-B1;locus_tag=B1
+plasmid\tx\tgene\t200\t300\t.\t-\t.\tID=gene-B2;locus_tag=B2
+"""
+
+
+def test_cli_multisequence_gff_seeds_one_chromosome_per_sequence(tmp_path):
+    """A GFF with several sequences (a chromosome + a plasmid) seeds one chromosome per sequence —
+    every gene is kept (the old single-sequence path silently dropped the plasmid)."""
+    tree = _species(tmp_path)
+    gff = tmp_path / "genome.gff"
+    gff.write_text(_MULTI_GFF)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--gff", str(gff),
+               "--inversion", "0.002", "--loss", "0.001", "--seed", "3",
+               "--write", "trees", "-o", str(out)])
+    assert rc == 0
+    assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {2}   # both replicons present
+    genes = {ln.split("\t")[0] for ln in (out / "genes.tsv").read_text().splitlines()[1:]}
+    assert {"A1", "A2", "A3", "B1", "B2"} <= genes                          # nothing dropped
+
+
+def test_cli_gff_seqid_still_picks_one_sequence(tmp_path):
+    tree = _species(tmp_path)
+    gff = tmp_path / "genome.gff"
+    gff.write_text(_MULTI_GFF)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--gff", str(gff),
+               "--gff-seqid", "plasmid", "--inversion", "0.002", "--seed", "3",
+               "--write", "trees", "-o", str(out)])
+    assert rc == 0
+    assert not (out / "Chromosomes.tsv").exists()                            # single chromosome
+    genes = {ln.split("\t")[0] for ln in (out / "genes.tsv").read_text().splitlines()[1:]}
+    assert genes == {"B1", "B2"}                                             # only the picked sequence
