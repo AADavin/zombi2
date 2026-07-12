@@ -8,6 +8,7 @@ circular=True``) must stay byte-identical to the pre-multichromosome engine.
 """
 
 import numpy as np
+import pytest
 
 from zombi2 import (
     BirthDeath,
@@ -16,6 +17,7 @@ from zombi2 import (
     simulate_genomes,
     simulate_species_tree,
 )
+from zombi2.cli import main
 from zombi2.genomes.genome import IdManager, OrderedGene
 from zombi2.genomes.events import EventType, TargetParams
 
@@ -174,3 +176,125 @@ def test_multichromosome_reproducible():
                          genome_factory=_ordered(n_chromosomes=3, circular=False))
     assert _chromosomes(a) == _chromosomes(b)
     assert all(len(leaf.chromosomes) == 3 for leaf in a.leaf_genomes.values())
+
+
+# --- 6. transfer is the one event that moves a family across chromosomes --------------
+#
+# Rearrangements stay within a chromosome (section 3); a *transfer* inserts the segment into a
+# recipient chromosome chosen uniformly, so it is the only Stage-1 way a family reaches a new
+# chromosome. draw_target -> extract_segment -> choose_insertion_point -> insert_segment.
+
+def _one_gene_transfer_segment(ids, rng, family="X"):
+    """Extract a single-gene transfer segment of ``family`` from a throwaway donor."""
+    donor = OrderedGenome(ids, n_chromosomes=1, circular=True)
+    donor.chromosomes[0].append(OrderedGene(ids.new_gene(), family, 1))
+    sel = donor.draw_target(EventType.TRANSFER, rng, TargetParams(), family=family)
+    return donor.extract_segment(sel, rng)
+
+
+def test_transfer_inserts_into_the_chosen_recipient_chromosome():
+    """choose_insertion_point returns a (chromosome, position) tuple and insert_segment places the
+    transferred family on exactly that chromosome — the cross-chromosome transfer path end to end."""
+    ids = IdManager()
+    rng = np.random.default_rng(0)
+    segment = _one_gene_transfer_segment(ids, rng, family="X")
+
+    recipient = OrderedGenome(ids, n_chromosomes=3, circular=True)
+    for cidx in range(3):
+        recipient.chromosomes[cidx].append(OrderedGene(ids.new_gene(), f"seed{cidx}", 1))
+
+    at = recipient.choose_insertion_point(segment, rng)
+    assert isinstance(at, tuple) and len(at) == 2          # (chromosome index, position)
+    cidx, _pos = at
+    recipient.insert_segment(segment, at, rng)
+
+    on = {ci for ci, chrom in enumerate(recipient.chromosomes)
+          for g in chrom if g.family == "X"}
+    assert on == {cidx}                                    # landed on exactly the chosen chromosome
+
+
+def test_transfer_recipient_chromosome_is_uniform_not_size_weighted():
+    """The recipient chromosome is chosen *uniformly*: every chromosome is reachable and a tiny
+    chromosome receives transfers about as often as a large one (unlike the size-weighted choice
+    that targets rearrangements). This pins down the Q4 behaviour."""
+    ids = IdManager()
+    rng = np.random.default_rng(0)
+    segment = _one_gene_transfer_segment(ids, rng, family="X")
+
+    recipient = OrderedGenome(ids, n_chromosomes=4, circular=True)
+    for cidx, n in enumerate((1, 2, 3, 40)):               # deliberately very uneven sizes
+        for _ in range(n):
+            recipient.chromosomes[cidx].append(OrderedGene(ids.new_gene(), "f", 1))
+
+    hits = [recipient.choose_insertion_point(segment, rng)[0] for _ in range(400)]
+    assert set(hits) == {0, 1, 2, 3}                       # every chromosome reachable
+    # under uniform(4) each is expected ~100 times; the 1-gene and 40-gene chromosomes are hit at
+    # comparable rates, which a size-weighted choice (0.02 vs 0.87) never would.
+    assert hits.count(0) > 40 and hits.count(3) > 40
+
+
+def test_transfer_moves_families_across_chromosomes_end_to_end():
+    """A full simulation with heavy transfer: some family ends up on more than one chromosome
+    within a single leaf, which under Stage 1 can only happen via a transfer landing elsewhere."""
+    rates = SharedRates(duplication=0.2, loss=0.2, transfer=0.6, origination=0.1,
+                        inversion=0.1, transposition=0.1)
+    spanned = False
+    for seed in (1, 2, 3, 4, 5):
+        tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=4.0, seed=seed)
+        g = simulate_genomes(tree, rates, initial_families=20, seed=seed,
+                             genome_factory=_ordered(n_chromosomes=3, circular=True))
+        for leaf in g.leaf_genomes.values():
+            fam_chroms: dict = {}
+            for cidx, chrom in enumerate(leaf.chromosomes):
+                for gene in chrom:
+                    fam_chroms.setdefault(gene.family, set()).add(cidx)
+            if any(len(cs) >= 2 for cs in fam_chroms.values()):
+                spanned = True
+                break
+        if spanned:
+            break
+    assert spanned, "no family spanned >1 chromosome despite heavy transfer across five seeds"
+
+
+# --- 7. CLI wiring: --n-chromosomes / --linear-chromosomes ----------------------------
+
+def _species_tree_file(tmp_path):
+    sp = tmp_path / "sp"
+    main(["species", "--birth", "1", "--death", "0.3", "--tips", "10", "--age", "3",
+          "--seed", "1", "-o", str(sp)])
+    return str(sp / "species_tree.nwk")
+
+
+def test_cli_ordered_multichromosome_runs(tmp_path):
+    """`genomes --genome-model ordered --n-chromosomes N --linear-chromosomes` runs and writes."""
+    tree = _species_tree_file(tmp_path)
+    gen = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "ordered",
+               "--dup", "0.2", "--trans", "0.3", "--loss", "0.2", "--orig", "0.4",
+               "--inversion", "0.2", "--transposition", "0.2", "--mean-length", "2",
+               "--n-chromosomes", "4", "--linear-chromosomes",
+               "--initial-families", "20", "--seed", "3", "--write", "profiles", "-o", str(gen)])
+    assert rc == 0
+    assert (gen / "Profiles.tsv").exists()
+
+
+def test_cli_rejects_n_chromosomes_without_ordered(tmp_path):
+    """--n-chromosomes only applies to the ordered model; other models must error cleanly."""
+    tree = _species_tree_file(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["genomes", "--tree", tree, "--n-chromosomes", "3",
+              "--seed", "1", "-o", str(tmp_path / "x")])
+
+
+def test_cli_rejects_linear_chromosomes_without_ordered(tmp_path):
+    tree = _species_tree_file(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["genomes", "--tree", tree, "--linear-chromosomes",
+              "--seed", "1", "-o", str(tmp_path / "x")])
+
+
+def test_cli_rejects_non_positive_n_chromosomes(tmp_path):
+    tree = _species_tree_file(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["genomes", "--tree", tree, "--genome-model", "ordered", "--n-chromosomes", "0",
+              "--seed", "1", "-o", str(tmp_path / "x")])

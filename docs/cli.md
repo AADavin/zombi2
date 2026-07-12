@@ -263,6 +263,8 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [ordered/nucleotide] inversion / transposition (a segment moved elsewhere in the genome) rates — per gene copy for `ordered`, per nucleotide for `nucleotide` |
+| `--n-chromosomes N` | [ordered] number of chromosomes (default 1). The root's initial families are spread across them; every rearrangement stays within a chromosome (no translocation/fission/fusion), while a transfer may land on any chromosome. Which chromosome each gene ends on is read via the Python API (`leaf.chromosomes`), not the output files |
+| `--linear-chromosomes` | [ordered] chromosomes are linear — segments never wrap the origin (default: circular, as for bacteria) |
 | `--initial-chromosomes` | [nucleotide] number of root chromosomes seeded at the root (default: 1) |
 | `--root-length` `--mean-length` | [ordered/nucleotide] root chromosome length (nt) / mean inversion–transposition segment length (geometric; genes for ordered, nt for nucleotide) |
 | `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies the chromosome length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. `--gff-seqid ID` picks a sequence in a multi-record file |
