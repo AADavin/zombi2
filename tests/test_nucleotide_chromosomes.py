@@ -120,6 +120,49 @@ def test_fission_keeps_genes_whole():
 
 
 # --------------------------------------------------------------------------- #
+# Initial karyotype: seeding N root chromosomes
+# --------------------------------------------------------------------------- #
+def test_initial_chromosomes_seeds_independent_copies():
+    g = NucleotideGenome(IdManager(), root_length=100, extension=0.9, initial_chromosomes=3)
+    g.originate(np.random.default_rng(0), TargetParams())  # one seed call lays down all three
+    assert len(g.chromosomes) == 3
+    assert all(len(c) == 1 and c.circular for c in g.chromosomes.values())
+    assert g.size() == 300                       # three independent root-length copies
+    assert sorted(g.families()) == ["1", "2", "3"]  # each under its own source namespace
+
+
+def test_initial_chromosomes_genic_copies_share_layout_under_own_source():
+    reg = SegmentRegistry(pending_genes=[(20, 40, "geneA"), (60, 75, "geneB")])
+    g = NucleotideGenome(IdManager(), root_length=100, extension=0.9,
+                         registry=reg, initial_chromosomes=3)
+    g.originate(np.random.default_rng(0), TargetParams())
+    assert len(g.chromosomes) == 3
+    for chrom in g.chromosomes.values():
+        layout = [(s.src_start, s.src_end, s.gene_id) for s in chrom.elements]
+        assert layout == [(0, 20, None), (20, 40, "geneA"), (40, 60, None),
+                          (60, 75, "geneB"), (75, 100, None)]
+        assert len({s.source for s in chrom.elements}) == 1  # one source per chromosome
+    assert len(g.families()) == 3                            # three distinct sources
+
+
+def test_single_seed_call_regardless_of_count():
+    # seeding is idempotent after the first origination: a second call adds a novel gene, not a copy
+    g = NucleotideGenome(IdManager(), root_length=100, extension=0.9, initial_chromosomes=2)
+    g.originate(np.random.default_rng(0), TargetParams())
+    assert len(g.chromosomes) == 2 and g.size() == 200
+    g.originate(np.random.default_rng(1), TargetParams())  # novel gene now, no new chromosome
+    assert len(g.chromosomes) == 2 and g.size() > 200
+
+
+def test_initial_chromosomes_reconstruct_end_to_end():
+    res = simulate_nucleotide_genomes(
+        _tree(seed=9), initial_chromosomes=3, inversion=0.02, duplication=0.005, loss=0.005,
+        transposition=0.01, root_length=200, extension=0.9, seed=9)
+    assert all(len(g.chromosomes) == 3 for g in res.leaf_genomes.values())  # no fission -> stays 3
+    assert len(res.block_gene_trees()) == len(res.blocks)
+
+
+# --------------------------------------------------------------------------- #
 # Integration: driven through the forward simulator
 # --------------------------------------------------------------------------- #
 def test_zero_tier_rates_stay_single_chromosome():

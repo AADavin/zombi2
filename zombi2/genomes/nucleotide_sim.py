@@ -540,7 +540,10 @@ def simulate_nucleotide_genomes(
     ``origination`` is a **per-branch** rate that inserts a novel gene under a fresh source.
     ``extension`` sets the geometric event-length model (mean ``1/(1-extension)``
     nucleotides). ``initial_chromosomes`` is the number of root chromosomes seeded at the
-    root of the tree (default 1); each is an independent copy of the root chromosome.
+    root of the tree (default 1); each is an independent full-length copy of the root chromosome
+    under its own source namespace (in genic mode all copies share the same gene layout), so an
+    ``N``-chromosome genome starts at ``N * root_length`` bp. Multi-chromosome genomes also arise
+    dynamically through the chromosome-tier events below.
     ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
     additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
     carrying the extant leaf genomes, the event log, the segment registry, and the block
@@ -639,10 +642,13 @@ def simulate_nucleotide_genomes(
     def factory(ids):
         return NucleotideGenome(ids, root_length=root_length, extension=extension,
                                 registry=registry, pseudogenization=pseudogenization,
-                                replacement=replacement, indel_mean_length=indel_mean_length)
+                                replacement=replacement, indel_mean_length=indel_mean_length,
+                                initial_chromosomes=initial_chromosomes)
 
+    # One seed origination lays down all `initial_chromosomes` root chromosomes (the genome owns
+    # the count); the walk then evolves them and fires any further per-branch originations.
     result = GenomeSimulator(sampler).simulate(
-        species_tree, rates, rng, initial_size=initial_chromosomes, transfers=transfers,
+        species_tree, rates, rng, initial_size=1, transfers=transfers,
         genome_factory=factory, retain_internal=retain_internal,
     )
     # For ancestral reconstruction, blocks must tile every node's segments (not just the leaves'):
