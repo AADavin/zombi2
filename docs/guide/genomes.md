@@ -747,6 +747,22 @@ leaf.chromosomes                        # dict[chrom_id, Chromosome] — each ha
 result.event_log.chromosome_records     # the fission / fusion / origination / loss genealogy
 ```
 
+**Starting from a real multi-replicon genome.** `initial_chromosomes` seeds *identical* copies; to
+seed **heterogeneous** chromosomes — a real bacterium's chromosome plus its plasmids, each its own
+length and genes — pass `root_chromosomes`, a list of `(length, gene_intervals)`. A multi-sequence
+GFF gives you exactly this via `read_gff_all` (one `GffGenome` per sequence, main chromosome first):
+
+```python
+from zombi2 import read_gff_all
+replicons = read_gff_all("genome.gff")                       # e.g. [chromosome, plasmid1, plasmid2]
+result = simulate_nucleotide_genomes(
+    tree, root_chromosomes=[(g.length, g.genes) for g in replicons],
+    inversion=1e-3, loss=1e-4, seed=1)
+```
+
+From the CLI, `--gff genome.gff` does this automatically: **every** sequence becomes a chromosome
+(use `--gff-seqid ID` to select a single one instead).
+
 !!! note "Karyotype output"
     A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`Chromosomes.tsv`**
     — the per-leaf layout (`species · chromosome · position · source · start · end · strand`), i.e.
