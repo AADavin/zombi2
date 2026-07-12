@@ -95,7 +95,7 @@ class NucleotideResult:
     def leaf_mosaic(self, leaf: TreeNode) -> list[tuple[int, int]]:
         """The leaf genome as an ordered, signed sequence of blocks: ``[(block_id, strand)]``."""
         out: list[tuple[int, int]] = []
-        for seg in self.leaf_genomes[leaf]._segments:
+        for seg in self.leaf_genomes[leaf]._iter_segments():
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
                 covered = reversed(covered)
@@ -115,7 +115,7 @@ class NucleotideResult:
         row = {a.block_id: i for i, a in enumerate(self.blocks)}
         matrix = np.zeros((len(self.blocks), len(leaves)), dtype=int)
         for j, leaf in enumerate(leaves):
-            for seg in self.leaf_genomes[leaf]._segments:
+            for seg in self.leaf_genomes[leaf]._iter_segments():
                 for a in self._covered(seg.source, seg.src_start, seg.src_end):
                     matrix[row[a.block_id], j] += 1
         return block_ids, [n.name for n in leaves], matrix
@@ -202,7 +202,7 @@ class NucleotideResult:
 
         for leaf, genome in self.leaf_genomes.items():
             name = leaf.name
-            for seg in genome._segments:
+            for seg in genome._iter_segments():
                 blocks = self._covered(seg.source, seg.src_start, seg.src_end)
                 if not blocks:
                     continue
@@ -322,7 +322,7 @@ class NucleotideResult:
         gene/intergene tiling. Requires ``retain_internal`` (see :func:`simulate_nucleotide_genomes`).
         """
         out: list[tuple[int, int]] = []
-        for seg in self.node_genomes[node]._segments:
+        for seg in self.node_genomes[node]._iter_segments():
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
                 covered = list(reversed(covered))
@@ -332,8 +332,9 @@ class NucleotideResult:
     def _seed_source(self) -> str:
         """Source id of the seed (input) chromosome — the blocks that map to the real genome/FASTA."""
         g = self.node_genomes.get(self.species_tree.root)
-        if g is not None and g._segments:
-            return g._segments[0].source
+        first = next(iter(g._iter_segments()), None) if g is not None else None
+        if first is not None:
+            return first.source
         by: dict = {}
         for a in self.blocks:
             by[a.source] = by.get(a.source, 0) + 1
@@ -394,7 +395,7 @@ class NucleotideResult:
             raise RuntimeError("call simulate_sequences(...) before node_sequence(...)")
         top_cache: dict = {}
         parts: list[str] = []
-        for seg in self.node_genomes[node]._segments:
+        for seg in self.node_genomes[node]._iter_segments():
             rep = self._top(seg.seg_id, top_cache)
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
@@ -454,7 +455,7 @@ def _build_blocks(leaf_genomes: dict, root_length: int, registry=None) -> list[B
     bounds: dict[str, set[int]] = {}
     spans: dict[str, list[tuple[int, int]]] = {}
     for genome in leaf_genomes.values():
-        for seg in genome._segments:
+        for seg in genome._iter_segments():
             bounds.setdefault(seg.source, {0}).add(seg.src_start)
             bounds[seg.source].add(seg.src_end)
             spans.setdefault(seg.source, []).append((seg.src_start, seg.src_end))
@@ -514,6 +515,10 @@ def simulate_nucleotide_genomes(
     origination: float = 0.0,
     insertion: float = 0.0,
     deletion: float = 0.0,
+    fission: float = 0.0,
+    fusion: float = 0.0,
+    chromosome_origination: float = 0.0,
+    chromosome_loss: float = 0.0,
     indel_mean_length: float = 10.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
@@ -563,6 +568,17 @@ def simulate_nucleotide_genomes(
     See :meth:`NucleotideResult.gene_trees` /
     :meth:`~NucleotideResult.intergene_trees` / :meth:`~NucleotideResult.pseudogenizations`.
 
+    Chromosome-tier events (all **per-branch** rates, default 0 → a single chromosome end to
+    end, byte-identical to the pre-tier engine): ``fission`` splits a chromosome into two by
+    excising the arc between two breakpoints into a new circular replicon (breakpoints snap to
+    segment boundaries, so genes stay whole and segment ids are preserved); ``fusion`` merges two
+    chromosomes into one; ``chromosome_origination`` spawns a new empty circular replicon (a
+    de-novo plasmid); ``chromosome_loss`` deletes a whole chromosome and every gene on it. These
+    move genes between chromosomes without touching their identity, so per-block gene trees are
+    unaffected — only chromosome loss ends lineages. The karyotype history is recorded in
+    ``result.event_log.chromosome_records`` (one :class:`ChromosomeEvent` per fission / fusion /
+    origination / loss). Requires ``output="genomes"`` (the Rust profiles path is single-chromosome).
+
     Duplication and additive transfer grow the genome with no cap, so keep them at or below
     ``loss`` over long ages to avoid runaway growth.
 
@@ -591,6 +607,10 @@ def simulate_nucleotide_genomes(
         if insertion or deletion:
             raise ValueError("intergenic indels (insertion/deletion) require output='genomes' "
                              "(the Python engine); the Rust profiles path does not model them")
+        if fission or fusion or chromosome_origination or chromosome_loss:
+            raise ValueError("chromosome-tier events (fission/fusion/chromosome_origination/"
+                             "chromosome_loss) require output='genomes' (the Python engine); the "
+                             "Rust profiles path is single-chromosome")
         if sampler is not None:
             raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
         if extension is None:
@@ -611,7 +631,9 @@ def simulate_nucleotide_genomes(
     rates = SharedRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
                          insertion=insertion, deletion=deletion,
-                         origination=origination)
+                         origination=origination, fission=fission, fusion=fusion,
+                         chromosome_origination=chromosome_origination,
+                         chromosome_loss=chromosome_loss)
     registry = SegmentRegistry(pending_genes=pending_genes)
 
     def factory(ids):
