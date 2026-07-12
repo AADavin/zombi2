@@ -505,7 +505,9 @@ operons, rearrangements) use **`OrderedGenome`**, the basic ZOMBI1 model: a circ
 chromosome of genes, each carrying a strand orientation, with no intergenic regions. Genes sit on
 an ordered, circular chromosome, and the chromosome evolves not just by gaining and losing genes but
 by *shuffling* them — inversions and transpositions rearrange contiguous segments so that gene
-**order** itself carries phylogenetic signal. Selecting the level is `--genome-model ordered`.
+**order** itself carries phylogenetic signal. Selecting the level is `--genome-model ordered`. A
+genome may hold a single chromosome (the default) or [several](#multiple-chromosomes), circular or
+linear.
 
 | Model | Substrate | Rearrangements | Reach for it when |
 | --- | --- | --- | --- |
@@ -535,6 +537,51 @@ Inversions and transpositions change gene order/orientation but **not** gene con
 they leave the profile matrix and the gene trees unchanged — they show up in the event log
 and in the final chromosome order. Rearrangement rates are per gene copy; segment length is set by
 `--mean-length` (in genes). Rearrangements require the `shared` rate model.
+
+### Multiple chromosomes
+
+An ordered genome can carry **several chromosomes** instead of one. Set `n_chromosomes` (Python) or
+`--n-chromosomes N` (CLI); the root's initial families are spread across the chromosomes, and
+`circular` (drop it with `--linear-chromosomes`) chooses whether chromosomes wrap at the origin
+(circular — the bacterial default) or have ends (linear — as for eukaryotes). A single circular
+chromosome (`n_chromosomes=1`) is the default and is byte-identical to the earlier
+single-chromosome engine.
+
+This is **Stage 1**: every event stays *within* one chromosome — there is no translocation, fission
+or fusion.
+
+| Event | Which chromosome | Can it change a gene's chromosome? |
+|---|---|---|
+| Duplication / inversion / loss | the segment's own chromosome (picked in proportion to gene count) | no |
+| **Transposition** | re-inserts on the **same** chromosome | no |
+| **Transfer** | recipient chromosome chosen **uniformly** (any chromosome, regardless of size), then a position within it | **yes** — a transferred copy may land on a different chromosome |
+| Origination | a uniformly-chosen chromosome | n/a (new family) |
+
+So under Stage 1 the only way a family reaches a new chromosome is **transfer** (or a fresh
+origination). Linear chromosomes never let a segment cross the ends; circular ones may wrap the
+origin (the ring is rotated to bring a wrapped segment together).
+
+```python
+from zombi2.genomes import SharedRates, OrderedGenome, simulate_genomes
+
+rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
+                    inversion=0.3, transposition=0.3)
+genomes = simulate_genomes(
+    tree, rates, initial_families=30, seed=1,
+    # eight linear chromosomes (e.g. a small eukaryote)
+    genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8, circular=False),
+)
+leaf = next(iter(genomes.leaf_genomes.values()))
+leaf.chromosomes    # list[list[OrderedGene]] — the genes on each chromosome, in order
+leaf.chromosome     # flattened view across all chromosomes (backward-compatible)
+```
+
+!!! note "Chromosome membership is API-only (for now)"
+    Which chromosome a gene sits on is available on the in-memory `leaf.chromosomes`, but it is
+    **not written to any output file** — `Profiles.tsv` and `Events_trace.tsv` are
+    chromosome-agnostic (copy number and events, not karyotype). Recovering which family ended up on
+    which chromosome therefore needs the Python API. Serialising the karyotype to the output folder
+    is planned follow-up work.
 
 ### How events reach the genome
 
@@ -589,7 +636,9 @@ The ordered level writes the usual gene-family output — `Profiles.tsv` / `Pres
 and presence matrices over extant leaves), `species_nodes.tsv`, and per-family reconstructed gene
 trees under `gene_trees/` when `trees` is requested; inversions and transpositions appear in the event
 log and the final chromosome order, not in the profiles. `species_tree.nwk` is always written and
-`genomes.log` is the run manifest.
+`genomes.log` is the run manifest. With [multiple chromosomes](#multiple-chromosomes) the karyotype
+(which chromosome each gene sits on) lives on `leaf.chromosomes` in the Python API and is not part of
+the written output.
 
 ### Validation
 

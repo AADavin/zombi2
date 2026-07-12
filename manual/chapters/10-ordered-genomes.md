@@ -99,6 +99,46 @@ Because rearrangements preserve gene content, they leave the profile matrix and 
 unchanged. They appear only in the event log and in the final chromosome order.
 :::
 
+## Multiple chromosomes
+
+So far the ordered genome has been a *single* chromosome. It can also be a **karyotype** of several
+chromosomes. In the Python API you pass `n_chromosomes`, and `circular` decides whether the
+chromosomes wrap at the origin (circular, as for a typical bacterium) or have two ends (linear, as
+for eukaryotic chromosomes):
+
+```python
+genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8, circular=False)
+```
+
+On the command line the same two knobs are `--n-chromosomes` and `--linear-chromosomes`:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model ordered \
+    --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
+    --inversion 0.3 --transposition 0.2 --mean-length 2 \
+    --n-chromosomes 8 --linear-chromosomes \
+    --initial-families 40 --seed 1 -o out/
+```
+
+The root's initial families are distributed across the chromosomes, and each chromosome then evolves
+under the events above. This is a deliberately conservative first stage: **every event acts within a
+single chromosome** — there is no translocation, chromosome fission or fusion. A transposition, in
+particular, always re-inserts its segment on the *same* chromosome it was cut from.
+
+The one event that can move a gene between chromosomes is **transfer**. When a transferred segment
+arrives in a recipient genome its landing chromosome is chosen uniformly at random — every chromosome
+is equally likely, regardless of how many genes it already carries — and then a position within that
+chromosome. So transfer (and fresh origination) is what mixes families across the karyotype over
+time, while duplication, loss and rearrangement keep each family on the chromosome it already sits
+on. A single circular chromosome (`n_chromosomes=1`, the default) reproduces the single-chromosome
+model exactly, event for event.
+
+::: note
+The karyotype is part of the *state*, not the *output*: which chromosome a gene sits on is available
+on `leaf.chromosomes` (a list of per-chromosome gene lists) in the Python API, but it is not written
+to `Profiles.tsv` or the event trace, which stay chromosome-agnostic.
+:::
+
 ## How events reach the genome
 
 Inversion and transposition rates are emitted by `SharedRates` as candidate events, but a genome
