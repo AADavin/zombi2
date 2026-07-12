@@ -173,10 +173,11 @@ class NucleotideGenome(Genome):
         self._registry: SegmentRegistry = registry if registry is not None else SegmentRegistry()
         # The shared Chromosome container (bp coordinates): one circular chromosome for now, whose
         # ``elements`` are this genome's Segments. ``_segments`` is a view over it, so the engine is
-        # unchanged. The chrom_id is a separate id space, so minting it never perturbs a segment id.
-        self._cid = ids.new_chromosome()
+        # unchanged. The single (main) chromosome takes the canonical id 0 — matching the historical
+        # nucleotide ``Region(chromosome=0)`` convention; any additional chromosomes (fission /
+        # fusion / plasmids, a later stage) mint distinct ids from :meth:`IdManager.new_chromosome`.
+        self._cid = 0
         self.chromosomes: dict[int, Chromosome] = {self._cid: Chromosome(self._cid, True)}
-        self._length = 0  # total nucleotide length; O(1), maintained on every event
         # genic-model parameters (0 in the plain nucleotide model); inherited by clones
         self.pseudogenization = pseudogenization  # P(a loss on genes demotes instead of deletes)
         self.replacement = replacement            # P(a transfer is a homologous replacement)
@@ -194,6 +195,12 @@ class NucleotideGenome(Genome):
     @_segments.setter
     def _segments(self, value: list) -> None:
         self.chromosomes[self._cid].elements = value
+
+    @property
+    def _length(self) -> int:
+        """Total nucleotide length across all chromosomes (computed from the segments, not
+        maintained). Per-chromosome length is :meth:`_chrom_length`."""
+        return self.size()
 
     # --- minting ------------------------------------------------------------
     def _new_segment(self, source: str, a: int, b: int, strand: int,
@@ -264,36 +271,34 @@ class NucleotideGenome(Genome):
         whole gene), with the gene tree rooted at this origination time.
         """
         source = self.ids.new_family()
-        if not self._segments:                      # seed: the root chromosome
+        chrom = self.chromosomes[self._cid]
+        if not chrom.elements:                      # seed: the root chromosome
             pending = self._registry.consume_pending_genes(source)
             if pending:
-                ops = self._seed_with_genes(source, pending)
-                self._length += self.root_length
-                return ops
+                return self._seed_with_genes(source, pending, chrom)
             seg = self._new_segment(source, 0, self.root_length, 1)
-            self._segments.append(seg)
-            self._length += seg.length
+            chrom.elements.append(seg)
             return [GeneOp(seg.seg_id, source, "origin")]
 
         # novel gene inserted somewhere
-        length = self._draw_length(rng, params)
+        length = self._draw_length(rng, params, chrom)
+        L = self._chrom_length(chrom)
         if self._registry.has_genes():              # a novel gene is one whole, indivisible gene
             self._registry.register_gene(GeneInterval(source, source, 0, length))
             seg = self._new_segment(source, 0, length, 1, gene_id=source, is_gene=True)
-            at = self._snap(int(rng.integers(self._length + 1)))
+            at = self._snap(int(rng.integers(L + 1)), chrom=chrom)
         else:
             seg = self._new_segment(source, 0, length, 1)
-            at = int(rng.integers(self._length + 1))
-        if at >= self._length:
-            self._segments.append(seg)
+            at = int(rng.integers(L + 1))
+        if at >= L:
+            chrom.elements.append(seg)
         else:
-            self._split_at(at)
-            self._segments.insert(self._index_at(at), seg)
-        self._length += seg.length
+            self._split_at(at, chrom)
+            chrom.elements.insert(self._index_at(at, chrom), seg)
         return [GeneOp(seg.seg_id, source, "origin")]
 
-    def _seed_with_genes(self, source: str, pending: list[GeneInterval]) -> list[GeneOp]:
-        """Tile the root chromosome into intergene / gene segments (genes get their own block).
+    def _seed_with_genes(self, source: str, pending: list[GeneInterval], chrom) -> list[GeneOp]:
+        """Tile ``chrom`` into intergene / gene segments (genes get their own block).
 
         One ORIGINATION row per seed segment, so each becomes the root of the blocks it covers.
         """
@@ -302,15 +307,15 @@ class NucleotideGenome(Genome):
         for gi in pending:                          # sorted, non-overlapping
             if gi.start > cursor:
                 ig = self._new_segment(source, cursor, gi.start, 1)
-                self._segments.append(ig)
+                chrom.elements.append(ig)
                 ops.append(GeneOp(ig.seg_id, source, "origin"))
             g = self._new_segment(source, gi.start, gi.end, 1, gene_id=gi.gene_id, is_gene=True)
-            self._segments.append(g)
+            chrom.elements.append(g)
             ops.append(GeneOp(g.seg_id, source, "origin"))
             cursor = gi.end
         if cursor < self.root_length:
             ig = self._new_segment(source, cursor, self.root_length, 1)
-            self._segments.append(ig)
+            chrom.elements.append(ig)
             ops.append(GeneOp(ig.seg_id, source, "origin"))
         return ops
 
@@ -393,8 +398,8 @@ class NucleotideGenome(Genome):
         raise ValueError(f"no segment boundary at physical {phys}")
 
     # --- inversion ----------------------------------------------------------
-    def _apply_inversion(self, s: int, ell: int) -> list[Segment]:
-        """Invert the circular arc ``[s, s+ell)`` and return the reversed segments.
+    def _apply_inversion(self, s: int, ell: int, chrom: Chromosome | None = None) -> list[Segment]:
+        """Invert the circular arc ``[s, s+ell)`` on ``chrom`` and return the reversed segments.
 
         A non-wrapping arc is reversed in place with the physical origin fixed. A
         **wrapping** arc has no origin-fixed representation without inventing a spurious
@@ -403,66 +408,69 @@ class NucleotideGenome(Genome):
         genome has no privileged origin, blocks live in origin-independent *source*
         coordinates, and the invariants are rotation-invariant.
         """
-        L = self._length
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
+        L = self._chrom_length(chrom)
         if L == 0:
             return []
         ell = max(1, min(ell, L))
         s %= L
         e = (s + ell) % L
-        self._split_at(s)
-        self._split_at(e)  # no-op when e == 0 (arc ends at the wrap) or e == s (whole genome)
+        self._split_at(s, chrom)
+        self._split_at(e, chrom)  # no-op when e == 0 (arc ends at the wrap) or e == s (whole genome)
 
         if s + ell <= L:  # --- non-wrapping: origin fixed ---
-            i_s = self._index_at(s)
-            i_e = self._index_at(s + ell) if s + ell < L else len(self._segments)
+            i_s = self._index_at(s, chrom)
+            i_e = self._index_at(s + ell, chrom) if s + ell < L else len(els)
         else:             # --- wrapping: rotate the arc to the front, origin drifts ---
-            i_s = self._index_at(s)
-            self._segments = self._segments[i_s:] + self._segments[:i_s]
+            i_s = self._index_at(s, chrom)
+            els[:] = els[i_s:] + els[:i_s]
             i_s, i_e, acc = 0, 0, 0
             while acc < ell:
-                acc += self._segments[i_e].length
+                acc += els[i_e].length
                 i_e += 1
 
-        arc = self._segments[i_s:i_e]
+        arc = els[i_s:i_e]
         arc.reverse()                     # segment order flips...
         for seg in arc:
             seg.strand = -seg.strand       # ...and each segment's strand flips
-        self._segments[i_s:i_e] = arc
+        els[i_s:i_e] = arc
         return arc
 
     # --- deletion -----------------------------------------------------------
-    def _apply_loss(self, s: int, ell: int) -> list[Segment]:
-        """Delete the circular arc ``[s, s+ell)`` and return the removed segments.
+    def _apply_loss(self, s: int, ell: int, chrom: Chromosome | None = None) -> list[Segment]:
+        """Delete the circular arc ``[s, s+ell)`` on ``chrom`` and return the removed segments.
 
         Boundaries at ``s`` and the arc end are split first, so the arc is a whole
         number of segments; the survivors keep their circular order (the physical origin
         follows the surviving material when the deletion swallows position 0).
         """
-        L = self._length
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
+        L = self._chrom_length(chrom)
         if L == 0:
             return []
         ell = min(ell, L)
         s %= L
-        if ell == L:                       # deletes the whole genome
-            removed = self._segments
-            self._segments, self._length = [], 0
+        if ell == L:                       # deletes the whole chromosome's content
+            removed = els[:]
+            els[:] = []
             return removed
         e = (s + ell) % L
-        self._split_at(s)
-        self._split_at(e)
+        self._split_at(s, chrom)
+        self._split_at(e, chrom)
 
         wrapping = s + ell > L
         removed, kept, pos = [], [], 0
-        for seg in self._segments:
+        for seg in els:
             start = pos
             pos += seg.length
             in_arc = (start >= s or pos <= e) if wrapping else (start >= s and pos <= s + ell)
             (removed if in_arc else kept).append(seg)
-        self._segments = kept
-        self._length -= ell
+        els[:] = kept
         return removed
 
-    def _apply_loss_or_pseudogenize(self, s: int, ell: int, rng):
+    def _apply_loss_or_pseudogenize(self, s: int, ell: int, rng, chrom: Chromosome | None = None):
         """Resolve a LOSS: either delete the arc, or *pseudogenize* the genes it contains.
 
         Returns ``("loss", removed_segments)`` or ``("pseudo", [(old, cont), ...])``. With
@@ -472,9 +480,12 @@ class NucleotideGenome(Genome):
         a logged ``parent -> continuation`` edge on the gene lineage (a state change), not a
         split. Otherwise the arc is deleted as usual.
         """
-        if (self.pseudogenization > 0.0 and self._registry.has_genes() and self._length > 0):
-            i_s, i_e = self._arc_range(s, ell)   # splits the (snapped, legal) ends
-            arc = self._segments[i_s:i_e]
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
+        if (self.pseudogenization > 0.0 and self._registry.has_genes()
+                and self._chrom_length(chrom) > 0):
+            i_s, i_e = self._arc_range(s, ell, chrom)   # splits the (snapped, legal) ends
+            arc = els[i_s:i_e]
             if (any(sg.gene_id is not None and sg.is_gene for sg in arc)
                     and rng.random() < self.pseudogenization):
                 demoted, new_arc = [], []
@@ -486,54 +497,58 @@ class NucleotideGenome(Genome):
                         new_arc.append(cont)
                     else:
                         new_arc.append(sg)
-                self._segments[i_s:i_e] = new_arc      # length unchanged (sequence retained)
+                els[i_s:i_e] = new_arc      # length unchanged (sequence retained)
                 return "pseudo", demoted
             # coin said delete (or no functional gene): remove the already-split arc
-            removed = self._segments[i_s:i_e]
-            del self._segments[i_s:i_e]
-            self._length -= sum(sg.length for sg in removed)
+            removed = els[i_s:i_e]
+            del els[i_s:i_e]
             return "loss", removed
-        return "loss", self._apply_loss(s, ell)
+        return "loss", self._apply_loss(s, ell, chrom)
 
     # --- duplication --------------------------------------------------------
-    def _arc_range(self, s: int, ell: int) -> tuple[int, int]:
-        """Split the ends of arc ``[s, s+ell)`` and return its ``[i_s, i_e)`` segment range.
+    def _arc_range(self, s: int, ell: int, chrom: Chromosome | None = None) -> tuple[int, int]:
+        """Split the ends of arc ``[s, s+ell)`` on ``chrom``, return its ``[i_s, i_e)`` segment range.
 
-        A wrapping arc is rotated to the front first (the origin drifts to a real
-        breakpoint), so the arc is always a contiguous slice ``self._segments[i_s:i_e]``.
+        A wrapping arc is rotated to the front first (the origin drifts to a real breakpoint), so
+        the arc is always a contiguous slice ``chrom.elements[i_s:i_e]``.
         """
-        L = self._length
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
+        L = self._chrom_length(chrom)
         ell = max(1, min(ell, L))
         s %= L
         e = (s + ell) % L
-        self._split_at(s)
-        self._split_at(e)
+        self._split_at(s, chrom)
+        self._split_at(e, chrom)
         if s + ell <= L:
-            i_s = self._index_at(s)
-            i_e = self._index_at(s + ell) if s + ell < L else len(self._segments)
+            i_s = self._index_at(s, chrom)
+            i_e = self._index_at(s + ell, chrom) if s + ell < L else len(els)
             return i_s, i_e
-        i_s = self._index_at(s)
-        self._segments = self._segments[i_s:] + self._segments[:i_s]
+        i_s = self._index_at(s, chrom)
+        els[:] = els[i_s:] + els[:i_s]
         i_e, acc = 0, 0
         while acc < ell:
-            acc += self._segments[i_e].length
+            acc += els[i_e].length
             i_e += 1
         return 0, i_e
 
-    def _apply_duplication(self, s: int, ell: int) -> list[list[GeneOp]]:
+    def _apply_duplication(self, s: int, ell: int,
+                           chrom: Chromosome | None = None) -> list[list[GeneOp]]:
         """Duplicate the arc ``[s, s+ell)`` in tandem; return one op-group per segment.
 
         Each arc segment forks into a re-minted *continuation* (in place) and a *copy*
         (the paralog, inserted immediately after the arc). Both carry the segment's source
         interval, so the two are paralogs that coalesce at this duplication.
         """
-        L = self._length
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
+        L = self._chrom_length(chrom)
         if L == 0:
             return []
         ell = max(1, min(ell, L))
         s %= L
-        i_s, i_e = self._arc_range(s, ell)
-        arc = self._segments[i_s:i_e]
+        i_s, i_e = self._arc_range(s, ell, chrom)
+        arc = els[i_s:i_e]
         groups, conts, copies = [], [], []
         for a in arc:
             cont = self._new_segment(a.source, a.src_start, a.src_end, a.strand, a.gene_id, a.is_gene)
@@ -543,40 +558,42 @@ class NucleotideGenome(Genome):
             groups.append([GeneOp(a.seg_id, a.source, "parent"),
                            GeneOp(cont.seg_id, a.source, "left"),
                            GeneOp(copy.seg_id, a.source, "right")])
-        self._segments[i_s:i_e] = conts          # continuations replace the originals...
-        self._segments[i_e:i_e] = copies          # ...and the copy block lands in tandem
-        self._length += ell
+        els[i_s:i_e] = conts          # continuations replace the originals...
+        els[i_e:i_e] = copies          # ...and the copy block lands in tandem
         return groups
 
     # --- transposition (cut a segment, paste it elsewhere) -----------------
-    def _apply_transposition(self, s: int, ell: int, dest: int) -> list[Segment]:
-        """Cut the arc ``[s, s+ell)`` and splice it back in at physical ``dest``.
+    def _apply_transposition(self, s: int, ell: int, dest: int,
+                             chrom: Chromosome | None = None) -> list[Segment]:
+        """Cut the arc ``[s, s+ell)`` on ``chrom`` and splice it back in at physical ``dest``.
 
         Content- and length-preserving and genealogically neutral (segments keep their
         ids), so it only permutes the mosaic — like inversion, no lineage re-mint.
         """
-        L = self._length
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
+        L = self._chrom_length(chrom)
         if L <= 1:
             return []
         ell = max(1, min(ell, L - 1))
-        i_s, i_e = self._arc_range(s, ell)
-        arc = self._segments[i_s:i_e]
-        del self._segments[i_s:i_e]
+        i_s, i_e = self._arc_range(s, ell, chrom)
+        arc = els[i_s:i_e]
+        del els[i_s:i_e]
         rem = L - ell
         dest %= rem + 1
         if self._registry.has_genes() and dest < rem:  # never paste into a gene interior
-            dest = self._snap(dest)                     # (may snap up to the wrap boundary == rem)
+            dest = self._snap(dest, chrom=chrom)        # (may snap up to the wrap boundary == rem)
         if dest >= rem:
-            self._segments.extend(arc)
+            els.extend(arc)
         else:
-            self._split_at(dest)
-            idx = self._index_at(dest)
-            self._segments[idx:idx] = arc
+            self._split_at(dest, chrom)
+            idx = self._index_at(dest, chrom)
+            els[idx:idx] = arc
         return arc
 
-    def _draw_length(self, rng, params) -> int:
+    def _draw_length(self, rng, params, chrom: Chromosome | None = None) -> int:
         ext = params.extension if params.extension is not None else self.extension
-        n = self._length
+        n = self._chrom_length(chrom if chrom is not None else self.chromosomes[self._cid])
         if ext is None or n <= 1:
             return 1
         if ext >= 1.0:
@@ -596,8 +613,9 @@ class NucleotideGenome(Genome):
             return 1
         return max(1, int(rng.geometric(1.0 / m)))
 
-    def _intergene_run_at(self, phys: int) -> tuple[int, int] | None:
-        """Physical bounds ``[lo, hi)`` of the maximal intergene run covering position ``phys``.
+    def _intergene_run_at(self, phys: int,
+                          chrom: Chromosome | None = None) -> tuple[int, int] | None:
+        """Physical bounds ``[lo, hi)`` of the maximal intergene run covering ``phys`` on ``chrom``.
 
         A "run" is a contiguous stretch whose segments are all intergene (``gene_id is None``),
         bounded by genes (or the chromosome ends — runs do **not** wrap the origin, so an indel
@@ -605,7 +623,7 @@ class NucleotideGenome(Genome):
         Used to clamp an intergenic deletion so it never reaches into a neighbouring gene.
         """
         pos, run_lo, cur = 0, 0, None
-        for seg in self._segments:
+        for seg in (chrom if chrom is not None else self.chromosomes[self._cid]).elements:
             nxt = pos + seg.length
             if seg.gene_id is None:
                 if cur is None:
@@ -622,46 +640,49 @@ class NucleotideGenome(Genome):
             return (run_lo, cur)            # trailing intergene run to the chromosome end
         return None
 
-    def _apply_insertion(self, rng) -> list[GeneOp]:
-        """Insert a run of novel nucleotides (a fresh source) at an intergene position.
+    def _apply_insertion(self, rng, chrom: Chromosome | None = None) -> list[GeneOp]:
+        """Insert a run of novel nucleotides (a fresh source) at an intergene position on ``chrom``.
 
         The insertion lengthens the intergene stretch it lands in — it is its own block, with an
         independent genealogy rooted at this event (like an intergenic origination of new
         sequence). In genic mode the insertion point is snapped out of any gene interior, so a
         gene is never split; with no genes it may land anywhere. Returns the log op-group.
         """
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        els = chrom.elements
         source = self.ids.new_family()
         length = self._draw_indel_length(rng)
         seg = self._new_segment(source, 0, length, 1)   # intergene (gene_id None) novel sequence
-        at = int(rng.integers(self._length + 1))
+        L = self._chrom_length(chrom)
+        at = int(rng.integers(L + 1))
         if self._registry.has_genes():
-            at = self._snap(at)                         # never inside a gene interior
-        if at >= self._length:
-            self._segments.append(seg)
+            at = self._snap(at, chrom=chrom)            # never inside a gene interior
+        if at >= L:
+            els.append(seg)
         else:
-            self._split_at(at)
-            self._segments.insert(self._index_at(at), seg)
-        self._length += seg.length
+            self._split_at(at, chrom)
+            els.insert(self._index_at(at, chrom), seg)
         return [GeneOp(seg.seg_id, source, "origin")]
 
-    def _apply_deletion(self, rng) -> list[Segment]:
-        """Delete a run of nucleotides from *within a single intergene* stretch.
+    def _apply_deletion(self, rng, chrom: Chromosome | None = None) -> list[Segment]:
+        """Delete a run of nucleotides from *within a single intergene* stretch of ``chrom``.
 
         Picks a physical start, snaps it out of any gene, then clamps the arc to the intergene run
         containing it (so the deletion can never reach into, span, or remove a gene) and to the
         min-genome floor (:data:`MIN_GENOME_LENGTH`). Returns the removed segments (possibly empty
         — e.g. no room to delete without touching a gene / hitting the floor). Never wraps.
         """
-        L = self._length
+        chrom = chrom if chrom is not None else self.chromosomes[self._cid]
+        L = self._chrom_length(chrom)
         if L <= MIN_GENOME_LENGTH:
             return []
         s = int(rng.integers(L))
         ell = self._draw_indel_length(rng)
         if self._registry.has_genes():
-            s = self._snap(s)                           # move a gene-interior start to a boundary
-            run = self._intergene_run_at(s)
+            s = self._snap(s, chrom=chrom)              # move a gene-interior start to a boundary
+            run = self._intergene_run_at(s, chrom)
             if run is None:                             # snapped onto a gene start/boundary with
-                run = self._intergene_run_at(s - 1) if s > 0 else None  # gene to the right: look left
+                run = self._intergene_run_at(s - 1, chrom) if s > 0 else None  # gene right: look left
             if run is None:
                 return []                               # nowhere legal to delete near s
             lo, hi = run
@@ -671,7 +692,7 @@ class NucleotideGenome(Genome):
         ell = min(ell, L - MIN_GENOME_LENGTH)
         if ell <= 0:
             return []
-        return self._apply_loss(s, ell)
+        return self._apply_loss(s, ell, chrom)
 
     _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION,
                              EventType.TRANSFER, EventType.TRANSPOSITION,
@@ -680,32 +701,34 @@ class NucleotideGenome(Genome):
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if event not in self._TARGETABLE:
             raise ValueError(f"NucleotideGenome does not target {event!r}")
+        chrom = self.chromosomes[self._cid]   # single chromosome for now (6e: pick bp-length-weighted)
         if event in (EventType.INSERTION, EventType.DELETION):
             # indels self-draw their position + length inside apply() (intergene-clamped), so the
             # selection is a placeholder — no arc is chosen up front and no RNG is consumed here.
-            return Selection(genes=(), region=Region(chromosome=0, start=0, length=0))
-        L = self._length
+            return Selection(genes=(), region=Region(chromosome=chrom.chrom_id, start=0, length=0))
+        L = self._chrom_length(chrom)
         s = int(rng.integers(L))
-        ell = self._draw_length(rng, params)
+        ell = self._draw_length(rng, params, chrom)
         if self._registry.has_genes():
             if ell >= L:                       # whole genome: keep it whole, just legalise the
-                s = self._snap(s, -1)          # single split point (inversion splits at s)
+                s = self._snap(s, -1, chrom)   # single split point (inversion splits at s)
                 ell = L
             else:                              # snap start down, end up: genes stay whole; a
-                s2 = self._snap(s, -1)         # sub-gene arc is promoted to the whole gene
-                e2 = self._snap((s + ell) % L, +1)
+                s2 = self._snap(s, -1, chrom)  # sub-gene arc is promoted to the whole gene
+                e2 = self._snap((s + ell) % L, +1, chrom)
                 ell = (e2 - s2) % L or L
                 s = s2
-        return Selection(genes=(), region=Region(chromosome=0, start=s, length=ell))
+        return Selection(genes=(), region=Region(chromosome=chrom.chrom_id, start=s, length=ell))
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
         region = selection.region
+        chrom = self.chromosomes[region.chromosome]
         if event is EventType.INVERSION:
-            arc = self._apply_inversion(region.start, region.length)
+            arc = self._apply_inversion(region.start, region.length, chrom)
             return [[GeneOp(seg.seg_id, seg.source, "inverted", orientation=seg.strand)
                      for seg in arc]]
         if event is EventType.LOSS:
-            kind, payload = self._apply_loss_or_pseudogenize(region.start, region.length, rng)
+            kind, payload = self._apply_loss_or_pseudogenize(region.start, region.length, rng, chrom)
             if kind == "loss":
                 return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in payload]
             # pseudogenization: parent -> continuation (is_gene=False), one group per gene segment.
@@ -715,17 +738,18 @@ class NucleotideGenome(Genome):
                      GeneOp(cont.seg_id, cont.source, "pseudogenized")]
                     for (old, cont) in payload]
         if event is EventType.DUPLICATION:
-            return self._apply_duplication(region.start, region.length)
+            return self._apply_duplication(region.start, region.length, chrom)
         if event is EventType.TRANSPOSITION:
-            if self._length <= 1:
+            L = self._chrom_length(chrom)
+            if L <= 1:
                 return []
-            dest = int(rng.integers(self._length))
-            arc = self._apply_transposition(region.start, region.length, dest)
+            dest = int(rng.integers(L))
+            arc = self._apply_transposition(region.start, region.length, dest, chrom)
             return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
         if event is EventType.INSERTION:
-            return [self._apply_insertion(rng)]         # one op-group: the novel intergene block
+            return [self._apply_insertion(rng, chrom)]  # one op-group: the novel intergene block
         if event is EventType.DELETION:
-            removed = self._apply_deletion(rng)
+            removed = self._apply_deletion(rng, chrom)
             return [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in removed]
         raise ValueError(f"NucleotideGenome does not handle {event!r}")
 
@@ -739,8 +763,10 @@ class NucleotideGenome(Genome):
         keeps the arc's ancestral coordinates, so it is a xenolog of the same block.
         """
         region = selection.region
-        i_s, i_e = self._arc_range(region.start, region.length)
-        arc = self._segments[i_s:i_e]
+        chrom = self.chromosomes[region.chromosome]
+        els = chrom.elements
+        i_s, i_e = self._arc_range(region.start, region.length, chrom)
+        arc = els[i_s:i_e]
         old_gids, cont_gids, copies, conts, arc_sources = [], [], [], [], []
         for a in arc:
             old_gids.append(a.seg_id)
@@ -750,32 +776,36 @@ class NucleotideGenome(Genome):
             copies.append(self._new_segment(a.source, a.src_start, a.src_end, a.strand,
                                             a.gene_id, a.is_gene))
             arc_sources.append((a.source, a.src_start, a.src_end))
-        self._segments[i_s:i_e] = conts          # donor length unchanged (arc -> continuations)
+        els[i_s:i_e] = conts          # donor length unchanged (arc -> continuations)
         # genic model: decide a homologous replacement and record the flanking genes (the
         # homology anchors) so the recipient can locate its syntenic copy to replace.
         replacement = self._registry.has_genes() and rng.random() < self.replacement
-        left_flank = self._nearest_flank_gene(i_s - 1, -1) if replacement else None
-        right_flank = self._nearest_flank_gene(i_e, +1) if replacement else None
+        left_flank = self._nearest_flank_gene(i_s - 1, -1, chrom) if replacement else None
+        right_flank = self._nearest_flank_gene(i_e, +1, chrom) if replacement else None
         return TransferSegment(family=None, genes=tuple(copies),
                                donor_old_gids=old_gids, donor_cont_gids=cont_gids,
                                replacement=replacement, left_flank=left_flank,
                                right_flank=right_flank, arc_sources=tuple(arc_sources))
 
-    def _nearest_flank_gene(self, start_idx: int, step: int) -> tuple | None:
-        """``(source, gene_id, strand)`` of the nearest gene outward from ``start_idx`` (no wrap),
-        else None. The strand is part of the homology anchor: a homologous locus in the recipient
-        must carry the flank gene in the **same orientation**, so a flank that has since been
-        inverted no longer anchors the replacement (it falls back to additive insertion)."""
+    def _nearest_flank_gene(self, start_idx: int, step: int,
+                            chrom: Chromosome | None = None) -> tuple | None:
+        """``(source, gene_id, strand)`` of the nearest gene outward from ``start_idx`` on ``chrom``
+        (no wrap), else None. The strand is part of the homology anchor: a homologous locus in the
+        recipient must carry the flank gene in the **same orientation**, so a flank that has since
+        been inverted no longer anchors the replacement (it falls back to additive insertion)."""
+        els = (chrom if chrom is not None else self.chromosomes[self._cid]).elements
         i = start_idx
-        while 0 <= i < len(self._segments):
-            seg = self._segments[i]
+        while 0 <= i < len(els):
+            seg = els[i]
             if seg.gene_id is not None:
                 return (seg.source, seg.gene_id, seg.strand)
             i += step
         return None
 
-    def _find_homologous_span(self, segment) -> tuple[int, int] | None:
-        """Recipient span ``[i_s, i_e)`` lying between copies of the donor's flank genes, else None.
+    def _find_homologous_span(self, segment,
+                              chrom: Chromosome | None = None) -> tuple[int, int] | None:
+        """Recipient span ``[i_s, i_e)`` on ``chrom`` between copies of the donor's flank genes, else
+        None.
 
         "Search on the sides": locate the left-flank gene, then the next right-flank gene after
         it; the segments strictly between them are the homologous locus to replace (an empty span
@@ -786,8 +816,9 @@ class NucleotideGenome(Genome):
         lf, rf = segment.left_flank, segment.right_flank
         if lf is None or rf is None:
             return None
+        els = (chrom if chrom is not None else self.chromosomes[self._cid]).elements
         li = ri = None
-        for idx, seg in enumerate(self._segments):
+        for idx, seg in enumerate(els):
             if seg.gene_id is None:
                 continue
             if li is None and (seg.source, seg.gene_id, seg.strand) == lf:
@@ -805,17 +836,18 @@ class NucleotideGenome(Genome):
         Returns ``("homolog", (i_s, i_e))`` when a replacement transfer finds its syntenic locus,
         else an integer physical position (snapped off any gene interior). No homolog → additive.
         """
+        chrom = self.chromosomes[self._cid]   # single recipient chromosome (6e: pick one)
         if getattr(segment, "replacement", False) and self._registry.has_genes():
             # a self-transfer (recipient is the donor) still holds the arc's continuation
             # segments — homologous replacement would delete them, so fall back to additive
             cont_ids = set(segment.donor_cont_gids or ())
-            is_self = any(seg.seg_id in cont_ids for seg in self._segments)
+            is_self = any(seg.seg_id in cont_ids for seg in self._iter_segments())
             if not is_self:
-                span = self._find_homologous_span(segment)
+                span = self._find_homologous_span(segment, chrom)
                 if span is not None:
                     return ("homolog", span)
-        at = int(rng.integers(self._length + 1))  # any physical position, 0..length
-        return self._snap(at) if self._registry.has_genes() else at
+        at = int(rng.integers(self._chrom_length(chrom) + 1))  # any physical position, 0..length
+        return self._snap(at, chrom=chrom) if self._registry.has_genes() else at
 
     def insert_segment(self, segment, at, rng) -> list[GeneOp]:
         """Recipient side: splice the transferred copy block in — homologously, or additively.
@@ -825,21 +857,21 @@ class NucleotideGenome(Genome):
         the driver fall back to its own random-removal replacement). :meth:`pop_replaced_segments`
         hands the removed list to the driver, which logs them as recipient losses.
         """
+        chrom = self.chromosomes[self._cid]   # single recipient chromosome (6e: from `at`)
+        els = chrom.elements
         copies = list(segment.genes)
         if isinstance(at, tuple) and at and at[0] == "homolog":
             i_s, i_e = at[1]
-            removed = self._segments[i_s:i_e]
-            self._segments[i_s:i_e] = copies
-            self._length += sum(c.length for c in copies) - sum(r.length for r in removed)
+            removed = els[i_s:i_e]
+            els[i_s:i_e] = copies
             self._last_replaced = removed
             return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]
-        if at is None or at >= self._length:
-            idx = len(self._segments)
+        if at is None or at >= self._chrom_length(chrom):
+            idx = len(els)
         else:
-            self._split_at(at)
-            idx = self._index_at(at)
-        self._segments[idx:idx] = copies
-        self._length += sum(seg.length for seg in copies)
+            self._split_at(at, chrom)
+            idx = self._index_at(at, chrom)
+        els[idx:idx] = copies
         self._last_replaced = [] if self._registry.has_genes() else None
         return [GeneOp(seg.seg_id, seg.source, "transfer_copy") for seg in copies]
 
@@ -859,7 +891,6 @@ class NucleotideGenome(Genome):
         child = NucleotideGenome(self.ids, self.root_length, self.extension, self._registry,
                                  self.pseudogenization, self.replacement,
                                  self.indel_mean_length)
-        child._length = self._length
         mapping: list[tuple[str, str, str]] = []
         for seg in self._segments:
             ns = child._new_segment(seg.source, seg.src_start, seg.src_end, seg.strand,
