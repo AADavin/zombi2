@@ -26,7 +26,8 @@ clones produced at speciation share the one registry (and the one :class:`IdMana
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import copy
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -841,3 +842,8 @@ class NucleotideGenome(Genome):
             child._segments.append(ns)
             mapping.append((seg.seg_id, ns.seg_id, seg.source))
         return child, mapping
+
+    def snapshot(self) -> "NucleotideGenome":
+        new = copy.copy(self)          # shares ids/registry/config; copies the scalar _length
+        new._segments = [replace(s) for s in self._segments]
+        return new

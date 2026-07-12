@@ -148,9 +148,16 @@ class GenomeSimulator:
         node_genomes: dict = {}
         if retain_internal:
             node_genomes[root] = root_genome        # the seed genome == the user's input genome
-        self._speciate(root_genome, root, alive, log)
-        for child in root.children:
+        if len(root.children) == 1:
+            # a degree-two root (a sampled ancestor on the stem lineage): the genome continues
+            # into the single child unchanged, mirroring the main loop's pass-through below
+            child = root.children[0]
+            alive[child] = root_genome
             activate(child)
+        else:
+            self._speciate(root_genome, root, alive, log)
+            for child in root.children:
+                activate(child)
 
         leaf_genomes: dict[TreeNode, Genome] = {}
 
@@ -174,9 +181,13 @@ class GenomeSimulator:
                 if node.is_extant:
                     leaf_genomes[node] = genome
             elif len(node.children) == 1:
-                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and
-                # its genome — simply continues, so pass the genome straight to the child
+                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and its
+                # genome — simply continues, so pass the genome straight to the child. The ancestral
+                # snapshot must be frozen here (a same-id copy): the live genome keeps mutating along
+                # the child branch and would otherwise report that downstream state at this node.
                 child = node.children[0]
+                if retain_internal:
+                    node_genomes[node] = genome.snapshot()
                 alive[child] = genome
                 activate(child)
             else:  # speciation: re-mint lineage ids into each child and log it

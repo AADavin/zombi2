@@ -14,8 +14,9 @@ full genealogy (from-id → to-ids) that :mod:`zombi2.reconciliation` turns into
 
 from __future__ import annotations
 
+import copy
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -137,6 +138,13 @@ class Genome(ABC):
         Returns the child genome and a list of ``(old_gid, new_gid, family)`` so the
         driver can log the speciation as a lineage bifurcation.
         """
+
+    def snapshot(self) -> "Genome":
+        """A frozen, independent copy at the current state, keeping the SAME gene ids (no
+        re-minting). Records the ancestral genome at a degree-two (sampled-ancestor) node while
+        the live lineage keeps mutating. Subclasses override with an efficient same-id copy that
+        shares the IdManager; the default deep-copies."""
+        return copy.deepcopy(self)
 
 
 class UnorderedGenome(Genome):
@@ -308,6 +316,11 @@ class UnorderedGenome(Genome):
                 mapping.append((g.gid, ng.gid, family))
         return new, mapping
 
+    def snapshot(self) -> "UnorderedGenome":
+        new = copy.copy(self)                       # shares the IdManager (a snapshot never mints)
+        new._genes = {fam: [replace(g) for g in lst] for fam, lst in self._genes.items()}
+        return new
+
 
 @dataclass(slots=True)
 class OrderedGene(Gene):
@@ -469,3 +482,8 @@ class OrderedGenome(Genome):
             new.chromosome.append(ng)
             mapping.append((g.gid, ng.gid, g.family))
         return new, mapping
+
+    def snapshot(self) -> "OrderedGenome":
+        new = copy.copy(self)                       # shares the IdManager and ``extension``
+        new.chromosome = [replace(g) for g in self.chromosome]
+        return new

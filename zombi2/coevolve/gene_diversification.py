@@ -271,9 +271,6 @@ def _simulate_once(model, age, n_tips, rng, max_lineages):
         n = len(live)
         if n == 0:
             return None
-        if n_tips is not None and n == n_tips:
-            end = t
-            break
         if n > max_lineages:
             raise RuntimeError(
                 f"gene-diversification tree exceeded max_lineages={max_lineages}; a driver has "
@@ -304,6 +301,11 @@ def _simulate_once(model, age, n_tips, rng, max_lineages):
                 end = age
                 break
             return None                            # n_tips mode can never be reached
+
+        if n_tips is not None and n == n_tips:
+            # present strictly after the N-th birth: last event + Exp(total rate). See forward._grow.
+            end = t + rng.exponential(1.0 / rtot)
+            break
 
         dt = rng.exponential(1.0 / rtot)
         if age is not None and t + dt >= age:
