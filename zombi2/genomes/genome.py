@@ -336,8 +336,11 @@ class Chromosome:
     ``circular`` is a **per-chromosome** topology: a circular chromosome wraps at the origin
     (bacteria), a linear one has ends (eukaryotes). ``genes`` is the ordered ``list[OrderedGene]``.
 
-    Deliberately a thin identity + topology + content record: the structural operations still live
-    on :class:`OrderedGenome`, and a later stage will lift them onto a shared breakpoint algebra.
+    Owns the **topology-aware segment algebra** (``segment`` / ``bring_to_front`` / ``insert`` /
+    ``remove`` / ``invert_block``): the structural moves an event makes on a single chromosome, with
+    the circular-vs-linear wrapping handled here once. :class:`OrderedGenome` orchestrates these plus
+    id minting and event logging. The same algebra is what fission / fusion / translocation and the
+    nucleotide model are meant to reuse.
     """
 
     chrom_id: int
@@ -346,6 +349,51 @@ class Chromosome:
 
     def __len__(self) -> int:
         return len(self.genes)
+
+    # --- topology-aware segment algebra ------------------------------------
+    def segment(self, start: int, length: int) -> tuple[tuple[OrderedGene, ...], int]:
+        """Read the contiguous ``length``-gene segment at ``start``, as ``(genes, length)``.
+
+        A circular chromosome follows the ring, so the segment may wrap the origin; a linear one
+        clamps the segment to the chromosome end so it never crosses it (the returned length is the
+        clamped one). Read-only — the chromosome is not modified."""
+        n = len(self.genes)
+        if self.circular:
+            return tuple(self.genes[(start + i) % n] for i in range(length)), length
+        length = min(length, n - start)
+        return tuple(self.genes[start + i] for i in range(length)), length
+
+    def bring_to_front(self, start: int) -> int:
+        """Rotate the ring so the segment at ``start`` begins at index 0, returning the new start.
+
+        A circular chromosome has no privileged origin, so rotating it is a structural no-op that
+        makes a (possibly wrapped) segment contiguous for slicing, and it returns 0. A linear
+        chromosome is left untouched and ``start`` is returned unchanged."""
+        if self.circular:
+            if start:
+                self.genes = self.genes[start:] + self.genes[:start]
+            return 0
+        return start
+
+    def insert(self, pos: int, genes) -> None:
+        """Insert ``genes`` in order so the first lands at index ``pos``."""
+        self.genes[pos:pos] = list(genes)
+
+    def remove(self, gene: OrderedGene) -> bool:
+        """Remove ``gene`` by identity if present; return whether it was found."""
+        for i, g in enumerate(self.genes):
+            if g is gene:
+                del self.genes[i]
+                return True
+        return False
+
+    @staticmethod
+    def invert_block(genes: list) -> list:
+        """Invert a block of oriented genes: flip every strand (in place) and return it reversed —
+        what an inversion does to a segment, and what a reverse-complemented transposition reuses."""
+        for g in genes:
+            g.orientation = -g.orientation
+        return list(reversed(genes))
 
 
 class OrderedGenome(Genome):
@@ -472,18 +520,11 @@ class OrderedGenome(Genome):
         cids = list(self.chromosomes)
         return cids[int(rng.integers(len(cids)))]
 
-    def _rotate_to(self, cid: int, start: int) -> None:
-        if start:
-            chrom = self.chromosomes[cid]
-            chrom.genes = chrom.genes[start:] + chrom.genes[:start]
-
     def _remove_gene(self, gene: OrderedGene) -> None:
         """Remove ``gene`` (by identity) from whichever chromosome holds it."""
         for chrom in self.chromosomes.values():
-            for i, g in enumerate(chrom.genes):
-                if g is gene:
-                    del chrom.genes[i]
-                    return
+            if chrom.remove(gene):
+                return
         raise ValueError("gene not present in any chromosome")  # pragma: no cover
 
     # --- mutation ----------------------------------------------------------
@@ -499,13 +540,8 @@ class OrderedGenome(Genome):
                    for i, g in enumerate(chrom.genes) if g.family == family]
             cid, start = occ[int(rng.integers(len(occ)))]
             chrom = self.chromosomes[cid]
-        n = len(chrom.genes)
         length = self._segment_length(rng, chrom, params)
-        if chrom.circular:
-            genes = tuple(chrom.genes[(start + i) % n] for i in range(length))
-        else:  # linear: the segment never wraps the origin — clamp to the chromosome end
-            length = min(length, n - start)
-            genes = tuple(chrom.genes[start + i] for i in range(length))
+        genes, length = chrom.segment(start, length)  # topology-aware read (wrap / clamp)
         return Selection(genes=genes, region=Region(chromosome=cid, start=start, length=length))
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
@@ -520,11 +556,7 @@ class OrderedGenome(Genome):
         region = selection.region
         chrom = self.chromosomes[region.chromosome]
         length = region.length
-        if chrom.circular:  # bring the (possibly wrapped) segment to the front of the ring
-            self._rotate_to(region.chromosome, region.start)
-            start = 0
-        else:               # linear: the segment is already contiguous at region.start
-            start = region.start
+        start = chrom.bring_to_front(region.start)  # circular: rotate to front (=0); linear: unchanged
         end = start + length
         segment = chrom.genes[start:end]
 
@@ -538,29 +570,25 @@ class OrderedGenome(Genome):
                 groups.append([GeneOp(g.gid, g.family, "parent"),
                                GeneOp(cont.gid, g.family, "left"),
                                GeneOp(copy.gid, g.family, "right")])
-            chrom.genes[end:end] = copies  # tandem block right after the segment
+            chrom.insert(end, copies)  # tandem block right after the segment
             return groups
 
         if event is EventType.INVERSION:
-            for g in segment:
-                g.orientation = -g.orientation
-            chrom.genes[start:end] = list(reversed(segment))
+            chrom.genes[start:end] = Chromosome.invert_block(segment)  # reverse + flip strands
             return [[GeneOp(g.gid, g.family, "inverted") for g in segment]]
 
         if event is EventType.TRANSPOSITION:
             block = list(segment)
             del chrom.genes[start:end]
-            # With probability ``transposition_flip`` the segment reinserts reverse-complemented:
-            # gene order reversed and every strand flipped (as for an inversion). The ``and`` guards
-            # the draw so ``transposition_flip == 0`` never consumes an ``rng`` value — an
-            # orientation-preserving run stays byte-identical to a flip-free implementation (the same
-            # pattern as biased gene conversion in :meth:`UnorderedGenome._choose_donor`).
+            # With probability ``transposition_flip`` the segment reinserts reverse-complemented
+            # (gene order reversed and every strand flipped). The ``and`` guards the draw so
+            # ``transposition_flip == 0`` never consumes an ``rng`` value — an orientation-preserving
+            # run stays byte-identical to a flip-free implementation (the same pattern as biased gene
+            # conversion in :meth:`UnorderedGenome._choose_donor`).
             if self.transposition_flip and rng.random() < self.transposition_flip:
-                for g in block:
-                    g.orientation = -g.orientation
-                block = list(reversed(block))
+                block = Chromosome.invert_block(block)
             j = int(rng.integers(len(chrom.genes) + 1))  # destination within the SAME chromosome
-            chrom.genes[j:j] = block
+            chrom.insert(j, block)
             return [[GeneOp(g.gid, g.family, "transposed") for g in block]]
 
         raise ValueError(f"apply() does not handle {event!r}")
@@ -569,8 +597,7 @@ class OrderedGenome(Genome):
         family = self.ids.new_family()
         chrom = self.chromosomes[self._choose_chromosome_uniform(rng)]  # no draw if 1 chromosome
         gene = OrderedGene(self.ids.new_gene(), family, 1 if rng.random() < 0.5 else -1)
-        j = int(rng.integers(len(chrom.genes) + 1))
-        chrom.genes[j:j] = [gene]
+        chrom.insert(int(rng.integers(len(chrom.genes) + 1)), [gene])
         return [GeneOp(gene.gid, family, "origin")]
 
     # --- transfer handoff --------------------------------------------------
@@ -578,11 +605,7 @@ class OrderedGenome(Genome):
         region = selection.region
         chrom = self.chromosomes[region.chromosome]
         length = region.length
-        if chrom.circular:
-            self._rotate_to(region.chromosome, region.start)
-            start = 0
-        else:
-            start = region.start
+        start = chrom.bring_to_front(region.start)  # circular: rotate to front (=0); linear: unchanged
         segment = chrom.genes[start:start + length]
         old_gids, cont_gids, transferred = [], [], []
         for i, g in enumerate(segment):
@@ -604,8 +627,7 @@ class OrderedGenome(Genome):
         else:  # fallback: no precomputed point -> choose one now
             cid = self._choose_chromosome_uniform(rng)
             j = int(rng.integers(len(self.chromosomes[cid].genes) + 1))
-        chrom = self.chromosomes[cid]
-        chrom.genes[j:j] = list(segment.genes)
+        self.chromosomes[cid].insert(j, segment.genes)
         return [GeneOp(g.gid, g.family, "transfer_copy") for g in segment.genes]
 
     # --- speciation --------------------------------------------------------
