@@ -258,3 +258,33 @@ def test_cli_gff_seqid_still_picks_one_sequence(tmp_path):
     assert not (out / "Chromosomes.tsv").exists()                            # single chromosome
     genes = {ln.split("\t")[0] for ln in (out / "genes.tsv").read_text().splitlines()[1:]}
     assert genes == {"B1", "B2"}                                             # only the picked sequence
+
+
+def test_cli_multichromosome_ancestral_reproduces_each_replicon(tmp_path):
+    """`--write ancestral` on a multi-sequence GFF writes one FASTA record per chromosome at every
+    node; with a matching multi-record --genome-fasta and zero divergence, the root reproduces each
+    replicon exactly."""
+    import gzip
+    tree = _species(tmp_path)
+    gff = tmp_path / "genome.gff"
+    gff.write_text(_MULTI_GFF)                                # chr1 (600 bp) + plasmid (400 bp)
+    chr1, plasmid = ("ACGT" * 150), ("TGCA" * 100)           # 600 / 400 bp, matching the GFF
+    (tmp_path / "g.fasta").write_text(f">chr1\n{chr1}\n>plasmid\n{plasmid}\n")
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--gff", str(gff),
+               "--genome-fasta", str(tmp_path / "g.fasta"), "--inversion", "0.002", "--loss", "0.001",
+               "--subst-rate", "0.0", "--write", "ancestral", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    recs = {}
+    with gzip.open(out / "Genomes" / "root.fasta.gz", "rt") as fh:
+        name = None
+        for line in fh:
+            line = line.strip()
+            if line.startswith(">"):
+                name = line[1:]; recs[name] = ""
+            else:
+                recs[name] += line
+    assert len(recs) == 2                                     # one record per replicon
+    assert set(recs.values()) == {chr1, plasmid}             # each replicon reproduced exactly
+    header = (out / "Architecture" / "root.tsv").read_text().splitlines()[0]
+    assert header.split("\t")[0] == "chromosome"             # architecture keeps replicons apart
