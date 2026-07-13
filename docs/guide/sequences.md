@@ -21,7 +21,10 @@ variation. A *relaxed* clock lets the rate change branch to branch, either **unc
 draws, a branch's rate says nothing about its neighbours') or **autocorrelated** (a branch's rate is
 anchored to its parent's, so nearby lineages evolve at similar rates). ZOMBI2 ships a whole family of
 clocks in the `zombi2.sequences` namespace, all sharing one `Clock` interface — `scale(tree, seed=...)`
-returns the phylogram — differing only in how the per-branch rate is drawn.
+returns the phylogram — differing only in how the per-branch rate is drawn. In the language of
+[Rates: a primer](rates.md), a relaxed clock is a **per-branch modifier** on the substitution rate,
+and among-site variation (gamma rates) is the matching **per-site modifier** — the same idea applied
+to two different contexts.
 
 | Model | Family | Reach for it when |
 | --- | --- | --- |

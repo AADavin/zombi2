@@ -28,7 +28,7 @@ def test_mean_length_to_extension_conversion():
 def test_cli_ordered_accepts_mean_length(tmp_path):
     tree = _tree_file(tmp_path)
     out = tmp_path / "ord"
-    rc = main(["genomes", "-t", tree, "--genome-model", "ordered", "--rate-model", "shared",
+    rc = main(["genomes", "-t", tree, "--genome-model", "ordered", "--rate-per", "copy",
                "--inversion", "0.3", "--mean-length", "3", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
@@ -47,7 +47,7 @@ def test_cli_nucleotide_accepts_mean_length(tmp_path):
 
 def test_cli_mean_length_below_one_is_a_clean_error(tmp_path, capsys):
     tree = _tree_file(tmp_path)
-    rc = main(["genomes", "-t", tree, "--genome-model", "ordered", "--rate-model", "shared",
+    rc = main(["genomes", "-t", tree, "--genome-model", "ordered", "--rate-per", "copy",
                "--inversion", "0.3", "--mean-length", "0.5", "-o", str(tmp_path / "x")])
     assert rc == 1
     assert "mean-length" in capsys.readouterr().err

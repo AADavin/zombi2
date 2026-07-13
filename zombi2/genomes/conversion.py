@@ -1,6 +1,6 @@
 """How an intra-genome gene conversion resolves: donor directionality.
 
-The rate says *how often* a conversion happens (``SharedRates(conversion=...)``); this object
+The rate says *how often* a conversion happens (``PerCopyRates(conversion=...)``); this object
 says *what a conversion does* once it fires — specifically how the donor (template) copy is
 chosen. Kept separate so the two concerns compose freely, exactly like
 :class:`~zombi2.genomes.transfers.TransferModel`.
@@ -21,7 +21,7 @@ from dataclasses import dataclass
 class ConversionModel:
     """Intra-genome gene-conversion mechanics: donor directionality.
 
-    The rate is set by ``SharedRates(conversion=...)``; this object says *what a conversion does*
+    The rate is set by ``PerCopyRates(conversion=...)``; this object says *what a conversion does*
     once it fires — how the donor (template) copy is chosen — kept separate from the rate so the
     two compose freely, exactly like :class:`~zombi2.genomes.transfers.TransferModel`.
 
