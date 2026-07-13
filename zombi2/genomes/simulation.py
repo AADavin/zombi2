@@ -576,7 +576,9 @@ def simulate_genomes(
     # pass-through instead — Rust cannot process them, so this is a capability boundary, not a
     # silent engine preference (each tree has exactly one engine that can run it).
     binary_tree = all(len(n.children) != 1 for n in species_tree.nodes_preorder())
-    if _rust.eligible(rates, genome_factory, sampler) and binary_tree:
+    # donor->recipient transfer highways (TransferModel.pair) run on the Python engine only.
+    pair_highways = transfers is not None and getattr(transfers, "pair", None) is not None
+    if _rust.eligible(rates, genome_factory, sampler) and binary_tree and not pair_highways:
         _rust.require()  # one engine for the built-in model on a binary tree; no Python fallback
         # Resolve an integer seed for the Rust engine when only an rng is supplied. Do this
         # inside the Rust branch (not before engine selection): the Python path below draws
