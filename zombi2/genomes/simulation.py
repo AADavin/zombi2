@@ -136,6 +136,26 @@ def _write_profiles(out: Path, profiles: ProfileMatrix, sparse: bool) -> None:
         (out / "Presence.tsv").write_text(profiles.to_tsv(presence=True))
 
 
+def _write_reconciliations(out: Path, recons: dict) -> None:
+    """Write annotated reconciled gene trees: ``Reconciled_complete.nwk`` / ``Reconciled_extant.nwk``
+    (one family per line — tips ``<species>|<gid>``, internal labels ``<species-branch>|<EVENT>``,
+    the format ``tools recon-accuracy`` and ``tools reconcile`` read) plus a flat S/D/T/L event
+    table. Mirrors ``tools simulate``'s ground-truth output so a simulated truth can be scored."""
+    complete, extant = [], []
+    ev = ["family\tevent\tspecies\trecipient\ttime\tgene"]
+    for fam, recon in recons.items():
+        if recon.complete is not None:
+            complete.append(recon.complete)
+        if recon.extant is not None:
+            extant.append(recon.extant)
+        for e in recon.events:
+            ev.append(f"{fam}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
+                      f"{e.time:.10g}\t{e.gene or ''}")
+    (out / "Reconciled_complete.nwk").write_text("\n".join(complete) + ("\n" if complete else ""))
+    (out / "Reconciled_extant.nwk").write_text("\n".join(extant) + ("\n" if extant else ""))
+    (out / "Reconciliation_events.tsv").write_text("\n".join(ev) + "\n")
+
+
 def events_trace_from_log(event_log) -> str:
     """Serialise an :class:`~zombi2.events.EventLog` as the compact ``Events_trace.tsv`` text.
 
@@ -280,11 +300,12 @@ class Genomes:
     # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
     # are always written; the CLI's --write maps onto these names.
     WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary", "branch_events",
-                   "layout", "karyotype")
-    #: Written only when explicitly requested (never by ``include=None``): meaningful only for
-    #: ordered genomes, so they stay out of a run's output unless asked for — single-chromosome
-    #: output is therefore unchanged.
-    _OPT_IN_PARTS = frozenset({"layout", "karyotype"})
+                   "reconciliations", "layout", "karyotype")
+    #: Written only when explicitly requested (never by ``include=None``): the ordered-genome
+    #: ``layout``/``karyotype`` are meaningful only for ordered genomes, and ``reconciliations``
+    #: reconstructs the (expensive) gene-tree genealogy, so they stay out of a run's output unless
+    #: asked for — default (single-chromosome) output is therefore unchanged.
+    _OPT_IN_PARTS = frozenset({"layout", "karyotype", "reconciliations"})
 
     # --- output ------------------------------------------------------------
     def write(self, outdir: str | Path, *, include=None, sparse: bool = False,
@@ -352,6 +373,12 @@ class Genomes:
                     (tdir / f"{family}_complete.nwk").write_text(complete + "\n")
                 if extant:
                     (tdir / f"{family}_extant.nwk").write_text(extant + "\n")
+
+        if "reconciliations" in want:
+            # annotated reconciled gene trees + event table — the input `tools recon-accuracy` and
+            # `tools reconcile` read (tips <species>|<gid>). Same format as `tools simulate`, so a
+            # simulated ground truth can be scored against an inferred reconciliation.
+            _write_reconciliations(out, self.reconciliations())
 
         if "transfers" in want:
             # all transfers, one row each
