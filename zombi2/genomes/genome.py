@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -462,17 +463,31 @@ class OrderedGenome(Genome):
 
     def __init__(self, ids: IdManager, extension: float | None = None,
                  transposition_flip: float = 0.0, n_chromosomes: int = 1,
-                 circular: bool = True):
-        if n_chromosomes < 1:
+                 circular: bool | Sequence[bool] = True):
+        # ``circular`` is either a single bool (every seeded chromosome shares that topology) or a
+        # per-chromosome sequence of bools (**mixed topology** — its length sets the chromosome count,
+        # e.g. ``circular=[True, False]`` for one circular + one linear replicon). ``Chromosome.circular``
+        # is the per-chromosome authority; ``self.circular`` is the genome-wide default carried to
+        # later-originated replicons (plasmids) and the clone seed (which then overrides each child
+        # chromosome from its parent, so a mixed genome clones faithfully regardless).
+        if isinstance(circular, bool):
+            topologies = [circular] * n_chromosomes
+            default_circular = circular
+        else:
+            topologies = [bool(c) for c in circular]
+            if n_chromosomes != 1 and n_chromosomes != len(topologies):
+                raise ValueError("n_chromosomes must equal len(circular) when circular is a sequence")
+            default_circular = topologies[0] if topologies else True
+        if len(topologies) < 1:
             raise ValueError("n_chromosomes must be >= 1")
         self.ids = ids
         self.extension = extension
         self.transposition_flip = transposition_flip
-        self.circular = circular  # genome-wide seed; Chromosome.circular is the per-chromosome authority
+        self.circular = default_circular
         self.chromosomes: dict[int, Chromosome] = {}
-        for _ in range(n_chromosomes):
+        for topo in topologies:
             cid = ids.new_chromosome()
-            self.chromosomes[cid] = Chromosome(cid, circular)
+            self.chromosomes[cid] = Chromosome(cid, topo)
 
     @property
     def chromosome(self) -> list[OrderedGene]:
@@ -510,7 +525,7 @@ class OrderedGenome(Genome):
 
     def supported_events(self) -> frozenset[EventType]:
         return frozenset(STOCHASTIC_EVENTS + (
-            EventType.INVERSION, EventType.TRANSPOSITION,
+            EventType.INVERSION, EventType.TRANSPOSITION, EventType.TRANSLOCATION,
             EventType.CHROMOSOME_ORIGINATION, EventType.CHROMOSOME_LOSS,
             EventType.FISSION, EventType.FUSION,
         ))
@@ -549,6 +564,14 @@ class OrderedGenome(Genome):
             return next(iter(self.chromosomes))
         cids = list(self.chromosomes)
         return cids[int(rng.integers(len(cids)))]
+
+    def _choose_other_chromosome(self, rng, cid: int) -> int | None:
+        """Pick a chromosome uniformly from those *other* than ``cid`` (the translocation
+        destination). Returns ``None`` when there is nowhere else to move to (one chromosome)."""
+        others = [c for c in self.chromosomes if c != cid]
+        if not others:
+            return None
+        return others[int(rng.integers(len(others)))]
 
     def _remove_gene(self, gene: OrderedGene) -> None:
         """Remove ``gene`` (by identity) from whichever chromosome holds it."""
@@ -620,6 +643,22 @@ class OrderedGenome(Genome):
             j = int(rng.integers(len(chrom.genes) + 1))  # destination within the SAME chromosome
             chrom.insert(j, block)
             return [[GeneOp(g.gid, g.family, "transposed") for g in block]]
+
+        if event is EventType.TRANSLOCATION:
+            # Like transposition, but the excised run reinserts into a *different* chromosome of the
+            # same genome (n_chrom >= 2 is enforced by the sampler, but a race with a concurrent
+            # fusion/loss could leave one chromosome, so guard). gids are untouched -> lineage-neutral,
+            # exactly like transposition; the gene trees never see it.
+            dest_cid = self._choose_other_chromosome(rng, region.chromosome)
+            if dest_cid is None:
+                return []
+            block = list(segment)
+            if not block:  # pragma: no cover -- draw_target always yields >= 1 gene
+                return []
+            del chrom.genes[start:end]
+            dest = self.chromosomes[dest_cid]
+            dest.insert(int(rng.integers(len(dest.genes) + 1)), block)  # anywhere on the destination
+            return [[GeneOp(g.gid, g.family, "translocated") for g in block]]
 
         raise ValueError(f"apply() does not handle {event!r}")
 
@@ -724,17 +763,24 @@ class OrderedGenome(Genome):
             chrom.genes = chrom.genes[:k]
         return cid, new_cid
 
-    def fusion(self, rng, params) -> tuple[int, int]:
-        """Fuse two chromosomes into one: append the second's genes onto the first and drop the
-        second (genes keep their ids). The two are chosen uniformly; the caller guarantees >= 2
-        chromosomes. Genomes are topology-homogeneous today, so the same-topology rule is met
-        automatically. Returns (kept_cid, absorbed_cid)."""
+    def fusion(self, rng, params) -> tuple[int, int] | None:
+        """Fuse two chromosomes of the **same topology** into one: append the second's genes onto the
+        first and drop the second (genes keep their ids). Fusing a linear and a circular replicon is
+        topologically ill-defined (which topology would the product take?), so a chromosome fuses only
+        with a same-topology partner. Returns ``(kept_cid, absorbed_cid)``, or ``None`` when the chosen
+        chromosome has no same-topology partner (a no-op the caller skips). The caller guarantees
+        >= 2 chromosomes.
+
+        For a topology-homogeneous genome every other chromosome is a valid partner, so the two draws
+        and their mapping match the pre-mixed-topology engine exactly (byte-identity): ``keep`` is the
+        first draw, and ``partners`` is ``cids`` with ``keep``'s slot removed in order, so the second
+        draw indexes the same partner the old ``j``/``j+1`` remap did."""
         cids = list(self.chromosomes)
-        m = len(cids)
-        i = int(rng.integers(m))
-        j = int(rng.integers(m - 1))
-        if j >= i:  # a uniform partner distinct from i
-            j += 1
-        keep_cid, absorb_cid = cids[i], cids[j]
+        keep_cid = cids[int(rng.integers(len(cids)))]
+        topo = self.chromosomes[keep_cid].circular
+        partners = [c for c in cids if c != keep_cid and self.chromosomes[c].circular == topo]
+        if not partners:  # only a different-topology replicon to fuse with — skip (mixed genome only)
+            return None
+        absorb_cid = partners[int(rng.integers(len(partners)))]
         self.chromosomes[keep_cid].genes.extend(self.chromosomes.pop(absorb_cid).genes)
         return keep_cid, absorb_cid
