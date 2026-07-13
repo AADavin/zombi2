@@ -28,7 +28,7 @@ from zombi2._sampling import EventSampler
 from zombi2.genomes.events import EventType, EventRecord, GeneOp
 from zombi2.genomes.genome_sim import GenomeSimulator
 from zombi2.genomes.nucleotide_genome import NucleotideGenome, SegmentRegistry
-from zombi2.genomes.rates import SharedRates
+from zombi2.genomes.rates import PerCopyRates
 from zombi2.genomes.reconciliation import build_gene_trees, reconcile
 from zombi2.tree import Tree, TreeNode
 
@@ -608,7 +608,7 @@ def simulate_nucleotide_genomes(
 
     if rng is None:
         rng = np.random.default_rng(seed)
-    rates = SharedRates(inversion=inversion, loss=loss, duplication=duplication,
+    rates = PerCopyRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
                          insertion=insertion, deletion=deletion,
                          origination=origination)

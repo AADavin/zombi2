@@ -23,7 +23,7 @@ from zombi2.sequences.clocks import (
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
 from zombi2.genomes.genome import OrderedGenome
-from zombi2.genomes.rates import BranchRates, FamilySampledRates, PerGenomeRates, SharedRates
+from zombi2.genomes.rates import BranchRates, FamilySampledRates, PerCopyRates, PerGenomeRates
 from zombi2.genomes.conversion import ConversionModel
 from zombi2.genomes.read_rates import read_branch_rates, read_family_rates
 from zombi2.sequences.evolution import SequenceEvolution
@@ -227,21 +227,25 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
                         "(see the nucleotide sections)")
-    g.add_argument("--rate-model", choices=("shared", "per-genome", "family"),
-                   default="shared", metavar="MODEL",
-                   help="rate heterogeneity within the unordered/ordered genome levels: shared: "
-                        "same per-copy rates for every family (Rust for unordered; default); "
-                        "per-genome: constant per-genome rates, linear growth (Python); "
-                        "family: each family has its own rates, from --family-rates (Python). "
-                        "Rearrangements (--inversion/--transposition on ordered genomes) need "
-                        "shared")
+    g.add_argument("--rate-per", choices=("copy", "genome"), default=None, dest="rate_per",
+                   metavar="UNIT",
+                   help="what each rate is counted per — the opportunity that scales it "
+                        "(unordered/ordered levels): copy = per gene copy, so total rates grow with "
+                        "genome size (default; Rust for unordered); genome = a constant per-genome "
+                        "rate, giving linear rather than exponential growth (Python). Per-family "
+                        "rates come from --family-rates; nucleotide genomes are always per "
+                        "nucleotide. Rearrangements (--inversion/--transposition) need --rate-per copy")
+    g.add_argument("--rate-model", choices=("shared", "per-genome", "family"), default=None,
+                   metavar="MODEL",
+                   help="(deprecated) old spelling of --rate-per: shared -> --rate-per copy, "
+                        "per-genome -> --rate-per genome, family -> --family-rates")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
 
     g = p.add_argument_group(
         "gene-family rates",
-        "per copy for --rate-model shared/per-genome; "
+        "per gene copy (--rate-per copy) or per genome (--rate-per genome); "
         "per nucleotide for --genome-model nucleotide")
     g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
     g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
@@ -258,7 +262,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group(
         "gene conversion",
-        "intra-genome (ectopic) gene conversion; --rate-model shared on unordered genomes")
+        "intra-genome (ectopic) gene conversion; per-copy rates on unordered genomes")
     g.add_argument("--conversion", type=float, default=0.0, metavar="RATE",
                    help="per-copy intra-genome gene-conversion rate: one copy of a family overwrites "
                         "another copy of the SAME family (concerted evolution), pulling their "
@@ -273,8 +277,8 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
         "user-supplied per-family and per-branch rates (unordered genomes; Python engine "
         "except a receptivity-only --branch-rates, which stays on Rust)")
     g.add_argument("--family-rates", metavar="FILE", dest="family_rates",
-                   help="TSV of explicit per-family duplication/transfer/loss rates "
-                        "(columns: family duplication transfer loss). Selects --rate-model family; "
+                   help="TSV of explicit per-family duplication/transfer/loss rates (per copy; "
+                        "columns: family duplication transfer loss) — the per-family rate source; "
                         "families not listed fall back to --dup/--trans/--loss")
     g.add_argument("--branch-rates", metavar="FILE", dest="branch_rates",
                    help="TSV of per-branch transfer emission (donation-rate factor) and/or "
@@ -1773,8 +1777,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                  parser: argparse.ArgumentParser) -> str:
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
 
-    The default ``shared`` rate model runs on the Rust engine automatically (``simulate_genomes``
-    raises a build hint if the extension is missing); ``per-genome`` runs on Python.
+    The default per-copy rates run on the Rust engine automatically (``simulate_genomes``
+    raises a build hint if the extension is missing); ``--rate-per genome`` runs on Python.
     """
     args.extension = _extension_from_mean_length(args.mean_length)   # mean-length knob → engine p
     parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
@@ -1784,7 +1788,27 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
                          "exactly --write profiles")
 
+    # ---- opportunity axis (--rate-per), folding in the deprecated --rate-model spelling ----
+    rate_per = args.rate_per  # None (default per-copy) | "copy" | "genome"
+    if args.rate_model is not None:
+        print("warning: --rate-model is deprecated; use --rate-per {copy,genome} "
+              "(and --family-rates for per-family rates).", file=sys.stderr)
+        if args.rate_model == "family":
+            if args.family_rates is None:
+                parser.error("--rate-model family is deprecated; supply per-family rates with "
+                             "--family-rates FILE")
+        else:
+            mapped = "copy" if args.rate_model == "shared" else "genome"
+            if rate_per is not None and rate_per != mapped:
+                parser.error("pass --rate-per or the deprecated --rate-model, not both")
+            rate_per = mapped
+    delattr(args, "rate_model")  # log the single canonical field (rate_per), not both spellings
+
     if args.genome_model == "nucleotide":
+        if rate_per is not None:
+            parser.error("--rate-per (and the deprecated --rate-model) apply to the unordered/"
+                         "ordered genome levels; the nucleotide model is per nucleotide by "
+                         "construction")
         if args.initial_families is not None:
             parser.error("--initial-families is for the unordered genome level "
                          "(--genome-model unordered); the nucleotide model uses "
@@ -1803,37 +1827,37 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     initial_families = 20 if args.initial_families is None else args.initial_families
     args.initial_families = initial_families  # record the effective value in the params log
     # user-supplied custom rate tables are unordered-only (Python engine, except a
-    # receptivity-only --branch-rates on a plain SharedRates, which stays on Rust)
+    # receptivity-only --branch-rates on a plain PerCopyRates, which stays on Rust)
     if (args.family_rates or args.branch_rates) and args.genome_model != "unordered":
         parser.error("--family-rates / --branch-rates are only for --genome-model unordered")
-    family_mode = args.rate_model == "family" or args.family_rates is not None
-    if args.rate_model == "family" and args.family_rates is None:
-        parser.error("--rate-model family needs a --family-rates FILE")
-    if family_mode and args.rate_model == "per-genome":
-        parser.error("--family-rates is itself a per-family model; do not also pass "
-                     "--rate-model per-genome")
+    per_genome = rate_per == "genome"
+    args.rate_per = "genome" if per_genome else "copy"  # record the effective value in the log
+    family_mode = args.family_rates is not None  # per-family rates come from the table
+    if family_mode and per_genome:
+        parser.error("--family-rates supplies per-family per-copy rates; it does not combine with "
+                     "--rate-per genome")
     if args.conversion and family_mode:
-        parser.error("gene conversion (--conversion) needs --rate-model shared; the per-family "
+        parser.error("gene conversion (--conversion) needs per-copy rates; the per-family "
                      "table carries no conversion rate")
 
-    rates = None  # None => use the D/T/L/O shorthand (plain shared, unordered — the Rust fast path)
-    if args.rate_model == "per-genome":
+    rates = None  # None => D/T/L/O shorthand (plain per-copy, unordered — the Rust fast path)
+    if per_genome:
         if args.conversion:
-            parser.error("gene conversion (--conversion) needs --rate-model shared; "
+            parser.error("gene conversion (--conversion) needs --rate-per copy; "
                          "per-genome rates do not carry it")
         if ordered and (args.inversion is not None or args.transposition is not None):
-            parser.error("rearrangements (--inversion/--transposition) need --rate-model shared; "
+            parser.error("rearrangements (--inversion/--transposition) need --rate-per copy; "
                          "per-genome rates do not carry them")
         rates = PerGenomeRates(args.dup, args.trans, args.loss, args.orig)
-    elif ordered:  # shared per-copy rates + rearrangements on an ordered chromosome
+    elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "
                          "(--genome-model unordered)")
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
-        rates = SharedRates(args.dup, args.trans, args.loss, args.orig,
-                            inversion=inv, transposition=tps)
+        rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
+                             inversion=inv, transposition=tps)
     elif family_mode:  # each family its own rates, from the table (unlisted -> --dup/--trans/--loss)
         rates = FamilySampledRates(duplication=args.dup, transfer=args.trans, loss=args.loss,
                                    origination=args.orig,
@@ -1843,9 +1867,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     transfers = None
     if args.branch_rates is not None:
         emission, receptivity = read_branch_rates(args.branch_rates)
-        if rates is None:  # plain shared base — carry the conversion rate through the overlay
-            rates = SharedRates(args.dup, args.trans, args.loss, args.orig,
-                                conversion=args.conversion)
+        if rates is None:  # plain per-copy base — carry the conversion rate through the overlay
+            rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
+                                 conversion=args.conversion)
         if emission:
             rates = BranchRates(rates, factors=emission, events=("transfer",))
         if receptivity:
@@ -3254,7 +3278,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree.",
-        "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-model MODEL] "
+        "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-per UNIT] "
         "[--write PART ...] [options]",
         _add_rate_args,
         epilog=_examples(

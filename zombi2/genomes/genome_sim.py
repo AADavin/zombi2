@@ -395,7 +395,7 @@ class GenomeSimulator:
             return (branch, recipient)
 
         if event is EventType.CONVERSION:
-            # Intra-genome gene conversion (activated by SharedRates(conversion=...), which emits
+            # Intra-genome gene conversion (activated by PerCopyRates(conversion=...), which emits
             # the CONVERSION weights; dormant otherwise). The donor lineage bifurcates
             # and the recipient copy of the same family is overwritten, so copy number is unchanged
             # and the converted copy coalesces with the donor at time t (concerted evolution). The

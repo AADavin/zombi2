@@ -110,8 +110,8 @@ class RateModel(ABC):
         self._max_family_size = max_family_size
 
 
-class SharedRates(RateModel):
-    """Every gene family shares the same per-copy D/T/L rates (v1 default).
+class PerCopyRates(RateModel):
+    """Per-copy rates: every gene family shares the same per-copy D/T/L rates (the default).
 
     An optional per-copy ``conversion`` rate adds **intra-genome gene conversion**: one copy of a
     family overwrites ("converts") another copy of the *same* family in the same genome —
@@ -198,11 +198,17 @@ class SharedRates(RateModel):
         return out
 
 
+#: Backwards-compatible alias. ``SharedRates`` was renamed to :class:`PerCopyRates` (the name now
+#: says what it is — its rates are counted *per copy*). The old name is the **same class object**, so
+#: existing code, ``type(rates) is SharedRates`` checks, and the Rust fast-path selection keep working.
+SharedRates = PerCopyRates
+
+
 class PerGenomeRates(RateModel):
     """Genome-wise rates: each event type fires at a **constant per-genome rate**,
     independent of how many gene copies the genome holds.
 
-    Contrast :class:`SharedRates`, where the total duplication/transfer/loss rate scales
+    Contrast :class:`PerCopyRates`, where the total duplication/transfer/loss rate scales
     with genome size (per-copy rates). Here the totals are fixed, so when an event fires a
     target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
     rather than exponentially, so genome-wise models are intrinsically far less prone to
@@ -331,10 +337,138 @@ def _resolve_events(events) -> frozenset:
     return frozenset(out)
 
 
-class BranchRates(RateModel):
+class Modifier(ABC):
+    """A context-keyed multiplier on an event's rate — the composable building block behind
+    per-branch, per-family and lineage-pair heterogeneity (see the *Modifiers* section of the rates
+    primer, ``docs/guide/rates.md``).
+
+    A modifier reads whatever context it cares about — the ``event`` kind, the ``family`` it acts on
+    (or ``None``), the ``branch``, the ``time`` — and returns a multiplier on the base rate; ``1.0``
+    means no effect. Modifiers compose **multiplicatively** and default to 1, so stacking them is
+    order-independent. This is the *emission-seam* modifier (it scales how often an event fires); its
+    *recipient-seam* counterpart, transfer donor->recipient bias, lives on
+    :class:`~zombi2.genomes.transfers.TransferModel`. See ``docs/design/rate-modifiers.md``.
+    """
+
+    time_dependent = False
+
+    def bind(self, rng, tree=None) -> None:
+        """One-time setup at the start of a simulation (e.g. autocorrelated factors need the tree)."""
+
+    @abstractmethod
+    def factor(self, event: EventType, family, branch: str, time: float) -> float:
+        ...
+
+    def refresh_times(self, t0: float, t1: float) -> list[tuple[float, str]]:
+        """Times in ``(t0, t1)`` at which this modifier's factor changes on its own
+        (see :meth:`RateModel.refresh_times`). Default: none."""
+        return []
+
+
+class ModifiedRates(RateModel):
+    """A base rate model with a stack of emission-seam :class:`Modifier` s applied to its weights.
+
+    Each candidate event's rate is multiplied by the product of the modifiers' factors for that
+    ``(event, family, branch, time)``. An empty stack is exactly ``base``; ``target_params``,
+    ``establishment_probability`` and ``refresh_times`` compose base and modifiers. This is the
+    emission-seam composer of the rate-modifier design (``docs/design/rate-modifiers.md``); the plain
+    :class:`PerCopyRates` fast path is untouched — any ``ModifiedRates`` runs on the Python engine.
+    """
+
+    def __init__(self, base: RateModel, modifiers):
+        self.base = base
+        self.modifiers = list(modifiers)
+
+    @property
+    def time_dependent(self) -> bool:
+        return self.base.time_dependent or any(m.time_dependent for m in self.modifiers)
+
+    def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
+        super().bind(rng, max_family_size, tree)
+        self.base.bind(rng, max_family_size, tree)
+        for m in self.modifiers:
+            m.bind(rng, tree)
+
+    def event_weights(self, genome, branch, time):
+        out = []
+        for ew in self.base.event_weights(genome, branch, time):
+            factor = 1.0
+            for m in self.modifiers:
+                factor *= m.factor(ew.event, ew.family, branch, time)
+            out.append(ew if factor == 1.0 else EventWeight(ew.event, ew.family, ew.rate * factor))
+        return out
+
+    def target_params(self, event, genome, branch, time):
+        return self.base.target_params(event, genome, branch, time)
+
+    def establishment_probability(self, selection, recipient_genome, time):
+        return self.base.establishment_probability(selection, recipient_genome, time)
+
+    def refresh_times(self, t0, t1):
+        times = list(self.base.refresh_times(t0, t1))
+        for m in self.modifiers:
+            times.extend(m.refresh_times(t0, t1))
+        return times
+
+
+class BranchModifier(Modifier):
+    """Per-species-tree-branch factor — the emission-seam modifier behind :class:`BranchRates`.
+
+    Provide exactly one source: ``autocorr_sigma`` (relaxed clock), ``per_branch`` (i.i.d. per
+    branch), or ``factors`` (an explicit ``{branch: factor}`` map). ``events`` selects which event
+    kinds it scales (default duplication/transfer/loss); ``root_rate`` is the root branch's factor
+    and the fallback for branches an explicit map omits.
+    """
+
+    def __init__(self, *, autocorr_sigma: float | None = None, per_branch=None,
+                 factors: dict | None = None, root_rate: float = 1.0, events=None):
+        sources = [autocorr_sigma is not None, per_branch is not None, factors is not None]
+        if sum(sources) != 1:
+            raise ValueError("specify exactly one of autocorr_sigma, per_branch, or factors")
+        if autocorr_sigma is not None and autocorr_sigma < 0:
+            raise ValueError("autocorr_sigma must be >= 0")
+        self.autocorr_sigma = autocorr_sigma
+        self.per_branch = as_distribution(per_branch) if per_branch is not None else None
+        self.explicit = dict(factors) if factors is not None else None
+        self.root_rate = float(root_rate)
+        self._scaled = _resolve_events(events)
+        self._factor: dict[str, float] = {}
+        self._rng = None
+
+    def bind(self, rng, tree=None) -> None:
+        self._rng = rng
+        self._factor = {}
+        if self.explicit is not None:
+            self._factor = dict(self.explicit)
+        elif self.autocorr_sigma is not None:
+            if tree is None:
+                raise ValueError("autocorrelated branch rates need the species tree")
+            for node in tree.nodes_preorder():
+                if node.parent is None:
+                    self._factor[node.name] = self.root_rate
+                else:
+                    scale = self.autocorr_sigma * math.sqrt(max(node.branch_length(), 0.0))
+                    drift = math.exp(rng.normal(0.0, scale)) if scale > 0 else 1.0
+                    self._factor[node.name] = self._factor[node.parent.name] * drift
+        # per-branch i.i.d.: sampled lazily in _branch_factor
+
+    def _branch_factor(self, branch: str) -> float:
+        f = self._factor.get(branch)
+        if f is None:
+            f = self.per_branch.sample(self._rng) if self.per_branch is not None else self.root_rate
+            self._factor[branch] = f
+        return f
+
+    def factor(self, event, family, branch, time):
+        if event not in self._scaled:
+            return 1.0
+        return self._branch_factor(branch)
+
+
+class BranchRates(ModifiedRates):
     """Make rates vary per species-tree branch by scaling a base rate model.
 
-    Wraps any base rate model (``SharedRates``, ``FamilySampledRates``, ...) and multiplies its
+    Wraps any base rate model (``PerCopyRates``, ``FamilySampledRates``, ...) and multiplies its
     weights on each branch by a per-branch factor. By default the factor scales
     duplication/transfer/loss together (origination is left unscaled); pass ``events`` to restrict it
     to specific event kinds — e.g. ``events=("transfer",)`` makes a branch more (or less) prone to
@@ -361,53 +495,12 @@ class BranchRates(RateModel):
     def __init__(self, base: RateModel, *, autocorr_sigma: float | None = None,
                  per_branch=None, factors: dict | None = None, root_rate: float = 1.0,
                  events=None):
-        sources = [autocorr_sigma is not None, per_branch is not None, factors is not None]
-        if sum(sources) != 1:
-            raise ValueError("specify exactly one of autocorr_sigma, per_branch, or factors")
-        if autocorr_sigma is not None and autocorr_sigma < 0:
-            raise ValueError("autocorr_sigma must be >= 0")
-        self.base = base
-        self.autocorr_sigma = autocorr_sigma
-        self.per_branch = as_distribution(per_branch) if per_branch is not None else None
-        self.explicit = dict(factors) if factors is not None else None
-        self.root_rate = float(root_rate)
-        self._scaled = _resolve_events(events)
-        self._factor: dict[str, float] = {}
+        super().__init__(base, [BranchModifier(
+            autocorr_sigma=autocorr_sigma, per_branch=per_branch, factors=factors,
+            root_rate=root_rate, events=events)])
 
-    def bind(self, rng, max_family_size: int | None = None, tree=None) -> None:
-        super().bind(rng, max_family_size, tree)
-        self.base.bind(rng, max_family_size, tree)
-        self._factor = {}
-        if self.explicit is not None:
-            self._factor = dict(self.explicit)
-        elif self.autocorr_sigma is not None:
-            if tree is None:
-                raise ValueError("autocorrelated branch rates need the species tree")
-            for node in tree.nodes_preorder():
-                if node.parent is None:
-                    self._factor[node.name] = self.root_rate
-                else:
-                    scale = self.autocorr_sigma * math.sqrt(max(node.branch_length(), 0.0))
-                    drift = math.exp(rng.normal(0.0, scale)) if scale > 0 else 1.0
-                    self._factor[node.name] = self._factor[node.parent.name] * drift
-        # per-branch i.i.d.: sampled lazily in _branch_factor
-
-    def _branch_factor(self, branch: str) -> float:
-        f = self._factor.get(branch)
-        if f is None:
-            f = self.per_branch.sample(self._rng) if self.per_branch is not None else self.root_rate
-            self._factor[branch] = f
-        return f
-
-    def event_weights(self, genome, branch, time):
-        factor = self._branch_factor(branch)
-        out = []
-        for ew in self.base.event_weights(genome, branch, time):
-            if ew.event in self._scaled and factor != 1.0:
-                out.append(EventWeight(ew.event, ew.family, ew.rate * factor))
-            else:
-                out.append(ew)
-        return out
-
-    def target_params(self, event, genome, branch, time):
-        return self.base.target_params(event, genome, branch, time)
+    @property
+    def _factor(self) -> dict:
+        """The per-branch factor map — kept for backward compatibility; it now lives on the
+        underlying :class:`BranchModifier`."""
+        return self.modifiers[0]._factor

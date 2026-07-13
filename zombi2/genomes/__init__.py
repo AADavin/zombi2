@@ -22,8 +22,8 @@ from zombi2.genomes.nucleotide_genome import NucleotideGenome, Segment
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
 from zombi2.genomes.gff import read_gff, GffGenome
 from zombi2.genomes.rates import (
-    RateModel, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
-    EventWeight,
+    RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
+    Modifier, ModifiedRates, BranchModifier, EventWeight,
 )
 from zombi2.genomes.transfers import TransferModel
 from zombi2.genomes.conversion import ConversionModel
@@ -38,8 +38,9 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "GffGenome",
-    "RateModel", "SharedRates", "PerGenomeRates", "FamilySampledRates",
-    "BranchRates", "EventWeight", "TransferModel", "ConversionModel",
+    "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
+    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier",
+    "EventWeight", "TransferModel", "ConversionModel",
     "read_family_rates", "read_branch_rates",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",
     "simulate_genomes", "Genomes", "GenomeTrace", "read_events_trace",
