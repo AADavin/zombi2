@@ -361,6 +361,9 @@ class RateVariation(Clock):
         self.start = len(self.bins) // 2 if start is None else int(start)
         if not (0 <= self.start < len(self.bins)):
             raise ValueError(f"start must be a valid bin index in [0, {len(self.bins) - 1}]")
+        # the root branch's rate is its starting-bin rate — the same value scale() assigns the root,
+        # so lineage_segments (which reads self.root_rate) and scale() no longer disagree there
+        self.root_rate = self.bins[self.start]
 
     def _rates(self, i: int) -> tuple[float, float]:
         """(up_rate, down_rate) out of bin ``i`` — a neighbour is unavailable at a boundary."""

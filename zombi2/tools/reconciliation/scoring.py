@@ -79,8 +79,14 @@ def score_reconciliations(species_tree, reconciliations, dup: float, transfer: f
             for i in range(len(fams))]
 
 
-def write_scores_tsv(rows, path, models=("dated", "undated")) -> None:
-    """Write a score table to ``path`` — one row per family, one ``<model>_loglik`` column each."""
+def write_scores_tsv(rows, path, models=None) -> None:
+    """Write a score table to ``path`` — one row per family, one ``<model>_loglik`` column each.
+
+    ``models`` defaults to the models actually scored (the keys of the first row's ``logliks``), so
+    the columns always match the data; pass an explicit subset/order to override. Passing a model a
+    row was not scored under is the caller's error (``KeyError``)."""
+    if models is None:
+        models = list(rows[0].logliks) if rows else ("dated", "undated")
     header = "family\textant_copies\t" + "\t".join(f"{m}_loglik" for m in models)
     lines = [header]
     for r in rows:

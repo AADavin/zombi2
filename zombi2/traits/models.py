@@ -1310,10 +1310,14 @@ def pagel_lambda(tree: Tree, lam: float) -> Tree:
 
 
 def pagel_delta(tree: Tree, delta: float) -> Tree:
-    """Pagel's **δ** (1999): raise node depths to the power ``delta`` (root and tips fixed).
+    """Pagel's **δ** (1999): rescale node depths by the power law ``depth -> T·(depth/T)**delta``.
 
-    ``delta > 1`` pushes divergence toward the present (late, species-specific evolution);
-    ``delta < 1`` toward the root (early evolution); ``delta = 1`` is the original tree.
+    Defined for **ultrametric** trees, where every tip sits at the present ``T`` and is therefore
+    held fixed while the internal splits move: ``delta > 1`` pushes divergence toward the present
+    (late, species-specific evolution), ``delta < 1`` toward the root (early evolution), ``delta = 1``
+    is the original tree. The rescaling is a monotonic depth warp, so every branch length stays
+    positive. On a non-ultrametric (fossil-bearing) tree it rescales every node depth, tips included
+    — outside the transform's ultrametric domain, so tips are not held fixed there.
     """
     if delta <= 0:
         raise ValueError(f"delta must be > 0, got {delta}")
