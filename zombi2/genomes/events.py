@@ -198,6 +198,7 @@ class EventRecord:
     donor: str | None = None
     recipient: str | None = None
     insertion: object | None = None
+    region: Region | None = None  # physical arc of the operation (ordered / nucleotide models)
 
     @property
     def family(self) -> str:
