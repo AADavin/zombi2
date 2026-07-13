@@ -225,8 +225,10 @@ The karyotype is written out when it is non-trivial — a run with more than one
 chromosome-tier rate, also produces `Chromosomes.tsv` (which chromosome each block sits on, and in
 what order) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy). A
 single-chromosome run's output is unchanged. In the Python API the same information is on
-`leaf.chromosomes` and `result.event_log.chromosome_records`. Ancestral-DNA output (`--write
-ancestral`/`bed`, `--genome-fasta`) currently expects a single sequence — use `--gff-seqid` for those.
+`leaf.chromosomes` and `result.event_log.chromosome_records`. `--write ancestral` reconstructs the
+DNA of **each** replicon at every node (one FASTA record per chromosome; seed the real root DNA with
+a multi-record `--genome-fasta`, matched to each replicon by sequence name). `--write bed` still
+expects a single sequence — use `--gff-seqid` for it.
 :::
 
 ## Intergenic indels

@@ -958,10 +958,13 @@ zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --subst-model hky85 --kappa 2 --subst-rate 0.05 --write ancestral -o out/
 ```
 
-writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node), gzipped
-`Genomes/<node>.fasta.gz` (the full assembled DNA of every node — `root.fasta.gz` reproduces the
-input), and `Gene_alignments/<gene>.fasta` (the extant per-gene alignments). Add `bed` to `--write`
-for a `BED/<node>.bed` that annotates the genes on each of those FASTA files. Substitution-model
+writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node, with a
+`chromosome` column), gzipped `Genomes/<node>.fasta.gz` (the assembled DNA of every node —
+`root.fasta.gz` reproduces the input), and `Gene_alignments/<gene>.fasta` (the extant per-gene
+alignments). For a [multi-chromosome](#multiple-chromosomes-the-chromosome-tier) genome the FASTA
+holds **one record per chromosome** (`>node_chr<id>`) and a multi-record `--genome-fasta` seeds each
+replicon's real root DNA (matched by sequence name). Add `bed` to `--write` for a `BED/<node>.bed`
+that annotates the genes on each of those FASTA files. Substitution-model
 options: `--subst-model`, `--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`.
 Sequence simulation runs on the Python engine and scales to real genomes (E. coli's 4.6 Mbp in a
 few seconds). See [Sequences](sequences.md) for the substitution models in detail.
