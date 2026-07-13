@@ -32,6 +32,14 @@ from zombi2.genomes.rates import SharedRates
 from zombi2.genomes.reconciliation import build_gene_trees, reconcile
 from zombi2.tree import Tree, TreeNode
 
+# Runaway-growth ceiling for the length-scaled nucleotide engine. Structural-event rates here
+# are proportional to genome length, so an additive gain rate (transfer/duplication) that outruns
+# loss compounds without bound and the walk never terminates. A single genome that crosses this
+# many segments is unambiguously in that regime: the largest genome any balanced (bounded) run
+# reaches in the test suite is a few hundred segments, so this leaves a >~30x margin while turning
+# a would-be infinite hang into a prompt, actionable error. Override via ``max_segments_per_genome``.
+DEFAULT_MAX_SEGMENTS_PER_GENOME = 20_000
+
 
 @dataclass(frozen=True)
 class Block:
@@ -564,6 +572,7 @@ def simulate_nucleotide_genomes(
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
+    max_segments_per_genome: int | None = DEFAULT_MAX_SEGMENTS_PER_GENOME,
     output: str = "genomes",
 ) -> NucleotideResult:
     """Simulate variable-length structural events forward along ``species_tree``.
@@ -626,7 +635,13 @@ def simulate_nucleotide_genomes(
     origination / loss). Requires ``output="genomes"`` (the Rust profiles path is single-chromosome).
 
     Duplication and additive transfer grow the genome with no cap, so keep them at or below
-    ``loss`` over long ages to avoid runaway growth.
+    ``loss`` over long ages to avoid runaway growth. Because a structural event's rate is
+    proportional to genome length, an unbalanced gain rate compounds and the walk would never
+    terminate; ``max_segments_per_genome`` (default
+    :data:`DEFAULT_MAX_SEGMENTS_PER_GENOME`) is a safety ceiling that turns such a run into a
+    prompt, actionable ``RuntimeError`` instead of an endless hang. It is far above any bounded
+    (balanced) run, so it never fires in normal use and leaves seeded outputs unchanged; pass a
+    larger value (or ``None`` to disable) only if a genome is genuinely meant to grow that big.
 
     ``output``:
         ``"genomes"`` (default) runs the pure-Python engine and returns the full result
@@ -711,7 +726,9 @@ def simulate_nucleotide_genomes(
 
     # One seed origination lays down all `initial_chromosomes` root chromosomes (the genome owns
     # the count); the walk then evolves them and fires any further per-branch originations.
-    result = GenomeSimulator(sampler).simulate(
+    result = GenomeSimulator(
+        sampler, max_segments_per_genome=max_segments_per_genome,
+    ).simulate(
         species_tree, rates, rng, initial_size=1, transfers=transfers,
         genome_factory=factory, retain_internal=retain_internal,
     )
