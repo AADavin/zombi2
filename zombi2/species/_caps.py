@@ -66,7 +66,7 @@ def species_caps(model) -> SpeciesCaps:
     forgotten ``isinstance`` branch silently routing a model into the wrong engine.
     """
     for klass in type(model).__mro__:
-        caps = klass.__dict__.get("caps")
+        caps = klass.__dict__.get("_caps")
         if isinstance(caps, SpeciesCaps):
             return caps
     raise TypeError(
