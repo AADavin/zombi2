@@ -790,6 +790,15 @@ class NucleotideGenome(Genome):
         L = self._chrom_length(chrom)
         s = int(rng.integers(L))
         ell = self._draw_length(rng, params, chrom)
+        empty = Selection(genes=(), region=Region(chromosome=chrom.chrom_id, start=0, length=0))
+        if event is EventType.LOSS:
+            # honour the min-genome floor: a structural loss must never empty the genome — that would
+            # zero the size-proportional event rate and freeze the lineage (the same guarantee
+            # _apply_deletion gives intergenic indels). Cap the arc so >= MIN_GENOME_LENGTH nucleotides
+            # survive across the whole genome; a genome already at the floor loses nothing.
+            ell = min(ell, max(0, int(self.total_length()) - MIN_GENOME_LENGTH))
+            if ell <= 0:
+                return empty
         if self._registry.has_genes():
             if ell >= L:                       # whole genome: keep it whole, just legalise the
                 s = self._snap(s, -1, chrom)   # single split point (inversion splits at s)
@@ -799,6 +808,8 @@ class NucleotideGenome(Genome):
                 e2 = self._snap((s + ell) % L, +1, chrom)
                 ell = (e2 - s2) % L or L
                 s = s2
+            if event is EventType.LOSS and ell >= int(self.total_length()):
+                return empty                   # gene-boundary snapping re-expanded to the whole genome
         return Selection(genes=(), region=Region(chromosome=chrom.chrom_id, start=s, length=ell))
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
