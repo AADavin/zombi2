@@ -276,3 +276,48 @@ def test_profiles_path_rejects_tier_events():
         with pytest.raises(ValueError, match="chromosome-tier events"):
             simulate_nucleotide_genomes(tree, inversion=0.01, root_length=200,
                                         extension=0.9, output="profiles", seed=2, **kw)
+
+
+# --------------------------------------------------------------------------- #
+# Translocation: an arc moves to another chromosome of the same genome
+# --------------------------------------------------------------------------- #
+def _source_chromosomes(genome):
+    """source -> set of chromosome ids it occupies in this genome."""
+    on = {}
+    for cid, chrom in genome.chromosomes.items():
+        for s in chrom.elements:
+            on.setdefault(s.source, set()).add(cid)
+    return on
+
+
+def test_translocation_moves_material_across_chromosomes():
+    # two chromosomes, each seeded under its own source; a translocation carries a source's material
+    # onto the other chromosome, so afterwards some source occupies >1 chromosome.
+    res = simulate_nucleotide_genomes(
+        _tree(seed=5), initial_chromosomes=2, inversion=0.005, translocation=0.02,
+        root_length=250, extension=0.9, seed=5)
+    crossed = sum(any(len(cids) > 1 for cids in _source_chromosomes(g).values())
+                  for g in res.leaf_genomes.values())
+    assert crossed >= 1                                    # material reached another chromosome
+    # translocation never changes the chromosome count (it moves content, doesn't add/remove)
+    assert all(len(g.chromosomes) == 2 for g in res.leaf_genomes.values())
+
+
+def test_translocation_is_content_preserving_and_reconstructs():
+    tree = _tree(seed=6)
+    kw = dict(initial_chromosomes=2, root_length=250, extension=0.9, seed=6, retain_internal=True)
+    withtl = simulate_nucleotide_genomes(tree, inversion=0.006, translocation=0.03, **kw)
+    plain = simulate_nucleotide_genomes(tree, **kw)  # no content-changing events either way
+    # translocation only relocates material, so every leaf's total size is unchanged
+    assert ({l.name: g.size() for l, g in withtl.leaf_genomes.items()}
+            == {l.name: g.size() for l, g in plain.leaf_genomes.items()})
+    for g in withtl.leaf_genomes.values():                # segment ids stay unique (no re-mint)
+        ids = [s.seg_id for s in g._iter_segments()]
+        assert len(ids) == len(set(ids))
+    assert len(withtl.block_gene_trees()) == len(withtl.blocks)   # gene trees unaffected
+
+
+def test_translocation_needs_the_python_engine():
+    with pytest.raises(ValueError, match="translocation"):
+        simulate_nucleotide_genomes(_tree(seed=2), initial_chromosomes=2, translocation=0.02,
+                                    root_length=200, extension=0.9, output="profiles", seed=2)

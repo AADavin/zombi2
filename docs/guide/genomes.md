@@ -723,9 +723,13 @@ genome starts at `N × root_length` nucleotides. All nucleotide chromosomes are 
 chromosome (the default) is byte-identical to the single-chromosome engine.
 
 Structural events act **within** a chromosome (the chromosome is chosen in proportion to its
-length), except **transfer**, whose recipient chromosome is chosen **uniformly** — so a transfer is
-how a block reaches a *different* chromosome. On top of that, the same **chromosome tier** as the
-ordered model acts on whole chromosomes, each an opt-in per-branch rate (default **0**):
+length), with two ways for material to reach a *different* chromosome: a **transfer** (a *copy*
+lands on a uniformly-chosen chromosome — HGT semantics) and a **translocation** (`translocation`, a
+per-nucleotide rate) — an arc is *moved* from one chromosome to another of the same genome, the
+intra-genome counterpart of transposition. A translocation only relocates material (segment ids and
+gene trees are untouched, content is conserved), so it changes the karyotype layout without changing
+the number of chromosomes. On top of that, the same **chromosome tier** as the ordered model acts on
+whole chromosomes, each an opt-in per-branch rate (default **0**):
 
 | Event | Effect |
 |---|---|
