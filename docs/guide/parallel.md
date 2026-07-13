@@ -51,8 +51,8 @@ replicates of 500-tip genomes on a 10-core machine): ~13.9 s serial → ~3.6 s p
 
 `run_replicates` parallelises across the cores of **one machine**. To scale a sweep across a
 cluster, drive ZOMBI2 from a workflow manager and let the scheduler place the jobs — the shipped
-[RED benchmark](../examples/red-benchmark.md) is a copy-paste **Snakemake** template that does
-exactly this. Two patterns cover most needs:
+`examples/red_benchmark/` **Snakemake** workflow is a copy-paste template that does exactly this.
+Two patterns cover most needs:
 
 - **Snakemake + the SLURM executor** (best for sweeps). Each rule instance becomes its own
   `sbatch` job. Install the executor with `pip install "zombi2[bench]"` and run with a SLURM

@@ -43,8 +43,7 @@ with a build hint that points back to this step.
 - **`[selection]`** — the experimental protein-language-model selection models
   (`zombi2.experimental.selection`) need PyTorch and ESM-2. Install them with
   `pip install 'zombi2[selection]'`, which pulls in `torch`, `fair-esm` and `scipy`. Heavy
-  and opt-in — the default install stays torch-free. See
-  [language-model selection](experimental/language-model-selection.md).
+  and opt-in — the default install stays torch-free.
 
 ## Building these docs
 
