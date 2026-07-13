@@ -21,7 +21,7 @@ import numpy as np
 
 from zombi2._sampling import EventSampler, Fenwick, NumpyEventSampler
 from zombi2.genomes.events import (
-    ChromosomeEvent, EventLog, EventRecord, EventType, GeneOp, Selection,
+    ChromosomeEvent, EventLog, EventRecord, EventType, GeneOp, Region, Selection,
 )
 from zombi2.genomes.genome import Gene, Genome, IdManager, UnorderedGenome
 from zombi2.genomes.rates import RateModel
@@ -378,7 +378,8 @@ class GenomeSimulator:
 
         if event is EventType.ORIGINATION:
             ops = genome.originate(rng, params)
-            log.add(EventRecord(EventType.ORIGINATION, branch.name, t, ops))
+            log.add(EventRecord(EventType.ORIGINATION, branch.name, t, ops,
+                                region=getattr(genome, "_event_region", None)))
             return (branch,)
 
         if event is EventType.TRANSFER:
@@ -397,12 +398,18 @@ class GenomeSimulator:
             segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
             at = rec_genome.choose_insertion_point(segment, rng)
             rec_genome.insert_segment(segment, at, rng)
+            # donor arc on the donor branch, pasted at `at` on the recipient (dest = insert
+            # position; `at` is a (chrom, pos) locator in the multi-chromosome model)
+            sr = selection.region
+            at_pos = at[1] if isinstance(at, tuple) else at
+            transfer_region = (Region(sr.chromosome, sr.start, sr.length, sr.strand, dest=at_pos)
+                               if sr is not None else None)
             for old, cont, g in zip(segment.donor_old_gids, segment.donor_cont_gids, segment.genes):
                 log.add(EventRecord(
                     EventType.TRANSFER, branch.name, t,
                     [GeneOp(old, g.family, "parent"), GeneOp(cont, g.family, "donor_copy"),
                      GeneOp(g.gid, g.family, "transfer_copy")],
-                    donor=branch.name, recipient=recipient.name,
+                    donor=branch.name, recipient=recipient.name, region=transfer_region,
                 ))
             self._reconcile_recipient(rec_genome, segment, recipient, t, params, log, rng)
             return (branch, recipient)
@@ -456,8 +463,12 @@ class GenomeSimulator:
         if (event is EventType.DUPLICATION and self._cap is not None
                 and genome.copy_number(selection.genes[0].family) >= self._cap):
             return ()  # family already at the cap — skip this duplication
-        for group in genome.apply(event, selection, rng, params):
-            log.add(EventRecord(event, branch.name, t, group))
+        groups = genome.apply(event, selection, rng, params)
+        # ``_event_region`` (nucleotide model, set inside apply) carries the paste dest for a
+        # transposition; other models / events fall back to the selection's arc. Read AFTER apply.
+        region = getattr(genome, "_event_region", None) or selection.region
+        for group in groups:
+            log.add(EventRecord(event, branch.name, t, group, region=region))
         return (branch,)
 
     def _reconcile_recipient(self, genome, segment, branch, t, params, log, rng):
