@@ -173,3 +173,40 @@ def test_valid_high_turnover_clads():
     tree = simulate_species_tree(ClaDS(1.0, turnover=0.95), age=0.5, direction="forward",
                                  seed=1, max_attempts=2000)
     _finite_tree(tree)
+
+
+# --------------------------------------------------------------------------- #
+# SpeciesCaps capability contract — an unregistered model must fail LOUDLY at
+# dispatch (the silent-misroute failure mode the isinstance ladders allowed),
+# and every shipped model must route to the right growth engine.
+# --------------------------------------------------------------------------- #
+def test_unregistered_model_raises_loudly_not_silent_misroute():
+    class Bogus:                       # a duck-typed "model" with no SpeciesCaps
+        birth = 1.0
+
+        def validate(self):
+            pass
+
+    with pytest.raises(TypeError, match="no SpeciesCaps"):
+        simulate_species_tree(Bogus(), age=1.0, direction="forward")
+
+
+def test_species_caps_growth_and_backward():
+    from zombi2.species._caps import GrowthEngine, species_caps
+    thinning_backward = [BirthDeath(1.0, 0.3), Yule(1.0), EpisodicBirthDeath([1.0], [0.3], [])]
+    for m in thinning_backward:
+        caps = species_caps(m)         # Yule inherits BirthDeath's caps via the MRO
+        assert caps.growth is GrowthEngine.THINNING
+        assert caps.supports_backward
+    for m in [ClaDS(1.0), DiversityDependent(1.0, carrying_capacity=50), CladeShiftBirthDeath(1.0, clade_shifts=[(0.5, 2.0, 0.1)])]:
+        caps = species_caps(m)
+        assert caps.growth is GrowthEngine.GILLESPIE
+        assert not caps.supports_backward
+
+
+def test_episodic_allows_incomplete_sampling_backward_but_constant_bd_does_not():
+    # capability split the two arity-heuristic classes need distinct caps for
+    simulate_species_tree(EpisodicBirthDeath([1.0], [0.3], [], sampling_fraction=0.5),
+                          n_tips=8, age=2.0, seed=1)          # allowed
+    with pytest.raises(ValueError, match="complete sampling"):
+        simulate_species_tree(BirthDeath(1.0, 0.3, sampling_fraction=0.5), n_tips=8, age=2.0)
