@@ -60,6 +60,25 @@ def test_make_model_dispatch():
         make_model("nope")
 
 
+def test_make_model_warns_on_inapplicable_param():
+    # a supplied param a model does not consume -> UserWarning (was silently ignored)
+    with pytest.warns(UserWarning, match="does not use"):
+        make_model("lg", kappa=3.0)          # protein model ignores kappa
+    with pytest.warns(UserWarning, match=r"\['freqs'\]"):
+        make_model("k80", freqs=(0.4, 0.1, 0.1, 0.4))   # k80 uses kappa only
+    with pytest.warns(UserWarning, match=r"\['rates'\]"):
+        make_model("jc69", rates=(1, 2, 1, 1, 1, 1))
+    # the normal / default path stays silent (defaults: kappa=2.0, freqs=None, rates=None)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")       # any warning would fail the test
+        make_model("jc69")
+        make_model("gtr")
+        make_model("lg")
+        make_model("k80", kappa=3.0)          # k80 DOES consume kappa
+        make_model("hky85", kappa=2.5, freqs=(0.3, 0.2, 0.2, 0.3))
+
+
 # --------------------------------------------------------------------------- #
 # Amino-acid (protein) models — published values, correctness over coverage
 # --------------------------------------------------------------------------- #
