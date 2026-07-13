@@ -4,7 +4,7 @@ Internal bibliography for the ZOMBI2 models — the source for the future PDF ma
 bibliography and a lookup while writing the docs. **Every entry was verified against Crossref /
 the DOI record** (not written from memory) on 2026-07-04; the one item that could not be
 confirmed is marked **⚠ UNVERIFIED**. Each line gives a suggested BibTeX `key`, the DOI, and the
-ZOMBI2 feature it supports. This page is intentionally kept out of the site navigation.
+ZOMBI2 feature it supports. It is listed under **About → References** in the site navigation.
 
 *Verification method:* each work was matched via the Crossref REST API
 (`api.crossref.org/works?query.bibliographic=…`) and its DOI record; author list, year, title and
