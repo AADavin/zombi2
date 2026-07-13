@@ -722,8 +722,10 @@ a variable-length stretch of nucleotides.</figcaption>
 Like the [ordered model](#multiple-chromosomes), a nucleotide genome can carry **several
 chromosomes**. Set `initial_chromosomes` (Python) or `--n-chromosomes N` (CLI): each is an
 independent full-length copy of the root chromosome under its own source, so an `N`-chromosome
-genome starts at `N × root_length` nucleotides. All nucleotide chromosomes are circular. A single
-chromosome (the default) is byte-identical to the single-chromosome engine.
+genome starts at `N × root_length` nucleotides. Chromosomes are circular by default (`circular=False`
+or `--linear-chromosomes` makes them **linear** — two ends, no origin wrap); a real genome's
+replicons can even be **mixed** (see below). A single chromosome (the default) is byte-identical to
+the single-chromosome engine.
 
 Structural events act **within** a chromosome (the chromosome is chosen in proportion to its
 length), with two ways for material to reach a *different* chromosome: a **transfer** (a *copy*
@@ -756,19 +758,23 @@ result.event_log.chromosome_records     # the fission / fusion / origination / l
 
 **Starting from a real multi-replicon genome.** `initial_chromosomes` seeds *identical* copies; to
 seed **heterogeneous** chromosomes — a real bacterium's chromosome plus its plasmids, each its own
-length and genes — pass `root_chromosomes`, a list of `(length, gene_intervals)`. A multi-sequence
-GFF gives you exactly this via `read_gff_all` (one `GffGenome` per sequence, main chromosome first):
+length, genes and **topology** — pass `root_chromosomes`, a list of `(length, gene_intervals)` or
+`(length, gene_intervals, circular)`. A multi-sequence GFF gives you exactly this via `read_gff_all`
+(one `GffGenome` per sequence, main chromosome first, each carrying its `circular` flag):
 
 ```python
 from zombi2 import read_gff_all
 replicons = read_gff_all("genome.gff")                       # e.g. [chromosome, plasmid1, plasmid2]
 result = simulate_nucleotide_genomes(
-    tree, root_chromosomes=[(g.length, g.genes) for g in replicons],
+    tree, root_chromosomes=[(g.length, g.genes, g.circular) for g in replicons],
     inversion=1e-3, loss=1e-4, seed=1)
 ```
 
 From the CLI, `--gff genome.gff` does this automatically: **every** sequence becomes a chromosome
-(use `--gff-seqid ID` to select a single one instead).
+with its own topology from the GFF `Is_circular` flag — so a genome like *Borrelia* (a linear
+chromosome plus a mix of linear and circular plasmids) seeds as a genuine **mixed-topology** genome.
+Use `--gff-seqid ID` to select a single sequence, or `--linear-chromosomes` to force every chromosome
+linear. Fusion only ever joins two chromosomes of the *same* topology.
 
 !!! note "Karyotype output"
     A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`Chromosomes.tsv`**
