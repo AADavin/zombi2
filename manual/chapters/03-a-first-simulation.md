@@ -52,7 +52,7 @@ Equivalently, from the command line, using the tree you just wrote:
 
 ```bash
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 \
-               --loss 0.25 --orig 0.5 -o out/
+               --loss 0.25 --orig 0.5 --initial-families 40 -o out/
 ```
 
 Here `initial_families=40` seeds the root genome with 40 families; `origination=0.5` is the rate at

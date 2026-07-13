@@ -689,7 +689,10 @@ genome rate is `rate × current_length`, so longer genomes evolve faster — whi
 is **per branch**. Event lengths follow a geometric model with mean `1/(1 − extension)`
 nucleotides (`extension=0.99` → ~100 nt). Two extra knobs edit only intergene positions:
 `insertion` lays down a run of novel nucleotides (a fresh block) and `deletion` removes a run from
-within a single intergene, each with mean `indel_mean_length`.
+within a single intergene, each with mean `indel_mean_length`. These are **structural** edits to
+the genome — they add or remove nucleotides between genes — and are *not* alignment gaps: the
+sequence layer (`zombi2 sequence`) is [gapless](sequences.md), so they never surface as alignment
+columns.
 
 ```python
 from zombi2.species import simulate_species_tree, BirthDeath
