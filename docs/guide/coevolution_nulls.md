@@ -297,6 +297,12 @@ fit) on many `cid` replicates and confirm its rejection rate sits at the nominal
 inflated rate a constant-rate null would show — reproducing Rabosky & Goldberg's result inside
 ZOMBI2, for every edge.
 
+---
+
+Every coupling and null on this page is, at bottom, a **modifier** on a rate — a driver's value
+rescaling a target's speciation, transition, or D/T/L rate. The general form of that rescaling, and
+where it sits among all of ZOMBI2's rates, is the next page: [Rates: a primer](rates.md).
+
 ## References
 
 - Rabosky, D. L. & Goldberg, E. E. (2015). Model inadequacy and mistaken inferences of

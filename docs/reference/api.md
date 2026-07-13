@@ -65,7 +65,7 @@ Auto-generated from the source docstrings.
 ## Rate models
 
 ::: zombi2.genomes.rates.RateModel
-::: zombi2.genomes.rates.SharedRates
+::: zombi2.genomes.rates.PerCopyRates
 ::: zombi2.genomes.rates.PerGenomeRates
 ::: zombi2.genomes.rates.FamilySampledRates
 ::: zombi2.genomes.rates.BranchRates

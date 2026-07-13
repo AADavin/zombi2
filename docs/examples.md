@@ -120,7 +120,7 @@ This is the native alternative to un-pruning a backward tree
 
 ### The same rates for every family (shared)
 
-The keyword shorthand builds a `SharedRates` for you:
+The keyword shorthand builds a `PerCopyRates` for you:
 
 ```python
 from zombi2.genomes import simulate_genomes
@@ -236,23 +236,23 @@ simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.5,
 dependence; family size settles around `K`:
 
 ```python
-from zombi2.genomes import simulate_genomes, SharedRates
+from zombi2.genomes import simulate_genomes, PerCopyRates
 
-simulate_genomes(tree, SharedRates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), seed=1)
+simulate_genomes(tree, PerCopyRates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), seed=1)
 ```
 
 ## Gene order & rearrangements
 
 Put genes on an ordered chromosome and enable inversions/transpositions. The rearrangement
-rates live on `SharedRates`; the ordered genome is selected via `genome_factory` (see
+rates live on `PerCopyRates`; the ordered genome is selected via `genome_factory` (see
 [ordered genomes](guide/genomes.md)):
 
 ```python
-from zombi2.genomes import simulate_genomes, SharedRates, OrderedGenome
+from zombi2.genomes import simulate_genomes, PerCopyRates, OrderedGenome
 
 genomes = simulate_genomes(
     tree,
-    SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
+    PerCopyRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
                 inversion=0.3, transposition=0.3),
     genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),
     seed=1)

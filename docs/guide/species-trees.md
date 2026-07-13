@@ -4,6 +4,8 @@ ZOMBI2 simulates the species tree **backward in time** as a *reconstructed birth
 
 The species tree is the scaffold you later simulate genomes, traits, or sequences along. This page covers how to simulate it, the two constant-rate models (birth–death and Yule), the advanced heterogeneous-rate models, and how to recover the dead ("ghost") lineages that the reconstructed tree hides.
 
+Speciation and extinction are **per-lineage rates**, and the heterogeneous-rate models below are just **modifiers** on them — a per-branch factor (ClaDS), a diversity-dependent factor `(1 − N/K)`, a mass-extinction pulse. That is the same rate grammar used everywhere in ZOMBI2; see [Rates: a primer](rates.md).
+
 !!! note "“Coalescent point process” ≠ multispecies coalescent"
     The backward sampler is a *coalescent point process* — a way to draw the reconstructed
     birth–death tree (Hartmann, Wong & Stadler 2010). It is **not** the *multispecies

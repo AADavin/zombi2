@@ -9,8 +9,8 @@ resolution — pick the coarsest one that answers your question.
 
 **Gene families (unordered).** The default: a genome is a **bag of gene families** with copy
 numbers, evolving by **duplication, transfer, loss and origination** (DTL) — no positional
-structure. Fast, and enough for phylogenetic profiles, reconciliation and transfer studies. Rates
-can be shared, per-family-sampled (ZOMBI1 style), genome-wise, or per-branch.
+structure. Fast, and enough for phylogenetic profiles, reconciliation and transfer studies. Every rate follows one shape — a base counted **per gene copy** (or **per genome**),
+optionally rescaled by **per-family** or **per-branch** multipliers (see [Rates: a primer](rates.md)).
 
 **Ordered chromosomes.** Genes sit on an **ordered, circular chromosome** with a strand, and the
 genome also undergoes **inversions and transpositions** — so gene *order* and orientation carry
@@ -57,18 +57,21 @@ always **per branch** (independent of genome size). All rates are per unit of tr
 
 ### The rate models
 
-Rates are supplied by a **rate model**, all subclasses of `RateModel`. Several ship: `SharedRates`
-(every family the same), `FamilySampledRates` (per-family sampled, ZOMBI1 style), `PerGenomeRates`
-(constant per-genome rates), and `BranchRates` (rates vary per species-tree branch).
+Rates are supplied by a **rate model**, all subclasses of `RateModel`. They differ along the two
+axes of [Rates: a primer](rates.md) — the **opportunity** a rate is counted per (per copy vs per
+genome) and any **multipliers** layered on (per family, per branch). Several ship: `PerCopyRates`
+(every family the same, per copy), `FamilySampledRates` (per-family sampled, ZOMBI1 style),
+`PerGenomeRates` (constant per-genome rates), and `BranchRates` (a per-branch multiplier over any
+base model).
 
 | Model | Rates | Reach for it when |
 | --- | --- | --- |
-| **SharedRates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast and shared |
+| **PerCopyRates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast and shared |
 | **PerGenomeRates** | constant per-genome totals; families grow linearly | you want size-independent rates and no runaway growth |
 | **FamilySampledRates** | each family draws its own D/T/L (ZOMBI1 style) | families should differ in their evolutionary rates |
 | **BranchRates** | a per-branch factor scaling any base model | rates vary across the species tree (relaxed clock) |
 
-#### SharedRates — every family the same
+#### PerCopyRates — every family the same
 
 Every gene family shares the same per-copy `duplication`, `transfer`, and `loss` rates, plus a
 per-branch `origination` rate. The default DTL model and the one run by the compiled **Rust engine**
@@ -78,14 +81,14 @@ dependence, damping duplication as a family grows; the simulator's `max_family_s
 `--max-family-size`) is a hard ceiling.
 
 ```python
-from zombi2.genomes import SharedRates, simulate_genomes
+from zombi2.genomes import PerCopyRates, simulate_genomes
 
-rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+rates = PerCopyRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
 genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 D/T/L are **per gene copy** (the family-level rate scales with copy number); origination is
-**per branch**. There is a shorthand that builds `SharedRates` for you:
+**per branch**. There is a shorthand that builds `PerCopyRates` for you:
 
 ```python
 from zombi2.genomes import simulate_genomes
@@ -132,14 +135,14 @@ active):
 rates = FamilySampledRates(rates={"1": (3, 2, 1), "2": (4, 0, 1)})
 ```
 
-From the command line the same table is read from a TSV with `--family-rates` (which selects
-`--rate-model family`); see [custom rate tables](#custom-rate-tables-from-files).
+From the command line the same table is read from a TSV with `--family-rates` (which is itself
+the per-family rate source); see [custom rate tables](#custom-rate-tables-from-files).
 
 #### PerGenomeRates — genome-wise rates
 
-`SharedRates` is *gene-wise*: the total duplication/transfer/loss rate scales with the
+`PerCopyRates` counts rates **per copy**: the total duplication/transfer/loss rate scales with the
 number of gene copies, so a family's size follows an exponential birth–death. `PerGenomeRates`
-instead fires each event at a **constant per-genome rate**, independent of genome size (a
+instead counts **per genome** — each event fires at a constant rate independent of genome size (a
 target copy is then chosen uniformly):
 
 ```python
@@ -151,8 +154,8 @@ genomes = simulate_genomes(tree, PerGenomeRates(duplication=1.0, transfer=0.3,
 ```
 
 A useful consequence: family sizes grow *linearly* rather than exponentially, so
-genome-wise models are far less prone to runaway growth. Selected on the CLI with
-`--rate-model per-genome` (Python engine).
+per-genome models are far less prone to runaway growth. Selected on the CLI with
+`--rate-per genome` (Python engine).
 
 #### BranchRates — branch-wise rates
 
@@ -163,10 +166,10 @@ transfer-*emission* dial (how often a branch donates). It composes with the base
 and family heterogeneity combine. Choose one factor source:
 
 ```python
-from zombi2.genomes import SharedRates, BranchRates, simulate_genomes
+from zombi2.genomes import PerCopyRates, BranchRates, simulate_genomes
 from zombi2 import LogNormal
 
-base = SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
+base = PerCopyRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
 
 # 1. autocorrelated (relaxed clock): related lineages have similar rates
 simulate_genomes(tree, BranchRates(base, autocorr_sigma=0.5), seed=1)
@@ -193,8 +196,8 @@ time 0). Additional families appear over time at the origination rate.
 
 ### Command line
 
-Bare `--dup/--trans/--loss/--orig` selects `SharedRates` (the default `--rate-model shared`, Rust engine);
-`--rate-model per-genome` selects `PerGenomeRates` (Python). Explicit per-family and per-branch rates
+Bare `--dup/--trans/--loss/--orig` selects `PerCopyRates` (the default `--rate-per copy`, Rust engine);
+`--rate-per genome` selects `PerGenomeRates` (Python). Explicit per-family and per-branch rates
 come from files: `--family-rates FILE` (a `FamilySampledRates` table) and `--branch-rates FILE`
 (per-branch transfer emission and/or receptivity) — see [custom rate
 tables](#custom-rate-tables-from-files). `--write` selects the output parts (default `profiles trees`);
@@ -204,29 +207,30 @@ tables](#custom-rate-tables-from-files). `--write` selects the output parts (def
 # a species tree to evolve genomes along
 zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o run/
 
-# SharedRates DTL (default), full output
+# PerCopyRates DTL (default), full output
 zombi2 genomes -t run/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 \
   --initial-families 40 --write all --seed 42 -o run/
 
 # PerGenomeRates: constant per-genome totals, linear growth
-zombi2 genomes -t run/species_tree.nwk --rate-model per-genome \
+zombi2 genomes -t run/species_tree.nwk --rate-per genome \
   --dup 0.5 --trans 0.2 --loss 0.5 --orig 0.4 --write profiles --seed 42 -o run/
 ```
 
 ### Python
 
-Models live in `zombi2.genomes` (and re-export at the top level, so `zombi2.SharedRates` also works):
+Models live in `zombi2.genomes` (and re-export at the top level, so `zombi2.PerCopyRates` also
+works; the former name `zombi2.SharedRates` remains as an alias):
 
 ```python
 from zombi2.species import BirthDeath, simulate_species_tree
-from zombi2.genomes import (SharedRates, PerGenomeRates, FamilySampledRates,
+from zombi2.genomes import (PerCopyRates, PerGenomeRates, FamilySampledRates,
                             BranchRates, simulate_genomes)
 from zombi2.distributions import Exponential
 
 tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=20, age=5.0, seed=1)
 
-# SharedRates (default): one per-copy D/T/L for every family
-rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+# PerCopyRates (default): one per-copy D/T/L for every family
+rates = PerCopyRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
 genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 
 # PerGenomeRates: constant per-genome totals, linear growth
@@ -240,11 +244,11 @@ fs = FamilySampledRates(duplication=Exponential(0.2), transfer=Exponential(0.1),
 genomes = simulate_genomes(tree, fs, initial_families=40, seed=42)
 
 # BranchRates: a per-branch factor (relaxed clock) scaling any base model
-br = BranchRates(SharedRates(0.2, 0.1, 0.25, 0.5), autocorr_sigma=0.5)
+br = BranchRates(PerCopyRates(0.2, 0.1, 0.25, 0.5), autocorr_sigma=0.5)
 genomes = simulate_genomes(tree, br, initial_families=40, seed=42)
 ```
 
-There is a shorthand that builds `SharedRates` for you (pass the rate model **or** the shorthand, not
+There is a shorthand that builds `PerCopyRates` for you (pass the rate model **or** the shorthand, not
 both):
 
 ```python
@@ -290,7 +294,7 @@ full walkthrough of the outputs see [Gene trees & output](#gene-trees-output).
 
 ### Validation
 
-- **SharedRates.** With duplication and loss only, the mean copy number at a leaf matches
+- **PerCopyRates.** With duplication and loss only, the mean copy number at a leaf matches
   `exp((duplication − loss) · age)` over many replicates
   (`test_genome_dtl.py::test_dl_mean_copy_number`); the compiled Rust engine and the pure-Python
   reference engine agree on the mean family count within Monte-Carlo error over a shared model
@@ -371,9 +375,33 @@ simulate_genomes(tree, transfer=0.3,
 ```
 
 Receptivity is applied by **both** the Python engine and the Rust built-in engine (so a plain
-`SharedRates` run keeps its speed), and a run with no receptivity is byte-identical to before. From
+`PerCopyRates` run keeps its speed), and a run with no receptivity is byte-identical to before. From
 the command line it is the `receptivity` column of a `--branch-rates` file
 ([below](#custom-rate-tables-from-files)).
+
+### Transfer highways (donor → recipient)
+
+Receptivity biases recipients by *who they are*; a **highway** biases them by *who the donor is* —
+a preferential route between two lineages (Beiko et al. 2005). Where per-branch receptivity is a
+[modifier](rates.md#modifiers-context-that-rescales-the-base) keyed on the recipient, a highway is
+one keyed on the **(donor, recipient) pair**. Pass a `PairModifier` as `TransferModel(pair=...)`,
+specifying highways as explicit branch pairs and/or **clade → clade** blocks (a clade is a node name,
+or a set of tip names whose MRCA defines it):
+
+```python
+from zombi2.genomes import PairModifier, TransferModel
+
+highways = PairModifier(
+    pairs={("i7", "i9"): 20.0},                       # branch i7 donates to i9 20x as readily
+    blocks=[({"A", "B", "C"}, {"X", "Y"}, 8.0),       # clade(A,B,C) → clade(X,Y): an 8x highway
+            ("i3", "i5", 0.0)],                        # ...and i3 → i5's clade is forbidden
+)
+simulate_genomes(tree, transfer=0.3, transfers=TransferModel(pair=highways))
+```
+
+Overlapping specifications multiply; a factor of `0` forbids that route. A highway can later be made
+epoch-specific or family-scoped (the same modifier machinery). Highways run on the **Python engine**
+(a `pair` model routes off the Rust fast path automatically).
 
 ### Custom rate tables from files
 
@@ -425,15 +453,15 @@ genome, one copy of a family overwrites ("converts") another copy of the **same 
 copies (**concerted evolution**) and pulls their reconstructed within-family coalescences toward the
 present.
 
-`SharedRates` takes a per-copy `conversion` rate; a **`ConversionModel`** sets the donor
+`PerCopyRates` takes a per-copy `conversion` rate; a **`ConversionModel`** sets the donor
 directionality, exactly as a `TransferModel` sets what a transfer does:
 
 ```python
-from zombi2.genomes import simulate_genomes, SharedRates, ConversionModel
+from zombi2.genomes import simulate_genomes, PerCopyRates, ConversionModel
 
 genomes = simulate_genomes(
     tree,
-    SharedRates(duplication=0.4, loss=0.1, conversion=1.0),
+    PerCopyRates(duplication=0.4, loss=0.1, conversion=1.0),
     conversions=ConversionModel(bias=0.0),   # 0 = unbiased donor; 1 = toward the founder
     initial_families=40, seed=42,
 )
@@ -447,8 +475,7 @@ always takes the family's oldest copy (the founder), homogenising the others tow
 !!! note
     Conversion reshapes gene *trees* rather than copy-number profiles, so a model with
     `conversion > 0` runs on the Python engine (never the Rust counts-only path). From the command
-    line: `--conversion RATE` and `--conversion-bias B`, on unordered genomes with `--rate-model
-    shared`.
+    line: `--conversion RATE` and `--conversion-bias B`, on unordered genomes with per-copy rates.
 
 ## Bounding growth
 
@@ -482,9 +509,9 @@ rate is scaled by `max(0, 1 − n/K)`, so family size settles *around* `K` with 
 stationary distribution.
 
 ```python
-from zombi2.genomes import SharedRates
+from zombi2.genomes import PerCopyRates
 
-SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+PerCopyRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 !!! note "Which to use?"
@@ -598,7 +625,7 @@ genomes.event_log.chromosome_records   # the fission / fusion / origination / lo
 
 ### How events reach the genome
 
-Inversion and transposition rates are emitted by `SharedRates` as candidate events. A
+Inversion and transposition rates are emitted by `PerCopyRates` as candidate events. A
 genome only undergoes the events it declares in `supported_events()`:
 
 - `UnorderedGenome` supports `{O, D, T, L}` — it silently ignores inversion/transposition
@@ -630,12 +657,12 @@ level runs through `simulate_genomes` with an `OrderedGenome` factory:
 
 ```python
 from zombi2.species import BirthDeath, simulate_species_tree
-from zombi2.genomes import simulate_genomes, SharedRates, OrderedGenome
+from zombi2.genomes import simulate_genomes, PerCopyRates, OrderedGenome
 
 tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=20, age=5.0, seed=1)
 
 # rearrangements need OrderedGenome, which takes the extension knob
-rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
+rates = PerCopyRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
                     inversion=0.3, transposition=0.3)
 genomes = simulate_genomes(tree, rates, initial_families=30, seed=1,
                            genome_factory=lambda ids: OrderedGenome(ids, extension=0.5))

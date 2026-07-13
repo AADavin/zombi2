@@ -13,7 +13,7 @@ from zombi2.genomes.genome import UnorderedGenome
 from zombi2.genomes.genome_sim import GenomeSimulator
 from zombi2.genomes.profiles import ProfileMatrix
 from zombi2.genomes.reconciliation import build_gene_trees
-from zombi2.genomes.rates import RateModel, SharedRates
+from zombi2.genomes.rates import RateModel, PerCopyRates
 from zombi2.tree import Tree
 
 
@@ -618,10 +618,10 @@ def simulate_genomes(
 
     ``initial_families`` is the number of gene families seeded at the root (default 20).
 
-    Provide either a rate model (``rates=z.SharedRates(...)`` /
+    Provide either a rate model (``rates=z.PerCopyRates(...)`` /
     ``z.FamilySampledRates(...)``) or the convenience shorthand
     (``duplication=..., transfer=..., loss=..., origination=..., conversion=...``), which builds a
-    :class:`~zombi2.SharedRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
+    :class:`~zombi2.PerCopyRates`. ``transfers`` (a :class:`~zombi2.TransferModel`) sets
     transfer mechanics; ``max_family_size`` (int absolute, or float as a multiple of the
     number of species) bounds family growth across duplication and transfer.
 
@@ -631,7 +631,7 @@ def simulate_genomes(
     Conversion has an effect only when ``conversion > 0``; ``conversions`` without it is inert.
 
     Engine (automatic, not a user choice): the **built-in** model — the default
-    ``UnorderedGenome`` with a plain :class:`~zombi2.SharedRates` — runs on the compiled
+    ``UnorderedGenome`` with a plain :class:`~zombi2.PerCopyRates` — runs on the compiled
     ``zombi2_core`` Rust extension and **requires** it (a clear error asks you to build it if
     it is missing). Flexible models (``FamilySampledRates`` / ``PerGenomeRates`` /
     ``BranchRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
@@ -675,7 +675,7 @@ def simulate_genomes(
 
     shorthand = any((duplication, transfer, loss, origination, conversion))
     if rates is None:
-        rates = SharedRates(duplication, transfer, loss, origination, conversion=conversion)
+        rates = PerCopyRates(duplication, transfer, loss, origination, conversion=conversion)
     elif shorthand:
         raise ValueError(
             "pass a rate model OR the duplication/transfer/loss/origination/conversion shorthand, "
@@ -689,7 +689,9 @@ def simulate_genomes(
     # pass-through instead — Rust cannot process them, so this is a capability boundary, not a
     # silent engine preference (each tree has exactly one engine that can run it).
     binary_tree = all(len(n.children) != 1 for n in species_tree.nodes_preorder())
-    if _rust.eligible(rates, genome_factory, sampler) and binary_tree:
+    # donor->recipient transfer highways (TransferModel.pair) run on the Python engine only.
+    pair_highways = transfers is not None and getattr(transfers, "pair", None) is not None
+    if _rust.eligible(rates, genome_factory, sampler) and binary_tree and not pair_highways:
         _rust.require()  # one engine for the built-in model on a binary tree; no Python fallback
         # Resolve an integer seed for the Rust engine when only an rng is supplied. Do this
         # inside the Rust branch (not before engine selection): the Python path below draws
@@ -709,7 +711,7 @@ def simulate_genomes(
 
     if threads > 1:
         raise ValueError("threads>1 (parallel profiles) requires the built-in model "
-                         "(UnorderedGenome + SharedRates) on a binary species tree")
+                         "(UnorderedGenome + PerCopyRates) on a binary species tree")
 
     # --- flexible models: pure-Python engine -----------------------------------
     if rng is None:

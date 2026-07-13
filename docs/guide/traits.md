@@ -2,6 +2,8 @@
 
 Once you have a tree, you can evolve **traits** on it — a body size, an expression level, a discrete character such as habitat or the presence of a structure, or even a geographic range. ZOMBI2 simulates the classic phylogenetic-comparative models (Felsenstein 1985 and successors) with one function, `simulate_traits`, and a family of model objects.
 
+A trait's rate of change follows the same [rate grammar](rates.md) as the rest of ZOMBI2: Brownian motion has a per-lineage variance rate `σ²`, a discrete Mk character has per-lineage transition rates, and a relaxed clock or state-dependence enters as a **modifier** on top.
+
 ```python
 from zombi2.species import simulate_species_tree, BirthDeath
 from zombi2.traits import simulate_traits, BrownianMotion

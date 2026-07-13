@@ -256,10 +256,10 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
 | `--genome-model {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
-| `--rate-model {shared,per-genome,family}` | rate heterogeneity for the unordered level: `shared` (default, Rust): same per-copy rates for all families; `per-genome` (Python): constant per-genome rates, linear growth; `family` (Python): each family its own rates, from `--family-rates` |
+| `--rate-per {copy,genome}` | what each rate is counted per — the opportunity that scales it: `copy` (default, Rust): per gene copy, so totals grow with genome size; `genome` (Python): a constant per-genome rate, linear growth. Per-family rates come from `--family-rates`; nucleotide is always per nucleotide. (`--rate-model {shared,per-genome,family}` is the deprecated old spelling) |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
-| `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, `--rate-model shared`; runs on the Python engine |
-| `--family-rates FILE` | TSV of explicit per-family rates (`family duplication transfer loss`); selects `--rate-model family`; unlisted families fall back to `--dup/--trans/--loss` [unordered, Python] |
+| `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, per-copy rates; runs on the Python engine |
+| `--family-rates FILE` | TSV of explicit per-family rates (`family duplication transfer loss`); the per-family rate source; unlisted families fall back to `--dup/--trans/--loss` [unordered, Python] |
 | `--branch-rates FILE` | TSV of per-branch transfer `emission` (donation-rate factor) and/or `receptivity` (absorption weight) (`branch emission receptivity`, either optional) [unordered; receptivity-only stays on Rust] |
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
@@ -378,7 +378,7 @@ even simulate ancestral DNA. It is a substantial model with its own flags; see
 
 ## Scope
 
-The CLI covers the common **shared-rate** case (and per-genome rates via `--rate-model
-per-genome`). For family-sampled rates, custom transfer mechanics, ordered genomes, or replicate
+The CLI covers the common **per-copy rate** case (and per-genome rates via `--rate-per
+genome`). For family-sampled rates, custom transfer mechanics, ordered genomes, or replicate
 parallelism, use the Python API (see [gene families & rates](guide/genomes.md) and the
 other guides).

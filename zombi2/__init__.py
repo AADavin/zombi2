@@ -42,8 +42,9 @@ from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, read_gff_all, GffGenome,
-    RateModel, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
-    EventWeight, TransferModel, ConversionModel, read_family_rates, read_branch_rates,
+    RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
+    Modifier, ModifiedRates, BranchModifier, FamilyModifier,
+    EventWeight, TransferModel, PairModifier, ConversionModel, read_family_rates, read_branch_rates,
     GenomeSimulator, GenomeResult, ProfileMatrix,
     simulate_genomes, Genomes, GenomeTrace, read_events_trace,
     build_gene_trees, run_replicates,
@@ -100,8 +101,9 @@ __all__ = [
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Block",
     "read_gff", "read_gff_all", "GffGenome",
     # rates & transfers
-    "RateModel", "SharedRates", "PerGenomeRates", "FamilySampledRates",
-    "BranchRates", "EventWeight", "TransferModel", "ConversionModel",
+    "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
+    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",
+    "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
     "read_family_rates", "read_branch_rates",
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
