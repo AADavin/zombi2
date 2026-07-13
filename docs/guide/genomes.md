@@ -543,8 +543,11 @@ and in the final chromosome order. Rearrangement rates are per gene copy; segmen
 An ordered genome can carry **several chromosomes** instead of one. Set `n_chromosomes` (Python) or
 `--n-chromosomes N` (CLI); the root's initial families are spread across the chromosomes, and
 `circular` (drop it with `--linear-chromosomes`) chooses whether chromosomes wrap at the origin
-(circular — the bacterial default) or have ends (linear — as for eukaryotes). A single circular
-chromosome (`n_chromosomes=1`) is the default and is byte-identical to the single-chromosome engine.
+(circular — the bacterial default) or have ends (linear — as for eukaryotes). In Python `circular`
+may also be a **per-chromosome list** of booleans (e.g. `circular=[True, False, False]`), seeding a
+**mixed-topology** genome — some replicons circular, some linear — with the list length setting the
+chromosome count. A single circular chromosome (`n_chromosomes=1`) is the default and is
+byte-identical to the single-chromosome engine.
 
 Each chromosome is a first-class object with its own identity (`chrom_id`) and topology. The
 gene-level events act **within** a chromosome; a separate **chromosome tier** of events acts on whole
@@ -554,27 +557,29 @@ chromosomes:
 |---|---|---|
 | gene | duplication / inversion / loss | on a segment of one chromosome (chosen in proportion to gene count) |
 | gene | **transposition** | re-inserts on the **same** chromosome |
+| gene | **translocation** | *moves* a segment to a **different** chromosome of the same genome (needs ≥2 chromosomes; lineage-neutral, like transposition) |
 | gene | **transfer** | recipient chromosome chosen **uniformly**, so a copy may land on a *different* chromosome |
 | gene | origination | a uniformly-chosen chromosome |
 | **chromosome** | **fission** | one chromosome splits in two (linear: one breakpoint; circular: two, excising an arc into a new replicon) |
-| **chromosome** | **fusion** | two chromosomes merge into one |
+| **chromosome** | **fusion** | two chromosomes of the **same topology** merge into one (a circular + linear fusion is skipped) |
 | **chromosome** | **origination** | a de-novo replicon — a **plasmid** — appears |
 | **chromosome** | **loss** | a whole chromosome, and every gene on it, is lost |
 
 The chromosome-tier rates default to **0**, so unless you turn them on the karyotype changes only by
 a transfer moving a gene to another chromosome (or a fresh origination). Fission / fusion / plasmid /
-loss are opt-in per-chromosome rates. Linear chromosomes never let a segment cross the ends; circular
-ones may wrap the origin (the ring is rotated to bring a wrapped segment together).
+loss are opt-in per-chromosome rates, as is **translocation** (`translocation=…` / `--translocation`),
+the intra-genome move of a segment between chromosomes. Linear chromosomes never let a segment cross
+the ends; circular ones may wrap the origin (the ring is rotated to bring a wrapped segment together).
 
 ```python
 from zombi2.genomes import SharedRates, OrderedGenome, simulate_genomes
 
 rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
-                    inversion=0.3, transposition=0.3,
+                    inversion=0.3, transposition=0.3, translocation=0.05,
                     fission=0.01, fusion=0.01, chromosome_origination=0.02, chromosome_loss=0.01)
 genomes = simulate_genomes(
     tree, rates, initial_families=30, seed=1,
-    # eight linear chromosomes (e.g. a small eukaryote)
+    # eight linear chromosomes (e.g. a small eukaryote); pass a list to circular for mixed topology
     genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8, circular=False),
 )
 leaf = next(iter(genomes.leaf_genomes.values()))
