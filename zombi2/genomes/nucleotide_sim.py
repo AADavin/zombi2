@@ -315,18 +315,33 @@ class NucleotideResult:
         return out
 
     # --- ancestral genomes + sequences (needs retain_internal + simulate_sequences) -----
-    def node_mosaic(self, node) -> list[tuple[int, int]]:
-        """The genome at ``node`` as an ordered, signed block sequence ``[(block_id, strand), ...]``.
-
-        Generalises :meth:`leaf_mosaic` to any node; the root's mosaic is the input genome's
-        gene/intergene tiling. Requires ``retain_internal`` (see :func:`simulate_nucleotide_genomes`).
-        """
+    def _chrom_mosaic(self, chrom) -> list[tuple[int, int]]:
+        """One chromosome as an ordered, signed block sequence ``[(block_id, strand), ...]``."""
         out: list[tuple[int, int]] = []
-        for seg in self.node_genomes[node]._iter_segments():
+        for seg in chrom.elements:
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
                 covered = list(reversed(covered))
             out.extend((a.block_id, seg.strand) for a in covered)
+        return out
+
+    def node_mosaics(self, node) -> dict:
+        """Per-chromosome block mosaic at ``node``: ``{chrom_id: [(block_id, strand), ...]}``.
+
+        Requires ``retain_internal`` (see :func:`simulate_nucleotide_genomes`).
+        """
+        return {cid: self._chrom_mosaic(chrom)
+                for cid, chrom in self.node_genomes[node].chromosomes.items()}
+
+    def node_mosaic(self, node) -> list[tuple[int, int]]:
+        """The whole genome at ``node`` as one signed block sequence (every chromosome, in order).
+
+        Generalises :meth:`leaf_mosaic` to any node; use :meth:`node_mosaics` to keep the
+        chromosomes apart.
+        """
+        out: list[tuple[int, int]] = []
+        for mosaic in self.node_mosaics(node).values():
+            out.extend(mosaic)
         return out
 
     def _seed_source(self) -> str:
@@ -349,6 +364,8 @@ class NucleotideResult:
         divergence) and a sequence is evolved down it under ``model`` (optionally with across-site
         :class:`~zombi2.sequence_sim.GammaRates`). A seed-chromosome block takes its root sequence from
         ``root_fasta`` (the real genome) when given, else a random root of the block's length.
+        ``root_fasta`` is either a single string (seeds the main chromosome, keyed by ``root_length``)
+        or a ``{source: dna}`` map — one entry per replicon — for a multi-chromosome genome.
         :meth:`node_sequence` then assembles these into the DNA at any node.
         """
         from zombi2.genomes.reconciliation import _node_tree
@@ -361,9 +378,13 @@ class NucleotideResult:
         segments = None if zero else se._lineage_segments(self.species_tree, rng)[0]
         total_age = self.species_tree.total_age
         records_by_block, species_by_block = self._block_records()
-        seed_source = self._seed_source()
-        if root_fasta is not None and len(root_fasta) != self.root_length:
-            raise ValueError(f"root_fasta length {len(root_fasta)} != root_length {self.root_length}")
+        # normalise root_fasta to a {source: dna} map: a bare string seeds the main chromosome.
+        if isinstance(root_fasta, str):
+            if len(root_fasta) != self.root_length:
+                raise ValueError(f"root_fasta length {len(root_fasta)} != root_length {self.root_length}")
+            root_seqs = {self._seed_source(): root_fasta}
+        else:
+            root_seqs = root_fasta or {}
 
         block_seqs: dict[int, dict] = {}
         for a in self.blocks:
@@ -374,28 +395,19 @@ class NucleotideResult:
             subst: dict = {}
             if not zero:
                 _annotate(root_node, segments, max(0.0, se.family_speed.sample(rng)), subst)
-            root_seq = (root_fasta[a.start:a.end]
-                        if (root_fasta is not None and a.source == seed_source) else None)
+            src_dna = root_seqs.get(a.source)
+            root_seq = src_dna[a.start:a.end] if src_dna is not None else None
             block_seqs[a.block_id] = evolve_on_tree(root_node, subst, model, rng,
                                                   root_seq=root_seq, length=a.length, gamma=gamma)
         self._block_seqs = block_seqs
         self._seq_species = species_by_block
         return block_seqs
 
-    def node_sequence(self, node) -> str:
-        """Assemble the full DNA of the genome at ``node`` (call :meth:`simulate_sequences` first).
-
-        Concatenates, in genome order, each segment's block-lineage sequences (reverse-complemented
-        on the − strand). The root node reproduces the input genome; extant leaves give the observed
-        genomes.
-        """
+    def _chrom_sequence(self, chrom, block_seqs, top_cache, node) -> str:
+        """Assemble one chromosome's DNA from its blocks' evolved sequences."""
         from zombi2.sequences.models import reverse_complement
-        block_seqs = getattr(self, "_block_seqs", None)
-        if block_seqs is None:
-            raise RuntimeError("call simulate_sequences(...) before node_sequence(...)")
-        top_cache: dict = {}
         parts: list[str] = []
-        for seg in self.node_genomes[node]._iter_segments():
+        for seg in chrom.elements:
             rep = self._top(seg.seg_id, top_cache)
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
@@ -407,6 +419,24 @@ class NucleotideResult:
                                    f"at node {getattr(node, 'name', node)!r}")
                 parts.append(reverse_complement(s) if seg.strand == -1 else s)
         return "".join(parts)
+
+    def node_sequences(self, node) -> dict:
+        """Per-chromosome assembled DNA at ``node``: ``{chrom_id: dna}`` (call
+        :meth:`simulate_sequences` first). One entry per replicon — the natural output for a
+        multi-chromosome genome (a chromosome plus its plasmids)."""
+        block_seqs = getattr(self, "_block_seqs", None)
+        if block_seqs is None:
+            raise RuntimeError("call simulate_sequences(...) before node_sequences(...)")
+        top_cache: dict = {}
+        return {cid: self._chrom_sequence(chrom, block_seqs, top_cache, node)
+                for cid, chrom in self.node_genomes[node].chromosomes.items()}
+
+    def node_sequence(self, node) -> str:
+        """Assemble the full DNA of the genome at ``node`` — every chromosome, concatenated in order
+        (call :meth:`simulate_sequences` first). The root node reproduces the input genome; extant
+        leaves give the observed genomes. Use :meth:`node_sequences` to keep the chromosomes apart.
+        """
+        return "".join(self.node_sequences(node).values())
 
     def gene_alignments(self) -> dict:
         """``{gene_id: {species_gid: seq}}`` extant alignments for gene blocks (needs sequences)."""

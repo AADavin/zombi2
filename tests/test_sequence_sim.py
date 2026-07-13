@@ -342,6 +342,34 @@ def test_fasta_seeded_root_reproduces_input_genome():
         res.simulate_sequences(jc69(), root_fasta="ACGT", seed=1)
 
 
+def test_multichromosome_ancestral_reproduces_each_replicon():
+    """A multi-chromosome genome (a chromosome + a plasmid) evolves and reconstructs DNA per
+    replicon: node_sequences() is one entry per chromosome, and a per-source FASTA seed reproduces
+    each replicon's input exactly at zero divergence."""
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=5, age=1.2, seed=4)
+    res = simulate_nucleotide_genomes(
+        tree, root_chromosomes=[(300, [(20, 80, "gA"), (150, 250, "gB")]), (200, [(30, 120, "pX")])],
+        inversion=0.004, loss=0.002, retain_internal=True, seed=4)
+
+    rng = np.random.default_rng(9)
+    chr_dna = "".join(rng.choice(list("ACGT"), size=300))
+    pla_dna = "".join(rng.choice(list("ACGT"), size=200))
+    chroms = list(res.node_genomes[tree.root].chromosomes.values())   # order == root_chromosomes
+    root_seqs = {chroms[0].elements[0].source: chr_dna, chroms[1].elements[0].source: pla_dna}
+
+    res.simulate_sequences(jc69(), subst_rate=0.0, root_fasta=root_seqs, seed=1)
+    seqs = res.node_sequences(tree.root)                    # {chrom_id: dna}
+    assert seqs[chroms[0].chrom_id] == chr_dna              # chromosome reproduced exactly
+    assert seqs[chroms[1].chrom_id] == pla_dna              # plasmid reproduced exactly
+    assert res.node_sequence(tree.root) == chr_dna + pla_dna  # concatenated == both, in order
+    # every node has one assembled sequence per chromosome, each the size of that chromosome
+    for n in tree.nodes_preorder():
+        per = res.node_sequences(n)
+        assert set(per) == set(res.node_genomes[n].chromosomes)
+        for cid, dna in per.items():
+            assert len(dna) == res.node_genomes[n]._chrom_length(res.node_genomes[n].chromosomes[cid])
+
+
 def test_gene_alignments_shape():
     tree, res = _run()
     res.simulate_sequences(jc69(), subst_rate=0.2, seed=7)
