@@ -6,7 +6,9 @@
 from zombi2.species import BirthDeath, simulate_species_tree
 from zombi2.genomes import simulate_genomes
 
-# 1. species tree (backward), conditioned on 20 extant tips and a crown age of 5
+# 1. species tree (backward): conditioned on 20 extant tips and a crown age of 5.
+#    "Crown age" = age of the tips' most-recent common ancestor (see the FAQ); time is
+#    dimensionless — age and the rates just share one arbitrary unit.
 tree = simulate_species_tree(BirthDeath(birth=1.0, death=0.3),
                              n_tips=20, age=5.0, seed=1)
 
@@ -20,7 +22,9 @@ print(genomes.profiles.matrix.shape)    # (n_families, n_species) copy numbers
 genomes.write("out/")                   # write every output to out/
 ```
 
-Everything is seeded: the same `seed` gives byte-identical results.
+Everything is seeded: the same `seed` gives byte-identical results. Note that `origination`
+keeps minting new families along the tree, so the final family count grows past
+`initial_families` (you start with 40 and end with more).
 
 ## What `genomes.write("out/")` writes
 
@@ -45,8 +49,10 @@ writes a subset — `Profiles.tsv`, `Presence.tsv` and `gene_trees/` (its `--wri
 # species tree only
 zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
 
-# gene families along a supplied tree
-zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 -o out/
+# gene families along a supplied tree (--write all also emits the ground-truth event tables:
+# Gene_family_summary.tsv, gene_family_events/ and Transfers.tsv — the DTL "truth" of the run)
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 \
+    --initial-families 40 --write all -o out/
 ```
 
 The built-in model runs on Rust automatically. `--write` selects the outputs — the default is
