@@ -65,10 +65,10 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
-  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)
+  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse, export)
 
 Experimental (unstable, opt-in)
-  experimental         not-yet-validated models (selection: ESM2 codon selection, emergent dN/dS)
+  experimental         not-yet-validated models (selection: ESM2 dN/dS; ils: multispecies coalescent)
 """
 
 
@@ -126,8 +126,19 @@ def _int_or_float(text: str) -> int | float:
     return float(text) if "." in text else int(text)
 
 
+def _add_params_arg(g) -> None:
+    """Add ``--params FILE`` (a TOML parameters file) to a subcommand's ``general`` group."""
+    g.add_argument("--params", metavar="FILE",
+                   help="a TOML parameters file whose keys are this command's long option names "
+                        "(hyphens or underscores); applied as defaults, so any flag given on the "
+                        "command line overrides it. A '[<command>]' table scopes one file to a "
+                        "whole pipeline. Required I/O paths (-o / -t / --genomes) stay on the "
+                        "command line.")
+
+
 def _add_species_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
+    _add_params_arg(g)
     g.add_argument("--mode", dest="model", choices=("backward", "forward"), default="backward",
                    metavar="MODE",
                    help="backward: reconstructed tree conditioned on --tips extant species "
@@ -216,6 +227,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
 
 def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
+    _add_params_arg(g)
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
     g.add_argument("--genome-model", dest="genome_model",
@@ -288,19 +300,27 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="write", nargs="+", metavar="PART",
-                   choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "all"),
+                   choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "geneorder", "all"),
                    default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
-                        "transfers, summary, branch_events} or 'all' (default: profiles trees). "
+                        "transfers, summary, branch_events, reconciliations, layout, karyotype} or "
+                        "'all' (default: profiles trees). 'reconciliations' writes "
+                        "Reconciled_complete/extant.nwk (tips <species>|<gid>) — the truth input for "
+                        "'tools recon-accuracy' and 'tools reconcile'. "
                         "species_tree.nwk is always written; 'profiles' alone takes the fast Rust "
                         "counts-only path; 'trace' (optionally with 'profiles') writes the compact "
                         "single-file event log Events_trace.tsv near counts-only speed, from which "
                         "gene trees can be reconstructed later on demand; 'branch_events' writes "
                         "Branch_events.tsv, the per-species-branch event counts (with an is_extant "
-                        "flag). [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
+                        "flag). [ordered] 'layout' writes Gene_order.tsv (which chromosome each gene "
+                        "sits on) and 'karyotype' writes Karyotype_trace.tsv (fission/fusion/"
+                        "origination/loss) — both added automatically for a multi-chromosome or "
+                        "fission/fusion run. [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
                         "(architecture + gzipped FASTA) at every node; 'bed' writes BED gene "
                         "annotations — genes.bed for the root genome and BED/<node>.bed per node "
-                        "(needs --genes/--gff)")
+                        "(needs --genes/--gff); 'geneorder' writes Geneorder_events.tsv, the "
+                        "structural-event log with physical breakpoints (chrom/start/length/strand) "
+                        "per branch — the input for gene-order / breakpoint export)")
     g.add_argument("--sparse", action="store_true",
                    help="write the profile as a sparse long table (Profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense matrix — "
@@ -344,12 +364,48 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="mean length of an inversion/transposition segment (geometric): in genes "
                         "for --genome-model ordered (default 1 = single-gene events), in "
                         "nucleotides for nucleotide (default 100)")
+    g.add_argument("--transposition-flip", type=float, default=0.0, metavar="P",
+                   dest="transposition_flip",
+                   help="probability a transposed segment reinserts reverse-complemented "
+                        "(gene order reversed and strands flipped), for --genome-model ordered "
+                        "(default 0 = always keep orientation)")
+    g.add_argument("--translocation", type=float, default=0.0, metavar="RATE",
+                   help="[ordered/nucleotide] translocation rate: a segment (ordered, per gene) or "
+                        "arc (nucleotide, per nucleotide) moves to a different chromosome of the same "
+                        "genome (needs >1 chromosome; distinct from transposition, which stays on one "
+                        "chromosome) (default 0 = off)")
+    g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
+                   help="number of chromosomes seeded at the root, for --genome-model "
+                        "ordered/nucleotide (default 1). [ordered] the root's initial families are "
+                        "spread across them; [nucleotide] each is an independent full-length copy of "
+                        "the root chromosome. Rearrangements stay within a chromosome (see "
+                        "--fission/--fusion for chromosome-level changes)")
+    g.add_argument("--linear-chromosomes", action="store_true", dest="linear_chromosomes",
+                   help="ordered chromosomes are linear (segments never wrap the origin), for "
+                        "--genome-model ordered (default: circular, as for bacteria). Nucleotide "
+                        "chromosomes are always circular")
+    # chromosome-tier events (ordered + nucleotide genomes; off by default). When any is set — or
+    # with more than one chromosome — the run also writes the karyotype (Gene_order.tsv /
+    # Chromosomes.tsv layout) + Karyotype_trace.tsv.
+    g.add_argument("--fission", type=float, default=0.0, metavar="RATE",
+                   help="[ordered/nucleotide] chromosome fission rate, per chromosome: a chromosome "
+                        "splits in two (linear: one breakpoint; circular: two) (default 0 = off)")
+    g.add_argument("--fusion", type=float, default=0.0, metavar="RATE",
+                   help="[ordered/nucleotide] chromosome fusion rate, per chromosome: two "
+                        "chromosomes merge into one (default 0 = off)")
+    g.add_argument("--chromosome-origination", type=float, default=0.0, metavar="RATE",
+                   dest="chromosome_origination",
+                   help="[ordered/nucleotide] chromosome origination rate, per genome: a de-novo "
+                        "replicon (a plasmid) appears (default 0 = off)")
+    g.add_argument("--chromosome-loss", type=float, default=0.0, metavar="RATE",
+                   dest="chromosome_loss",
+                   help="[ordered/nucleotide] chromosome loss rate, per chromosome: a whole "
+                        "chromosome and its genes are lost (default 0 = off)")
 
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
-                   help="number of root chromosomes seeded at the root, for --genome-model "
-                        "nucleotide (default: 1)")
+                   help="deprecated alias for --n-chromosomes (--genome-model nucleotide)")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
     g.add_argument("--insertion", type=float, default=0.0, metavar="RATE",
@@ -1784,9 +1840,28 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
-    if args.threads > 1 and parts != {"profiles"}:
-        raise ValueError("--threads > 1 parallelises only the counts-only path; use it with "
-                         "exactly --write profiles")
+    if args.threads > 1:
+        # --threads parallelises ONLY the counts-only Rust fast path: built-in shared rates on an
+        # unordered genome, profiles-only, no conversion / branch-rates / scoring. Reject every other
+        # combination up front with a flag-level message — otherwise per-genome/family rates crash
+        # deep in the engine and --conversion / ordered silently run serial (the threads ignored).
+        reason = None
+        if parts != {"profiles"}:
+            reason = "use it with exactly --write profiles"
+        elif args.genome_model != "unordered":
+            reason = f"--genome-model {args.genome_model} runs serially; use --genome-model unordered"
+        elif (args.rate_per == "genome" or args.rate_model in ("per-genome", "family")
+              or args.family_rates):
+            reason = ("the built-in per-copy rates are required "
+                      "(--rate-per genome / --family-rates run on Python)")
+        elif args.conversion:
+            reason = "--conversion runs on the full (serial) path"
+        elif args.branch_rates:
+            reason = "--branch-rates runs on the full (serial) path"
+        elif getattr(args, "score_likelihoods", False):
+            reason = "--score-likelihoods forces the full (serial) gene-tree path"
+        if reason is not None:
+            parser.error(f"--threads > 1 parallelises only the counts-only path: {reason}")
 
     # ---- opportunity axis (--rate-per), folding in the deprecated --rate-model spelling ----
     rate_per = args.rate_per  # None (default per-copy) | "copy" | "genome"
@@ -1811,8 +1886,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                          "construction")
         if args.initial_families is not None:
             parser.error("--initial-families is for the unordered genome level "
-                         "(--genome-model unordered); the nucleotide model uses "
-                         "--initial-chromosomes")
+                         "(--genome-model unordered); the nucleotide model uses --n-chromosomes")
         if getattr(args, "score_likelihoods", False):
             parser.error("--score-likelihoods scores reconstructed gene-family trees, which the "
                          "nucleotide genome model does not produce; use --genome-model "
@@ -1822,6 +1896,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.initial_chromosomes is not None:
         parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
                      "unordered and ordered genome levels use --initial-families")
+    if args.translocation and args.genome_model != "ordered":
+        parser.error("--translocation needs chromosomes: use --genome-model ordered or nucleotide "
+                     "(it moves a segment/arc between chromosomes of a multi-chromosome genome)")
 
     ordered = args.genome_model == "ordered"
     initial_families = 20 if args.initial_families is None else args.initial_families
@@ -1832,6 +1909,29 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         parser.error("--family-rates / --branch-rates are only for --genome-model unordered")
     per_genome = rate_per == "genome"
     args.rate_per = "genome" if per_genome else "copy"  # record the effective value in the log
+    if not (0.0 <= args.transposition_flip <= 1.0):
+        parser.error("--transposition-flip must be a probability in [0, 1]")
+    if args.transposition_flip and not ordered:
+        parser.error("--transposition-flip applies to transpositions on an ordered chromosome; "
+                     "use --genome-model ordered")
+    if args.n_chromosomes < 1:
+        parser.error("--n-chromosomes must be >= 1")
+    if args.n_chromosomes != 1 and not ordered:  # nucleotide is handled in its own branch above
+        parser.error("--n-chromosomes applies to --genome-model ordered or nucleotide")
+    if args.linear_chromosomes and not ordered:
+        parser.error("--linear-chromosomes applies to --genome-model ordered")
+    chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
+                      or args.chromosome_loss)
+    if chrom_tier and not ordered:
+        parser.error("--fission / --fusion / --chromosome-origination / --chromosome-loss apply to "
+                     "--genome-model ordered or nucleotide")
+    if ordered and (args.n_chromosomes > 1 or chrom_tier):
+        # auto-surface the karyotype outputs when non-trivial, so a multi-chromosome or fission /
+        # fusion run captures its layout (and genealogy) without the user asking; single-chromosome
+        # runs are untouched.
+        parts.add("layout")
+        if chrom_tier:
+            parts.add("karyotype")
     family_mode = args.family_rates is not None  # per-family rates come from the table
     if family_mode and per_genome:
         parser.error("--family-rates supplies per-family per-copy rates; it does not combine with "
@@ -1857,7 +1957,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
         rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
-                             inversion=inv, transposition=tps)
+                             inversion=inv, transposition=tps, translocation=args.translocation,
+                             chromosome_origination=args.chromosome_origination,
+                             chromosome_loss=args.chromosome_loss,
+                             fission=args.fission, fusion=args.fusion)
     elif family_mode:  # each family its own rates, from the table (unlisted -> --dup/--trans/--loss)
         rates = FamilySampledRates(duplication=args.dup, transfer=args.trans, loss=args.loss,
                                    origination=args.orig,
@@ -1888,7 +1991,13 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                    max_family_size=args.max_family_size, seed=args.seed)
     if ordered:
         ext = args.extension  # ordered event length is counted in genes; None -> single-gene events
-        rate_kw["genome_factory"] = lambda ids, _e=ext: OrderedGenome(ids, extension=_e)
+        flip = args.transposition_flip  # P(a transposed segment reinserts reverse-complemented)
+        n_chrom = args.n_chromosomes     # number of chromosomes to seed at the root
+        circular = not args.linear_chromosomes  # linear = eukaryotic ends (no wrap); circular default
+        rate_kw["genome_factory"] = (
+            lambda ids, _e=ext, _f=flip, _n=n_chrom, _c=circular: OrderedGenome(
+                ids, extension=_e, transposition_flip=_f, n_chromosomes=_n, circular=_c)
+        )
 
     # scoring reconciliation likelihoods needs the full gene-family genealogy, so it forces the
     # full path (the fast counts-only / trace paths don't reconstruct gene trees).
@@ -1986,6 +2095,74 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
             print(f"{r.family}\t{r.extant_tips}\t"
                   + "\t".join(f"{r.logliks[m]:.6f}" for m in models))
     return 0
+
+
+def _run_tools_simulate(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools simulate`` — forward-simulate gene families under the ALE undated/reldated
+    model (the generative twin of 'reconcile') and write per-family ground-truth reconciliations."""
+    from .tools.reconciliation.undated import UndatedDTL
+    from .tools.reconciliation.undated_sim import simulate_undated
+
+    with open(args.species_tree) as f:
+        tree = read_newick(f.read())
+    if len(tree.leaves()) < 2:
+        parser.error(f"{args.species_tree} is not a usable species tree — fewer than 2 tips "
+                     "(is it a valid Newick file?)")
+    transfers = "dated" if args.model == "reldated" else "global"
+    model = UndatedDTL(args.dup, args.trans, args.loss)
+    try:
+        res = simulate_undated(tree, model, n_families=args.families,
+                               origination=args.origination, transfers=transfers,
+                               seed=args.seed, max_events=args.max_events)
+    except (ValueError, RuntimeError) as e:
+        parser.error(str(e))
+
+    c = res.event_counts
+    print(f"simulated {res.n_families} families under {args.model} "
+          f"(d={args.dup}, t={args.trans}, l={args.loss}): "
+          f"{res.n_surviving} survived, {res.n_extinct} went extinct")
+    print(f"events: {c.get('D', 0)} D, {c.get('T', 0)} T, {c.get('L', 0)} L, {c.get('S', 0)} S")
+
+    if args.score:
+        from .tools.reconciliation.undated import undated_joint_loglik
+        ll = undated_joint_loglik(res.gene_trees(), res.species_tree, model,
+                                  origination=args.origination, transfers=transfers,
+                                  n_extinct=res.n_extinct)
+        print(f"joint undated log-likelihood of the {res.n_surviving} survivors "
+              f"(+{res.n_extinct} extinct) under the generating odds: {ll:.6f}")
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        n_extant = _write_undated_sim(res, args.out)
+        print(f"wrote Reconciled_complete.nwk, Reconciled_extant.nwk ({n_extant} survivors), "
+              f"Reconciliation_events.tsv and Gene_family_profiles.tsv into {args.out}/")
+    return 0
+
+
+def _write_undated_sim(res, out: str) -> int:
+    """Write a simulated result's ground-truth reconciliations: bare annotated Newicks (one family
+    per line — the format 'recon-accuracy' reads) plus a flat S/D/T/L event table. Returns the
+    number of surviving (extant) families written."""
+    complete_lines, extant_lines = [], []
+    ev_lines = ["family\tevent\tspecies\trecipient\ttime\tgene"]
+    for i, recon in enumerate(res.reconciliations, 1):
+        if recon.complete is not None:
+            complete_lines.append(recon.complete)
+        if recon.extant is not None:
+            extant_lines.append(recon.extant)
+        for e in recon.events:
+            ev_lines.append(f"{i}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
+                            f"{e.time:.10g}\t{e.gene or ''}")
+    prof_lines = ["family\t" + "\t".join(res.leaf_names)]
+    for fam, counts in res.profile_rows():
+        prof_lines.append(fam + "\t" + "\t".join(str(c) for c in counts))
+    for name, lines in (("Reconciled_complete.nwk", complete_lines),
+                        ("Reconciled_extant.nwk", extant_lines),
+                        ("Reconciliation_events.tsv", ev_lines),
+                        ("Gene_family_profiles.tsv", prof_lines)):
+        with open(os.path.join(out, name), "w") as f:
+            f.write("\n".join(lines) + ("\n" if lines else ""))
+    return len(extant_lines)
 
 
 _TREEDIST_COLS = ("tree", "n_leaves", "rf", "rf_norm", "rf_unrooted",
@@ -2243,6 +2420,33 @@ def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     return 0
 
 
+def _run_tools_export(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools export`` — gene-order study formats from a nucleotide genomes run."""
+    from .tools.geneorder_export import breakpoints_tsv, gff_text, posortho_tsv
+
+    if not os.path.isdir(args.genomes_dir):
+        parser.error(f"{args.genomes_dir} is not a directory")
+    builders = {"breakpoints": ("Breakpoints.tsv", breakpoints_tsv),
+                "gff": ("Genes.gff", gff_text),
+                "posortho": ("Positional_orthologs.tsv", posortho_tsv)}
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+    for fmt in args.formats:
+        filename, build = builders[fmt]
+        try:
+            text = build(args.genomes_dir)
+        except FileNotFoundError as e:
+            parser.error(str(e))
+        if args.out:
+            path = os.path.join(args.out, filename)
+            with open(path, "w") as f:
+                f.write(text)
+            print(f"wrote {path} ({max(0, len(text.splitlines()) - 1)} row(s))")
+        else:
+            print(text, end="")
+    return 0
+
+
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
@@ -2252,14 +2456,20 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
-    want = parts & {"profiles", "trees", "ancestral", "bed"}
+    want = parts & {"profiles", "trees", "reconciliations", "ancestral", "bed", "geneorder"}
     if not want:
-        raise ValueError("the nucleotide model writes 'profiles', 'trees', 'ancestral' and/or "
-                         "'bed'; --write events/transfers/summary/branch_events do not apply to it")
+        raise ValueError("the nucleotide model writes 'profiles', 'trees', 'reconciliations', "
+                         "'ancestral', 'bed' and/or 'geneorder'; --write events/transfers/summary/"
+                         "branch_events do not apply to it")
     ancestral = "ancestral" in want
     bed = "bed" in want
-    initial_chromosomes = 1 if args.initial_chromosomes is None else args.initial_chromosomes
-    args.initial_chromosomes = initial_chromosomes  # record the effective value in the params log
+    # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias
+    # that takes precedence when explicitly given.
+    initial_chromosomes = (args.initial_chromosomes if args.initial_chromosomes is not None
+                           else args.n_chromosomes)
+    if initial_chromosomes < 1:
+        raise ValueError("--n-chromosomes must be >= 1")
+    args.n_chromosomes = args.initial_chromosomes = initial_chromosomes  # effective value in the log
     # the structural knobs are shared with the ordered level, so their defaults are resolved here
     args.inversion = 0.001 if args.inversion is None else args.inversion
     args.transposition = 0.0 if args.transposition is None else args.transposition
@@ -2267,32 +2477,63 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     if args.gff and args.genes:
         raise ValueError("give either --gff or --genes (not both) to set the gene coordinates")
     gff_info = None
+    gff_all = None
+    root_chromosomes = None
     if args.gff:                              # start from a real genome: length + gene coordinates
-        from zombi2.genomes.gff import read_gff
-        gff_info = read_gff(args.gff, seqid=args.gff_seqid)
-        genes = gff_info.genes
-        args.root_length = gff_info.length    # GFF is authoritative for the chromosome length
+        from zombi2.genomes.gff import read_gff, read_gff_all
+        if args.gff_seqid:                    # one named sequence -> a single chromosome
+            gff_info = read_gff(args.gff, seqid=args.gff_seqid)
+            genes = gff_info.genes
+            args.root_length = gff_info.length
+        else:
+            gff_all = read_gff_all(args.gff)  # every sequence becomes its own chromosome
+            if len(gff_all) == 1:
+                gff_info = gff_all[0]
+                genes = gff_info.genes
+                args.root_length = gff_info.length
+            else:                             # a multi-replicon genome -> heterogeneous chromosomes
+                if initial_chromosomes != 1:
+                    raise ValueError("--gff with several sequences already sets the chromosomes; "
+                                     "drop --n-chromosomes (or --gff-seqid to pick one sequence)")
+                # each replicon keeps its own topology from the GFF `Is_circular` flag, so a real
+                # genome's linear chromosome + circular plasmids seed as a mixed-topology genome;
+                # --linear-chromosomes forces them all linear.
+                root_chromosomes = [(g.length, g.genes, False if args.linear_chromosomes else g.circular)
+                                    for g in gff_all]
+                genes = None
     elif args.genes:
         genes = _read_gene_intervals(args.genes)
     else:
         genes = None
-    genic = bool(genes)
+    genic = bool(genes) or root_chromosomes is not None
     if bed and not genic:
         raise ValueError("--write bed annotates genes on each genome, so it needs gene "
                          "coordinates: supply --genes or --gff")
     transfers = TransferModel(replacement=0.0) if genic else None  # homologous repl. is genome-side
     indels = bool(args.insertion or args.deletion)
+    chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
+                      or args.chromosome_loss)
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
                   transfer=args.trans, transposition=args.transposition,
+                  translocation=args.translocation,
                   origination=args.orig, insertion=args.insertion, deletion=args.deletion,
                   indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
-                  gene_intervals=genes, pseudogenization=args.pseudogenization,
+                  circular=not args.linear_chromosomes,
+                  fission=args.fission, fusion=args.fusion,
+                  chromosome_origination=args.chromosome_origination,
+                  chromosome_loss=args.chromosome_loss,
+                  gene_intervals=genes, root_chromosomes=root_chromosomes,
+                  pseudogenization=args.pseudogenization,
                   replacement=args.replacement, transfers=transfers,
                   retain_internal=ancestral or bed)  # bed annotates every node's genome
 
     t0 = time.perf_counter()
-    if "trees" in want or genic or ancestral or bed or indels:  # these need the Python engine
+    # the Python engine is needed for the event log, the genic model, indels, the chromosome tier,
+    # translocation, and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
+    if ("trees" in want or "reconciliations" in want or "geneorder" in want or genic or ancestral
+            or bed or indels or chrom_tier or args.translocation or args.linear_chromosomes
+            or root_chromosomes is not None):
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2320,17 +2561,34 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
             with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
                 f.write(pm.to_tsv(presence=True))
         _write_mosaics(args.out, result)
+    if "trees" in want or "reconciliations" in want:
+        result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
     if "trees" in want:
         _write_block_gene_trees(args.out, result, genic=genic)
-        result.write_reconciliations(args.out)   # Reconciled_complete/extant.nwk + events.tsv
         if genic:
             _write_pseudogenizations(args.out, result)
     if ancestral:
-        _write_ancestral(args.out, result, tree, args, gff_info)
+        _write_ancestral(args.out, result, tree, args, gff_info, gff_all)
     if bed:
-        _write_bed(args.out, result, tree, gff_info)
+        _write_bed(args.out, result, tree, gff_info, gff_all)
+    if "geneorder" in want:
+        from zombi2.genomes.simulation import geneorder_events_from_log
+        with open(os.path.join(args.out, "Geneorder_events.tsv"), "w") as f:
+            f.write(geneorder_events_from_log(result.event_log))
+    # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
+    # (Chromosomes.tsv) and the fission/fusion/origination/loss genealogy (Karyotype_trace.tsv).
+    # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
+    py_engine = any(isinstance(getattr(g, "chromosomes", None), dict)
+                    for g in result.leaf_genomes.values())
+    multi_chrom = initial_chromosomes > 1 or (root_chromosomes is not None
+                                              and len(root_chromosomes) > 1)
+    if py_engine and (chrom_tier or multi_chrom):
+        _write_nucleotide_karyotype(args.out, result)
 
-    if gff_info is not None:
+    if gff_all is not None and len(gff_all) > 1:
+        print(f"  GFF: {len(gff_all)} sequences -> {len(gff_all)} chromosomes "
+              f"({', '.join(f'{g.seqid}:{g.length}bp/{len(g.genes)}g' for g in gff_all)})")
+    elif gff_info is not None:
         print(f"  GFF {gff_info.seqid}: {gff_info.length} bp, {gff_info.n_features} genes "
               f"-> {len(gff_info.genes)} after trimming ({gff_info.n_trimmed} trimmed, "
               f"{gff_info.n_dropped} dropped as overlapping)")
@@ -2340,26 +2598,75 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
             f"in {dt:.3g} s")
 
 
-def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
+def _write_nucleotide_karyotype(out: str, result) -> None:
+    """Write the karyotype of a multi-chromosome / chromosome-tier nucleotide run.
+
+    ``Chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order,
+    with the chromosome's topology (``species chromosome topology position source start end strand``);
+    ``Karyotype_trace.tsv`` — the fission / fusion / origination / loss genealogy
+    (``time event branch parents children``), one row per chromosome-tier event (header-only if the
+    karyotype never changed).
+    """
+    lay = ["species\tchromosome\ttopology\tposition\tsource\tstart\tend\tstrand"]
+    for leaf, genome in sorted(result.leaf_genomes.items(), key=lambda kv: kv[0].name):
+        chroms = getattr(genome, "chromosomes", None)
+        if not isinstance(chroms, dict):
+            continue
+        for chrom in chroms.values():
+            topology = "circular" if chrom.circular else "linear"
+            for pos, s in enumerate(chrom.elements):
+                strand = "+" if s.strand >= 0 else "-"
+                lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{topology}\t{pos}\t{s.source}\t"
+                           f"{s.src_start}\t{s.src_end}\t{strand}")
+    with open(os.path.join(out, "Chromosomes.tsv"), "w") as f:
+        f.write("\n".join(lay) + "\n")
+
+    kar = ["time\tevent\tbranch\tparents\tchildren"]
+    for r in result.event_log.chromosome_records:
+        parents = ";".join(str(p) for p in r.parents)
+        children = ";".join(str(c) for c in r.children)
+        kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
+    with open(os.path.join(out, "Karyotype_trace.tsv"), "w") as f:
+        f.write("\n".join(kar) + "\n")
+
+
+def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> None:
     """Simulate sequences and write the genome (architecture + gzipped DNA) at every node.
 
-    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome;
-    ``Genomes/<node>.fasta.gz`` — its full assembled DNA (the root reproduces the input genome);
-    ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is seeded
-    from ``--genome-fasta`` (the real genome) when given, else drawn at random.
+    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome
+    (a ``chromosome`` column keeps replicons apart); ``Genomes/<node>.fasta.gz`` — its assembled DNA,
+    one FASTA record per chromosome for a multi-chromosome genome (else one record, the whole
+    genome); ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is
+    seeded from ``--genome-fasta`` when given (a multi-record FASTA for a multi-sequence GFF, matched
+    to each replicon by sequence name), else drawn at random.
     """
     from zombi2.sequences.models import make_model, GammaRates, read_fasta, write_fasta
     model = make_model(args.subst_model, kappa=args.kappa,
                        freqs=args.base_freqs, rates=args.gtr_rates)
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
+    multi = gff_all is not None and len(gff_all) > 1
     root_fasta = None
     if args.genome_fasta:
         fa = read_fasta(args.genome_fasta)
-        seqid = gff_info.seqid if gff_info is not None else None
-        root_fasta = fa[seqid] if seqid in fa else next(iter(fa.values()))
-        if len(root_fasta) != args.root_length:
-            raise ValueError(f"--genome-fasta sequence is {len(root_fasta)} bp but the genome is "
-                             f"{args.root_length} bp; supply the matching chromosome FASTA")
+        if multi:
+            # a multi-record FASTA: match each replicon's record (by GFF sequence name) to its source
+            root_chroms = list(result.node_genomes[tree.root].chromosomes.values())
+            root_fasta = {}
+            for g, chrom in zip(gff_all, root_chroms):
+                if g.seqid not in fa:
+                    raise ValueError(f"--genome-fasta has no record {g.seqid!r} "
+                                     f"(have: {', '.join(sorted(fa))})")
+                dna = fa[g.seqid]
+                if len(dna) != g.length:
+                    raise ValueError(f"--genome-fasta record {g.seqid} is {len(dna)} bp but the GFF "
+                                     f"says {g.length} bp")
+                root_fasta[chrom.elements[0].source] = dna
+        else:
+            seqid = gff_info.seqid if gff_info is not None else None
+            root_fasta = fa[seqid] if seqid in fa else next(iter(fa.values()))
+            if len(root_fasta) != args.root_length:
+                raise ValueError(f"--genome-fasta sequence is {len(root_fasta)} bp but the genome is "
+                                 f"{args.root_length} bp; supply the matching chromosome FASTA")
     result.simulate_sequences(model, gamma=gamma, root_fasta=root_fasta,
                               subst_rate=args.subst_rate, seed=args.seed)
 
@@ -2369,15 +2676,20 @@ def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
     os.makedirs(gdir, exist_ok=True)
     for node in tree.nodes_preorder():
         name = node.name
-        lines = ["order\tblock\tkind\tgene_id\tstrand\tlength"]
-        for i, (aid, strand) in enumerate(result.node_mosaic(node)):
-            a = result._block_by_id[aid]
-            lines.append(f"{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
-                         f"{'+' if strand > 0 else '-'}\t{a.length}")
+        mosaics = result.node_mosaics(node)      # {chrom_id: [(block_id, strand), ...]}
+        seqs = result.node_sequences(node)        # {chrom_id: dna}
+        lines = ["chromosome\torder\tblock\tkind\tgene_id\tstrand\tlength"]
+        for cid, mosaic in mosaics.items():
+            for i, (aid, strand) in enumerate(mosaic):
+                a = result._block_by_id[aid]
+                lines.append(f"{cid}\t{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
+                             f"{'+' if strand > 0 else '-'}\t{a.length}")
         with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
             f.write("\n".join(lines) + "\n")
-        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), {name: result.node_sequence(node)},
-                    gzip_out=True)
+        # one FASTA record per chromosome (multi-chromosome), else one record for the whole genome
+        records = ({name: next(iter(seqs.values()))} if len(seqs) == 1
+                   else {f"{name}_chr{cid}": dna for cid, dna in seqs.items()})
+        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), records, gzip_out=True)
 
     aln_dir = os.path.join(out, "Gene_alignments")
     os.makedirs(aln_dir, exist_ok=True)
@@ -2409,14 +2721,19 @@ def _read_gene_intervals(path: str) -> list[tuple]:
     return out
 
 
-def _write_bed(out: str, result, tree, gff_info) -> None:
+def _write_bed(out: str, result, tree, gff_info, gff_all=None) -> None:
     """Write BED gene annotations — one BED6 feature per gene on each genome.
 
     ``genes.bed`` is the root (seed) genome's annotation, using the input sequence name as the
     chromosome (the GFF/FASTA seqid when a real genome was supplied) so it loads against the
     original genome. ``BED/<node>.bed`` is the annotation of every node's genome *after*
     rearrangements — genes at their coordinates on that node's chromosome, whose chromosome name
-    is the node id to match ``Genomes/<node>.fasta.gz`` (written by ``--write ancestral``).
+    matches the corresponding ``Genomes/<node>.fasta.gz`` record (written by ``--write ancestral``).
+
+    Each chromosome is annotated separately, with coordinates that restart at 0 per chromosome — so
+    a multi-chromosome genome (a chromosome plus its plasmids) gets one BED contig per replicon,
+    named to line up with its FASTA record: ``<seqid>`` at the root (the input names) and
+    ``<node>_chr<id>`` at every node (single-chromosome runs keep the plain ``<seqid>`` / ``<node>``).
 
     Columns are standard BED6: ``chrom  chromStart  chromEnd  name  score  strand`` — 0-based,
     half-open, the same coordinate convention ZOMBI2 uses internally, so no conversion is needed.
@@ -2427,29 +2744,43 @@ def _write_bed(out: str, result, tree, gff_info) -> None:
     genic model does not track that (``read_gff`` reads only coordinates), so ``genes.bed`` is
     always all ``+``.
     """
-    def bed_rows(node, chrom: str) -> list[str]:
-        rows, offset = [], 0
-        for block_id, strand in result.node_mosaic(node):
-            block = result._block_by_id[block_id]
-            if block.kind == "gene":
-                rows.append(f"{chrom}\t{offset}\t{offset + block.length}\t"
-                            f"{block.gene_id}\t0\t{'+' if strand > 0 else '-'}")
-            offset += block.length
+    multi = gff_all is not None and len(gff_all) > 1
+    # root chromosome id -> input sequence name (for genes.bed, so it loads on the real genome)
+    seqid_by_cid = {}
+    if multi:
+        root_chroms = list(result.node_genomes[tree.root].chromosomes.values())
+        seqid_by_cid = {c.chrom_id: g.seqid for g, c in zip(gff_all, root_chroms)}
+
+    def bed_rows(node, chrom_name) -> list[str]:
+        """One BED6 row per gene, coordinates restarting at 0 on each chromosome. ``chrom_name(cid)``
+        gives the contig name to match this node's FASTA record(s)."""
+        rows: list[str] = []
+        for cid, mosaic in result.node_mosaics(node).items():
+            chrom, offset = chrom_name(cid), 0
+            for block_id, strand in mosaic:
+                block = result._block_by_id[block_id]
+                if block.kind == "gene":
+                    rows.append(f"{chrom}\t{offset}\t{offset + block.length}\t"
+                                f"{block.gene_id}\t0\t{'+' if strand > 0 else '-'}")
+                offset += block.length
         return rows
 
     def write_bed(path: str, rows: list[str]) -> None:
         with open(path, "w") as f:
             f.write("\n".join(rows) + ("\n" if rows else ""))
 
-    # root (seed) annotation — chromosome named after the input sequence when known
-    root_chrom = gff_info.seqid if gff_info is not None else "root_chromosome"
-    write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_chrom))
+    # root (seed) annotation — chromosome named after the input sequence(s)
+    root_seqid = gff_info.seqid if gff_info is not None else "root_chromosome"
+    root_name = (lambda cid: seqid_by_cid.get(cid, f"chr{cid}")) if multi else (lambda cid: root_seqid)
+    write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_name))
 
-    # every node's genome (ancestral + extant), each keyed to its own FASTA record id
+    # every node's genome (ancestral + extant), each contig keyed to its FASTA record id
     bdir = os.path.join(out, "BED")
     os.makedirs(bdir, exist_ok=True)
     for node in tree.nodes_preorder():
-        write_bed(os.path.join(bdir, f"{node.name}.bed"), bed_rows(node, node.name))
+        node_name = ((lambda cid, n=node.name: f"{n}_chr{cid}") if multi
+                     else (lambda cid, n=node.name: n))
+        write_bed(os.path.join(bdir, f"{node.name}.bed"), bed_rows(node, node_name))
 
 
 def _write_genes_table(out: str, registry) -> None:
@@ -2520,6 +2851,7 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
+    _add_params_arg(g)
     g.add_argument("--genomes", required=True, metavar="DIR",
                    help="a prior 'zombi2 genomes' output directory — reads its species_tree.nwk "
                         "and Events_trace.tsv (run genomes with 'trace' in --write)")
@@ -2760,6 +3092,7 @@ def _iter_leaves(node):
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
     """The ``tools`` command groups analyses that compute on ZOMBI2 outputs (the ``zombi2.tools``
     layer). Each tool is its own sub-subcommand: ``reconcile`` (ALElite likelihood),
+    ``simulate`` (its generative twin — sample gene families under the undated model),
     ``treedist`` (tree distances), ``recon-accuracy`` (reconciliation accuracy), ``red`` (RED)
     and ``parse`` (read external ALE / AleRax reconciliation output)."""
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
@@ -2782,6 +3115,31 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_tools_reconcile_args(rp)
+
+    smp = tsub.add_parser(
+        "simulate",
+        help="simulate gene families under the ALE undated/reldated model (generative twin of 'reconcile')",
+        description=(
+            "Forward-simulate gene families under the ALEml_undated / GeneRax UndatedDTL model — "
+            "the exact generative twin of 'zombi2 tools reconcile' (simulate here, then score there, "
+            "and the rates round-trip). --dup/--trans/--loss are per-branch ODDS (dimensionless, "
+            "relative to a speciation), NOT per-unit-time rates, and the species tree needs no dates "
+            "(a cladogram is fine; unit branches are assumed). Writes a ground-truth reconciliation "
+            "per family (complete + extant annotated Newicks and an S/D/T/L event table) — the same "
+            "format 'zombi2 tools recon-accuracy' scores. For a dated, contemporaneous-transfer "
+            "forward simulation, use 'zombi2 genomes' instead."
+        ),
+        usage="zombi2 tools simulate -t FILE --dup D --trans T --loss L [-n N] [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # sample 200 families on a cladogram under undated odds, write ground-truth reconciliations",
+            "  zombi2 tools simulate -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.3 -n 200 -o truth/",
+            "",
+            "  # then score an inferred reconciliation against that truth",
+            "  zombi2 tools recon-accuracy -t truth/Reconciled_extant.nwk -i inferred_recon.nwk",
+        ),
+    )
+    _add_tools_simulate_args(smp)
 
     tp = tsub.add_parser(
         "treedist",
@@ -2811,7 +3169,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "Node-by-node accuracy of an INFERRED reconciliation against the TRUE one for the "
             "same gene tree: event-type accuracy and per-class precision/recall, species "
             "(MRCA) mapping accuracy, and transfer donor/recipient recovery. Inputs are ZOMBI2 "
-            "annotated reconciled Newicks (as written by 'zombi2 genomes --write reconciliations'), "
+            "annotated reconciled Newicks (as written by 'zombi2 tools simulate'), "
             "one family per line, --truth and --inferred paired by line."
         ),
         usage="zombi2 tools recon-accuracy -t FILE -i FILE [-o DIR]",
@@ -2865,6 +3223,41 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     )
     _add_tools_parse_args(pp)
 
+    xp = tsub.add_parser(
+        "export",
+        help="export gene-order study formats from a nucleotide 'zombi2 genomes' run",
+        description=(
+            "Derive gene-order study formats from a nucleotide genomes output directory (the "
+            "complement of the fork's zombiExporter). 'breakpoints' (adjacencies broken per tree "
+            "edge), 'gff' (every node's genes as one GFF3) and 'posortho' (positional ortholog "
+            "sets over the leaves) come from the per-node gene orders in BED/, so the run needs "
+            "'bed' in --write. breakpoints / posortho are exact for content-conserving "
+            "rearrangements (inversion / transposition); under duplication / loss gene content "
+            "changes, so interpret those accordingly. ('dupinfo' and 'ffgc' are planned.)"
+        ),
+        usage="zombi2 tools export GENOMES_DIR --format {breakpoints,gff,posortho} [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # simulate with the gene-order outputs, then export the broken adjacencies + GFF",
+            "  zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \\",
+            "      --root-length 3000 --inversion 0.01 --transposition 0.005 --write bed geneorder -o run/",
+            "  zombi2 tools export run/ --format breakpoints gff posortho -o export/",
+        ),
+    )
+    _add_tools_export_args(xp)
+
+
+def _add_tools_export_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("genomes_dir", metavar="GENOMES_DIR",
+                   help="a 'zombi2 genomes --genome-model nucleotide' output directory")
+    g.add_argument("--format", dest="formats", nargs="+", required=True,
+                   choices=("breakpoints", "gff", "posortho"), metavar="FORMAT",
+                   help="which format(s) to export: breakpoints / gff / posortho (all need "
+                        "--write bed)")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write the export file(s) into DIR (default: print to stdout)")
+
 
 def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("input / output")
@@ -2894,6 +3287,38 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
                    help="where the family originates: 'root' (default; exact for root-seeded "
                         "families) or 'uniform' over branches")
+
+
+def _add_tools_simulate_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-t", "--species-tree", required=True, metavar="FILE",
+                   help="species-tree Newick; a cladogram with no branch lengths is fine for the "
+                        "undated model (unit branches are assumed) — reldated needs real dates")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write Reconciled_complete.nwk, Reconciled_extant.nwk and "
+                        "Reconciliation_events.tsv into DIR (default: print a summary to stdout)")
+
+    g = p.add_argument_group("DTL odds (per-branch, relative to a speciation — NOT per-unit-time)")
+    g.add_argument("--dup", type=float, default=0.0, metavar="ODDS", help="duplication odds d")
+    g.add_argument("--trans", type=float, default=0.0, metavar="ODDS", help="transfer odds t")
+    g.add_argument("--loss", type=float, default=0.0, metavar="ODDS", help="loss odds l")
+
+    g = p.add_argument_group("model")
+    g.add_argument("--model", choices=("undated", "reldated"), default="undated", metavar="MODEL",
+                   help="undated = a transfer may land on any branch (default); reldated = only on "
+                        "a branch that overlaps the donor in time (needs a dated tree)")
+    g.add_argument("--origination", choices=("root", "uniform"), default="root", metavar="WHERE",
+                   help="where each family originates: 'root' (default) or 'uniform' over branches")
+    g.add_argument("-n", "--families", type=int, default=100, metavar="N",
+                   help="number of families to simulate (default 100)")
+    g.add_argument("--seed", type=int, default=None, metavar="INT",
+                   help="random seed for a reproducible draw")
+    g.add_argument("--max-events", type=int, default=1_000_000, metavar="N",
+                   help="per-family event cap; guards against runaway families at supercritical "
+                        "odds (default 1000000)")
+    g.add_argument("--score", action="store_true",
+                   help="also report the joint undated log-likelihood of the simulated survivors "
+                        "(with the true extinct count) under the generating odds — a round-trip check")
 
 
 def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
@@ -2958,7 +3383,8 @@ def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
 # --------------------------------------------------------------------------- #
 def _add_experimental_args(p: argparse.ArgumentParser) -> None:
     """The ``experimental`` command groups unstable, not-yet-validated models (the
-    ``zombi2.experimental`` layer). Each is a sub-subcommand; currently ``selection`` (ESM2)."""
+    ``zombi2.experimental`` layer). Each is a sub-subcommand: ``selection`` (ESM2 codon dN/dS) and
+    ``ils`` (multispecies coalescent)."""
     esub = p.add_subparsers(dest="experimental_command", metavar="<model>", required=True)
     sp = esub.add_parser(
         "selection",
@@ -2986,6 +3412,33 @@ def _add_experimental_args(p: argparse.ArgumentParser) -> None:
         ),
     )
     _add_experimental_selection_args(sp)
+
+    sp_ils = esub.add_parser(
+        "ils",
+        help="incomplete lineage sorting: gene trees under the multispecies coalescent",
+        description=(
+            "Simulate gene trees under the multispecies coalescent, so gene lineages need not "
+            "coalesce at the nodes they pass through; deep coalescence makes gene trees disagree with "
+            "the containing tree -- incomplete lineage sorting (ILS). The amount of ILS is set by "
+            "--population-size N, in the tree's own time units: it grows with branch_length / N.\n\n"
+            "Two modes. Plain: the coalescent inside the species tree -t (single-copy orthologs). "
+            "DTL + ILS: add --events-trace from a 'zombi2 genomes' run and the coalescent runs inside "
+            "each gene family's locus tree (duplications/transfers/losses), one gene tree per family; "
+            "a duplication's new copy, a transferred copy and the family origination are single-copy "
+            "foundings (bounded coalescent), while speciations allow deep coalescence.\n\n"
+            "EXPERIMENTAL: APIs and outputs may change. Pure numpy (no optional dependencies)."
+        ),
+        usage="zombi2 experimental ils -t FILE -N POP [--events-trace FILE] [-n R] [-k C] -o DIR",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # plain ILS: 1000 gene trees under the MSC on a species tree, one allele per species",
+            "  zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 --seed 1 -o out/",
+            "",
+            "  # DTL + ILS: a coalescent gene tree per family from a 'genomes' run (write it with --write trace)",
+            "  zombi2 experimental ils -t species_tree.nwk --events-trace run/Events_trace.tsv -N 0.5 -o out/",
+        ),
+    )
+    _add_experimental_ils_args(sp_ils)
 
 
 def _add_experimental_selection_args(p: argparse.ArgumentParser) -> None:
@@ -3052,6 +3505,29 @@ def _add_experimental_selection_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--pseudogenization", type=float, default=0.0, metavar="P",
                    help="probability a loss demotes a gene to intergene rather than deleting it "
                         "(default 0). Note: pseudogenized lineages currently stay under selection")
+
+
+def _add_experimental_ils_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE",
+                   help="species-tree Newick (as written by 'zombi2 species') -- the coalescent "
+                        "container, and (with --events-trace) the frame the locus trees live in")
+    g.add_argument("--events-trace", default=None, metavar="FILE", dest="events_trace",
+                   help="a 'genomes' run's Events_trace.tsv (write it with 'zombi2 genomes ... "
+                        "--write trace'). When given, run DTL + ILS: the coalescent within each gene "
+                        "family's locus tree, one gene tree per family. Without it, plain species-tree ILS")
+    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
+    g.add_argument("--seed", type=int, default=None, metavar="N", help="RNG seed for reproducibility")
+
+    g = p.add_argument_group("coalescent")
+    g.add_argument("-N", "--population-size", type=float, required=True, metavar="POP",
+                   dest="population_size",
+                   help="effective population size in the tree's time units: pairwise coalescence "
+                        "rate 1/POP per unit time. Larger POP => more ILS (governed by branch / POP)")
+    g.add_argument("-n", "--replicates", type=int, default=1, metavar="R",
+                   help="independent gene trees to draw (default 1); with --events-trace, per family")
+    g.add_argument("-k", "--samples", type=int, default=1, metavar="C",
+                   help="alleles sampled per species tip / per extant gene copy (default 1)")
 
 
 def _selection_cds_protein(genome: str, c, translate, reverse_complement):
@@ -3197,6 +3673,61 @@ def _run_experimental_selection(args: argparse.Namespace, parser: argparse.Argum
     return 0
 
 
+def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    print("zombi2: 'experimental ils' is unstable — APIs and outputs may change "
+          "(zombi2.experimental).", file=sys.stderr)
+    from zombi2.experimental.ils import MultispeciesCoalescent, is_concordant
+
+    if args.replicates < 1:
+        raise ValueError("--replicates must be >= 1")
+    if args.samples < 1:
+        raise ValueError("--samples must be >= 1")
+    with open(args.tree) as f:
+        tree = read_newick(f.read())
+    msc = MultispeciesCoalescent(population_size=args.population_size)
+    rng = np.random.default_rng(args.seed)
+    os.makedirs(args.out, exist_ok=True)
+    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
+        f.write(tree.to_newick())
+
+    if args.events_trace:                          # DTL + ILS: the coalescent within each locus tree
+        from zombi2.genomes.reconciliation import extant_species_from_records
+        from zombi2.genomes.simulation import read_events_trace
+        with open(args.events_trace) as f:
+            families = read_events_trace(f.read(), tree)
+        if not families:
+            raise ValueError(f"no gene-family events in {args.events_trace!r}")
+        gid2species = extant_species_from_records(families, tree)
+        fam_trees = msc._family_trees(families, gid2species, tree.total_age,
+                                      args.samples, args.replicates, rng)
+        gdir = os.path.join(args.out, "gene_trees")
+        os.makedirs(gdir, exist_ok=True)
+        for family, trees in sorted(fam_trees.items()):
+            with open(os.path.join(gdir, f"{family}.nwk"), "w") as fh:
+                for t in trees:
+                    fh.write(t.to_newick(include_internal_names=False) + "\n")
+        reps = "" if args.replicates == 1 else f", x{args.replicates} reps"
+        summary = (f"experimental ils (DTL + ILS): coalescent gene trees for {len(fam_trees)} of "
+                   f"{len(families)} families -> {args.out}/gene_trees/ (N={args.population_size:g}{reps})")
+        print(summary)
+        _write_params_log(os.path.join(args.out, "ils.log"), args, summary)
+        return 0
+
+    genes = msc.sample_gene_trees(tree, args.replicates, samples=args.samples, rng=rng)
+    with open(os.path.join(args.out, "gene_trees.nwk"), "w") as f:
+        for g in genes:
+            f.write(g.to_newick(include_internal_names=False) + "\n")
+    copies = "1 copy/species" if args.samples == 1 else f"{args.samples} copies/species"
+    summary = (f"experimental ils: {len(genes)} gene tree(s) under the multispecies coalescent "
+               f"(N={args.population_size:g}, {copies}) -> {args.out}/gene_trees.nwk")
+    if args.samples == 1:
+        conc = sum(is_concordant(g, tree) for g in genes) / len(genes)
+        summary += f"; {conc:.1%} match the species-tree topology"
+    print(summary)
+    _write_params_log(os.path.join(args.out, "ils.log"), args, summary)
+    return 0
+
+
 def _write_selection_outputs(out: str, result, tree, report, beta: float) -> None:
     """Write the per-node genomes + architecture, the extant gene alignments, and the selection report."""
     from zombi2.sequences.models import write_fasta
@@ -3246,6 +3777,41 @@ def _add_subcommand(sub, name: str, help: str, description: str, usage: str, add
                        epilog=epilog, formatter_class=ZombiHelpFormatter)
     adder(p)
     return p
+
+
+def _apply_params_file(sub, argv) -> None:
+    """If the invocation is ``<command> … --params FILE …`` for a params-aware subcommand, load the
+    TOML file and set that subcommand's argument defaults from it — so explicit command-line flags,
+    parsed afterwards, still override the file."""
+    tokens = argv if argv is not None else sys.argv[1:]
+    if not tokens or tokens[0].startswith("-"):
+        return
+    subp = sub.choices.get(tokens[0])
+    if subp is None or not any(a.dest == "params" for a in subp._actions):
+        return
+    path = None
+    for i, tok in enumerate(tokens[1:], 1):
+        if tok == "--params" and i + 1 < len(tokens):
+            path = tokens[i + 1]
+            break
+        if tok.startswith("--params="):
+            path = tok.split("=", 1)[1]
+            break
+    if path is None:
+        return
+    from zombi2._params import load_params_file
+    action_by_dest = {a.dest: a for a in subp._actions}
+    try:
+        overrides = load_params_file(path, set(action_by_dest), tokens[0])
+    except (OSError, ValueError) as e:              # missing file, TOML error, or unknown key
+        subp.error(str(e))
+    # a variable-length option (nargs '+'/'*', e.g. episodic --birth) is a list on the command
+    # line; accept a bare scalar in the file and wrap it, so `birth = 1.0` works like `--birth 1.0`.
+    for dest, val in list(overrides.items()):
+        action = action_by_dest.get(dest)
+        if action is not None and action.nargs in ("+", "*") and not isinstance(val, list):
+            overrides[dest] = [val]
+    subp.set_defaults(**overrides)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -3338,7 +3904,7 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "tools", "compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)",
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse, export)",
         "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
         "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
         "'zombi2 tools <tool> -h' for its options.\n\n"
@@ -3362,18 +3928,23 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "experimental", "unstable, opt-in models (selection: ESM2 codon selection, emergent dN/dS)",
+        sub, "experimental", "unstable, opt-in models (selection: ESM2 dN/dS; ils: multispecies coalescent)",
         "Experimental, not-yet-validated models (the zombi2.experimental layer) — APIs and outputs "
         "may change. Each is a sub-subcommand; run 'zombi2 experimental <model> -h' for its options.\n\n"
         "Models\n"
-        "  selection            language-model (ESM2) codon selection on a real annotated genome",
+        "  selection            language-model (ESM2) codon selection on a real annotated genome\n"
+        "  ils                  incomplete lineage sorting (multispecies-coalescent gene trees)",
         "zombi2 experimental <model> [options]",
         _add_experimental_args,
         epilog=_examples(
             "  # evolve a real genome down a species tree with ESM2 purifying selection on its genes",
             "  zombi2 experimental selection -t species_tree.nwk --gff genome.gff --genome-fasta genome.fna --beta 1 -o out/",
+            "",
+            "  # draw 1000 gene trees under the multispecies coalescent (incomplete lineage sorting)",
+            "  zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 -o out/",
         ))
 
+    _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
     try:
         return _dispatch(args, parser)
@@ -3481,12 +4052,16 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "tools":
         if args.tools_command == "reconcile":
             return _run_tools_reconcile(args, parser)
+        if args.tools_command == "simulate":
+            return _run_tools_simulate(args, parser)
         if args.tools_command == "treedist":
             return _run_tools_treedist(args, parser)
         if args.tools_command == "recon-accuracy":
             return _run_tools_recon_accuracy(args, parser)
         if args.tools_command == "red":
             return _run_tools_red(args, parser)
+        if args.tools_command == "export":
+            return _run_tools_export(args, parser)
         if args.tools_command == "parse":
             return _run_tools_parse(args, parser)
         parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
@@ -3494,6 +4069,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if args.command == "experimental":
         if args.experimental_command == "selection":
             return _run_experimental_selection(args, parser)
+        if args.experimental_command == "ils":
+            return _run_experimental_ils(args, parser)
         parser.error(f"unknown experimental model {args.experimental_command!r}")   # unreachable
 
     return 1

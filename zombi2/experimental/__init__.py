@@ -97,3 +97,10 @@ from zombi2.experimental.nucleotide_selection import (  # noqa: E402
 )
 
 __all__ += ["BlockSelectionReport", "NucleotideGenomeSelection", "simulate_nucleotide_selection"]
+
+# Incomplete lineage sorting (multispecies coalescent). Pure numpy -- no optional dependencies.
+from zombi2.experimental.ils import (  # noqa: E402
+    MultispeciesCoalescent, expected_triple_concordance, is_concordant, rooted_clades,
+)
+
+__all__ += ["MultispeciesCoalescent", "expected_triple_concordance", "is_concordant", "rooted_clades"]

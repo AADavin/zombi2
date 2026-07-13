@@ -60,11 +60,13 @@ def read_family_rates(path) -> dict[str, tuple[float, float, float]]:
     start = 0
     if not _looks_numeric(rows[0]):  # header row: remap columns by name
         header = [h.lower() for h in rows[0]]
-        cols = {"family": header.index("family") if "family" in header else 0}
+        cols = {}
+        if "family" in header:
+            cols["family"] = header.index("family")
         for i, name in enumerate(header):
             if name in _FAMILY_ALIASES:
                 cols[_FAMILY_ALIASES[name]] = i
-        for need in ("duplication", "transfer", "loss"):
+        for need in ("family", "duplication", "transfer", "loss"):
             if need not in cols:
                 raise ValueError(f"{path}: header is missing a '{need}' column")
         start = 1

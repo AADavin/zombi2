@@ -32,6 +32,14 @@ from zombi2.genomes.rates import PerCopyRates
 from zombi2.genomes.reconciliation import build_gene_trees, reconcile
 from zombi2.tree import Tree, TreeNode
 
+# Runaway-growth ceiling for the length-scaled nucleotide engine. Structural-event rates here
+# are proportional to genome length, so an additive gain rate (transfer/duplication) that outruns
+# loss compounds without bound and the walk never terminates. A single genome that crosses this
+# many segments is unambiguously in that regime: the largest genome any balanced (bounded) run
+# reaches in the test suite is a few hundred segments, so this leaves a >~30x margin while turning
+# a would-be infinite hang into a prompt, actionable error. Override via ``max_segments_per_genome``.
+DEFAULT_MAX_SEGMENTS_PER_GENOME = 20_000
+
 
 @dataclass(frozen=True)
 class Block:
@@ -95,7 +103,7 @@ class NucleotideResult:
     def leaf_mosaic(self, leaf: TreeNode) -> list[tuple[int, int]]:
         """The leaf genome as an ordered, signed sequence of blocks: ``[(block_id, strand)]``."""
         out: list[tuple[int, int]] = []
-        for seg in self.leaf_genomes[leaf]._segments:
+        for seg in self.leaf_genomes[leaf]._iter_segments():
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
                 covered = reversed(covered)
@@ -115,7 +123,7 @@ class NucleotideResult:
         row = {a.block_id: i for i, a in enumerate(self.blocks)}
         matrix = np.zeros((len(self.blocks), len(leaves)), dtype=int)
         for j, leaf in enumerate(leaves):
-            for seg in self.leaf_genomes[leaf]._segments:
+            for seg in self.leaf_genomes[leaf]._iter_segments():
                 for a in self._covered(seg.source, seg.src_start, seg.src_end):
                     matrix[row[a.block_id], j] += 1
         return block_ids, [n.name for n in leaves], matrix
@@ -196,13 +204,13 @@ class NucleotideResult:
                     rec = EventRecord(EventType.LOSS, r.branch, r.time,
                                       [GeneOp(self._top(g0, top_cache), source, "lost")])
             else:
-                continue  # inversion / transposition never re-mint a lineage
+                continue  # inversion / transposition / translocation never re-mint a lineage
             for a in blocks:
                 records_by_block[a.block_id].append(rec)
 
         for leaf, genome in self.leaf_genomes.items():
             name = leaf.name
-            for seg in genome._segments:
+            for seg in genome._iter_segments():
                 blocks = self._covered(seg.source, seg.src_start, seg.src_end)
                 if not blocks:
                     continue
@@ -315,25 +323,41 @@ class NucleotideResult:
         return out
 
     # --- ancestral genomes + sequences (needs retain_internal + simulate_sequences) -----
-    def node_mosaic(self, node) -> list[tuple[int, int]]:
-        """The genome at ``node`` as an ordered, signed block sequence ``[(block_id, strand), ...]``.
-
-        Generalises :meth:`leaf_mosaic` to any node; the root's mosaic is the input genome's
-        gene/intergene tiling. Requires ``retain_internal`` (see :func:`simulate_nucleotide_genomes`).
-        """
+    def _chrom_mosaic(self, chrom) -> list[tuple[int, int]]:
+        """One chromosome as an ordered, signed block sequence ``[(block_id, strand), ...]``."""
         out: list[tuple[int, int]] = []
-        for seg in self.node_genomes[node]._segments:
+        for seg in chrom.elements:
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
                 covered = list(reversed(covered))
             out.extend((a.block_id, seg.strand) for a in covered)
         return out
 
+    def node_mosaics(self, node) -> dict:
+        """Per-chromosome block mosaic at ``node``: ``{chrom_id: [(block_id, strand), ...]}``.
+
+        Requires ``retain_internal`` (see :func:`simulate_nucleotide_genomes`).
+        """
+        return {cid: self._chrom_mosaic(chrom)
+                for cid, chrom in self.node_genomes[node].chromosomes.items()}
+
+    def node_mosaic(self, node) -> list[tuple[int, int]]:
+        """The whole genome at ``node`` as one signed block sequence (every chromosome, in order).
+
+        Generalises :meth:`leaf_mosaic` to any node; use :meth:`node_mosaics` to keep the
+        chromosomes apart.
+        """
+        out: list[tuple[int, int]] = []
+        for mosaic in self.node_mosaics(node).values():
+            out.extend(mosaic)
+        return out
+
     def _seed_source(self) -> str:
         """Source id of the seed (input) chromosome — the blocks that map to the real genome/FASTA."""
         g = self.node_genomes.get(self.species_tree.root)
-        if g is not None and g._segments:
-            return g._segments[0].source
+        first = next(iter(g._iter_segments()), None) if g is not None else None
+        if first is not None:
+            return first.source
         by: dict = {}
         for a in self.blocks:
             by[a.source] = by.get(a.source, 0) + 1
@@ -348,6 +372,8 @@ class NucleotideResult:
         divergence) and a sequence is evolved down it under ``model`` (optionally with across-site
         :class:`~zombi2.sequence_sim.GammaRates`). A seed-chromosome block takes its root sequence from
         ``root_fasta`` (the real genome) when given, else a random root of the block's length.
+        ``root_fasta`` is either a single string (seeds the main chromosome, keyed by ``root_length``)
+        or a ``{source: dna}`` map — one entry per replicon — for a multi-chromosome genome.
         :meth:`node_sequence` then assembles these into the DNA at any node.
         """
         from zombi2.genomes.reconciliation import _node_tree
@@ -360,9 +386,13 @@ class NucleotideResult:
         segments = None if zero else se._lineage_segments(self.species_tree, rng)[0]
         total_age = self.species_tree.total_age
         records_by_block, species_by_block = self._block_records()
-        seed_source = self._seed_source()
-        if root_fasta is not None and len(root_fasta) != self.root_length:
-            raise ValueError(f"root_fasta length {len(root_fasta)} != root_length {self.root_length}")
+        # normalise root_fasta to a {source: dna} map: a bare string seeds the main chromosome.
+        if isinstance(root_fasta, str):
+            if len(root_fasta) != self.root_length:
+                raise ValueError(f"root_fasta length {len(root_fasta)} != root_length {self.root_length}")
+            root_seqs = {self._seed_source(): root_fasta}
+        else:
+            root_seqs = root_fasta or {}
 
         block_seqs: dict[int, dict] = {}
         for a in self.blocks:
@@ -373,28 +403,19 @@ class NucleotideResult:
             subst: dict = {}
             if not zero:
                 _annotate(root_node, segments, max(0.0, se.family_speed.sample(rng)), subst)
-            root_seq = (root_fasta[a.start:a.end]
-                        if (root_fasta is not None and a.source == seed_source) else None)
+            src_dna = root_seqs.get(a.source)
+            root_seq = src_dna[a.start:a.end] if src_dna is not None else None
             block_seqs[a.block_id] = evolve_on_tree(root_node, subst, model, rng,
                                                   root_seq=root_seq, length=a.length, gamma=gamma)
         self._block_seqs = block_seqs
         self._seq_species = species_by_block
         return block_seqs
 
-    def node_sequence(self, node) -> str:
-        """Assemble the full DNA of the genome at ``node`` (call :meth:`simulate_sequences` first).
-
-        Concatenates, in genome order, each segment's block-lineage sequences (reverse-complemented
-        on the − strand). The root node reproduces the input genome; extant leaves give the observed
-        genomes.
-        """
+    def _chrom_sequence(self, chrom, block_seqs, top_cache, node) -> str:
+        """Assemble one chromosome's DNA from its blocks' evolved sequences."""
         from zombi2.sequences.models import reverse_complement
-        block_seqs = getattr(self, "_block_seqs", None)
-        if block_seqs is None:
-            raise RuntimeError("call simulate_sequences(...) before node_sequence(...)")
-        top_cache: dict = {}
         parts: list[str] = []
-        for seg in self.node_genomes[node]._segments:
+        for seg in chrom.elements:
             rep = self._top(seg.seg_id, top_cache)
             covered = self._covered(seg.source, seg.src_start, seg.src_end)
             if seg.strand == -1:
@@ -406,6 +427,24 @@ class NucleotideResult:
                                    f"at node {getattr(node, 'name', node)!r}")
                 parts.append(reverse_complement(s) if seg.strand == -1 else s)
         return "".join(parts)
+
+    def node_sequences(self, node) -> dict:
+        """Per-chromosome assembled DNA at ``node``: ``{chrom_id: dna}`` (call
+        :meth:`simulate_sequences` first). One entry per replicon — the natural output for a
+        multi-chromosome genome (a chromosome plus its plasmids)."""
+        block_seqs = getattr(self, "_block_seqs", None)
+        if block_seqs is None:
+            raise RuntimeError("call simulate_sequences(...) before node_sequences(...)")
+        top_cache: dict = {}
+        return {cid: self._chrom_sequence(chrom, block_seqs, top_cache, node)
+                for cid, chrom in self.node_genomes[node].chromosomes.items()}
+
+    def node_sequence(self, node) -> str:
+        """Assemble the full DNA of the genome at ``node`` — every chromosome, concatenated in order
+        (call :meth:`simulate_sequences` first). The root node reproduces the input genome; extant
+        leaves give the observed genomes. Use :meth:`node_sequences` to keep the chromosomes apart.
+        """
+        return "".join(self.node_sequences(node).values())
 
     def gene_alignments(self) -> dict:
         """``{gene_id: {species_gid: seq}}`` extant alignments for gene blocks (needs sequences)."""
@@ -454,7 +493,7 @@ def _build_blocks(leaf_genomes: dict, root_length: int, registry=None) -> list[B
     bounds: dict[str, set[int]] = {}
     spans: dict[str, list[tuple[int, int]]] = {}
     for genome in leaf_genomes.values():
-        for seg in genome._segments:
+        for seg in genome._iter_segments():
             bounds.setdefault(seg.source, {0}).add(seg.src_start)
             bounds[seg.source].add(seg.src_end)
             spans.setdefault(seg.source, []).append((seg.src_start, seg.src_end))
@@ -511,13 +550,20 @@ def simulate_nucleotide_genomes(
     duplication: float = 0.0,
     transfer: float = 0.0,
     transposition: float = 0.0,
+    translocation: float = 0.0,
     origination: float = 0.0,
     insertion: float = 0.0,
     deletion: float = 0.0,
+    fission: float = 0.0,
+    fusion: float = 0.0,
+    chromosome_origination: float = 0.0,
+    chromosome_loss: float = 0.0,
     indel_mean_length: float = 10.0,
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_chromosomes: int = 1,
+    root_chromosomes: list[tuple] | None = None,
+    circular: bool = True,
     transfers=None,
     gene_intervals=None,
     pseudogenization: float = 0.0,
@@ -526,6 +572,7 @@ def simulate_nucleotide_genomes(
     seed: int | None = None,
     rng: np.random.Generator | None = None,
     sampler: EventSampler | None = None,
+    max_segments_per_genome: int | None = DEFAULT_MAX_SEGMENTS_PER_GENOME,
     output: str = "genomes",
 ) -> NucleotideResult:
     """Simulate variable-length structural events forward along ``species_tree``.
@@ -533,9 +580,22 @@ def simulate_nucleotide_genomes(
     ``inversion``, ``loss``, ``duplication``, ``transfer`` and ``transposition`` are
     **per-nucleotide** rates (total genome rate = ``rate * current_length``);
     ``origination`` is a **per-branch** rate that inserts a novel gene under a fresh source.
+    ``translocation`` (per-nucleotide, needs >= 2 chromosomes) *moves* an arc to a different
+    chromosome of the same genome — the intra-genome counterpart of transposition.
     ``extension`` sets the geometric event-length model (mean ``1/(1-extension)``
     nucleotides). ``initial_chromosomes`` is the number of root chromosomes seeded at the
-    root of the tree (default 1); each is an independent copy of the root chromosome.
+    root of the tree (default 1); each is an independent full-length copy of the root chromosome
+    under its own source namespace (in genic mode all copies share the same gene layout), so an
+    ``N``-chromosome genome starts at ``N * root_length`` bp. Multi-chromosome genomes also arise
+    dynamically through the chromosome-tier events below. Chromosomes are circular by default;
+    ``circular=False`` makes every seeded chromosome **linear** (two ends, no origin wrap; requires
+    ``output="genomes"``). For **heterogeneous** root chromosomes — a real chromosome-plus-plasmids
+    genome, each replicon its own length, genes and topology — pass ``root_chromosomes`` instead: a
+    list of ``(length, gene_intervals)`` or ``(length, gene_intervals, circular)`` (e.g. from
+    :func:`~zombi2.read_gff_all` over a multi-sequence GFF, carrying each sequence's ``Is_circular``
+    flag — so a *Borrelia*-style linear chromosome + circular plasmids seeds a mixed-topology genome).
+    It is mutually exclusive with ``gene_intervals`` / ``initial_chromosomes`` and requires
+    ``output="genomes"``.
     ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
     additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
     carrying the extant leaf genomes, the event log, the segment registry, and the block
@@ -563,8 +623,25 @@ def simulate_nucleotide_genomes(
     See :meth:`NucleotideResult.gene_trees` /
     :meth:`~NucleotideResult.intergene_trees` / :meth:`~NucleotideResult.pseudogenizations`.
 
+    Chromosome-tier events (all **per-branch** rates, default 0 → a single chromosome end to
+    end, byte-identical to the pre-tier engine): ``fission`` splits a chromosome into two by
+    excising the arc between two breakpoints into a new circular replicon (breakpoints snap to
+    segment boundaries, so genes stay whole and segment ids are preserved); ``fusion`` merges two
+    chromosomes into one; ``chromosome_origination`` spawns a new empty circular replicon (a
+    de-novo plasmid); ``chromosome_loss`` deletes a whole chromosome and every gene on it. These
+    move genes between chromosomes without touching their identity, so per-block gene trees are
+    unaffected — only chromosome loss ends lineages. The karyotype history is recorded in
+    ``result.event_log.chromosome_records`` (one :class:`ChromosomeEvent` per fission / fusion /
+    origination / loss). Requires ``output="genomes"`` (the Rust profiles path is single-chromosome).
+
     Duplication and additive transfer grow the genome with no cap, so keep them at or below
-    ``loss`` over long ages to avoid runaway growth.
+    ``loss`` over long ages to avoid runaway growth. Because a structural event's rate is
+    proportional to genome length, an unbalanced gain rate compounds and the walk would never
+    terminate; ``max_segments_per_genome`` (default
+    :data:`DEFAULT_MAX_SEGMENTS_PER_GENOME`) is a safety ceiling that turns such a run into a
+    prompt, actionable ``RuntimeError`` instead of an endless hang. It is far above any bounded
+    (balanced) run, so it never fires in normal use and leaves seeded outputs unchanged; pass a
+    larger value (or ``None`` to disable) only if a genome is genuinely meant to grow that big.
 
     ``output``:
         ``"genomes"`` (default) runs the pure-Python engine and returns the full result
@@ -582,15 +659,38 @@ def simulate_nucleotide_genomes(
     if not (0.0 <= replacement <= 1.0):
         raise ValueError(f"replacement must be in [0, 1], got {replacement}")
     pending_genes = _normalize_gene_intervals(gene_intervals, root_length)
+    if root_chromosomes is not None:
+        # explicit heterogeneous replicons (e.g. a multi-sequence GFF): each is its own chromosome,
+        # ``(length, gene_intervals)`` or ``(length, gene_intervals, circular)`` — so mixed
+        # circular/linear genomes are possible. Mutually exclusive with the identical-copy knobs.
+        if gene_intervals is not None:
+            raise ValueError("give either gene_intervals or root_chromosomes, not both")
+        if initial_chromosomes != 1:
+            raise ValueError("root_chromosomes sets the chromosomes explicitly; "
+                             "leave initial_chromosomes=1")
+        if not root_chromosomes:
+            raise ValueError("root_chromosomes must be a non-empty list of "
+                             "(length, gene_intervals[, circular])")
+        root_chromosomes = [(int(spec[0]), _normalize_gene_intervals(spec[1], int(spec[0])),
+                             bool(spec[2]) if len(spec) > 2 else circular)
+                            for spec in root_chromosomes]
     if output == "profiles":
-        if pending_genes:
-            raise ValueError("gene intervals require the Python engine (output='genomes'); the "
-                             "Rust profiles path does not model genes/intergenes")
+        if pending_genes or root_chromosomes is not None:
+            raise ValueError("gene intervals / explicit root_chromosomes require the Python engine "
+                             "(output='genomes'); the Rust profiles path does not model "
+                             "genes/intergenes or heterogeneous chromosomes")
         if pseudogenization:
             raise ValueError("pseudogenization requires output='genomes' (the Python engine)")
         if insertion or deletion:
             raise ValueError("intergenic indels (insertion/deletion) require output='genomes' "
                              "(the Python engine); the Rust profiles path does not model them")
+        if fission or fusion or chromosome_origination or chromosome_loss or translocation:
+            raise ValueError("chromosome-tier events (fission/fusion/chromosome_origination/"
+                             "chromosome_loss) and translocation require output='genomes' (the "
+                             "Python engine); the Rust profiles path is single-chromosome")
+        if not circular:
+            raise ValueError("linear chromosomes require output='genomes' (the Python engine); the "
+                             "Rust profiles path models a circular chromosome only")
         if sampler is not None:
             raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
         if extension is None:
@@ -610,29 +710,42 @@ def simulate_nucleotide_genomes(
         rng = np.random.default_rng(seed)
     rates = PerCopyRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
+                         translocation=translocation,
                          insertion=insertion, deletion=deletion,
-                         origination=origination)
+                         origination=origination, fission=fission, fusion=fusion,
+                         chromosome_origination=chromosome_origination,
+                         chromosome_loss=chromosome_loss)
     registry = SegmentRegistry(pending_genes=pending_genes)
 
     def factory(ids):
         return NucleotideGenome(ids, root_length=root_length, extension=extension,
                                 registry=registry, pseudogenization=pseudogenization,
-                                replacement=replacement, indel_mean_length=indel_mean_length)
+                                replacement=replacement, indel_mean_length=indel_mean_length,
+                                initial_chromosomes=initial_chromosomes,
+                                root_chromosomes=root_chromosomes, circular=circular)
 
-    result = GenomeSimulator(sampler).simulate(
-        species_tree, rates, rng, initial_size=initial_chromosomes, transfers=transfers,
+    # One seed origination lays down all `initial_chromosomes` root chromosomes (the genome owns
+    # the count); the walk then evolves them and fires any further per-branch originations.
+    result = GenomeSimulator(
+        sampler, max_segments_per_genome=max_segments_per_genome,
+    ).simulate(
+        species_tree, rates, rng, initial_size=1, transfers=transfers,
         genome_factory=factory, retain_internal=retain_internal,
     )
     # For ancestral reconstruction, blocks must tile every node's segments (not just the leaves'):
     # build from all node genomes so internal breakpoints and ancestral-only material are covered.
     block_genomes = result.node_genomes if retain_internal else result.leaf_genomes
     blocks = _build_blocks(block_genomes, root_length, registry)
+    # with explicit heterogeneous replicons the root has no single length; report the genome total
+    # (only used to validate a supplied root_fasta, which is a single-chromosome feature).
+    effective_root_length = (sum(spec[0] for spec in root_chromosomes)
+                             if root_chromosomes is not None else root_length)
     return NucleotideResult(
         species_tree=species_tree,
         leaf_genomes=result.leaf_genomes,
         event_log=result.event_log,
         registry=registry,
         blocks=blocks,
-        root_length=root_length,
+        root_length=effective_root_length,
         node_genomes=result.node_genomes,
     )

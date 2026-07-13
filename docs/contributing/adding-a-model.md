@@ -30,6 +30,13 @@ map:
 | **sequences** <br>`zombi2/sequences/` | a substitution model | a `SubstitutionModel` (`models.py`) | frozen dataclass `name, Q, stationary, alphabet` | `evolve_on_tree` / `SequenceEvolution` |
 | | a molecular clock | subclass `Clock` (`clocks.py`) | `_branch_rate(node, parent_rate, rng)` | `SequenceEvolution` / `clock.scale` |
 
+A trait model normally implements `evolve(state, dt, t0, rng)` — evolve the state forward by a
+time step `dt`. If it instead needs the **whole branch** (a per-branch regime history, say), it
+may implement the optional hook `evolve_branch(node, x, rng) -> (new_value, map_or_None)` and the
+engine calls that instead of `evolve` when it is present (`getattr(model, "evolve_branch", None)`).
+`MultiOptimumOU` in `zombi2/traits/models.py` is the worked example — it integrates an OU process
+across the regime segments painted on each branch.
+
 Two seams are cross-cutting rather than levels: the **event sampler** (`EventSampler` in
 `_sampling.py` — the Gillespie numeric core, shared by every level) and **coevolution**
 (`zombi2/coevolve/`), which *couples* two levels rather than adding one — see
@@ -38,6 +45,13 @@ Two seams are cross-cutting rather than levels: the **event sampler** (`EventSam
 Most levels are **duck-typed protocols** (implement the methods, no base class needed);
 `RateModel` and `EventSampler` are ABCs, `SubstitutionModel` is a frozen dataclass. Add a
 `validate()` that raises a clear `ValueError` on bad parameters, and call it on entry.
+
+A **species** model additionally declares a `_caps` (a `SpeciesCaps`) class attribute — its
+growth engine (`thinning`/`gillespie`), and which modes it supports (backward reconstruction,
+ghost grafting, `n_tips` stop mode, incomplete sampling, and any forward-only features). The
+simulator dispatches on this declared capability instead of `isinstance`, so a model that omits
+it raises a clear error rather than silently routing into the wrong growth loop. Copy the nearest
+model (e.g. `ClaDS`) for the shape.
 
 ### The gene-family seams in depth
 
@@ -200,6 +214,21 @@ The citations.
 ```
 
 A single-model family (e.g. biogeography's DEC) still gets its own page in this shape.
+
+## PR checklist
+
+Before opening a pull request, confirm the four gates — a reviewer will:
+
+- [ ] **Seam (§1)** — subclasses the right interface; the simulator loop, sampler, profile matrix
+  and output are untouched (or, for a new event kind, only a small dormant core capability is added).
+- [ ] **Conventions (§2–4)** — names, the `seed=` / `rng=` signature, per-unit-time rate semantics,
+  and (if user-facing) the CLI argument-group grammar; exported both ways and added to `__all__` (§3).
+- [ ] **Validation (§5)** — an oracle *or* statistical-reduction test **plus** a determinism test.
+  "It runs without error" is not validation.
+- [ ] **Catalog page (§6)** — a family page in the documented shape, wired into the docs nav.
+
+New or not-yet-fully-validated models can stage in [`zombi2.experimental`](model-lifecycle.md)
+first and graduate once every box is ticked.
 
 ## What belongs in the core
 

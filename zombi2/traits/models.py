@@ -1036,7 +1036,11 @@ class Cladogenesis:
         if getattr(model, "kind", None) == "continuous":
             if self.jump_sigma2 <= 0.0:
                 return value
-            return float(value) + float(rng.normal(0.0, self.jump_sigma2 ** 0.5))
+            sd = self.jump_sigma2 ** 0.5
+            arr = np.asarray(value)
+            if arr.ndim == 0:                                     # scalar (univariate) trait
+                return float(value) + float(rng.normal(0.0, sd))
+            return arr + rng.normal(0.0, sd, size=arr.shape)      # per-dimension jump vector
         # discrete: with probability `shift`, hop to a uniformly chosen other state
         if self.shift <= 0.0 or rng.random() >= self.shift:
             return value
@@ -1242,7 +1246,10 @@ def simulate_traits(
         if node.parent is None:
             continue
         start = node_values[node.parent]
-        if clado is not None:                       # speciation jump as this branch is born
+        if clado is not None and len(node.parent.children) >= 2:
+            # a cladogenetic jump fires only at a real branching event; a degree-two node (a
+            # sampled ancestor) is the same lineage continuing, so its single child inherits the
+            # ancestor's value unchanged — matching simulate_biogeography's degree-two pass-through
             start = clado.apply(start, model, rng)
         if branch_hook is not None:
             end, segs = branch_hook(node, start, rng)
@@ -1303,10 +1310,14 @@ def pagel_lambda(tree: Tree, lam: float) -> Tree:
 
 
 def pagel_delta(tree: Tree, delta: float) -> Tree:
-    """Pagel's **δ** (1999): raise node depths to the power ``delta`` (root and tips fixed).
+    """Pagel's **δ** (1999): rescale node depths by the power law ``depth -> T·(depth/T)**delta``.
 
-    ``delta > 1`` pushes divergence toward the present (late, species-specific evolution);
-    ``delta < 1`` toward the root (early evolution); ``delta = 1`` is the original tree.
+    Defined for **ultrametric** trees, where every tip sits at the present ``T`` and is therefore
+    held fixed while the internal splits move: ``delta > 1`` pushes divergence toward the present
+    (late, species-specific evolution), ``delta < 1`` toward the root (early evolution), ``delta = 1``
+    is the original tree. The rescaling is a monotonic depth warp, so every branch length stays
+    positive. On a non-ultrametric (fossil-bearing) tree it rescales every node depth, tips included
+    — outside the transform's ultrametric domain, so tips are not held fixed there.
     """
     if delta <= 0:
         raise ValueError(f"delta must be > 0, got {delta}")

@@ -127,13 +127,19 @@ class PerCopyRates(RateModel):
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
                  *, inversion: float = 0.0, transposition: float = 0.0,
+                 translocation: float = 0.0,
                  insertion: float = 0.0, deletion: float = 0.0,
                  conversion: float = 0.0,
+                 chromosome_origination: float = 0.0, chromosome_loss: float = 0.0,
+                 fission: float = 0.0, fusion: float = 0.0,
                  carrying_capacity: float | None = None):
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
-                 ("transposition", transposition), ("insertion", insertion),
-                 ("deletion", deletion), ("conversion", conversion))
+                 ("transposition", transposition), ("translocation", translocation),
+                 ("insertion", insertion),
+                 ("deletion", deletion), ("conversion", conversion),
+                 ("chromosome_origination", chromosome_origination),
+                 ("chromosome_loss", chromosome_loss), ("fission", fission), ("fusion", fusion))
         for name, value in rates:
             if value < 0:
                 raise ValueError(f"{name} rate must be >= 0, got {value}")
@@ -144,11 +150,19 @@ class PerCopyRates(RateModel):
         # rearrangements: only fired by genomes that support them (e.g. OrderedGenome)
         self.inversion = float(inversion)
         self.transposition = float(transposition)
+        # translocation: move an arc to another chromosome (nucleotide model; needs >= 2 chromosomes)
+        self.translocation = float(translocation)
         # intergenic indels: only fired by the nucleotide genome (per-nucleotide rate)
         self.insertion = float(insertion)
         self.deletion = float(deletion)
         # intra-genome gene conversion: only fired by multiset genomes with >= 2 copies of a family
         self.conversion = float(conversion)
+        # chromosome-tier events: only fired by genomes that support them (OrderedGenome). Off by
+        # default (rate 0), so a run that does not set them is byte-identical to before.
+        self.chromosome_origination = float(chromosome_origination)
+        self.chromosome_loss = float(chromosome_loss)
+        self.fission = float(fission)
+        self.fusion = float(fusion)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
 
     def _regulated(self) -> bool:
@@ -195,6 +209,20 @@ class PerCopyRates(RateModel):
                     out.append(EventWeight(EventType.CONVERSION, family, self.conversion * cn))
         if self.origination > 0:
             out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
+        # chromosome-tier events (OrderedGenome opts in via supported_events; every branch is gated
+        # on rate > 0, so a model that leaves these at 0 adds nothing and stays byte-identical).
+        n_chrom = len(getattr(genome, "chromosomes", ()))
+        if self.chromosome_origination > 0:
+            out.append(EventWeight(EventType.CHROMOSOME_ORIGINATION, None, self.chromosome_origination))
+        if self.fission > 0 and n > 0:  # a chromosome needs genes to be worth splitting
+            out.append(EventWeight(EventType.FISSION, None, self.fission * n_chrom))
+        if n_chrom >= 2:  # loss / fusion / translocation need a second chromosome
+            if self.chromosome_loss > 0:
+                out.append(EventWeight(EventType.CHROMOSOME_LOSS, None, self.chromosome_loss * n_chrom))
+            if self.fusion > 0:
+                out.append(EventWeight(EventType.FUSION, None, self.fusion * n_chrom))
+            if self.translocation > 0 and n > 0:  # per-nucleotide: move an arc to another chromosome
+                out.append(EventWeight(EventType.TRANSLOCATION, None, self.translocation * n))
         return out
 
 
@@ -511,8 +539,11 @@ class BranchRates(ModifiedRates):
     * ``factors`` — an explicit ``{branch_name: factor}`` map (branches not listed use
       ``root_rate``).
 
-    ``root_rate`` is the factor of the root branch (default 1.0). ``events`` selects which event
-    kinds the factor scales (default: duplication, transfer, loss).
+    ``root_rate`` (default 1.0) is the root-branch factor in ``autocorr_sigma`` mode and the fallback
+    factor for branches absent from an explicit ``factors`` map. In ``per_branch`` mode every branch
+    is drawn i.i.d. (``root_rate`` is unused) — harmless, since the root's zero-length branch carries
+    no events. ``events`` selects which event kinds the factor scales (default: duplication, transfer,
+    loss).
     """
 
     def __init__(self, base: RateModel, *, autocorr_sigma: float | None = None,

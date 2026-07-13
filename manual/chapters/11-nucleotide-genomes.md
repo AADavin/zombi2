@@ -171,15 +171,74 @@ zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
   --write profiles trees -o out/
 ```
 
-The GFF may be gzipped. For a multi-sequence file (chromosome plus plasmids), the most-annotated
-sequence is used by default; `--gff-seqid ID` (or `read_gff(..., seqid=...)`) picks another. The
-genes keep their annotation names (locus tag / `Name`), so `genes.tsv` and the trees are labelled with
-real gene ids.
+The GFF may be gzipped. A **multi-sequence** file — a chromosome plus its plasmids or secondary
+chromosomes — seeds **one chromosome per sequence** (see *Multiple chromosomes and the chromosome
+tier* below), while `--gff-seqid ID` (or `read_gff(..., seqid=...)`) instead picks a single
+sequence. The genes keep their annotation names (locus tag / `Name`), so `genes.tsv` and the trees
+are labelled with real gene ids.
 
 ::: tip
 Real chromosomes are millions of nucleotides long, and every rate is per-nucleotide. Scale the
 per-nucleotide rates down accordingly (the E. coli example uses `inversion=2e-6`, `loss=1.5e-6`) and
 raise `extension` toward `0.999` for realistically long segments.
+:::
+
+## Multiple chromosomes and the chromosome tier
+
+Like the ordered model (Chapter 10), a nucleotide genome can be a **karyotype** of several
+chromosomes rather than one. The simplest way is `initial_chromosomes` (Python) or `--n-chromosomes`
+(CLI): each is an independent, full-length copy of the root chromosome under its own source, so an
+$N$-chromosome genome starts at $N \times$ `root_length` nucleotides. Chromosomes are circular by
+default; `circular=False` (Python) or `--linear-chromosomes` (CLI) makes them **linear** — two ends,
+no origin wrap. A single chromosome — the default — reproduces the single-chromosome model exactly.
+
+Real genomes are rarely a single replicon, though. To start from a genuine **chromosome-plus-plasmids**
+architecture, give each replicon its own length, genes and topology with `root_chromosomes`, a list
+of `(length, gene_intervals)` or `(length, gene_intervals, circular)`. A multi-sequence GFF provides
+exactly this: `read_gff_all` returns one entry per sequence (the main chromosome first), each carrying
+its `Is_circular` flag, and on the CLI `--gff` seeds one chromosome per sequence with its own topology
+(use `--gff-seqid ID` to select a single one, or `--linear-chromosomes` to force all linear). A genome
+like *Borrelia* — a linear chromosome with a mix of linear and circular plasmids — thus seeds as a
+genuine **mixed-topology** genome; fission and fusion respect each chromosome's topology (fusion only
+joins two of the same kind).
+
+```python
+replicons = z.read_gff_all("genome.gff")        # e.g. [chromosome, plasmid1, plasmid2]
+result = z.simulate_nucleotide_genomes(
+    tree, root_chromosomes=[(g.length, g.genes) for g in replicons],
+    inversion=1e-3, loss=1e-4, seed=1)
+```
+
+The block-level events act **within** a chromosome — chosen in proportion to its length — with two
+ways for material to reach a *different* chromosome. A **transfer** drops a *copy* onto a uniformly
+chosen recipient chromosome (HGT semantics), while a **translocation** (`translocation`, a
+per-nucleotide rate) *moves* an arc from one chromosome to another of the same genome — the
+intra-genome counterpart of transposition. A translocation only relocates material (segment ids and
+gene trees untouched, content conserved), changing the karyotype layout but not the number of
+chromosomes. On top of these, the same **chromosome tier** as the ordered model acts on whole
+chromosomes:
+
+- **fission** — a chromosome splits in two (breakpoints snap to segment boundaries, so genes are
+  never split): a circular one at two breakpoints, the arc between them becoming a new circular
+  replicon; a linear one at a single breakpoint, the suffix becoming a new linear chromosome;
+- **fusion** — two chromosomes of the *same* topology merge into one (a mixed pair cannot fuse);
+- **chromosome origination** — a de-novo replicon, a *plasmid*, appears;
+- **chromosome loss** — a whole chromosome, and every block on it, is lost.
+
+Fission and fusion only move blocks between chromosomes, so the per-block gene trees are untouched;
+only chromosome loss ends the lineages it carries. All four rates default to zero — set `--fission`,
+`--fusion`, `--chromosome-origination`, `--chromosome-loss` (or the matching arguments) to turn them
+on.
+
+::: note
+The karyotype is written out when it is non-trivial — a run with more than one chromosome, or any
+chromosome-tier rate, also produces `Chromosomes.tsv` (which chromosome each block sits on, and in
+what order) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy). A
+single-chromosome run's output is unchanged. In the Python API the same information is on
+`leaf.chromosomes` and `result.event_log.chromosome_records`. `--write ancestral` reconstructs the
+DNA of **each** replicon at every node (one FASTA record per chromosome; seed the real root DNA with
+a multi-record `--genome-fasta`, matched to each replicon by sequence name), and `--write bed`
+annotates each replicon as its own BED contig, named to line up with those FASTA records.
 :::
 
 ## Intergenic indels
