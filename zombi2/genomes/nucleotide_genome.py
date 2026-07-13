@@ -686,14 +686,14 @@ class NucleotideGenome(Genome):
 
         Genome-wide this is content- and length-preserving and genealogically neutral (segments keep
         their ids) — it only changes which replicon carries the material, so like transposition it
-        re-mints no lineage. The arc is capped to leave >= 1 nt on the source, so a translocation
-        never empties a chromosome (that is what chromosome loss / fusion are for).
+        re-mints no lineage. A whole-chromosome arc is skipped (moving it would empty the source —
+        that is what chromosome loss / fusion are for), which also keeps the (already gene-snapped)
+        arc boundaries intact rather than shaving them off a gene edge.
         """
         els = chrom.elements
         L = self._chrom_length(chrom)
-        if L <= 1:
+        if L <= 1 or ell >= L:                 # nothing to move, or the whole source chromosome
             return []
-        ell = max(1, min(ell, L - 1))          # keep the source chromosome non-empty
         i_s, i_e = self._arc_range(s, ell, chrom)
         arc = els[i_s:i_e]
         del els[i_s:i_e]
@@ -882,6 +882,8 @@ class NucleotideGenome(Genome):
                 return []
             dest = int(rng.integers(self._chrom_length(dest_chrom) + 1))
             arc = self._apply_translocation(region.start, region.length, chrom, dest_chrom, dest)
+            if not arc:                        # skipped (whole chromosome) — no event, no empty group
+                return []
             return [[GeneOp(seg.seg_id, seg.source, "translocated") for seg in arc]]
         if event is EventType.INSERTION:
             return [self._apply_insertion(rng, chrom)]  # one op-group: the novel intergene block
