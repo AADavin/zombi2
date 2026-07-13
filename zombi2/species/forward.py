@@ -40,6 +40,7 @@ import numpy as np
 from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
 )
+from zombi2.species._caps import GrowthEngine, species_caps
 from zombi2.tree import Tree, TreeNode
 
 
@@ -261,6 +262,11 @@ class _ShiftView:
         return state, state
 
 
+#: Gillespie models -> their per-lineage rate view. Data-driven replacement for the isinstance
+#: view ladder in ``simulate_forward`` (keyed by exact type; these classes have no subclasses).
+_GILLESPIE_VIEWS = {ClaDS: _ClaDSView, DiversityDependent: _DDView, CladeShiftBirthDeath: _ShiftView}
+
+
 def _weighted_index(weights, total, rng) -> int:
     """Index sampled proportional to ``weights`` (which sum to ``total``)."""
     x = rng.random() * total
@@ -436,23 +442,12 @@ def simulate_forward(
     """
     if (age is None) == (n_tips is None):
         raise ValueError("provide exactly one of `age` or `n_tips`")
-    heterogeneous = isinstance(model, (ClaDS, DiversityDependent, CladeShiftBirthDeath))
-    if isinstance(model, EpisodicBirthDeath):
-        if n_tips is not None:
-            raise NotImplementedError(
-                "episodic forward simulation requires `age` (the present must be fixed to map "
-                "age-before-present); n_tips mode is constant-rate only"
-            )
-    elif isinstance(model, CladeShiftBirthDeath):
-        if n_tips is not None:
-            raise NotImplementedError(
-                "clade rate shifts are scheduled at ages before the present, so "
-                "CladeShiftBirthDeath requires `age` mode (a fixed present), not `n_tips`"
-            )
-    elif not heterogeneous and not isinstance(model, BirthDeath):
+    caps = species_caps(model)           # loud TypeError for an unregistered model type
+    heterogeneous = caps.growth is GrowthEngine.GILLESPIE
+    if n_tips is not None and not caps.supports_n_tips:
         raise NotImplementedError(
-            f"forward simulation supports BirthDeath/Yule, EpisodicBirthDeath, ClaDS, "
-            f"DiversityDependent and CladeShiftBirthDeath, not {type(model).__name__}"
+            f"{type(model).__name__} is defined against a fixed present (time-varying rates or "
+            "scheduled shifts), so it requires `age` mode, not `n_tips`"
         )
     model.validate()
     from zombi2.species.sim import _check_age, _check_n_tips
@@ -498,12 +493,7 @@ def simulate_forward(
 
     present = age if age is not None else 0.0
     if heterogeneous:
-        if isinstance(model, ClaDS):
-            view = _ClaDSView(model, present)
-        elif isinstance(model, DiversityDependent):
-            view = _DDView(model, present)
-        else:
-            view = _ShiftView(model, present)
+        view = _GILLESPIE_VIEWS[type(model)](model, present)
         grow = _grow_gillespie
     else:
         view = _ForwardRates(model, present=present)

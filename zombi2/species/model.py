@@ -12,6 +12,8 @@ import math
 
 import numpy as np
 
+from zombi2.species._caps import FOSSILIZATION, REMOVAL, GrowthEngine, SpeciesCaps
+
 
 def _finite(name: str, value: float) -> float:
     """Reject NaN / infinite parameters up front.
@@ -68,6 +70,11 @@ class BirthDeath:
     present, every lineage independently dies with probability ``fraction`` (a cataclysm that
     wipes out that fraction of the standing diversity in one instant).
     """
+
+    caps = SpeciesCaps(
+        GrowthEngine.THINNING, supports_backward=True, supports_ghosts=True,
+        supports_n_tips=True, forward_only_features=(FOSSILIZATION, REMOVAL),
+    )
 
     def __init__(self, birth: float, death: float = 0.0, *,
                  fossilization: float = 0.0, sampling_fraction: float = 1.0,
@@ -173,6 +180,12 @@ class EpisodicBirthDeath:
     keep the tree ultrametric. Serial sampling *through time* (dated tips / fossils) is a
     separate, forward-simulation feature and is not modelled here.
     """
+
+    caps = SpeciesCaps(
+        GrowthEngine.THINNING, supports_backward=True, supports_ghosts=True,
+        supports_n_tips=False, incomplete_sampling_backward=True,
+        forward_only_features=(FOSSILIZATION, REMOVAL),
+    )
 
     def __init__(self, birth, death, shifts, *, fossilization=None,
                  sampling_fraction: float = 1.0, removal: float = 1.0,
@@ -281,6 +294,8 @@ class ClaDS:
     ``mass_extinctions`` overlay exactly as for :class:`BirthDeath`.
     """
 
+    caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
+
     def __init__(self, lambda_0: float, *, alpha: float = 0.9, sigma: float = 0.1,
                  turnover: float = 0.0, sampling_fraction: float = 1.0,
                  mass_extinctions=None):
@@ -326,6 +341,8 @@ class DiversityDependent:
     capacity). ``sampling_fraction`` (ρ) and ``mass_extinctions`` overlay as for
     :class:`BirthDeath` (mass extinctions still require ``age`` mode).
     """
+
+    caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
 
     def __init__(self, lambda_0: float, death: float = 0.0, *, carrying_capacity: float,
                  sampling_fraction: float = 1.0, mass_extinctions=None):
@@ -373,6 +390,8 @@ class CladeShiftBirthDeath:
         List of ``(age, birth, death)`` — at ``age`` before the present, a random extant lineage
         and its descendants adopt ``(birth, death)``.
     """
+
+    caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=False)
 
     def __init__(self, birth: float, death: float = 0.0, *, clade_shifts,
                  sampling_fraction: float = 1.0, mass_extinctions=None):
