@@ -292,6 +292,7 @@ class NucleotideGenome(Genome):
         """
         if not self._seeded:                        # seed: the initial root chromosome(s)
             self._seeded = True
+            self._event_region = None               # the seed has no single insert position
             return self._seed_root_chromosomes()
 
         source = self.ids.new_family()
@@ -314,6 +315,8 @@ class NucleotideGenome(Genome):
         else:
             self._split_at(at, chrom)
             chrom.elements.insert(self._index_at(at, chrom), seg)
+        # record where the novel gene landed (start = insert position, length = gene length)
+        self._event_region = Region(chrom.chrom_id, at, length, 1)
         return [GeneOp(seg.seg_id, source, "origin")]
 
     def _new_root_chromosome(self) -> Chromosome:
@@ -859,6 +862,8 @@ class NucleotideGenome(Genome):
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
         region = selection.region
+        # the region logged for this event; overridden below where a paste dest is drawn
+        self._event_region = region
         chrom = self.chromosomes[region.chromosome]
         if event is EventType.INVERSION:
             arc = self._apply_inversion(region.start, region.length, chrom)
@@ -884,6 +889,8 @@ class NucleotideGenome(Genome):
             arc = self._apply_transposition(region.start, region.length, dest, chrom)
             if not arc:                        # whole-chromosome no-op — no event, no empty group
                 return []
+            self._event_region = Region(region.chromosome, region.start, region.length,
+                                        region.strand, dest=dest)  # log the paste position
             return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
         if event is EventType.TRANSLOCATION:
             dest_chrom = self._choose_other_chromosome(rng, chrom)

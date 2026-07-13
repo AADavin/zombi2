@@ -1,8 +1,8 @@
 # Design note: gene-order export via an enriched nucleotide event trace
 
-**Status:** Phase 1 implemented (`Region` persisted + `--write geneorder`); Phase 2 (`tools
-export` replay) pending · **Author:** Adrián (with Claude) · **Scope:** `zombi2 genomes` +
-a new `zombi2 tools export`
+**Status:** Phase 1 + 1.5 implemented (`Region` + `dest` persisted, `--write geneorder`; every
+single-chromosome event fully described); Phase 2 (`tools export` replay) pending · **Author:**
+Adrián (with Claude) · **Scope:** `zombi2 genomes` + a new `zombi2 tools export`
 
 **Decisions locked:** native coordinates only (no fork-compat layer); `Region` persisted for
 **both** the nucleotide and ordered models; the structural-event log is a **distinct file**
@@ -69,29 +69,27 @@ filter on `branch` for the per-branch view. Explicit typed columns rather than a
 because zombi2 has a clean `Region`:
 
 ```
-time  event  branch  family  chrom  start  length  strand  donor  recipient
+time  event  branch  family  chrom  start  length  strand  dest  donor  recipient
 ```
 
-`chrom / start / length / strand` are the physical arc the event acted on, empty for events with
-no region. Coordinates are zombi2-native: half-open `[start, start+length)`, circular (wrapping
-arcs allowed).
+`chrom / start / length / strand` are the physical arc the event acted on; `dest` is the
+paste / insert position where one applies. All empty for events with no region. Coordinates are
+zombi2-native: half-open `[start, start+length)`, circular (wrapping arcs allowed).
 
-Per-event coverage **as implemented in Phase 1** (region = the acting `Selection.region`):
+Per-event coverage **as implemented (Phase 1 + 1.5)**:
 
-| event (`.value`) | chrom/start/length | strand | fully described? |
+| event (`.value`) | arc (chrom/start/length) | dest | fully described? |
 |---|---|---|---|
-| inversion `I` | ✓ arc | 1 | **yes** — the arc *is* the breakpoint |
-| loss `L` | ✓ arc | 1 | **yes** — the removed arc |
-| transposition `P` | ✓ *source* arc | 1 | partial — paste **dest not yet logged** (⏳) |
-| duplication `D` | ✓ *source* arc | 1 | partial — insert **dest not yet logged** (⏳) |
-| origination `O` | — (empty) | — | ⏳ — separate log path, region not threaded yet |
-| transfer `T` | — (empty) | — | ⏳ — separate log path; `donor`/`recipient` cols already filled |
-| translocation `X` | ✓ arc | 1 | source arc; cross-chromosome dest ⏳ |
+| inversion `I` | ✓ | — | **yes** — the arc *is* the breakpoint |
+| loss `L` | ✓ | — | **yes** — the removed arc |
+| transposition `P` | ✓ source arc | ✓ paste position | **yes** |
+| duplication `D` | ✓ source arc | — (tandem) | **yes** — the copy is tandem (immediately after the arc) |
+| origination `O` | ✓ insert at `start`, gene of `length` | — | **yes** (novel gene; the root *seed* has no single position → empty) |
+| transfer `T` | ✓ donor arc | ✓ recipient insert (`donor`/`recipient` cols name the branches) | **yes** |
+| translocation `X` | ✓ source arc | — | partial — cross-chromosome dest needs a `dest_chrom` column (Phase 1.6) |
 
-**Phase-1 gap to close next:** the paste/insert **`dest`** for `P`/`D`/`X` and the position for
-`O`/`T` live on separate log paths (or are drawn inside `apply` and not returned). Threading them
-adds a `dest` column and a couple more `region=` call sites. Inversions and losses — the headline
-breakpoint case — are already complete.
+Only translocation (a multi-chromosome event, which also has `Karyotype_trace.tsv`) is not yet
+fully described; every single-chromosome gene-order event is.
 
 ## 5. Why a distinct file (not an overloaded `Events_trace.tsv`)
 
@@ -138,10 +136,12 @@ is the intended consumer, and a mapping to Krister's exact encoding can be added
 ## 8. Phasing
 
 - **Phase 1** ✅ *done* — `Region → EventRecord` (both models) + `--write geneorder` →
-  `Geneorder_events.tsv`. Inversions/losses fully described; the missing breakpoint data is now on
-  disk. Tests in `tests/test_geneorder_events_output.py`.
-- **Phase 1.5** — log the paste/insert `dest` for `P`/`D`/`X` and the position for `O`/`T` (a
-  `dest` column + a few more `region=` sites), so every event is fully described.
+  `Geneorder_events.tsv`. Tests in `tests/test_geneorder_events_output.py`.
+- **Phase 1.5** ✅ *done* — added the `dest` column and captured the paste position (`P`), recipient
+  insert (`T`) and novel-gene position (`O`); `D` is tandem by construction. Every
+  single-chromosome event is now fully described. (Transposition `dest` is surfaced via a
+  `self._event_region` stash set inside `apply` — zero new RNG draws, so no existing output moved.)
+- **Phase 1.6** (small) — a `dest_chrom` column for translocation (`X`), the only remaining gap.
 - **Phase 2** — the replay engine (generalize `tests/test_geneorder_examples.py`'s replay) and
   `zombi2 tools export` for `breakpoints` / `dupinfo` (trace-direct) then
   `gff` / `bed` / `ffgc` / `posortho` (replay).
