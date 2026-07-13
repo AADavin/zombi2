@@ -39,6 +39,13 @@ Most levels are **duck-typed protocols** (implement the methods, no base class n
 `RateModel` and `EventSampler` are ABCs, `SubstitutionModel` is a frozen dataclass. Add a
 `validate()` that raises a clear `ValueError` on bad parameters, and call it on entry.
 
+A **species** model additionally declares a `_caps` (a `SpeciesCaps`) class attribute — its
+growth engine (`thinning`/`gillespie`), and which modes it supports (backward reconstruction,
+ghost grafting, `n_tips` stop mode, incomplete sampling, and any forward-only features). The
+simulator dispatches on this declared capability instead of `isinstance`, so a model that omits
+it raises a clear error rather than silently routing into the wrong growth loop. Copy the nearest
+model (e.g. `ClaDS`) for the shape.
+
 ### The gene-family seams in depth
 
 The genomes level is the most developed set of seams, and it is worth seeing in detail. ZOMBI2

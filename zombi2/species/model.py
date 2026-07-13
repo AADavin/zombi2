@@ -71,7 +71,7 @@ class BirthDeath:
     wipes out that fraction of the standing diversity in one instant).
     """
 
-    caps = SpeciesCaps(
+    _caps = SpeciesCaps(
         GrowthEngine.THINNING, supports_backward=True, supports_ghosts=True,
         supports_n_tips=True, forward_only_features=(FOSSILIZATION, REMOVAL),
     )
@@ -181,7 +181,7 @@ class EpisodicBirthDeath:
     separate, forward-simulation feature and is not modelled here.
     """
 
-    caps = SpeciesCaps(
+    _caps = SpeciesCaps(
         GrowthEngine.THINNING, supports_backward=True, supports_ghosts=True,
         supports_n_tips=False, incomplete_sampling_backward=True,
         forward_only_features=(FOSSILIZATION, REMOVAL),
@@ -294,7 +294,7 @@ class ClaDS:
     ``mass_extinctions`` overlay exactly as for :class:`BirthDeath`.
     """
 
-    caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
+    _caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
 
     def __init__(self, lambda_0: float, *, alpha: float = 0.9, sigma: float = 0.1,
                  turnover: float = 0.0, sampling_fraction: float = 1.0,
@@ -342,7 +342,7 @@ class DiversityDependent:
     :class:`BirthDeath` (mass extinctions still require ``age`` mode).
     """
 
-    caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
+    _caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
 
     def __init__(self, lambda_0: float, death: float = 0.0, *, carrying_capacity: float,
                  sampling_fraction: float = 1.0, mass_extinctions=None):
@@ -391,7 +391,7 @@ class CladeShiftBirthDeath:
         and its descendants adopt ``(birth, death)``.
     """
 
-    caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=False)
+    _caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=False)
 
     def __init__(self, birth: float, death: float = 0.0, *, clade_shifts,
                  sampling_fraction: float = 1.0, mass_extinctions=None):
