@@ -43,7 +43,7 @@ from zombi2.genomes import (
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, GffGenome,
     RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
-    Modifier, ModifiedRates, BranchModifier,
+    Modifier, ModifiedRates, BranchModifier, FamilyModifier,
     EventWeight, TransferModel, ConversionModel, read_family_rates, read_branch_rates,
     GenomeSimulator, GenomeResult, ProfileMatrix,
     simulate_genomes, Genomes, GenomeTrace, read_events_trace,
@@ -102,7 +102,7 @@ __all__ = [
     "read_gff", "GffGenome",
     # rates & transfers
     "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
-    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier",
+    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "ConversionModel",
     "read_family_rates", "read_branch_rates",
     # distributions
