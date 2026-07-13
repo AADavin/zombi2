@@ -454,7 +454,7 @@ class GenomeSimulator:
                 and genome.copy_number(selection.genes[0].family) >= self._cap):
             return ()  # family already at the cap — skip this duplication
         for group in genome.apply(event, selection, rng, params):
-            log.add(EventRecord(event, branch.name, t, group))
+            log.add(EventRecord(event, branch.name, t, group, region=selection.region))
         return (branch,)
 
     def _reconcile_recipient(self, genome, segment, branch, t, params, log, rng):

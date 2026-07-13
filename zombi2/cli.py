@@ -284,7 +284,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="write", nargs="+", metavar="PART",
-                   choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "all"),
+                   choices=(*Genomes.WRITE_PARTS, "ancestral", "bed", "geneorder", "all"),
                    default=["profiles", "trees"],
                    help="which output files to write — any of {profiles, trace, trees, events, "
                         "transfers, summary, branch_events, reconciliations, layout, karyotype} or "
@@ -302,7 +302,9 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "fission/fusion run. [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
                         "(architecture + gzipped FASTA) at every node; 'bed' writes BED gene "
                         "annotations — genes.bed for the root genome and BED/<node>.bed per node "
-                        "(needs --genes/--gff)")
+                        "(needs --genes/--gff); 'geneorder' writes Geneorder_events.tsv, the "
+                        "structural-event log with physical breakpoints (chrom/start/length/strand) "
+                        "per branch — the input for gene-order / breakpoint export)")
     g.add_argument("--sparse", action="store_true",
                    help="write the profile as a sparse long table (Profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense matrix — "
@@ -2391,11 +2393,11 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
-    want = parts & {"profiles", "trees", "reconciliations", "ancestral", "bed"}
+    want = parts & {"profiles", "trees", "reconciliations", "ancestral", "bed", "geneorder"}
     if not want:
         raise ValueError("the nucleotide model writes 'profiles', 'trees', 'reconciliations', "
-                         "'ancestral' and/or 'bed'; --write events/transfers/summary/branch_events "
-                         "do not apply to it")
+                         "'ancestral', 'bed' and/or 'geneorder'; --write events/transfers/summary/"
+                         "branch_events do not apply to it")
     ancestral = "ancestral" in want
     bed = "bed" in want
     # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias
@@ -2461,8 +2463,8 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     t0 = time.perf_counter()
     # the Python engine is needed for the event log, the genic model, indels, the chromosome tier,
     # translocation, and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
-    if ("trees" in want or "reconciliations" in want or genic or ancestral or bed or indels
-            or chrom_tier or args.translocation or root_chromosomes is not None):
+    if ("trees" in want or "reconciliations" in want or "geneorder" in want or genic or ancestral
+            or bed or indels or chrom_tier or args.translocation or root_chromosomes is not None):
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2500,6 +2502,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         _write_ancestral(args.out, result, tree, args, gff_info, gff_all)
     if bed:
         _write_bed(args.out, result, tree, gff_info, gff_all)
+    if "geneorder" in want:
+        from zombi2.genomes.simulation import geneorder_events_from_log
+        with open(os.path.join(args.out, "Geneorder_events.tsv"), "w") as f:
+            f.write(geneorder_events_from_log(result.event_log))
     # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
     # (Chromosomes.tsv) and the fission/fusion/origination/loss genealogy (Karyotype_trace.tsv).
     # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
