@@ -86,15 +86,36 @@ class _ForwardRates:
         )
 
 
-def _grow(view, age, n_tips, rng, max_lineages):
-    """One forward trial from a crown of two lineages (thinning handles time-varying rates).
-    Returns ``(crown_node, end_time)`` or ``None`` to reject (extinct / <2 sampled survivors)."""
+def _new_crown():
+    """A fresh crown for a forward trial: a root at time 0 with two live children at time 0.
+    Returns ``(root, live)``. Shared by both forward growth loops."""
     root = TreeNode(name="", time=0.0)
     live = []
     for _ in range(2):
         child = TreeNode(name="", time=0.0)
         root.add_child(child)
         live.append(child)
+    return root, live
+
+
+def _reached_target(n, n_tips, max_lineages) -> bool:
+    """Shared stop-guard for the forward loops: ``True`` when the live count ``n`` has hit the
+    ``n_tips`` target (the caller then finalizes at the current time); raises if it blew past
+    ``max_lineages``. The ``n == 0`` extinction case stays inline (it rejects the whole trial)."""
+    if n_tips is not None and n == n_tips:
+        return True
+    if n > max_lineages:
+        raise RuntimeError(
+            f"forward tree exceeded max_lineages={max_lineages}; explosive parameters — "
+            "lower the age/rates or raise max_lineages"
+        )
+    return False
+
+
+def _grow(view, age, n_tips, rng, max_lineages):
+    """One forward trial from a crown of two lineages (thinning handles time-varying rates).
+    Returns ``(crown_node, end_time)`` or ``None`` to reject (extinct / <2 sampled survivors)."""
+    root, live = _new_crown()
     bound = view.rate_bound
     mass_ext = view.mass_extinctions
     me_idx = 0
@@ -104,14 +125,9 @@ def _grow(view, age, n_tips, rng, max_lineages):
         n = len(live)
         if n == 0:
             return None
-        if n_tips is not None and n == n_tips:
+        if _reached_target(n, n_tips, max_lineages):
             end = t
             break
-        if n > max_lineages:
-            raise RuntimeError(
-                f"forward tree exceeded max_lineages={max_lineages}; explosive parameters "
-                "(birth >> death over this age) — lower the age/rates or raise max_lineages"
-            )
         dt = rng.exponential(1.0 / (n * bound))
         # a scheduled mass extinction before the next candidate event fires first (the
         # thinning process is memoryless, so we advance to it and redraw the waiting time)
@@ -307,13 +323,8 @@ def _grow_gillespie(view, age, n_tips, rng, max_lineages):
     """One forward trial for a rates-constant-between-events model (ClaDS / diversity-dependent /
     clade-shift). ``state`` runs in lockstep with ``live``, holding each lineage's opaque rate
     state. Returns ``(crown_node, end_time)`` or ``None`` to reject (extinct / <2 survivors)."""
-    root = TreeNode(name="", time=0.0)
-    live, state = [], []
-    for _ in range(2):
-        child = TreeNode(name="", time=0.0)
-        root.add_child(child)
-        live.append(child)
-        state.append(view.initial_state)
+    root, live = _new_crown()
+    state = [view.initial_state for _ in live]
     scheduled = view.scheduled
     s_idx = 0
     t = 0.0
@@ -322,14 +333,9 @@ def _grow_gillespie(view, age, n_tips, rng, max_lineages):
         n = len(live)
         if n == 0:
             return None
-        if n_tips is not None and n == n_tips:
+        if _reached_target(n, n_tips, max_lineages):
             end = t
             break
-        if n > max_lineages:
-            raise RuntimeError(
-                f"forward tree exceeded max_lineages={max_lineages}; explosive parameters — "
-                "lower the age/rates or raise max_lineages"
-            )
         rates = [view.lineage_rates(state[i], n) for i in range(n)]  # (λ, μ) per lineage
         totals = [b + d for b, d in rates]
         total_rate = math.fsum(totals)
