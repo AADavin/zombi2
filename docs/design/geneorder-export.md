@@ -1,9 +1,9 @@
 # Design note: gene-order export via an enriched nucleotide event trace
 
-**Status:** Phase 1 + 1.5 + 2a implemented — `Region` + `dest` persisted (`--write geneorder`),
-and `zombi2 tools export --format breakpoints` (adjacencies broken per tree edge); Phase 2b
-(gff / posortho / ffgc / dupinfo) pending · **Author:** Adrián (with Claude) · **Scope:**
-`zombi2 genomes` + `zombi2 tools export`
+**Status:** Phase 1 + 1.5 + 2a + 2b implemented — `Region` + `dest` persisted (`--write
+geneorder`), and `zombi2 tools export --format {breakpoints,gff,posortho}`; Phase 2c (dupinfo,
+ffgc) pending · **Author:** Adrián (with Claude) · **Scope:** `zombi2 genomes` + `zombi2 tools
+export`
 
 **Decisions locked:** native coordinates only (no fork-compat layer); `Region` persisted for
 **both** the nucleotide and ordered models; the structural-event log is a **distinct file**
@@ -108,7 +108,7 @@ models. Keeping them separate means:
 ## 6. `zombi2 tools export`
 
 ```
-zombi2 tools export GENOMES_DIR --format breakpoints [-o OUT]     # phase 2a (implemented)
+zombi2 tools export GENOMES_DIR --format {breakpoints,gff,posortho} [-o OUT]   # implemented
 ```
 
 **Key simplification found while building:** a full event *replay* engine turned out to be
@@ -123,11 +123,18 @@ order-based formats by *reading and comparing those files*, not by re-simulating
   gene *content* (and gene names repeat, so extremity labels are no longer unique) — a differing
   adjacency then reflects gained/lost content, not a broken adjacency; those edges are approximate.
   `zombi2/tools/geneorder_export.py::breakpoints_tsv`.
-- **`gff` / `posortho` / `ffgc`** ⏳ — also from the per-node BED orders (gff = reshape; posortho =
-  group leaf genes by id; ffgc = leaf orders + `ancestral` FASTA).
-- **`dupinfo`** ⏳ — NOT derivable cleanly from `Geneorder_events.tsv`: a nucleotide duplication is
-  a *segment* event logged under its source, not a per-gene count. A gene-level dupinfo should come
-  from the **block gene trees** (`--write trees`), which already reconcile per-block duplications.
+- **`gff`** ✅ — every node's genes as one GFF3 (each node a seqid; BED 0-based → GFF 1-based; the
+  gene family is `Name`, `ID` is per-node-unique). `geneorder_export.py::gff_text`.
+- **`posortho`** ✅ — positional ortholog sets over the leaves: genes keep their ancestral identity,
+  so each family's occurrences across leaves are orthologs. Exact for content-conserving runs;
+  family-level under duplication. `geneorder_export.py::posortho_tsv`.
+- **`dupinfo`** ⏳ — per-gene duplication count. The data is in the block gene trees' reconciliation
+  (`--write trees` → `Reconciliation_events.tsv`, `D` rows per gene block), BUT its `gene` column is
+  the internal **segment id** (`g1/g3/g5`), not the user gene name (`g1/g2/g3`) used by every other
+  export — so shipping it would give labels that don't reconcile across files. Blocked on a small
+  **genomes-side fix**: emit the user gene name (the segment's `gene_id`) in `Reconciliation_events`.
+- **`ffgc`** ⏳ — needs the exact FFGC input format (leaf gene orders + sequences from `ancestral`);
+  the format spec is a question for Krister before implementing.
 - **`breakpoints` (coordinate-level)** — `Geneorder_events.tsv` remains the source for the raw
   rearrangement *coordinates* per branch, if a coordinate (rather than adjacency) view is wanted.
 
@@ -150,10 +157,12 @@ is the intended consumer, and a mapping to Krister's exact encoding can be added
   `self._event_region` stash set inside `apply` — zero new RNG draws, so no existing output moved.)
 - **Phase 1.6** (small) — a `dest_chrom` column for translocation (`X`), the only remaining gap.
 - **Phase 2a** ✅ *done* — `zombi2 tools export … --format breakpoints`: broken adjacencies per
-  tree edge, from the per-node BED gene orders (no replay needed — see §6). Tests in
+  tree edge, from the per-node BED gene orders (no replay needed — see §6).
+- **Phase 2b** ✅ *done* — `--format gff` (every node's genes as one GFF3) and `--format posortho`
+  (positional ortholog sets over the leaves), both from the per-node BED orders. Tests in
   `tests/test_geneorder_export.py`.
-- **Phase 2b** — `gff` / `posortho` / `ffgc` (from the per-node BED orders) and a gene-level
-  `dupinfo` (from the block gene trees).
+- **Phase 2c** — `dupinfo` (needs the genomes-side `Reconciliation_events` gene-name fix in §6) and
+  `ffgc` (needs the FFGC format spec).
 
 ## 9. Decisions & remaining questions
 
