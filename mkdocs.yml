@@ -80,6 +80,7 @@ nav:
   - Guide:
       - Species trees: guide/species-trees.md
       - Genomes: guide/genomes.md
+      - Parameters files: guide/parameters-file.md
       - Traits: guide/traits.md
       - Sequences: guide/sequences.md
       - Coevolution: guide/coevolution.md
