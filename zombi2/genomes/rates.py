@@ -127,6 +127,7 @@ class SharedRates(RateModel):
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
                  *, inversion: float = 0.0, transposition: float = 0.0,
+                 translocation: float = 0.0,
                  insertion: float = 0.0, deletion: float = 0.0,
                  conversion: float = 0.0,
                  chromosome_origination: float = 0.0, chromosome_loss: float = 0.0,
@@ -134,7 +135,8 @@ class SharedRates(RateModel):
                  carrying_capacity: float | None = None):
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
-                 ("transposition", transposition), ("insertion", insertion),
+                 ("transposition", transposition), ("translocation", translocation),
+                 ("insertion", insertion),
                  ("deletion", deletion), ("conversion", conversion),
                  ("chromosome_origination", chromosome_origination),
                  ("chromosome_loss", chromosome_loss), ("fission", fission), ("fusion", fusion))
@@ -148,6 +150,8 @@ class SharedRates(RateModel):
         # rearrangements: only fired by genomes that support them (e.g. OrderedGenome)
         self.inversion = float(inversion)
         self.transposition = float(transposition)
+        # translocation: move an arc to another chromosome (nucleotide model; needs >= 2 chromosomes)
+        self.translocation = float(translocation)
         # intergenic indels: only fired by the nucleotide genome (per-nucleotide rate)
         self.insertion = float(insertion)
         self.deletion = float(deletion)
@@ -212,11 +216,13 @@ class SharedRates(RateModel):
             out.append(EventWeight(EventType.CHROMOSOME_ORIGINATION, None, self.chromosome_origination))
         if self.fission > 0 and n > 0:  # a chromosome needs genes to be worth splitting
             out.append(EventWeight(EventType.FISSION, None, self.fission * n_chrom))
-        if n_chrom >= 2:  # loss / fusion need a spare chromosome (a genome keeps at least one)
+        if n_chrom >= 2:  # loss / fusion / translocation need a second chromosome
             if self.chromosome_loss > 0:
                 out.append(EventWeight(EventType.CHROMOSOME_LOSS, None, self.chromosome_loss * n_chrom))
             if self.fusion > 0:
                 out.append(EventWeight(EventType.FUSION, None, self.fusion * n_chrom))
+            if self.translocation > 0 and n > 0:  # per-nucleotide: move an arc to another chromosome
+                out.append(EventWeight(EventType.TRANSLOCATION, None, self.translocation * n))
         return out
 
 

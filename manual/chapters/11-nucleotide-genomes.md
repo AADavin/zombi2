@@ -204,10 +204,14 @@ result = z.simulate_nucleotide_genomes(
     inversion=1e-3, loss=1e-4, seed=1)
 ```
 
-The block-level events act **within** a chromosome — chosen in proportion to its length — with one
-exception: a **transfer**'s recipient chromosome is chosen uniformly (every chromosome equally
-likely), so a transfer is how a block reaches a *different* chromosome. On top of these, the same
-**chromosome tier** as the ordered model acts on whole chromosomes:
+The block-level events act **within** a chromosome — chosen in proportion to its length — with two
+ways for material to reach a *different* chromosome. A **transfer** drops a *copy* onto a uniformly
+chosen recipient chromosome (HGT semantics), while a **translocation** (`translocation`, a
+per-nucleotide rate) *moves* an arc from one chromosome to another of the same genome — the
+intra-genome counterpart of transposition. A translocation only relocates material (segment ids and
+gene trees untouched, content conserved), changing the karyotype layout but not the number of
+chromosomes. On top of these, the same **chromosome tier** as the ordered model acts on whole
+chromosomes:
 
 - **fission** — a chromosome splits in two, the arc between two breakpoints becoming a new circular
   replicon (breakpoints snap to segment boundaries, so genes are never split);

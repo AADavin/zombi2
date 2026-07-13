@@ -351,6 +351,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="probability a transposed segment reinserts reverse-complemented "
                         "(gene order reversed and strands flipped), for --genome-model ordered "
                         "(default 0 = always keep orientation)")
+    g.add_argument("--translocation", type=float, default=0.0, metavar="RATE",
+                   help="[nucleotide] translocation rate, per nucleotide: an arc moves to a "
+                        "different chromosome of the same genome (needs >1 chromosome; distinct from "
+                        "transposition, which stays on one chromosome) (default 0 = off)")
     g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
                    help="number of chromosomes seeded at the root, for --genome-model "
                         "ordered/nucleotide (default 1). [ordered] the root's initial families are "
@@ -1854,6 +1858,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.initial_chromosomes is not None:
         parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
                      "unordered and ordered genome levels use --initial-families")
+    if args.translocation:
+        parser.error("--translocation is only for --genome-model nucleotide (it moves an arc "
+                     "between chromosomes of a multi-chromosome nucleotide genome)")
 
     ordered = args.genome_model == "ordered"
     initial_families = 20 if args.initial_families is None else args.initial_families
@@ -2439,6 +2446,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                       or args.chromosome_loss)
     sim_kw = dict(inversion=args.inversion, loss=args.loss, duplication=args.dup,
                   transfer=args.trans, transposition=args.transposition,
+                  translocation=args.translocation,
                   origination=args.orig, insertion=args.insertion, deletion=args.deletion,
                   indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
@@ -2452,9 +2460,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
 
     t0 = time.perf_counter()
     # the Python engine is needed for the event log, the genic model, indels, the chromosome tier,
-    # and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
+    # translocation, and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
     if ("trees" in want or "reconciliations" in want or genic or ancestral or bed or indels
-            or chrom_tier or root_chromosomes is not None):
+            or chrom_tier or args.translocation or root_chromosomes is not None):
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:

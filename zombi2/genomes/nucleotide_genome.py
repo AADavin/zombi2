@@ -259,7 +259,7 @@ class NucleotideGenome(Genome):
     def supported_events(self) -> frozenset[EventType]:
         return frozenset((EventType.ORIGINATION, EventType.INVERSION, EventType.LOSS,
                           EventType.DUPLICATION, EventType.TRANSFER, EventType.TRANSPOSITION,
-                          EventType.INSERTION, EventType.DELETION,
+                          EventType.TRANSLOCATION, EventType.INSERTION, EventType.DELETION,
                           EventType.CHROMOSOME_ORIGINATION, EventType.CHROMOSOME_LOSS,
                           EventType.FISSION, EventType.FUSION))
 
@@ -672,6 +672,44 @@ class NucleotideGenome(Genome):
             els[idx:idx] = arc
         return arc
 
+    def _choose_other_chromosome(self, rng, chrom: Chromosome) -> Chromosome | None:
+        """A chromosome uniformly chosen among those that are *not* ``chrom`` (``None`` if none)."""
+        others = [c for c in self.chromosomes.values() if c is not chrom]
+        if not others:
+            return None
+        return others[int(rng.integers(len(others)))]
+
+    def _apply_translocation(self, s: int, ell: int, chrom: Chromosome,
+                             dest_chrom: Chromosome, dest: int) -> list[Segment]:
+        """Cut the arc ``[s, s+ell)`` off ``chrom`` and splice it into a *different* chromosome
+        ``dest_chrom`` at physical ``dest``.
+
+        Genome-wide this is content- and length-preserving and genealogically neutral (segments keep
+        their ids) — it only changes which replicon carries the material, so like transposition it
+        re-mints no lineage. The arc is capped to leave >= 1 nt on the source, so a translocation
+        never empties a chromosome (that is what chromosome loss / fusion are for).
+        """
+        els = chrom.elements
+        L = self._chrom_length(chrom)
+        if L <= 1:
+            return []
+        ell = max(1, min(ell, L - 1))          # keep the source chromosome non-empty
+        i_s, i_e = self._arc_range(s, ell, chrom)
+        arc = els[i_s:i_e]
+        del els[i_s:i_e]
+        dels = dest_chrom.elements
+        dL = self._chrom_length(dest_chrom)
+        dest %= dL + 1
+        if self._registry.has_genes() and dest < dL:  # never paste into a gene interior
+            dest = self._snap(dest, chrom=dest_chrom)
+        if dest >= dL:
+            dels.extend(arc)
+        else:
+            self._split_at(dest, dest_chrom)
+            idx = self._index_at(dest, dest_chrom)
+            dels[idx:idx] = arc
+        return arc
+
     def _draw_length(self, rng, params, chrom: Chromosome | None = None) -> int:
         ext = params.extension if params.extension is not None else self.extension
         n = self._chrom_length(chrom if chrom is not None else self.chromosomes[self._cid])
@@ -776,7 +814,7 @@ class NucleotideGenome(Genome):
         return self._apply_loss(s, ell, chrom)
 
     _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION,
-                             EventType.TRANSFER, EventType.TRANSPOSITION,
+                             EventType.TRANSFER, EventType.TRANSPOSITION, EventType.TRANSLOCATION,
                              EventType.INSERTION, EventType.DELETION))
 
     def draw_target(self, event, rng, params, family=None) -> Selection:
@@ -838,6 +876,13 @@ class NucleotideGenome(Genome):
             dest = int(rng.integers(L))
             arc = self._apply_transposition(region.start, region.length, dest, chrom)
             return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
+        if event is EventType.TRANSLOCATION:
+            dest_chrom = self._choose_other_chromosome(rng, chrom)
+            if dest_chrom is None:             # only one chromosome — nothing to translocate to
+                return []
+            dest = int(rng.integers(self._chrom_length(dest_chrom) + 1))
+            arc = self._apply_translocation(region.start, region.length, chrom, dest_chrom, dest)
+            return [[GeneOp(seg.seg_id, seg.source, "translocated") for seg in arc]]
         if event is EventType.INSERTION:
             return [self._apply_insertion(rng, chrom)]  # one op-group: the novel intergene block
         if event is EventType.DELETION:
