@@ -96,6 +96,7 @@ class Region:
     start: int
     length: int
     strand: int = 1
+    dest: int | None = None  # paste / insert position (transposition; transfer recipient insert)
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +199,7 @@ class EventRecord:
     donor: str | None = None
     recipient: str | None = None
     insertion: object | None = None
+    region: Region | None = None  # physical arc of the operation (ordered / nucleotide models)
 
     @property
     def family(self) -> str:

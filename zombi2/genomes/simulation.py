@@ -174,6 +174,43 @@ def events_trace_from_log(event_log) -> str:
     return "\n".join(rows) + "\n"
 
 
+#: Header of ``Geneorder_events.tsv`` — the structural-event log with *positional* columns, one
+#: row per event across every branch (filter on ``branch`` for the per-branch view). ``chrom /
+#: start / length / strand`` are the physical arc the event acted on (half-open ``[start,
+#: start+length)`` on the acting genome, circular), empty for events with no region (e.g. a plain
+#: origination). Emitted only by the ordered / nucleotide models, which carry an event ``region``.
+GENEORDER_EVENTS_HEADER = (
+    "time\tevent\tbranch\tfamily\tchrom\tstart\tlength\tstrand\tdest\tdonor\trecipient")
+
+
+def geneorder_events_from_log(event_log) -> str:
+    """Serialise an :class:`~zombi2.events.EventLog` as ``Geneorder_events.tsv`` text.
+
+    Native zombi2 coordinates: the ``region`` on each record is the physical arc of the operation
+    (``[start, start+length)``, half-open, circular). ``dest`` is the paste / insert position for a
+    transposition (P) or a transfer (T, on the ``recipient`` branch). Coverage: inversion (I) and
+    loss (L) = arc; transposition (P) = arc + dest; duplication (D) = arc (the copy is tandem,
+    i.e. immediately after the arc); origination (O) = insert at ``start``, gene of ``length``;
+    transfer (T) = donor arc + recipient ``dest``. Translocation (X) records the source arc only
+    (its cross-chromosome dest needs a ``dest_chrom`` column — see docs/design/geneorder-export.md).
+    Records without a region serialise with empty positional cells.
+    """
+    rows = [GENEORDER_EVENTS_HEADER]
+    for r in event_log:
+        if r.event.value in ("S", "F"):
+            continue  # speciation / leaf markers are not gene-order events (tree is in the .nwk)
+        reg = r.region
+        if reg is None:
+            chrom, start, length, strand, dest = ("", "", "", "", "")
+        else:
+            chrom, start, length, strand = reg.chromosome, reg.start, reg.length, reg.strand
+            dest = "" if reg.dest is None else reg.dest
+        family = r.genes[0].family if r.genes else ""
+        rows.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{family}\t{chrom}\t{start}\t"
+                    f"{length}\t{strand}\t{dest}\t{r.donor or ''}\t{r.recipient or ''}")
+    return "\n".join(rows) + "\n"
+
+
 def read_events_trace(text: str, species_tree=None) -> dict:
     """Parse ``Events_trace.tsv`` text back into ``{family: [EventRecord]}`` (time-ordered).
 
