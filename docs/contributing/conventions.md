@@ -66,7 +66,7 @@ it recorded here for free — do not write a second, bespoke parameter file.
 
 - **Rates are per unit time.** Branch lengths are time; every rate is the parameter of an
   exponential (Gillespie) process in the same units.
-- **Gene-family D/T/L are per gene copy** by default (`SharedRates`): the genome-wide rate is
+- **Gene-family D/T/L are per gene copy** by default (`PerCopyRates`): the genome-wide rate is
   the per-copy rate times the number of copies. `PerGenomeRates` instead fires at a constant
   per-genome rate. `BranchRates` scales any base model by per-branch factors.
 - **Origination is per branch**, not per copy — one new family per event, independent of

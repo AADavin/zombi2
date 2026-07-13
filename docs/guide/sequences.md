@@ -21,7 +21,10 @@ variation. A *relaxed* clock lets the rate change branch to branch, either **unc
 draws, a branch's rate says nothing about its neighbours') or **autocorrelated** (a branch's rate is
 anchored to its parent's, so nearby lineages evolve at similar rates). ZOMBI2 ships a whole family of
 clocks in the `zombi2.sequences` namespace, all sharing one `Clock` interface — `scale(tree, seed=...)`
-returns the phylogram — differing only in how the per-branch rate is drawn.
+returns the phylogram — differing only in how the per-branch rate is drawn. In the language of
+[Rates: a primer](rates.md), a relaxed clock is a **per-branch modifier** on the substitution rate,
+and among-site variation (gamma rates) is the matching **per-site modifier** — the same idea applied
+to two different contexts.
 
 | Model | Family | Reach for it when |
 | --- | --- | --- |
@@ -169,6 +172,12 @@ rate(family g, species branch b) = R_b · s_g
 A gene-tree branch on species branch `b` over `[t0, t1]` gets substitution length
 `s_g · R_b · (t1 − t0)`; because reconciliation is exact, a branch spanning several species
 branches (after pruning) just sums the pieces.
+
+`s_g` is drawn at random, but you can also **name** a specific family's speed: pass
+`family_factors={family_id: factor}` (CLI `--family-speeds FILE`), the sequence-level analogue of
+[`FamilyModifier`](rates.md#modifiers-context-that-rescales-the-base). A named factor **multiplies**
+the random `s_g` and the branch clock `R_b` — so you can make one gene evolve, say, 3× faster while
+branch and random effects still apply. Families not listed keep a factor of `1`.
 
 ```python
 from zombi2.species import simulate_species_tree, BirthDeath

@@ -85,6 +85,7 @@ nav:
       - Sequences: guide/sequences.md
       - Coevolution: guide/coevolution.md
       - Null models of coevolution: guide/coevolution_nulls.md
+      - Rates: guide/rates.md
       - Running in parallel: guide/parallel.md
   - Cookbook:
       - cookbook/index.md

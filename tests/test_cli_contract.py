@@ -66,7 +66,7 @@ def test_write_reconciliations_nucleotide(tmp_path):
 
 
 @pytest.mark.parametrize("extra, needle", [
-    (["--rate-model", "per-genome"], "rate-model shared"),
+    (["--rate-per", "genome"], "rate-per genome"),
     (["--conversion", "0.1"], "--conversion"),
     (["--genome-model", "ordered"], "unordered"),
 ])

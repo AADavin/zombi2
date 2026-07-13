@@ -115,6 +115,7 @@ class GenomeSimulator:
         log = EventLog()
         root = tree.root
         rate_model.bind(rng, max_family_size=self._cap, tree=tree)
+        self._transfers.bind(tree)  # resolve any donor->recipient pair highways against the tree
 
         # --- seed the root genome ------------------------------------------
         root_genome = genome_factory(ids)
@@ -369,7 +370,8 @@ class GenomeSimulator:
             return None
         decay = self._transfers.distance_decay
         recept = self._transfers.receptivity
-        if decay is None and recept is None:
+        pair = self._transfers.pair
+        if decay is None and recept is None and pair is None:
             return candidates[int(rng.integers(len(candidates)))]  # uniform fast path (unchanged)
 
         if decay is None:
@@ -398,7 +400,9 @@ class GenomeSimulator:
 
         if recept is not None:  # per-branch absorption weight (branches not listed default to 1)
             weights = [w * recept.get(c.name, 1.0) for w, c in zip(weights, candidates)]
-        if sum(weights) <= 0.0:  # every eligible recipient has zero receptivity — no transfer
+        if pair is not None:  # donor->recipient bias (transfer highways)
+            weights = [w * pair.factor(donor, c) for w, c in zip(weights, candidates)]
+        if sum(weights) <= 0.0:  # every eligible recipient has zero weight — no transfer
             return None
         return candidates[self.sampler.choose_index(weights, rng)]
 
@@ -447,7 +451,7 @@ class GenomeSimulator:
             return (branch, recipient)
 
         if event is EventType.CONVERSION:
-            # Intra-genome gene conversion (activated by SharedRates(conversion=...), which emits
+            # Intra-genome gene conversion (activated by PerCopyRates(conversion=...), which emits
             # the CONVERSION weights; dormant otherwise). The donor lineage bifurcates
             # and the recipient copy of the same family is overwritten, so copy number is unchanged
             # and the converted copy coalesces with the donor at time t (concerted evolution). The

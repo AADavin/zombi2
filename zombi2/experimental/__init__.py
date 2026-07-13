@@ -67,7 +67,7 @@ def warn_experimental(name: str) -> None:
 # CLI surface + a catalog page. See docs/contributing/model-lifecycle.md.
 #
 # (Intra-genome gene conversion was promoted to the core in this way: it is now
-# ``SharedRates(conversion=...)`` + ``zombi2.ConversionModel`` with a ``--conversion`` CLI flag.)
+# ``PerCopyRates(conversion=...)`` + ``zombi2.ConversionModel`` with a ``--conversion`` CLI flag.)
 # ---------------------------------------------------------------------------
 
 # Imported after warn_experimental is defined (the model imports it). ESM2Critic imports torch/esm
