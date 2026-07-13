@@ -65,7 +65,7 @@ Traits & coevolution
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
-  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)
+  tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse, export)
 
 Experimental (unstable, opt-in)
   experimental         not-yet-validated models (selection: ESM2 dN/dS; ils: multispecies coalescent)
@@ -2384,6 +2384,31 @@ def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
     return 0
 
 
+def _run_tools_export(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools export`` — gene-order study formats from a nucleotide genomes run."""
+    from .tools.geneorder_export import breakpoints_tsv
+
+    if not os.path.isdir(args.genomes_dir):
+        parser.error(f"{args.genomes_dir} is not a directory")
+    builders = {"breakpoints": ("Breakpoints.tsv", breakpoints_tsv)}
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+    for fmt in args.formats:
+        filename, build = builders[fmt]
+        try:
+            text = build(args.genomes_dir)
+        except FileNotFoundError as e:
+            parser.error(str(e))
+        if args.out:
+            path = os.path.join(args.out, filename)
+            with open(path, "w") as f:
+                f.write(text)
+            print(f"wrote {path} ({max(0, len(text.splitlines()) - 1)} row(s))")
+        else:
+            print(text, end="")
+    return 0
+
+
 def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     """Simulate nucleotide-resolution genomes (variable-length structural events) along ``tree``.
 
@@ -3145,6 +3170,40 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     )
     _add_tools_parse_args(pp)
 
+    xp = tsub.add_parser(
+        "export",
+        help="export gene-order study formats from a nucleotide 'zombi2 genomes' run",
+        description=(
+            "Derive gene-order study formats from a nucleotide genomes output directory (the "
+            "complement of the fork's zombiExporter). 'breakpoints' writes the adjacencies broken "
+            "on each tree edge, computed from the per-node gene orders in BED/, so the run needs "
+            "'bed' in --write. It is exact for content-conserving rearrangements (inversion / "
+            "transposition); duplication / loss change gene content, so interpret those edges "
+            "accordingly. More formats (gff / posortho / ffgc / dupinfo) are planned."
+        ),
+        usage="zombi2 tools export GENOMES_DIR --format breakpoints [-o DIR]",
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # simulate with the gene-order outputs, then export the broken adjacencies per edge",
+            "  zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \\",
+            "      --root-length 3000 --inversion 0.01 --transposition 0.005 --write bed geneorder -o run/",
+            "  zombi2 tools export run/ --format breakpoints -o export/",
+        ),
+    )
+    _add_tools_export_args(xp)
+
+
+def _add_tools_export_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("input / output")
+    g.add_argument("genomes_dir", metavar="GENOMES_DIR",
+                   help="a 'zombi2 genomes --genome-model nucleotide' output directory")
+    g.add_argument("--format", dest="formats", nargs="+", required=True,
+                   choices=("breakpoints",), metavar="FORMAT",
+                   help="which format(s) to export: breakpoints (adjacencies broken per tree edge; "
+                        "needs --write bed). Exact for inversion / transposition.")
+    g.add_argument("-o", "--out", metavar="DIR", default=None,
+                   help="write the export file(s) into DIR (default: print to stdout)")
+
 
 def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("input / output")
@@ -3756,7 +3815,7 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "tools", "compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse)",
+        sub, "tools", "compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse, export)",
         "Analysis tools that compute on ZOMBI2 outputs — the stable analysis complement to the "
         "simulator (the zombi2.tools layer). Each tool is a sub-subcommand; run "
         "'zombi2 tools <tool> -h' for its options.\n\n"
@@ -3911,6 +3970,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             return _run_tools_recon_accuracy(args, parser)
         if args.tools_command == "red":
             return _run_tools_red(args, parser)
+        if args.tools_command == "export":
+            return _run_tools_export(args, parser)
         if args.tools_command == "parse":
             return _run_tools_parse(args, parser)
         parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
