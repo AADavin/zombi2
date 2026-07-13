@@ -259,7 +259,7 @@ class NucleotideGenome(Genome):
     def supported_events(self) -> frozenset[EventType]:
         return frozenset((EventType.ORIGINATION, EventType.INVERSION, EventType.LOSS,
                           EventType.DUPLICATION, EventType.TRANSFER, EventType.TRANSPOSITION,
-                          EventType.INSERTION, EventType.DELETION,
+                          EventType.TRANSLOCATION, EventType.INSERTION, EventType.DELETION,
                           EventType.CHROMOSOME_ORIGINATION, EventType.CHROMOSOME_LOSS,
                           EventType.FISSION, EventType.FUSION))
 
@@ -295,7 +295,10 @@ class NucleotideGenome(Genome):
             return self._seed_root_chromosomes()
 
         source = self.ids.new_family()
-        chrom = self.chromosomes[self._cid]
+        # the novel gene lands on the main chromosome when it is still present; chromosome loss or
+        # fusion can remove it, so fall back to any surviving chromosome (a genome always keeps one).
+        chrom = (self.chromosomes[self._cid] if self._cid in self.chromosomes
+                 else next(iter(self.chromosomes.values())))
         # novel gene inserted somewhere
         length = self._draw_length(rng, params, chrom)
         L = self._chrom_length(chrom)
@@ -656,7 +659,11 @@ class NucleotideGenome(Genome):
         L = self._chrom_length(chrom)
         if L <= 1:
             return []
-        ell = max(1, min(ell, L - 1))
+        if self._registry.has_genes():
+            if ell >= L:                       # whole (gene-snapped) chromosome: skip, rather than
+                return []                      # shave it to L-1 and split off a gene edge (a no-op)
+        else:
+            ell = max(1, min(ell, L - 1))      # non-genic: cap to keep the arc a proper sub-arc
         i_s, i_e = self._arc_range(s, ell, chrom)
         arc = els[i_s:i_e]
         del els[i_s:i_e]
@@ -670,6 +677,44 @@ class NucleotideGenome(Genome):
             self._split_at(dest, chrom)
             idx = self._index_at(dest, chrom)
             els[idx:idx] = arc
+        return arc
+
+    def _choose_other_chromosome(self, rng, chrom: Chromosome) -> Chromosome | None:
+        """A chromosome uniformly chosen among those that are *not* ``chrom`` (``None`` if none)."""
+        others = [c for c in self.chromosomes.values() if c is not chrom]
+        if not others:
+            return None
+        return others[int(rng.integers(len(others)))]
+
+    def _apply_translocation(self, s: int, ell: int, chrom: Chromosome,
+                             dest_chrom: Chromosome, dest: int) -> list[Segment]:
+        """Cut the arc ``[s, s+ell)`` off ``chrom`` and splice it into a *different* chromosome
+        ``dest_chrom`` at physical ``dest``.
+
+        Genome-wide this is content- and length-preserving and genealogically neutral (segments keep
+        their ids) — it only changes which replicon carries the material, so like transposition it
+        re-mints no lineage. A whole-chromosome arc is skipped (moving it would empty the source —
+        that is what chromosome loss / fusion are for), which also keeps the (already gene-snapped)
+        arc boundaries intact rather than shaving them off a gene edge.
+        """
+        els = chrom.elements
+        L = self._chrom_length(chrom)
+        if L <= 1 or ell >= L:                 # nothing to move, or the whole source chromosome
+            return []
+        i_s, i_e = self._arc_range(s, ell, chrom)
+        arc = els[i_s:i_e]
+        del els[i_s:i_e]
+        dels = dest_chrom.elements
+        dL = self._chrom_length(dest_chrom)
+        dest %= dL + 1
+        if self._registry.has_genes() and dest < dL:  # never paste into a gene interior
+            dest = self._snap(dest, chrom=dest_chrom)
+        if dest >= dL:
+            dels.extend(arc)
+        else:
+            self._split_at(dest, dest_chrom)
+            idx = self._index_at(dest, dest_chrom)
+            dels[idx:idx] = arc
         return arc
 
     def _draw_length(self, rng, params, chrom: Chromosome | None = None) -> int:
@@ -776,7 +821,7 @@ class NucleotideGenome(Genome):
         return self._apply_loss(s, ell, chrom)
 
     _TARGETABLE = frozenset((EventType.INVERSION, EventType.LOSS, EventType.DUPLICATION,
-                             EventType.TRANSFER, EventType.TRANSPOSITION,
+                             EventType.TRANSFER, EventType.TRANSPOSITION, EventType.TRANSLOCATION,
                              EventType.INSERTION, EventType.DELETION))
 
     def draw_target(self, event, rng, params, family=None) -> Selection:
@@ -837,7 +882,18 @@ class NucleotideGenome(Genome):
                 return []
             dest = int(rng.integers(L))
             arc = self._apply_transposition(region.start, region.length, dest, chrom)
+            if not arc:                        # whole-chromosome no-op — no event, no empty group
+                return []
             return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
+        if event is EventType.TRANSLOCATION:
+            dest_chrom = self._choose_other_chromosome(rng, chrom)
+            if dest_chrom is None:             # only one chromosome — nothing to translocate to
+                return []
+            dest = int(rng.integers(self._chrom_length(dest_chrom) + 1))
+            arc = self._apply_translocation(region.start, region.length, chrom, dest_chrom, dest)
+            if not arc:                        # skipped (whole chromosome) — no event, no empty group
+                return []
+            return [[GeneOp(seg.seg_id, seg.source, "translocated") for seg in arc]]
         if event is EventType.INSERTION:
             return [self._apply_insertion(rng, chrom)]  # one op-group: the novel intergene block
         if event is EventType.DELETION:

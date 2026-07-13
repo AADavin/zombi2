@@ -43,6 +43,10 @@ class EventType(Enum):
     # --- gene-order rearrangements (ordered genomes only) ---
     INVERSION = "I"
     TRANSPOSITION = "P"
+    # A translocation moves an arc from one chromosome to *another* within the same genome (needs
+    # >= 2 chromosomes). Like transposition it re-mints no lineage — it only changes which replicon
+    # carries the material. Nucleotide model; opted in via supported_events(), NOT in STOCHASTIC_EVENTS.
+    TRANSLOCATION = "X"
     # --- intergenic indels (nucleotide model only) ---
     # INSERTION lays down a run of novel (random) nucleotides inside an intergene stretch
     # (a fresh source, its own block); DELETION removes a run from within a single intergene.

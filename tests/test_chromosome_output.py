@@ -313,3 +313,32 @@ def test_cli_multichromosome_bed_is_per_replicon(tmp_path):
     # BED/root.bed contigs match the ancestral FASTA record naming (<node>_chr<id>)
     node_contigs = {ln.split("\t")[0] for ln in (out / "BED" / "root.bed").read_text().splitlines()}
     assert node_contigs == {"root_chr0", "root_chr1"}
+
+
+# --- CLI: translocation (nucleotide) ---------------------------------------------------
+
+def test_cli_translocation_moves_material_across_chromosomes(tmp_path):
+    """`--translocation` on a multi-chromosome nucleotide genome carries material onto another
+    chromosome, so some source occupies more than one chromosome in the layout."""
+    from collections import defaultdict
+    tree = _species(tmp_path)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--n-chromosomes", "2",
+               "--inversion", "0.005", "--translocation", "0.03", "--root-length", "250",
+               "--write", "trees", "--seed", "5", "-o", str(out)])
+    assert rc == 0
+    # Chromosomes.tsv columns: species chromosome position source start end strand
+    by = defaultdict(lambda: defaultdict(set))          # species -> source -> {chromosome ids}
+    for line in (out / "Chromosomes.tsv").read_text().splitlines()[1:]:
+        species, chrom, _pos, source = line.split("\t")[:4]
+        by[species][source].add(chrom)
+    # a source appearing on >1 chromosome in some species is the signature of a translocation
+    crossed = any(len(cids) > 1 for sp in by.values() for cids in sp.values())
+    assert crossed
+
+
+def test_cli_translocation_rejected_for_ordered(tmp_path):
+    tree = _species(tmp_path)
+    with pytest.raises(SystemExit):  # translocation is a nucleotide-only, cross-chromosome move
+        main(["genomes", "--tree", tree, "--genome-model", "ordered", "--translocation", "0.1",
+              "--seed", "1", "-o", str(tmp_path / "x")])

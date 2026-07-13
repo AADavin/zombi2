@@ -196,7 +196,7 @@ class NucleotideResult:
                     rec = EventRecord(EventType.LOSS, r.branch, r.time,
                                       [GeneOp(self._top(g0, top_cache), source, "lost")])
             else:
-                continue  # inversion / transposition never re-mint a lineage
+                continue  # inversion / transposition / translocation never re-mint a lineage
             for a in blocks:
                 records_by_block[a.block_id].append(rec)
 
@@ -542,6 +542,7 @@ def simulate_nucleotide_genomes(
     duplication: float = 0.0,
     transfer: float = 0.0,
     transposition: float = 0.0,
+    translocation: float = 0.0,
     origination: float = 0.0,
     insertion: float = 0.0,
     deletion: float = 0.0,
@@ -569,6 +570,8 @@ def simulate_nucleotide_genomes(
     ``inversion``, ``loss``, ``duplication``, ``transfer`` and ``transposition`` are
     **per-nucleotide** rates (total genome rate = ``rate * current_length``);
     ``origination`` is a **per-branch** rate that inserts a novel gene under a fresh source.
+    ``translocation`` (per-nucleotide, needs >= 2 chromosomes) *moves* an arc to a different
+    chromosome of the same genome — the intra-genome counterpart of transposition.
     ``extension`` sets the geometric event-length model (mean ``1/(1-extension)``
     nucleotides). ``initial_chromosomes`` is the number of root chromosomes seeded at the
     root of the tree (default 1); each is an independent full-length copy of the root chromosome
@@ -658,10 +661,10 @@ def simulate_nucleotide_genomes(
         if insertion or deletion:
             raise ValueError("intergenic indels (insertion/deletion) require output='genomes' "
                              "(the Python engine); the Rust profiles path does not model them")
-        if fission or fusion or chromosome_origination or chromosome_loss:
+        if fission or fusion or chromosome_origination or chromosome_loss or translocation:
             raise ValueError("chromosome-tier events (fission/fusion/chromosome_origination/"
-                             "chromosome_loss) require output='genomes' (the Python engine); the "
-                             "Rust profiles path is single-chromosome")
+                             "chromosome_loss) and translocation require output='genomes' (the "
+                             "Python engine); the Rust profiles path is single-chromosome")
         if sampler is not None:
             raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
         if extension is None:
@@ -681,6 +684,7 @@ def simulate_nucleotide_genomes(
         rng = np.random.default_rng(seed)
     rates = SharedRates(inversion=inversion, loss=loss, duplication=duplication,
                          transfer=transfer, transposition=transposition,
+                         translocation=translocation,
                          insertion=insertion, deletion=deletion,
                          origination=origination, fission=fission, fusion=fusion,
                          chromosome_origination=chromosome_origination,
