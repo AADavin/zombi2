@@ -554,7 +554,8 @@ def simulate_nucleotide_genomes(
     root_length: int = 1000,
     extension: float | None = 0.99,
     initial_chromosomes: int = 1,
-    root_chromosomes: list[tuple[int, list]] | None = None,
+    root_chromosomes: list[tuple] | None = None,
+    circular: bool = True,
     transfers=None,
     gene_intervals=None,
     pseudogenization: float = 0.0,
@@ -577,11 +578,15 @@ def simulate_nucleotide_genomes(
     root of the tree (default 1); each is an independent full-length copy of the root chromosome
     under its own source namespace (in genic mode all copies share the same gene layout), so an
     ``N``-chromosome genome starts at ``N * root_length`` bp. Multi-chromosome genomes also arise
-    dynamically through the chromosome-tier events below. For **heterogeneous** root chromosomes —
-    a real chromosome-plus-plasmids genome, each replicon its own length and genes — pass
-    ``root_chromosomes`` instead: a list of ``(length, gene_intervals)`` (e.g. from
-    :func:`~zombi2.read_gff_all` over a multi-sequence GFF). It is mutually exclusive with
-    ``gene_intervals`` / ``initial_chromosomes`` and requires ``output="genomes"``.
+    dynamically through the chromosome-tier events below. Chromosomes are circular by default;
+    ``circular=False`` makes every seeded chromosome **linear** (two ends, no origin wrap; requires
+    ``output="genomes"``). For **heterogeneous** root chromosomes — a real chromosome-plus-plasmids
+    genome, each replicon its own length, genes and topology — pass ``root_chromosomes`` instead: a
+    list of ``(length, gene_intervals)`` or ``(length, gene_intervals, circular)`` (e.g. from
+    :func:`~zombi2.read_gff_all` over a multi-sequence GFF, carrying each sequence's ``Is_circular``
+    flag — so a *Borrelia*-style linear chromosome + circular plasmids seeds a mixed-topology genome).
+    It is mutually exclusive with ``gene_intervals`` / ``initial_chromosomes`` and requires
+    ``output="genomes"``.
     ``transfers`` is an optional :class:`~zombi2.TransferModel` (default:
     additive, uniform recipient, no self-transfer). Returns a :class:`NucleotideResult`
     carrying the extant leaf genomes, the event log, the segment registry, and the block
@@ -640,17 +645,20 @@ def simulate_nucleotide_genomes(
         raise ValueError(f"replacement must be in [0, 1], got {replacement}")
     pending_genes = _normalize_gene_intervals(gene_intervals, root_length)
     if root_chromosomes is not None:
-        # explicit heterogeneous replicons (e.g. a multi-sequence GFF): each (length, gene_intervals)
-        # is its own chromosome. Mutually exclusive with the identical-copy knobs.
+        # explicit heterogeneous replicons (e.g. a multi-sequence GFF): each is its own chromosome,
+        # ``(length, gene_intervals)`` or ``(length, gene_intervals, circular)`` — so mixed
+        # circular/linear genomes are possible. Mutually exclusive with the identical-copy knobs.
         if gene_intervals is not None:
             raise ValueError("give either gene_intervals or root_chromosomes, not both")
         if initial_chromosomes != 1:
             raise ValueError("root_chromosomes sets the chromosomes explicitly; "
                              "leave initial_chromosomes=1")
         if not root_chromosomes:
-            raise ValueError("root_chromosomes must be a non-empty list of (length, gene_intervals)")
-        root_chromosomes = [(int(length), _normalize_gene_intervals(genes, int(length)))
-                            for length, genes in root_chromosomes]
+            raise ValueError("root_chromosomes must be a non-empty list of "
+                             "(length, gene_intervals[, circular])")
+        root_chromosomes = [(int(spec[0]), _normalize_gene_intervals(spec[1], int(spec[0])),
+                             bool(spec[2]) if len(spec) > 2 else circular)
+                            for spec in root_chromosomes]
     if output == "profiles":
         if pending_genes or root_chromosomes is not None:
             raise ValueError("gene intervals / explicit root_chromosomes require the Python engine "
@@ -665,6 +673,9 @@ def simulate_nucleotide_genomes(
             raise ValueError("chromosome-tier events (fission/fusion/chromosome_origination/"
                              "chromosome_loss) and translocation require output='genomes' (the "
                              "Python engine); the Rust profiles path is single-chromosome")
+        if not circular:
+            raise ValueError("linear chromosomes require output='genomes' (the Python engine); the "
+                             "Rust profiles path models a circular chromosome only")
         if sampler is not None:
             raise ValueError("output='profiles' uses the Rust engine and ignores a custom sampler")
         if extension is None:
@@ -696,7 +707,7 @@ def simulate_nucleotide_genomes(
                                 registry=registry, pseudogenization=pseudogenization,
                                 replacement=replacement, indel_mean_length=indel_mean_length,
                                 initial_chromosomes=initial_chromosomes,
-                                root_chromosomes=root_chromosomes)
+                                root_chromosomes=root_chromosomes, circular=circular)
 
     # One seed origination lays down all `initial_chromosomes` root chromosomes (the genome owns
     # the count); the walk then evolves them and fires any further per-branch originations.
@@ -710,7 +721,7 @@ def simulate_nucleotide_genomes(
     blocks = _build_blocks(block_genomes, root_length, registry)
     # with explicit heterogeneous replicons the root has no single length; report the genome total
     # (only used to validate a supplied root_fasta, which is a single-chromosome feature).
-    effective_root_length = (sum(length for length, _ in root_chromosomes)
+    effective_root_length = (sum(spec[0] for spec in root_chromosomes)
                              if root_chromosomes is not None else root_length)
     return NucleotideResult(
         species_tree=species_tree,
