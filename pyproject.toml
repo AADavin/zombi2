@@ -16,7 +16,11 @@ keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evol
 # so the version is pinned exactly -- bump this pin to match rust/Cargo.toml on
 # each release. For local development, install it first (`pip install ./rust`)
 # before an editable install of zombi2.
-dependencies = ["numpy>=1.24", "zombi2_core==0.2.0"]
+dependencies = [
+    "numpy>=1.24",
+    "zombi2_core==0.2.0",
+    "tomli>=1.1.0; python_version < '3.11'",  # --params TOML reader; stdlib tomllib on 3.11+
+]
 license = "MIT"
 license-files = ["LICENSE"]
 classifiers = [
