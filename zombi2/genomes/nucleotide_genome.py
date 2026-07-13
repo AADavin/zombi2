@@ -174,19 +174,21 @@ class NucleotideGenome(Genome):
                  extension: float | None = 0.99, registry: SegmentRegistry | None = None,
                  pseudogenization: float = 0.0, replacement: float = 0.0,
                  indel_mean_length: float = 10.0, initial_chromosomes: int = 1,
-                 root_chromosomes: list[tuple[int, list]] | None = None):
+                 root_chromosomes: list[tuple] | None = None, circular: bool = True):
         self.ids = ids
         self.root_length = int(root_length)
         self.extension = extension
         self._registry: SegmentRegistry = registry if registry is not None else SegmentRegistry()
-        # The shared Chromosome container (bp coordinates): the genome is a dict of circular
-        # chromosomes, each holding ``Segment`` elements. ``_segments`` is a view over the main
+        # The shared Chromosome container (bp coordinates): the genome is a dict of chromosomes, each
+        # holding ``Segment`` elements and its own ``circular`` topology (a ring by default; a linear
+        # chromosome has two ends and no origin wrap). ``_segments`` is a view over the main
         # chromosome, so the single-chromosome engine is unchanged. The main chromosome takes the
         # canonical id 0 — matching the historical nucleotide ``Region(chromosome=0)`` convention;
         # additional chromosomes (initial copies, fission / fusion / plasmids) mint distinct ids
         # from :meth:`IdManager.new_chromosome`.
         self._cid = 0
-        self.chromosomes: dict[int, Chromosome] = {self._cid: Chromosome(self._cid, True)}
+        self._circular = bool(circular)           # default topology for the initial-copy seed path
+        self.chromosomes: dict[int, Chromosome] = {self._cid: Chromosome(self._cid, self._circular)}
         # what to lay down at seeding. By default ``initial_chromosomes`` identical copies of the
         # root chromosome, each under its own source; or an explicit list of heterogeneous
         # ``(length, gene_intervals)`` replicons (e.g. read from a multi-sequence GFF). ``_seeded``
@@ -319,33 +321,42 @@ class NucleotideGenome(Genome):
         self._event_region = Region(chrom.chrom_id, at, length, 1)
         return [GeneOp(seg.seg_id, source, "origin")]
 
-    def _new_root_chromosome(self) -> Chromosome:
-        """Mint an additional empty circular chromosome (a distinct id from the gene counter)."""
+    def _new_root_chromosome(self, circular: bool = True) -> Chromosome:
+        """Mint an additional empty chromosome (a distinct id from the gene counter)."""
         cid = self.ids.new_chromosome()
-        chrom = Chromosome(cid, True)
+        chrom = Chromosome(cid, bool(circular))
         self.chromosomes[cid] = chrom
         return chrom
 
-    def _root_chromosome_specs(self) -> list[tuple[int, list]]:
-        """The ``(length, gene_intervals)`` of each root chromosome to seed.
+    def _root_chromosome_specs(self) -> list[tuple[int, list, bool]]:
+        """The ``(length, gene_intervals, circular)`` of each root chromosome to seed.
 
         Either the explicit heterogeneous ``root_chromosomes`` (e.g. a multi-sequence GFF, each
-        replicon its own length and genes) or, by default, ``initial_chromosomes`` identical copies
-        of the root (``root_length`` + the shared gene template)."""
+        replicon its own length, genes and topology) or, by default, ``initial_chromosomes`` identical
+        copies of the root (``root_length`` + the shared gene template + the genome's default
+        topology). An explicit spec may be ``(length, genes)`` (topology defaults to the genome's)
+        or ``(length, genes, circular)`` — so mixed circular/linear genomes are possible."""
         if self._root_chromosomes is not None:
-            return self._root_chromosomes
-        return [(self.root_length, self._registry._pending_genes)] * self._initial_chromosomes
+            return [(spec[0], spec[1], spec[2] if len(spec) > 2 else self._circular)
+                    for spec in self._root_chromosomes]
+        return [(self.root_length, self._registry._pending_genes, self._circular)
+                ] * self._initial_chromosomes
 
     def _seed_root_chromosomes(self) -> list[GeneOp]:
         """Lay down the root chromosomes, returning every origin op.
 
         Chromosome 0 is the one the constructor already created; each further chromosome mints a
-        fresh id. Every chromosome is an independent replicon under its own source namespace — so
-        identical copies, or the distinct replicons of a real multi-chromosome genome, evolve apart.
+        fresh id. Every chromosome is an independent replicon under its own source namespace and its
+        own topology — so identical copies, or the distinct (possibly mixed circular/linear) replicons
+        of a real multi-chromosome genome, evolve apart.
         """
         ops: list[GeneOp] = []
-        for k, (length, genes) in enumerate(self._root_chromosome_specs()):
-            chrom = self.chromosomes[self._cid] if k == 0 else self._new_root_chromosome()
+        for k, (length, genes, circular) in enumerate(self._root_chromosome_specs()):
+            if k == 0:
+                chrom = self.chromosomes[self._cid]
+                chrom.circular = bool(circular)
+            else:
+                chrom = self._new_root_chromosome(circular)
             source = self.ids.new_family()
             if genes:
                 pending = self._registry.bind_genes(source, genes)
@@ -836,8 +847,11 @@ class NucleotideGenome(Genome):
             # selection is a placeholder — no arc is chosen up front and no RNG is consumed here.
             return Selection(genes=(), region=Region(chromosome=chrom.chrom_id, start=0, length=0))
         L = self._chrom_length(chrom)
+        circular = chrom.circular
         s = int(rng.integers(L))
         ell = self._draw_length(rng, params, chrom)
+        if not circular:                       # LINEAR: the arc stays within [s, L) — it never wraps
+            ell = min(ell, L - s)              # the origin. Every event's non-wrapping path then
         empty = Selection(genes=(), region=Region(chromosome=chrom.chrom_id, start=0, length=0))
         if event is EventType.LOSS:
             # honour the min-genome floor: a structural loss must never empty the genome — that would
@@ -848,13 +862,14 @@ class NucleotideGenome(Genome):
             if ell <= 0:
                 return empty
         if self._registry.has_genes():
-            if ell >= L:                       # whole genome: keep it whole, just legalise the
-                s = self._snap(s, -1, chrom)   # single split point (inversion splits at s)
+            if circular and ell >= L:          # whole circular genome: keep it whole, just legalise
+                s = self._snap(s, -1, chrom)   # the single split point (inversion splits at s)
                 ell = L
             else:                              # snap start down, end up: genes stay whole; a
-                s2 = self._snap(s, -1, chrom)  # sub-gene arc is promoted to the whole gene
-                e2 = self._snap((s + ell) % L, +1, chrom)
-                ell = (e2 - s2) % L or L
+                s2 = self._snap(s, -1, chrom)  # sub-gene arc is promoted to the whole gene. On a
+                end = (s + ell) % L if circular else (s + ell)   # linear chromosome the end is a
+                e2 = self._snap(end, +1, chrom)                  # true boundary (<= L), never wraps.
+                ell = ((e2 - s2) % L or L) if circular else (e2 - s2)
                 s = s2
             if event is EventType.LOSS and ell >= int(self.total_length()):
                 return empty                   # gene-boundary snapping re-expanded to the whole genome
@@ -1052,12 +1067,13 @@ class NucleotideGenome(Genome):
         child = NucleotideGenome(self.ids, self.root_length, self.extension, self._registry,
                                  self.pseudogenization, self.replacement,
                                  self.indel_mean_length, self._initial_chromosomes,
-                                 self._root_chromosomes)
+                                 self._root_chromosomes, self._circular)
         child._seeded = True                 # a clone is seeded by copying, never by originate()
         mapping: list[tuple[str, str, str]] = []
         for i, pchrom in enumerate(self.chromosomes.values()):
             if i == 0:                       # the child already has its seed (main) chromosome, id 0
                 cchrom = child.chromosomes[child._cid]
+                cchrom.circular = pchrom.circular   # carry the parent's topology (may be linear)
             else:                            # additional chromosomes get fresh ids
                 cid = self.ids.new_chromosome()
                 cchrom = Chromosome(cid, pchrom.circular)
@@ -1098,38 +1114,55 @@ class NucleotideGenome(Genome):
         return cid, groups
 
     def fission(self, rng, params) -> tuple[int, int]:
-        """Split a circular chromosome into two by excising the arc between two breakpoints into a
-        new circular replicon (segments keep their ids; genes stay whole via snapping). The source
-        is bp-length-weighted. Returns (source_cid, new_cid)."""
+        """Split a chromosome into two, respecting its topology (segments keep their ids; genes stay
+        whole via snapping). A **circular** chromosome is cut at TWO breakpoints, excising the arc
+        between them into a new circular replicon; a **linear** one at ONE breakpoint — the prefix
+        stays, the suffix becomes a new linear chromosome. The new chromosome inherits the source's
+        topology. The source is bp-length-weighted. Returns (source_cid, new_cid)."""
         chrom = self._choose_chromosome_weighted(rng)
         new_cid = self.ids.new_chromosome()
         L = self._chrom_length(chrom)
         if L <= 1:                            # nothing meaningful to split
-            self.chromosomes[new_cid] = Chromosome(new_cid, True)
+            self.chromosomes[new_cid] = Chromosome(new_cid, chrom.circular)
             return chrom.chrom_id, new_cid
-        s = int(rng.integers(L))
-        ell = int(rng.integers(1, L))         # arc length in [1, L-1]
-        if self._registry.has_genes():        # snap so genes stay whole (start down, end up)
-            s2 = self._snap(s, -1, chrom)
-            e2 = self._snap((s + ell) % L, +1, chrom)
-            ell = (e2 - s2) % L or L
-            s = s2
-        i_s, i_e = self._arc_range(s, ell, chrom)   # splits the ends; handles a wrapping arc
-        arc = chrom.elements[i_s:i_e]
-        del chrom.elements[i_s:i_e]
-        self.chromosomes[new_cid] = Chromosome(new_cid, True, arc)
+        if chrom.circular:
+            s = int(rng.integers(L))
+            ell = int(rng.integers(1, L))     # arc length in [1, L-1]
+            if self._registry.has_genes():    # snap so genes stay whole (start down, end up)
+                s2 = self._snap(s, -1, chrom)
+                e2 = self._snap((s + ell) % L, +1, chrom)
+                ell = (e2 - s2) % L or L
+                s = s2
+            i_s, i_e = self._arc_range(s, ell, chrom)   # splits the ends; handles a wrapping arc
+            arc = chrom.elements[i_s:i_e]
+            del chrom.elements[i_s:i_e]
+            self.chromosomes[new_cid] = Chromosome(new_cid, True, arc)
+        else:                                 # linear: one breakpoint, the suffix splits off
+            k = int(rng.integers(1, L))       # strictly inside so both pieces are non-empty
+            if self._registry.has_genes():    # snap out of any gene interior to a boundary
+                k = self._snap(k, chrom=chrom)
+            if k <= 0 or k >= L:              # snapped to an end — nothing to split off
+                self.chromosomes[new_cid] = Chromosome(new_cid, False)
+                return chrom.chrom_id, new_cid
+            self._split_at(k, chrom)
+            idx = self._index_at(k, chrom)
+            suffix = chrom.elements[idx:]
+            del chrom.elements[idx:]
+            self.chromosomes[new_cid] = Chromosome(new_cid, False, suffix)
         return chrom.chrom_id, new_cid
 
-    def fusion(self, rng, params) -> tuple[int, int]:
-        """Fuse two chromosomes into one: append the second's segments onto the first and drop the
-        second (segment ids untouched). The two are chosen uniformly; the caller guarantees >= 2
-        chromosomes. Returns (kept_cid, absorbed_cid)."""
+    def fusion(self, rng, params) -> tuple[int, int] | None:
+        """Fuse two **same-topology** chromosomes into one (append the second's segments onto the
+        first, drop the second; segment ids untouched): two circular chromosomes fuse into a circular
+        one, two linear into a linear one. A mixed circular/linear pair cannot fuse — if the chosen
+        chromosome has no same-topology partner, returns ``None`` and the sampler skips the event.
+        The caller guarantees >= 2 chromosomes. Returns (kept_cid, absorbed_cid) or None."""
         cids = list(self.chromosomes)
-        m = len(cids)
-        i = int(rng.integers(m))
-        j = int(rng.integers(m - 1))
-        if j >= i:                            # a uniform partner distinct from i
-            j += 1
-        keep_cid, absorb_cid = cids[i], cids[j]
+        keep_cid = cids[int(rng.integers(len(cids)))]
+        topo = self.chromosomes[keep_cid].circular
+        partners = [c for c in cids if c != keep_cid and self.chromosomes[c].circular == topo]
+        if not partners:                      # no same-topology chromosome to fuse with
+            return None
+        absorb_cid = partners[int(rng.integers(len(partners)))]
         self.chromosomes[keep_cid].elements.extend(self.chromosomes.pop(absorb_cid).elements)
         return keep_cid, absorb_cid

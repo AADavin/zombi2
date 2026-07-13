@@ -1852,9 +1852,6 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
             parser.error("--score-likelihoods scores reconstructed gene-family trees, which the "
                          "nucleotide genome model does not produce; use --genome-model "
                          "unordered/ordered to score reconciliation likelihoods")
-        if args.linear_chromosomes:
-            parser.error("--linear-chromosomes applies to --genome-model ordered; nucleotide "
-                         "chromosomes are always circular")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
@@ -2432,7 +2429,11 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                 if initial_chromosomes != 1:
                     raise ValueError("--gff with several sequences already sets the chromosomes; "
                                      "drop --n-chromosomes (or --gff-seqid to pick one sequence)")
-                root_chromosomes = [(g.length, g.genes) for g in gff_all]
+                # each replicon keeps its own topology from the GFF `Is_circular` flag, so a real
+                # genome's linear chromosome + circular plasmids seed as a mixed-topology genome;
+                # --linear-chromosomes forces them all linear.
+                root_chromosomes = [(g.length, g.genes, False if args.linear_chromosomes else g.circular)
+                                    for g in gff_all]
                 genes = None
     elif args.genes:
         genes = _read_gene_intervals(args.genes)
@@ -2452,6 +2453,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                   origination=args.orig, insertion=args.insertion, deletion=args.deletion,
                   indel_mean_length=args.indel_mean_length, root_length=args.root_length,
                   extension=args.extension, initial_chromosomes=initial_chromosomes, seed=args.seed,
+                  circular=not args.linear_chromosomes,
                   fission=args.fission, fusion=args.fusion,
                   chromosome_origination=args.chromosome_origination,
                   chromosome_loss=args.chromosome_loss,
@@ -2464,7 +2466,8 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     # the Python engine is needed for the event log, the genic model, indels, the chromosome tier,
     # translocation, and explicit heterogeneous replicons (the Rust profiles path is single-chromosome).
     if ("trees" in want or "reconciliations" in want or "geneorder" in want or genic or ancestral
-            or bed or indels or chrom_tier or args.translocation or root_chromosomes is not None):
+            or bed or indels or chrom_tier or args.translocation or args.linear_chromosomes
+            or root_chromosomes is not None):
         result = simulate_nucleotide_genomes(tree, output="genomes", **sim_kw)
     else:                                     # profiles only -> Rust fast path (Python fallback)
         try:
@@ -2532,20 +2535,22 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
 def _write_nucleotide_karyotype(out: str, result) -> None:
     """Write the karyotype of a multi-chromosome / chromosome-tier nucleotide run.
 
-    ``Chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order
-    (``species chromosome position source start end strand``); ``Karyotype_trace.tsv`` — the
-    fission / fusion / origination / loss genealogy (``time event branch parents children``), one
-    row per chromosome-tier event (header-only if the karyotype never changed).
+    ``Chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order,
+    with the chromosome's topology (``species chromosome topology position source start end strand``);
+    ``Karyotype_trace.tsv`` — the fission / fusion / origination / loss genealogy
+    (``time event branch parents children``), one row per chromosome-tier event (header-only if the
+    karyotype never changed).
     """
-    lay = ["species\tchromosome\tposition\tsource\tstart\tend\tstrand"]
+    lay = ["species\tchromosome\ttopology\tposition\tsource\tstart\tend\tstrand"]
     for leaf, genome in sorted(result.leaf_genomes.items(), key=lambda kv: kv[0].name):
         chroms = getattr(genome, "chromosomes", None)
         if not isinstance(chroms, dict):
             continue
         for chrom in chroms.values():
+            topology = "circular" if chrom.circular else "linear"
             for pos, s in enumerate(chrom.elements):
                 strand = "+" if s.strand >= 0 else "-"
-                lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{pos}\t{s.source}\t"
+                lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{topology}\t{pos}\t{s.source}\t"
                            f"{s.src_start}\t{s.src_end}\t{strand}")
     with open(os.path.join(out, "Chromosomes.tsv"), "w") as f:
         f.write("\n".join(lay) + "\n")
