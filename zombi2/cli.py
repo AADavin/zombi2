@@ -352,9 +352,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "(gene order reversed and strands flipped), for --genome-model ordered "
                         "(default 0 = always keep orientation)")
     g.add_argument("--translocation", type=float, default=0.0, metavar="RATE",
-                   help="[nucleotide] translocation rate, per nucleotide: an arc moves to a "
-                        "different chromosome of the same genome (needs >1 chromosome; distinct from "
-                        "transposition, which stays on one chromosome) (default 0 = off)")
+                   help="[ordered/nucleotide] translocation rate: a segment (ordered, per gene) or "
+                        "arc (nucleotide, per nucleotide) moves to a different chromosome of the same "
+                        "genome (needs >1 chromosome; distinct from transposition, which stays on one "
+                        "chromosome) (default 0 = off)")
     g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
                    help="number of chromosomes seeded at the root, for --genome-model "
                         "ordered/nucleotide (default 1). [ordered] the root's initial families are "
@@ -1855,9 +1856,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.initial_chromosomes is not None:
         parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
                      "unordered and ordered genome levels use --initial-families")
-    if args.translocation:
-        parser.error("--translocation is only for --genome-model nucleotide (it moves an arc "
-                     "between chromosomes of a multi-chromosome nucleotide genome)")
+    if args.translocation and args.genome_model != "ordered":
+        parser.error("--translocation needs chromosomes: use --genome-model ordered or nucleotide "
+                     "(it moves a segment/arc between chromosomes of a multi-chromosome genome)")
 
     ordered = args.genome_model == "ordered"
     initial_families = 20 if args.initial_families is None else args.initial_families
@@ -1916,7 +1917,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
         rates = SharedRates(args.dup, args.trans, args.loss, args.orig,
-                            inversion=inv, transposition=tps,
+                            inversion=inv, transposition=tps, translocation=args.translocation,
                             chromosome_origination=args.chromosome_origination,
                             chromosome_loss=args.chromosome_loss,
                             fission=args.fission, fusion=args.fusion)

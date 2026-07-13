@@ -110,27 +110,42 @@ for eukaryotic chromosomes):
 genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8, circular=False)
 ```
 
+`circular` may also be a **per-chromosome list** of booleans, seeding a genome of *mixed* topology —
+some replicons circular, some linear — with the list length setting the chromosome count:
+
+```python
+# one circular chromosome + two linear ones
+genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, circular=[True, False, False])
+```
+
 On the command line the same two knobs are `--n-chromosomes` and `--linear-chromosomes`:
 
 ```bash
 zombi2 genomes -t species_tree.nwk --genome-model ordered \
     --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
-    --inversion 0.3 --transposition 0.2 --mean-length 2 \
+    --inversion 0.3 --transposition 0.2 --translocation 0.1 --mean-length 2 \
     --n-chromosomes 8 --linear-chromosomes \
     --initial-families 40 --seed 1 -o out/
 ```
 
 The root's initial families are distributed across the chromosomes, and each chromosome then evolves.
-The gene events act **within** a single chromosome: a transposition, in particular, always re-inserts
-its segment on the *same* chromosome it was cut from, and a **transfer** is the one gene event that
-moves a copy *between* chromosomes — its landing chromosome is chosen uniformly at random (every
-chromosome equally likely, regardless of size), then a position within it.
+Most gene events act **within** a single chromosome: a transposition, in particular, always
+re-inserts its segment on the *same* chromosome it was cut from. Two events cross chromosomes. A
+**transfer** *copies* a segment between genomes (horizontal gene transfer); when the recipient has
+several chromosomes its landing chromosome is chosen uniformly at random (every chromosome equally
+likely, regardless of size), then a position within it. A **translocation** *moves* a segment
+between chromosomes of the *same* genome — like a transposition, but the segment re-inserts on a
+*different* chromosome (chosen uniformly among the others). It needs at least two chromosomes and,
+like transposition, leaves gene lineages untouched, so it never reaches the gene trees
+(`--translocation`, or `SharedRates(translocation=...)`; off by default).
 
 On top of these, a **chromosome tier** of events acts on whole chromosomes:
 
 - **fission** — one chromosome splits into two (a linear chromosome at one breakpoint; a circular one
   at two, excising the arc between them into a new circular replicon);
-- **fusion** — two chromosomes merge into one;
+- **fusion** — two chromosomes of the *same topology* merge into one (fusing a circular replicon
+  with a linear one is topologically ill-defined, so on a mixed-topology genome a chromosome fuses
+  only with a same-topology partner, and the event is skipped when there is none);
 - **chromosome origination** — a de-novo replicon, a *plasmid*, appears;
 - **chromosome loss** — a whole chromosome, and every gene on it, is lost.
 
@@ -150,11 +165,14 @@ output is unchanged. In the Python API the same information is on `leaf.chromoso
 
 ## How events reach the genome
 
-Inversion and transposition rates are emitted by `SharedRates` as candidate events, but a genome
-only undergoes the events it declares in `supported_events()`:
+Rearrangement and chromosome-tier rates are emitted by `SharedRates` as candidate events, but a
+genome only undergoes the events it declares in `supported_events()`:
 
-- `UnorderedGenome` supports `{O, D, T, L}`. It silently ignores inversion and transposition rates.
-- `OrderedGenome` supports `{O, D, T, L, I, P}`. It acts on them.
+- `UnorderedGenome` supports `{O, D, T, L}`. It silently ignores every rearrangement and
+  chromosome-tier rate.
+- `OrderedGenome` supports `{O, D, T, L, I, P, X}` — the four core events plus inversion,
+  transposition and translocation — together with the whole-chromosome tier (fission, fusion,
+  chromosome origination and loss). It acts on them all.
 
 The same rate model therefore serves both representations, and the genome decides what applies.
 Adding gene order required no change to the simulator, the sampler, the rate interface or the output
