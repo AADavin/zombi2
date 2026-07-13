@@ -76,6 +76,46 @@ def test_breakpoints_match_direct_node_order_comparison(tmp_path):
     assert orders["root"]  # the reconstructed root order is present
 
 
+def test_cli_export_gff(tmp_path):
+    g = _make_run(tmp_path)
+    out = tmp_path / "export"
+    assert main(["tools", "export", str(g), "--format", "gff", "-o", str(out)]) == 0
+    text = (out / "Genes.gff").read_text()
+    assert text.startswith("##gff-version 3")
+    feats = [ln.split("\t") for ln in text.splitlines() if ln and not ln.startswith("#")]
+    assert feats
+    for f in feats:  # valid GFF3 gene features, 1-based inclusive coords
+        assert f[2] == "gene" and int(f[3]) >= 1 and int(f[4]) >= int(f[3])
+        assert f[6] in ("+", "-") and "Name=" in f[8]
+    fams = {ln.split("Name=")[1] for ln in text.splitlines() if "Name=" in ln}
+    assert fams == {"g1", "g2", "g3"}  # content-conserved run -> all three families present
+
+
+def test_cli_export_posortho(tmp_path):
+    g = _make_run(tmp_path)
+    out = tmp_path / "export"
+    assert main(["tools", "export", str(g), "--format", "posortho", "-o", str(out)]) == 0
+    lines = (out / "Positional_orthologs.tsv").read_text().strip().splitlines()
+    assert lines[0] == "family\tleaf\tstrand\tstart"
+    rows = [ln.split("\t") for ln in lines[1:]]
+    assert {r[0] for r in rows} == {"g1", "g2", "g3"}       # all seed genes are orthologs
+    assert all(r[2] in ("+", "-") for r in rows)
+    # only extant leaves appear (internal nodes excluded)
+    from zombi2.tree import read_newick
+    tree = read_newick((g / "species_tree.nwk").read_text())
+    leaves = {n.name for n in tree.leaves()}
+    assert {r[1] for r in rows} <= leaves
+
+
+def test_cli_export_multiple_formats_at_once(tmp_path):
+    g = _make_run(tmp_path)
+    out = tmp_path / "export"
+    assert main(["tools", "export", str(g), "--format", "breakpoints", "gff", "posortho",
+                 "-o", str(out)]) == 0
+    for name in ("Breakpoints.tsv", "Genes.gff", "Positional_orthologs.tsv"):
+        assert (out / name).exists()
+
+
 def test_export_without_bed_errors_helpfully(tmp_path):
     sp = tmp_path / "S"
     main(["species", "--birth", "1", "--death", "0.3", "--tips", "5", "--age", "3",

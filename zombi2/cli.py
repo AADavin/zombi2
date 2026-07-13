@@ -2386,11 +2386,13 @@ def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
 def _run_tools_export(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools export`` — gene-order study formats from a nucleotide genomes run."""
-    from .tools.geneorder_export import breakpoints_tsv
+    from .tools.geneorder_export import breakpoints_tsv, gff_text, posortho_tsv
 
     if not os.path.isdir(args.genomes_dir):
         parser.error(f"{args.genomes_dir} is not a directory")
-    builders = {"breakpoints": ("Breakpoints.tsv", breakpoints_tsv)}
+    builders = {"breakpoints": ("Breakpoints.tsv", breakpoints_tsv),
+                "gff": ("Genes.gff", gff_text),
+                "posortho": ("Positional_orthologs.tsv", posortho_tsv)}
     if args.out:
         os.makedirs(args.out, exist_ok=True)
     for fmt in args.formats:
@@ -3175,19 +3177,20 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         help="export gene-order study formats from a nucleotide 'zombi2 genomes' run",
         description=(
             "Derive gene-order study formats from a nucleotide genomes output directory (the "
-            "complement of the fork's zombiExporter). 'breakpoints' writes the adjacencies broken "
-            "on each tree edge, computed from the per-node gene orders in BED/, so the run needs "
-            "'bed' in --write. It is exact for content-conserving rearrangements (inversion / "
-            "transposition); duplication / loss change gene content, so interpret those edges "
-            "accordingly. More formats (gff / posortho / ffgc / dupinfo) are planned."
+            "complement of the fork's zombiExporter). 'breakpoints' (adjacencies broken per tree "
+            "edge), 'gff' (every node's genes as one GFF3) and 'posortho' (positional ortholog "
+            "sets over the leaves) come from the per-node gene orders in BED/, so the run needs "
+            "'bed' in --write. breakpoints / posortho are exact for content-conserving "
+            "rearrangements (inversion / transposition); under duplication / loss gene content "
+            "changes, so interpret those accordingly. ('dupinfo' and 'ffgc' are planned.)"
         ),
-        usage="zombi2 tools export GENOMES_DIR --format breakpoints [-o DIR]",
+        usage="zombi2 tools export GENOMES_DIR --format {breakpoints,gff,posortho} [-o DIR]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
-            "  # simulate with the gene-order outputs, then export the broken adjacencies per edge",
+            "  # simulate with the gene-order outputs, then export the broken adjacencies + GFF",
             "  zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \\",
             "      --root-length 3000 --inversion 0.01 --transposition 0.005 --write bed geneorder -o run/",
-            "  zombi2 tools export run/ --format breakpoints -o export/",
+            "  zombi2 tools export run/ --format breakpoints gff posortho -o export/",
         ),
     )
     _add_tools_export_args(xp)
@@ -3198,9 +3201,9 @@ def _add_tools_export_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("genomes_dir", metavar="GENOMES_DIR",
                    help="a 'zombi2 genomes --genome-model nucleotide' output directory")
     g.add_argument("--format", dest="formats", nargs="+", required=True,
-                   choices=("breakpoints",), metavar="FORMAT",
-                   help="which format(s) to export: breakpoints (adjacencies broken per tree edge; "
-                        "needs --write bed). Exact for inversion / transposition.")
+                   choices=("breakpoints", "gff", "posortho"), metavar="FORMAT",
+                   help="which format(s) to export: breakpoints / gff / posortho (all need "
+                        "--write bed)")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
                    help="write the export file(s) into DIR (default: print to stdout)")
 
