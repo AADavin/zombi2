@@ -1,8 +1,9 @@
 # Design note: gene-order export via an enriched nucleotide event trace
 
-**Status:** Phase 1 + 1.5 implemented (`Region` + `dest` persisted, `--write geneorder`; every
-single-chromosome event fully described); Phase 2 (`tools export` replay) pending · **Author:**
-Adrián (with Claude) · **Scope:** `zombi2 genomes` + a new `zombi2 tools export`
+**Status:** Phase 1 + 1.5 + 2a implemented — `Region` + `dest` persisted (`--write geneorder`),
+and `zombi2 tools export --format breakpoints` (adjacencies broken per tree edge); Phase 2b
+(gff / posortho / ffgc / dupinfo) pending · **Author:** Adrián (with Claude) · **Scope:**
+`zombi2 genomes` + `zombi2 tools export`
 
 **Decisions locked:** native coordinates only (no fork-compat layer); `Region` persisted for
 **both** the nucleotide and ordered models; the structural-event log is a **distinct file**
@@ -107,22 +108,28 @@ models. Keeping them separate means:
 ## 6. `zombi2 tools export`
 
 ```
-zombi2 tools export GENOMES_DIR --format {gff,bed,posortho,ffgc,dupinfo,breakpoints} -o OUT
+zombi2 tools export GENOMES_DIR --format breakpoints [-o OUT]     # phase 2a (implemented)
 ```
 
-Engine = **replay** the enriched trace onto the root gene layout (from the run's `--genes`/`--gff`
-input, recorded in the genomes output), reconstructing each node's ordered, signed gene list and
-the block (= positional-ortholog) identities — exactly what `NucleotideResult.leaf_mosaic()` /
-the `Block` decomposition give in memory, but rebuilt from disk. Then format:
+**Key simplification found while building:** a full event *replay* engine turned out to be
+unnecessary for the order-based formats, because **`--write bed` already writes the reconstructed
+per-node gene order + orientation** (`BED/<node>.bed`). So `zombi2 tools export` derives the
+order-based formats by *reading and comparing those files*, not by re-simulating. Inputs by format:
 
-- **`breakpoints`** — read directly from the trace (the broken adjacencies *are* the `I`/`P`/`X`
-  rows); no replay needed.
-- **`dupinfo`** — count `D` rows per family; no replay needed.
-- **`gff` / `bed`** — per-node gene coordinates; from the existing BED writer or the replay.
-- **`ffgc`** — extant leaf gene orders (replay) + sequences (`ancestral`/genome FASTA).
-- **`posortho`** — block identity across leaves (replay, or the `reconciliations` output).
-
-A single replay code path can serve all of them; the "read directly" cases are just shortcuts.
+- **`breakpoints`** ✅ — the adjacencies broken on each tree edge. Read each node's gene order from
+  `BED/<node>.bed`, express a genome as its set of circular signed-gene adjacencies, and for each
+  edge report `parent_adjacencies − child_adjacencies`. **Exact for content-conserving
+  rearrangements** (inversion / transposition). With duplication/loss the two genomes differ in
+  gene *content* (and gene names repeat, so extremity labels are no longer unique) — a differing
+  adjacency then reflects gained/lost content, not a broken adjacency; those edges are approximate.
+  `zombi2/tools/geneorder_export.py::breakpoints_tsv`.
+- **`gff` / `posortho` / `ffgc`** ⏳ — also from the per-node BED orders (gff = reshape; posortho =
+  group leaf genes by id; ffgc = leaf orders + `ancestral` FASTA).
+- **`dupinfo`** ⏳ — NOT derivable cleanly from `Geneorder_events.tsv`: a nucleotide duplication is
+  a *segment* event logged under its source, not a per-gene count. A gene-level dupinfo should come
+  from the **block gene trees** (`--write trees`), which already reconcile per-block duplications.
+- **`breakpoints` (coordinate-level)** — `Geneorder_events.tsv` remains the source for the raw
+  rearrangement *coordinates* per branch, if a coordinate (rather than adjacency) view is wanted.
 
 ## 7. Interop with the fork's `zombiExporter` (native-only)
 
@@ -142,9 +149,11 @@ is the intended consumer, and a mapping to Krister's exact encoding can be added
   single-chromosome event is now fully described. (Transposition `dest` is surfaced via a
   `self._event_region` stash set inside `apply` — zero new RNG draws, so no existing output moved.)
 - **Phase 1.6** (small) — a `dest_chrom` column for translocation (`X`), the only remaining gap.
-- **Phase 2** — the replay engine (generalize `tests/test_geneorder_examples.py`'s replay) and
-  `zombi2 tools export` for `breakpoints` / `dupinfo` (trace-direct) then
-  `gff` / `bed` / `ffgc` / `posortho` (replay).
+- **Phase 2a** ✅ *done* — `zombi2 tools export … --format breakpoints`: broken adjacencies per
+  tree edge, from the per-node BED gene orders (no replay needed — see §6). Tests in
+  `tests/test_geneorder_export.py`.
+- **Phase 2b** — `gff` / `posortho` / `ffgc` (from the per-node BED orders) and a gene-level
+  `dupinfo` (from the block gene trees).
 
 ## 9. Decisions & remaining questions
 
