@@ -96,6 +96,7 @@ class Region:
     start: int
     length: int
     strand: int = 1
+    dest: int | None = None  # paste / insert position (transposition; transfer recipient insert)
 
 
 @dataclass(frozen=True, slots=True)
