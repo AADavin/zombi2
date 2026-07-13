@@ -17,7 +17,8 @@ zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1
 zombi2 sequence --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq/
 ```
 
-`species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
+`species` writes `species_tree.nwk` (plus `species_nodes.tsv` and a run log; forward mode also
+writes the extant-only tree); `genomes` reads a tree from `--tree` and writes the
 full output (see [gene trees & output](guide/genomes.md#gene-trees-output)); `trait` reads a tree and
 writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)). To **couple**
 levels so one drives another, see [`coevolve`](guide/coevolution.md).

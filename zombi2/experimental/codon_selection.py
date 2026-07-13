@@ -55,7 +55,14 @@ def translate(dna: str) -> str:
     """Translate an in-frame coding DNA string to its amino-acid sequence (``*`` for stop)."""
     if len(dna) % 3:
         raise ValueError(f"coding sequence length {len(dna)} is not a multiple of 3")
-    return "".join(GENETIC_CODE[dna[i:i + 3].upper()] for i in range(0, len(dna), 3))
+    out = []
+    for i in range(0, len(dna), 3):
+        codon = dna[i:i + 3].upper()
+        aa = GENETIC_CODE.get(codon)
+        if aa is None:
+            raise ValueError(f"codon {codon!r} at position {i} is not a standard ACGT codon")
+        out.append(aa)
+    return "".join(out)
 
 
 def _encode_codons(dna: str) -> np.ndarray:
@@ -216,6 +223,8 @@ class CodonSelection:
         preference. Synonymous flux is neutral (``dS == 1``), so ``omega == dN`` = the stationary-
         averaged non-synonymous fixation factor. ``beta == 0`` gives ``omega == 1``; larger ``beta``
         drives it below 1 (purifying selection)."""
+        if not protein:
+            raise ValueError("empty protein — no residues to score dN/dS")
         prof = self._profile(protein)
         num = den = 0.0
         for i in range(len(protein)):
@@ -229,6 +238,8 @@ class CodonSelection:
 
     def dnds_syn_check(self, protein: str) -> float:
         """dS (should be 1.0 for any beta -- synonymous changes are neutral). Exposed for validation."""
+        if not protein:
+            raise ValueError("empty protein — no residues to score dS")
         prof = self._profile(protein)
         num = den = 0.0
         for i in range(len(protein)):
