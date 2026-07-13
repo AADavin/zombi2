@@ -155,7 +155,7 @@ def test_cli_rejects_chromosome_tier_rates_without_ordered(tmp_path):
 def _nuc_chrom_counts(path):
     """species -> number of distinct chromosomes, from a Chromosomes.tsv layout file."""
     lines = path.read_text().splitlines()
-    assert lines[0] == "species\tchromosome\tposition\tsource\tstart\tend\tstrand"
+    assert lines[0] == "species\tchromosome\ttopology\tposition\tsource\tstart\tend\tstrand"
     by = defaultdict(set)
     for line in lines[1:]:
         species, chrom = line.split("\t")[:2]
@@ -211,11 +211,46 @@ def test_cli_nucleotide_initial_chromosomes_is_a_deprecated_alias(tmp_path):
     assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {2}
 
 
-def test_cli_nucleotide_rejects_linear_chromosomes(tmp_path):
+def _nuc_topologies(path):
+    """set of topologies present in a Chromosomes.tsv layout file (asserting per-chromosome
+    consistency: every chromosome's rows share one topology)."""
+    rows = [ln.split("\t") for ln in path.read_text().splitlines()[1:]]
+    per_chrom = defaultdict(set)
+    for r in rows:
+        per_chrom[(r[0], r[1])].add(r[2])                    # (species, chromosome) -> {topology}
+    assert all(len(v) == 1 for v in per_chrom.values())      # a chromosome has one topology
+    return {t for v in per_chrom.values() for t in v}
+
+
+def test_cli_nucleotide_linear_chromosomes(tmp_path):
+    """`--linear-chromosomes` makes every nucleotide chromosome linear (the topology column says so)."""
     tree = _species(tmp_path)
-    with pytest.raises(SystemExit):  # nucleotide chromosomes are always circular
-        main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--linear-chromosomes",
-              "--seed", "1", "-o", str(tmp_path / "x")])
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--n-chromosomes", "2",
+               "--linear-chromosomes", "--inversion", "0.005", "--root-length", "250",
+               "--write", "trees", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    assert _nuc_topologies(out / "Chromosomes.tsv") == {"linear"}
+
+
+def test_cli_multisequence_gff_keeps_per_replicon_topology(tmp_path):
+    """A multi-sequence GFF seeds each replicon with its own `Is_circular` topology — a linear
+    chromosome plus a circular plasmid become a mixed-topology genome."""
+    tree = _species(tmp_path)
+    gff = tmp_path / "genome.gff"
+    gff.write_text("##gff-version 3\n"
+                   "##sequence-region chrom 1 400\n"
+                   "chrom\tx\tregion\t1\t400\t.\t+\t.\tID=chrom;Is_circular=false\n"
+                   "chrom\tx\tgene\t30\t90\t.\t+\t.\tID=gene-c1;locus_tag=c1\n"
+                   "chrom\tx\tgene\t200\t280\t.\t-\t.\tID=gene-c2;locus_tag=c2\n"
+                   "##sequence-region plasmid 1 200\n"
+                   "plasmid\tx\tregion\t1\t200\t.\t+\t.\tID=plasmid;Is_circular=true\n"
+                   "plasmid\tx\tgene\t20\t80\t.\t+\t.\tID=gene-p1;locus_tag=p1\n")
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--gff", str(gff),
+               "--inversion", "0.003", "--write", "trees", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    assert _nuc_topologies(out / "Chromosomes.tsv") == {"linear", "circular"}   # mixed genome
 
 
 _MULTI_GFF = """\
@@ -327,10 +362,11 @@ def test_cli_translocation_moves_material_across_chromosomes(tmp_path):
                "--inversion", "0.005", "--translocation", "0.03", "--root-length", "250",
                "--write", "trees", "--seed", "5", "-o", str(out)])
     assert rc == 0
-    # Chromosomes.tsv columns: species chromosome position source start end strand
+    # Chromosomes.tsv columns: species chromosome topology position source start end strand
     by = defaultdict(lambda: defaultdict(set))          # species -> source -> {chromosome ids}
     for line in (out / "Chromosomes.tsv").read_text().splitlines()[1:]:
-        species, chrom, _pos, source = line.split("\t")[:4]
+        parts = line.split("\t")
+        species, chrom, source = parts[0], parts[1], parts[4]
         by[species][source].add(chrom)
     # a source appearing on >1 chromosome in some species is the signature of a translocation
     crossed = any(len(cids) > 1 for sp in by.values() for cids in sp.values())
