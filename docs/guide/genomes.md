@@ -379,6 +379,30 @@ Receptivity is applied by **both** the Python engine and the Rust built-in engin
 the command line it is the `receptivity` column of a `--branch-rates` file
 ([below](#custom-rate-tables-from-files)).
 
+### Transfer highways (donor → recipient)
+
+Receptivity biases recipients by *who they are*; a **highway** biases them by *who the donor is* —
+a preferential route between two lineages (Beiko et al. 2005). Where per-branch receptivity is a
+[modifier](rates.md#modifiers-context-that-rescales-the-base) keyed on the recipient, a highway is
+one keyed on the **(donor, recipient) pair**. Pass a `PairModifier` as `TransferModel(pair=...)`,
+specifying highways as explicit branch pairs and/or **clade → clade** blocks (a clade is a node name,
+or a set of tip names whose MRCA defines it):
+
+```python
+from zombi2.genomes import PairModifier, TransferModel
+
+highways = PairModifier(
+    pairs={("i7", "i9"): 20.0},                       # branch i7 donates to i9 20x as readily
+    blocks=[({"A", "B", "C"}, {"X", "Y"}, 8.0),       # clade(A,B,C) → clade(X,Y): an 8x highway
+            ("i3", "i5", 0.0)],                        # ...and i3 → i5's clade is forbidden
+)
+simulate_genomes(tree, transfer=0.3, transfers=TransferModel(pair=highways))
+```
+
+Overlapping specifications multiply; a factor of `0` forbids that route. A highway can later be made
+epoch-specific or family-scoped (the same modifier machinery). Highways run on the **Python engine**
+(a `pair` model routes off the Rust fast path automatically).
+
 ### Custom rate tables from files
 
 The per-family and per-branch tables above are read from small TSVs on the command line, so you can
