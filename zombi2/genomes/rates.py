@@ -376,8 +376,11 @@ class BranchRates(RateModel):
     * ``factors`` — an explicit ``{branch_name: factor}`` map (branches not listed use
       ``root_rate``).
 
-    ``root_rate`` is the factor of the root branch (default 1.0). ``events`` selects which event
-    kinds the factor scales (default: duplication, transfer, loss).
+    ``root_rate`` (default 1.0) is the root-branch factor in ``autocorr_sigma`` mode and the fallback
+    factor for branches absent from an explicit ``factors`` map. In ``per_branch`` mode every branch
+    is drawn i.i.d. (``root_rate`` is unused) — harmless, since the root's zero-length branch carries
+    no events. ``events`` selects which event kinds the factor scales (default: duplication, transfer,
+    loss).
     """
 
     def __init__(self, base: RateModel, *, autocorr_sigma: float | None = None,

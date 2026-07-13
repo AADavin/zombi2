@@ -173,15 +173,19 @@ def _site_targets(profile: np.ndarray, model: SubstitutionModel, beta: float) ->
 
     Computed in **log space** with a per-row max shift so a whole row can never underflow to 0 even
     at large ``beta`` (which would otherwise give NaN). ``pi_mut`` is the base model's stationary. At
-    ``beta == 0`` every row is ``pi_mut``. A small floor keeps every entry strictly positive (the
-    reversible eigendecomposition needs ``pi > 0``). Returns ``(L, 20)``.
+    ``beta == 0`` every row is ``pi_mut``. The ``1e-12`` floor keeps every entry strictly positive so
+    the Halpern--Bruno kernel's ``log(target)`` stays finite (an exact 0 would make ``h`` NaN); it is
+    a numerical guard, **not** a stale eigendecomposition holdover. Note it also caps the effective
+    selection strength — at very large ``beta`` a disfavoured residue saturates at this floor rather
+    than 0, so raising the ceiling is a deliberate, benchmark-worthy change, not a free tweak.
+    Returns ``(L, 20)``.
     """
     pref = np.clip(np.asarray(profile, dtype=float), 1e-12, None)
     logt = np.log(model.stationary)[None, :] + float(beta) * np.log(pref)
     logt -= logt.max(1, keepdims=True)
     t = np.exp(logt)
     t /= t.sum(1, keepdims=True)
-    t = np.clip(t, 1e-12, None)
+    t = np.clip(t, 1e-12, None)             # keep log(target) finite in the HB kernel (see docstring)
     return t / t.sum(1, keepdims=True)
 
 
