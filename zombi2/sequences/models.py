@@ -27,6 +27,7 @@ A child state is drawn per site from ``P(t)[parent_state]``; everything is vecto
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -205,13 +206,38 @@ def is_protein_model(name: str) -> bool:
     return name.lower() in _AA_MODELS
 
 
+#: Which optional parameters each named model actually consumes. Anything supplied but not listed
+#: here used to be silently ignored (``--kappa`` on ``lg``, ``--base-freqs`` on ``k80``); make_model
+#: now warns instead. Keys mirror ``_MODELS``; protein models are empirical and consume nothing.
+_CONSUMES = {
+    "jc69": frozenset(),
+    "k80": frozenset({"kappa"}),
+    "hky85": frozenset({"kappa", "freqs"}),
+    "gtr": frozenset({"rates", "freqs"}),
+    **{name: frozenset() for name in _AA_MODELS},
+}
+
+
 def make_model(name: str, *, kappa: float = 2.0, freqs=None, rates=None) -> SubstitutionModel:
     """Construct a model by name — DNA (``jc69``/``k80``/``hky85``/``gtr``) or protein
     (``poisson``/``lg``/``wag``/``jtt``/``dayhoff``) — with the relevant parameters.
 
-    Protein models take no parameters (empirical); the DNA parameters are ignored for them.
+    Only the parameters a model actually uses are applied. Supplying one it does not consume
+    (e.g. ``kappa`` for ``lg``, ``freqs`` for ``k80``) emits a :class:`UserWarning` rather than
+    silently ignoring it. A supplied parameter means a non-default ``kappa`` or a non-``None``
+    ``freqs``/``rates``.
     """
     name = name.lower()
+    if name not in _MODELS:
+        raise ValueError(f"unknown substitution model {name!r} (choose from {sorted(_MODELS)})")
+    supplied = {"kappa": kappa != 2.0, "freqs": freqs is not None, "rates": rates is not None}
+    ignored = sorted(p for p, given in supplied.items() if given and p not in _CONSUMES[name])
+    if ignored:
+        warnings.warn(
+            f"substitution model {name!r} does not use {ignored}; ignoring "
+            f"(it consumes {sorted(_CONSUMES[name]) or 'no parameters'})",
+            stacklevel=2,
+        )
     if name == "jc69":
         return jc69()
     if name == "k80":
@@ -220,9 +246,7 @@ def make_model(name: str, *, kappa: float = 2.0, freqs=None, rates=None) -> Subs
         return hky85(kappa, freqs or (0.25, 0.25, 0.25, 0.25))
     if name == "gtr":
         return gtr(rates or (1, 1, 1, 1, 1, 1), freqs or (0.25, 0.25, 0.25, 0.25))
-    if name in _AA_MODELS:
-        return _AA_MODELS[name]()
-    raise ValueError(f"unknown substitution model {name!r} (choose from {sorted(_MODELS)})")
+    return _AA_MODELS[name]()
 
 
 # --------------------------------------------------------------------------- #

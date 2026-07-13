@@ -574,3 +574,38 @@ def test_forward_tree_feeds_gene_sim_with_ghost_transfers():
         for r in g.event_log if r.event is z.EventType.TRANSFER
     )
     assert involved
+
+
+# --------------------------------------------------------------------------- #
+# Degenerate-rate branch of the exact-Gillespie loop (total_rate == 0). Pinned
+# here (white-box on _grow_gillespie) because it is otherwise effectively
+# unreachable through the public API — n_tips > K is rejected upstream — yet the
+# forward-loop refactor must preserve it. See docs/design/model-architecture.md.
+# --------------------------------------------------------------------------- #
+class _StallView:
+    """A view whose every lineage has zero rate, so total_rate == 0 immediately."""
+
+    initial_state = None
+    rho = 1.0
+    scheduled = ()
+
+    def lineage_rates(self, state, n):
+        return (0.0, 0.0)
+
+    def split(self, state, rng):        # never reached: no speciation can fire
+        return None, None
+
+
+def test_grow_gillespie_stall_coasts_to_present_in_age_mode():
+    from zombi2.species.forward import _grow_gillespie
+    root, end = _grow_gillespie(_StallView(), age=1.5, n_tips=None,
+                                rng=np.random.default_rng(0), max_lineages=100)
+    assert end == 1.5
+    assert len(root.children) == 2 and all(c.is_leaf() for c in root.children)
+
+
+def test_grow_gillespie_stall_raises_in_n_tips_mode():
+    from zombi2.species.forward import _grow_gillespie
+    with pytest.raises(RuntimeError, match="stalled below"):
+        _grow_gillespie(_StallView(), age=None, n_tips=5,
+                        rng=np.random.default_rng(0), max_lineages=100)

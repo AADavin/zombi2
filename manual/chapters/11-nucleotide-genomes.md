@@ -188,14 +188,19 @@ raise `extension` toward `0.999` for realistically long segments.
 Like the ordered model (Chapter 10), a nucleotide genome can be a **karyotype** of several
 chromosomes rather than one. The simplest way is `initial_chromosomes` (Python) or `--n-chromosomes`
 (CLI): each is an independent, full-length copy of the root chromosome under its own source, so an
-$N$-chromosome genome starts at $N \times$ `root_length` nucleotides. All nucleotide chromosomes are
-circular. A single chromosome — the default — reproduces the single-chromosome model exactly.
+$N$-chromosome genome starts at $N \times$ `root_length` nucleotides. Chromosomes are circular by
+default; `circular=False` (Python) or `--linear-chromosomes` (CLI) makes them **linear** — two ends,
+no origin wrap. A single chromosome — the default — reproduces the single-chromosome model exactly.
 
 Real genomes are rarely a single replicon, though. To start from a genuine **chromosome-plus-plasmids**
-architecture, give each replicon its own length and genes with `root_chromosomes`, a list of
-`(length, gene_intervals)`. A multi-sequence GFF provides exactly this: `read_gff_all` returns one
-entry per sequence (the main chromosome first), and on the CLI `--gff` seeds one chromosome per
-sequence automatically (use `--gff-seqid ID` to select a single one instead).
+architecture, give each replicon its own length, genes and topology with `root_chromosomes`, a list
+of `(length, gene_intervals)` or `(length, gene_intervals, circular)`. A multi-sequence GFF provides
+exactly this: `read_gff_all` returns one entry per sequence (the main chromosome first), each carrying
+its `Is_circular` flag, and on the CLI `--gff` seeds one chromosome per sequence with its own topology
+(use `--gff-seqid ID` to select a single one, or `--linear-chromosomes` to force all linear). A genome
+like *Borrelia* — a linear chromosome with a mix of linear and circular plasmids — thus seeds as a
+genuine **mixed-topology** genome; fission and fusion respect each chromosome's topology (fusion only
+joins two of the same kind).
 
 ```python
 replicons = z.read_gff_all("genome.gff")        # e.g. [chromosome, plasmid1, plasmid2]
@@ -213,9 +218,10 @@ gene trees untouched, content conserved), changing the karyotype layout but not 
 chromosomes. On top of these, the same **chromosome tier** as the ordered model acts on whole
 chromosomes:
 
-- **fission** — a chromosome splits in two, the arc between two breakpoints becoming a new circular
-  replicon (breakpoints snap to segment boundaries, so genes are never split);
-- **fusion** — two chromosomes merge into one;
+- **fission** — a chromosome splits in two (breakpoints snap to segment boundaries, so genes are
+  never split): a circular one at two breakpoints, the arc between them becoming a new circular
+  replicon; a linear one at a single breakpoint, the suffix becoming a new linear chromosome;
+- **fusion** — two chromosomes of the *same* topology merge into one (a mixed pair cannot fuse);
 - **chromosome origination** — a de-novo replicon, a *plasmid*, appears;
 - **chromosome loss** — a whole chromosome, and every block on it, is lost.
 
