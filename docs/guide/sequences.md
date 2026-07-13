@@ -173,6 +173,12 @@ A gene-tree branch on species branch `b` over `[t0, t1]` gets substitution lengt
 `s_g · R_b · (t1 − t0)`; because reconciliation is exact, a branch spanning several species
 branches (after pruning) just sums the pieces.
 
+`s_g` is drawn at random, but you can also **name** a specific family's speed: pass
+`family_factors={family_id: factor}` (CLI `--family-speeds FILE`), the sequence-level analogue of
+[`FamilyModifier`](rates.md#modifiers-context-that-rescales-the-base). A named factor **multiplies**
+the random `s_g` and the branch clock `R_b` — so you can make one gene evolve, say, 3× faster while
+branch and random effects still apply. Families not listed keep a factor of `1`.
+
 ```python
 from zombi2.species import simulate_species_tree, BirthDeath
 from zombi2.genomes import simulate_genomes
