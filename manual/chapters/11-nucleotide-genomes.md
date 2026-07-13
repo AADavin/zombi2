@@ -227,8 +227,8 @@ what order) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss genea
 single-chromosome run's output is unchanged. In the Python API the same information is on
 `leaf.chromosomes` and `result.event_log.chromosome_records`. `--write ancestral` reconstructs the
 DNA of **each** replicon at every node (one FASTA record per chromosome; seed the real root DNA with
-a multi-record `--genome-fasta`, matched to each replicon by sequence name). `--write bed` still
-expects a single sequence — use `--gff-seqid` for it.
+a multi-record `--genome-fasta`, matched to each replicon by sequence name), and `--write bed`
+annotates each replicon as its own BED contig, named to line up with those FASTA records.
 :::
 
 ## Intergenic indels

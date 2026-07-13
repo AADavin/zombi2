@@ -288,3 +288,28 @@ def test_cli_multichromosome_ancestral_reproduces_each_replicon(tmp_path):
     assert set(recs.values()) == {chr1, plasmid}             # each replicon reproduced exactly
     header = (out / "Architecture" / "root.tsv").read_text().splitlines()[0]
     assert header.split("\t")[0] == "chromosome"             # architecture keeps replicons apart
+
+
+def test_cli_multichromosome_bed_is_per_replicon(tmp_path):
+    """`--write bed` on a multi-sequence GFF writes one BED contig per replicon, coordinates
+    restarting per chromosome, named to line up with each chromosome's FASTA record."""
+    tree = _species(tmp_path)
+    gff = tmp_path / "genome.gff"
+    gff.write_text(_MULTI_GFF)                                # chr1 (A1/A2/A3) + plasmid (B1/B2)
+    out = tmp_path / "gen"
+    rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--gff", str(gff),
+               "--inversion", "0.002", "--write", "bed", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    # genes.bed: the seed annotation, one contig per replicon named by its GFF seqid
+    rows = [ln.split("\t") for ln in (out / "genes.bed").read_text().splitlines()]
+    by_contig = {}
+    for chrom, start, _end, name, *_ in rows:
+        by_contig.setdefault(chrom, []).append((name, int(start)))
+    assert set(by_contig) == {"chr1", "plasmid"}             # the input sequence names
+    assert {n for n, _ in by_contig["chr1"]} == {"A1", "A2", "A3"}
+    assert {n for n, _ in by_contig["plasmid"]} == {"B1", "B2"}
+    # the plasmid's coordinates restart at 0 (B1 at 29 on its own contig, not offset past chr1)
+    assert min(s for _, s in by_contig["plasmid"]) == 29
+    # BED/root.bed contigs match the ancestral FASTA record naming (<node>_chr<id>)
+    node_contigs = {ln.split("\t")[0] for ln in (out / "BED" / "root.bed").read_text().splitlines()}
+    assert node_contigs == {"root_chr0", "root_chr1"}
