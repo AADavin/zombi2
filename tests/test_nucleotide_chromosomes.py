@@ -380,3 +380,35 @@ def test_multichromosome_gff_survives_translocation_fission_fusion(tmp_path):
     assert fired["FI"] >= 1 and fired["FU"] >= 1        # both tier events actually exercised
     assert len(counts_seen) >= 2                        # the karyotype genuinely varied (not a no-op)
     assert crossed_any                                  # translocation moved material across chromosomes
+
+
+def test_all_events_together_on_a_multichromosome_genome(tmp_path):
+    """The whole event zoo firing at once on a multi-chromosome (GFF-seeded) genome: every
+    structural event, both indels, origination, the full chromosome tier, and the genic
+    sub-outcomes. It must run, stay bounded (a genome never empties), keep unique segment ids and
+    reconstruct — across seeds. This is the regression guard for the cross-event edge cases the
+    real V. cholerae 'all events' stress test surfaced (e.g. a novel-gene origination after
+    chromosome loss / fusion has removed the main chromosome)."""
+    gff = tmp_path / "genome.gff"
+    gff.write_text(_STRESS_GFF)
+    roots = [(g.length, g.genes) for g in read_gff_all(str(gff))]
+    fired, tier = Counter(), Counter()
+    for seed in range(6):
+        res = simulate_nucleotide_genomes(
+            _tree(seed=seed, n_tips=8), root_chromosomes=roots,
+            inversion=0.004, transposition=0.004, translocation=0.008,
+            duplication=0.004, transfer=0.004, loss=0.008,
+            insertion=0.004, deletion=0.008, origination=0.3,
+            fission=0.3, fusion=0.3, chromosome_origination=0.2, chromosome_loss=0.2,
+            pseudogenization=0.5, replacement=0.5, extension=0.85, seed=seed)
+        fired += Counter(r.event.value for r in res.event_log.records if r.event.value != "S")
+        tier += Counter(r.event.value for r in res.event_log.chromosome_records)
+        for g in res.leaf_genomes.values():
+            assert g.size() >= 1                          # never empties (min-genome floor holds)
+            assert len(g.chromosomes) >= 1                # always keeps a chromosome
+            ids = [s.seg_id for s in g._iter_segments()]
+            assert len(ids) == len(set(ids))              # segment ids stay unique
+        assert len(res.block_gene_trees()) == len(res.blocks)   # reconstruction survives everything
+    # the run must actually exercise the crash-prone combo: origination + chromosome removal
+    assert fired["O"] >= 1
+    assert tier["CL"] + tier["FU"] >= 1                   # a chromosome was lost or fused away

@@ -295,7 +295,10 @@ class NucleotideGenome(Genome):
             return self._seed_root_chromosomes()
 
         source = self.ids.new_family()
-        chrom = self.chromosomes[self._cid]
+        # the novel gene lands on the main chromosome when it is still present; chromosome loss or
+        # fusion can remove it, so fall back to any surviving chromosome (a genome always keeps one).
+        chrom = (self.chromosomes[self._cid] if self._cid in self.chromosomes
+                 else next(iter(self.chromosomes.values())))
         # novel gene inserted somewhere
         length = self._draw_length(rng, params, chrom)
         L = self._chrom_length(chrom)
@@ -656,7 +659,11 @@ class NucleotideGenome(Genome):
         L = self._chrom_length(chrom)
         if L <= 1:
             return []
-        ell = max(1, min(ell, L - 1))
+        if self._registry.has_genes():
+            if ell >= L:                       # whole (gene-snapped) chromosome: skip, rather than
+                return []                      # shave it to L-1 and split off a gene edge (a no-op)
+        else:
+            ell = max(1, min(ell, L - 1))      # non-genic: cap to keep the arc a proper sub-arc
         i_s, i_e = self._arc_range(s, ell, chrom)
         arc = els[i_s:i_e]
         del els[i_s:i_e]
@@ -875,6 +882,8 @@ class NucleotideGenome(Genome):
                 return []
             dest = int(rng.integers(L))
             arc = self._apply_transposition(region.start, region.length, dest, chrom)
+            if not arc:                        # whole-chromosome no-op — no event, no empty group
+                return []
             return [[GeneOp(seg.seg_id, seg.source, "transposed") for seg in arc]]
         if event is EventType.TRANSLOCATION:
             dest_chrom = self._choose_other_chromosome(rng, chrom)
