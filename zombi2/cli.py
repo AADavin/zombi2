@@ -126,8 +126,19 @@ def _int_or_float(text: str) -> int | float:
     return float(text) if "." in text else int(text)
 
 
+def _add_params_arg(g) -> None:
+    """Add ``--params FILE`` (a TOML parameters file) to a subcommand's ``general`` group."""
+    g.add_argument("--params", metavar="FILE",
+                   help="a TOML parameters file whose keys are this command's long option names "
+                        "(hyphens or underscores); applied as defaults, so any flag given on the "
+                        "command line overrides it. A '[<command>]' table scopes one file to a "
+                        "whole pipeline. Required I/O paths (-o / -t / --genomes) stay on the "
+                        "command line.")
+
+
 def _add_species_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
+    _add_params_arg(g)
     g.add_argument("--mode", dest="model", choices=("backward", "forward"), default="backward",
                    metavar="MODE",
                    help="backward: reconstructed tree conditioned on --tips extant species "
@@ -216,6 +227,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
 
 def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
+    _add_params_arg(g)
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
     g.add_argument("--genome-model", dest="genome_model",
@@ -2786,6 +2798,7 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
+    _add_params_arg(g)
     g.add_argument("--genomes", required=True, metavar="DIR",
                    help="a prior 'zombi2 genomes' output directory — reads its species_tree.nwk "
                         "and Events_trace.tsv (run genomes with 'trace' in --write)")
@@ -3672,6 +3685,41 @@ def _add_subcommand(sub, name: str, help: str, description: str, usage: str, add
     return p
 
 
+def _apply_params_file(sub, argv) -> None:
+    """If the invocation is ``<command> … --params FILE …`` for a params-aware subcommand, load the
+    TOML file and set that subcommand's argument defaults from it — so explicit command-line flags,
+    parsed afterwards, still override the file."""
+    tokens = argv if argv is not None else sys.argv[1:]
+    if not tokens or tokens[0].startswith("-"):
+        return
+    subp = sub.choices.get(tokens[0])
+    if subp is None or not any(a.dest == "params" for a in subp._actions):
+        return
+    path = None
+    for i, tok in enumerate(tokens[1:], 1):
+        if tok == "--params" and i + 1 < len(tokens):
+            path = tokens[i + 1]
+            break
+        if tok.startswith("--params="):
+            path = tok.split("=", 1)[1]
+            break
+    if path is None:
+        return
+    from zombi2._params import load_params_file
+    action_by_dest = {a.dest: a for a in subp._actions}
+    try:
+        overrides = load_params_file(path, set(action_by_dest), tokens[0])
+    except (OSError, ValueError) as e:              # missing file, TOML error, or unknown key
+        subp.error(str(e))
+    # a variable-length option (nargs '+'/'*', e.g. episodic --birth) is a list on the command
+    # line; accept a bare scalar in the file and wrap it, so `birth = 1.0` works like `--birth 1.0`.
+    for dest, val in list(overrides.items()):
+        action = action_by_dest.get(dest)
+        if action is not None and action.nargs in ("+", "*") and not isinstance(val, list):
+            overrides[dest] = [val]
+    subp.set_defaults(**overrides)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,
@@ -3802,6 +3850,7 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 -o out/",
         ))
 
+    _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
     try:
         return _dispatch(args, parser)
