@@ -907,6 +907,23 @@ root and an inversion flips it — not a GFF coding strand (the genic model does
 needs declared genes (`--genes`/`--gff`); it drives the Python engine and can combine with
 `ancestral`.
 
+#### Gene-order events & export
+
+`--write geneorder` writes **`Geneorder_events.tsv`** — one row per structural event across every
+branch, with its physical breakpoint (`chrom  start  length  strand  dest`, native half-open
+coordinates). It is the on-disk record of *where* each inversion / transposition / loss /
+duplication / origination / transfer acted, keyed by `branch` for a per-branch view.
+
+From a nucleotide run's outputs, [`zombi2 tools export`](../tools/geneorder-export.md) derives the
+gene-order / synteny study formats — **breakpoints** (adjacencies broken per tree edge), **gff**,
+and **positional orthologs** — the analysis complement of the fork's `zombiExporter`:
+
+```bash
+zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \
+  --inversion 1e-3 --transposition 5e-4 --write bed geneorder -o run/
+zombi2 tools export run/ --format breakpoints gff posortho -o export/
+```
+
 #### Starting from a real genome (GFF)
 
 Instead of writing intervals by hand, point the model at a real annotation — e.g. a RefSeq
