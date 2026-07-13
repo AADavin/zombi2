@@ -23,7 +23,7 @@ from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, Nucleotid
 from zombi2.genomes.gff import read_gff, GffGenome
 from zombi2.genomes.rates import (
     RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
-    Modifier, ModifiedRates, BranchModifier, EventWeight,
+    Modifier, ModifiedRates, BranchModifier, FamilyModifier, EventWeight,
 )
 from zombi2.genomes.transfers import TransferModel
 from zombi2.genomes.conversion import ConversionModel
@@ -39,7 +39,7 @@ __all__ = [
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "GffGenome",
     "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
-    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier",
+    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "ConversionModel",
     "read_family_rates", "read_branch_rates",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",

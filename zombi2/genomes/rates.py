@@ -352,6 +352,12 @@ class Modifier(ABC):
 
     time_dependent = False
 
+    #: True if this modifier keys on the *family* an event acts on. When any modifier in a
+    #: :class:`ModifiedRates` stack sets this, the composer expands a base's aggregate ``family=None``
+    #: weights into one weight per family (family f's share of a uniform-target total rate ``r`` is
+    #: ``r * n_f / n``), so the family factor has a family to attach to.
+    keys_on_family = False
+
     def bind(self, rng, tree=None) -> None:
         """One-time setup at the start of a simulation (e.g. autocorrelated factors need the tree)."""
 
@@ -378,6 +384,8 @@ class ModifiedRates(RateModel):
     def __init__(self, base: RateModel, modifiers):
         self.base = base
         self.modifiers = list(modifiers)
+        # A per-family modifier needs per-family weights, so expand aggregate family=None weights.
+        self._expand_families = any(getattr(m, "keys_on_family", False) for m in self.modifiers)
 
     @property
     def time_dependent(self) -> bool:
@@ -392,11 +400,26 @@ class ModifiedRates(RateModel):
     def event_weights(self, genome, branch, time):
         out = []
         for ew in self.base.event_weights(genome, branch, time):
-            factor = 1.0
-            for m in self.modifiers:
-                factor *= m.factor(ew.event, ew.family, branch, time)
-            out.append(ew if factor == 1.0 else EventWeight(ew.event, ew.family, ew.rate * factor))
+            for w in (self._per_family(ew, genome) if self._expand_families else (ew,)):
+                factor = 1.0
+                for m in self.modifiers:
+                    factor *= m.factor(w.event, w.family, branch, time)
+                out.append(w if factor == 1.0 else EventWeight(w.event, w.family, w.rate * factor))
         return out
+
+    @staticmethod
+    def _per_family(ew, genome):
+        """Expand an aggregate ``family=None`` weight (a total rate with a uniformly chosen target
+        copy) into one weight per family, ``rate * n_f / n`` — distributionally identical but with a
+        family a :class:`FamilyModifier` can key on. Origination (which mints a *new* family) and
+        weights that already name a family pass through unchanged."""
+        if ew.family is not None or ew.event is EventType.ORIGINATION:
+            return (ew,)
+        n = genome.size()
+        if n <= 0:
+            return (ew,)
+        return tuple(EventWeight(ew.event, f, ew.rate * genome.copy_number(f) / n)
+                     for f in genome.families())
 
     def target_params(self, event, genome, branch, time):
         return self.base.target_params(event, genome, branch, time)
@@ -504,3 +527,51 @@ class BranchRates(ModifiedRates):
         """The per-branch factor map — kept for backward compatibility; it now lives on the
         underlying :class:`BranchModifier`."""
         return self.modifiers[0]._factor
+
+
+class FamilyModifier(Modifier):
+    """Per-gene-family multiplier — per-family rate heterogeneity as a composable **overlay**.
+
+    Contrast :class:`FamilySampledRates`, which bakes per-family rates into a base model; a
+    ``FamilyModifier`` instead multiplies any base's per-family rate by a family factor, so it stacks
+    with other modifiers. Composed on :class:`PerGenomeRates` it expresses **per-genome × per-family**
+    rates (the combination the old ``--rate-model`` enum could not name); composed with a
+    :class:`BranchModifier` it gives **family × branch** heterogeneity.
+
+    Provide exactly one source: ``factors`` (an explicit ``{family: factor}`` map; families absent
+    from it use ``root_factor``) or ``per_family`` (a distribution drawn i.i.d. per family at first
+    sight and cached). ``events`` selects which event kinds it scales (default duplication/transfer/
+    loss). Because it keys on the family, a :class:`ModifiedRates` carrying one runs on the Python
+    engine (the aggregate weights are expanded per family).
+    """
+
+    keys_on_family = True
+
+    def __init__(self, *, factors: dict | None = None, per_family=None,
+                 root_factor: float = 1.0, events=None):
+        if (factors is None) == (per_family is None):
+            raise ValueError("specify exactly one of factors or per_family")
+        self.explicit = ({str(k): float(v) for k, v in factors.items()}
+                         if factors is not None else None)
+        self.per_family = as_distribution(per_family) if per_family is not None else None
+        self.root_factor = float(root_factor)
+        self._scaled = _resolve_events(events)
+        self._factor: dict[str, float] = {}
+        self._rng = None
+
+    def bind(self, rng, tree=None) -> None:
+        self._rng = rng
+        self._factor = dict(self.explicit) if self.explicit is not None else {}
+
+    def _family_factor(self, family: str) -> float:
+        f = self._factor.get(family)
+        if f is None:
+            f = (self.per_family.sample(self._rng)
+                 if self.per_family is not None else self.root_factor)
+            self._factor[family] = f
+        return f
+
+    def factor(self, event, family, branch, time):
+        if family is None or event not in self._scaled:
+            return 1.0
+        return self._family_factor(str(family))
