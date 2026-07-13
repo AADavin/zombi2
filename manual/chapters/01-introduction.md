@@ -66,7 +66,7 @@ zombi2 species --tips 20 --age 5 --birth 1.0 --death 0.3 --seed 1 -o my_tree
 
 # 2. gene families evolving along it (duplication, transfer, loss, origination)
 zombi2 genomes -t my_tree/species_tree.nwk \
-    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o my_genomes
+    --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --initial-families 20 --seed 42 -o my_genomes
 ```
 
 The first writes `my_tree/species_tree.nwk`; the second writes gene trees and the presence/absence

@@ -484,6 +484,26 @@ A discrete `TraitResult`: `labeled_values()` gives each tip's range as a tuple o
 
 - **DEC.** The rate matrix has the exact analytic entries — gaining an area at the summed dispersal rate, losing one at the extinction rate, and no empty range (`test_biogeography.py::test_dispersal_and_extinction_rates`); pure anagenetic evolution down a branch matches the transition matrix `expm(Q·t)` over 20 000 replicates, tying the simulator back to that rate matrix (`test_biogeography.py::test_dec_anagenesis_matches_transition_matrix`); a widespread range splits into its `2·|R|` subset-sympatry / vicariance outcomes with equal probability and nothing else (`test_biogeography.py::test_dec_cladogenesis_probabilities`); and a fixed `seed` reproduces every node's range (`test_biogeography.py::test_biogeography_reproducible`).
 
+## State-dependent diversification (BiSSE / MuSSE / HiSSE / QuaSSE)
+
+The models above evolve a trait **along a fixed tree** — the trait never changes how the tree
+itself grows. When you want the opposite, a trait that **drives** speciation and extinction,
+you need a state-dependent diversification (SSE) model, in which the tree and the trait are
+simulated *jointly*. Those models therefore live in the [coevolution](coevolution.md) layer,
+not here, on the `traits:species` coupling:
+
+```bash
+# BiSSE: state 1 speciates 3x faster, so it dominates the tips. The tree is GROWN here, so give
+# --tips or --age and no -t. Other models: musse (k-state), quasse (continuous), hisse (hidden).
+zombi2 coevolve --couple traits:species --sse-model bisse \
+    --lambda0 1 --lambda1 3 --mu0 0.2 --mu1 0.2 --q01 0.1 --q10 0.1 \
+    --tips 200 --seed 1 -o out/bisse
+```
+
+See [coevolution](coevolution.md) for BiSSE, MuSSE, QuaSSE and HiSSE. (Don't confuse HiSSE with
+the [hidden rate classes (corHMM)](#hidden-rate-classes-corhmm) above: corHMM hides *trait* rate
+classes on a fixed tree, whereas HiSSE hides *diversification* classes that reshape the tree.)
+
 ## Output
 
 ```python
