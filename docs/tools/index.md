@@ -45,10 +45,12 @@ opposite — **stable and validated**, just adjacent to (rather than part of) th
 | Tool | What it computes | Page |
 | --- | --- | --- |
 | **Reconciliation likelihood** (ALElite) | the ALE marginal likelihood `P(gene tree \| species tree, DTL rates)` of a simulated gene family | [Reconciliation likelihood](reconciliation-likelihood.md) |
+| **Undated simulation** (`simulate`) | samples gene families from the ALE undated model (the generative twin of the reconciliation likelihood) as ground-truth reconciliations + phyletic profiles | [Undated simulation](undated-simulation.md) |
 | **Relative Evolutionary Divergence** (RED) | each node's rate-normalised relative age in `[0, 1]` (root 0, tips 1) — GTDB's rank-normalisation quantity (Parks et al. 2018) | [Relative Evolutionary Divergence](red.md) |
 | **Tree distances** (`treedist`) | Robinson–Foulds, branch-score, quartet, and matching distances between a true tree and an inferred one | [Tree distances](treedist.md) |
 | **Reconciliation accuracy** (`recon-accuracy`) | node-by-node event, mapping (MRCA), and transfer-recovery accuracy of an inferred reconciliation vs the true one | [Reconciliation accuracy](recon-accuracy.md) |
 | **Parsing reconciliation output** (reconparser) | reads external ALE / AleRax reconciliation output into native `zombi2.tree.Tree` objects and `pandas` tables (the interop bridge) | [Parsing reconciliation output](reconciliation-parsing.md) |
+| **Gene-order export** (`export`) | gene-order / synteny study formats — broken adjacencies per tree edge, GFF, positional ortholog sets — from a nucleotide genomes run | [Gene-order export](geneorder-export.md) |
 
 ## Roadmap
 

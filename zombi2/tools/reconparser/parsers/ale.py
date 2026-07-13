@@ -43,17 +43,23 @@ class ALEParser:
         """Initialize ALE parser with base path to output files."""
         self.base_path = Path(base_path)
 
-        # If a specific file was provided, extract the base path
+        # If a specific file was provided, extract the base path. ALE writes 'u'-prefixed files
+        # for the undated model (ALEml_undated: .uml_rec/.uTs/.ucons_tree) and un-prefixed files
+        # for the dated model (ALEml: .ml_rec/.Ts/.cons_tree); handle both.
         base_str = str(self.base_path)
-        for ext in ['.ucons_tree', '.uTs', '.uml_rec']:
+        for ext in ['.ucons_tree', '.cons_tree', '.uTs', '.Ts', '.uml_rec', '.ml_rec']:
             if base_str.endswith(ext):
                 self.base_path = Path(base_str[:-len(ext)])
                 break
 
-        # Define file paths
-        self.ucons_tree_path = Path(str(self.base_path) + '.ucons_tree')
-        self.uts_path = Path(str(self.base_path) + '.uTs')
-        self.uml_rec_path = Path(str(self.base_path) + '.uml_rec')
+        # Define file paths, preferring whichever variant exists on disk (undated vs dated).
+        b = str(self.base_path)
+        def _pick(undated: str, dated: str) -> Path:
+            u = Path(b + undated)
+            return u if u.exists() or not Path(b + dated).exists() else Path(b + dated)
+        self.ucons_tree_path = _pick('.ucons_tree', '.cons_tree')
+        self.uts_path = _pick('.uTs', '.Ts')
+        self.uml_rec_path = _pick('.uml_rec', '.ml_rec')
 
         # Cache for parsed data
         self._consensus_tree: Optional[Tree] = None
@@ -271,25 +277,36 @@ class ALEParser:
                     }
                 line_idx += 1
 
-        # Skip to branch statistics header line
-        # ALE v0.4 header: "# of\tDuplications\tTransfers\tLosses\tOriginations\tcopies"
-        # ALE v1.0 header: "# of\tDuplications\tTransfers\tLosses\tOriginations\tcopies\tsingletons\textinction_prob\tpresence\tLL"
+        # Find the per-branch table header and map columns BY NAME. This handles every ALE
+        # variant without hard-coded positions:
+        #   undated v0.4: "# of  Duplications Transfers Losses Originations copies"
+        #   undated v1.0: "# of  Duplications Transfers Losses Originations copies singletons extinction_prob presence LL"
+        #   dated (ALEml): "# of  Duplications Transfers Losses copies"  (no Originations column)
+        # The branch header is the "# of" line that lists "copies" (the earlier one lists Speciations).
+        col_index: dict = {}   # lowercased column name -> index into a split branch row
         while line_idx < len(lines) and not lines[line_idx].strip().startswith('S_'):
-            # Detect column header to determine format
-            if line_idx < len(lines) and lines[line_idx].startswith('# of'):
-                header_line = lines[line_idx].strip()
-                self._branch_has_singletons = 'singletons' in header_line.lower()
+            h = lines[line_idx].strip()
+            if h.startswith('# of') and 'copies' in h.lower():
+                # header[0] is the "# of" label; each row prepends branch_type + branch_id, so a
+                # header field at position i maps to row-part index i + 1.
+                col_index = {name.strip().lower(): i + 1
+                             for i, name in enumerate(h.split('\t')) if i > 0}
+                self._branch_has_singletons = 'singletons' in col_index
             line_idx += 1
 
-        # Parse branch statistics table
+        def _cell(parts, name, default=0.0):
+            i = col_index.get(name)
+            return float(parts[i]) if (i is not None and i < len(parts)) else default
+
+        # Parse branch statistics table (header-driven; missing columns -> 0.0, so dated files,
+        # which lack Originations, still parse and simply report originations = 0).
         branch_data = []
         while line_idx < len(lines):
             line = lines[line_idx].strip()
             if line.startswith('S_terminal_branch') or line.startswith('S_internal_branch'):
                 parts = line.split('\t')
-                if len(parts) >= 7:
-                    # Clean branch_id: ALE v1.0 uses "name(idx)" for terminals
-                    # e.g. "a10(0)" → "a10"
+                if col_index and len(parts) >= 6:
+                    # Clean branch_id: ALE v1.0 uses "name(idx)" for terminals, e.g. "a10(0)" -> "a10"
                     branch_id = parts[1]
                     paren_match = re.match(r'^(.+?)\(\d+\)$', branch_id)
                     if paren_match:
@@ -298,19 +315,17 @@ class ALEParser:
                     row = {
                         'branch_type': parts[0],
                         'branch_id': branch_id,
-                        'duplications': float(parts[2]),
-                        'transfers': float(parts[3]),
-                        'losses': float(parts[4]),
-                        'originations': float(parts[5]),
-                        'copies': float(parts[6]),
+                        'duplications': _cell(parts, 'duplications'),
+                        'transfers': _cell(parts, 'transfers'),
+                        'losses': _cell(parts, 'losses'),
+                        'originations': _cell(parts, 'originations'),
+                        'copies': _cell(parts, 'copies'),
                     }
-
-                    # ALE v1.0 extra columns
-                    if len(parts) >= 11:
-                        row['singletons'] = float(parts[7])
-                        row['extinction_prob'] = float(parts[8])
-                        row['presence'] = float(parts[9])
-                        row['branch_LL'] = float(parts[10])
+                    if 'singletons' in col_index:
+                        row['singletons'] = _cell(parts, 'singletons')
+                        row['extinction_prob'] = _cell(parts, 'extinction_prob')
+                        row['presence'] = _cell(parts, 'presence')
+                        row['branch_LL'] = _cell(parts, 'll')
 
                     branch_data.append(row)
             line_idx += 1

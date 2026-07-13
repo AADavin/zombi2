@@ -41,7 +41,7 @@ from zombi2.species import (
 from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
-    read_gff, GffGenome,
+    read_gff, read_gff_all, GffGenome,
     RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
     Modifier, ModifiedRates, BranchModifier, FamilyModifier,
     EventWeight, TransferModel, PairModifier, ConversionModel, read_family_rates, read_branch_rates,
@@ -99,7 +99,7 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Block",
-    "read_gff", "GffGenome",
+    "read_gff", "read_gff_all", "GffGenome",
     # rates & transfers
     "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
     "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",

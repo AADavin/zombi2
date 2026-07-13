@@ -32,7 +32,7 @@ NAMESPACES = {
     "genomes": [
         "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
         "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
-        "NucleotideResult", "Block", "read_gff", "GffGenome",
+        "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
         "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
         "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",
         "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
@@ -137,7 +137,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 138   # + PairModifier (transfer highways, recipient seam)
+    assert len(z.__all__) == 139   # 132 base + read_gff_all (main) + 6 rate-modifier-layer names
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 

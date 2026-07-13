@@ -52,10 +52,21 @@ class ProfileMatrix:
         self.species = list(species)
         self._shape = (len(self.families), len(self.species))
         if coo is not None:
-            rows, cols, data = coo
-            self._rows = np.asarray(rows, dtype=np.int64)
-            self._cols = np.asarray(cols, dtype=np.int64)
-            self._data = np.asarray(data, dtype=np.int64)
+            rows = np.asarray(coo[0], dtype=np.int64)
+            cols = np.asarray(coo[1], dtype=np.int64)
+            data = np.asarray(coo[2], dtype=np.int64)
+            if data.shape[0]:
+                # coalesce duplicate (family, species) cells by summing — COO permits repeats, and
+                # without this the dense view (last-write-wins) would disagree with the bincount
+                # reductions (which sum). Only rewrites when duplicates exist, so a normal run
+                # (no repeats) keeps its exact cell order and stays byte-identical.
+                flat = rows * self._shape[1] + cols
+                uniq, inv = np.unique(flat, return_inverse=True)
+                if uniq.shape[0] != flat.shape[0]:
+                    data = np.bincount(inv.ravel(), weights=data).astype(np.int64)
+                    rows = (uniq // self._shape[1]).astype(np.int64)
+                    cols = (uniq % self._shape[1]).astype(np.int64)
+            self._rows, self._cols, self._data = rows, cols, data
         elif matrix is not None:
             m = np.asarray(matrix)
             if m.size:
@@ -181,10 +192,10 @@ class ProfileMatrix:
                 species = ln.split("\t")[1:]
             elif ln.startswith("#families\t"):
                 families = ln.split("\t")[1:]
-            elif ln.startswith("family\t"):
-                continue
             else:
                 f, s, v = ln.split("\t")
+                if f == "family" and s == "species" and v == "copies":   # the header row itself
+                    continue
                 triples.append((f, s, int(v)))
         if not families:  # header missing → derive rows from the data
             seen: dict[str, None] = {}

@@ -46,3 +46,32 @@ The species-tree and gene-family parameters mirror
 Speedup approaches the core count once each replicate does real work; for very short
 simulations the pool startup and per-replicate disk writes dominate. Rough example (8
 replicates of 500-tip genomes on a 10-core machine): ~13.9 s serial → ~3.6 s parallel.
+
+## Running on a cluster (SLURM)
+
+`run_replicates` parallelises across the cores of **one machine**. To scale a sweep across a
+cluster, drive ZOMBI2 from a workflow manager and let the scheduler place the jobs — the shipped
+`examples/red_benchmark/` **Snakemake** workflow is a copy-paste template that does exactly this.
+Two patterns cover most needs:
+
+- **Snakemake + the SLURM executor** (best for sweeps). Each rule instance becomes its own
+  `sbatch` job. Install the executor with `pip install "zombi2[bench]"` and run with a SLURM
+  profile:
+
+  ```bash
+  snakemake --profile workflow/profiles/slurm --config cfg=config/sweep.yaml
+  ```
+
+  The profile (`examples/red_benchmark/workflow/profiles/slurm/config.yaml`) sets `executor:
+  slurm`, the max concurrent `jobs`, and per-rule `runtime` / `mem_mb` / `cpus_per_task`. Fill in
+  your `slurm_account` (the `CHANGE_ME` placeholder) and, only if your cluster requires one,
+  `slurm_partition`.
+
+- **An `sbatch` array over seeds** (simplest for one config, many replicates). Submit an array job
+  and map the array index to a seed — e.g. `zombi2 species … --seed $SLURM_ARRAY_TASK_ID`. Because
+  every ZOMBI2 run is fully determined by its seed, replicate *i* is reproducible and independent of
+  where or when it runs. This composes with `run_replicates`' per-replicate seeding: give each array
+  task a **disjoint base seed** so the derived seeds never collide.
+
+Keep the per-job work meaningful — many sub-second jobs are dominated by scheduler latency and
+disk writes, so group tiny replicates into one job rather than submitting one job per replicate.

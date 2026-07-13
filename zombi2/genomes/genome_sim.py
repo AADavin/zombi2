@@ -20,7 +20,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from zombi2._sampling import EventSampler, Fenwick, NumpyEventSampler
-from zombi2.genomes.events import EventLog, EventRecord, EventType, GeneOp, Selection
+from zombi2.genomes.events import (
+    ChromosomeEvent, EventLog, EventRecord, EventType, GeneOp, Region, Selection,
+)
 from zombi2.genomes.genome import Gene, Genome, IdManager, UnorderedGenome
 from zombi2.genomes.rates import RateModel
 from zombi2.genomes.transfers import TransferModel
@@ -51,9 +53,16 @@ def resolve_max_family_size(max_family_size, n_species: int) -> int | None:
 class GenomeSimulator:
     """Forward gene-family simulation along a fixed species tree."""
 
-    def __init__(self, sampler: EventSampler | None = None, *, max_events_per_interval: int = 1_000_000):
+    def __init__(self, sampler: EventSampler | None = None, *, max_events_per_interval: int = 1_000_000,
+                 max_segments_per_genome: int | None = None):
         self.sampler = sampler or NumpyEventSampler()
         self.max_events_per_interval = max_events_per_interval
+        # Runaway-growth guard for length-scaled models (the nucleotide genome): a single genome
+        # whose segment count blows past this ceiling is growing without bound (an additive gain
+        # rate — transfer/duplication — that outruns loss, whose event rate is proportional to
+        # genome length, so growth compounds). Left ``None`` (the default) the guard is off, so
+        # the plain/ordered models are byte-identical to before; the nucleotide simulator opts in.
+        self.max_segments_per_genome = max_segments_per_genome
         self._transfers = TransferModel()
         self._conversions = None
         self._cap: int | None = None
@@ -149,9 +158,16 @@ class GenomeSimulator:
         node_genomes: dict = {}
         if retain_internal:
             node_genomes[root] = root_genome        # the seed genome == the user's input genome
-        self._speciate(root_genome, root, alive, log)
-        for child in root.children:
+        if len(root.children) == 1:
+            # a degree-two root (a sampled ancestor on the stem lineage): the genome continues
+            # into the single child unchanged, mirroring the main loop's pass-through below
+            child = root.children[0]
+            alive[child] = root_genome
             activate(child)
+        else:
+            self._speciate(root_genome, root, alive, log)
+            for child in root.children:
+                activate(child)
 
         leaf_genomes: dict[TreeNode, Genome] = {}
 
@@ -175,9 +191,13 @@ class GenomeSimulator:
                 if node.is_extant:
                     leaf_genomes[node] = genome
             elif len(node.children) == 1:
-                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and
-                # its genome — simply continues, so pass the genome straight to the child
+                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and its
+                # genome — simply continues, so pass the genome straight to the child. The ancestral
+                # snapshot must be frozen here (a same-id copy): the live genome keeps mutating along
+                # the child branch and would otherwise report that downstream state at this node.
                 child = node.children[0]
+                if retain_internal:
+                    node_genomes[node] = genome.snapshot()
                 alive[child] = genome
                 activate(child)
             else:  # speciation: re-mint lineage ids into each child and log it
@@ -282,6 +302,9 @@ class GenomeSimulator:
             ew = self._pick_entry(cache[branch][0], cache[branch][1], rng)
             changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
 
+            if self.max_segments_per_genome is not None:
+                self._check_runaway(changed, alive)
+
             for cb in (list(alive) if refresh_all else changed):
                 cache[cb] = self._branch_weights(alive[cb], cb, rate_model, t)
                 fenwick.set(index[cb], cache[cb][1])
@@ -308,6 +331,28 @@ class GenomeSimulator:
         kept = [ew for ew in rate_model.event_weights(genome, branch.name, t)
                 if ew.rate > 0.0 and ew.event in supported]
         return kept, math.fsum(ew.rate for ew in kept)
+
+    def _check_runaway(self, changed, alive):
+        """Trip the runaway-growth guard when a just-mutated genome exceeds the segment ceiling.
+
+        The check is O(number of chromosomes) per event (``n_segments`` sums ``len(elements)``,
+        never touching individual segments), so it is negligible next to the O(genome length)
+        rate refresh it precedes. It only ever looks at the branches ``_fire`` reported as
+        changed, and only for genomes that expose ``n_segments`` (the nucleotide model) — every
+        other model leaves ``max_segments_per_genome`` at ``None`` and never reaches here.
+        """
+        limit = self.max_segments_per_genome
+        for cb in changed:
+            n_segments = getattr(alive[cb], "n_segments", None)
+            if n_segments is not None and n_segments() > limit:
+                raise RuntimeError(
+                    f"a genome exceeded max_segments_per_genome={limit}: it is growing without "
+                    "bound. In the length-scaled nucleotide model an event's rate is proportional "
+                    "to genome length, so an additive gain rate (transfer and/or duplication) that "
+                    "outruns loss compounds and never terminates. Balance it with a comparable "
+                    "loss rate, lower the gain rate, shorten the tree, or raise "
+                    "max_segments_per_genome= if this growth is genuinely intended."
+                )
 
     def _pick_entry(self, kept, subtotal, rng):
         r = rng.random() * subtotal
@@ -369,7 +414,8 @@ class GenomeSimulator:
 
         if event is EventType.ORIGINATION:
             ops = genome.originate(rng, params)
-            log.add(EventRecord(EventType.ORIGINATION, branch.name, t, ops))
+            log.add(EventRecord(EventType.ORIGINATION, branch.name, t, ops,
+                                region=getattr(genome, "_event_region", None)))
             return (branch,)
 
         if event is EventType.TRANSFER:
@@ -388,12 +434,18 @@ class GenomeSimulator:
             segment = genome.extract_segment(selection, rng)  # re-mints donor + copy
             at = rec_genome.choose_insertion_point(segment, rng)
             rec_genome.insert_segment(segment, at, rng)
+            # donor arc on the donor branch, pasted at `at` on the recipient (dest = insert
+            # position; `at` is a (chrom, pos) locator in the multi-chromosome model)
+            sr = selection.region
+            at_pos = at[1] if isinstance(at, tuple) else at
+            transfer_region = (Region(sr.chromosome, sr.start, sr.length, sr.strand, dest=at_pos)
+                               if sr is not None else None)
             for old, cont, g in zip(segment.donor_old_gids, segment.donor_cont_gids, segment.genes):
                 log.add(EventRecord(
                     EventType.TRANSFER, branch.name, t,
                     [GeneOp(old, g.family, "parent"), GeneOp(cont, g.family, "donor_copy"),
                      GeneOp(g.gid, g.family, "transfer_copy")],
-                    donor=branch.name, recipient=recipient.name,
+                    donor=branch.name, recipient=recipient.name, region=transfer_region,
                 ))
             self._reconcile_recipient(rec_genome, segment, recipient, t, params, log, rng)
             return (branch, recipient)
@@ -415,13 +467,44 @@ class GenomeSimulator:
             log.add(EventRecord(EventType.LOSS, branch.name, t, loss_group))
             return (branch,)
 
+        if event is EventType.CHROMOSOME_ORIGINATION:
+            new_cid = genome.originate_chromosome(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t, children=(new_cid,)))
+            return (branch,)
+
+        if event is EventType.CHROMOSOME_LOSS:
+            lost_cid, groups = genome.lose_chromosome(rng)
+            for group in groups:  # the genes on the lost chromosome die (gene-tree reconstruction)
+                log.add(EventRecord(EventType.LOSS, branch.name, t, group))
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t, parents=(lost_cid,)))
+            return (branch,)
+
+        if event is EventType.FISSION:
+            src, new_cid = genome.fission(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t,
+                                               parents=(src,), children=(src, new_cid)))
+            return (branch,)
+
+        if event is EventType.FUSION:
+            fused = genome.fusion(rng, params)
+            if fused is None:            # no same-topology partner (mixed circular/linear) — no-op
+                return ()
+            keep, absorbed = fused
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t,
+                                               parents=(keep, absorbed), children=(keep,)))
+            return (branch,)
+
         # duplication / loss / inversion / transposition (one log record per group)
         selection = genome.draw_target(event, rng, params, family=family)
         if (event is EventType.DUPLICATION and self._cap is not None
                 and genome.copy_number(selection.genes[0].family) >= self._cap):
             return ()  # family already at the cap — skip this duplication
-        for group in genome.apply(event, selection, rng, params):
-            log.add(EventRecord(event, branch.name, t, group))
+        groups = genome.apply(event, selection, rng, params)
+        # ``_event_region`` (nucleotide model, set inside apply) carries the paste dest for a
+        # transposition; other models / events fall back to the selection's arc. Read AFTER apply.
+        region = getattr(genome, "_event_region", None) or selection.region
+        for group in groups:
+            log.add(EventRecord(event, branch.name, t, group, region=region))
         return (branch,)
 
     def _reconcile_recipient(self, genome, segment, branch, t, params, log, rng):

@@ -20,7 +20,7 @@ from __future__ import annotations
 from zombi2.genomes.genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from zombi2.genomes.nucleotide_genome import NucleotideGenome, Segment
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
-from zombi2.genomes.gff import read_gff, GffGenome
+from zombi2.genomes.gff import read_gff, read_gff_all, GffGenome
 from zombi2.genomes.rates import (
     RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
     Modifier, ModifiedRates, BranchModifier, FamilyModifier, EventWeight,
@@ -37,7 +37,7 @@ from zombi2.parallel import run_replicates
 __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
-    "NucleotideResult", "Block", "read_gff", "GffGenome",
+    "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
     "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
     "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",

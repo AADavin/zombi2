@@ -43,6 +43,10 @@ class EventType(Enum):
     # --- gene-order rearrangements (ordered genomes only) ---
     INVERSION = "I"
     TRANSPOSITION = "P"
+    # A translocation moves an arc from one chromosome to *another* within the same genome (needs
+    # >= 2 chromosomes). Like transposition it re-mints no lineage — it only changes which replicon
+    # carries the material. Nucleotide model; opted in via supported_events(), NOT in STOCHASTIC_EVENTS.
+    TRANSLOCATION = "X"
     # --- intergenic indels (nucleotide model only) ---
     # INSERTION lays down a run of novel (random) nucleotides inside an intergene stretch
     # (a fresh source, its own block); DELETION removes a run from within a single intergene.
@@ -56,6 +60,16 @@ class EventType(Enum):
     # it is not in STOCHASTIC_EVENTS); it surfaces only in the post-processed per-block
     # records, where a LOSS row with role "pseudogenized" is rewritten to this event.
     PSEUDOGENIZATION = "G"
+    # --- chromosome-tier events (ordered genomes only; off by default, rate 0) ---
+    # One tier above the gene events: they act on whole chromosomes. Fission / fusion only move genes
+    # between chromosomes (gene lineages untouched); chromosome loss ends the lineages on it (logged
+    # as ordinary gene LOSS rows). Opted into per-genome via supported_events(), so NOT in
+    # STOCHASTIC_EVENTS; recorded in a separate chromosome stream (ChromosomeEvent), not the
+    # per-family gene log.
+    CHROMOSOME_ORIGINATION = "CO"   # a de-novo replicon (a plasmid) appears
+    CHROMOSOME_LOSS = "CL"          # a whole chromosome, and every gene on it, is lost
+    FISSION = "FI"                  # one chromosome splits into two
+    FUSION = "FU"                   # two chromosomes merge into one
     # --- structural markers (logged, never sampled) ---
     SPECIATION = "S"
     LEAF = "F"
@@ -82,6 +96,7 @@ class Region:
     start: int
     length: int
     strand: int = 1
+    dest: int | None = None  # paste / insert position (transposition; transfer recipient insert)
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,20 +199,43 @@ class EventRecord:
     donor: str | None = None
     recipient: str | None = None
     insertion: object | None = None
+    region: Region | None = None  # physical arc of the operation (ordered / nucleotide models)
 
     @property
     def family(self) -> str:
         return self.genes[0].family
 
 
+@dataclass(slots=True)
+class ChromosomeEvent:
+    """A chromosome-tier event, recorded with the source and resulting chromosome ids so a karyotype
+    genealogy can be reconstructed. ``event`` is one of ``CHROMOSOME_ORIGINATION`` /
+    ``CHROMOSOME_LOSS`` / ``FISSION`` / ``FUSION``. ``parents`` are the source chrom_ids (empty for
+    origination) and ``children`` the resulting ones (empty for loss)."""
+
+    event: EventType
+    branch: str
+    time: float
+    parents: tuple[int, ...] = ()
+    children: tuple[int, ...] = ()
+
+
 @dataclass
 class EventLog:
-    """A chronological collection of :class:`EventRecord`s with per-family views."""
+    """A chronological collection of :class:`EventRecord`s with per-family views.
+
+    ``chromosome_records`` is a parallel stream of :class:`ChromosomeEvent`s (fission / fusion /
+    chromosome origination / loss) — the karyotype genealogy, kept apart from the per-family gene
+    records because a chromosome event need not concern any single gene family."""
 
     records: list[EventRecord] = field(default_factory=list)
+    chromosome_records: list[ChromosomeEvent] = field(default_factory=list)
 
     def add(self, record: EventRecord) -> None:
         self.records.append(record)
+
+    def add_chromosome(self, record: ChromosomeEvent) -> None:
+        self.chromosome_records.append(record)
 
     def by_family(self) -> dict[str, list[EventRecord]]:
         out: dict[str, list[EventRecord]] = {}
