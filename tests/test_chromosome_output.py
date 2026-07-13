@@ -373,8 +373,17 @@ def test_cli_translocation_moves_material_across_chromosomes(tmp_path):
     assert crossed
 
 
-def test_cli_translocation_rejected_for_ordered(tmp_path):
+def test_cli_translocation_accepted_for_ordered(tmp_path):
+    """The ordered model now supports translocation too (cross-chromosome move); accepting it with a
+    single chromosome is a harmless no-op, exactly as the nucleotide model treats it."""
     tree = _species(tmp_path)
-    with pytest.raises(SystemExit):  # translocation is a nucleotide-only, cross-chromosome move
-        main(["genomes", "--tree", tree, "--genome-model", "ordered", "--translocation", "0.1",
+    rc = main(["genomes", "--tree", tree, "--genome-model", "ordered", "--translocation", "0.1",
+               "--seed", "1", "-o", str(tmp_path / "x")])
+    assert rc == 0
+
+
+def test_cli_translocation_rejected_for_unordered(tmp_path):
+    tree = _species(tmp_path)
+    with pytest.raises(SystemExit):  # the unordered model has no chromosomes to move between
+        main(["genomes", "--tree", tree, "--genome-model", "unordered", "--translocation", "0.1",
               "--seed", "1", "-o", str(tmp_path / "x")])
