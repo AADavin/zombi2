@@ -82,8 +82,15 @@ class MuSSE:
         A = np.vstack([self.Q.T[:-1], np.ones(self.k)])
         b = np.zeros(self.k)
         b[-1] = 1.0
-        pi = np.clip(np.linalg.solve(A, b), 0.0, None)
-        return pi / pi.sum()
+        try:
+            pi = np.clip(np.linalg.solve(A, b), 0.0, None)
+        except np.linalg.LinAlgError:
+            # a reducible character (a frozen/absorbing state, or several absorbing states) has no
+            # unique stationary distribution; fall back to uniform. This vector only seeds the root
+            # state, so a degenerate character need not crash the simulation with a LinAlgError.
+            pi = np.ones(self.k)
+        s = pi.sum()
+        return pi / s if s > 0 else np.full(self.k, 1.0 / self.k)
 
     def null(self, kind="neutral", *, n_hidden=2, hidden_switch=None, **kwargs):
         """Return a decoupled **null** model — the same process with the ``traits:species``
@@ -513,7 +520,10 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages, clado=None)
         if n == 0:
             return None
         if n_tips is not None and n == n_tips:
-            end = t
+            # present strictly after the N-th birth: last event + Exp(total event rate over the N
+            # live lineages), the standard SSE-conditioned-on-N convention (avoids zero-length tips)
+            R = sum(lambdas[s.state] + mus[s.state] + out_rate[s.state] for s in live)
+            end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
             break
         if n > max_lineages:
             raise RuntimeError(
@@ -599,7 +609,9 @@ def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages, clado=None):
         if n == 0:
             return None
         if n_tips is not None and n == n_tips:
-            end = t
+            # present strictly after the N-th birth: last event + Exp(total rate); see _simulate_sse
+            R = sum(spec(L[1]) + ext(L[1]) for L in live)
+            end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
             break
         if n > max_lineages:
             raise RuntimeError(

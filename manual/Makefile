@@ -61,5 +61,12 @@ build/supp-%.pdf: supplements/%.md $(DEPS)
 	  --metadata=title:"ZOMBI2 — Language-Model-Guided Selection" \
 	  --metadata=subtitle:"An experimental supplement (zombi2.experimental)" $< -o $@
 
+# per-supplement title (an explicit rule overrides the pattern rule above for this one target)
+build/supp-incomplete-lineage-sorting.pdf: supplements/incomplete-lineage-sorting.md $(DEPS)
+	@mkdir -p build
+	$(PANDOC) $(COMMON) --toc --toc-depth=2 \
+	  --metadata=title:"ZOMBI2 — Incomplete Lineage Sorting" \
+	  --metadata=subtitle:"An experimental supplement (zombi2.experimental)" $< -o $@
+
 clean:
 	rm -rf build figures

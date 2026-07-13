@@ -56,6 +56,42 @@ def ale_base(tmp_path):
     return base
 
 
+# The dated model (ALEml) writes un-prefixed files (.ml_rec/.Ts/.cons_tree) and a branch
+# table with NO Originations column — "# of Duplications Transfers Losses copies" (6 fields).
+CONS_TREE = "#constructor string\n((A:1,B:1):1,C:1);\n"
+
+TS = "#from\tto\tfreq\nA\tB\t0.4\n"
+
+ML_REC = textwrap.dedent("""\
+    #ALEml using ALE v1.0
+    S:\t((A:1,B:1):1,C:1):0;
+
+    Input ale from:\ttest.ale
+    >logl: -37.250000
+    rate of\tDuplications\tTransfers\tLosses
+    ML \t0.2\t0.08\t0.12
+    1\treconciled G-s:
+    ((A:1,B:1):1,C:1);
+
+    # of\tDuplications\tTransfers\tLosses\tSpeciations
+    Total \t1\t2\t3\t4
+    # of\tDuplications\tTransfers\tLosses\tcopies
+    S_terminal_branch\tA(0)\t0\t0.94\t0\t1
+    S_terminal_branch\tB(1)\t0\t1\t0\t1
+    S_internal_branch\t3\t1\t0\t2\t1
+    """)
+
+
+@pytest.fixture
+def ale_dated_base(tmp_path):
+    """Write a tiny *dated* ALE output triple (un-prefixed files) and return its base path."""
+    base = tmp_path / "test.ale"
+    (tmp_path / "test.ale.cons_tree").write_text(CONS_TREE)
+    (tmp_path / "test.ale.Ts").write_text(TS)
+    (tmp_path / "test.ale.ml_rec").write_text(ML_REC)
+    return base
+
+
 # --------------------------------------------------------------------------- #
 # import surface
 # --------------------------------------------------------------------------- #
@@ -113,6 +149,25 @@ def test_ale_summary_and_branch_stats(ale_base):
     # terminal branch id "A(0)" is cleaned to "A"
     assert set(bs["branch_id"]) == {"A", "B", "3"}
     assert bs.loc[bs["branch_id"] == "B", "transfers"].iloc[0] == pytest.approx(1)
+
+
+def test_ale_dated_ml_rec(ale_dated_base):
+    # the dated model writes un-prefixed files (.ml_rec/.Ts/.cons_tree); the parser resolves them,
+    p = ALEParser(str(ale_dated_base) + ".ml_rec")
+    assert p.base_path == ale_dated_base
+    assert p.files_exist() == {"consensus_tree": True, "transfers": True, "reconciliation": True}
+    # ... reads the ML rates and log-likelihood,
+    assert p.get_log_likelihood() == pytest.approx(-37.25)
+    assert p.get_ml_rates() == pytest.approx({"duplications": 0.2, "transfers": 0.08, "losses": 0.12})
+    # ... and — the actual regression — parses the 6-field branch table that has NO Originations
+    # column (older parsers required 7 fields and dropped every row here).
+    bs = p.get_branch_statistics()
+    assert set(bs["branch_id"]) == {"A", "B", "3"}
+    assert bs.loc[bs["branch_id"] == "A", "transfers"].iloc[0] == pytest.approx(0.94)
+    assert bs.loc[bs["branch_id"] == "3", "losses"].iloc[0] == pytest.approx(2)
+    # missing columns default to 0: dated files carry no Originations and no singleton block
+    assert (bs["originations"] == 0).all()
+    assert "singletons" not in bs.columns
 
 
 def test_ale_consensus_tree(ale_base):

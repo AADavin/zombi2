@@ -174,27 +174,62 @@ def read_newick(newick: str) -> Tree:
         raise ValueError("empty Newick string — is the tree file empty?")
     i = 0
 
+    def skip_ws() -> None:
+        # unquoted whitespace (spaces, newlines from a pretty-printed / line-wrapped file) is
+        # insignificant in Newick — skip it between tokens so it never leaks into a node name
+        nonlocal i
+        while i < len(s) and s[i].isspace():
+            i += 1
+
+    def read_name() -> str:
+        # a quoted label ('...' or "...") is read verbatim — embedded whitespace preserved, a
+        # doubled quote ('') unwrapped to one — so e.g. 'Homo sapiens' stays a single name. An
+        # unquoted label runs to the next whitespace or structural char, so insignificant
+        # whitespace never leaks in.
+        nonlocal i
+        if i < len(s) and s[i] in "'\"":
+            quote = s[i]
+            i += 1
+            chars: list[str] = []
+            while i < len(s):
+                if s[i] == quote:
+                    if i + 1 < len(s) and s[i + 1] == quote:   # doubled quote = a literal quote
+                        chars.append(quote)
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                chars.append(s[i])
+                i += 1
+            return "".join(chars)
+        start = i
+        while i < len(s) and s[i] not in ",():;" and not s[i].isspace():
+            i += 1
+        return s[start:i]
+
     def parse() -> TreeNode:
         nonlocal i
         children = []
+        skip_ws()
         if i < len(s) and s[i] == "(":
             i += 1
             while True:
                 children.append(parse())
+                skip_ws()
                 if s[i] == ",":
                     i += 1
                 elif s[i] == ")":
                     i += 1
                     break
-        start = i
-        while i < len(s) and s[i] not in ",():;":
-            i += 1
-        name = s[start:i]
+        skip_ws()
+        name = read_name()
         length = 0.0
+        skip_ws()
         if i < len(s) and s[i] == ":":
             i += 1
+            skip_ws()
             start = i
-            while i < len(s) and s[i] not in ",():;":
+            while i < len(s) and s[i] not in ",():;" and not s[i].isspace():
                 i += 1
             length = float(s[start:i])
         node = TreeNode(name=name, time=0.0)

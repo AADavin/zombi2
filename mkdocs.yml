@@ -67,6 +67,10 @@ markdown_extensions:
   - tables
   - attr_list
   - md_in_html
+  # Lets docs/changelog.md pull in the repo-root CHANGELOG.md (single source of truth).
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
 
 nav:
   - Home: index.md
@@ -81,14 +85,18 @@ nav:
       - Coevolution: guide/coevolution.md
       - Null models of coevolution: guide/coevolution_nulls.md
       - Running in parallel: guide/parallel.md
-  - Cookbook: cookbook.md
-  - Examples:
-      - RED benchmark (Snakemake): examples/red-benchmark.md
+  - Cookbook:
+      - cookbook/index.md
+      - Inversion rate from synteny: cookbook/synteny.md
+      - Can you trust RED?: cookbook/red-validation.md
+      - Core-gene turnover rates: cookbook/universal-core-rates.md
+  - Examples: examples.md
   - Experimental:
-      - Language-model selection: experimental/language-model-selection.md
+      - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md
   - Tools:
       - Overview: tools/index.md
       - Reconciliation likelihood: tools/reconciliation-likelihood.md
+      - Undated simulation: tools/undated-simulation.md
       - Relative Evolutionary Divergence: tools/red.md
       - Tree distances: tools/treedist.md
       - Reconciliation accuracy: tools/recon-accuracy.md
@@ -102,6 +110,7 @@ nav:
       - Comparison with ZOMBI 1: comparison.md
       - Validation: validation.md
       - References: references.md
+      - Changelog: changelog.md
   - Contributing:
       - Overview: contributing.md
       - Adding a model: contributing/adding-a-model.md

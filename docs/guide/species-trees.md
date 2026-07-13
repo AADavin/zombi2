@@ -4,6 +4,12 @@ ZOMBI2 simulates the species tree **backward in time** as a *reconstructed birth
 
 The species tree is the scaffold you later simulate genomes, traits, or sequences along. This page covers how to simulate it, the two constant-rate models (birth–death and Yule), the advanced heterogeneous-rate models, and how to recover the dead ("ghost") lineages that the reconstructed tree hides.
 
+!!! note "“Coalescent point process” ≠ multispecies coalescent"
+    The backward sampler is a *coalescent point process* — a way to draw the reconstructed
+    birth–death tree (Hartmann, Wong & Stadler 2010). It is **not** the *multispecies
+    coalescent* used to model incomplete lineage sorting (gene-tree/species-tree discordance);
+    that is a separate process and is not part of this command.
+
 ## Simulating a species tree
 
 ```python
@@ -96,15 +102,19 @@ yule_fwd = simulate_species_tree(Yule(1.0), age=3.0, direction="forward", seed=1
 
 ## Advanced diversification
 
-These models extend the basic birth–death process by letting the rates vary — through time, across lineages, or at a carrying capacity — plus a mass-extinction overlay that lays survival pulses on top of any of them. Unlike constant-rate birth–death and Yule, none of these have a closed-form reconstructed process, so they are **forward only**: ZOMBI2 grows the tree in time and keeps extinct lineages. Speciation still happens at rate `birth` (λ) and extinction at rate `death` (μ), but now those rates are allowed to change.
+These models extend the basic birth–death process by letting the rates vary — through time, across lineages, or at a carrying capacity — plus a mass-extinction overlay that lays survival pulses on top of any of them. **Most** of them have no closed-form reconstructed process, so they are **forward only**: ZOMBI2 grows the tree in time and keeps extinct lineages. The **episodic (skyline)** model is the exception — it *does* have a (numerically inverted) reconstructed CDF, so it runs backward as well as forward. Speciation still happens at rate `birth` (λ) and extinction at rate `death` (μ), but now those rates are allowed to change.
 
-| Model | Rates | Reach for it when |
-| --- | --- | --- |
-| **Episodic** (skyline) | piecewise-constant through epochs | rates changed at known times |
-| **ClaDS** | per-lineage, drifting at each split | rate heterogeneity scattered across the tree |
-| **Diversity-dependent** | λ declines toward a carrying capacity `K` | a diversity-dependent slowdown |
-| **Clade-shift** | a scheduled shift on part of the tree | one subclade radiates or slows |
-| **Mass extinctions** | a survival pulse overlaid on any of the above | a pulse of extinction at set times |
+The **Runs** column below is the quick answer to "does this model need `--mode forward`?" (constant-rate birth–death and Yule, in the [basic section](#basic-models-birthdeath-yule) above, also run both ways):
+
+| Model | Rates | Runs | Reach for it when |
+| --- | --- | :--: | --- |
+| **Episodic** (skyline) | piecewise-constant through epochs | backward + forward | rates changed at known times |
+| **ClaDS** | per-lineage, drifting at each split | forward only | rate heterogeneity scattered across the tree |
+| **Diversity-dependent** | λ declines toward a carrying capacity `K` | forward only | a diversity-dependent slowdown |
+| **Clade-shift** | a scheduled shift on part of the tree | forward only | one subclade radiates or slows |
+| **Mass extinctions** | a survival pulse overlaid on any of the above | forward only | a pulse of extinction at set times |
+| **Fossilized birth–death** | serial (fossil) sampling ψ through time | forward only | dated / fossil tips (FBD) |
+| **Ghost lineages** | un-prunes the reconstructed tree | backward only | extinct lineages made visible ([below](#ghost-lineages)) |
 
 ### Episodic (skyline) birth–death
 
@@ -232,9 +242,34 @@ CLI: `zombi2 species --mode forward --age 5 --mass-extinction 1.0 0.75 --mass-ex
 out (the pulse), pruning many lineages at once.</figcaption>
 </figure>
 
+### Fossilized birth–death (dated / fossil tips)
+
+The forward simulator can also **serially sample** lineages through time — the
+**fossilized birth–death** (FBD) process. `fossilization` (ψ) is the fossil-sampling rate,
+`removal` (`r < 1`) keeps sampled ancestors, and `sampling_fraction` (ρ) samples only a fraction
+of the extant tips. All three are **forward only** (they retain extinct / fossil lineages), so an
+extant-only tree is written alongside the complete one.
+
+```bash
+# dated fossil tips through time, keeping sampled ancestors (r = 1)
+zombi2 species --mode forward --age 6 --fossilization 0.3 --seed 1 -o fbd/
+```
+
+```python
+from zombi2.species import BirthDeath, simulate_species_tree
+
+fbd = BirthDeath(birth=1.0, death=0.3, fossilization=0.3, removal=1.0)
+tree = simulate_species_tree(fbd, age=6.0, direction="forward", seed=1)
+```
+
+Skyline (episodic) FBD and the occurrence birth–death process are [not yet
+implemented](#not-yet-implemented).
+
 ### Command line
 
-`--diversification` selects the rate process. All of these run **forward only** (`--mode forward`).
+`--diversification` selects a heterogeneous-rate process. ClaDS, diversity-dependent and clade
+shifts (plus the mass-extinction overlay) run **forward only** (`--mode forward`); the **episodic
+(skyline)** model shown here also runs backward — drop `--mode forward` and give `--tips`.
 
 ```bash
 # ClaDS, forward
@@ -405,7 +440,7 @@ Intuition: a surviving lineage still speciates at rate `λ`; each side-branch in
 
 **Transfers from the dead.** Once grafted, ghosts are ordinary branches: the forward gene simulator sees them in `branches_alive_at(t)`, so horizontal transfers can draw ghost donors/recipients — a gene from a ghost donor surfaces in reconciliation as a transfer from a lineage absent from the sampled species tree (Szöllősi, Tannier, Lartillot & Daubin 2013).
 
-See also the [cookbook](../cookbook.md#add-ghost-extinct-lineages) for the short recipe.
+See also the [examples](../examples.md#add-ghost-extinct-lineages) for the short recipe.
 
 ## References
 

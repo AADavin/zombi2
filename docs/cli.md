@@ -17,7 +17,8 @@ zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1
 zombi2 sequence --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq/
 ```
 
-`species` writes only `species_tree.nwk`; `genomes` reads a tree from `--tree` and writes the
+`species` writes `species_tree.nwk` (plus `species_nodes.tsv` and a run log; forward mode also
+writes the extant-only tree); `genomes` reads a tree from `--tree` and writes the
 full output (see [gene trees & output](guide/genomes.md#gene-trees-output)); `trait` reads a tree and
 writes the tip and ancestral trait values (see [trait evolution](guide/traits.md)). To **couple**
 levels so one drives another, see [`coevolve`](guide/coevolution.md).
@@ -263,12 +264,17 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [ordered/nucleotide] inversion / transposition (a segment moved elsewhere in the genome) rates — per gene copy for `ordered`, per nucleotide for `nucleotide` |
-| `--initial-chromosomes` | [nucleotide] number of root chromosomes seeded at the root (default: 1) |
+| `--translocation` | [nucleotide] translocation rate (per nucleotide): an arc *moves* to a **different** chromosome of the same genome (needs >1 chromosome; the intra-genome counterpart of transposition, distinct from a transfer's HGT copy). Default 0 |
+| `--n-chromosomes N` | [ordered/nucleotide] number of chromosomes seeded at the root (default 1). [ordered] the root's initial families are spread across them; [nucleotide] each is an independent full-length copy of the root chromosome (its own source). Gene rearrangements stay within a chromosome, while a transfer may land a copy on any chromosome. With `N > 1` the run also writes the layout (`Gene_order.tsv` for ordered / `Chromosomes.tsv` for nucleotide) |
+| `--linear-chromosomes` | [ordered] chromosomes are linear — segments never wrap the origin (default: circular, as for bacteria). Nucleotide chromosomes are always circular |
+| `--fission` `--fusion` | [ordered/nucleotide] chromosome-tier rates (per chromosome, default 0): a chromosome splits in two (linear: one breakpoint; circular: two) / two chromosomes merge into one |
+| `--chromosome-origination` `--chromosome-loss` | [ordered/nucleotide] chromosome-tier rates (default 0): a de-novo replicon (a *plasmid*) appears (per genome) / a whole chromosome and its genes are lost (per chromosome). Any chromosome-tier rate also writes `Karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy) |
+| `--initial-chromosomes` | [nucleotide] **deprecated** alias for `--n-chromosomes` |
 | `--root-length` `--mean-length` | [ordered/nucleotide] root chromosome length (nt) / mean inversion–transposition segment length (geometric; genes for ordered, nt for nucleotide) |
-| `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies the chromosome length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. `--gff-seqid ID` picks a sequence in a multi-record file |
+| `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies each sequence's length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. A **multi-sequence** GFF seeds **one chromosome per sequence** (a chromosome + its plasmids); `--gff-seqid ID` instead picks a single sequence. `--write ancestral` (and a multi-record `--genome-fasta`) then reconstructs the DNA of each replicon, and `--write bed` annotates each one as its own BED contig. |
 | `--genes FILE` | [nucleotide] BED/TSV of gene intervals (`start end [name]`) on the root chromosome — enables *genic mode* (genes are never split; genes & intergenes recovered as separate tree sets) |
 | `--pseudogenization` `--replacement` | [nucleotide, genic] probability a loss demotes a gene to intergene (sequence retained) / a transfer is a homologous replacement |
-| `--write {profiles,trace,trees,events,transfers,summary,branch_events,ancestral,bed,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the counts-only fast path; `trace` (± `profiles`) → the compact `Events_trace.tsv` fast path; `branch_events` → per-species-branch event counts (`Branch_events.tsv`, with an `is_extant` flag); `ancestral`/`bed` are nucleotide-only ([see below](#nucleotide-genomes-genome-model-nucleotide)) — see below |
+| `--write {profiles,trace,trees,events,transfers,summary,branch_events,layout,karyotype,ancestral,bed,all}` | which files to write (one or more; default `profiles trees`); `profiles` alone → the counts-only fast path; `trace` (± `profiles`) → the compact `Events_trace.tsv` fast path; `branch_events` → per-species-branch event counts (`Branch_events.tsv`, with an `is_extant` flag); `layout`/`karyotype` are ordered-only (`Gene_order.tsv` / `Karyotype_trace.tsv`, added automatically for a multi-chromosome or fission/fusion run); the nucleotide model writes the equivalent `Chromosomes.tsv` / `Karyotype_trace.tsv` automatically for a multi-chromosome or chromosome-tier run; `ancestral`/`bed` are nucleotide-only ([see below](#nucleotide-genomes-genome-model-nucleotide)) — see below |
 | `--sparse` | write the profile as a sparse `Profiles_sparse.tsv` instead of the dense matrix (needs `profiles` in `--write`) |
 | `--annotate-species` | label internal gene-tree nodes `<gid>\|<species-branch>` (e.g. `g570\|i5`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory |

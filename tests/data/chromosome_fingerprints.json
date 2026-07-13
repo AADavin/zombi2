@@ -1,0 +1,15 @@
+{
+  "nucleotide/genic/s6": "77633ab380a1283e99b7c183ef3c577cf3527b38027880130b8ffdeb08b30980",
+  "nucleotide/indels/s5": "fbba0b4658a4e870801bf6ee10309420332370d99ba0dbec9a8ef7fa4e385e36",
+  "nucleotide/multi3/s9": "4200b6ebacf5fd7df15fcc1df94f8de86a771ff41f9c72ae8384baad50f1f549",
+  "nucleotide/origination/s4": "9662cb78b19eb2689c891723892cf43a405eef0245a6a3afae6ff7b18f3033bc",
+  "nucleotide/rich-multi/s2": "9e909ff5d41990bcd214624112364a8e4df5615a41f58758dc8bf4900f40954c",
+  "nucleotide/single/s7": "de7a38b3d2bcabf4f74a07d8ecf724d62253bee91b6cbd1d63865908e2639983",
+  "nucleotide/transfer/s3": "483caecdf00573ad0111e891e9bdd1265e313d68a86b789c39eb159c8ad393f1",
+  "ordered/multi3-circular/s4": "4e1e77325b732ce6cc12bacd8d498eeb2d2407256a9623116b89e55c5cb8c534",
+  "ordered/multi3-linear/s6": "9efe2ee94efe2bb43fae1e36ddbf8013908d2dd3b82c8bfcee1df9aa8c2a03c7",
+  "ordered/multi4-circular/s4": "83fecc5402de81cb9eb700f2419d139208d83533084b914f01ab7910f479fc04",
+  "ordered/multi8-linear/s5": "f7d2a8cec31115f8a2bf365a49c49db36c7ea158d2efe8c21800f03dbeeebb52",
+  "ordered/single-circular/s1": "abfbfbec2e657ebfbf418dbf9ad7ed495b8df194dec43f0fb8e1bea13073c17c",
+  "ordered/single-circular/s7": "9906bf162ce3357fecb0e915b946957f75883427ff96132a5ec6e4027e399a58"
+}
