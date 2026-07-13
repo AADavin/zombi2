@@ -21,6 +21,7 @@ import pytest
 from zombi2 import BirthDeath, simulate_species_tree
 from zombi2.genomes.events import EventType, Region, Selection, TargetParams
 from zombi2.genomes.genome import IdManager
+from zombi2.genomes.gff import read_gff_all
 from zombi2.genomes.nucleotide_genome import NucleotideGenome, SegmentRegistry
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
 
@@ -321,3 +322,61 @@ def test_translocation_needs_the_python_engine():
     with pytest.raises(ValueError, match="translocation"):
         simulate_nucleotide_genomes(_tree(seed=2), initial_chromosomes=2, translocation=0.02,
                                     root_length=200, extension=0.9, output="profiles", seed=2)
+
+
+# --------------------------------------------------------------------------- #
+# Integration / regression: the whole karyotype stack composing on a multi-sequence GFF
+# (a compact stand-in for the real V. cholerae chromosome+plasmid stress test)
+# --------------------------------------------------------------------------- #
+_STRESS_GFF = """\
+##gff-version 3
+##sequence-region chrom 1 400
+chrom\t.\tgene\t30\t90\t.\t+\t.\tID=gene-c1;locus_tag=c1
+chrom\t.\tgene\t150\t230\t.\t-\t.\tID=gene-c2;locus_tag=c2
+chrom\t.\tgene\t300\t360\t.\t+\t.\tID=gene-c3;locus_tag=c3
+##sequence-region plasmid 1 200
+plasmid\t.\tgene\t20\t80\t.\t+\t.\tID=gene-p1;locus_tag=p1
+plasmid\t.\tgene\t120\t170\t.\t-\t.\tID=gene-p2;locus_tag=p2
+"""
+
+
+def test_multichromosome_gff_survives_translocation_fission_fusion(tmp_path):
+    """A multi-sequence GFF seeds a chromosome + a plasmid; with translocation, fission and fusion
+    all active the karyotype evolves — chromosome counts vary and both tier events fire — yet because
+    these are all *rearrangement* events (nothing gained or lost) every leaf conserves the seed's
+    total content exactly, keeps unique segment ids, and still reconstructs into gene trees.
+
+    This is the committed regression form of the real V. cholerae (chromosome + chromosome II)
+    stress test: seed a real multi-replicon architecture, churn its karyotype, and prove content is
+    only ever *reorganised*, never created or destroyed.
+    """
+    gff = tmp_path / "genome.gff"
+    gff.write_text(_STRESS_GFF)
+    reps = read_gff_all(str(gff))
+    roots = [(g.length, g.genes) for g in reps]
+    seed_bp = sum(g.length for g in reps)               # 400 + 200; every event preserves it
+
+    fired = Counter()
+    counts_seen = set()
+    crossed_any = False
+    for seed in range(8):
+        res = simulate_nucleotide_genomes(
+            _tree(seed=seed, n_tips=6), root_chromosomes=roots,
+            inversion=0.01, translocation=0.03, fission=0.3, fusion=0.3, extension=0.9, seed=seed)
+        fired += Counter(r.event.value for r in res.event_log.chromosome_records)
+        for g in res.leaf_genomes.values():
+            assert g.size() == seed_bp                  # content conserved — reorganised, never lost
+            ids = [s.seg_id for s in g._iter_segments()]
+            assert len(ids) == len(set(ids))            # no duplicate segment ids
+            assert len(g.chromosomes) >= 1              # a genome always keeps >= 1 chromosome
+            counts_seen.add(len(g.chromosomes))
+            on = {}
+            for cid, chrom in g.chromosomes.items():
+                for s in chrom.elements:
+                    on.setdefault(s.source, set()).add(cid)
+            crossed_any = crossed_any or any(len(c) > 1 for c in on.values())
+        assert len(res.block_gene_trees()) == len(res.blocks)   # reconstruction survives the churn
+
+    assert fired["FI"] >= 1 and fired["FU"] >= 1        # both tier events actually exercised
+    assert len(counts_seen) >= 2                        # the karyotype genuinely varied (not a no-op)
+    assert crossed_any                                  # translocation moved material across chromosomes
