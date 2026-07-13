@@ -101,6 +101,7 @@ nav:
       - Tree distances: tools/treedist.md
       - Reconciliation accuracy: tools/recon-accuracy.md
       - Parsing reconciliation output: tools/reconciliation-parsing.md
+      - Gene-order export: tools/geneorder-export.md
   - Reference:
       - Command line: cli.md
       - Python API: reference/api.md
