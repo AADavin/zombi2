@@ -2430,9 +2430,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     else:
         genes = None
     genic = bool(genes) or root_chromosomes is not None
-    if root_chromosomes is not None and (ancestral or bed or args.genome_fasta):
-        raise ValueError("--write ancestral/bed and --genome-fasta are not yet supported for a "
-                         "multi-sequence GFF; use --gff-seqid to pick a single sequence for those")
+    if root_chromosomes is not None and bed:
+        raise ValueError("--write bed is not yet supported for a multi-sequence GFF; use "
+                         "--gff-seqid to pick a single sequence")
     if bed and not genic:
         raise ValueError("--write bed annotates genes on each genome, so it needs gene "
                          "coordinates: supply --genes or --gff")
@@ -2492,7 +2492,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         if genic:
             _write_pseudogenizations(args.out, result)
     if ancestral:
-        _write_ancestral(args.out, result, tree, args, gff_info)
+        _write_ancestral(args.out, result, tree, args, gff_info, gff_all)
     if bed:
         _write_bed(args.out, result, tree, gff_info)
     # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
@@ -2548,26 +2548,43 @@ def _write_nucleotide_karyotype(out: str, result) -> None:
         f.write("\n".join(kar) + "\n")
 
 
-def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
+def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> None:
     """Simulate sequences and write the genome (architecture + gzipped DNA) at every node.
 
-    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome;
-    ``Genomes/<node>.fasta.gz`` — its full assembled DNA (the root reproduces the input genome);
-    ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is seeded
-    from ``--genome-fasta`` (the real genome) when given, else drawn at random.
+    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome
+    (a ``chromosome`` column keeps replicons apart); ``Genomes/<node>.fasta.gz`` — its assembled DNA,
+    one FASTA record per chromosome for a multi-chromosome genome (else one record, the whole
+    genome); ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is
+    seeded from ``--genome-fasta`` when given (a multi-record FASTA for a multi-sequence GFF, matched
+    to each replicon by sequence name), else drawn at random.
     """
     from zombi2.sequences.models import make_model, GammaRates, read_fasta, write_fasta
     model = make_model(args.subst_model, kappa=args.kappa,
                        freqs=args.base_freqs, rates=args.gtr_rates)
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
+    multi = gff_all is not None and len(gff_all) > 1
     root_fasta = None
     if args.genome_fasta:
         fa = read_fasta(args.genome_fasta)
-        seqid = gff_info.seqid if gff_info is not None else None
-        root_fasta = fa[seqid] if seqid in fa else next(iter(fa.values()))
-        if len(root_fasta) != args.root_length:
-            raise ValueError(f"--genome-fasta sequence is {len(root_fasta)} bp but the genome is "
-                             f"{args.root_length} bp; supply the matching chromosome FASTA")
+        if multi:
+            # a multi-record FASTA: match each replicon's record (by GFF sequence name) to its source
+            root_chroms = list(result.node_genomes[tree.root].chromosomes.values())
+            root_fasta = {}
+            for g, chrom in zip(gff_all, root_chroms):
+                if g.seqid not in fa:
+                    raise ValueError(f"--genome-fasta has no record {g.seqid!r} "
+                                     f"(have: {', '.join(sorted(fa))})")
+                dna = fa[g.seqid]
+                if len(dna) != g.length:
+                    raise ValueError(f"--genome-fasta record {g.seqid} is {len(dna)} bp but the GFF "
+                                     f"says {g.length} bp")
+                root_fasta[chrom.elements[0].source] = dna
+        else:
+            seqid = gff_info.seqid if gff_info is not None else None
+            root_fasta = fa[seqid] if seqid in fa else next(iter(fa.values()))
+            if len(root_fasta) != args.root_length:
+                raise ValueError(f"--genome-fasta sequence is {len(root_fasta)} bp but the genome is "
+                                 f"{args.root_length} bp; supply the matching chromosome FASTA")
     result.simulate_sequences(model, gamma=gamma, root_fasta=root_fasta,
                               subst_rate=args.subst_rate, seed=args.seed)
 
@@ -2577,15 +2594,20 @@ def _write_ancestral(out: str, result, tree, args, gff_info) -> None:
     os.makedirs(gdir, exist_ok=True)
     for node in tree.nodes_preorder():
         name = node.name
-        lines = ["order\tblock\tkind\tgene_id\tstrand\tlength"]
-        for i, (aid, strand) in enumerate(result.node_mosaic(node)):
-            a = result._block_by_id[aid]
-            lines.append(f"{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
-                         f"{'+' if strand > 0 else '-'}\t{a.length}")
+        mosaics = result.node_mosaics(node)      # {chrom_id: [(block_id, strand), ...]}
+        seqs = result.node_sequences(node)        # {chrom_id: dna}
+        lines = ["chromosome\torder\tblock\tkind\tgene_id\tstrand\tlength"]
+        for cid, mosaic in mosaics.items():
+            for i, (aid, strand) in enumerate(mosaic):
+                a = result._block_by_id[aid]
+                lines.append(f"{cid}\t{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
+                             f"{'+' if strand > 0 else '-'}\t{a.length}")
         with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
             f.write("\n".join(lines) + "\n")
-        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), {name: result.node_sequence(node)},
-                    gzip_out=True)
+        # one FASTA record per chromosome (multi-chromosome), else one record for the whole genome
+        records = ({name: next(iter(seqs.values()))} if len(seqs) == 1
+                   else {f"{name}_chr{cid}": dna for cid, dna in seqs.items()})
+        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), records, gzip_out=True)
 
     aln_dir = os.path.join(out, "Gene_alignments")
     os.makedirs(aln_dir, exist_ok=True)
