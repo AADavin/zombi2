@@ -2430,9 +2430,6 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     else:
         genes = None
     genic = bool(genes) or root_chromosomes is not None
-    if root_chromosomes is not None and bed:
-        raise ValueError("--write bed is not yet supported for a multi-sequence GFF; use "
-                         "--gff-seqid to pick a single sequence")
     if bed and not genic:
         raise ValueError("--write bed annotates genes on each genome, so it needs gene "
                          "coordinates: supply --genes or --gff")
@@ -2494,7 +2491,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
     if ancestral:
         _write_ancestral(args.out, result, tree, args, gff_info, gff_all)
     if bed:
-        _write_bed(args.out, result, tree, gff_info)
+        _write_bed(args.out, result, tree, gff_info, gff_all)
     # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
     # (Chromosomes.tsv) and the fission/fusion/origination/loss genealogy (Karyotype_trace.tsv).
     # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
@@ -2639,14 +2636,19 @@ def _read_gene_intervals(path: str) -> list[tuple]:
     return out
 
 
-def _write_bed(out: str, result, tree, gff_info) -> None:
+def _write_bed(out: str, result, tree, gff_info, gff_all=None) -> None:
     """Write BED gene annotations — one BED6 feature per gene on each genome.
 
     ``genes.bed`` is the root (seed) genome's annotation, using the input sequence name as the
     chromosome (the GFF/FASTA seqid when a real genome was supplied) so it loads against the
     original genome. ``BED/<node>.bed`` is the annotation of every node's genome *after*
     rearrangements — genes at their coordinates on that node's chromosome, whose chromosome name
-    is the node id to match ``Genomes/<node>.fasta.gz`` (written by ``--write ancestral``).
+    matches the corresponding ``Genomes/<node>.fasta.gz`` record (written by ``--write ancestral``).
+
+    Each chromosome is annotated separately, with coordinates that restart at 0 per chromosome — so
+    a multi-chromosome genome (a chromosome plus its plasmids) gets one BED contig per replicon,
+    named to line up with its FASTA record: ``<seqid>`` at the root (the input names) and
+    ``<node>_chr<id>`` at every node (single-chromosome runs keep the plain ``<seqid>`` / ``<node>``).
 
     Columns are standard BED6: ``chrom  chromStart  chromEnd  name  score  strand`` — 0-based,
     half-open, the same coordinate convention ZOMBI2 uses internally, so no conversion is needed.
@@ -2657,29 +2659,43 @@ def _write_bed(out: str, result, tree, gff_info) -> None:
     genic model does not track that (``read_gff`` reads only coordinates), so ``genes.bed`` is
     always all ``+``.
     """
-    def bed_rows(node, chrom: str) -> list[str]:
-        rows, offset = [], 0
-        for block_id, strand in result.node_mosaic(node):
-            block = result._block_by_id[block_id]
-            if block.kind == "gene":
-                rows.append(f"{chrom}\t{offset}\t{offset + block.length}\t"
-                            f"{block.gene_id}\t0\t{'+' if strand > 0 else '-'}")
-            offset += block.length
+    multi = gff_all is not None and len(gff_all) > 1
+    # root chromosome id -> input sequence name (for genes.bed, so it loads on the real genome)
+    seqid_by_cid = {}
+    if multi:
+        root_chroms = list(result.node_genomes[tree.root].chromosomes.values())
+        seqid_by_cid = {c.chrom_id: g.seqid for g, c in zip(gff_all, root_chroms)}
+
+    def bed_rows(node, chrom_name) -> list[str]:
+        """One BED6 row per gene, coordinates restarting at 0 on each chromosome. ``chrom_name(cid)``
+        gives the contig name to match this node's FASTA record(s)."""
+        rows: list[str] = []
+        for cid, mosaic in result.node_mosaics(node).items():
+            chrom, offset = chrom_name(cid), 0
+            for block_id, strand in mosaic:
+                block = result._block_by_id[block_id]
+                if block.kind == "gene":
+                    rows.append(f"{chrom}\t{offset}\t{offset + block.length}\t"
+                                f"{block.gene_id}\t0\t{'+' if strand > 0 else '-'}")
+                offset += block.length
         return rows
 
     def write_bed(path: str, rows: list[str]) -> None:
         with open(path, "w") as f:
             f.write("\n".join(rows) + ("\n" if rows else ""))
 
-    # root (seed) annotation — chromosome named after the input sequence when known
-    root_chrom = gff_info.seqid if gff_info is not None else "root_chromosome"
-    write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_chrom))
+    # root (seed) annotation — chromosome named after the input sequence(s)
+    root_seqid = gff_info.seqid if gff_info is not None else "root_chromosome"
+    root_name = (lambda cid: seqid_by_cid.get(cid, f"chr{cid}")) if multi else (lambda cid: root_seqid)
+    write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_name))
 
-    # every node's genome (ancestral + extant), each keyed to its own FASTA record id
+    # every node's genome (ancestral + extant), each contig keyed to its FASTA record id
     bdir = os.path.join(out, "BED")
     os.makedirs(bdir, exist_ok=True)
     for node in tree.nodes_preorder():
-        write_bed(os.path.join(bdir, f"{node.name}.bed"), bed_rows(node, node.name))
+        node_name = ((lambda cid, n=node.name: f"{n}_chr{cid}") if multi
+                     else (lambda cid, n=node.name: n))
+        write_bed(os.path.join(bdir, f"{node.name}.bed"), bed_rows(node, node_name))
 
 
 def _write_genes_table(out: str, registry) -> None:
