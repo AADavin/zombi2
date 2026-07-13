@@ -450,7 +450,10 @@ class GenomeSimulator:
             return (branch,)
 
         if event is EventType.FUSION:
-            keep, absorbed = genome.fusion(rng, params)
+            fused = genome.fusion(rng, params)
+            if fused is None:            # no same-topology partner (mixed circular/linear) — no-op
+                return ()
+            keep, absorbed = fused
             log.add_chromosome(ChromosomeEvent(event, branch.name, t,
                                                parents=(keep, absorbed), children=(keep,)))
             return (branch,)
