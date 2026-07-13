@@ -53,9 +53,16 @@ def resolve_max_family_size(max_family_size, n_species: int) -> int | None:
 class GenomeSimulator:
     """Forward gene-family simulation along a fixed species tree."""
 
-    def __init__(self, sampler: EventSampler | None = None, *, max_events_per_interval: int = 1_000_000):
+    def __init__(self, sampler: EventSampler | None = None, *, max_events_per_interval: int = 1_000_000,
+                 max_segments_per_genome: int | None = None):
         self.sampler = sampler or NumpyEventSampler()
         self.max_events_per_interval = max_events_per_interval
+        # Runaway-growth guard for length-scaled models (the nucleotide genome): a single genome
+        # whose segment count blows past this ceiling is growing without bound (an additive gain
+        # rate — transfer/duplication — that outruns loss, whose event rate is proportional to
+        # genome length, so growth compounds). Left ``None`` (the default) the guard is off, so
+        # the plain/ordered models are byte-identical to before; the nucleotide simulator opts in.
+        self.max_segments_per_genome = max_segments_per_genome
         self._transfers = TransferModel()
         self._conversions = None
         self._cap: int | None = None
@@ -294,6 +301,9 @@ class GenomeSimulator:
             ew = self._pick_entry(cache[branch][0], cache[branch][1], rng)
             changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
 
+            if self.max_segments_per_genome is not None:
+                self._check_runaway(changed, alive)
+
             for cb in (list(alive) if refresh_all else changed):
                 cache[cb] = self._branch_weights(alive[cb], cb, rate_model, t)
                 fenwick.set(index[cb], cache[cb][1])
@@ -320,6 +330,28 @@ class GenomeSimulator:
         kept = [ew for ew in rate_model.event_weights(genome, branch.name, t)
                 if ew.rate > 0.0 and ew.event in supported]
         return kept, math.fsum(ew.rate for ew in kept)
+
+    def _check_runaway(self, changed, alive):
+        """Trip the runaway-growth guard when a just-mutated genome exceeds the segment ceiling.
+
+        The check is O(number of chromosomes) per event (``n_segments`` sums ``len(elements)``,
+        never touching individual segments), so it is negligible next to the O(genome length)
+        rate refresh it precedes. It only ever looks at the branches ``_fire`` reported as
+        changed, and only for genomes that expose ``n_segments`` (the nucleotide model) — every
+        other model leaves ``max_segments_per_genome`` at ``None`` and never reaches here.
+        """
+        limit = self.max_segments_per_genome
+        for cb in changed:
+            n_segments = getattr(alive[cb], "n_segments", None)
+            if n_segments is not None and n_segments() > limit:
+                raise RuntimeError(
+                    f"a genome exceeded max_segments_per_genome={limit}: it is growing without "
+                    "bound. In the length-scaled nucleotide model an event's rate is proportional "
+                    "to genome length, so an additive gain rate (transfer and/or duplication) that "
+                    "outruns loss compounds and never terminates. Balance it with a comparable "
+                    "loss rate, lower the gain rate, shorten the tree, or raise "
+                    "max_segments_per_genome= if this growth is genuinely intended."
+                )
 
     def _pick_entry(self, kept, subtotal, rng):
         r = rng.random() * subtotal
