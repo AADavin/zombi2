@@ -25,7 +25,7 @@ from zombi2.sequences.clocks import (
 from zombi2.genomes.genome import OrderedGenome
 from zombi2.genomes.rates import BranchRates, FamilySampledRates, PerCopyRates, PerGenomeRates
 from zombi2.genomes.conversion import ConversionModel
-from zombi2.genomes.read_rates import read_branch_rates, read_family_rates
+from zombi2.genomes.read_rates import read_branch_rates, read_family_rates, read_family_speeds
 from zombi2.sequences.evolution import SequenceEvolution
 from zombi2.genomes.simulation import Genomes, simulate_genomes
 from zombi2.species.model import (
@@ -2531,6 +2531,10 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--family-speed", type=float, default=0.0, metavar="SIGMA",
                    help="per-gene-family intrinsic substitution speed: each family draws a "
                         "constant multiplier ~ LogNormal(0, SIGMA) (0 = every family the same)")
+    g.add_argument("--family-speeds", metavar="FILE", dest="family_speeds",
+                   help="TSV of explicit per-family substitution-speed multipliers (columns: "
+                        "family speed) for named families — composes with (multiplies) the random "
+                        "--family-speed draw; families not listed default to 1.0")
 
     g = p.add_argument_group("lineage clock",
                              "the relaxed molecular clock shared across families (chronogram "
@@ -2678,7 +2682,9 @@ def _run_sequence(args: argparse.Namespace) -> str:
     gid2species = extant_species_from_records(families, tree)
 
     family_speed = LogNormal(0.0, args.family_speed) if args.family_speed > 0 else 1.0
-    se = SequenceEvolution(lineage=lineage_clock, family_speed=family_speed)
+    family_factors = read_family_speeds(args.family_speeds) if args.family_speeds else None
+    se = SequenceEvolution(lineage=lineage_clock, family_speed=family_speed,
+                           family_factors=family_factors)
 
     t0 = time.perf_counter()
     phylo, node_trees = se.scale_families_trees(tree, families, gid2species, seed=args.seed)

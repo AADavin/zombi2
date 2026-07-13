@@ -76,6 +76,27 @@ def read_family_rates(path) -> dict[str, tuple[float, float, float]]:
     return out
 
 
+def read_family_speeds(path) -> dict[str, float]:
+    """Read a per-family substitution-speed table into ``{family_id: speed}``.
+
+    A header row (``family``/``speed``, case-insensitive) is honoured if present; otherwise the two
+    columns are taken positionally as ``family speed``. Speeds must be ``>= 0``.
+    """
+    rows = list(_rows(path))
+    if not rows:
+        return {}
+    start = 0 if _looks_numeric(rows[0]) else 1  # skip a header row if present
+    out: dict[str, float] = {}
+    for r in rows[start:]:
+        if len(r) < 2:
+            raise ValueError(f"{path}: each row needs 'family speed', got {r!r}")
+        speed = float(r[1])
+        if speed < 0:
+            raise ValueError(f"{path}: family {r[0]!r} speed must be >= 0, got {speed}")
+        out[str(r[0])] = speed
+    return out
+
+
 def read_branch_rates(path) -> tuple[dict[str, float], dict[str, float]]:
     """Read a per-branch table into ``(emission_factors, receptivity_weights)``.
 

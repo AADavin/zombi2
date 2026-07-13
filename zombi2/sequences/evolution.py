@@ -80,12 +80,19 @@ class SequenceEvolution:
         The per-**family** speed distribution (``Distribution`` / float / scipy frozen dist /
         callable — see :func:`~zombi2.as_distribution`). Each family draws one constant, clamped
         to ``>= 0``. A bare float is a fixed speed for every family (``1.0`` = no family effect).
+    family_factors:
+        Explicit, **named** per-family speed multipliers, ``{family_id: factor}`` — the sequence
+        analogue of :class:`~zombi2.FamilyModifier`. A listed family's substitution rate is scaled by
+        its factor (families not listed use ``1.0``); this **composes with** (multiplies) the random
+        ``family_speed`` draw and the per-branch lineage clock, so you can make a *specific* family
+        evolve faster/slower deterministically while branch and random effects still apply. Factors
+        must be ``>= 0``. Leaves the RNG stream untouched when empty.
     root_rate:
         Lineage rate of the root branch, which the lognormal walk starts from (default ``1.0``).
     """
 
     def __init__(self, *, branch_sigma: float = 0.0, lineage=None, family_speed=1.0,
-                 root_rate: float = 1.0):
+                 family_factors: dict | None = None, root_rate: float = 1.0):
         if lineage is not None and branch_sigma:
             raise ValueError("give either branch_sigma (lognormal per-branch clock) OR "
                              "lineage=<Clock> (a relaxed clock), not both")
@@ -98,6 +105,11 @@ class SequenceEvolution:
         self.branch_sigma = float(branch_sigma)
         self.lineage = lineage
         self.family_speed = as_distribution(family_speed)
+        # explicit, named per-family speed multipliers (the sequence analogue of FamilyModifier):
+        # they compose with — multiply — the random family_speed draw and the per-branch clock.
+        self.family_factors = {str(k): float(v) for k, v in (family_factors or {}).items()}
+        if any(v < 0 for v in self.family_factors.values()):
+            raise ValueError("family_factors must be >= 0")
         self.root_rate = float(root_rate)
         # resolve to a single shared lineage Clock: an explicit one, or the branch_sigma
         # convenience (an autocorrelated lognormal walk anchored at root_rate).
@@ -169,7 +181,7 @@ class SequenceEvolution:
                 complete[fam] = extant[fam] = None
                 node_trees[fam] = {"complete": None, "extant": None}
                 continue
-            s_g = max(0.0, self.family_speed.sample(rng))
+            s_g = self.family_factors.get(fam, 1.0) * max(0.0, self.family_speed.sample(rng))
             speeds[fam] = s_g
             subst: dict = {}
             _annotate(root_node, segments, s_g, subst)
