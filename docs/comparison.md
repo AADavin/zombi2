@@ -30,7 +30,8 @@ the output format — while rebuilding the internals around clean interfaces.
   Ornstein–Uhlenbeck, early burst, Mk, threshold, and DEC biogeography. See
   [trait evolution](guide/traits.md).
 - **Nucleotide genomes.** Nucleotide-resolution genomes with variable-length structural
-  events — inversions, transpositions, indels — genes and intergenes, and GFF import. See
+  events — inversions, transpositions, structural insertions/deletions (of genome content, not
+  alignment gaps) — genes and intergenes, and GFF import. See
   [nucleotide genomes](guide/genomes.md).
 - **Coevolution modes.** Couple any two levels along a directed edge (`coevolve --couple
   driver:target`) — state-dependent diversification (SSE), cladogenetic change, key

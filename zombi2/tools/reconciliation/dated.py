@@ -144,6 +144,15 @@ class _DatedEngine:
     def gene_loglik(self, gt: GeneTree, origination: str = "root") -> float:
         d, t, tot = self.d, self.t, self.tot
         sp = self.sp
+        # Validate inputs up front, matching the undated engine: a gene tip whose species is not a
+        # species-tree leaf raises (rather than silently collapsing the family likelihood to -inf,
+        # which would poison a joint score), and a trivial one-leaf species tree — which has no root
+        # split to originate on — is a clear error instead of a KeyError(None) deep in _originate.
+        if self._split_children(sp.root) is None:
+            raise ValueError("dated reconciliation needs a species tree with at least two leaves")
+        for _node in gt.nodes:
+            if _node.is_leaf and sp.leaf_index.get(_node.species) is None:
+                raise KeyError(f"gene tip species {_node.species!r} is not a species-tree leaf")
         # f_bottom[u][branch] = f_{u}(branch, branch.parent_time); f_slices[u][k] = rows
         f_bottom: list[dict[int, float]] = [dict() for _ in range(gt.n)]
         f_rows: list[list] = [None] * gt.n            # per node: list over slices of E-shaped rows

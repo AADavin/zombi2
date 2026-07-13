@@ -136,6 +136,26 @@ def _write_profiles(out: Path, profiles: ProfileMatrix, sparse: bool) -> None:
         (out / "Presence.tsv").write_text(profiles.to_tsv(presence=True))
 
 
+def _write_reconciliations(out: Path, recons: dict) -> None:
+    """Write annotated reconciled gene trees: ``Reconciled_complete.nwk`` / ``Reconciled_extant.nwk``
+    (one family per line — tips ``<species>|<gid>``, internal labels ``<species-branch>|<EVENT>``,
+    the format ``tools recon-accuracy`` and ``tools reconcile`` read) plus a flat S/D/T/L event
+    table. Mirrors ``tools simulate``'s ground-truth output so a simulated truth can be scored."""
+    complete, extant = [], []
+    ev = ["family\tevent\tspecies\trecipient\ttime\tgene"]
+    for fam, recon in recons.items():
+        if recon.complete is not None:
+            complete.append(recon.complete)
+        if recon.extant is not None:
+            extant.append(recon.extant)
+        for e in recon.events:
+            ev.append(f"{fam}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
+                      f"{e.time:.10g}\t{e.gene or ''}")
+    (out / "Reconciled_complete.nwk").write_text("\n".join(complete) + ("\n" if complete else ""))
+    (out / "Reconciled_extant.nwk").write_text("\n".join(extant) + ("\n" if extant else ""))
+    (out / "Reconciliation_events.tsv").write_text("\n".join(ev) + "\n")
+
+
 def events_trace_from_log(event_log) -> str:
     """Serialise an :class:`~zombi2.events.EventLog` as the compact ``Events_trace.tsv`` text.
 
@@ -279,18 +299,26 @@ class Genomes:
 
     # Selectable components for write(include=...). species_tree.nwk + species_nodes.tsv
     # are always written; the CLI's --write maps onto these names.
-    WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary", "branch_events")
+    WRITE_PARTS = ("profiles", "trace", "trees", "events", "transfers", "summary", "branch_events",
+                   "reconciliations", "layout", "karyotype")
+    #: Written only when explicitly requested (never by ``include=None``): the ordered-genome
+    #: ``layout``/``karyotype`` are meaningful only for ordered genomes, and ``reconciliations``
+    #: reconstructs the (expensive) gene-tree genealogy, so they stay out of a run's output unless
+    #: asked for — default (single-chromosome) output is therefore unchanged.
+    _OPT_IN_PARTS = frozenset({"layout", "karyotype", "reconciliations"})
 
     # --- output ------------------------------------------------------------
     def write(self, outdir: str | Path, *, include=None, sparse: bool = False,
               annotate_species: bool = False) -> None:
         """Write the ZOMBI-1-style output folder.
 
-        ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`
-        (``"profiles"``, ``"trace"``, ``"trees"``, ``"events"``, ``"transfers"``,
-        ``"summary"``, ``"branch_events"``); ``None`` (the default) writes them all.
-        ``species_tree.nwk`` and ``species_nodes.tsv`` are always written. Omitted components do
-        no work — notably ``"trees"`` drives the (expensive) gene-tree reconstruction.
+        ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`.
+        ``None`` (the default) writes them all **except** the opt-in ordered-genome parts
+        ``"layout"`` (``Gene_order.tsv`` — the per-leaf chromosome layout) and ``"karyotype"``
+        (``Karyotype_trace.tsv`` — the fission/fusion/origination/loss genealogy), which are written
+        only when asked for, so single-chromosome output is unchanged. ``species_tree.nwk`` and
+        ``species_nodes.tsv`` are always written. Omitted components do no work — notably ``"trees"``
+        drives the (expensive) gene-tree reconstruction.
 
         ``"trace"`` writes the compact single-file event log ``Events_trace.tsv`` (one row per
         event); it is the scalable alternative to ``"events"`` (per-family files) and is the
@@ -306,7 +334,7 @@ class Genomes:
         ``Presence.tsv`` pair — the latter is ``families × species`` (O(N²) in tip count)
         and is the one output that does not scale; the sparse form is O(present cells).
         """
-        want = set(self.WRITE_PARTS) if include is None else set(include)
+        want = (set(self.WRITE_PARTS) - self._OPT_IN_PARTS) if include is None else set(include)
         unknown = want - set(self.WRITE_PARTS)
         if unknown:
             raise ValueError(f"unknown write component(s) {sorted(unknown)}; "
@@ -345,6 +373,12 @@ class Genomes:
                     (tdir / f"{family}_complete.nwk").write_text(complete + "\n")
                 if extant:
                     (tdir / f"{family}_extant.nwk").write_text(extant + "\n")
+
+        if "reconciliations" in want:
+            # annotated reconciled gene trees + event table — the input `tools recon-accuracy` and
+            # `tools reconcile` read (tips <species>|<gid>). Same format as `tools simulate`, so a
+            # simulated ground truth can be scored against an inferred reconciliation.
+            _write_reconciliations(out, self.reconciliations())
 
         if "transfers" in want:
             # all transfers, one row each
@@ -390,6 +424,33 @@ class Genomes:
 
         if "profiles" in want:
             _write_profiles(out, self.profiles, sparse)
+
+        if "layout" in want:
+            # per-leaf ordered layout: which chromosome each gene sits on, and in what order. The
+            # karyotype is state that is otherwise unserialised; only ordered genomes have a layout,
+            # so other genome models contribute no rows.
+            lay = ["species\tchromosome\tposition\tfamily\tgid\torientation"]
+            for leaf, genome in sorted(self.leaf_genomes.items(), key=lambda kv: kv[0].name):
+                chroms = getattr(genome, "chromosomes", None)
+                if not isinstance(chroms, dict):
+                    continue
+                for chrom in chroms.values():
+                    for pos, g in enumerate(chrom.genes):
+                        strand = "+" if getattr(g, "orientation", 1) >= 0 else "-"
+                        lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{pos}\t"
+                                   f"{g.family}\t{g.gid}\t{strand}")
+            (out / "Gene_order.tsv").write_text("\n".join(lay) + "\n")
+
+        if "karyotype" in want:
+            # the chromosome-tier genealogy: fission / fusion / chromosome origination / loss, each
+            # with its source (parents) and resulting (children) chromosome ids. Empty (header only)
+            # when the karyotype never changed.
+            kar = ["time\tevent\tbranch\tparents\tchildren"]
+            for r in self.event_log.chromosome_records:
+                parents = ";".join(str(p) for p in r.parents)
+                children = ";".join(str(c) for c in r.children)
+                kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
+            (out / "Karyotype_trace.tsv").write_text("\n".join(kar) + "\n")
 
 
 @dataclass
@@ -559,6 +620,21 @@ def simulate_genomes(
         raise ValueError(f"output must be 'genomes', 'profiles' or 'trace', got {output!r}")
     if threads > 1 and output != "profiles":
         raise ValueError("threads>1 (parallel simulation) is only supported for output='profiles'")
+
+    # Tree-shape contract: every engine (the Rust kernel and the pure-Python engine) assumes a
+    # bifurcating species tree. Degree-two nodes (FBD sampled ancestors) are handled by the Python
+    # engine's pass-through, but a polytomy (a node with >2 children) is supported by no engine: the
+    # Rust log/trace kernel underflows its alive-list index (a process-killing panic) and the Python
+    # engine's _speciate unpacks exactly two children. Reject it here with a clear, actionable error
+    # instead of a deep crash.
+    _polytomies = [n.name for n in species_tree.nodes_preorder() if len(n.children) > 2]
+    if _polytomies:
+        shown = ", ".join(str(x) for x in _polytomies[:5]) + ("..." if len(_polytomies) > 5 else "")
+        raise ValueError(
+            f"simulate_genomes requires a bifurcating species tree, but found {len(_polytomies)} "
+            f"polytomous node(s) with >2 children: {shown}. Resolve polytomies into bifurcations "
+            "(e.g. as zero-length internal branches) before simulating."
+        )
 
     shorthand = any((duplication, transfer, loss, origination, conversion))
     if rates is None:

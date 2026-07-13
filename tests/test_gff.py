@@ -10,7 +10,7 @@ import gzip
 import pytest
 
 from zombi2 import BirthDeath, read_gff, simulate_nucleotide_genomes, simulate_species_tree
-from zombi2.genomes.gff import GffGenome
+from zombi2.genomes.gff import GffGenome, read_gff_all
 
 # chr1 (1000 bp, circular, 4 genes incl. an overlap + a nested one) and a smaller plasmid.
 GFF = """\
@@ -109,3 +109,26 @@ def test_gff_feeds_the_genic_simulation(tmp_path):
     gene_ids = {a.gene_id for a in res.gene_blocks()}
     assert {"g1", "g2", "g3"} <= gene_ids
     assert res.gene_trees() and res.intergene_trees()
+
+
+# --- multi-sequence GFF -> multi-chromosome genome ------------------------------------
+
+def test_read_gff_all_returns_every_sequence(tmp_path):
+    gs = read_gff_all(_write(tmp_path))
+    assert [g.seqid for g in gs] == ["chr1", "plasmid1"]   # most-annotated (the chromosome) first
+    assert gs[0].length == 1000 and gs[1].length == 300
+    assert [n for _a, _b, n in gs[1].genes] == ["p1"]      # the plasmid's gene survives (not dropped)
+
+
+def test_multisequence_gff_feeds_a_multichromosome_sim(tmp_path):
+    gs = read_gff_all(_write(tmp_path))
+    tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=5, age=1.0, seed=1)
+    res = simulate_nucleotide_genomes(
+        tree, inversion=0.003, loss=0.002, extension=0.95,
+        root_chromosomes=[(g.length, g.genes) for g in gs], seed=2)
+    # every leaf descends from both replicons (no fission), each its own source
+    assert all(len(leaf.chromosomes) == 2 for leaf in res.leaf_genomes.values())
+    # genes from BOTH the chromosome and the plasmid are recovered (p1 would be dropped by read_gff)
+    gene_ids = {a.gene_id for a in res.gene_blocks()}
+    assert {"g1", "g3", "p1"} <= gene_ids
+    assert len(res.block_gene_trees()) == len(res.blocks)

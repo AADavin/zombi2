@@ -324,6 +324,13 @@ substitutions per site). One FASTA per family is written to `run/alignments/<fam
 its records headed by the same `<species>_<gene-id>` labels the leaves carry in the
 `_extant_subst.nwk` tree. DNA versus protein is auto-detected from the model name.
 
+!!! note "Alignments are gapless"
+    `sequence` models **substitutions only**: every family's alignment is a fixed-length block
+    (set by `--seq-length`) with **no indels or gaps**, and there is no codon model. If you need
+    gappy alignments to benchmark an aligner, ZOMBI2 cannot produce them yet. The
+    insertions/deletions in the [nucleotide genome layer](genomes.md) are *structural* — they add,
+    remove, or reorder genes — and never become alignment columns.
+
 ```bash
 # DNA alignments (HKY85), 600 bp
 zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 \

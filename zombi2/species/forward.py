@@ -98,20 +98,6 @@ def _new_crown():
     return root, live
 
 
-def _reached_target(n, n_tips, max_lineages) -> bool:
-    """Shared stop-guard for the forward loops: ``True`` when the live count ``n`` has hit the
-    ``n_tips`` target (the caller then finalizes at the current time); raises if it blew past
-    ``max_lineages``. The ``n == 0`` extinction case stays inline (it rejects the whole trial)."""
-    if n_tips is not None and n == n_tips:
-        return True
-    if n > max_lineages:
-        raise RuntimeError(
-            f"forward tree exceeded max_lineages={max_lineages}; explosive parameters — "
-            "lower the age/rates or raise max_lineages"
-        )
-    return False
-
-
 def _grow(view, age, n_tips, rng, max_lineages):
     """One forward trial from a crown of two lineages (thinning handles time-varying rates).
     Returns ``(crown_node, end_time)`` or ``None`` to reject (extinct / <2 sampled survivors)."""
@@ -125,9 +111,20 @@ def _grow(view, age, n_tips, rng, max_lineages):
         n = len(live)
         if n == 0:
             return None
-        if _reached_target(n, n_tips, max_lineages):
-            end = t
+        if n_tips is not None and n == n_tips:
+            # place the present strictly after the N-th lineage appeared: the tree age is the last
+            # speciation time plus a memoryless waiting time to the next event (the standard
+            # birth-death-conditioned-on-N convention). Using end = t would give the two newest tips
+            # and their parent zero-length pendant edges — degenerate to an age-0 tree at n_tips == 2.
+            lam, mu, psi = view.rates(t)
+            R = n * (lam + mu + psi)
+            end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
             break
+        if n > max_lineages:
+            raise RuntimeError(
+                f"forward tree exceeded max_lineages={max_lineages}; explosive parameters "
+                "(birth >> death over this age) — lower the age/rates or raise max_lineages"
+            )
         dt = rng.exponential(1.0 / (n * bound))
         # a scheduled mass extinction before the next candidate event fires first (the
         # thinning process is memoryless, so we advance to it and redraw the waiting time)
@@ -333,12 +330,18 @@ def _grow_gillespie(view, age, n_tips, rng, max_lineages):
         n = len(live)
         if n == 0:
             return None
-        if _reached_target(n, n_tips, max_lineages):
-            end = t
-            break
+        if n > max_lineages:
+            raise RuntimeError(
+                f"forward tree exceeded max_lineages={max_lineages}; explosive parameters — "
+                "lower the age/rates or raise max_lineages"
+            )
         rates = [view.lineage_rates(state[i], n) for i in range(n)]  # (λ, μ) per lineage
         totals = [b + d for b, d in rates]
         total_rate = math.fsum(totals)
+        if n_tips is not None and n == n_tips:
+            # present strictly after the N-th birth: last event + Exp(total rate). See _grow.
+            end = t + rng.exponential(1.0 / total_rate) if total_rate > 0.0 else t
+            break
         if total_rate <= 0.0:
             # nothing stochastic can happen (e.g. diversity-dependent at capacity with μ=0): jump
             # to the next scheduled event, or coast to the present

@@ -58,4 +58,4 @@ First public release. ZOMBI2 is a ground-up redesign of
   part of this release: it has been moved to a separate future-extensions archive and is neither
   importable from `zombi2` nor exposed on the command line.
 - The default (built-in) gene-family engine is a compiled Rust extension; build it once with
-  maturin (see [installation](docs/installation.md)).
+  maturin (see [installation](https://aadavin.github.io/zombi2/docs/installation/)).

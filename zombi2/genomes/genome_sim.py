@@ -20,7 +20,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from zombi2._sampling import EventSampler, Fenwick, NumpyEventSampler
-from zombi2.genomes.events import EventLog, EventRecord, EventType, GeneOp, Selection
+from zombi2.genomes.events import (
+    ChromosomeEvent, EventLog, EventRecord, EventType, GeneOp, Selection,
+)
 from zombi2.genomes.genome import Gene, Genome, IdManager, UnorderedGenome
 from zombi2.genomes.rates import RateModel
 from zombi2.genomes.transfers import TransferModel
@@ -148,9 +150,16 @@ class GenomeSimulator:
         node_genomes: dict = {}
         if retain_internal:
             node_genomes[root] = root_genome        # the seed genome == the user's input genome
-        self._speciate(root_genome, root, alive, log)
-        for child in root.children:
+        if len(root.children) == 1:
+            # a degree-two root (a sampled ancestor on the stem lineage): the genome continues
+            # into the single child unchanged, mirroring the main loop's pass-through below
+            child = root.children[0]
+            alive[child] = root_genome
             activate(child)
+        else:
+            self._speciate(root_genome, root, alive, log)
+            for child in root.children:
+                activate(child)
 
         leaf_genomes: dict[TreeNode, Genome] = {}
 
@@ -174,9 +183,13 @@ class GenomeSimulator:
                 if node.is_extant:
                     leaf_genomes[node] = genome
             elif len(node.children) == 1:
-                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and
-                # its genome — simply continues, so pass the genome straight to the child
+                # a degree-two species node (e.g. an FBD sampled ancestor): the lineage — and its
+                # genome — simply continues, so pass the genome straight to the child. The ancestral
+                # snapshot must be frozen here (a same-id copy): the live genome keeps mutating along
+                # the child branch and would otherwise report that downstream state at this node.
                 child = node.children[0]
+                if retain_internal:
+                    node_genomes[node] = genome.snapshot()
                 alive[child] = genome
                 activate(child)
             else:  # speciation: re-mint lineage ids into each child and log it
@@ -409,6 +422,30 @@ class GenomeSimulator:
             log.add(EventRecord(EventType.CONVERSION, branch.name, t, donor_group,
                                 donor=branch.name, recipient=branch.name))
             log.add(EventRecord(EventType.LOSS, branch.name, t, loss_group))
+            return (branch,)
+
+        if event is EventType.CHROMOSOME_ORIGINATION:
+            new_cid = genome.originate_chromosome(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t, children=(new_cid,)))
+            return (branch,)
+
+        if event is EventType.CHROMOSOME_LOSS:
+            lost_cid, groups = genome.lose_chromosome(rng)
+            for group in groups:  # the genes on the lost chromosome die (gene-tree reconstruction)
+                log.add(EventRecord(EventType.LOSS, branch.name, t, group))
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t, parents=(lost_cid,)))
+            return (branch,)
+
+        if event is EventType.FISSION:
+            src, new_cid = genome.fission(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t,
+                                               parents=(src,), children=(src, new_cid)))
+            return (branch,)
+
+        if event is EventType.FUSION:
+            keep, absorbed = genome.fusion(rng, params)
+            log.add_chromosome(ChromosomeEvent(event, branch.name, t,
+                                               parents=(keep, absorbed), children=(keep,)))
             return (branch,)
 
         # duplication / loss / inversion / transposition (one log record per group)

@@ -65,26 +65,9 @@ def _gene_name(attrs: dict[str, str], used: set[str], fallback: int) -> str:
     return name
 
 
-def read_gff(path, *, seqid: str | None = None, feature_types=("gene",)) -> GffGenome:
-    """Read chromosome length + non-overlapping gene intervals from a GFF3 file.
-
-    Parameters
-    ----------
-    path:
-        A GFF3 file (optionally gzipped, ``.gz``).
-    seqid:
-        Which sequence to read. Default: the sequence carrying the most gene features (the
-        chromosome of a single-chromosome bacterium; a plasmid is skipped). Raises if the named
-        ``seqid`` is absent.
-    feature_types:
-        GFF feature types treated as genes (default ``("gene",)``; e.g. add ``"pseudogene"`` to
-        include annotated pseudogenes as blocks too).
-
-    Returns a :class:`GffGenome`. The length comes from the ``##sequence-region`` pragma, else the
-    ``region`` feature, else the largest gene end. Overlapping genes are trimmed (later start
-    clipped) or dropped (swallowed whole); the counts are on the result.
-    """
-    types = set(feature_types)
+def _parse_gff(path, types: set):
+    """Parse a GFF3 into per-sequence raw features. Returns ``(region_len, feat_len, circular,
+    genes)`` — the last a ``seqid -> [(start, end, attr), ...]`` map (1-based, as in the file)."""
     region_len: dict[str, int] = {}       # from ##sequence-region pragmas
     feat_len: dict[str, int] = {}         # from `region` features
     circular: dict[str, bool] = {}
@@ -113,18 +96,17 @@ def read_gff(path, *, seqid: str | None = None, feature_types=("gene",)) -> GffG
 
     if not genes:
         raise ValueError(f"no {'/'.join(sorted(types))} features found in {path!r}")
+    return region_len, feat_len, circular, genes
 
-    if seqid is None:
-        seqid = max(genes, key=lambda s: len(genes[s]))   # the most-annotated sequence
-    elif seqid not in genes:
-        raise ValueError(f"seqid {seqid!r} not found (have: {', '.join(sorted(genes))})")
 
-    length = region_len.get(seqid) or feat_len.get(seqid) or max(e for _s, e, _a in genes[seqid])
+def _build_genome(seqid, gene_list, region_len, feat_len, circular) -> GffGenome:
+    """Assemble one :class:`GffGenome` from a single sequence's raw gene features."""
+    length = region_len.get(seqid) or feat_len.get(seqid) or max(e for _s, e, _a in gene_list)
 
     # 0-based half-open, with a stable unique name; validate against the chromosome length
     used: set[str] = set()
     raw: list[tuple[int, int, str]] = []
-    for i, (s, e, attr) in enumerate(sorted(genes[seqid])):
+    for i, (s, e, attr) in enumerate(sorted(gene_list)):
         a, b = s - 1, e
         if not (0 <= a < b <= length):
             raise ValueError(f"gene [{s},{e}] on {seqid} falls outside [1, {length}]")
@@ -145,5 +127,45 @@ def read_gff(path, *, seqid: str | None = None, feature_types=("gene",)) -> GffG
         max_end = b
 
     return GffGenome(seqid=seqid, length=length, circular=circular.get(seqid, False),
-                     genes=kept, n_features=len(genes[seqid]),
+                     genes=kept, n_features=len(gene_list),
                      n_trimmed=n_trimmed, n_dropped=n_dropped)
+
+
+def read_gff(path, *, seqid: str | None = None, feature_types=("gene",)) -> GffGenome:
+    """Read one chromosome's length + non-overlapping gene intervals from a GFF3 file.
+
+    Parameters
+    ----------
+    path:
+        A GFF3 file (optionally gzipped, ``.gz``).
+    seqid:
+        Which sequence to read. Default: the sequence carrying the most gene features (the
+        chromosome of a single-chromosome bacterium; a plasmid is skipped). Raises if the named
+        ``seqid`` is absent. Use :func:`read_gff_all` to read *every* sequence as a chromosome.
+    feature_types:
+        GFF feature types treated as genes (default ``("gene",)``; e.g. add ``"pseudogene"`` to
+        include annotated pseudogenes as blocks too).
+
+    Returns a :class:`GffGenome`. The length comes from the ``##sequence-region`` pragma, else the
+    ``region`` feature, else the largest gene end. Overlapping genes are trimmed (later start
+    clipped) or dropped (swallowed whole); the counts are on the result.
+    """
+    region_len, feat_len, circular, genes = _parse_gff(path, set(feature_types))
+    if seqid is None:
+        seqid = max(genes, key=lambda s: len(genes[s]))   # the most-annotated sequence
+    elif seqid not in genes:
+        raise ValueError(f"seqid {seqid!r} not found (have: {', '.join(sorted(genes))})")
+    return _build_genome(seqid, genes[seqid], region_len, feat_len, circular)
+
+
+def read_gff_all(path, *, feature_types=("gene",)) -> list[GffGenome]:
+    """Read **every** sequence in a GFF3 as its own :class:`GffGenome`, most-annotated first.
+
+    A real genome file usually holds several sequences — a main chromosome plus plasmids or
+    secondary chromosomes/contigs. This returns one :class:`GffGenome` per sequence (ordered by
+    gene count, so the main chromosome leads), ready to seed a **multi-chromosome** nucleotide
+    genome (pass as ``root_chromosomes`` to :func:`~zombi2.simulate_nucleotide_genomes`).
+    """
+    region_len, feat_len, circular, genes = _parse_gff(path, set(feature_types))
+    order = sorted(genes, key=lambda s: (-len(genes[s]), s))   # main chromosome first, then plasmids
+    return [_build_genome(s, genes[s], region_len, feat_len, circular) for s in order]

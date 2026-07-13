@@ -1,6 +1,27 @@
 # Quickstart
 
-## A full simulation in ten lines
+Each level is its own subcommand — run whichever you need. The fastest path is two commands on
+the **command line**; the same run in **Python** and the full list of outputs follow.
+
+## Two commands (command line)
+
+```bash
+# 1. a dated species tree: 20 extant tips, crown age 5. Time is dimensionless — age and the
+#    rates just share one arbitrary unit; "crown age" = age of the tips' common ancestor.
+zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
+
+# 2. gene families along it. --write all also emits the ground-truth event tables
+#    (Gene_family_summary.tsv, gene_family_events/, Transfers.tsv) — the DTL "truth" of the run.
+zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 \
+    --initial-families 40 --write all -o out/
+```
+
+The built-in model runs on Rust automatically. `--write` selects the outputs — the default is
+`profiles trees`, `--write all` gives the full set [below](#what-a-run-writes), and
+`--write profiles` gives just the counts. See the full [command-line interface](cli.md) for
+every option.
+
+## The same run in Python
 
 ```python
 from zombi2.species import BirthDeath, simulate_species_tree
@@ -20,38 +41,30 @@ print(genomes.profiles.matrix.shape)    # (n_families, n_species) copy numbers
 genomes.write("out/")                   # write every output to out/
 ```
 
-Everything is seeded: the same `seed` gives byte-identical results.
+Everything is seeded: the same `seed` gives byte-identical results. Note that `origination`
+keeps minting new families along the tree, so the final family count grows past
+`initial_families` (you start with 40 and end with more).
 
-## What `genomes.write("out/")` writes
+## What a run writes
 
 | File / folder | Contents |
 |---|---|
 | `species_tree.nwk` | the timed species tree (Newick) |
 | `species_nodes.tsv` | node name, time, leaf/extant flags |
-| `gene_family_events/<fid>_events.tsv` | per-family event log (O/D/T/S/L with lineage ids) |
+| `gene_family_events/<fid>_events.tsv` | per-family event log (see the event codes below) |
 | `gene_trees/<fid>_complete.nwk` / `_extant.nwk` | reconstructed gene trees (with / without losses) |
 | `Transfers.tsv` | every transfer (donor, recipient, ids) |
 | `Gene_family_summary.tsv` | per-family event counts and extant copies |
 | `Events_trace.tsv` | compact one-row-per-event trace (O/D/T/L), replayable by `zombi2 sequence` |
 | `Profiles.tsv` / `Presence.tsv` | families × species copy-number / presence matrix |
 
+Event codes used in the logs and the trace: **O** origination · **D** duplication ·
+**T** transfer · **S** speciation · **L** loss (each row also carries the gene-lineage ids it
+touches).
+
 The Python `write()` saves **all** of these by default. The `zombi2 genomes` **command line**
 writes a subset — `Profiles.tsv`, `Presence.tsv` and `gene_trees/` (its `--write` default is
 `profiles trees`); pass `--write all` for the full set above.
-
-## Command line
-
-```bash
-# species tree only
-zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
-
-# gene families along a supplied tree
-zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 -o out/
-```
-
-The built-in model runs on Rust automatically. `--write` selects the outputs — the default is
-`profiles trees`, `--write all` gives the full set above, and `--write profiles` gives just the
-counts. See the full [command-line interface](cli.md) for every option.
 
 ## Next steps
 

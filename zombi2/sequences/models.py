@@ -95,8 +95,9 @@ def _reversible_model(name, S, pi, alphabet) -> SubstitutionModel:
     S = np.asarray(S, dtype=float)
     pi = np.asarray(pi, dtype=float)
     k = pi.shape[0]
-    if pi.shape != (k,) or pi.min() < 0 or not np.isclose(pi.sum(), 1.0):
-        raise ValueError(f"stationary frequencies must be non-negative and sum to 1, got {pi}")
+    if pi.shape != (k,) or pi.min() <= 0 or not np.isclose(pi.sum(), 1.0):
+        raise ValueError(f"stationary frequencies must be strictly positive and sum to 1, got {pi} "
+                         "(a zero-frequency state makes the rate matrix degenerate)")
     if S.shape != (k, k) or (S < 0).any() or not np.allclose(S, S.T):
         raise ValueError("exchangeabilities must be a symmetric non-negative K×K matrix")
     pi = pi / pi.sum()          # renormalise (published freqs round to 1 only to ~1e-6)
@@ -470,7 +471,8 @@ def read_fasta(path) -> dict:
             if line.startswith(">"):
                 if name is not None:
                     out[name] = "".join(chunks)
-                name = line[1:].split()[0] if len(line) > 1 else ""
+                header = line[1:].split()          # a blank/whitespace-only header -> id ""
+                name = header[0] if header else ""
                 chunks = []
             elif name is not None:
                 chunks.append(line.strip())

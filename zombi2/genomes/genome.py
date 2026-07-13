@@ -14,8 +14,9 @@ full genealogy (from-id → to-ids) that :mod:`zombi2.reconciliation` turns into
 
 from __future__ import annotations
 
+import copy
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -38,6 +39,7 @@ class IdManager:
         self._gene = 0
         self._family = 0
         self._order = 0
+        self._chromosome = 0
 
     def new_gene(self) -> str:
         self._gene += 1
@@ -46,6 +48,16 @@ class IdManager:
     def new_family(self) -> str:
         self._family += 1
         return str(self._family)
+
+    def new_chromosome(self) -> int:
+        """A fresh, globally-unique chromosome id.
+
+        A **separate id space** from genes / families / order: minting a chromosome never advances
+        the gene, family or order counters, so introducing the chromosome tier cannot shift a gene
+        id and a single-chromosome run stays byte-identical. Chromosomes are re-minted at speciation
+        (like gene copies), so every chromosome instance has a unique id across the whole run."""
+        self._chromosome += 1
+        return self._chromosome
 
     def new_order(self) -> int:
         """A fresh, monotonically increasing seniority stamp for a genuinely new gene copy.
@@ -137,6 +149,13 @@ class Genome(ABC):
         Returns the child genome and a list of ``(old_gid, new_gid, family)`` so the
         driver can log the speciation as a lineage bifurcation.
         """
+
+    def snapshot(self) -> "Genome":
+        """A frozen, independent copy at the current state, keeping the SAME gene ids (no
+        re-minting). Records the ancestral genome at a degree-two (sampled-ancestor) node while
+        the live lineage keeps mutating. Subclasses override with an efficient same-id copy that
+        shares the IdManager; the default deep-copies."""
+        return copy.deepcopy(self)
 
 
 class UnorderedGenome(Genome):
@@ -308,6 +327,11 @@ class UnorderedGenome(Genome):
                 mapping.append((g.gid, ng.gid, family))
         return new, mapping
 
+    def snapshot(self) -> "UnorderedGenome":
+        new = copy.copy(self)                       # shares the IdManager (a snapshot never mints)
+        new._genes = {fam: [replace(g) for g in lst] for fam, lst in self._genes.items()}
+        return new
+
 
 @dataclass(slots=True)
 class OrderedGene(Gene):
@@ -316,56 +340,185 @@ class OrderedGene(Gene):
     orientation: int = 1
 
 
+@dataclass(slots=True)
+class Chromosome:
+    """One chromosome: an identified, topology-aware ordered run of elements.
+
+    The **shared container** for the chromosome tier: an identity (``chrom_id``), a per-chromosome
+    ``circular`` topology (circular wraps at the origin — bacteria; linear has ends — eukaryotes),
+    and an ordered ``elements`` list. ``elements`` are :class:`OrderedGene`s for the ordered model
+    and nucleotide ``Segment``s for the nucleotide model — the container is the same, and each model
+    brings its own coordinate arithmetic ("where is position X"). ``genes`` is a backward-compatible
+    alias for ``elements`` (the ordered case, where elements are genes).
+
+    ``chrom_id`` comes from :meth:`IdManager.new_chromosome` — a *separate* id space from genes and
+    families, so introducing chromosomes never shifts a gene id.
+
+    The coordinate-agnostic list moves (``bring_to_front`` / ``insert`` / ``remove``) are shared by
+    both models; ``segment`` / ``invert_block`` are the ordered model's index-based helpers (the
+    nucleotide model, working in base pairs with segment-splitting, supplies its own).
+    """
+
+    chrom_id: int
+    circular: bool
+    elements: list = field(default_factory=list)  # OrderedGene (ordered) or Segment (nucleotide)
+
+    @property
+    def genes(self) -> list:
+        """Backward-compatible alias for :attr:`elements` (the ordered model's elements are genes)."""
+        return self.elements
+
+    @genes.setter
+    def genes(self, value: list) -> None:
+        self.elements = value
+
+    def __len__(self) -> int:
+        return len(self.elements)
+
+    # --- list moves (coordinate-agnostic; shared by both models) -----------
+    def bring_to_front(self, start: int) -> int:
+        """Rotate the ring so the run at index ``start`` begins at index 0, returning the new start.
+
+        A circular chromosome has no privileged origin, so rotating it is a structural no-op that
+        makes a (possibly wrapped) run contiguous for slicing, and it returns 0. A linear chromosome
+        is left untouched and ``start`` is returned unchanged."""
+        if self.circular:
+            if start:
+                self.elements = self.elements[start:] + self.elements[:start]
+            return 0
+        return start
+
+    def insert(self, pos: int, items) -> None:
+        """Insert ``items`` in order so the first lands at index ``pos``."""
+        self.elements[pos:pos] = list(items)
+
+    def remove(self, item) -> bool:
+        """Remove ``item`` by identity if present; return whether it was found."""
+        for i, x in enumerate(self.elements):
+            if x is item:
+                del self.elements[i]
+                return True
+        return False
+
+    # --- ordered index-based helpers (the ordered model's "find / cut") ----
+    def segment(self, start: int, length: int) -> tuple[tuple, int]:
+        """Read the contiguous ``length``-element run at ``start``, as ``(elements, length)``.
+
+        A circular chromosome follows the ring, so the run may wrap the origin; a linear one clamps
+        it to the end (the returned length is the clamped one). Read-only. Index-based — the ordered
+        model's coordinate read (the nucleotide model reads by base-pair arc instead)."""
+        n = len(self.elements)
+        if self.circular:
+            return tuple(self.elements[(start + i) % n] for i in range(length)), length
+        length = min(length, n - start)
+        return tuple(self.elements[start + i] for i in range(length)), length
+
+    @staticmethod
+    def invert_block(items: list) -> list:
+        """Invert a block of oriented elements: flip every ``orientation`` (in place) and return it
+        reversed — what an inversion does to an ordered segment, and what a reverse-complemented
+        transposition reuses."""
+        for x in items:
+            x.orientation = -x.orientation
+        return list(reversed(items))
+
+
 class OrderedGenome(Genome):
-    """ZOMBI-1-style ordered (circular) chromosome, genes carrying orientation, no
-    intergenes.
+    """ZOMBI-1-style ordered chromosome(s), genes carrying orientation, no intergenes.
+
+    State is a **dict of chromosomes** keyed by identity, ``self.chromosomes: dict[int,
+    Chromosome]`` (insertion-ordered); a single-chromosome genome is just ``len == 1``. Each
+    :class:`Chromosome` carries its own ``chrom_id`` (minted from a *separate* id space, so it
+    never shifts a gene id) and its own ``circular`` topology. ``self.circular`` is the
+    genome-wide seed used when constructing / cloning (this stage is topology-homogeneous).
 
     Events act on a **contiguous segment** whose length is drawn from ``extension``
     (a per-step continuation probability; ``None`` -> single-gene events). Supported:
     duplication (tandem), loss, transfer, **inversion** (reverse + flip strands), and
-    **transposition** (cut and paste elsewhere). The chromosome is circular, so a segment
-    may wrap; we handle that by rotating the ring to bring the segment to the front.
+    **transposition** (cut and paste elsewhere). These gene events stay **within one chromosome**
+    (whole-chromosome fission / fusion / origination / loss are the separate chromosome tier —
+    :meth:`fission`, :meth:`fusion`, :meth:`originate_chromosome`, :meth:`lose_chromosome`):
+    ``draw_target`` first picks a chromosome (size-weighted, returning its ``chrom_id``), then a
+    segment within it, and ``apply`` looks that chromosome up by id. A circular chromosome's segment
+    may wrap (we rotate the ring to the front); a linear chromosome's segment is clamped to the end.
 
     The ``extension`` can also be supplied per event via ``TargetParams.extension`` from a
     rate model; the per-genome value is the fallback. Construct via a factory, e.g.
-    ``genome_factory=lambda ids: OrderedGenome(ids, extension=0.5)``.
+    ``genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, n_chromosomes=8,
+    circular=False)`` for eight linear chromosomes.
+
+    ``transposition_flip`` in [0, 1] is the probability that a transposed segment reinserts
+    in **reversed** orientation (gene order reversed and every strand flipped), modelling a
+    reverse-complemented reinsertion. The default ``0.0`` always preserves orientation, so
+    it leaves every existing run byte-identical.
+
+    **Backward compatibility.** ``self.chromosome`` (singular) is a read-only flattened view of
+    every gene, so external readers keep working; the per-chromosome structure lives on
+    ``self.chromosomes`` (the dict). With ``n_chromosomes=1, circular=True`` (the defaults) every
+    RNG draw matches the pre-multichromosome engine, so a run is byte-identical (the chromosome
+    choice short-circuits without drawing when there is only one chromosome, and chromosome ids
+    come from their own counter).
     """
 
-    def __init__(self, ids: IdManager, extension: float | None = None):
+    def __init__(self, ids: IdManager, extension: float | None = None,
+                 transposition_flip: float = 0.0, n_chromosomes: int = 1,
+                 circular: bool = True):
+        if n_chromosomes < 1:
+            raise ValueError("n_chromosomes must be >= 1")
         self.ids = ids
         self.extension = extension
-        self.chromosome: list[OrderedGene] = []
+        self.transposition_flip = transposition_flip
+        self.circular = circular  # genome-wide seed; Chromosome.circular is the per-chromosome authority
+        self.chromosomes: dict[int, Chromosome] = {}
+        for _ in range(n_chromosomes):
+            cid = ids.new_chromosome()
+            self.chromosomes[cid] = Chromosome(cid, circular)
+
+    @property
+    def chromosome(self) -> list[OrderedGene]:
+        """Read-only flattened view of all genes across every chromosome (backward compat).
+
+        A single-chromosome genome returns its one inner gene list directly; otherwise a fresh
+        concatenation. Mutating state goes through ``self.chromosomes`` (only this class does).
+        """
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes.values())).genes
+        return [g for chrom in self.chromosomes.values() for g in chrom.genes]
 
     # --- queries -----------------------------------------------------------
     def families(self) -> list[str]:
-        return list(dict.fromkeys(g.family for g in self.chromosome))
+        return list(dict.fromkeys(g.family for chrom in self.chromosomes.values()
+                                  for g in chrom.genes))
 
     def copy_number(self, family: str) -> int:
-        return sum(1 for g in self.chromosome if g.family == family)
+        return sum(1 for chrom in self.chromosomes.values() for g in chrom.genes
+                   if g.family == family)
 
     def size(self) -> int:
-        return len(self.chromosome)
+        return sum(len(chrom.genes) for chrom in self.chromosomes.values())
 
     def total_length(self) -> float:
-        return float(len(self.chromosome))  # no intergenes: length == gene count
+        return float(self.size())  # no intergenes: length == gene count
 
     def genes(self) -> list[OrderedGene]:
-        return list(self.chromosome)
+        return [g for chrom in self.chromosomes.values() for g in chrom.genes]
 
     def presence_vector(self, family_order) -> np.ndarray:
-        present = {g.family for g in self.chromosome}
+        present = {g.family for chrom in self.chromosomes.values() for g in chrom.genes}
         return np.fromiter((1 if f in present else 0 for f in family_order),
                            dtype=np.int8, count=len(family_order))
 
     def supported_events(self) -> frozenset[EventType]:
-        return frozenset(
-            STOCHASTIC_EVENTS + (EventType.INVERSION, EventType.TRANSPOSITION)
-        )
+        return frozenset(STOCHASTIC_EVENTS + (
+            EventType.INVERSION, EventType.TRANSPOSITION,
+            EventType.CHROMOSOME_ORIGINATION, EventType.CHROMOSOME_LOSS,
+            EventType.FISSION, EventType.FUSION,
+        ))
 
     # --- helpers -----------------------------------------------------------
-    def _segment_length(self, rng, params: TargetParams) -> int:
+    def _segment_length(self, rng, chrom: "Chromosome", params: TargetParams) -> int:
         ext = params.extension if params.extension is not None else self.extension
-        n = len(self.chromosome)
+        n = len(chrom.genes)
         if ext is None or n <= 1:
             return 1
         length = 1
@@ -373,99 +526,215 @@ class OrderedGenome(Genome):
             length += 1
         return length
 
-    def _rotate_to(self, start: int) -> None:
-        if start:
-            self.chromosome = self.chromosome[start:] + self.chromosome[:start]
+    def _choose_chromosome_weighted(self, rng) -> int:
+        """Pick a chromosome (return its ``chrom_id``), weighted by its gene count.
+
+        Short-circuits without drawing when there is only one chromosome, so a single-chromosome
+        genome consumes exactly the RNG draws of the pre-multichromosome engine (byte-identity)."""
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes))
+        chroms = list(self.chromosomes.values())
+        sizes = [len(c.genes) for c in chroms]
+        r = int(rng.integers(sum(sizes)))
+        for c, s in zip(chroms, sizes):
+            if r < s:
+                return c.chrom_id
+            r -= s
+        return chroms[-1].chrom_id  # pragma: no cover -- unreachable while total > 0
+
+    def _choose_chromosome_uniform(self, rng) -> int:
+        """Pick a chromosome uniformly (return its ``chrom_id``), for origination / transfer
+        insertion where empty chromosomes are valid targets. Draws nothing when there is one."""
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes))
+        cids = list(self.chromosomes)
+        return cids[int(rng.integers(len(cids)))]
+
+    def _remove_gene(self, gene: OrderedGene) -> None:
+        """Remove ``gene`` (by identity) from whichever chromosome holds it."""
+        for chrom in self.chromosomes.values():
+            if chrom.remove(gene):
+                return
+        raise ValueError("gene not present in any chromosome")  # pragma: no cover
 
     # --- mutation ----------------------------------------------------------
     def draw_target(self, event, rng, params, family=None) -> Selection:
-        n = len(self.chromosome)
         if family is None:
-            start = int(rng.integers(n))
+            cid = self._choose_chromosome_weighted(rng)  # size-weighted; no draw if 1 chromosome
+            chrom = self.chromosomes[cid]
+            start = int(rng.integers(len(chrom.genes)))
         else:
-            positions = [i for i, g in enumerate(self.chromosome) if g.family == family]
-            start = positions[int(rng.integers(len(positions)))]
-        length = self._segment_length(rng, params)
-        genes = tuple(self.chromosome[(start + i) % n] for i in range(length))
-        return Selection(genes=genes, region=Region(chromosome=0, start=start, length=length))
+            # a uniform occurrence of the family across all chromosomes (implicitly weights a
+            # chromosome by how many copies it carries); one integer draw, as before
+            occ = [(cix, i) for cix, chrom in self.chromosomes.items()
+                   for i, g in enumerate(chrom.genes) if g.family == family]
+            cid, start = occ[int(rng.integers(len(occ)))]
+            chrom = self.chromosomes[cid]
+        length = self._segment_length(rng, chrom, params)
+        genes, length = chrom.segment(start, length)  # topology-aware read (wrap / clamp)
+        return Selection(genes=genes, region=Region(chromosome=cid, start=start, length=length))
 
     def apply(self, event, selection, rng, params) -> list[list[GeneOp]]:
         if event is EventType.LOSS:  # may be a non-contiguous single gene (replacement)
             groups = []
             for g in selection.genes:
-                self.chromosome.remove(g)
+                self._remove_gene(g)
                 groups.append([GeneOp(g.gid, g.family, "lost")])
             return groups
 
-        # contiguous segment operations: bring the segment to the front of the ring
-        length = selection.region.length
-        self._rotate_to(selection.region.start)
-        segment = self.chromosome[:length]
+        # contiguous segment operations within one chromosome
+        region = selection.region
+        chrom = self.chromosomes[region.chromosome]
+        length = region.length
+        start = chrom.bring_to_front(region.start)  # circular: rotate to front (=0); linear: unchanged
+        end = start + length
+        segment = chrom.genes[start:end]
 
         if event is EventType.DUPLICATION:
             groups, copies = [], []
             for i, g in enumerate(segment):
                 cont = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
-                self.chromosome[i] = cont  # ancestral lineage continues (re-minted)
+                chrom.genes[start + i] = cont  # ancestral lineage continues (re-minted)
                 copy = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
                 copies.append(copy)
                 groups.append([GeneOp(g.gid, g.family, "parent"),
                                GeneOp(cont.gid, g.family, "left"),
                                GeneOp(copy.gid, g.family, "right")])
-            self.chromosome[length:length] = copies  # tandem block after the segment
+            chrom.insert(end, copies)  # tandem block right after the segment
             return groups
 
         if event is EventType.INVERSION:
-            for g in segment:
-                g.orientation = -g.orientation
-            self.chromosome[:length] = list(reversed(segment))
+            chrom.genes[start:end] = Chromosome.invert_block(segment)  # reverse + flip strands
             return [[GeneOp(g.gid, g.family, "inverted") for g in segment]]
 
         if event is EventType.TRANSPOSITION:
             block = list(segment)
-            del self.chromosome[:length]
-            j = int(rng.integers(len(self.chromosome) + 1))
-            self.chromosome[j:j] = block
+            del chrom.genes[start:end]
+            # With probability ``transposition_flip`` the segment reinserts reverse-complemented
+            # (gene order reversed and every strand flipped). The ``and`` guards the draw so
+            # ``transposition_flip == 0`` never consumes an ``rng`` value — an orientation-preserving
+            # run stays byte-identical to a flip-free implementation (the same pattern as biased gene
+            # conversion in :meth:`UnorderedGenome._choose_donor`).
+            if self.transposition_flip and rng.random() < self.transposition_flip:
+                block = Chromosome.invert_block(block)
+            j = int(rng.integers(len(chrom.genes) + 1))  # destination within the SAME chromosome
+            chrom.insert(j, block)
             return [[GeneOp(g.gid, g.family, "transposed") for g in block]]
 
         raise ValueError(f"apply() does not handle {event!r}")
 
     def originate(self, rng, params) -> list[GeneOp]:
         family = self.ids.new_family()
+        chrom = self.chromosomes[self._choose_chromosome_uniform(rng)]  # no draw if 1 chromosome
         gene = OrderedGene(self.ids.new_gene(), family, 1 if rng.random() < 0.5 else -1)
-        j = int(rng.integers(len(self.chromosome) + 1))
-        self.chromosome[j:j] = [gene]
+        chrom.insert(int(rng.integers(len(chrom.genes) + 1)), [gene])
         return [GeneOp(gene.gid, family, "origin")]
 
     # --- transfer handoff --------------------------------------------------
     def extract_segment(self, selection, rng) -> TransferSegment:
-        length = selection.region.length
-        self._rotate_to(selection.region.start)
-        segment = self.chromosome[:length]
+        region = selection.region
+        chrom = self.chromosomes[region.chromosome]
+        length = region.length
+        start = chrom.bring_to_front(region.start)  # circular: rotate to front (=0); linear: unchanged
+        segment = chrom.genes[start:start + length]
         old_gids, cont_gids, transferred = [], [], []
         for i, g in enumerate(segment):
             old_gids.append(g.gid)
             cont = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
-            self.chromosome[i] = cont
+            chrom.genes[start + i] = cont
             cont_gids.append(cont.gid)
             transferred.append(OrderedGene(self.ids.new_gene(), g.family, g.orientation))
         return TransferSegment(family=selection.family, genes=tuple(transferred),
                                donor_old_gids=old_gids, donor_cont_gids=cont_gids)
 
-    def choose_insertion_point(self, segment, rng) -> int:
-        return int(rng.integers(len(self.chromosome) + 1))
+    def choose_insertion_point(self, segment, rng) -> tuple[int, int]:
+        cid = self._choose_chromosome_uniform(rng)  # recipient chromosome; no draw if 1 chromosome
+        return (cid, int(rng.integers(len(self.chromosomes[cid].genes) + 1)))
 
     def insert_segment(self, segment, at, rng) -> list[GeneOp]:
-        j = at if isinstance(at, int) else int(rng.integers(len(self.chromosome) + 1))
-        self.chromosome[j:j] = list(segment.genes)
+        if isinstance(at, tuple):
+            cid, j = at
+        else:  # fallback: no precomputed point -> choose one now
+            cid = self._choose_chromosome_uniform(rng)
+            j = int(rng.integers(len(self.chromosomes[cid].genes) + 1))
+        self.chromosomes[cid].insert(j, segment.genes)
         return [GeneOp(g.gid, g.family, "transfer_copy") for g in segment.genes]
 
     # --- speciation --------------------------------------------------------
     def clone_reminting(self) -> tuple["OrderedGenome", list[tuple[str, str, str]]]:
-        new = type(self)(self.ids, self.extension)
+        new = type(self)(self.ids, self.extension, self.transposition_flip,
+                         n_chromosomes=len(self.chromosomes), circular=self.circular)
         mapping = []
-        for g in self.chromosome:
-            ng = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
-            new.chromosome.append(ng)
-            mapping.append((g.gid, ng.gid, g.family))
+        for pchrom, nchrom in zip(self.chromosomes.values(), new.chromosomes.values()):
+            nchrom.circular = pchrom.circular  # per-chromosome topology (homogeneous today)
+            for g in pchrom.genes:
+                ng = OrderedGene(self.ids.new_gene(), g.family, g.orientation)
+                nchrom.genes.append(ng)
+                mapping.append((g.gid, ng.gid, g.family))
         return new, mapping
+
+    def snapshot(self) -> "OrderedGenome":
+        new = copy.copy(self)                       # shares the IdManager and config
+        new.chromosomes = {cid: replace(chrom, elements=[replace(g) for g in chrom.elements])
+                           for cid, chrom in self.chromosomes.items()}
+        return new
+
+    # --- chromosome-tier events (origination / loss / fission / fusion) -----
+    #
+    # These act on whole chromosomes, one tier above the gene events. Fission / fusion only move
+    # genes between chromosomes, so gene lineages (gids) are untouched and gene-tree reconstruction
+    # is unaffected; only chromosome LOSS ends gene lineages, so it reports them for the log.
+    def originate_chromosome(self, rng, params) -> int:
+        """Originate a new, empty chromosome — a de-novo replicon (a *plasmid* in the bacterial
+        case), with a fresh id and the genome's topology. Genes reach it later via origination or
+        transfer (both can target any chromosome). Returns the new chrom_id. Draws no rng."""
+        cid = self.ids.new_chromosome()
+        self.chromosomes[cid] = Chromosome(cid, self.circular)
+        return cid
+
+    def lose_chromosome(self, rng) -> tuple[int, list[list[GeneOp]]]:
+        """Lose an entire chromosome (chosen uniformly) and everything on it, returning its chrom_id
+        and one LOSS group per gene so the caller can log the gene deaths for gene-tree
+        reconstruction. The caller guarantees >= 2 chromosomes (a genome keeps at least one)."""
+        cid = self._choose_chromosome_uniform(rng)
+        chrom = self.chromosomes.pop(cid)
+        groups = [[GeneOp(g.gid, g.family, "lost")] for g in chrom.genes]
+        return cid, groups
+
+    def fission(self, rng, params) -> tuple[int, int]:
+        """Split one chromosome into two (genes keep their ids — fission only reorganises which
+        chromosome holds them). A **linear** chromosome is cut at ONE breakpoint (the prefix stays,
+        the suffix becomes a new chromosome); a **circular** one at TWO breakpoints, excising the arc
+        between them into a new circular replicon (the remainder stays circular). The source is
+        size-weighted, so bigger chromosomes fission more. Returns (source_cid, new_cid)."""
+        cid = self._choose_chromosome_weighted(rng)
+        chrom = self.chromosomes[cid]
+        n = len(chrom.genes)
+        new_cid = self.ids.new_chromosome()
+        if chrom.circular:
+            i, j = int(rng.integers(n + 1)), int(rng.integers(n + 1))
+            if i > j:
+                i, j = j, i
+            arc = chrom.genes[i:j]
+            chrom.genes = chrom.genes[:i] + chrom.genes[j:]
+            self.chromosomes[new_cid] = Chromosome(new_cid, True, arc)
+        else:
+            k = int(rng.integers(n + 1))
+            self.chromosomes[new_cid] = Chromosome(new_cid, False, chrom.genes[k:])
+            chrom.genes = chrom.genes[:k]
+        return cid, new_cid
+
+    def fusion(self, rng, params) -> tuple[int, int]:
+        """Fuse two chromosomes into one: append the second's genes onto the first and drop the
+        second (genes keep their ids). The two are chosen uniformly; the caller guarantees >= 2
+        chromosomes. Genomes are topology-homogeneous today, so the same-topology rule is met
+        automatically. Returns (kept_cid, absorbed_cid)."""
+        cids = list(self.chromosomes)
+        m = len(cids)
+        i = int(rng.integers(m))
+        j = int(rng.integers(m - 1))
+        if j >= i:  # a uniform partner distinct from i
+            j += 1
+        keep_cid, absorb_cid = cids[i], cids[j]
+        self.chromosomes[keep_cid].genes.extend(self.chromosomes.pop(absorb_cid).genes)
+        return keep_cid, absorb_cid
