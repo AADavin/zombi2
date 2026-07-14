@@ -58,8 +58,11 @@ NAMESPACES = {
         "SequenceEvolution", "GenePhylograms",
         "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr",
         "poisson", "lg", "wag", "jtt", "dayhoff", "make_model", "is_protein_model",
-        "DNA_MODELS", "PROTEIN_MODELS", "AMINO_ACIDS",
+        "is_codon_model", "DNA_MODELS", "PROTEIN_MODELS", "CODON_MODELS", "AMINO_ACIDS",
         "evolve_on_tree", "read_fasta", "write_fasta",
+        # codon substitution models (GY94 / MG94; dN/dS via omega). The codon utilities
+        # (translate, SENSE_CODONS, expected_dnds, ...) stay in zombi2.sequences.codon_models.
+        "gy94", "mg94", "make_codon_model",
     ],
     "coevolve": [
         "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
@@ -138,7 +141,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 143   # + PerLineageRates / LineageRates / LineageModifier / read_lineage_rates
+    assert len(z.__all__) == 148   # + codon models: is_codon_model, CODON_MODELS, gy94, mg94, make_codon_model
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 

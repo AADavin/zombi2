@@ -325,20 +325,21 @@ uncorrelated/autocorrelated correlation contrast and mean-rate properties are pi
 on large simulated trees. They confirm each clock's defining behaviour, not that inference recovers the
 parameters.
 
-## Simulating alignments (DNA and protein)
+## Simulating alignments (DNA, protein and codon)
 
 Add `--subst-model` and `sequence` goes one step further: it evolves an **actual sequence
 alignment** down each rescaled gene tree (the rescaled branch lengths *are* the expected
 substitutions per site). One FASTA per family is written to `run/alignments/<family>.fasta`,
 its records headed by the same `<species>_<gene-id>` labels the leaves carry in the
-`_extant_subst.nwk` tree. DNA versus protein is auto-detected from the model name.
+`_extant_subst.nwk` tree. DNA, protein, or codon is auto-detected from the model name.
 
 !!! note "Alignments are gapless"
     `sequence` models **substitutions only**: every family's alignment is a fixed-length block
-    (set by `--seq-length`) with **no indels or gaps**, and there is no codon model. If you need
-    gappy alignments to benchmark an aligner, ZOMBI2 cannot produce them yet. The
-    insertions/deletions in the [nucleotide genome layer](genomes.md) are *structural* — they add,
-    remove, or reorder genes — and never become alignment columns.
+    (set by `--seq-length`) with **no indels or gaps**. If you need gappy alignments to benchmark an
+    aligner, ZOMBI2 cannot produce them yet. The insertions/deletions in the
+    [nucleotide genome layer](genomes.md) are *structural* — they add, remove, or reorder genes —
+    and never become alignment columns. (The [codon models](#codon-substitution-models) do capture
+    selection: `dN/dS` via `--omega` — but still without indels.)
 
 ```bash
 # DNA alignments (HKY85), 600 bp
@@ -359,12 +360,16 @@ Available models:
   (Jones et al. 1992), and `dayhoff` (Dayhoff et al. 1978) — exchangeabilities and frequencies
   transcribed byte-for-byte from the reference PAML data files. The protein models take no
   parameters.
+- **Codon (61 sense codons, coding DNA):** `gy94` (Goldman & Yang 1994) and `mg94` (Muse & Gaut
+  1994), with `dN/dS` set by `--omega`, the ti/tv ratio by `--kappa`, and `F1×4` codon frequencies
+  by `--base-freqs`. See [Codon substitution models](#codon-substitution-models); `--seq-length`
+  counts **codons** for these.
 
 `--gamma-shape ALPHA` adds discrete-Gamma (+Γ) across-site rate heterogeneity for any model;
-`--seq-length N` sets the alignment length; `--root-fasta FILE` seeds each family's root from a
-FASTA keyed by family id instead of a random draw from the stationary distribution. Omit
-`--subst-model` and `sequence` only rescales the trees, exactly as before — no alignments are
-written.
+`--seq-length N` sets the alignment length (in codons for `gy94`/`mg94`); `--omega W` sets `dN/dS`
+for the codon models; `--root-fasta FILE` seeds each family's root from a FASTA keyed by family id
+instead of a random draw from the stationary distribution. Omit `--subst-model` and `sequence` only
+rescales the trees, exactly as before — no alignments are written.
 
 ## DNA substitution models
 
@@ -662,6 +667,131 @@ multiplier, and `sequence.log` is the run manifest.
   matrices from protein sequences. *Computer Applications in the Biosciences* 8(3): 275–282.
 - Dayhoff, M. O., Schwartz, R. M. & Orcutt, B. C. (1978). A model of evolutionary change in proteins.
   In *Atlas of Protein Sequence and Structure*, vol. 5, suppl. 3, pp. 345–352.
+
+## Codon substitution models
+
+DNA and protein models evolve sites independently. A **codon** model evolves the coding sequence one
+*codon* at a time over the 61 sense codons, so the split between **synonymous** (amino-acid
+preserving) and **non-synonymous** changes — the raw material of `dN/dS` — is built into the state
+space. Selection then enters through a single knob: **`omega`** (`ω = dN/dS`) multiplies every
+non-synonymous rate, so `ω < 1` is purifying selection, `ω = 1` neutrality, and `ω > 1` positive
+selection. A transition/transversion bias `kappa` acts on the underlying nucleotide change, exactly as
+in K80/HKY. Each model is a 61-state **time-reversible** rate matrix (the same `exp(Qt)` engine and
+`evolve_on_tree` as the DNA/protein models), and its alphabet is the 61 sense codons — so a run writes
+**in-frame coding DNA**, and stop codons are never produced.
+
+| Model | Rate for a one-nucleotide codon change `i→j` | Reach for it when |
+| --- | --- | --- |
+| **GY94** (Goldman & Yang 1994) | `Q_ij = π_j · κ^{ts} · ω^{nonsyn}` — weighted by the *target codon* frequency `π_j` | you want the classic codon model; codon frequencies from `F1×4`/`F3×4`/`F61` |
+| **MG94** (Muse & Gaut 1994) | `Q_ij = π*_b · κ^{ts} · ω^{nonsyn}` — weighted by the introduced *nucleotide* frequency | you want mutation written at the nucleotide level, cleanly separating mutation from selection |
+
+Both write selection as a multiplier on non-synonymous rates, so they share the interpretation of
+`omega`; they differ only in how the neutral mutation flow is parameterised (target-codon vs
+target-nucleotide frequency). They coincide under uniform frequencies and diverge as the base
+composition skews.
+
+### The codon models
+
+#### GY94
+
+The Goldman & Yang (1994) model: for two codons differing at exactly one nucleotide, the rate is the
+target-codon equilibrium frequency `π_j`, multiplied by `kappa` for a transition and by `omega` for a
+non-synonymous change; changes touching more than one position, or landing on a stop codon, have rate
+zero. Codon frequencies come from a frequency model — uniform `F61` by default, `F1×4` from a single
+set of base frequencies (`freqs=(A,C,G,T)`), or `F3×4` from position-specific frequencies (a 3×4
+array). The default codon model to reach for.
+
+#### MG94
+
+The Muse & Gaut (1994) model writes the mutation at the nucleotide level: the rate uses the frequency
+of the single *nucleotide* being introduced, so the neutral mutation process is a nucleotide model and
+`omega` scales only the selective (non-synonymous) part on top of it. Its stationary distribution is
+the product-of-nucleotide (`F1×4`/`F3×4`) codon frequency. Reach for it when you want mutation and
+selection cleanly factored, or to match an MG94-based analysis.
+
+### Codon from the command line
+
+`--subst-model gy94`/`mg94` turns on codon evolution; `--omega` sets `dN/dS`, `--kappa` the
+transition/transversion ratio, and `--base-freqs` the `F1×4` codon frequencies. Note that
+`--seq-length` counts **codons** for these models (so `--seq-length 200` writes 600-nucleotide coding
+sequences).
+
+```bash
+# a genomes run written with the event trace (prerequisite)
+zombi2 genomes -t species_tree.nwk -o out --dup 0.3 --loss 0.3 --write trace --seed 1
+
+# GY94 under strong purifying selection (dN/dS = 0.1), 200 codons = 600 bp
+zombi2 sequence --genomes out -o out --subst-model gy94 --omega 0.1 --kappa 3 \
+  --seq-length 200 --branch-speed 0.4 --seed 1
+
+# MG94 with positive selection (dN/dS = 2) and skewed base frequencies
+zombi2 sequence --genomes out -o out --subst-model mg94 --omega 2.0 \
+  --base-freqs 0.32 0.18 0.22 0.28 --seed 1
+```
+
+### Codon from Python
+
+```python
+import numpy as np
+from zombi2.sequences import gy94, mg94, evolve_on_tree
+from zombi2.sequences.codon_models import translate, expected_dnds
+
+# a minimal tree node has a .gid and .children (real trees come from a genomes run)
+class Node:
+    def __init__(self, gid, children=()):
+        self.gid, self.children = gid, list(children)
+
+a, b = Node("a"), Node("b")
+root = Node("r", [a, b])
+subst = {a: 0.5, b: 0.5}                       # substitutions/site on each branch
+
+# GY94 with a ti/tv bias, purifying selection, and F1x4 codon frequencies
+model = gy94(kappa=3.0, omega=0.2, freqs=(0.3, 0.2, 0.25, 0.25))
+seqs = evolve_on_tree(root, subst, model, np.random.default_rng(0), length=150)
+# seqs maps each node's gid -> in-frame coding DNA (150 codons = 450 nt); no stop codons
+print(len(seqs["a"]), translate(seqs["a"])[:10])
+
+# the model's genome-wide dN/dS, checked against its neutral (omega=1) twin
+print(expected_dnds(model, gy94(kappa=3.0, omega=1.0, freqs=(0.3, 0.2, 0.25, 0.25))))  # -> 0.2
+```
+
+### Codon output
+
+`sequence --subst-model gy94`/`mg94` writes the same layout as the DNA/protein models — rescaled
+phylograms in `gene_trees/`, one alignment per family in `alignments/<family>.fasta`, plus
+`branch_rates.tsv`, `gene_family_speeds.tsv` and the `sequence.log` manifest — except each alignment
+record is **in-frame coding DNA** (a multiple of three nucleotides, no stop codons), which you can
+translate to the protein alignment with `zombi2.sequences.codon_models.translate`.
+
+### Codon validation
+
+- **Reversibility.** Detailed balance `π_i Q_ij = π_j Q_ji` holds to machine precision for both models
+  under asymmetric `F3×4` frequencies, so the reversible eigendecomposition behind `exp(Qt)` is valid
+  (`test_codon_models.py::test_detailed_balance`); `P(t)` matches a reference matrix exponential
+  (`::test_p_matrix_matches_expm_and_is_stochastic`).
+- **dN/dS (matrix oracle).** For `ω ∈ {0.1, 0.5, 1, 2}`, the flux-based `expected_dnds` — measured
+  against the model's own `ω=1` twin — returns the injected `omega` exactly, for both GY94 and MG94
+  (`test_codon_models.py::test_expected_dnds_recovers_omega`).
+- **dN/dS (simulation).** Counting synonymous vs non-synonymous substitutions on evolved sequences,
+  normalised by the neutral run's opportunity, recovers `ω = 0.2` to within `0.06`
+  (`test_codon_models.py::test_omega_recovered_from_simulated_substitutions`).
+- **kappa.** Under uniform codon frequencies, every synonymous transition rate is exactly `kappa`
+  times every synonymous transversion rate
+  (`test_codon_models.py::test_kappa_is_synonymous_transition_transversion_ratio`).
+- **Stationarity.** A long branch drives the base composition to the model's equilibrium — the
+  marginal of its codon stationary `π`, which the stop-codon exclusion skews away from the raw input
+  base frequencies (`test_codon_models.py::test_gy94_stationary_composition_recovered`).
+- **No stop codons.** Even under positive selection (`ω = 1.5`), no evolved sequence ever contains a
+  stop codon (`test_codon_models.py::test_no_stop_codons_ever_appear`); GY94 and MG94 are genuinely
+  different matrices under skewed frequencies (`::test_gy94_and_mg94_differ`).
+
+### Codon references
+
+- Goldman, N. & Yang, Z. (1994). A codon-based model of nucleotide substitution for protein-coding DNA
+  sequences. *Molecular Biology and Evolution* 11(5): 725–736.
+- Muse, S. V. & Gaut, B. S. (1994). A likelihood approach for comparing synonymous and nonsynonymous
+  nucleotide substitution rates, with application to the chloroplast genome.
+  *Molecular Biology and Evolution* 11(5): 715–724.
 
 ## Clock references
 
