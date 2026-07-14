@@ -24,8 +24,8 @@ nothing is read until you ask for it, which matters for runs with thousands of f
 ## Optional dependency
 
 reconparser needs only `pandas` (for the table outputs), which is **not** in the base install;
-trees use ZOMBI2's built-in parser, so there is no `ete3` dependency. Like the `selection` extra,
-it ships behind an opt-in extra:
+trees use ZOMBI2's built-in parser, so there is no `ete3` dependency. It ships behind an opt-in
+extra:
 
 ```bash
 pip install 'zombi2[reconparser]'

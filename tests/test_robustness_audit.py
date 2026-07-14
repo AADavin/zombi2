@@ -144,24 +144,6 @@ def test_pagel_delta_keeps_all_branches_positive():
                        if n.parent is not None), f"negative branch: {nwk} delta={delta}"
 
 
-# --------------------------------------------------------------- experimental edges
-
-def test_translate_rejects_ambiguous_codon():
-    from zombi2.experimental.codon_selection import translate
-    with pytest.raises(ValueError, match="not a standard ACGT codon"):
-        translate("ATGNNN")
-    assert translate("ATGAAA") == "MK"
-
-
-def test_codon_selection_empty_protein_clear_error():
-    from zombi2.experimental import codon_selection as CS
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        sel = CS.CodonSelection(CS.FixedProfileCritic(np.ones((1, 20)) / 20), beta=1.0)
-        with pytest.raises(ValueError, match="empty protein"):
-            sel.dnds("")
-
-
 def test_musse_frozen_character_stationary_is_uniform():
     from zombi2.coevolve.sse import BiSSE
     pi = BiSSE(1, 3, 0.2, 0.2, 0.0, 0.0).stationary_distribution()   # frozen character (q=0)

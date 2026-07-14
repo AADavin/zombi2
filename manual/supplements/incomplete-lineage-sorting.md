@@ -12,7 +12,7 @@ supplement describes an **experimental** ZOMBI2 feature that simulates gene tree
 ::: warning
 Everything in this supplement lives in `zombi2.experimental`. It is shipped so you can use and iterate on
 it, but it has **not** yet cleared ZOMBI2's core bar: the API may change, and the outputs are not yet
-validated for publication. Unlike the selection supplement it needs **no optional dependencies** — it is
+validated for publication. It needs **no optional dependencies** — it is
 pure `numpy`. This is a separate, self-contained document; it is **not** part of the main manual.
 :::
 

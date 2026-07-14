@@ -70,34 +70,6 @@ def warn_experimental(name: str) -> None:
 # ``PerCopyRates(conversion=...)`` + ``zombi2.ConversionModel`` with a ``--conversion`` CLI flag.)
 # ---------------------------------------------------------------------------
 
-# Imported after warn_experimental is defined (the model imports it). ESM2Critic imports torch/esm
-# lazily, so this line does NOT pull the optional zombi2[selection] dependencies.
-from zombi2.experimental.selection import (  # noqa: E402
-    Critic, ESM2Critic, FixedProfileCritic, PLMSelection,
-)
-
-__all__ += ["Critic", "ESM2Critic", "FixedProfileCritic", "PLMSelection"]
-
-from zombi2.experimental.codon_selection import (  # noqa: E402
-    CodonSelection, calibrate_beta, translate,
-)
-
-__all__ += ["CodonSelection", "calibrate_beta", "translate"]
-
-from zombi2.experimental.genome_selection import CDS, GenomeSelection, read_cds_gff  # noqa: E402
-
-__all__ += ["CDS", "GenomeSelection", "read_cds_gff"]
-
-from zombi2.experimental.realism import frechet_esm_distance  # noqa: E402
-
-__all__ += ["frechet_esm_distance"]
-
-from zombi2.experimental.nucleotide_selection import (  # noqa: E402
-    BlockSelectionReport, NucleotideGenomeSelection, simulate_nucleotide_selection,
-)
-
-__all__ += ["BlockSelectionReport", "NucleotideGenomeSelection", "simulate_nucleotide_selection"]
-
 # Incomplete lineage sorting (multispecies coalescent). Pure numpy -- no optional dependencies.
 from zombi2.experimental.ils import (  # noqa: E402
     MultispeciesCoalescent, expected_triple_concordance, is_concordant, rooted_clades,
