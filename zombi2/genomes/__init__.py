@@ -22,12 +22,13 @@ from zombi2.genomes.nucleotide_genome import NucleotideGenome, Segment
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
 from zombi2.genomes.gff import read_gff, read_gff_all, GffGenome
 from zombi2.genomes.rates import (
-    RateModel, PerCopyRates, SharedRates, PerGenomeRates, FamilySampledRates, BranchRates,
-    Modifier, ModifiedRates, BranchModifier, FamilyModifier, EventWeight,
+    RateModel, PerCopyRates, SharedRates, PerLineageRates, PerGenomeRates, FamilySampledRates,
+    LineageRates, BranchRates, Modifier, ModifiedRates, LineageModifier, BranchModifier,
+    FamilyModifier, EventWeight,
 )
 from zombi2.genomes.transfers import TransferModel, PairModifier
 from zombi2.genomes.conversion import ConversionModel
-from zombi2.genomes.read_rates import read_family_rates, read_branch_rates
+from zombi2.genomes.read_rates import read_family_rates, read_lineage_rates, read_branch_rates
 from zombi2.genomes.genome_sim import GenomeSimulator, GenomeResult
 from zombi2.genomes.profiles import ProfileMatrix
 from zombi2.genomes.reconciliation import build_gene_trees
@@ -38,10 +39,11 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
-    "RateModel", "PerCopyRates", "SharedRates", "PerGenomeRates", "FamilySampledRates",
-    "BranchRates", "Modifier", "ModifiedRates", "BranchModifier", "FamilyModifier",
+    "RateModel", "PerCopyRates", "SharedRates", "PerLineageRates", "PerGenomeRates",
+    "FamilySampledRates", "LineageRates", "BranchRates", "Modifier", "ModifiedRates",
+    "LineageModifier", "BranchModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
-    "read_family_rates", "read_branch_rates",
+    "read_family_rates", "read_lineage_rates", "read_branch_rates",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",
     "simulate_genomes", "Genomes", "GenomeTrace", "read_events_trace",
     "build_gene_trees", "run_replicates",

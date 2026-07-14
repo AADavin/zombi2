@@ -99,22 +99,24 @@ def read_family_speeds(path) -> dict[str, float]:
     return out
 
 
-def read_branch_rates(path) -> tuple[dict[str, float], dict[str, float]]:
-    """Read a per-branch table into ``(emission_factors, receptivity_weights)``.
+def read_lineage_rates(path) -> tuple[dict[str, float], dict[str, float]]:
+    """Read a per-lineage table into ``(emission_factors, receptivity_weights)``.
 
-    ``emission_factors`` scales each listed branch's transfer *donation* rate; ``receptivity_weights``
-    biases how likely each listed branch is to *receive*. Either column may be omitted (the
-    corresponding map is then empty). A header row (``branch``/``emission``/``receptivity``) is
-    honoured if present; otherwise columns are ``branch emission receptivity`` positionally.
+    ``emission_factors`` scales each listed lineage's transfer *donation* rate; ``receptivity_weights``
+    biases how likely each listed lineage is to *receive*. Either column may be omitted (the
+    corresponding map is then empty). A header row (``lineage``/``emission``/``receptivity``; ``branch``
+    is accepted as a synonym for ``lineage``) is honoured if present; otherwise columns are
+    ``lineage emission receptivity`` positionally.
     """
     rows = list(_rows(path))
     if not rows:
         return {}, {}
-    emit_col, recept_col, branch_col = 1, 2, 0
+    emit_col, recept_col, lineage_col = 1, 2, 0
     start = 0
     if not _looks_numeric(rows[0]):
         header = [h.lower() for h in rows[0]]
-        branch_col = header.index("branch") if "branch" in header else 0
+        lineage_col = (header.index("lineage") if "lineage" in header
+                       else header.index("branch") if "branch" in header else 0)
         emit_col = header.index("emission") if "emission" in header else None
         recept_col = header.index("receptivity") if "receptivity" in header else None
         if emit_col is None and recept_col is None:
@@ -123,9 +125,14 @@ def read_branch_rates(path) -> tuple[dict[str, float], dict[str, float]]:
     emission: dict[str, float] = {}
     receptivity: dict[str, float] = {}
     for r in rows[start:]:
-        branch = str(r[branch_col])
+        lineage = str(r[lineage_col])
         if emit_col is not None and emit_col < len(r):
-            emission[branch] = float(r[emit_col])
+            emission[lineage] = float(r[emit_col])
         if recept_col is not None and recept_col < len(r):
-            receptivity[branch] = float(r[recept_col])
+            receptivity[lineage] = float(r[recept_col])
     return emission, receptivity
+
+
+#: Backwards-compatible alias — the vocabulary standardises on "lineage" (see
+#: ``docs/design/rate-vocabulary.md``); ``read_branch_rates`` still works.
+read_branch_rates = read_lineage_rates

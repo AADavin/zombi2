@@ -33,7 +33,7 @@ class TransferModel:
     receptivity:
         Per-branch **absorption** weights: a ``{branch_name: weight}`` map that biases which
         lineage *receives* a transfer (the counterpart to transfer *emission*, which is a rate and
-        is scaled per branch via :class:`~zombi2.genomes.rates.BranchRates`). ``None`` (default)
+        is scaled per lineage via :class:`~zombi2.genomes.rates.LineageRates`). ``None`` (default)
         leaves recipient choice unweighted. Otherwise each candidate's selection weight is
         multiplied by its receptivity (branches not listed default to ``1.0``), composing with
         ``distance_decay`` if that is also set. A branch with weight ``0`` never receives; a branch
@@ -45,7 +45,7 @@ class TransferModel:
         behind transfer *highways*. ``None`` (default) leaves pair choice unbiased. Otherwise each
         candidate recipient's selection weight is additionally multiplied by the pair factor for
         ``(donor, recipient)``, composing with ``distance_decay`` and ``receptivity``. This is the
-        *recipient-seam* counterpart of the emission-seam modifiers (per-branch / per-family rates);
+        *recipient-seam* counterpart of the emission-seam modifiers (per-lineage / per-family rates);
         see :class:`PairModifier` and ``docs/design/rate-modifiers.md``. Python API only for now, and
         it runs on the pure-Python engine.
     """
