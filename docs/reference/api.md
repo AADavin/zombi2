@@ -66,12 +66,12 @@ Auto-generated from the source docstrings.
 
 ::: zombi2.genomes.rates.RateModel
 ::: zombi2.genomes.rates.PerCopyRates
-::: zombi2.genomes.rates.PerGenomeRates
+::: zombi2.genomes.rates.PerLineageRates
 ::: zombi2.genomes.rates.FamilySampledRates
-::: zombi2.genomes.rates.BranchRates
+::: zombi2.genomes.rates.LineageRates
 ::: zombi2.genomes.rates.EventWeight
 ::: zombi2.genomes.read_rates.read_family_rates
-::: zombi2.genomes.read_rates.read_branch_rates
+::: zombi2.genomes.read_rates.read_lineage_rates
 
 ## Distributions
 

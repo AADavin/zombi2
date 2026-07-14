@@ -6,7 +6,7 @@ cleanup (`PerCopyRates`, `--rate-per`) and the Phase 2 docs rewrite ([Rates: a p
 ## Goal
 
 One `Modifier` abstraction — **a context-keyed multiplier on an event's rate** — that every level
-composes, replacing the bespoke `BranchRates` wrapper and the special-cased family / receptivity
+composes, replacing the bespoke `LineageRates` wrapper and the special-cased family / receptivity
 paths with a single stackable mechanism. This makes the code say exactly what the primer says:
 *modifiers multiply, and they are the same idea everywhere*. It also unlocks the two flexibility
 asks (a family's transfer biased between two clades; family × branch on sequence speed) as ordinary
@@ -42,7 +42,7 @@ apply:
 
 | Seam | Applied by | Modifiers that live here |
 |---|---|---|
-| **Emission** | `ModifiedRates` (a `RateModel`) | `BranchModifier`, `FamilyModifier`, size/carrying-capacity |
+| **Emission** | `ModifiedRates` (a `RateModel`) | `LineageModifier`, `FamilyModifier`, size/carrying-capacity |
 | **Recipient choice** | `TransferModel` | `PairModifier` (donor→recipient), per-recipient receptivity |
 
 This is the honest version of "one Modifier idea": **one concept, one `factor` signature, two
@@ -59,16 +59,16 @@ attachment points** — not one code path pretending transfer recipients are kno
 
 ## Mapping the existing classes (back-compat + byte-identity)
 
-- **`BranchRates(base, …)`** — keep the public class; reimplement it as
-  `ModifiedRates(base, [BranchModifier(…)])`. **Byte-identity constraint:** `BranchModifier` must
-  draw from the RNG in the *exact* order `BranchRates` does today (autocorrelated: tree-preorder
+- **`LineageRates(base, …)`** — keep the public class; reimplement it as
+  `ModifiedRates(base, [LineageModifier(…)])`. **Byte-identity constraint:** `LineageModifier` must
+  draw from the RNG in the *exact* order `LineageRates` does today (autocorrelated: tree-preorder
   normals at `bind`; per-branch: lazy i.i.d. per branch). The existing byte-identity tests are the
   guard.
 - **`FamilySampledRates`** — keep the public class (the ZOMBI1-style *base* form). Add an equivalent
   `FamilyModifier` (the *overlay* form: base × per-family multiplier, drawn once per family and
   cached). This is what makes **per-genome × per-family** expressible — the corner the old enum
   couldn't name.
-- **`PerCopyRates` / `PerGenomeRates`** — unchanged; they are the two *base* rate laws (the
+- **`PerCopyRates` / `PerLineageRates`** — unchanged; they are the two *base* rate laws (the
   opportunity axis). Modifiers stack on either.
 - **`TransferModel.receptivity`** — becomes the first `RecipientModifier`; generalise it to accept a
   per-`(donor, recipient)` **pair** matrix in addition to per-recipient weights.
@@ -84,7 +84,7 @@ attachment points** — not one code path pretending transfer recipients are kno
   **epoch-specific** (open only in a time window) via the `refresh_times` hook, and **family-scoped**
   (a highway that carries only some families) by keying on `family`. This is the motivating use case
   for the recipient seam.
-- **Family × branch on sequence speed** → stack `FamilyModifier` + `BranchModifier` on the
+- **Family × branch on sequence speed** → stack `FamilyModifier` + `LineageModifier` on the
   substitution rate (emission seam). Composes for free once both exist.
 
 ## Rust fast path — untouched
@@ -96,14 +96,14 @@ Rust parity; the pair matrix is Python-only to start.
 
 ## Decision taken
 
-**Hold byte-identity when porting `BranchRates`** (replicate the exact RNG draw order) rather than
+**Hold byte-identity when porting `LineageRates`** (replicate the exact RNG draw order) rather than
 accept a re-seeded stream. Reproducibility across a seed is load-bearing, and the existing
 byte-identity tests should stay green with zero churn. Slightly fiddlier, worth it.
 
 ## Implementation order (one pass, each step keeps the suite green)
 
 1. `Modifier` protocol + `ModifiedRates` composer (emission seam); no behaviour change yet.
-2. `BranchModifier`; re-express `BranchRates` on top of it (byte-identical); tests green.
+2. `LineageModifier`; re-express `LineageRates` on top of it (byte-identical); tests green.
 3. `FamilyModifier` (overlay form); wire `--family-rates` / composition; per-genome × per-family.
 4. `PairModifier` + `TransferModel` pair matrix (recipient seam); the transfer-between-clades ask.
-5. Sequence side: expose `FamilyModifier` × `BranchModifier` on the substitution rate.
+5. Sequence side: expose `FamilyModifier` × `LineageModifier` on the substitution rate.
