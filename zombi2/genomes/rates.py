@@ -232,15 +232,15 @@ class PerCopyRates(RateModel):
 SharedRates = PerCopyRates
 
 
-class PerGenomeRates(RateModel):
-    """Genome-wise rates: each event type fires at a **constant per-genome rate**,
-    independent of how many gene copies the genome holds.
+class PerLineageRates(RateModel):
+    """Per-lineage rates: each event type fires at a **constant rate per lineage** (the whole
+    genome as one unit), independent of how many gene copies the genome holds.
 
     Contrast :class:`PerCopyRates`, where the total duplication/transfer/loss rate scales
     with genome size (per-copy rates). Here the totals are fixed, so when an event fires a
     target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
-    rather than exponentially, so genome-wise models are intrinsically far less prone to
-    runaway growth. Origination is per branch.
+    rather than exponentially, so per-lineage models are intrinsically far less prone to
+    runaway growth. Origination is per lineage.
     """
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
@@ -462,13 +462,14 @@ class ModifiedRates(RateModel):
         return times
 
 
-class BranchModifier(Modifier):
-    """Per-species-tree-branch factor — the emission-seam modifier behind :class:`BranchRates`.
+class LineageModifier(Modifier):
+    """Per-lineage factor — the emission-seam modifier behind :class:`LineageRates` (a relaxed clock
+    is exactly this: a rate multiplier that varies from lineage to lineage down the tree).
 
     Provide exactly one source: ``autocorr_sigma`` (relaxed clock), ``per_branch`` (i.i.d. per
-    branch), or ``factors`` (an explicit ``{branch: factor}`` map). ``events`` selects which event
-    kinds it scales (default duplication/transfer/loss); ``root_rate`` is the root branch's factor
-    and the fallback for branches an explicit map omits.
+    lineage), or ``factors`` (an explicit ``{lineage: factor}`` map). ``events`` selects which event
+    kinds it scales (default duplication/transfer/loss); ``root_rate`` is the root lineage's factor
+    and the fallback for lineages an explicit map omits.
     """
 
     def __init__(self, *, autocorr_sigma: float | None = None, per_branch=None,
@@ -516,11 +517,11 @@ class BranchModifier(Modifier):
         return self._branch_factor(branch)
 
 
-class BranchRates(ModifiedRates):
-    """Make rates vary per species-tree branch by scaling a base rate model.
+class LineageRates(ModifiedRates):
+    """Make rates vary from lineage to lineage by scaling a base rate model.
 
     Wraps any base rate model (``PerCopyRates``, ``FamilySampledRates``, ...) and multiplies its
-    weights on each branch by a per-branch factor. By default the factor scales
+    weights on each lineage by a per-lineage factor. By default the factor scales
     duplication/transfer/loss together (origination is left unscaled); pass ``events`` to restrict it
     to specific event kinds — e.g. ``events=("transfer",)`` makes a branch more (or less) prone to
     **donating** a transfer without touching its duplication/loss. This is the transfer-*emission*
@@ -549,14 +550,14 @@ class BranchRates(ModifiedRates):
     def __init__(self, base: RateModel, *, autocorr_sigma: float | None = None,
                  per_branch=None, factors: dict | None = None, root_rate: float = 1.0,
                  events=None):
-        super().__init__(base, [BranchModifier(
+        super().__init__(base, [LineageModifier(
             autocorr_sigma=autocorr_sigma, per_branch=per_branch, factors=factors,
             root_rate=root_rate, events=events)])
 
     @property
     def _factor(self) -> dict:
         """The per-branch factor map — kept for backward compatibility; it now lives on the
-        underlying :class:`BranchModifier`."""
+        underlying :class:`LineageModifier`."""
         return self.modifiers[0]._factor
 
 
@@ -565,9 +566,9 @@ class FamilyModifier(Modifier):
 
     Contrast :class:`FamilySampledRates`, which bakes per-family rates into a base model; a
     ``FamilyModifier`` instead multiplies any base's per-family rate by a family factor, so it stacks
-    with other modifiers. Composed on :class:`PerGenomeRates` it expresses **per-genome × per-family**
+    with other modifiers. Composed on :class:`PerLineageRates` it expresses **per-genome × per-family**
     rates (the combination the old ``--rate-model`` enum could not name); composed with a
-    :class:`BranchModifier` it gives **family × branch** heterogeneity.
+    :class:`LineageModifier` it gives **family × branch** heterogeneity.
 
     Provide exactly one source: ``factors`` (an explicit ``{family: factor}`` map; families absent
     from it use ``root_factor``) or ``per_family`` (a distribution drawn i.i.d. per family at first
@@ -606,3 +607,12 @@ class FamilyModifier(Modifier):
         if family is None or event not in self._scaled:
             return 1.0
         return self._family_factor(str(family))
+
+
+#: Backwards-compatible aliases — the rate vocabulary standardises on "lineage" (see
+#: ``docs/design/rate-vocabulary.md``): "per genome" was always "per lineage" (one genome per
+#: lineage), and the per-branch heterogeneity modifier is a per-lineage one. The old names remain
+#: as the **same class objects**, so existing code and any ``type(...)`` checks keep working.
+PerGenomeRates = PerLineageRates
+BranchModifier = LineageModifier
+BranchRates = LineageRates

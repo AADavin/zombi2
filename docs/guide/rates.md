@@ -47,11 +47,11 @@ The single most clarifying question you can ask about any rate is **"per what?"*
 | per **gene copy** | number of copies | bigger gene family / genome |
 | per **nucleotide** | sequence length | longer sequence |
 
-This is where the old "per copy vs per genome" question actually lives — it was never special to
-genomes. **Per copy** means *opportunities = number of copies*, so a family with 100 copies is
-duplicated 100× as often as a family with one. **Per genome** means *opportunities = 1*, a fixed pace
-no matter how big the genome grows. Choosing between them is simply choosing what counts as an
-opportunity.
+This is where the "per copy vs per lineage" choice actually lives — and "per lineage" is not special
+to genomes (it is the same measure speciation uses). **Per copy** means *opportunities = number of
+copies*, so a family with 100 copies is duplicated 100× as often as a family with one. **Per lineage**
+means *opportunities = 1*, a fixed pace no matter how big the genome grows (one genome per lineage).
+Choosing between them is simply choosing what counts as an opportunity.
 
 ## Modifiers: context that rescales the base
 

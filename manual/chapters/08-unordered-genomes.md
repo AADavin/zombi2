@@ -32,36 +32,36 @@ branches between nodes.
 
 The process is a Gillespie simulation over all branches alive at once. Duplication, transfer, and
 loss act **per gene copy**, so a family's total event rate scales with its current copy number and
-its size follows an exponential birth–death. Origination acts **per branch**, seeding new families
+its size follows an exponential birth–death. Origination acts **per lineage**, seeding new families
 over time independently of what is already present.
 
 ![Three gene families evolving along one species tree, each drawn in its own colour. Every family originates at the root and then accrues its own duplication, transfer and loss, placed on the branch where the shared Gillespie process fired it — one process, run over every branch alive at each moment, threads all three histories through the same tree at once.](figures/species_tree_events_multi.pdf){width=95%}
 
 ## Rates
 
-Within the unordered level, `--rate-model` — or a `RateModel` object in Python — chooses **how the
-four rates vary across gene families**. Chapter 7 summarises the rate models in a table; this
-section works through them. `shared` (the default), `per-genome` and `family` are available on the
-command line; explicit per-family and per-branch rate tables are supplied from files with
-`--family-rates` / `--branch-rates` (below).
+Within the unordered level, `--rate-per` — or a `RateModel` object in Python — chooses **the
+opportunity each rate is counted per**: per gene copy (the default) or per lineage. Chapter 7
+summarises the rate models in a table; this section works through them. On top of either, per-family
+or per-lineage **multipliers** make rates differ by context. Explicit per-family and per-lineage rate
+tables are supplied from files with `--family-rates` / `--lineage-rates` (below).
 
-### Shared rates
+### Per-copy rates
 
-`SharedRates` gives every family the same per-copy D/T/L rates and a shared per-branch origination
+`PerCopyRates` gives every family the same per-copy D/T/L rates and a per-lineage origination
 rate:
 
 ```python
 from zombi2.genomes import (
-    SharedRates, PerGenomeRates, FamilySampledRates, TransferModel, simulate_genomes,
+    PerCopyRates, PerLineageRates, FamilySampledRates, TransferModel, simulate_genomes,
 )
 from zombi2.distributions import Gamma, Exponential, LogNormal, Uniform, Fixed
 
-rates = SharedRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+rates = PerCopyRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
 genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
-Because the family-level rate scales with copy number, this is a gene-wise model: bigger families
-experience more events. There is a shorthand that builds `SharedRates` for you from the same
+Because the family-level rate scales with copy number, this is a per-copy model: bigger families
+experience more events. There is a shorthand that builds `PerCopyRates` for you from the same
 keywords:
 
 ```python
@@ -69,19 +69,19 @@ genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
                              origination=0.5, initial_families=40, seed=42)
 ```
 
-### Per-genome rates
+### Per-lineage rates
 
-`PerGenomeRates` fires each event at a **constant per-genome rate**, independent of genome size; a
-target copy is then chosen uniformly among the copies present:
+`PerLineageRates` fires each event at a **constant rate per lineage** (the whole genome as one unit),
+independent of genome size; a target copy is then chosen uniformly among the copies present:
 
 ```python
-genomes = simulate_genomes(tree, PerGenomeRates(duplication=1.0, transfer=0.3,
+genomes = simulate_genomes(tree, PerLineageRates(duplication=1.0, transfer=0.3,
                                                      loss=0.5, origination=0.4),
                              initial_families=20, seed=1)
 ```
 
 Because the rate no longer scales with copy number, family sizes grow *linearly* rather than
-exponentially, which makes per-genome models far less prone to runaway growth than gene-wise ones.
+exponentially, which makes per-lineage models far less prone to runaway growth than per-copy ones.
 
 ### Per-family sampled rates
 
@@ -93,7 +93,7 @@ rates = FamilySampledRates(
     duplication=Gamma(2, 0.06),      # built-in distribution
     transfer=Exponential(0.08),
     loss=Gamma(2, 0.07),
-    origination=0.5,                   # per-branch, a single rate
+    origination=0.5,                   # per-lineage, a single rate
 )
 genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
@@ -130,24 +130,24 @@ zombi2 genomes --tree species_tree.nwk \
 
 Custom rate tables are supplied from TSV files. `--family-rates` gives named families their own
 rates (columns `family duplication transfer loss`; unlisted families fall back to `--dup/--trans/
---loss`), and `--branch-rates` gives named branches a transfer **emission** factor and/or
+--loss`), and `--lineage-rates` gives named branches a transfer **emission** factor and/or
 **receptivity** weight (columns `branch emission receptivity`, either optional):
 
 ```bash
 zombi2 genomes --tree species_tree.nwk \
-    --family-rates families.tsv --branch-rates branches.tsv \
+    --family-rates families.tsv --lineage-rates branches.tsv \
     --initial-families 40 --seed 42 -o out/
 ```
 
-A `--branch-rates` file with only a `receptivity` column stays on the fast Rust engine; one with an
+A `--lineage-rates` file with only a `receptivity` column stays on the fast Rust engine; one with an
 `emission` column (or `--family-rates`) runs on the Python engine.
 
 `simulate_genomes` returns a `Genomes` object exposing the input `species_tree`, the `profiles`
 matrix (families $\times$ extant species), the chronological `event_log`, the per-family
 `gene_families` records, and `gene_trees()`; `genomes.write("out/")` serialises them.
 
-All the rate models take the same four rates (duplication, transfer, loss per copy or per genome;
-origination per branch) and compose with the growth caps below.
+All the rate models take the same four rates (duplication, transfer, loss per copy or per lineage;
+origination per lineage) and compose with the growth caps below.
 
 ## Transfers
 
@@ -180,12 +180,12 @@ distant transfers are damped but never forbidden.
 A branch can be made more prone to transfer in two independent ways — as a **donor** or as a
 **recipient**:
 
-- **Emission** (how often a branch *donates*) is a *rate*, so it is scaled per branch with
-  `BranchRates`, restricted to transfer with `events=("transfer",)`:
+- **Emission** (how often a lineage *donates*) is a *rate*, so it is scaled per lineage with
+  `LineageRates`, restricted to transfer with `events=("transfer",)`:
 
   ```python
   # branch i3 donates transfers 5x as often (its duplication/loss are untouched)
-  rates = BranchRates(SharedRates(transfer=0.2), factors={"i3": 5.0}, events=("transfer",))
+  rates = LineageRates(PerCopyRates(transfer=0.2), factors={"i3": 5.0}, events=("transfer",))
   ```
 
 - **Receptivity** (how likely a branch is to *receive*) is a *selection weight* on recipient choice,
@@ -198,7 +198,7 @@ A branch can be made more prone to transfer in two independent ways — as a **d
   ```
 
   A weight of `0` makes a branch never receive; receptivity is honoured by both the Python and the
-  Rust engines. On the command line both dials come from one `--branch-rates` file (below).
+  Rust engines. On the command line both dials come from one `--lineage-rates` file (below).
 
 ### Additive versus replacement
 
@@ -241,16 +241,16 @@ surviving copies now coalesce at the conversion time, not at the (older) duplica
 complete gene tree from a run with conversion, with the conversion (filled circle) shown against the
 duplications (squares) and losses (crosses).](figures/gene_conversion.pdf){width=100%}
 
-The rate is a per-copy `conversion` rate on `SharedRates` (or the `conversion=` shorthand); a
+The rate is a per-copy `conversion` rate on `PerCopyRates` (or the `conversion=` shorthand); a
 `ConversionModel` sets *what a conversion does* once it fires — the donor directionality — exactly as
 a `TransferModel` does for transfers:
 
 ```python
-from zombi2 import simulate_genomes, SharedRates, ConversionModel
+from zombi2 import simulate_genomes, PerCopyRates, ConversionModel
 
 genomes = simulate_genomes(
     tree,
-    SharedRates(duplication=0.4, loss=0.1, conversion=1.0),
+    PerCopyRates(duplication=0.4, loss=0.1, conversion=1.0),
     conversions=ConversionModel(bias=0.0),   # 0 = unbiased donor; 1 = toward the founder
     initial_families=40, seed=42,
 )
@@ -281,7 +281,7 @@ zombi2 genomes --tree species_tree.nwk \
 ::: note
 Conversion reshapes gene *trees* rather than copy-number profiles, so a run with `--conversion` takes
 the full (Python) engine rather than the Rust counts-only fast path, and is supported on unordered
-genomes with `--rate-model shared`.
+genomes with `--rate-per copy`.
 :::
 
 ## Bounding growth
@@ -311,7 +311,7 @@ is scaled by $\max(0,\, 1 - n/K)$, so family size settles *around* $K$ with a pr
 distribution:
 
 ```python
-SharedRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+PerCopyRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 ::: note
