@@ -251,8 +251,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "alias of lineage)")
     g.add_argument("--rate-model", choices=("shared", "per-genome", "family"), default=None,
                    metavar="MODEL",
-                   help="(deprecated) old spelling of --rate-per: shared -> --rate-per copy, "
-                        "per-genome -> --rate-per lineage, family -> --family-rates")
+                   help=argparse.SUPPRESS)  # deprecated -> --rate-per (still accepted; warns on use)
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -407,7 +406,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
-                   help="deprecated alias for --n-chromosomes (--genome-model nucleotide)")
+                   help=argparse.SUPPRESS)  # deprecated -> --n-chromosomes (still accepted; warns on use)
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
     g.add_argument("--insertion", type=float, default=0.0, metavar="RATE",
@@ -2469,10 +2468,15 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                          "branch_events do not apply to it")
     ancestral = "ancestral" in want
     bed = "bed" in want
-    # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias
-    # that takes precedence when explicitly given.
-    initial_chromosomes = (args.initial_chromosomes if args.initial_chromosomes is not None
-                           else args.n_chromosomes)
+    # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias.
+    # The canonical flag wins; the deprecated one is honoured only when --n-chromosomes is at its
+    # default, and a genuine conflict is an error rather than a silent override.
+    initial_chromosomes = args.n_chromosomes
+    if args.initial_chromosomes is not None:
+        print("warning: --initial-chromosomes is deprecated; use --n-chromosomes.", file=sys.stderr)
+        if args.n_chromosomes != 1 and args.n_chromosomes != args.initial_chromosomes:
+            raise ValueError("pass --n-chromosomes or the deprecated --initial-chromosomes, not both")
+        initial_chromosomes = args.initial_chromosomes
     if initial_chromosomes < 1:
         raise ValueError("--n-chromosomes must be >= 1")
     args.n_chromosomes = args.initial_chromosomes = initial_chromosomes  # effective value in the log
