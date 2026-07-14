@@ -391,13 +391,30 @@ The four open forks, resolved 2026-07-14:
    (`trait.log→traits.log`) and cascades into the params-log + a batch of test/doc updates, so it is
    left for a focused, human-reviewed follow-up rather than an autonomous rename. Likewise the
    sequence-clock `--branch-*` / `--family-speed` σ flags (C2/C3, above).
-5. **PR 5 (C7)** — output filenames v2 (lowercase everywhere), behind `--legacy-filenames`, one
-   CHANGELOG migration note; rewrites the `conventions.md` §Outputs schemas.
-6. **PR 6 (C8)** — coevolve class/grammar alignment (`TraitGene*` stem, the edge→class table).
+5. **PR 5 (C7) — DEFERRED (needs surgical, human-reviewed work)** — output filenames v2 (lowercase
+   everywhere), behind `--legacy-filenames`. A blanket string-rename is unsafe: some output-dir
+   literals collide with public class names — notably `"Genomes"` is *both* the ancestral-genomes
+   output directory **and** the `Genomes` result class in `__all__`/imports, so a mass replace
+   corrupts the class. Do this one file-family at a time, with the ratified `--legacy-filenames` shim,
+   updating the ~137 test assertions / 48 write-sites / 79 doc refs in lockstep; rewrites the
+   `conventions.md` §Outputs schemas.
+6. **PR 6 (C8) — comment/doc part DONE** (`999ab7c`); the `TraitLinked*`→`TraitGene*` class-stem
+   rename is deferred as internal API churn (needs a coevolve `__getattr__` + `test_api_namespaces`
+   update). `coevolution.md` already documents the edge→class map and cross-references `Cladogenesis`.
 7. **0.4.0** — drop every alias and the `--legacy-filenames` shim.
 
 Every PR except PR 2 (the deliberate removal) is byte-identical in simulation output (P4) and green
 on the full suite; the only observable change is warnings on deprecated spellings.
+
+## What shipped overnight 2026-07-14 (branch `claude/zombi2-clarity-polish-dd870b`)
+
+Delivered, byte-identical, suite green: **C1** (deprecation machinery + 5 aliases retired), **C9**
+(ESM purge + a dead-code fixup), **C2/C3** (rate/modifier/odds docs clarity), **C4**
+(`--genome-resolution`), **C6** (`genomes` node + "level"=domains reframe), **C8** (edge→class
+comment fix). **Deferred for focused, human-reviewed follow-up**, each noted above: **C5** plural
+commands, **C7/PR5** lowercase filenames, the sequence-clock **`--branch-*` / `--family-speed` σ
+flags**, and the **C8 class-stem rename** — the four items that break byte-identity / downstream
+compatibility or are entangled, so best done deliberately rather than in an autonomous sweep.
 
 ## The rule, in one line
 
