@@ -51,6 +51,16 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   `--initial-chromosomes` are hidden from `--help` (still accepted, with a warning). All are
   scheduled for removal in **0.4.0**.
 
+### Removed
+
+- **Experimental protein-language-model selection** — `zombi2 experimental selection`,
+  `zombi2.experimental.selection` (+ `codon_selection` / `genome_selection` /
+  `nucleotide_selection` / `realism`), and the `zombi2[selection]` extra with its `torch` /
+  `fair-esm` dependencies have been removed (naming consolidation, `docs/design/naming-consolidation.md`
+  §C9). It was the ESM2-critic realism feature; the active protein-realism work continues off-repo.
+  `experimental ils` is unaffected and is now the sole experimental model. "Selection" now
+  unambiguously refers to the core codon `dN/dS` models (`--subst-model gy94/mg94`, `--omega`).
+
 ### Fixed
 
 - `--initial-chromosomes` (deprecated) no longer silently overrides the canonical `--n-chromosomes`;

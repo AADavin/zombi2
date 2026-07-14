@@ -58,7 +58,7 @@ supplements: $(SUPP_PDFS)
 build/supp-%.pdf: supplements/%.md $(DEPS)
 	@mkdir -p build
 	$(PANDOC) $(COMMON) --toc --toc-depth=2 \
-	  --metadata=title:"ZOMBI2 — Language-Model-Guided Selection" \
+	  --metadata=title:"ZOMBI2 — Supplement" \
 	  --metadata=subtitle:"An experimental supplement (zombi2.experimental)" $< -o $@
 
 # per-supplement title (an explicit rule overrides the pattern rule above for this one target)

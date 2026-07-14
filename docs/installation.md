@@ -40,10 +40,6 @@ with a build hint that points back to this step.
 - **scipy** — only needed if you pass a `scipy.stats` frozen distribution to
   `FamilySampledRates`; the built-in distributions (`Gamma`, `Exponential`, …) need
   nothing beyond numpy.
-- **`[selection]`** — the experimental protein-language-model selection models
-  (`zombi2.experimental.selection`) need PyTorch and ESM-2. Install them with
-  `pip install 'zombi2[selection]'`, which pulls in `torch`, `fair-esm` and `scipy`. Heavy
-  and opt-in — the default install stays torch-free.
 
 ## Building these docs
 
