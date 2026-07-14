@@ -39,6 +39,23 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Documented that `--transposition` (a segment moved elsewhere in the genome) applies to both the
   `ordered` and `nucleotide` genome models, not only `nucleotide`.
 
+### Deprecated
+
+- **Renamed rate names retired from the public API surface** (naming consolidation, see
+  `docs/design/naming-consolidation.md`). The five backwards-compatible aliases
+  `SharedRates`→`PerCopyRates`, `PerGenomeRates`→`PerLineageRates`, `BranchRates`→`LineageRates`,
+  `BranchModifier`→`LineageModifier`, and `read_branch_rates`→`read_lineage_rates` still work but now
+  emit a `DeprecationWarning` and no longer appear in `zombi2.__all__`, `dir(zombi2)`, or the API
+  reference (they resolve via a PEP-562 `__getattr__`; the deep-module spelling
+  `zombi2.genomes.rates.SharedRates` stays silent). The deprecated CLI flags `--rate-model` and
+  `--initial-chromosomes` are hidden from `--help` (still accepted, with a warning). All are
+  scheduled for removal in **0.4.0**.
+
+### Fixed
+
+- `--initial-chromosomes` (deprecated) no longer silently overrides the canonical `--n-chromosomes`;
+  passing both with conflicting values is now an error.
+
 ## [0.2.0] - 2026-07-07
 
 First public release. ZOMBI2 is a ground-up redesign of

@@ -633,8 +633,8 @@ def simulate_genomes(
     Engine (automatic, not a user choice): the **built-in** model — the default
     ``UnorderedGenome`` with a plain :class:`~zombi2.PerCopyRates` — runs on the compiled
     ``zombi2_core`` Rust extension and **requires** it (a clear error asks you to build it if
-    it is missing). Flexible models (``FamilySampledRates`` / ``PerGenomeRates`` /
-    ``BranchRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
+    it is missing). Flexible models (``FamilySampledRates`` / ``PerLineageRates`` /
+    ``LineageRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
     pure-Python engine.
 
     ``output``:
