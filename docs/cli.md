@@ -256,11 +256,11 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
 | `--genome-model {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
-| `--rate-per {copy,genome}` | what each rate is counted per — the opportunity that scales it: `copy` (default, Rust): per gene copy, so totals grow with genome size; `genome` (Python): a constant per-genome rate, linear growth. Per-family rates come from `--family-rates`; nucleotide is always per nucleotide. (`--rate-model {shared,per-genome,family}` is the deprecated old spelling) |
+| `--rate-per {copy,lineage}` | what each rate is counted per — the opportunity that scales it: `copy` (default, Rust): per gene copy, so totals grow with genome size; `lineage` (Python): a constant rate per lineage (the whole genome as one unit), linear growth. Per-family rates come from `--family-rates`; nucleotide is always per nucleotide. (`genome` is a deprecated alias of `lineage`; `--rate-model {shared,per-genome,family}` is the deprecated old spelling) |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
 | `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, per-copy rates; runs on the Python engine |
 | `--family-rates FILE` | TSV of explicit per-family rates (`family duplication transfer loss`); the per-family rate source; unlisted families fall back to `--dup/--trans/--loss` [unordered, Python] |
-| `--branch-rates FILE` | TSV of per-branch transfer `emission` (donation-rate factor) and/or `receptivity` (absorption weight) (`branch emission receptivity`, either optional) [unordered; receptivity-only stays on Rust] |
+| `--lineage-rates FILE` | TSV of per-lineage transfer `emission` (donation-rate factor) and/or `receptivity` (absorption weight) (`lineage emission receptivity`, either optional; `--branch-rates` is a deprecated alias) [unordered; receptivity-only stays on Rust] |
 | `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
 | `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
 | `--inversion` `--transposition` | [ordered/nucleotide] inversion / transposition (a segment moved elsewhere in the genome) rates — per gene copy for `ordered`, per nucleotide for `nucleotide` |
@@ -268,7 +268,7 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | `--n-chromosomes N` | [ordered/nucleotide] number of chromosomes seeded at the root (default 1). [ordered] the root's initial families are spread across them; [nucleotide] each is an independent full-length copy of the root chromosome (its own source). Gene rearrangements stay within a chromosome, while a transfer may land a copy on any chromosome. With `N > 1` the run also writes the layout (`Gene_order.tsv` for ordered / `Chromosomes.tsv` for nucleotide) |
 | `--linear-chromosomes` | [ordered/nucleotide] chromosomes are linear — segments never wrap the origin (default: circular, as for a typical bacterium). [nucleotide] forces every chromosome linear; a multi-sequence `--gff` instead gives each replicon its own topology from its `Is_circular` flag, so a real linear chromosome + circular plasmids seed a **mixed-topology** genome |
 | `--fission` `--fusion` | [ordered/nucleotide] chromosome-tier rates (per chromosome, default 0): a chromosome splits in two (linear: one breakpoint; circular: two) / two chromosomes merge into one |
-| `--chromosome-origination` `--chromosome-loss` | [ordered/nucleotide] chromosome-tier rates (default 0): a de-novo replicon (a *plasmid*) appears (per genome) / a whole chromosome and its genes are lost (per chromosome). Any chromosome-tier rate also writes `Karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy) |
+| `--chromosome-origination` `--chromosome-loss` | [ordered/nucleotide] chromosome-tier rates (default 0): a de-novo replicon (a *plasmid*) appears (per lineage) / a whole chromosome and its genes are lost (per chromosome). Any chromosome-tier rate also writes `Karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy) |
 | `--initial-chromosomes` | [nucleotide] **deprecated** alias for `--n-chromosomes` |
 | `--root-length` `--mean-length` | [ordered/nucleotide] root chromosome length (nt) / mean inversion–transposition segment length (geometric; genes for ordered, nt for nucleotide) |
 | `--gff FILE` | [nucleotide] a GFF3 annotation (optionally `.gz`) — copies each sequence's length + gene coordinates (overlaps trimmed) to start genic mode from a real genome; supersedes `--genes`/`--root-length`. A **multi-sequence** GFF seeds **one chromosome per sequence** (a chromosome + its plasmids), each keeping its own topology from its `Is_circular` flag (so a linear chromosome + circular plasmids give a mixed-topology genome); `--gff-seqid ID` instead picks a single sequence. `--write ancestral` (and a multi-record `--genome-fasta`) then reconstructs the DNA of each replicon, and `--write bed` annotates each one as its own BED contig. |
@@ -378,7 +378,7 @@ even simulate ancestral DNA. It is a substantial model with its own flags; see
 
 ## Scope
 
-The CLI covers the common **per-copy rate** case (and per-genome rates via `--rate-per
+The CLI covers the common **per-copy rate** case (and per-lineage rates via `--rate-per
 genome`). For family-sampled rates, custom transfer mechanics, ordered genomes, or replicate
 parallelism, use the Python API (see [gene families & rates](guide/genomes.md) and the
 other guides).
