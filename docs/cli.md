@@ -207,6 +207,18 @@ zombi2 sequence --genomes run/ --subst-model gy94 --omega 0.1 --kappa 3 --seq-le
 This writes one `alignments/<family>.fasta` per gene family (plus the rescaled `gene_trees/`); codon
 models write in-frame coding DNA (no stop codons).
 
+For codon models, `--omega-model {m1a,m2a,m3,m7,m8}` lets `dN/dS` vary **across sites** instead of the
+single `--omega` (the Nielsen–Yang site models: M1a/M7 are purifying/neutral nulls, M2a/M8 add a
+positive-selection class). Class parameters are `--omega0`/`--omega2`/`--omega-s`, proportions
+`--omega-p0`/`--omega-p1`, beta shapes `--beta-p`/`--beta-q` (`--omega-cats` categories), and for M3
+`--omega-classes "0.1:0.6,1.0:0.3,3.0:0.1"`. It cannot be combined with `--gamma-shape`.
+
+```bash
+# M2a: 50% purifying, 30% neutral, 20% positively-selected sites
+zombi2 sequence --genomes run/ --subst-model gy94 --omega-model m2a \
+  --omega-p0 0.5 --omega0 0.05 --omega-p1 0.3 --omega2 3.0 -o seq/
+```
+
 ## `coevolve` — coupled models
 
 Everything above is a **pipeline**: build a tree, then overlay a trait or gene families on it,
@@ -318,6 +330,11 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--gamma-shape ALPHA` | discrete-Gamma across-site rate heterogeneity shape (default: none) |
 | `--kappa K` | [DNA k80/hky85, codon gy94/mg94] transition/transversion ratio (default `2.0`) |
 | `--omega W` | [codon gy94/mg94] `dN/dS` ratio: `<1` purifying, `1` neutral, `>1` positive selection (default `1.0`) |
+| `--omega-model {m1a,m2a,m3,m7,m8}` | [codon] let `dN/dS` vary across sites (Nielsen–Yang site models); replaces `--omega`; incompatible with `--gamma-shape` |
+| `--omega0`/`--omega2`/`--omega-s W` | [m1a/m2a · m2a · m8] the purifying (`<1`) and positive (`>1`) class ω values |
+| `--omega-p0`/`--omega-p1 P` | [m1a/m2a/m8 · m2a] class proportions (purifying/Beta bulk · neutral) |
+| `--beta-p`/`--beta-q A` · `--omega-cats N` | [m7/m8] `Beta(p,q)` shapes for the ω-in-`[0,1]` classes and the number of discrete categories (default `4`) |
+| `--omega-classes "W0:P0,W1:P1,..."` | [m3] discrete ω:proportion classes (proportions renormalised) |
 | `--base-freqs A C G T` | [DNA hky85/gtr, codon gy94/mg94] equilibrium base frequencies; build the `F1×4` codon frequencies for gy94/mg94 (default equal) |
 | `--gtr-rates AC AG AT CG CT GT` | [DNA gtr] the 6 exchangeabilities (default all `1`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |

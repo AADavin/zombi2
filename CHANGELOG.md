@@ -17,6 +17,13 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   counts codons. On the API as `zombi2.gy94` / `zombi2.mg94` (and `zombi2.sequences.codon_models`,
   with `translate` and `expected_dnds`); validated against detailed balance, exact `omega` recovery,
   the synonymous ti/tv ratio, and equilibrium base composition.
+- **Codon site models (dN/dS across sites)** — `--omega-model {m1a,m2a,m3,m7,m8}` lets `dN/dS` vary
+  among codon sites (the Nielsen–Yang site models: M1a/M7 purifying/neutral nulls, M2a/M8 add a
+  positive-selection class, M3 discrete, M7/M8 a discretised `Beta(p,q)`). Each `ω` class is a codon
+  matrix sharing one mutation process and stationary distribution, normalised on a single shared
+  scale so purifying classes evolve slower and the gene's genome-wide `dN/dS` is the
+  proportion-weighted mean `ω`. On the API as `zombi2.m1a`…`zombi2.m8` and `zombi2.CodonSiteModel`;
+  mutually exclusive with `--gamma-shape`.
 - **Per-branch event tables** — `zombi2 genomes --write branch_events` writes `Branch_events.tsv`,
   one row per species-tree branch with the count of each event that fired on it (origination,
   duplication, `transfer_out`/`transfer_in`, loss, and inversion/transposition for ordered
