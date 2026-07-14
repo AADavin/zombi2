@@ -3597,43 +3597,6 @@ def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentPar
     return 0
 
 
-def _write_selection_outputs(out: str, result, tree, report, beta: float) -> None:
-    """Write the per-node genomes + architecture, the extant gene alignments, and the selection report."""
-    from zombi2.sequences.models import write_fasta
-    adir = os.path.join(out, "Architecture")
-    gdir = os.path.join(out, "Genomes")
-    os.makedirs(adir, exist_ok=True)
-    os.makedirs(gdir, exist_ok=True)
-    for node in tree.nodes_preorder():
-        name = node.name
-        lines = ["order\tblock\tkind\tgene_id\tstrand\tlength"]
-        for i, (aid, strand) in enumerate(result.node_mosaic(node)):
-            a = result._block_by_id[aid]
-            lines.append(f"{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
-                         f"{'+' if strand > 0 else '-'}\t{a.length}")
-        with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
-            f.write("\n".join(lines) + "\n")
-        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), {name: result.node_sequence(node)},
-                    gzip_out=True)
-
-    aln_dir = os.path.join(out, "Gene_alignments")
-    os.makedirs(aln_dir, exist_ok=True)
-    for gene, aln in result.gene_alignments().items():
-        write_fasta(os.path.join(aln_dir, f"{gene}.fasta"), aln)
-
-    with open(os.path.join(out, "Selection_report.tsv"), "w") as f:
-        f.write("metric\tvalue\n")
-        for k in ("n_blocks", "n_gene_blocks", "n_selected", "n_neutral_fallback",
-                  "n_intergene", "n_empty"):
-            f.write(f"{k}\t{getattr(report, k)}\n")
-        f.write(f"beta\t{beta:.6g}\n")
-    if report.fallbacks:
-        with open(os.path.join(out, "Selection_fallbacks.tsv"), "w") as f:
-            f.write("block_id\tgene_id\treason\n")
-            for block_id, gene_id, reason in report.fallbacks:
-                f.write(f"{block_id}\t{gene_id or '-'}\t{reason}\n")
-
-
 def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder,
                     epilog: str | None = None):
     """Register a subcommand with the house-style formatter and a hand-written compact usage.
