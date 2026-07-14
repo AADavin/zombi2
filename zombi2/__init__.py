@@ -62,9 +62,14 @@ from zombi2.sequences import (
     # substitution models + the gene x lineage substitution clock
     SequenceEvolution, GenePhylograms,
     SubstitutionModel, GammaRates, jc69, k80, hky85, gtr,
-    poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model,
-    DNA_MODELS, PROTEIN_MODELS, AMINO_ACIDS,
+    poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model, is_codon_model,
+    DNA_MODELS, PROTEIN_MODELS, CODON_MODELS, AMINO_ACIDS,
     evolve_on_tree, read_fasta, write_fasta,
+    # codon model constructors (GY94 / MG94; dN/dS via omega). The codon utilities
+    # (translate, SENSE_CODONS, expected_dnds, ...) live in the zombi2.sequences namespace.
+    gy94, mg94, make_codon_model,
+    # codon site models (dN/dS varies among sites: M1a/M2a/M3/M7/M8)
+    CodonSiteModel, m1a, m2a, m3, m7, m8, is_codon_site_model, CODON_SITE_MODELS,
 )
 from zombi2.traits import (
     BrownianMotion, OrnsteinUhlenbeck, MultivariateBrownian, MultivariateOU,
@@ -125,8 +130,12 @@ __all__ = [
     # sequence simulation (evolve DNA or protein along a gene tree; ancestral genome reconstruction)
     "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr",
     "poisson", "lg", "wag", "jtt", "dayhoff", "make_model", "is_protein_model",
-    "DNA_MODELS", "PROTEIN_MODELS", "AMINO_ACIDS",
+    "is_codon_model", "DNA_MODELS", "PROTEIN_MODELS", "CODON_MODELS", "AMINO_ACIDS",
     "evolve_on_tree", "read_fasta", "write_fasta",
+    # codon substitution models (GY94 / MG94; dN/dS via omega) + site models (M1a/M2a/M3/M7/M8)
+    "gy94", "mg94", "make_codon_model",
+    "CodonSiteModel", "m1a", "m2a", "m3", "m7", "m8",
+    "is_codon_site_model", "CODON_SITE_MODELS",
     # trait evolution (phylogenetic comparative models)
     "BrownianMotion", "OrnsteinUhlenbeck", "MultivariateBrownian", "MultivariateOU",
     "MultiOptimumOU", "ThresholdModel", "EarlyBurst", "Mk", "CorrelatedBinary",
