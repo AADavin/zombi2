@@ -185,21 +185,27 @@ GTDB model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. I
 `gene_family_speeds.tsv` / `branch_rates.tsv`. See
 [Sequences](guide/sequences.md) for the model.
 
-**Simulating sequences.** Add `--subst-model` and `sequence` also evolves a DNA or protein
+**Simulating sequences.** Add `--subst-model` and `sequence` also evolves a DNA, protein or codon
 alignment down each rescaled gene tree, writing `alignments/<family>.fasta` alongside the
-phylograms. Pick a DNA model (`jc69`, `k80`, `hky85`, `gtr`) or a protein one (`poisson`, `lg`,
-`wag`, `jtt`, `dayhoff`) — DNA vs protein is auto-detected from the name. `--seq-length` sets the
-alignment length (default `300`), `--gamma-shape` adds across-site rate heterogeneity, and the
-DNA-model knobs are `--kappa` (k80/hky85 transition/transversion ratio), `--base-freqs A C G T`
-(hky85/gtr) and `--gtr-rates AC AG AT CG CT GT` (gtr). Seed each family's root from real sequences
-with `--root-fasta FILE` (a FASTA keyed by family id, whose per-family length overrides
-`--seq-length`) instead of a random draw:
+phylograms. Pick a DNA model (`jc69`, `k80`, `hky85`, `gtr`), a protein one (`poisson`, `lg`,
+`wag`, `jtt`, `dayhoff`) or a codon one (`gy94`, `mg94`) — the class is auto-detected from the name.
+`--seq-length` sets the alignment length (default `300`; **codons** for `gy94`/`mg94`, so 3× the
+nucleotides), `--gamma-shape` adds across-site rate heterogeneity, and the model knobs are `--kappa`
+(k80/hky85/gy94/mg94 transition/transversion ratio), `--omega` (`dN/dS` for the codon models),
+`--base-freqs A C G T` (hky85/gtr, and the `F1×4` codon frequencies for gy94/mg94) and
+`--gtr-rates AC AG AT CG CT GT` (gtr). Seed each family's root from real sequences with
+`--root-fasta FILE` (a FASTA keyed by family id, whose per-family length overrides `--seq-length`)
+instead of a random draw:
 
 ```bash
 zombi2 sequence --genomes run/ --subst-model hky85 --kappa 4 --seed 7 -o seq/
+
+# codon model under purifying selection (dN/dS = 0.1), 200 codons = 600 bp of coding DNA
+zombi2 sequence --genomes run/ --subst-model gy94 --omega 0.1 --kappa 3 --seq-length 200 -o seq/
 ```
 
-This writes one `alignments/<family>.fasta` per gene family (plus the rescaled `gene_trees/`).
+This writes one `alignments/<family>.fasta` per gene family (plus the rescaled `gene_trees/`); codon
+models write in-frame coding DNA (no stop codons).
 
 ## `coevolve` — coupled models
 
@@ -306,12 +312,13 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | `--family-speed SIGMA` | per-family intrinsic substitution speed `~ LogNormal(0, SIGMA)`, constant per family (`0` = every family the same) |
 | `--branch-speed SIGMA` | shared lineage clock — autocorrelated lognormal relaxed clock, drift `SIGMA` per `√time` (`0` = strict). Exclusive with `--branch-bins` |
 | `--branch-bins R1,R2,...` | alternative lineage clock — the discrete-bin GTDB model: ordered rate multipliers, a Markov walk between adjacent bins (`--branch-switch-rate`, `--branch-up-bias`) |
-| `--subst-model MODEL` | simulate an alignment per family: DNA (`jc69`, `k80`, `hky85`, `gtr`) or protein (`poisson`, `lg`, `wag`, `jtt`, `dayhoff`); auto-detected. Omit to only rescale the trees (no sequences) |
-| `--seq-length N` | alignment length in sites (default `300`); ignored where `--root-fasta` seeds a family's root |
+| `--subst-model MODEL` | simulate an alignment per family: DNA (`jc69`, `k80`, `hky85`, `gtr`), protein (`poisson`, `lg`, `wag`, `jtt`, `dayhoff`) or codon (`gy94`, `mg94`); auto-detected. Omit to only rescale the trees (no sequences) |
+| `--seq-length N` | alignment length in sites (default `300`; **codons** for `gy94`/`mg94` → 3N nt); ignored where `--root-fasta` seeds a family's root |
 | `--root-fasta FILE` | FASTA (optionally `.gz`) of per-family root sequences keyed by family id — seeds each family's root instead of a random draw; its length overrides `--seq-length` per family |
 | `--gamma-shape ALPHA` | discrete-Gamma across-site rate heterogeneity shape (default: none) |
-| `--kappa K` | [DNA k80/hky85] transition/transversion ratio (default `2.0`) |
-| `--base-freqs A C G T` | [DNA hky85/gtr] equilibrium base frequencies (default equal) |
+| `--kappa K` | [DNA k80/hky85, codon gy94/mg94] transition/transversion ratio (default `2.0`) |
+| `--omega W` | [codon gy94/mg94] `dN/dS` ratio: `<1` purifying, `1` neutral, `>1` positive selection (default `1.0`) |
+| `--base-freqs A C G T` | [DNA hky85/gtr, codon gy94/mg94] equilibrium base frequencies; build the `F1×4` codon frequencies for gy94/mg94 (default equal) |
 | `--gtr-rates AC AG AT CG CT GT` | [DNA gtr] the 6 exchangeabilities (default all `1`) |
 | `--seed` / `-o` / `--out` | RNG seed / output directory (required) |
 

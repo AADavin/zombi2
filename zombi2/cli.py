@@ -2907,15 +2907,16 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "(default 0.5 = symmetric walk)")
 
     g = p.add_argument_group("sequence alignments",
-                             "give --subst-model to evolve DNA/protein along the rescaled trees")
+                             "give --subst-model to evolve DNA/protein/codon along the rescaled trees")
     g.add_argument("--subst-model", default=None, metavar="MODEL",
                    help="substitution model to simulate an alignment per family: DNA "
-                        "(jc69/k80/hky85/gtr) or protein (lg/wag/jtt/dayhoff/poisson). DNA vs "
-                        "protein is auto-detected from the name. Omit to only rescale the trees "
-                        "(no sequences)")
+                        "(jc69/k80/hky85/gtr), protein (lg/wag/jtt/dayhoff/poisson) or codon "
+                        "(gy94/mg94, dN/dS via --omega). DNA/protein/codon is auto-detected from "
+                        "the name; codon models write in-frame coding DNA. Omit to only rescale "
+                        "the trees (no sequences)")
     g.add_argument("--seq-length", type=int, default=300, metavar="N",
-                   help="alignment length in sites (nt for DNA, aa for protein; default 300); "
-                        "ignored when --root-fasta seeds each family's root")
+                   help="alignment length in sites (nt for DNA, aa for protein, CODONS for "
+                        "gy94/mg94 → 3N nt; default 300); ignored when --root-fasta seeds the root")
     g.add_argument("--root-fasta", metavar="FILE", default=None,
                    help="FASTA (optionally .gz) of per-family root sequences keyed by family id "
                         "(header = family id); seeds each family's root instead of a random draw. "
@@ -2923,9 +2924,14 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--gamma-shape", type=float, default=None, metavar="ALPHA",
                    help="discrete-Gamma across-site rate heterogeneity shape (default: none)")
     g.add_argument("--kappa", type=float, default=2.0, metavar="K",
-                   help="[DNA k80/hky85] transition/transversion ratio (default 2.0)")
+                   help="[DNA k80/hky85, codon gy94/mg94] transition/transversion ratio "
+                        "(default 2.0)")
+    g.add_argument("--omega", type=float, default=1.0, metavar="W",
+                   help="[codon gy94/mg94] dN/dS ratio: <1 purifying, 1 neutral, >1 positive "
+                        "selection (default 1.0)")
     g.add_argument("--base-freqs", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
-                   help="[DNA hky85/gtr] equilibrium base frequencies (default equal)")
+                   help="[DNA hky85/gtr, codon gy94/mg94] equilibrium base frequencies; for codon "
+                        "models these build the F1×4 codon frequencies (default equal)")
     g.add_argument("--gtr-rates", type=float, nargs=6, default=None,
                    metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
                    help="[DNA gtr] the 6 exchangeabilities (default all 1)")
@@ -2986,8 +2992,8 @@ def _run_sequence(args: argparse.Namespace) -> str:
     """
     from zombi2.genomes.profiles import _natkey
     from zombi2.genomes.reconciliation import extant_species_from_records
-    from zombi2.sequences.models import (GammaRates, evolve_on_tree, is_protein_model, make_model,
-                               read_fasta, write_fasta)
+    from zombi2.sequences.models import (GammaRates, evolve_on_tree, is_codon_model, is_protein_model,
+                               make_model, read_fasta, write_fasta)
     from zombi2.genomes.simulation import read_events_trace
 
     if args.family_speed < 0 or args.branch_speed < 0:
@@ -2999,7 +3005,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     lineage_clock, clock_desc = _build_lineage_clock(args)
     model = None
     if args.subst_model:
-        model = make_model(args.subst_model, kappa=args.kappa,
+        model = make_model(args.subst_model, kappa=args.kappa, omega=args.omega,
                            freqs=args.base_freqs, rates=args.gtr_rates)
     elif args.gamma_shape or args.root_fasta:
         raise ValueError("--gamma-shape / --root-fasta only apply with --subst-model "
@@ -3060,7 +3066,8 @@ def _run_sequence(args: argparse.Namespace) -> str:
     if args.root_fasta:
         root_seqs = read_fasta(args.root_fasta)
     rng = np.random.default_rng(args.seed)
-    kind = "protein" if is_protein_model(args.subst_model) else "DNA"
+    kind = ("codon DNA" if is_codon_model(args.subst_model)
+            else "protein" if is_protein_model(args.subst_model) else "DNA")
     aln_dir = os.path.join(args.out, "alignments")
     os.makedirs(aln_dir, exist_ok=True)
 
