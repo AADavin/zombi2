@@ -146,17 +146,18 @@ __all__ = [
     "pagel_lambda", "pagel_delta", "pagel_kappa",
     # historical biogeography (range evolution)
     "DEC", "simulate_biogeography",
-    # state-dependent diversification (trait drives the tree — coevolve traits:species)
+    # state-dependent diversification (a trait drives the tree — coevolve traits:species)
     "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "CID", "simulate_sse",
-    # gene-content-dependent diversification (genes drive the tree — coevolve genes:species,
-    # + species:genes = the co-diversification joint model)
+    # gene-content-dependent diversification (gene content drives the tree — coevolve
+    # genomes:species). The pure species:genomes edge is CladogeneticGenome below; the
+    # genomes<->species joint (both arrows on) is the co-diversification model.
     "GeneDiversification", "GeneDiversificationResult", "simulate_gene_diversification",
     "simulate_co_diversification",
-    # cladogenetic genome evolution (speciation drives gene content — coevolve species:genes)
+    # cladogenetic genome evolution (speciation drives gene content — coevolve species:genomes)
     "CladogeneticGenome", "CladogeneticGenomeResult", "simulate_cladogenetic_genome",
-    # gene-conditioned trait (gene content drives a trait — coevolve genes:traits)
+    # gene-conditioned trait (gene content drives a trait — coevolve genomes:traits)
     "GeneConditionedTrait", "GeneConditionedTraitResult", "simulate_gene_conditioned_trait",
-    # trait<->genes joint model (trait-gene feedback — coevolve traits:genes + genes:traits)
+    # trait<->genomes joint model (trait-gene feedback — coevolve traits:genomes + genomes:traits)
     "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
     # parallelism
     "run_replicates",
