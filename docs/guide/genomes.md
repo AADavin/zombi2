@@ -159,10 +159,10 @@ per-lineage models are far less prone to runaway growth. Selected on the CLI wit
 
 #### LineageRates — per-lineage rates
 
-`LineageRates` makes rates vary **per species-tree branch** by scaling any base rate model
+`LineageRates` makes rates vary **per species-tree lineage** by scaling any base rate model
 with a per-lineage factor. By default the factor scales duplication/transfer/loss together
 (origination is left unscaled); pass `events=("transfer",)` to scale **only** transfer — the
-transfer-*emission* dial (how often a branch donates). It composes with the base model, so branch
+transfer-*emission* dial (how often a branch donates). It composes with the base model, so lineage
 and family heterogeneity combine. Choose one factor source:
 
 ```python
@@ -219,7 +219,7 @@ zombi2 genomes -t run/species_tree.nwk --rate-per lineage \
 ### Python
 
 Models live in `zombi2.genomes` (and re-export at the top level, so `zombi2.PerCopyRates` also
-works; the former name `zombi2.SharedRates` remains as an alias):
+works):
 
 ```python
 from zombi2.species import BirthDeath, simulate_species_tree
@@ -361,7 +361,7 @@ transfers are damped but never forbidden.
     co-existing lineage (`O(alive · depth)`). It is the one hot spot; for very large trees
     it can be swapped for a sparse-table LCA later.
 
-### Per-branch receptivity (absorption)
+### Per-lineage receptivity (absorption)
 
 `receptivity` biases **which** branch receives a transfer — the absorption counterpart to the
 transfer *emission* rate scaled by [`LineageRates`](#lineagerates-per-lineage-rates). Pass a
@@ -421,7 +421,7 @@ zombi2 genomes -t species_tree.nwk \
     --initial-families 40 --seed 42 -o out/
 ```
 
-`read_family_rates(path)` and `read_branch_rates(path)` (both in `zombi2.genomes`) parse the same
+`read_family_rates(path)` and `read_lineage_rates(path)` (both in `zombi2.genomes`) parse the same
 files in Python, returning the `{family: (d,t,l)}` map and the `(emission, receptivity)` pair the
 models consume. Either `--lineage-rates` column is optional; a header row is honoured, otherwise
 columns are positional.
@@ -563,7 +563,7 @@ higher values → longer segments.
 Inversions and transpositions change gene order/orientation but **not** gene content, so
 they leave the profile matrix and the gene trees unchanged — they show up in the event log
 and in the final chromosome order. Rearrangement rates are per gene copy; segment length is set by
-`--mean-length` (in genes). Rearrangements require the `shared` rate model.
+`--mean-length` (in genes). Rearrangements require the `PerCopyRates` rate model.
 
 ### Multiple chromosomes
 

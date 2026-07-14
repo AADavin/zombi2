@@ -26,7 +26,7 @@ The model therefore needs two things at once: rate variation *across the tree* t
 the genes living in a given lineage, and rate variation *across families* that is intrinsic to each
 gene. Both are multiplicative overlays on the timetree.
 
-![From time to substitutions. The same tree drawn as a **chronogram** (branch lengths in time — ultrametric, so every tip lines up at the present) and as a **phylogram** (branch lengths in substitutions per site, after multiplying each branch by an evolutionary rate). Both trees are painted by the same per-branch rate: fast (yellow) branches that were short in time stretch out, slow (purple) ones collapse, and the tips no longer line up. Rescaling a chronogram into a phylogram this way is exactly what sequence evolution does.](figures/seq_chrono_phylo.pdf){width=100%}
+![From time to substitutions. The same tree drawn as a **chronogram** (branch lengths in time — ultrametric, so every tip lines up at the present) and as a **phylogram** (branch lengths in substitutions per site, after multiplying each branch by an evolutionary rate). Both trees are painted by the same per-lineage rate: fast (yellow) branches that were short in time stretch out, slow (purple) ones collapse, and the tips no longer line up. Rescaling a chronogram into a phylogram this way is exactly what sequence evolution does.](figures/seq_chrono_phylo.pdf){width=100%}
 
 ## The model
 

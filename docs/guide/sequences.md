@@ -21,8 +21,8 @@ variation. A *relaxed* clock lets the rate change branch to branch, either **unc
 draws, a branch's rate says nothing about its neighbours') or **autocorrelated** (a branch's rate is
 anchored to its parent's, so nearby lineages evolve at similar rates). ZOMBI2 ships a whole family of
 clocks in the `zombi2.sequences` namespace, all sharing one `Clock` interface — `scale(tree, seed=...)`
-returns the phylogram — differing only in how the per-branch rate is drawn. In the language of
-[Rates: a primer](rates.md), a relaxed clock is a **per-branch modifier** on the substitution rate,
+returns the phylogram — differing only in how the per-lineage rate is drawn. In the language of
+[Rates: a primer](rates.md), a relaxed clock is a **per-lineage modifier** on the substitution rate,
 and among-site variation (gamma rates) is the matching **per-site modifier** — the same idea applied
 to two different contexts.
 
@@ -176,7 +176,7 @@ branches (after pruning) just sums the pieces.
 `s_g` is drawn at random, but you can also **name** a specific family's speed: pass
 `family_factors={family_id: factor}` (CLI `--family-speeds FILE`), the sequence-level analogue of
 [`FamilyModifier`](rates.md#modifiers-context-that-rescales-the-base). A named factor **multiplies**
-the random `s_g` and the branch clock `R_b` — so you can make one gene evolve, say, 3× faster while
+the random `s_g` and the lineage clock `R_b` — so you can make one gene evolve, say, 3× faster while
 branch and random effects still apply. Families not listed keep a factor of `1`.
 
 ```python
@@ -232,7 +232,7 @@ from zombi2.sequences import (
 tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
 
 # Pick any clock and rescale time -> expected substitutions/site (a phylogram).
-clock = UncorrelatedLogNormalClock(sigma=0.5, mean=1.0)   # i.i.d. lognormal per branch
+clock = UncorrelatedLogNormalClock(sigma=0.5, mean=1.0)   # i.i.d. lognormal per lineage
 phylo = clock.scale(tree, seed=2)
 
 phylo.to_newick()             # the phylogram in Newick (substitution branch lengths)
@@ -293,7 +293,7 @@ gene × lineage model. `--family-speed SIGMA` draws each family's constant multi
 
 `zombi2 sequence` writes, into the output directory: `gene_trees/` — the rescaled substitution-unit
 gene trees, `<family>_complete_subst.nwk` and `<family>_extant_subst.nwk` per family;
-`branch_rates.tsv` — the per-species-branch clock rate applied to the shared lineage clock;
+`branch_rates.tsv` — the per-lineage clock rate applied to the shared lineage clock;
 `gene_family_speeds.tsv` — each family's intrinsic `--family-speed` multiplier; and `sequence.log`,
 the run manifest. Adding `--subst-model` also writes an `alignments/` directory of simulated
 DNA/protein alignments, one per family.

@@ -139,11 +139,16 @@ why two terms suffice. (*How-many* is the separate opportunity/count axis alread
 [rate-vocabulary](rate-vocabulary.md) — *rate = base × opportunities × modifiers* — a count, not a
 synonym for a rate.)
 
-**Retire "speed"** as the substitution domain's private word for a modifier: `--family-speed` /
-`--family-speeds` → the modifier vocabulary (`--family-modifier` / `family_modifiers`, converging on
-the existing `FamilyModifier` name — same concept, on the substitution rate rather than the DTL
-rate), old spelling aliased; `--branch-speed` already vanishes into `--clock-sigma` (C2). `--subst-rate`
-stays a genuine **rate** (units, per-time).
+**Retire "speed" — flag renames DEFERRED (needs a human decision).** On closer inspection the
+substitution "speed" flags are subtler than "speed = modifier": `--family-speed` is the **σ of the
+per-family multiplier distribution** (each family draws `~ LogNormal(0, σ)`), `--family-speeds` is a
+*file* of per-family multipliers, and `--branch-speed` is the autocorrelated **clock σ**. So a
+`--family-speeds` → `--family-modifiers` file rename is clean, but `--family-speed` / `--branch-speed`
+are *spread* parameters, not modifiers — renaming them to `--*-modifier` would misdescribe a σ. These
+five clock/spread flags (`--family-speed`, `--branch-speed`, `--branch-bins`, `--branch-switch-rate`,
+`--branch-up-bias`) are therefore left **as-is** (byte-identical) pending Adrián's naming call — they
+also carry the last of the `branch→lineage` residue on the CLI. Everything else in C3 ships: the
+two-term rule, the odds scoping, and the docs. `--subst-rate` stays a genuine **rate**.
 
 **One field exception.** `GammaRates` — among-**site** +Γ rate heterogeneity — keeps its name even
 though such "rates" are technically mean-1 modifiers: *rate heterogeneity* / *+G rates* is bedrock
