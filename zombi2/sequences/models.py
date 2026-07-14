@@ -50,14 +50,21 @@ AMINO_ACIDS = "ARNDCQEGHILKMFPSTWYV"
 class SubstitutionModel:
     """A K-state model: a normalised ``K×K`` rate matrix ``Q``, stationary freqs, and its alphabet.
 
-    ``alphabet`` is the ordered string of state symbols (``"ACGT"`` for nucleotides, the 20-letter
-    protein alphabet for amino acids); ``Q`` and ``stationary`` follow that order.
+    ``alphabet`` is the ordered sequence of state symbols — ``"ACGT"`` for nucleotides, the 20-letter
+    protein alphabet for amino acids, or the tuple of 61 sense **codons** (width-3 symbols) for the
+    codon models; ``Q`` and ``stationary`` follow that order. Every symbol has the same width, given
+    by :attr:`unit` (1 for nt/aa, 3 for codons).
     """
 
     name: str
     Q: np.ndarray
     stationary: np.ndarray
-    alphabet: str = BASES
+    alphabet: "str | tuple[str, ...]" = BASES
+
+    @property
+    def unit(self) -> int:
+        """Characters of sequence per state — 1 for nucleotide/amino-acid, 3 for codon models."""
+        return len(self.alphabet[0])
 
     def __post_init__(self):
         # Precompute the reversible eigendecomposition once (numpy only) for fast, scipy-free exp(Qt).
@@ -82,7 +89,12 @@ class SubstitutionModel:
         ``P(t) = exp(Qt)`` via the reversible eigendecomposition; clipped to ``[0, ∞)`` to scrub
         tiny negative round-off so every row is a valid probability distribution.
         """
-        P = (self._left * np.exp(self._eigvals * t)) @ self._right
+        # The BLAS matmul kernel can raise spurious divide/overflow/invalid FP flags on the larger
+        # (20-state protein, 61-state codon) matrices even though every input is finite and the
+        # result is a valid stochastic matrix (verified against a reference expm). Silence them here;
+        # the clip below is the real guard against round-off.
+        with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+            P = (self._left * np.exp(self._eigvals * t)) @ self._right
         return np.clip(P, 0.0, None)
 
 
@@ -199,6 +211,8 @@ _MODELS = {**_NT_MODELS, **_AA_MODELS}
 DNA_MODELS = tuple(_NT_MODELS)
 #: names of the protein (amino-acid) substitution models
 PROTEIN_MODELS = tuple(_AA_MODELS)
+#: names of the codon substitution models (implemented in :mod:`zombi2.sequences.codon_models`)
+CODON_MODELS = ("gy94", "mg94")
 
 
 def is_protein_model(name: str) -> bool:
@@ -206,31 +220,43 @@ def is_protein_model(name: str) -> bool:
     return name.lower() in _AA_MODELS
 
 
+def is_codon_model(name: str) -> bool:
+    """True if ``name`` is one of the codon models (``gy94``/``mg94``) — output is in-frame DNA."""
+    return name.lower() in CODON_MODELS
+
+
 #: Which optional parameters each named model actually consumes. Anything supplied but not listed
 #: here used to be silently ignored (``--kappa`` on ``lg``, ``--base-freqs`` on ``k80``); make_model
-#: now warns instead. Keys mirror ``_MODELS``; protein models are empirical and consume nothing.
+#: now warns instead. Keys mirror the known models; protein models are empirical and consume nothing.
 _CONSUMES = {
     "jc69": frozenset(),
     "k80": frozenset({"kappa"}),
     "hky85": frozenset({"kappa", "freqs"}),
     "gtr": frozenset({"rates", "freqs"}),
+    "gy94": frozenset({"kappa", "omega", "freqs"}),
+    "mg94": frozenset({"kappa", "omega", "freqs"}),
     **{name: frozenset() for name in _AA_MODELS},
 }
 
 
-def make_model(name: str, *, kappa: float = 2.0, freqs=None, rates=None) -> SubstitutionModel:
-    """Construct a model by name — DNA (``jc69``/``k80``/``hky85``/``gtr``) or protein
-    (``poisson``/``lg``/``wag``/``jtt``/``dayhoff``) — with the relevant parameters.
+def make_model(name: str, *, kappa: float = 2.0, omega: float = 1.0,
+               freqs=None, rates=None) -> SubstitutionModel:
+    """Construct a model by name — DNA (``jc69``/``k80``/``hky85``/``gtr``), protein
+    (``poisson``/``lg``/``wag``/``jtt``/``dayhoff``) or codon (``gy94``/``mg94``) — with the
+    relevant parameters.
 
     Only the parameters a model actually uses are applied. Supplying one it does not consume
-    (e.g. ``kappa`` for ``lg``, ``freqs`` for ``k80``) emits a :class:`UserWarning` rather than
-    silently ignoring it. A supplied parameter means a non-default ``kappa`` or a non-``None``
-    ``freqs``/``rates``.
+    (e.g. ``kappa`` for ``lg``, ``omega`` for ``gtr``) emits a :class:`UserWarning` rather than
+    silently ignoring it. A supplied parameter means a non-default ``kappa``/``omega`` or a
+    non-``None`` ``freqs``/``rates``. The codon models take ``omega`` (``= dN/dS``) and, via
+    ``freqs``, a codon frequency model (see :func:`~zombi2.sequences.codon_models.gy94`).
     """
     name = name.lower()
-    if name not in _MODELS:
-        raise ValueError(f"unknown substitution model {name!r} (choose from {sorted(_MODELS)})")
-    supplied = {"kappa": kappa != 2.0, "freqs": freqs is not None, "rates": rates is not None}
+    if name not in _MODELS and name not in CODON_MODELS:
+        known = sorted(set(_MODELS) | set(CODON_MODELS))
+        raise ValueError(f"unknown substitution model {name!r} (choose from {known})")
+    supplied = {"kappa": kappa != 2.0, "omega": omega != 1.0,
+                "freqs": freqs is not None, "rates": rates is not None}
     ignored = sorted(p for p, given in supplied.items() if given and p not in _CONSUMES[name])
     if ignored:
         warnings.warn(
@@ -238,6 +264,9 @@ def make_model(name: str, *, kappa: float = 2.0, freqs=None, rates=None) -> Subs
             f"(it consumes {sorted(_CONSUMES[name]) or 'no parameters'})",
             stacklevel=2,
         )
+    if name in CODON_MODELS:
+        from zombi2.sequences.codon_models import make_codon_model
+        return make_codon_model(name, kappa=kappa, omega=omega, freqs=freqs)
     if name == "jc69":
         return jc69()
     if name == "k80":
@@ -352,15 +381,24 @@ def encode(seq: str, rng: np.random.Generator | None = None,
            pi: np.ndarray | None = None, alphabet: str = BASES) -> np.ndarray:
     """Map a sequence string to integer states over ``alphabet``.
 
-    Ambiguous/other letters draw from ``pi`` (or uniform). Defaults to the ``ACGT`` alphabet, so
-    existing nucleotide callers are unchanged.
+    ``alphabet`` may be single-character symbols (``"ACGT"`` for nucleotides, the 20-letter protein
+    alphabet) or a sequence of equal-width multi-character symbols (the 61 sense **codons**, width 3).
+    The symbol width is taken from ``alphabet[0]``, so the sequence is read in fixed ``unit``-sized
+    chunks. Ambiguous/other symbols (including stop codons, which are not in the sense-codon alphabet)
+    draw from ``pi`` (or uniform). Defaults to the ``ACGT`` alphabet, so nucleotide callers are
+    unchanged.
     """
     k = len(alphabet)
-    code = {b: i for i, b in enumerate(alphabet)}
-    states = np.empty(len(seq), dtype=np.int8)
+    unit = len(alphabet[0])
+    if len(seq) % unit:
+        raise ValueError(f"sequence length {len(seq)} is not a multiple of the symbol width {unit}")
+    n = len(seq) // unit
+    code = {sym: i for i, sym in enumerate(alphabet)}
+    seq = seq.upper()
+    states = np.empty(n, dtype=np.int8)
     unknown = []
-    for i, ch in enumerate(seq.upper()):
-        c = code.get(ch, -1)
+    for i in range(n):
+        c = code.get(seq[i * unit:(i + 1) * unit], -1)
         if c < 0:
             unknown.append(i)
             c = 0
@@ -373,7 +411,11 @@ def encode(seq: str, rng: np.random.Generator | None = None,
 
 
 def decode(states: np.ndarray, alphabet: str = BASES) -> str:
-    """Map integer states back to a string over ``alphabet`` (default ``ACGT``)."""
+    """Map integer states back to a string over ``alphabet`` (default ``ACGT``).
+
+    Works for multi-character alphabets too: with the 61 sense-codon alphabet each state expands to
+    its triplet, so a codon-state array decodes straight back to an in-frame DNA string.
+    """
     arr = np.asarray(states)
     return "".join(alphabet[i] for i in arr)
 
@@ -401,6 +443,12 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
     stationary frequencies. Each node's recorded sequence is its state at the end of its branch (a
     speciation/duplication/transfer/loss time, or the present for a tip); with ``subst=0`` a node
     simply copies its parent.
+
+    ``model`` may also be a **codon site mixture** (a
+    :class:`~zombi2.sequences.codon_models.CodonSiteModel`: several ``ω`` classes sharing one
+    stationary distribution). Each site is then assigned a class from the mixture's ``proportions``
+    and evolves under that class's matrix — mutually exclusive with ``gamma`` (both are per-site
+    category layers).
     """
     pi = model.stationary
     alphabet = model.alphabet
@@ -413,16 +461,22 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
             raise ValueError("give either root_seq or length")
         root_states = rng.choice(k, size=length, p=pi).astype(np.int8)
 
-    if gamma is not None:
+    components = getattr(model, "components", None)     # a codon site mixture: one matrix per ω class
+    if components is not None and gamma is not None:
+        raise ValueError("a codon site model (per-site ω mixture) and gamma across-site rates are "
+                         "both per-site category layers; give at most one")
+    if components is not None:
+        site_cat = rng.choice(len(components), size=length, p=model.proportions)
+    elif gamma is not None:
         site_cat = rng.integers(gamma.k, size=length)
     out: dict = {}
     pcache: dict = {}
 
-    def p_for(t: float) -> np.ndarray:
-        key = round(float(t), 12)
+    def p_for(t: float, m=model) -> np.ndarray:
+        key = (id(m), round(float(t), 12))
         P = pcache.get(key)
         if P is None:
-            P = model.p_matrix(key)
+            P = m.p_matrix(round(float(t), 12))
             pcache[key] = P
         return P
 
@@ -439,6 +493,13 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
         t = float(subst.get(node, 0.0))
         if t <= 0.0:
             states = parent_states
+        elif components is not None:                       # codon site mixture: one matrix per class
+            states = np.empty(length, dtype=np.int8)
+            for c, comp in enumerate(components):
+                mask = site_cat == c
+                if mask.any():
+                    cum = p_for(t, comp).cumsum(1)
+                    states[mask] = sample(parent_states[mask], cum)
         elif gamma is None:
             states = sample(parent_states, p_for(t).cumsum(1))
         else:

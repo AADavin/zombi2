@@ -26,10 +26,19 @@ from zombi2.sequences.clocks import (
 from zombi2.sequences.evolution import SequenceEvolution, GenePhylograms
 from zombi2.sequences.models import (
     SubstitutionModel, GammaRates, jc69, k80, hky85, gtr,
-    poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model,
-    DNA_MODELS, PROTEIN_MODELS, AMINO_ACIDS,
+    poisson, lg, wag, jtt, dayhoff, make_model, is_protein_model, is_codon_model,
+    DNA_MODELS, PROTEIN_MODELS, CODON_MODELS, AMINO_ACIDS,
     evolve_on_tree, read_fasta, write_fasta,
 )
+from zombi2.sequences.codon_models import (
+    gy94, mg94, make_codon_model,
+    CodonSiteModel, m1a, m2a, m3, m7, m8, is_codon_site_model, CODON_SITE_MODELS,
+)
+
+# NOTE: the codon *utilities* (translate, GENETIC_CODE, SENSE_CODONS, STOP_CODONS, expected_dnds,
+# make_codon_site_model, beta_category_omegas) are intentionally not re-exported here — import them
+# from ``zombi2.sequences.codon_models``. This keeps the ``zombi2.sequences`` namespace to the model
+# API and avoids clashing with the separate ``zombi2.experimental.codon_selection.translate``.
 
 __all__ = [
     "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
@@ -38,6 +47,9 @@ __all__ = [
     "SequenceEvolution", "GenePhylograms",
     "SubstitutionModel", "GammaRates", "jc69", "k80", "hky85", "gtr",
     "poisson", "lg", "wag", "jtt", "dayhoff", "make_model", "is_protein_model",
-    "DNA_MODELS", "PROTEIN_MODELS", "AMINO_ACIDS",
+    "is_codon_model", "DNA_MODELS", "PROTEIN_MODELS", "CODON_MODELS", "AMINO_ACIDS",
     "evolve_on_tree", "read_fasta", "write_fasta",
+    "gy94", "mg94", "make_codon_model",
+    "CodonSiteModel", "m1a", "m2a", "m3", "m7", "m8",
+    "is_codon_site_model", "CODON_SITE_MODELS",
 ]
