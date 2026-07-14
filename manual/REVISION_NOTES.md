@@ -96,7 +96,7 @@ the genome block shifted +1):**
   level×rate two-axes framing, levels table + rate-model table, and a new **"Events, by level"**
   section (Adrián's key point — explicit per-level events + the "each level adds to the one below"
   nesting, with a summary table). Fixed accuracy of the levels table. (At the time of this pass
-  `--genome-model` exposed only `unordered` / `nucleotide`; `--genome-model ordered` was added as a
+  `--genome-resolution` exposed only `unordered` / `nucleotide`; `--genome-resolution ordered` was added as a
   CLI level on 2026-07-05 — see below — so ordered is no longer Python-only.)
 - **Ch8 `08-unordered-genomes.md` "Unordered genomes"** — the four events (heading renamed
   **"The four unordered events"**), rates (shared/per-genome/family), transfers, growth. Rate-model
@@ -105,7 +105,7 @@ the genome block shifted +1):**
   files renumbered to close the gap): **Ch9** gene-trees-and-output · **Ch10** ordered ·
   **Ch11** nucleotide · **Ch12** trait · **Ch13** coevolution · **Ch14** sequences ·
   **Ch15** molecular clocks.
-- **Ordered is now a CLI level too (2026-07-05):** `--genome-model ordered` added (was Python-only).
+- **Ordered is now a CLI level too (2026-07-05):** `--genome-resolution ordered` added (was Python-only).
   Wires `SharedRates(inversion=,transposition=)` + `genome_factory=OrderedGenome(ids, extension=)`;
   reuses `--inversion/--transposition` (per gene copy for ordered, per nt for nucleotide) and
   `--extension` (in genes; None=single-gene). Those three flags now default `None` and resolve
@@ -262,8 +262,8 @@ species-output `e`/`u` naming code pass.
 - [x] Full rewrite (Adrián: 3 node-pair sections, equal depth). Kept the strong intro (pipeline-vs-
   coupled, six-edge table, "arrows into S" rule) + NEW `coevolve_modes` figure (S/T/G triangle, into-S
   edges heavy). Sections: 13.2 Species&Traits (traits:species SSE / species:traits cladogenetic /
-  both=ClaSSE), 13.3 Species&Genes (genes:species key-innovation / species:genes punctuational),
-  13.4 Traits&Genes (traits:genes trait-linked / genes:traits gene-conditioned), 13.5 inference caveat.
+  both=ClaSSE), 13.3 Species&Genes (genomes:species key-innovation / species:genomes punctuational),
+  13.4 Traits&Genes (traits:genomes trait-linked / genomes:traits gene-conditioned), 13.5 inference caveat.
   ALL SIX edges documented at equal depth (model → Python → CLI → what-it-recovers). Every snippet
   agent-verified + smoke-tested (all 6 drivers run). Full manual = 85pp.
 

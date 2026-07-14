@@ -38,6 +38,13 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 - Documented that `--transposition` (a segment moved elsewhere in the genome) applies to both the
   `ordered` and `nucleotide` genome models, not only `nucleotide`.
+- **`--genome-resolution` replaces `--genome-model`** (naming consolidation C4). The genome
+  representation axis (unordered / ordered / nucleotide) is a *resolution*, not a "level" or a
+  stochastic "model"; `--genome-model` is kept as an accepted (deprecated) alias. The metavar is now
+  `RESOLUTION`, and "level" is reserved for the four simulation domains (species, genomes, traits,
+  sequences).
+- **Coevolve nodes standardise on `genomes`** (C6): `--couple traits:genomes`, `genomes:species`,
+  etc. The old node spelling `genes` is still accepted but warns — one domain word everywhere.
 - **Rate vocabulary clarified in the docs and manual** (naming consolidation C2/C3). The guide,
   the manual, and `conventions.md` now state a single two-word rule — a **rate** is a quantity per
   unit time, a **modifier** is a dimensionless multiplier on a rate — and reserve **odds** for the

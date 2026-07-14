@@ -128,7 +128,7 @@ the usual "is this rate a base, a modifier, or a sum?" confusion disappears.
     unit time (σ²), the **opportunity** is per lineage, and **modifiers** (a relaxed clock, a
     state-dependent rate) rescale it exactly as elsewhere. Same grammar, no discrete jumps.
 
-## The three genome levels, side by side
+## The three genome resolutions, side by side
 
 The genome level is the one place where the **substrate** changes — a "copy" can be a whole gene or
 a single nucleotide — so it is worth seeing the three genome models against the same vocabulary. The

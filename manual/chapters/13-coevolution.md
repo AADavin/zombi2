@@ -43,10 +43,10 @@ The three processes give six directed edges (Table \ref{tbl:edges}), each a dist
 |:------------------|:----------|:-----------------------------------------------|
 | `traits:species` | T $\to$ S | state-dependent diversification (SSE / ClaSSE) |
 | `species:traits` | S $\to$ T | cladogenetic trait jumps at speciation |
-| `genes:species` | G $\to$ S | key-innovation diversification |
-| `species:genes` | S $\to$ G | punctuational (cladogenetic) genome |
-| `traits:genes` | T $\to$ G | trait-linked gene families |
-| `genes:traits` | G $\to$ T | gene-conditioned trait |
+| `genomes:species` | G $\to$ S | key-innovation diversification |
+| `species:genomes` | S $\to$ G | punctuational (cladogenetic) genome |
+| `traits:genomes` | T $\to$ G | trait-linked gene families |
+| `genomes:traits` | G $\to$ T | gene-conditioned trait |
 
 : The six directed coupling edges of `coevolve` mode — the `--couple driver:target` flag, the direction of the arrow, and the model each one selects. \label{tbl:edges}
 
@@ -62,11 +62,11 @@ models than arrows.
 
 The one rule that governs their difficulty is: **does any active edge point into S?** If no edge
 points into S, the tree is fixed — it is read from `-t/--tree` and every coupling is an *overlay* on a
-frozen tree. If an edge does point into S (`traits:species` or `genes:species`), the tree topology
+frozen tree. If an edge does point into S (`traits:species` or `genomes:species`), the tree topology
 depends on the coupled state and cannot be drawn first: the tree becomes an **output**, and those runs
 are forward-only and take no `-t`.
 
-Note the asymmetry: an arrow pointing *out* of S (`species:traits`, `species:genes`) does **not**
+Note the asymmetry: an arrow pointing *out* of S (`species:traits`, `species:genomes`) does **not**
 trigger joint simulation. S drives the target but listens to nothing, so S can be drawn (or supplied
 via `-t`) first and the target overlaid on it — the tree stays an input. It is only an arrow *into* S
 that puts S downstream of its driver, breaks the pipeline factorisation, and forces the tree to be
@@ -190,7 +190,7 @@ zombi2 coevolve --couple traits:species --couple species:traits \
 
 ## Species and genes
 
-### `genes:species` — key-innovation diversification
+### `genomes:species` — key-innovation diversification
 
 Gene content can drive the tree: a small panel of binary **driver** ("key innovation") families whose
 presence sets each lineage's speciation and extinction rate. Drivers are gained de novo (origination)
@@ -216,7 +216,7 @@ From the command line, the neutral genome overlay is a second, ordinary `genomes
 first command wrote:
 
 ```bash
-zombi2 coevolve --couple genes:species --drivers 2 --root-drivers 1 \
+zombi2 coevolve --couple genomes:species --drivers 2 --root-drivers 1 \
     --lambda0 1 --mu0 0.2 --driver-speciation 1.2 \
     --driver-transfer 0.8 --driver-loss 0.3 \
     --tips 200 --seed 1 -o out/
@@ -235,9 +235,9 @@ diversification rate shift, rather than a trait one.
 
 ![Key-innovation diversification. **A**, the model: a lineage carrying the driver (D+) speciates faster than one without it (D−, the fork width is the speciation rate); the driver is gained by origination and by frequency-dependent transfer, and lost. **B**, one realization: the driver *originates* on a single branch (the +), and from there the carrier (heavy) clade radiates into a speciose group while the non-carrier (light) lineages stay sparse. Here it reaches 69% of the extant tips — a genomic cause of a diversification-rate shift.](figures/key_innovation.pdf){width=100%}
 
-### `species:genes` — punctuational genome
+### `species:genomes` — punctuational genome
 
-The reverse of `genes:species`, and the genomic twin of `species:traits`: here gene content does *not*
+The reverse of `genomes:species`, and the genomic twin of `species:traits`: here gene content does *not*
 affect diversification, so it is an overlay on a **given** tree. A genome is evolved down the tree with
 a **cladogenetic burst** of gene loss and gain at each speciation (a founder-effect upheaval), on top
 of the usual gradual along-branch change:
@@ -257,7 +257,7 @@ res.profile_matrix()   # families × extant tips
 ```
 
 ```bash
-zombi2 coevolve --couple species:genes -t species_tree.nwk \
+zombi2 coevolve --couple species:genomes -t species_tree.nwk \
     --genome-size 30 --clado-gene-loss 0.15 --clado-gene-gain 3 --seed 2 -o out/
 ```
 
@@ -271,7 +271,7 @@ their split, not spread evenly along the branches.
 
 ### Both arrows: co-diversification
 
-Turn on **both** `genes:species` and `species:genes` and the *same* driver families both set the
+Turn on **both** `genomes:species` and `species:genomes` and the *same* driver families both set the
 diversification rates *and* are reshuffled by a cladogenetic burst at every speciation — the genomic
 twin of ClaSSE. Because a burst can hand one daughter a key innovation and not its sister, speciation
 *itself* seeds the rate heterogeneity that then plays out along the branches. One arrow points into S,
@@ -285,24 +285,24 @@ res = simulate_co_diversification(
                         loss=0.0, origination=0.0, transfer=0.0, root_drivers=1,
                         cladogenetic_loss=0.15, cladogenetic_gain=0.2),
     n_tips=200, seed=5)
-res.tip_prevalence()   # drivers still spread: the genes:species signal survives
+res.tip_prevalence()   # drivers still spread: the genomes:species signal survives
 ```
 
 ```bash
-zombi2 coevolve --couple genes:species --couple species:genes \
+zombi2 coevolve --couple genomes:species --couple species:genomes \
     --drivers 3 --lambda0 1 --mu0 0.15 --driver-speciation 1.0 \
     --driver-loss 0 --driver-origination 0 --driver-transfer 0 --root-drivers 1 \
     --driver-clado-loss 0.15 --driver-clado-gain 0.2 --tips 200 --seed 5 -o out/
 ```
 
 `--driver-clado-loss`/`--driver-clado-gain` are the per-driver drop/gain probabilities of the burst;
-with both `0` the `species:genes` arrow is off and this is plain `genes:species`. **What it recovers:**
+with both `0` the `species:genomes` arrow is off and this is plain `genomes:species`. **What it recovers:**
 the diversification signal (a key innovation over-represented among the tips) *and* the punctuational
 signal (sisters differing where a burst split them) at once.
 
 ## Traits and genes
 
-### `traits:genes` — trait-linked gene families
+### `traits:genomes` — trait-linked gene families
 
 A lineage that becomes aerobic retains and acquires oxygen-using gene families; one that reverts sheds
 them. This edge simulates that link: a trait is evolved down the tree, then a panel of gene families is
@@ -339,7 +339,7 @@ The command builds the trait for you from `--trait-model` (any `zombi2 trait` mo
 responsive families with `--responsive` (a count, a fraction, or an id list):
 
 ```bash
-zombi2 coevolve --couple traits:genes -t species_tree.nwk \
+zombi2 coevolve --couple traits:genomes -t species_tree.nwk \
     --trait-model bm --sigma2 1 --panel 40 --responsive 0.3 \
     --loss 0.5 --trans 1 --effect-loss 2 --seed 1 -o out/
 ```
@@ -352,7 +352,7 @@ entirely in the responsive panel, which is what an inference method should be ab
 
 ![Trait-linked gene families. **A**, the mechanism: a responsive family's loss rate falls with the trait ($\text{loss} = \text{base\_loss}\cdot e^{-\text{effect\_loss}\,w\,s}$), while an inert family loses at the flat baseline. **B**, one realization — the tree painted by the trait (viridis), a per-tip trait chip, then the gene-presence matrix. The responsive block is filled in the high-trait (yellow) tips and empty in the low-trait (blue) ones, tracking the trait almost perfectly; the inert block carries no such pattern. The signal lives entirely in the responsive families — the null is built in.](figures/trait_linked_genes.pdf){width=100%}
 
-### `genes:traits` — gene-conditioned trait
+### `genomes:traits` — gene-conditioned trait
 
 The reverse: here gene content conditions a **trait**. A binary *modifier* gene is gained and lost
 along the tree, and its presence sets a continuous trait's **OU optimum** — a lineage that acquires the
@@ -370,7 +370,7 @@ res.trait_values()     # {leaf: value} — carriers near 5, non-carriers near 0
 ```
 
 ```bash
-zombi2 coevolve --couple genes:traits -t species_tree.nwk \
+zombi2 coevolve --couple genomes:traits -t species_tree.nwk \
     --modifier-gain 0.6 --modifier-loss 0.6 --theta-absent 0 --theta-present 5 \
     --trait-alpha 2.5 --trait-sigma2 0.4 --seed 2 -o out/
 ```
@@ -385,7 +385,7 @@ event reading out as a shift in a continuous phenotype.
 
 ### Both arrows: trait–gene feedback
 
-Turn on **both** `traits:genes` and `genes:traits` and the trait and a coupled gene panel modulate
+Turn on **both** `traits:genomes` and `genomes:traits` and the trait and a coupled gene panel modulate
 *each other*: the trait sets the panel's retention while the panel sets the trait's optimum. Neither
 arrow points into S, so this stays an **overlay** on a given tree — but because each depends on the
 other's *current* value, the two are integrated together along each branch rather than one after the
@@ -405,15 +405,15 @@ res.trait_gene_correlation()   # the emergent trait-gene association
 ```
 
 ```bash
-zombi2 coevolve --couple traits:genes --couple genes:traits -t species_tree.nwk \
+zombi2 coevolve --couple traits:genomes --couple genomes:traits -t species_tree.nwk \
     --panel 24 --effect-loss 1.5 --loss 1.0 --trans 1.0 \
     --theta-absent -3 --theta-present 3 --trait-alpha 1 --trait-sigma2 0.5 \
     --seed 2 -o out/
 ```
 
 Here `--theta-absent`/`--theta-present` are the trait's optima at an empty/full panel and `--loss`/
-`--trans` the panel's base loss/gain. Setting `--effect-loss 0` recovers pure `genes:traits`, and
-setting `--theta-present` equal to `--theta-absent` recovers pure `traits:genes` — the joint model
+`--trans` the panel's base loss/gain. Setting `--effect-loss 0` recovers pure `genomes:traits`, and
+setting `--theta-present` equal to `--theta-absent` recovers pure `traits:genomes` — the joint model
 contains both single edges as limits. **What it recovers:** a trait–gene-content association that is
 *emergent* rather than built in; the decoupled control (`--effect-loss 0` with equal thetas) shows
 none.
@@ -454,7 +454,7 @@ Cutting the arrow honestly takes one of three forms:
   above). It is the *worthy opponent*, and it covers the four edges where a driver state sets a target
   rate.
 - **`timing`** — for the two edges where change happens *at* speciation (`species:traits`,
-  `species:genes`) there is no hidden state to invoke; the honest null keeps the same amount of change
+  `species:genomes`) there is no hidden state to invoke; the honest null keeps the same amount of change
   but spreads it **along the branches** instead of piling it at the nodes — the
   punctuation-versus-gradual contrast [@pagel1999inferring]. The variance is matched analytically, from the
   tree's branch statistics.
@@ -465,10 +465,10 @@ spread along the branches, so sisters differ only as much as their shared branch
 allows.](figures/coevolve_null_timing.pdf){width=100%}
 
 For two of the four `cid` edges the null is almost free, because ZOMBI2 already produces a neutral
-channel. In `genes:species` the drivers shape a genuinely heterogeneous tree, while the **neutral bulk
+channel. In `genomes:species` the drivers shape a genuinely heterogeneous tree, while the **neutral bulk
 genome** — the families that do not touch diversification — is a whole panel of real genes decoupled
 from it. The null hands you that genome as the observed data and withholds the drivers as
-ground-truth; `genes:traits` reuses the same trick. Only `traits:genes` needs one extra ingredient: a
+ground-truth; `genomes:traits` reuses the same trick. Only `traits:genomes` needs one extra ingredient: a
 second, independent neutral trait. (A neutral gene still carries a faint imprint of tree shape — bushy
 clades have short branches — but that shared-tree confound is a *feature* of a good null: it is exactly
 what a trustworthy detector must see through.)
@@ -485,8 +485,8 @@ zombi2 coevolve --couple traits:species \
     --lambda0 1 --lambda1 3 --tips 200 --seed 1 \
     --null cid --hidden 2 -o out/null
 
-# the punctuational genome, spread along branches (species:genes)
-zombi2 coevolve --couple species:genes -t species_tree.nwk \
+# the punctuational genome, spread along branches (species:genomes)
+zombi2 coevolve --couple species:genomes -t species_tree.nwk \
     --clado-gene-loss 0.15 --clado-gene-gain 3 \
     --null timing -o out/null_punct
 ```

@@ -226,7 +226,7 @@ each stage independent. `coevolve` is for the case where one level **drives** an
 is a **directed edge** `driver:target` — the driver's state modulates the target's rates — selected
 with the repeatable flag `coevolve --couple driver:target`. There are six edges among the three
 levels **species** / **traits** / **genes** (e.g. `traits:species` = a trait sets speciation, the
-SSE models; `traits:genes` = a trait sets gene loss/gain; and their reverses). Edges that point
+SSE models; `traits:genomes` = a trait sets gene loss/gain; and their reverses). Edges that point
 *into* species grow the tree as an output (forward-only, no `-t`); the rest are overlays on a given
 tree.
 
@@ -273,14 +273,14 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | Option | Meaning |
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
-| `--genome-model {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
+| `--genome-resolution {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
 | `--rate-per {copy,lineage}` | what each rate is counted per — the opportunity that scales it: `copy` (default, Rust): per gene copy, so totals grow with genome size; `lineage` (Python): a constant rate per lineage (the whole genome as one unit), linear growth. Per-family rates come from `--family-rates`; nucleotide is always per nucleotide. (`genome` is a deprecated alias of `lineage`; `--rate-model {shared,per-genome,family}` is the deprecated old spelling) |
-| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-model nucleotide`) |
+| `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-resolution nucleotide`) |
 | `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, per-copy rates; runs on the Python engine |
 | `--family-rates FILE` | TSV of explicit per-family rates (`family duplication transfer loss`); the per-family rate source; unlisted families fall back to `--dup/--trans/--loss` [unordered, Python] |
 | `--lineage-rates FILE` | TSV of per-lineage transfer `emission` (donation-rate factor) and/or `receptivity` (absorption weight) (`lineage emission receptivity`, either optional; `--branch-rates` is a deprecated alias) [unordered; receptivity-only stays on Rust] |
-| `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-model unordered`] |
-| `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-model nucleotide`] |
+| `--initial-families` | number of gene families seeded at the root (default: 20) [`--genome-resolution unordered`] |
+| `--max-family-size` | growth cap — integer = absolute, decimal = fraction of N (e.g. `0.5`) [not used by `--genome-resolution nucleotide`] |
 | `--inversion` `--transposition` | [ordered/nucleotide] inversion / transposition (a segment moved elsewhere in the genome) rates — per gene copy for `ordered`, per nucleotide for `nucleotide` |
 | `--translocation` | [ordered/nucleotide] translocation rate: a segment (ordered, per gene copy) or arc (nucleotide, per nucleotide) *moves* to a **different** chromosome of the same genome (needs >1 chromosome; the intra-genome counterpart of transposition, distinct from a transfer's HGT copy). Default 0 |
 | `--n-chromosomes N` | [ordered/nucleotide] number of chromosomes seeded at the root (default 1). [ordered] the root's initial families are spread across them; [nucleotide] each is an independent full-length copy of the root chromosome (its own source). Gene rearrangements stay within a chromosome, while a transfer may land a copy on any chromosome. With `N > 1` the run also writes the layout (`Gene_order.tsv` for ordered / `Chromosomes.tsv` for nucleotide) |
@@ -392,9 +392,9 @@ From the Python API the same thing is `simulate_genomes(tree, ..., output="trace
 a `GenomeTrace` — a lazy handle whose `.profiles`, `.gene_trees()` and `.reconciliations()` build
 only what you ask for.
 
-## Nucleotide genomes (`--genome-model nucleotide`)
+## Nucleotide genomes (`--genome-resolution nucleotide`)
 
-`--genome-model nucleotide` switches `genomes` to a **nucleotide-resolution** model — genomes evolve
+`--genome-resolution nucleotide` switches `genomes` to a **nucleotide-resolution** model — genomes evolve
 by variable-length structural events (inversion, deletion, tandem duplication, transposition,
 transfer, origination), genes emerge as blocks, and the model can start from a real GFF genome and
 even simulate ancestral DNA. It is a substantial model with its own flags; see

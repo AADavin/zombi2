@@ -2,7 +2,7 @@
 
 `zombi2 tools export` turns a **nucleotide** genome simulation into the file formats that
 gene-order / synteny studies consume — the analysis complement of the simulator's own outputs. It
-reads a `zombi2 genomes --genome-model nucleotide` output directory and derives each format from
+reads a `zombi2 genomes --genome-resolution nucleotide` output directory and derives each format from
 the reconstructed per-node gene orders, so it is a pure a-posteriori step: simulate once, export as
 many views as you need.
 
@@ -21,7 +21,7 @@ So a run that produces everything the export needs looks like:
 
 ```bash
 zombi2 species -b 1 -d 0.3 --tips 8 --age 3 --seed 1 -o run/S
-zombi2 genomes -t run/S/species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t run/S/species_tree.nwk --genome-resolution nucleotide \
     --genes genes.tsv --root-length 3000 \
     --inversion 0.01 --transposition 0.005 --write bed geneorder --seed 1 -o run/G
 ```

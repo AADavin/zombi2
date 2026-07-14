@@ -119,7 +119,7 @@ Blocks carry their classification (`block.kind` is `"gene"` or `"intergene"`, pl
 (the Rust `profiles` path does not model genes). On the CLI:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
@@ -142,7 +142,7 @@ is `+` at the root; an inversion flips it), not a GFF coding strand, which the g
 track.
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --transposition 2e-6 --inversion 2e-6 --write bed -o out/
 ```
 
@@ -166,7 +166,7 @@ result = z.simulate_nucleotide_genomes(
 On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`/`--root-length`):
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
   --write profiles trees -o out/
 ```
@@ -267,7 +267,7 @@ result = z.simulate_nucleotide_genomes(
 From the command line:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide --root-length 3000 \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide --root-length 3000 \
     --insertion 0.001 --deletion 0.001 --indel-mean-length 12 \
     --seed 5 --write profiles trees -o out/
 ```

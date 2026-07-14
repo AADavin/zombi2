@@ -230,19 +230,19 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     _add_params_arg(g)
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    g.add_argument("--genome-model", dest="genome_model",
+    g.add_argument("--genome-resolution", "--genome-model", dest="genome_model",
                    choices=("unordered", "ordered", "nucleotide"), default="unordered",
-                   metavar="LEVEL",
-                   help="genome level: unordered (default) evolves gene families with no "
+                   metavar="RESOLUTION",
+                   help="genome resolution: unordered (default) evolves gene families with no "
                         "positional structure; ordered places genes on a chromosome where order "
                         "matters (adds inversion/transposition on gene segments; distance counted "
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
-                        "(see the nucleotide sections)")
+                        "(see the nucleotide sections). --genome-model is a deprecated alias")
     g.add_argument("--rate-per", choices=("copy", "lineage", "genome"), default=None, dest="rate_per",
                    metavar="UNIT",
                    help="what each rate is counted per — the opportunity that scales it "
-                        "(unordered/ordered levels): copy = per gene copy, so total rates grow with "
+                        "(unordered/ordered resolutions): copy = per gene copy, so total rates grow with "
                         "genome size (default; Rust for unordered); lineage = a constant rate per "
                         "lineage (the whole genome as one unit), giving linear rather than "
                         "exponential growth (Python). Per-family rates come from --family-rates; "
@@ -259,7 +259,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group(
         "gene-family rates",
         "per gene copy (--rate-per copy) or per lineage (--rate-per lineage); "
-        "per nucleotide for --genome-model nucleotide")
+        "per nucleotide for --genome-resolution nucleotide")
     g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
     g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
     g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
@@ -268,10 +268,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
                    help="number of gene families seeded at the root, for the unordered and ordered "
-                        "genome levels (--genome-model unordered/ordered) (default: 20)")
+                        "genome resolutions (--genome-resolution unordered/ordered) (default: 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
-                        "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
+                        "number of species (e.g. 0.5) [not used by --genome-resolution nucleotide]")
 
     g = p.add_argument_group(
         "gene conversion",
@@ -354,21 +354,21 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "families) or 'uniform' over branches")
 
     g = p.add_argument_group("structural events (rearrangements)",
-                             "--genome-model ordered/nucleotide")
+                             "--genome-resolution ordered/nucleotide")
     g.add_argument("--inversion", type=float, default=None, metavar="RATE",
-                   help="inversion rate — per gene copy for --genome-model ordered (default 0), "
+                   help="inversion rate — per gene copy for --genome-resolution ordered (default 0), "
                         "per nucleotide for nucleotide (default 0.001)")
     g.add_argument("--transposition", type=float, default=None, metavar="RATE",
-                   help="transposition rate — per gene copy for --genome-model ordered, per "
+                   help="transposition rate — per gene copy for --genome-resolution ordered, per "
                         "nucleotide for nucleotide (default 0)")
     g.add_argument("--mean-length", type=float, default=None, metavar="L", dest="mean_length",
                    help="mean length of an inversion/transposition segment (geometric): in genes "
-                        "for --genome-model ordered (default 1 = single-gene events), in "
+                        "for --genome-resolution ordered (default 1 = single-gene events), in "
                         "nucleotides for nucleotide (default 100)")
     g.add_argument("--transposition-flip", type=float, default=0.0, metavar="P",
                    dest="transposition_flip",
                    help="probability a transposed segment reinserts reverse-complemented "
-                        "(gene order reversed and strands flipped), for --genome-model ordered "
+                        "(gene order reversed and strands flipped), for --genome-resolution ordered "
                         "(default 0 = always keep orientation)")
     g.add_argument("--translocation", type=float, default=0.0, metavar="RATE",
                    help="[ordered/nucleotide] translocation rate: a segment (ordered, per gene) or "
@@ -376,14 +376,14 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "genome (needs >1 chromosome; distinct from transposition, which stays on one "
                         "chromosome) (default 0 = off)")
     g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
-                   help="number of chromosomes seeded at the root, for --genome-model "
+                   help="number of chromosomes seeded at the root, for --genome-resolution "
                         "ordered/nucleotide (default 1). [ordered] the root's initial families are "
                         "spread across them; [nucleotide] each is an independent full-length copy of "
                         "the root chromosome. Rearrangements stay within a chromosome (see "
                         "--fission/--fusion for chromosome-level changes)")
     g.add_argument("--linear-chromosomes", action="store_true", dest="linear_chromosomes",
                    help="ordered chromosomes are linear (segments never wrap the origin), for "
-                        "--genome-model ordered (default: circular, as for bacteria). Nucleotide "
+                        "--genome-resolution ordered (default: circular, as for bacteria). Nucleotide "
                         "chromosomes are always circular")
     # chromosome-tier events (ordered + nucleotide genomes; off by default). When any is set — or
     # with more than one chromosome — the run also writes the karyotype (Gene_order.tsv /
@@ -403,7 +403,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="[ordered/nucleotide] chromosome loss rate, per chromosome: a whole "
                         "chromosome and its genes are lost (default 0 = off)")
 
-    g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
+    g = p.add_argument_group("nucleotide model", "with --genome-resolution nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
                    help=argparse.SUPPRESS)  # deprecated -> --n-chromosomes (still accepted; warns on use)
@@ -422,7 +422,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "separate knob from --mean-length (default 10)")
 
     g = p.add_argument_group("genes & intergenes",
-                             "--genome-model nucleotide; declare genes to enable genic mode")
+                             "--genome-resolution nucleotide; declare genes to enable genic mode")
     g.add_argument("--gff", metavar="FILE", default=None,
                    help="a GFF3 annotation (optionally .gz) to start from a real genome: sets the "
                         "chromosome length and the gene coordinates (intergenes are the gaps). "
@@ -444,7 +444,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "additive when no homolog) (default 0)")
 
     g = p.add_argument_group("sequences & ancestral genomes",
-                             "--genome-model nucleotide, with --write ancestral")
+                             "--genome-resolution nucleotide, with --write ancestral")
     g.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
                    metavar="MODEL",
                    help="nucleotide substitution model for the sequences (default hky85)")
@@ -977,7 +977,7 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
 # ═══════════════════════════════════════════════════════════════════════════════
 # coevolve: the directed-coupling umbrella over {species, traits, genes}
 # ═══════════════════════════════════════════════════════════════════════════════
-_COEVOLVE_NODES = ("species", "traits", "genes")
+_COEVOLVE_NODES = ("species", "traits", "genomes")
 # every directed edge in the coevolution design (docs/guide/coevolution.md); all six directed
 # edges and the joint (both-arrow) models are implemented.
 _COEVOLVE_EDGES = {
@@ -989,18 +989,18 @@ _COEVOLVE_EDGES = {
 def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     g.add_argument("--couple", action="append", nargs="+", metavar="DRIVER:TARGET", default=None,
-                   help="a directed coupling edge 'driver:target' over {species, traits, genes} — "
+                   help="a directed coupling edge 'driver:target' over {species, traits, genomes} — "
                         "the driver's state modulates the target's rates. Implemented: "
                         "'traits:species' (SSE), 'species:traits' (cladogenetic), their "
-                        "combination = ClaSSE, 'genes:species' (key innovations), 'species:genes' "
-                        "(cladogenetic genome), 'genes:traits' (a modifier gene switches a trait "
-                        "optimum) and 'traits:genes' (a trait conditions a gene-family panel). "
+                        "combination = ClaSSE, 'genomes:species' (key innovations), 'species:genomes' "
+                        "(cladogenetic genome), 'genomes:traits' (a modifier gene switches a trait "
+                        "optimum) and 'traits:genomes' (a trait conditions a gene-family panel). "
                         "Repeatable; default traits:species. See docs/guide/coevolution.md for "
-                        "the full edge set")
+                        "the full edge set ('genes' is a deprecated node alias of 'genomes')")
     g.add_argument("-t", "--tree", default=None, metavar="FILE",
                    help="input species tree (Newick) — required for the on-a-given-tree edges "
-                        "(species:traits, species:genes, genes:traits, traits:genes). Omit for the "
-                        "into-species edges (traits:species / ClaSSE / genes:species), which GROW "
+                        "(species:traits, species:genomes, genomes:traits, traits:genomes). Omit for the "
+                        "into-species edges (traits:species / ClaSSE / genomes:species), which GROW "
                         "the tree via --age/--tips")
     g.add_argument("--age", type=float, default=None, metavar="T",
                    help="[into-species] crown age to grow for (the extant tip count is random)")
@@ -1435,6 +1435,16 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
     # --couple accepts both repeated flags and space-separated lists (append + nargs); flatten
     raw = args.couple or [["traits:species"]]
     edges = [e.strip().lower() for group in raw for e in group]
+    # Coevolve nodes standardise on "genomes" (the domain word used everywhere else); "genes" is a
+    # deprecated node spelling. Accept both on input, normalise to the internal genes-form, warn on
+    # the old spelling.
+    def _normalise_couple_edge(e):
+        toks = e.split(":")
+        if "genes" in toks:
+            print("warning: the coevolve node 'genes' is deprecated; use 'genomes' "
+                  "(e.g. --couple traits:genomes).", file=sys.stderr)
+        return ":".join("genes" if t == "genomes" else t for t in toks)
+    edges = [_normalise_couple_edge(e) for e in edges]
     for e in edges:
         if e not in _COEVOLVE_EDGES:
             parser.error(f"unknown --couple edge {e!r}: expected 'driver:target' over "
@@ -1850,7 +1860,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         if parts != {"profiles"}:
             reason = "use it with exactly --write profiles"
         elif args.genome_model != "unordered":
-            reason = f"--genome-model {args.genome_model} runs serially; use --genome-model unordered"
+            reason = f"--genome-resolution {args.genome_model} runs serially; use --genome-resolution unordered"
         elif (args.rate_per in ("lineage", "genome") or args.rate_model in ("per-genome", "family")
               or args.family_rates):
             reason = ("the built-in per-copy rates are required "
@@ -1887,22 +1897,22 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.genome_model == "nucleotide":
         if rate_per is not None:
             parser.error("--rate-per (and the deprecated --rate-model) apply to the unordered/"
-                         "ordered genome levels; the nucleotide model is per nucleotide by "
+                         "ordered genome resolutions; the nucleotide model is per nucleotide by "
                          "construction")
         if args.initial_families is not None:
-            parser.error("--initial-families is for the unordered genome level "
-                         "(--genome-model unordered); the nucleotide model uses --n-chromosomes")
+            parser.error("--initial-families is for the unordered genome resolution "
+                         "(--genome-resolution unordered); the nucleotide model uses --n-chromosomes")
         if getattr(args, "score_likelihoods", False):
             parser.error("--score-likelihoods scores reconstructed gene-family trees, which the "
-                         "nucleotide genome model does not produce; use --genome-model "
+                         "nucleotide genome model does not produce; use --genome-resolution "
                          "unordered/ordered to score reconciliation likelihoods")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
-        parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
-                     "unordered and ordered genome levels use --initial-families")
+        parser.error("--initial-chromosomes is only for --genome-resolution nucleotide; the "
+                     "unordered and ordered genome resolutions use --initial-families")
     if args.translocation and args.genome_model != "ordered":
-        parser.error("--translocation needs chromosomes: use --genome-model ordered or nucleotide "
+        parser.error("--translocation needs chromosomes: use --genome-resolution ordered or nucleotide "
                      "(it moves a segment/arc between chromosomes of a multi-chromosome genome)")
 
     ordered = args.genome_model == "ordered"
@@ -1911,25 +1921,25 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     # user-supplied custom rate tables are unordered-only (Python engine, except a
     # receptivity-only --lineage-rates on a plain PerCopyRates, which stays on Rust)
     if (args.family_rates or args.lineage_rates) and args.genome_model != "unordered":
-        parser.error("--family-rates / --lineage-rates are only for --genome-model unordered")
+        parser.error("--family-rates / --lineage-rates are only for --genome-resolution unordered")
     per_lineage = rate_per == "lineage"
     args.rate_per = "lineage" if per_lineage else "copy"  # record the effective value in the log
     if not (0.0 <= args.transposition_flip <= 1.0):
         parser.error("--transposition-flip must be a probability in [0, 1]")
     if args.transposition_flip and not ordered:
         parser.error("--transposition-flip applies to transpositions on an ordered chromosome; "
-                     "use --genome-model ordered")
+                     "use --genome-resolution ordered")
     if args.n_chromosomes < 1:
         parser.error("--n-chromosomes must be >= 1")
     if args.n_chromosomes != 1 and not ordered:  # nucleotide is handled in its own branch above
-        parser.error("--n-chromosomes applies to --genome-model ordered or nucleotide")
+        parser.error("--n-chromosomes applies to --genome-resolution ordered or nucleotide")
     if args.linear_chromosomes and not ordered:
-        parser.error("--linear-chromosomes applies to --genome-model ordered")
+        parser.error("--linear-chromosomes applies to --genome-resolution ordered")
     chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
                       or args.chromosome_loss)
     if chrom_tier and not ordered:
         parser.error("--fission / --fusion / --chromosome-origination / --chromosome-loss apply to "
-                     "--genome-model ordered or nucleotide")
+                     "--genome-resolution ordered or nucleotide")
     if ordered and (args.n_chromosomes > 1 or chrom_tier):
         # auto-surface the karyotype outputs when non-trivial, so a multi-chromosome or fission /
         # fusion run captures its layout (and genealogy) without the user asking; single-chromosome
@@ -1957,7 +1967,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "
-                         "(--genome-model unordered)")
+                         "(--genome-resolution unordered)")
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
@@ -3317,7 +3327,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
             "  # simulate with the gene-order outputs, then export the broken adjacencies + GFF",
-            "  zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \\",
+            "  zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide --genes genes.tsv \\",
             "      --root-length 3000 --inversion 0.01 --transposition 0.005 --write bed geneorder -o run/",
             "  zombi2 tools export run/ --format breakpoints gff posortho -o export/",
         ),
@@ -3328,7 +3338,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
 def _add_tools_export_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("input / output")
     g.add_argument("genomes_dir", metavar="GENOMES_DIR",
-                   help="a 'zombi2 genomes --genome-model nucleotide' output directory")
+                   help="a 'zombi2 genomes --genome-resolution nucleotide' output directory")
     g.add_argument("--format", dest="formats", nargs="+", required=True,
                    choices=("breakpoints", "gff", "posortho"), metavar="FORMAT",
                    help="which format(s) to export: breakpoints / gff / posortho (all need "
@@ -3709,7 +3719,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree.",
-        "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-per UNIT] "
+        "zombi2 genomes -t FILE -o DIR [--genome-resolution RESOLUTION] [--rate-per UNIT] "
         "[--write PART ...] [options]",
         _add_rate_args,
         epilog=_examples(
