@@ -403,17 +403,29 @@ def test_genomes_annotate_species(tmp_path):
     assert "|" not in trees2
 
 
-def test_genomes_genome_wise_rate_model(tmp_path):
-    """--rate-per genome runs (Python engine) and is recorded in the log."""
+def test_genomes_per_lineage_rate(tmp_path):
+    """--rate-per lineage runs (Python engine) and is recorded in the log."""
+    sp = tmp_path / "sp"
+    main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "gw"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--loss", "0.4",
+               "--orig", "0.5", "--rate-per", "lineage", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    log = (out / "genomes.log").read_text()
+    assert "rate_per\tlineage" in log
+    assert "rate_model" not in log  # the deprecated field is gone from the params log
+
+
+def test_genomes_rate_per_genome_deprecated_alias(tmp_path, capsys):
+    """--rate-per genome is a deprecated spelling of --rate-per lineage: warns, runs, logs lineage."""
     sp = tmp_path / "sp"
     main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
     out = tmp_path / "gw"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--loss", "0.4",
                "--orig", "0.5", "--rate-per", "genome", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    log = (out / "genomes.log").read_text()
-    assert "rate_per\tgenome" in log
-    assert "rate_model" not in log  # the deprecated field is gone from the params log
+    assert "deprecated" in capsys.readouterr().err
+    assert "rate_per\tlineage" in (out / "genomes.log").read_text()
 
 
 def test_genomes_rate_model_deprecated_alias(tmp_path, capsys):
@@ -426,7 +438,7 @@ def test_genomes_rate_model_deprecated_alias(tmp_path, capsys):
                "--orig", "0.5", "--rate-model", "per-genome", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert "deprecated" in capsys.readouterr().err
-    assert "rate_per\tgenome" in (out / "genomes.log").read_text()
+    assert "rate_per\tlineage" in (out / "genomes.log").read_text()
 
 
 def test_max_family_size_parses_int_and_fraction(tmp_path):
@@ -438,12 +450,12 @@ def test_max_family_size_parses_int_and_fraction(tmp_path):
 
 
 def _genomes_run_with_trace(tmp_path):
-    """A helper: species -> genomes (per-genome, with a written Events_trace.tsv). No Rust."""
+    """A helper: species -> genomes (per-lineage, with a written Events_trace.tsv). No Rust."""
     sp = tmp_path / "sp"
     main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
     run = tmp_path / "run"
     rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.4", "--trans", "0.1",
-               "--loss", "0.3", "--orig", "0.6", "--rate-per", "genome",
+               "--loss", "0.3", "--orig", "0.6", "--rate-per", "lineage",
                "--write", "trace", "profiles", "--seed", "2", "-o", str(run)])
     assert rc == 0
     assert (run / "Events_trace.tsv").exists()
@@ -1122,10 +1134,10 @@ def test_genomes_ordered_transposition_fires(tmp_path):
 
 
 def test_genomes_transposition_needs_per_copy_rates(tmp_path):
-    """Rearrangements ride on the per-copy rates; `--rate-per genome` rejects them with a clear
+    """Rearrangements ride on the per-copy rates; `--rate-per lineage` rejects them with a clear
     error rather than silently ignoring the flag."""
     sp = tmp_path / "sp"
     assert main(["species", "--tips", "8", "--seed", "1", "-o", str(sp)]) == 0
     with pytest.raises(SystemExit):
         main(["genomes", "-t", str(sp / "species_tree.nwk"), "--genome-model", "ordered",
-              "--rate-per", "genome", "--transposition", "0.3", "-o", str(tmp_path / "g")])
+              "--rate-per", "lineage", "--transposition", "0.3", "-o", str(tmp_path / "g")])

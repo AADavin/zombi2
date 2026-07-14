@@ -23,9 +23,9 @@ from zombi2.sequences.clocks import (
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
 from zombi2.genomes.genome import OrderedGenome
-from zombi2.genomes.rates import BranchRates, FamilySampledRates, PerCopyRates, PerGenomeRates
+from zombi2.genomes.rates import LineageRates, FamilySampledRates, PerCopyRates, PerLineageRates
 from zombi2.genomes.conversion import ConversionModel
-from zombi2.genomes.read_rates import read_branch_rates, read_family_rates, read_family_speeds
+from zombi2.genomes.read_rates import read_lineage_rates, read_family_rates, read_family_speeds
 from zombi2.sequences.evolution import SequenceEvolution
 from zombi2.genomes.simulation import Genomes, simulate_genomes
 from zombi2.species.model import (
@@ -239,31 +239,33 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
                         "(see the nucleotide sections)")
-    g.add_argument("--rate-per", choices=("copy", "genome"), default=None, dest="rate_per",
+    g.add_argument("--rate-per", choices=("copy", "lineage", "genome"), default=None, dest="rate_per",
                    metavar="UNIT",
                    help="what each rate is counted per — the opportunity that scales it "
                         "(unordered/ordered levels): copy = per gene copy, so total rates grow with "
-                        "genome size (default; Rust for unordered); genome = a constant per-genome "
-                        "rate, giving linear rather than exponential growth (Python). Per-family "
-                        "rates come from --family-rates; nucleotide genomes are always per "
-                        "nucleotide. Rearrangements (--inversion/--transposition) need --rate-per copy")
+                        "genome size (default; Rust for unordered); lineage = a constant rate per "
+                        "lineage (the whole genome as one unit), giving linear rather than "
+                        "exponential growth (Python). Per-family rates come from --family-rates; "
+                        "nucleotide genomes are always per nucleotide. Rearrangements "
+                        "(--inversion/--transposition) need --rate-per copy. (genome = deprecated "
+                        "alias of lineage)")
     g.add_argument("--rate-model", choices=("shared", "per-genome", "family"), default=None,
                    metavar="MODEL",
                    help="(deprecated) old spelling of --rate-per: shared -> --rate-per copy, "
-                        "per-genome -> --rate-per genome, family -> --family-rates")
+                        "per-genome -> --rate-per lineage, family -> --family-rates")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
 
     g = p.add_argument_group(
         "gene-family rates",
-        "per gene copy (--rate-per copy) or per genome (--rate-per genome); "
+        "per gene copy (--rate-per copy) or per lineage (--rate-per lineage); "
         "per nucleotide for --genome-model nucleotide")
     g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
     g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
     g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
     g.add_argument("--orig", type=float, default=0.0, metavar="RATE",
-                   help="origination rate (per branch)")
+                   help="origination rate (per lineage)")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
                    help="number of gene families seeded at the root, for the unordered and ordered "
@@ -286,17 +288,17 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group(
         "custom rate tables",
-        "user-supplied per-family and per-branch rates (unordered genomes; Python engine "
-        "except a receptivity-only --branch-rates, which stays on Rust)")
+        "user-supplied per-family and per-lineage rates (unordered genomes; Python engine "
+        "except a receptivity-only --lineage-rates, which stays on Rust)")
     g.add_argument("--family-rates", metavar="FILE", dest="family_rates",
                    help="TSV of explicit per-family duplication/transfer/loss rates (per copy; "
                         "columns: family duplication transfer loss) — the per-family rate source; "
                         "families not listed fall back to --dup/--trans/--loss")
-    g.add_argument("--branch-rates", metavar="FILE", dest="branch_rates",
-                   help="TSV of per-branch transfer emission (donation-rate factor) and/or "
-                        "receptivity (absorption weight) (columns: branch emission receptivity). "
-                        "Emission scales that branch's transfer rate; receptivity biases which "
-                        "branch receives")
+    g.add_argument("--lineage-rates", "--branch-rates", metavar="FILE", dest="lineage_rates",
+                   help="TSV of per-lineage transfer emission (donation-rate factor) and/or "
+                        "receptivity (absorption weight) (columns: lineage emission receptivity). "
+                        "Emission scales that lineage's transfer rate; receptivity biases which "
+                        "lineage receives. (--branch-rates is a deprecated alias)")
 
     g = p.add_argument_group("output")
     g.add_argument("--write", dest="write", nargs="+", metavar="PART",
@@ -1834,46 +1836,50 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     """Simulate gene families along ``tree``, write output, and return a one-line summary.
 
     The default per-copy rates run on the Rust engine automatically (``simulate_genomes``
-    raises a build hint if the extension is missing); ``--rate-per genome`` runs on Python.
+    raises a build hint if the extension is missing); ``--rate-per lineage`` runs on Python.
     """
     args.extension = _extension_from_mean_length(args.mean_length)   # mean-length knob → engine p
     parts = set(Genomes.WRITE_PARTS) if "all" in args.write else set(args.write)
     if args.sparse and "profiles" not in parts:
         raise ValueError("--sparse affects the profile output; add 'profiles' to --write")
     if args.threads > 1:
-        # --threads parallelises ONLY the counts-only Rust fast path: built-in shared rates on an
-        # unordered genome, profiles-only, no conversion / branch-rates / scoring. Reject every other
-        # combination up front with a flag-level message — otherwise per-genome/family rates crash
+        # --threads parallelises ONLY the counts-only Rust fast path: built-in per-copy rates on an
+        # unordered genome, profiles-only, no conversion / lineage-rates / scoring. Reject every other
+        # combination up front with a flag-level message — otherwise per-lineage/family rates crash
         # deep in the engine and --conversion / ordered silently run serial (the threads ignored).
         reason = None
         if parts != {"profiles"}:
             reason = "use it with exactly --write profiles"
         elif args.genome_model != "unordered":
             reason = f"--genome-model {args.genome_model} runs serially; use --genome-model unordered"
-        elif (args.rate_per == "genome" or args.rate_model in ("per-genome", "family")
+        elif (args.rate_per in ("lineage", "genome") or args.rate_model in ("per-genome", "family")
               or args.family_rates):
             reason = ("the built-in per-copy rates are required "
-                      "(--rate-per genome / --family-rates run on Python)")
+                      "(--rate-per lineage / --family-rates run on Python)")
         elif args.conversion:
             reason = "--conversion runs on the full (serial) path"
-        elif args.branch_rates:
-            reason = "--branch-rates runs on the full (serial) path"
+        elif args.lineage_rates:
+            reason = "--lineage-rates runs on the full (serial) path"
         elif getattr(args, "score_likelihoods", False):
             reason = "--score-likelihoods forces the full (serial) gene-tree path"
         if reason is not None:
             parser.error(f"--threads > 1 parallelises only the counts-only path: {reason}")
 
-    # ---- opportunity axis (--rate-per), folding in the deprecated --rate-model spelling ----
-    rate_per = args.rate_per  # None (default per-copy) | "copy" | "genome"
+    # ---- opportunity axis (--rate-per), folding in deprecated spellings (--rate-model, "genome") ----
+    rate_per = args.rate_per  # None (default per-copy) | "copy" | "lineage" | "genome" (deprecated)
+    if rate_per == "genome":  # "genome" is the deprecated spelling of "lineage" (one genome / lineage)
+        print("warning: --rate-per genome is deprecated; use --rate-per lineage "
+              "(one genome per lineage — the same measure).", file=sys.stderr)
+        rate_per = "lineage"
     if args.rate_model is not None:
-        print("warning: --rate-model is deprecated; use --rate-per {copy,genome} "
+        print("warning: --rate-model is deprecated; use --rate-per {copy,lineage} "
               "(and --family-rates for per-family rates).", file=sys.stderr)
         if args.rate_model == "family":
             if args.family_rates is None:
                 parser.error("--rate-model family is deprecated; supply per-family rates with "
                              "--family-rates FILE")
         else:
-            mapped = "copy" if args.rate_model == "shared" else "genome"
+            mapped = "copy" if args.rate_model == "shared" else "lineage"
             if rate_per is not None and rate_per != mapped:
                 parser.error("pass --rate-per or the deprecated --rate-model, not both")
             rate_per = mapped
@@ -1904,11 +1910,11 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     initial_families = 20 if args.initial_families is None else args.initial_families
     args.initial_families = initial_families  # record the effective value in the params log
     # user-supplied custom rate tables are unordered-only (Python engine, except a
-    # receptivity-only --branch-rates on a plain PerCopyRates, which stays on Rust)
-    if (args.family_rates or args.branch_rates) and args.genome_model != "unordered":
-        parser.error("--family-rates / --branch-rates are only for --genome-model unordered")
-    per_genome = rate_per == "genome"
-    args.rate_per = "genome" if per_genome else "copy"  # record the effective value in the log
+    # receptivity-only --lineage-rates on a plain PerCopyRates, which stays on Rust)
+    if (args.family_rates or args.lineage_rates) and args.genome_model != "unordered":
+        parser.error("--family-rates / --lineage-rates are only for --genome-model unordered")
+    per_lineage = rate_per == "lineage"
+    args.rate_per = "lineage" if per_lineage else "copy"  # record the effective value in the log
     if not (0.0 <= args.transposition_flip <= 1.0):
         parser.error("--transposition-flip must be a probability in [0, 1]")
     if args.transposition_flip and not ordered:
@@ -1933,22 +1939,22 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         if chrom_tier:
             parts.add("karyotype")
     family_mode = args.family_rates is not None  # per-family rates come from the table
-    if family_mode and per_genome:
+    if family_mode and per_lineage:
         parser.error("--family-rates supplies per-family per-copy rates; it does not combine with "
-                     "--rate-per genome")
+                     "--rate-per lineage")
     if args.conversion and family_mode:
         parser.error("gene conversion (--conversion) needs per-copy rates; the per-family "
                      "table carries no conversion rate")
 
     rates = None  # None => D/T/L/O shorthand (plain per-copy, unordered — the Rust fast path)
-    if per_genome:
+    if per_lineage:
         if args.conversion:
             parser.error("gene conversion (--conversion) needs --rate-per copy; "
-                         "per-genome rates do not carry it")
+                         "per-lineage rates do not carry it")
         if ordered and (args.inversion is not None or args.transposition is not None):
             parser.error("rearrangements (--inversion/--transposition) need --rate-per copy; "
-                         "per-genome rates do not carry them")
-        rates = PerGenomeRates(args.dup, args.trans, args.loss, args.orig)
+                         "per-lineage rates do not carry them")
+        rates = PerLineageRates(args.dup, args.trans, args.loss, args.orig)
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "
@@ -1966,15 +1972,15 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
                                    origination=args.orig,
                                    rates=read_family_rates(args.family_rates))
 
-    # --branch-rates overlay: per-branch transfer emission (BranchRates) + receptivity (TransferModel)
+    # --lineage-rates overlay: per-lineage transfer emission (LineageRates) + receptivity (TransferModel)
     transfers = None
-    if args.branch_rates is not None:
-        emission, receptivity = read_branch_rates(args.branch_rates)
+    if args.lineage_rates is not None:
+        emission, receptivity = read_lineage_rates(args.lineage_rates)
         if rates is None:  # plain per-copy base — carry the conversion rate through the overlay
             rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
                                  conversion=args.conversion)
         if emission:
-            rates = BranchRates(rates, factors=emission, events=("transfer",))
+            rates = LineageRates(rates, factors=emission, events=("transfer",))
         if receptivity:
             transfers = TransferModel(receptivity=receptivity)
 
