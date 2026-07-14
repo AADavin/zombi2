@@ -1,10 +1,12 @@
 # Genomes
 
-A genome in ZOMBI2 evolves **along a species tree**, and you can model it at three levels of
-resolution — pick the coarsest one that answers your question.
+A genome in ZOMBI2 evolves **along a species tree**, and you can model it at three **resolutions** —
+pick the coarsest one that answers your question. (These are resolutions of the one *genomes* level,
+not levels themselves — "level" is reserved for the four domains species / genomes / traits /
+sequences.)
 
 <figure markdown="span">
-  ![The three genome levels: unordered gene families, ordered chromosomes, and nucleotide genomes.](../img/genome_models.svg){ width="560" }
+  ![The three genome resolutions: unordered gene families, ordered chromosomes, and nucleotide genomes.](../img/genome_models.svg){ width="560" }
 </figure>
 
 **Gene families (unordered).** The default: a genome is a **bag of gene families** with copy
@@ -16,13 +18,13 @@ optionally rescaled by **per-family** or **per-lineage** multipliers (see [Rates
 genome also undergoes **inversions and transpositions** — so gene *order* and orientation carry
 signal, not just presence and absence.
 
-**Nucleotide genomes.** The finest level: a **nucleotide-resolution** genome of root-anchored
+**Nucleotide genomes.** The finest resolution: a **nucleotide-resolution** genome of root-anchored
 segments, with variable-length structural events (inversions, transpositions, indels), an explicit
 gene/intergene structure, homologous replacement, and GFF import to start from a real genome. Every
 block carries its own gene tree, and ancestral sequences can be reconstructed at every node.
 
 All three run the same way — `simulate_genomes(tree, ...)` in Python, or `zombi2 genomes` on the
-command line (`--genome-model {unordered, ordered, nucleotide}`, default `unordered`; in Python,
+command line (`--genome-resolution {unordered, ordered, nucleotide}`, default `unordered`; in Python,
 ordered chromosomes can also be selected with the `genome_factory` argument). Growth can be bounded
 with a hard `max_family_size` cap or a soft `carrying_capacity` — see [Bounding growth](#bounding-growth)
 below. For what the simulation produces, see [Gene trees & output](#gene-trees-output).
@@ -532,7 +534,7 @@ operons, rearrangements) use **`OrderedGenome`**, the basic ZOMBI1 model: a circ
 chromosome of genes, each carrying a strand orientation, with no intergenic regions. Genes sit on
 an ordered, circular chromosome, and the chromosome evolves not just by gaining and losing genes but
 by *shuffling* them — inversions and transpositions rearrange contiguous segments so that gene
-**order** itself carries phylogenetic signal. Selecting the level is `--genome-model ordered`. A
+**order** itself carries phylogenetic signal. Selecting the level is `--genome-resolution ordered`. A
 genome may hold a single chromosome (the default) or [several](#multiple-chromosomes), circular or
 linear.
 
@@ -638,12 +640,12 @@ extensibility design that underpins the [contributing guide](../contributing/add
 
 ### Command line
 
-`--genome-model ordered` selects the level; `--inversion`/`--transposition` are the rearrangement
+`--genome-resolution ordered` selects the level; `--inversion`/`--transposition` are the rearrangement
 rates (per gene copy), and `--mean-length` sets the segment length (in genes).
 
 ```bash
 # ordered: gene-order rearrangements on a circular chromosome
-zombi2 genomes -t species_tree.nwk --genome-model ordered \
+zombi2 genomes -t species_tree.nwk --genome-resolution ordered \
     --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
     --inversion 0.3 --transposition 0.3 --mean-length 2 \
     --initial-families 30 --write profiles trees --seed 1 -o out/
@@ -695,7 +697,7 @@ model works one level down: a genome is a sequence of individual nucleotides, an
 act on **variable-length segments** of them. This resolves paralogy, xenology, and gene
 order/orientation at nucleotide resolution, and reconstructs a gene tree for every stretch of shared
 ancestry. Reach for it when you need nucleotide-resolution structure, want to start from a real
-genome, or need per-block gene trees. Selecting the level is `--genome-model nucleotide`.
+genome, or need per-block gene trees. Selecting the level is `--genome-resolution nucleotide`.
 
 | Model | Substrate | Rearrangements | Reach for it when |
 | --- | --- | --- | --- |
@@ -903,7 +905,7 @@ Blocks carry their classification (`block.kind` is `"gene"`/`"intergene"`, `bloc
 engine only (the Rust `profiles` path does not model genes). On the CLI:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
@@ -918,7 +920,7 @@ annotation, including originated genes), gene/intergene trees under `Gene_trees/
 browser (IGV, JBrowse, UCSC) or `bedtools`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --transposition 2e-6 --inversion 2e-6 --write bed -o out/
 ```
 
@@ -946,7 +948,7 @@ gene-order / synteny study formats — **breakpoints** (adjacencies broken per t
 and **positional orthologs** — the analysis complement of the fork's `zombiExporter`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide --genes genes.tsv \
   --inversion 1e-3 --transposition 5e-4 --write bed geneorder -o run/
 zombi2 tools export run/ --format breakpoints gff posortho -o export/
 ```
@@ -974,7 +976,7 @@ result = simulate_nucleotide_genomes(
 On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`/`--root-length`):
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
   --write profiles trees -o out/
 ```
@@ -1015,7 +1017,7 @@ substrings, so the reconstructed root genome is byte-identical to the input.
 On the CLI, `--write ancestral`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --genome-fasta ecoli.fna \
   --subst-model hky85 --kappa 2 --subst-rate 0.05 --write ancestral -o out/
 ```
@@ -1047,7 +1049,7 @@ result = simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,
 
 ### Command line & output summary
 
-`--genome-model nucleotide` selects the level; `--inversion`/`--transposition` are the rearrangement
+`--genome-resolution nucleotide` selects the level; `--inversion`/`--transposition` are the rearrangement
 rates (per nucleotide), and `--mean-length` sets the segment length (in nucleotides). `--root-length`
 sets the root chromosome length; `--insertion`/`--deletion` with `--indel-mean-length` edit intergene
 positions; and declaring genes with `--genes` or `--gff` switches on genic mode
@@ -1057,7 +1059,7 @@ positions; and declaring genes with `--genes` or `--gff` switches on genic mode
 
 ```bash
 # nucleotide: structural events at nucleotide resolution, blocks + per-block trees
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
     --inversion 0.001 --transposition 5e-5 --loss 1.5e-4 --dup 1e-4 --trans 5e-5 --orig 0.2 \
     --root-length 1000 --write profiles trees --seed 1 -o out/
 ```

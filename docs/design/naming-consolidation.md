@@ -385,8 +385,12 @@ The four open forks, resolved 2026-07-14:
    PR that removes rather than renames — its own CHANGELOG "removed" entry.
 3. **PR 3 (C2 + C3)** — finish `branch→lineage`; add the core two-term rate/modifier rule (retire
    "speed"); scope "odds" to the two undated-ALE tools; rewrite the stale `conventions.md` rows.
-4. **PR 4 (C4 + C5 + C6)** — `--genome-model→--genome-resolution`, plural commands, `genomes` as the
-   one domain word, "level" reserved for the four domains. The big *doc* sweep, all mechanical.
+4. **PR 4 (C4 + C6)** — `--genome-model→--genome-resolution` (alias), `genomes` as the one domain
+   word (coevolve node; `genes` warns), "level" reserved for the four domains. **C5 (plural commands
+   `trait→traits`, `sequence→sequences`) is DEFERRED** — it uniquely changes an output file
+   (`trait.log→traits.log`) and cascades into the params-log + a batch of test/doc updates, so it is
+   left for a focused, human-reviewed follow-up rather than an autonomous rename. Likewise the
+   sequence-clock `--branch-*` / `--family-speed` σ flags (C2/C3, above).
 5. **PR 5 (C7)** — output filenames v2 (lowercase everywhere), behind `--legacy-filenames`, one
    CHANGELOG migration note; rewrites the `conventions.md` §Outputs schemas.
 6. **PR 6 (C8)** — coevolve class/grammar alignment (`TraitGene*` stem, the edge→class table).
