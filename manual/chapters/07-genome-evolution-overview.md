@@ -30,9 +30,11 @@ therefore which events can act on it (see *Events, by level* below); each level 
 one beneath it. On the command line, `--genome-model` selects the level: `unordered` (the default),
 `ordered`, or `nucleotide`.
 
-The second choice, orthogonal to the first and meaningful only within the unordered level, is how
-the four gene-family rates *vary across families* — the **rate model** (`--rate-model`; see *Rate
-models* below).
+The second choice, orthogonal to the first, is **how each rate is counted** — its *opportunity*.
+Every rate is a base number times the number of independent chances the event has right now: **per
+gene copy** (the default, so a bigger genome has proportionally more events) or **per lineage** (one
+chance for the whole genome, size-independent). This is the `--rate-per` flag (see *Rate models*
+below); per-family or per-lineage **multipliers** can be layered on top.
 
 | Level (`--genome-model`) | A genome is… | Chapter |
 |---|---|---|
@@ -73,15 +75,21 @@ loss and rearrangement — but now they have real lengths and can split or fuse 
 
 ## Rate models
 
-Within the unordered level, a second axis controls **how the four rates vary across gene families**.
-This is the `--rate-model` flag (a `RateModel` object in Python). Two are available on the command
-line — `shared` (the default) and `per-genome`; per-family rates are reached through the Python API.
+Within the unordered level, a second axis controls **the opportunity each rate is counted per** —
+how many independent chances the event has at any moment. Every rate reads the same way: a base
+number × opportunities × any multipliers. The opportunity is the `--rate-per` flag (a `RateModel`
+object in Python); the two ends are:
 
-| `--rate-model` | The rate is… | Family size grows | Object |
+| `--rate-per` | The rate is counted… | Family size grows | Object |
 |---|---|---|---|
-| **shared** (default) | one per-copy rate, the same for every family | exponentially | `SharedRates` |
-| **per-genome** | one per-genome rate, size-independent | linearly | `PerGenomeRates` |
-| *per-family* | each family draws its own rates | exponentially, per family | `FamilySampledRates` |
+| **copy** (default) | per gene copy — the total rate scales with genome size | exponentially | `PerCopyRates` |
+| **lineage** | per lineage — one constant rate for the whole genome, size-independent | linearly | `PerLineageRates` |
+
+"Per lineage" is the size-independent measure that speciation already uses one level up (a lineage
+carries exactly one genome, so "per genome" *is* "per lineage"). On top of either end, **multipliers**
+make rates differ by context — per family (`FamilySampledRates`, or a `FamilyModifier` overlay) or per
+lineage (a `LineageModifier`, the relaxed-clock analogue); these change *how fast*, not *how many
+chances*.
 
 The level and the rate model are independent: any rate model can drive any unordered run, and the
 choice never affects *which* events fire, only *how often* each family fires them. Chapter 8 works
