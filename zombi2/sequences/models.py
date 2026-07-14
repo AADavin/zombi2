@@ -443,6 +443,12 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
     stationary frequencies. Each node's recorded sequence is its state at the end of its branch (a
     speciation/duplication/transfer/loss time, or the present for a tip); with ``subst=0`` a node
     simply copies its parent.
+
+    ``model`` may also be a **codon site mixture** (a
+    :class:`~zombi2.sequences.codon_models.CodonSiteModel`: several ``ω`` classes sharing one
+    stationary distribution). Each site is then assigned a class from the mixture's ``proportions``
+    and evolves under that class's matrix — mutually exclusive with ``gamma`` (both are per-site
+    category layers).
     """
     pi = model.stationary
     alphabet = model.alphabet
@@ -455,16 +461,22 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
             raise ValueError("give either root_seq or length")
         root_states = rng.choice(k, size=length, p=pi).astype(np.int8)
 
-    if gamma is not None:
+    components = getattr(model, "components", None)     # a codon site mixture: one matrix per ω class
+    if components is not None and gamma is not None:
+        raise ValueError("a codon site model (per-site ω mixture) and gamma across-site rates are "
+                         "both per-site category layers; give at most one")
+    if components is not None:
+        site_cat = rng.choice(len(components), size=length, p=model.proportions)
+    elif gamma is not None:
         site_cat = rng.integers(gamma.k, size=length)
     out: dict = {}
     pcache: dict = {}
 
-    def p_for(t: float) -> np.ndarray:
-        key = round(float(t), 12)
+    def p_for(t: float, m=model) -> np.ndarray:
+        key = (id(m), round(float(t), 12))
         P = pcache.get(key)
         if P is None:
-            P = model.p_matrix(key)
+            P = m.p_matrix(round(float(t), 12))
             pcache[key] = P
         return P
 
@@ -481,6 +493,13 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
         t = float(subst.get(node, 0.0))
         if t <= 0.0:
             states = parent_states
+        elif components is not None:                       # codon site mixture: one matrix per class
+            states = np.empty(length, dtype=np.int8)
+            for c, comp in enumerate(components):
+                mask = site_cat == c
+                if mask.any():
+                    cum = p_for(t, comp).cumsum(1)
+                    states[mask] = sample(parent_states[mask], cum)
         elif gamma is None:
             states = sample(parent_states, p_for(t).cumsum(1))
         else:

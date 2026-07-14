@@ -709,6 +709,53 @@ of the single *nucleotide* being introduced, so the neutral mutation process is 
 the product-of-nucleotide (`F1×4`/`F3×4`) codon frequency. Reach for it when you want mutation and
 selection cleanly factored, or to match an MG94-based analysis.
 
+### Site models: dN/dS across sites
+
+Selection is rarely uniform along a gene — most codons are conserved, a few may be under positive
+selection. A **site model** lets `ω` vary among codon sites: each site draws a class from a
+distribution and evolves under the matching GY94/MG94 matrix. Because `ω` does not change the
+stationary distribution, every class shares the same codon frequencies and mutation process and
+differs only in `ω`; the classes are normalised on **one shared scale**, so a purifying class
+genuinely evolves slower than a neutral one, and the gene's genome-wide `dN/dS` is exactly the
+proportion-weighted mean `ω` (`CodonSiteModel.mean_omega`). These are the Nielsen–Yang / Yang et al.
+site models.
+
+| Model | ω classes | Reach for it when |
+| --- | --- | --- |
+| **M1a** (nearly neutral) | purifying `ω0 < 1` (`p0`) + neutral `ω = 1` | a null with no positive selection |
+| **M2a** (positive selection) | M1a + a positive class `ω2 > 1` | testing for a fraction of positively-selected sites |
+| **M3** (discrete) | `K` free `(ω, proportion)` classes | a flexible, hand-specified distribution |
+| **M7** (beta) | `ω ~ Beta(p, q)` on `[0, 1]`, discretised | a smooth purifying/neutral null |
+| **M8** (beta & ω) | M7 (proportion `p0`) + a positive class `ω_s ≥ 1` | the standard positive-selection test against M7 |
+
+`M1a`/`M7` allow no positive selection (`ω ≤ 1`); `M2a`/`M8` add a `ω > 1` class — the M1a-vs-M2a and
+M7-vs-M8 pairs are the classical likelihood-ratio tests for positive selection. The mixture is
+mutually exclusive with `--gamma-shape` (both are per-site category layers).
+
+```python
+import numpy as np
+from zombi2.sequences import m2a, m8, evolve_on_tree
+
+class Node:
+    def __init__(self, gid, children=()):
+        self.gid, self.children = gid, list(children)
+
+a = Node("a")
+root = Node("r", [a])
+
+# M2a: 50% purifying (ω=0.05), 30% neutral, 20% positive (ω=3) -> mean dN/dS = 0.925
+model = m2a(kappa=2.0, p0=0.5, omega0=0.05, p1=0.3, omega2=3.0, freqs=(0.3, 0.2, 0.25, 0.25))
+print(round(model.mean_omega, 3))                     # -> 0.925
+seqs = evolve_on_tree(root, {a: 0.5}, model, np.random.default_rng(0), length=200)  # 200 codons
+
+# M8: a Beta(0.5, 2) bulk plus a 10% positive class at ω = 2.5
+m8(kappa=2.0, beta_p=0.5, beta_q=2.0, p0=0.9, omega_s=2.5, ncat=5)
+```
+
+The constructors `m1a`, `m2a`, `m3`, `m7`, `m8` (and the `CodonSiteModel` class) are exported at the
+top level and from `zombi2.sequences`; `make_codon_site_model` and `beta_category_omegas` live in
+`zombi2.sequences.codon_models`.
+
 ### Codon from the command line
 
 `--subst-model gy94`/`mg94` turns on codon evolution; `--omega` sets `dN/dS`, `--kappa` the
@@ -727,7 +774,21 @@ zombi2 sequence --genomes out -o out --subst-model gy94 --omega 0.1 --kappa 3 \
 # MG94 with positive selection (dN/dS = 2) and skewed base frequencies
 zombi2 sequence --genomes out -o out --subst-model mg94 --omega 2.0 \
   --base-freqs 0.32 0.18 0.22 0.28 --seed 1
+
+# site model M2a: dN/dS varies across sites (50% purifying, 30% neutral, 20% positive)
+zombi2 sequence --genomes out -o out --subst-model gy94 --omega-model m2a \
+  --omega-p0 0.5 --omega0 0.05 --omega-p1 0.3 --omega2 3.0 --seed 1
+
+# site model M8: a Beta(0.5,2) bulk plus a 10% positive class at ω = 2.5
+zombi2 sequence --genomes out -o out --subst-model gy94 --omega-model m8 \
+  --beta-p 0.5 --beta-q 2 --omega-p0 0.9 --omega-s 2.5 --seed 1
 ```
+
+`--omega-model {m1a,m2a,m3,m7,m8}` selects the across-site `ω` distribution (replacing the single
+`--omega`); its class parameters are `--omega0`/`--omega2`/`--omega-s`, the proportions
+`--omega-p0`/`--omega-p1`, the beta shapes `--beta-p`/`--beta-q` with `--omega-cats`, and for M3 a
+compact `--omega-classes "0.1:0.6,1.0:0.3,3.0:0.1"`. It requires a `gy94`/`mg94` base and cannot be
+combined with `--gamma-shape`.
 
 ### Codon from Python
 
@@ -785,6 +846,19 @@ translate to the protein alignment with `zombi2.sequences.codon_models.translate
   stop codon (`test_codon_models.py::test_no_stop_codons_ever_appear`); GY94 and MG94 are genuinely
   different matrices under skewed frequencies (`::test_gy94_and_mg94_differ`).
 
+Site models (`test_codon_site_models.py`):
+
+- **Beta discretisation.** The M7/M8 `Beta(p, q)` category means lie in `[0, 1]`, increase, and
+  average to the beta mean `p/(p+q)` (`::test_beta_categories_average_to_beta_mean`).
+- **Mixture dN/dS.** For M1a/M2a/M3/M7/M8 the exact flux-based genome-wide `dN/dS` equals the
+  proportion-weighted mean `ω` (`::test_flux_dnds_equals_mean_omega`), and a substitution count on
+  evolved sequences recovers it (`::test_omega_recovered_from_simulated_substitutions`).
+- **Shared scale.** A purifying class has a strictly lower total substitution rate than the neutral
+  class — the one shared scale preserves across-class rate heterogeneity, which is what makes
+  `dN/dS = mean ω` (`::test_shared_scale_preserves_rate_heterogeneity`).
+- **Reductions.** M1a with `p0=0` is neutral (`dN/dS=1`), M8 with `p0=1` reduces to M7, and a
+  single-class M3 is identical to the M0 (single-`ω`) matrix (`::test_m3_single_class_matches_m0`).
+
 ### Codon references
 
 - Goldman, N. & Yang, Z. (1994). A codon-based model of nucleotide substitution for protein-coding DNA
@@ -792,6 +866,10 @@ translate to the protein alignment with `zombi2.sequences.codon_models.translate
 - Muse, S. V. & Gaut, B. S. (1994). A likelihood approach for comparing synonymous and nonsynonymous
   nucleotide substitution rates, with application to the chloroplast genome.
   *Molecular Biology and Evolution* 11(5): 715–724.
+- Nielsen, R. & Yang, Z. (1998). Likelihood models for detecting positively selected amino acid sites
+  and applications to the HIV-1 envelope gene. *Genetics* 148(3): 929–936. *(site models M1a/M2a)*
+- Yang, Z., Nielsen, R., Goldman, N. & Pedersen, A.-M. K. (2000). Codon-substitution models for
+  heterogeneous selection pressure at amino acid sites. *Genetics* 155(1): 431–449. *(M3/M7/M8)*
 
 ## Clock references
 
