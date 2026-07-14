@@ -57,19 +57,19 @@ Choosing between them is simply choosing what counts as an opportunity.
 
 A modifier multiplies the base for one specific context. For example:
 
-- *this branch* runs 2× faster (a relaxed clock),
+- *this lineage* runs 2× faster (a relaxed clock),
 - *this family* transfers 5× more readily,
 - transfer *from lineage A to lineage B* is favoured (a modifier keyed on a **pair** of lineages),
-- *this site* evolves at half speed (among-site rate variation).
+- *this site* evolves at half its base rate (among-site rate variation).
 
 Three rules make them predictable:
 
 1. **Default 1** — a context with no modifier behaves normally.
-2. **They multiply** — a family modifier of 3 and a branch modifier of 2 combine to 6. Order does
+2. **They multiply** — a family modifier of 3 and a lineage modifier of 2 combine to 6. Order does
    not matter.
-3. **Each keys on some context** — a family, a branch, a pair, a site, a trait value.
+3. **Each keys on some context** — a family, a lineage, a pair, a site, a trait value.
 
-This is the flexibility dial. Want family-specific *and* branch-specific sequence evolution? Two
+This is the flexibility dial. Want family-specific *and* lineage-specific sequence evolution? Two
 modifiers. Want to boost HGT between two clades? One modifier on transfer, keyed on the lineage
 pair. You do not reach for a new model — you attach a modifier.
 
@@ -114,13 +114,13 @@ the usual "is this rate a base, a modifier, or a sum?" confusion disappears.
 |---|---|---|---|---|---|
 | **Species** | speciation | λ | per lineage | clade shift, diversity-dependence `(1 − N/K)`, trait state | point |
 | **Species** | extinction | μ | per lineage | mass-extinction pulse, trait state | point |
-| **Genomes** | duplication | d | per copy | family, branch, carrying capacity | point (segment on ordered/nt) |
-| **Genomes** | transfer (HGT) | t | per copy | family, donor branch, recipient receptivity, lineage pair | point (segment on ordered/nt) |
-| **Genomes** | loss | l | per copy | family, branch | point (segment on ordered/nt) |
-| **Genomes** | inversion | i | per copy | family, branch | spans a run of genes / nt |
-| **Trait** | discrete change (Mk) | qᵢⱼ | per lineage | branch, hidden state | point |
-| **Trait** | continuous drift (BM) | σ² | per lineage · time | branch (relaxed), state | — (see note) |
-| **Sequence** | substitution | μ × exchangeabilities | per nucleotide | branch (clock), site (Γ), family, selection (dN/dS) | point |
+| **Genomes** | duplication | d | per copy | family, lineage, carrying capacity | point (segment on ordered/nt) |
+| **Genomes** | transfer (HGT) | t | per copy | family, donor lineage, recipient receptivity, lineage pair | point (segment on ordered/nt) |
+| **Genomes** | loss | l | per copy | family, lineage | point (segment on ordered/nt) |
+| **Genomes** | inversion | i | per copy | family, lineage | spans a run of genes / nt |
+| **Trait** | discrete change (Mk) | qᵢⱼ | per lineage | lineage, hidden state | point |
+| **Trait** | continuous drift (BM) | σ² | per lineage · time | lineage (relaxed), state | — (see note) |
+| **Sequence** | substitution | μ × exchangeabilities | per nucleotide | lineage (clock), site (Γ), family, selection (dN/dS) | point |
 
 !!! note "Continuous traits"
     A drifting continuous trait has no countable events and no extent — it is the limit of infinitely
@@ -167,7 +167,7 @@ Faced with any rate in ZOMBI2, ask five questions in order:
 
 **Worked example — a transfer.** *Event:* horizontal transfer of a gene. *Per what:* per copy, so a
 family with 8 copies donates 8× as often as a singleton. *Base:* the transfer rate `t`. *Modifiers:*
-this family is a frequent mover (family modifier), the donor branch sits in a high-HGT clade (branch
+this family is a frequent mover (family modifier), the donor lineage sits in a high-HGT clade (lineage
 modifier), and A→B transfer is favoured (pair modifier) — all three multiply onto `t`. *Extent:* on
 an ordered genome the transfer can carry a segment, so it draws an extent; on an unordered genome it
 is a single gene, extent 1.

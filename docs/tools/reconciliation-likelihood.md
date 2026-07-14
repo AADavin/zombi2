@@ -16,7 +16,7 @@ Given the **extant** (survivors-only) reconciled gene tree of a family and dupli
 transfer / loss rates, ALElite returns the log of `P(gene tree | species tree)` under one of
 three ALE models:
 
-| Model | Transfers | Rates | Notes |
+| Model | Transfers | Rate / odds | Notes |
 | --- | --- | --- | --- |
 | `dated` (default) | only to lineages alive at the **same instant** (time-sliced) | per-unit-time δ/τ/λ | The Szöllősi-2013 dated model — **faithful to ZOMBI2's simulator** (`_choose_recipient` draws a contemporaneous recipient). Rates are ZOMBI2's native units, directly comparable to what a run was generated under. |
 | `undated` | to **any** branch | per-branch odds | The ALEml_undated / GeneRax `UndatedDTL` model — what people run on real data. Fast, but not time-consistent. |

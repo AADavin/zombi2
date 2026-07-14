@@ -38,6 +38,16 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 - Documented that `--transposition` (a segment moved elsewhere in the genome) applies to both the
   `ordered` and `nucleotide` genome models, not only `nucleotide`.
+- **Rate vocabulary clarified in the docs and manual** (naming consolidation C2/C3). The guide,
+  the manual, and `conventions.md` now state a single two-word rule — a **rate** is a quantity per
+  unit time, a **modifier** is a dimensionless multiplier on a rate — and reserve **odds** for the
+  undated-ALE tools alone (`tools reconcile --model undated/reldated`, `tools simulate`), where the
+  D/T/L parameters are per-branch odds, not rates. Retired class/function names (`PerGenomeRates`,
+  `BranchRates`, `BranchModifier`, `read_branch_rates`, the `shared` rate model) and per-branch
+  rate/modifier phrasing were updated to the `per-lineage` / `PerLineageRates` / `LineageRates` /
+  `read_lineage_rates` vocabulary throughout the prose. (The sequence-clock `--branch-*` /
+  `--family-speed` flags are σ/spread parameters and are left unchanged pending a naming decision;
+  see `docs/design/naming-consolidation.md` §C3.)
 
 ### Deprecated
 

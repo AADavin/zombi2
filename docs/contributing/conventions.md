@@ -66,13 +66,21 @@ it recorded here for free — do not write a second, bespoke parameter file.
 
 - **Rates are per unit time.** Branch lengths are time; every rate is the parameter of an
   exponential (Gillespie) process in the same units.
+- **Two words, and only two: `rate` and `modifier`.** A **rate** is a quantity *with units*
+  (events, or substitutions/site, per unit time) — the base number you set. A **modifier** is a
+  *dimensionless* multiplier (default 1) that scales a rate in some context (a family, a lineage, a
+  lineage-pair, a site). Those are the only two "how fast" kinds anywhere the simulator runs forward.
 - **Gene-family D/T/L are per gene copy** by default (`PerCopyRates`): the genome-wide rate is
-  the per-copy rate times the number of copies. `PerGenomeRates` instead fires at a constant
-  per-genome rate. `BranchRates` scales any base model by per-branch factors.
-- **Origination is per branch**, not per copy — one new family per event, independent of
+  the per-copy rate times the number of copies. `PerLineageRates` instead fires at a constant
+  per-lineage rate. `LineageRates` scales any base model by per-lineage factors.
+- **Origination is per lineage**, not per copy — one new family per event, independent of
   genome size.
-- State a model's rate semantics in its docstring in these terms (per copy / per genome / per
-  branch / per site), so a reader never has to guess what a number multiplies.
+- State a model's rate semantics in its docstring in these terms (per copy / per lineage / per
+  site), so a reader never has to guess what a number multiplies.
+- **Odds, not rates, in the undated tools.** `zombi2 tools reconcile --model undated/reldated` and
+  `zombi2 tools simulate` have no time, so their D/T/L parameters are dimensionless per-branch
+  **odds** (each the ratio of that event to vertical descent), not rates. That is the one place the
+  word "odds" applies; everywhere the simulator runs forward it is rates and modifiers.
 
 ## Outputs
 
