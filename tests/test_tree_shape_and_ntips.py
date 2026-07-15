@@ -60,7 +60,7 @@ def test_degree_two_ancestral_snapshot_is_frozen():
     tree = Tree(root, 1.0)
 
     res = GenomeSimulator().simulate(
-        tree, z.SharedRates(duplication=0.8, transfer=0.0, loss=0.0, origination=0.0),
+        tree, z.Rates(duplication=0.8, transfer=0.0, loss=0.0, origination=0.0),
         np.random.default_rng(1), initial_size=5, retain_internal=True,
     )
     assert sa in res.node_genomes and mid in res.node_genomes

@@ -11,7 +11,7 @@ import pytest
 from zombi2 import (
     BirthDeath,
     PairModifier,
-    PerCopyRates,
+    Rates,
     TransferModel,
     simulate_genomes,
     simulate_species_tree,
@@ -86,7 +86,7 @@ def _transfers_into(tree, target_names, pair, seeds=range(6)):
     tm = TransferModel(pair=pair) if pair is not None else TransferModel()
     into = total = 0
     for s in seeds:
-        g = simulate_genomes(tree, PerCopyRates(transfer=0.4, loss=0.4, origination=0.2),
+        g = simulate_genomes(tree, Rates(transfer=0.4, loss=0.4, origination=0.2),
                              transfers=tm, initial_families=6, seed=s, max_family_size=25)
         for r in g.event_log:
             if r.event is EventType.TRANSFER:
@@ -126,8 +126,8 @@ def test_highway_reproducible_given_seed():
     tree = _sim_tree()
     clade, _ = _a_clade(tree)
     make = lambda: TransferModel(pair=PairModifier(blocks=[(tree.root.name, clade.name, 8.0)]))
-    a = simulate_genomes(tree, PerCopyRates(transfer=0.4, loss=0.3, origination=0.2),
+    a = simulate_genomes(tree, Rates(transfer=0.4, loss=0.3, origination=0.2),
                          transfers=make(), initial_families=6, seed=4, max_family_size=25)
-    b = simulate_genomes(tree, PerCopyRates(transfer=0.4, loss=0.3, origination=0.2),
+    b = simulate_genomes(tree, Rates(transfer=0.4, loss=0.3, origination=0.2),
                          transfers=make(), initial_families=6, seed=4, max_family_size=25)
     assert np.array_equal(a.profiles.matrix, b.profiles.matrix)

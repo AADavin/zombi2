@@ -79,12 +79,14 @@ loss and rearrangement — but now they have real lengths and can split or fuse 
 
 ## Rates at the genome level
 
-The opportunity axis of the [tour](#how-rates-work-how-many-clocks-how-fast) applies here directly: `--rate-per copy` (the default,
-`PerCopyRates` — the total rate scales with genome size, so families grow *exponentially*) or
-`--rate-per lineage` (`PerLineageRates` — one constant rate for the whole genome, size-independent,
-so content grows *linearly*). On top of either, **multipliers** make rates differ by context — per
-family (`FamilySampledRates`, or a `FamilyModifier` overlay) or per lineage (a `LineageModifier`, the
-relaxed-clock analogue) — changing *how fast*, not *how many chances*.
+The opportunity axis of the [tour](#how-rates-work-how-many-clocks-how-fast) applies here directly,
+as the `--rate-per` flag (`per=` in Python): **copy** (the default — `Rates(...)`, the total rate
+scales with genome size, so families grow *exponentially*), **lineage** (`Rates(..., per="lineage")` —
+one constant rate for the whole genome, size-independent, so content grows *linearly*), or **shared**
+(`Rates(..., per="shared")` — a single clock for the whole family). On top of any of these,
+**multipliers** make rates differ by context — per family (`FamilySampledRates`, or a `FamilyModifier`
+overlay) or per lineage (a `LineageModifier`, the relaxed-clock analogue) — changing *how fast*, not
+*how many chances*.
 
 The level and the opportunity are independent: any rate model can drive any level, and the choice
 never affects *which* events fire, only *how often* each family fires them.

@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 import zombi2 as z
-from zombi2.genomes import (BranchRates, FamilySampledRates, SharedRates, TransferModel,
+from zombi2.genomes import (BranchRates, FamilySampledRates, Rates, TransferModel,
                             read_branch_rates, read_family_rates, simulate_genomes)
 from zombi2.genomes.events import EventType
 from zombi2.genomes.genome_sim import GenomeSimulator
@@ -69,7 +69,7 @@ def _weights_at(rate_model, tree, branch):
 
 
 def _leaf_genomes(tree):
-    g = simulate_genomes(tree, SharedRates(duplication=0.1), initial_families=3, seed=1)
+    g = simulate_genomes(tree, Rates(duplication=0.1), initial_families=3, seed=1)
     return list(g.leaf_genomes.values())
 
 
@@ -77,10 +77,10 @@ def test_branch_events_scales_only_the_named_event():
     """``events=("transfer",)`` multiplies the transfer weight on the scaled branch but leaves
     duplication and loss at their base value — the transfer-emission dial."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=2)
-    base = SharedRates(duplication=0.2, transfer=0.2, loss=0.2)
+    base = Rates(duplication=0.2, transfer=0.2, loss=0.2)
     br = BranchRates(base, factors={"n3": 5.0}, events=("transfer",))
     w = _weights_at(br, tree, "n3")
-    b = _weights_at(SharedRates(duplication=0.2, transfer=0.2, loss=0.2), tree, "n3")
+    b = _weights_at(Rates(duplication=0.2, transfer=0.2, loss=0.2), tree, "n3")
     assert w[EventType.TRANSFER] == pytest.approx(5.0 * b[EventType.TRANSFER])
     assert w[EventType.DUPLICATION] == pytest.approx(b[EventType.DUPLICATION])   # untouched
     assert w[EventType.LOSS] == pytest.approx(b[EventType.LOSS])                 # untouched
@@ -89,9 +89,9 @@ def test_branch_events_scales_only_the_named_event():
 def test_branch_events_default_scales_all_dtl():
     """Default ``events`` (None) keeps the original behaviour: D, T and L all scaled together."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=2)
-    br = BranchRates(SharedRates(duplication=0.2, transfer=0.2, loss=0.2), factors={"n3": 5.0})
+    br = BranchRates(Rates(duplication=0.2, transfer=0.2, loss=0.2), factors={"n3": 5.0})
     w = _weights_at(br, tree, "n3")
-    b = _weights_at(SharedRates(duplication=0.2, transfer=0.2, loss=0.2), tree, "n3")
+    b = _weights_at(Rates(duplication=0.2, transfer=0.2, loss=0.2), tree, "n3")
     for ev in (EventType.DUPLICATION, EventType.TRANSFER, EventType.LOSS):
         assert w[ev] == pytest.approx(5.0 * b[ev])
 
@@ -146,12 +146,12 @@ def test_rust_and_python_agree_on_receptivity():
     tm = TransferModel(receptivity={target: 20.0})
 
     def share(sampler):
-        g = simulate_genomes(tree, SharedRates(transfer=0.6), transfers=tm,
+        g = simulate_genomes(tree, Rates(transfer=0.6), transfers=tm,
                              initial_families=8, seed=11, max_family_size=0.9, sampler=sampler)
         recv = [r.recipient for r in g.event_log if r.event is EventType.TRANSFER]
         return recv.count(target) / max(len(recv), 1)
 
-    rust = share(None)                     # sampler None + plain SharedRates -> Rust engine
+    rust = share(None)                     # sampler None + plain Rates -> Rust engine
     python = share(NumpyEventSampler())    # a custom sampler forces the pure-Python engine
     assert rust == pytest.approx(python, abs=0.12)
     assert rust > 0.35 and python > 0.35   # both clearly biased above the ~0.2 uniform baseline

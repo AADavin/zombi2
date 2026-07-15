@@ -42,7 +42,7 @@ result = simulate_sse(model, n_tips=40, seed=1)   # tips end up biased toward th
   heterogeneous-rate diversification (ClaDS, diversity-dependent, clade shifts), mass
   extinctions and ghost lineages. The Rust engine scales to millions of tips.
 - **Gene families** — duplication / transfer / loss / origination along the tree, with
-  per-copy (`PerCopyRates`), per-family-sampled (`FamilySampledRates`, ZOMBI1 style) and
+  per-copy (`Rates`), per-family-sampled (`FamilySampledRates`, ZOMBI1 style) and
   per-genome rate models; transfers additive or **replacement** with distance-weighted
   recipients; ordered chromosomes with **inversions** and **transpositions**; and
   nucleotide-resolution genomes. Output as full event logs, compact event traces, or
@@ -71,3 +71,6 @@ event types drop in as subclasses without touching the engine. See
 - Prefer a narrative? The
   [**Concepts & Tutorial manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf)
   walks through every model with worked examples and figures.
+- Working with the analysis layer? The
+  [**Tools reference manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-tools-manual.pdf)
+  collects the whole [`zombi2.tools`](tools/index.md) surface in one place.

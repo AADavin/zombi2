@@ -14,13 +14,13 @@ import math
 import sys
 from pathlib import Path
 
-# use THIS worktree's zombi2 (has SharedBirthDeath), not the editable-installed main checkout
+# use THIS worktree's zombi2 (has the per= knob), not the editable-installed main checkout
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import cairosvg
 import drawsvg as draw
 
-from zombi2 import BirthDeath, SharedBirthDeath, simulate_species_tree
+from zombi2 import BirthDeath, simulate_species_tree
 
 from zombi_style import FONT, INK, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
@@ -112,7 +112,7 @@ def render():
     seeds = list(range(1, 41))
     AGE = 5.0
     g_exp, c_exp = mean_ltt(lambda: BirthDeath(1.0, 0.2), AGE, seeds)
-    g_lin, c_lin = mean_ltt(lambda: SharedBirthDeath(1.0, 0.2), AGE, seeds)
+    g_lin, c_lin = mean_ltt(lambda: BirthDeath(1.0, 0.2, per="shared"), AGE, seeds)
     cmax = max(max(c_exp), max(c_lin)) * 1.06
 
     PX0, PX1 = 150, W - 150

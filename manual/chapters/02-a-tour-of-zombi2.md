@@ -70,7 +70,7 @@ The three terms have distinct jobs and distinct units. The **base** carries the 
 rate, $\text{time}^{-1}$. The **opportunity** is a *count* (dimensionless). The **modifiers** are
 *multipliers* (also dimensionless).
 
-![How many clocks, how fast. The opportunity — one clock per lineage, one per gene copy, or one shared by the whole process — sets how many independent chances an event has right now. A count that *tracks the growing quantity* (per lineage, per copy) compounds into exponential growth; a single shared clock keeps the total rate constant, so growth is linear. Both curves are ZOMBI2 runs at the *same* per-clock rate (`BirthDeath` vs `SharedBirthDeath`, mean over 40 seeds) — only the number of clocks differs.](figures/rate_clocks.pdf){width=100%}
+![How many clocks, how fast. The opportunity — one clock per lineage, one per gene copy, or one shared by the whole process — sets how many independent chances an event has right now. A count that *tracks the growing quantity* (per lineage, per copy) compounds into exponential growth; a single shared clock keeps the total rate constant, so growth is linear. Both curves are ZOMBI2 runs at the *same* per-clock rate (`BirthDeath` vs `BirthDeath(per="shared")`, mean over 40 seeds) — only the number of clocks differs.](figures/rate_clocks.pdf){width=100%}
 
 ### The opportunity — "per what?"
 
@@ -89,27 +89,28 @@ The per-unit rungs nest — $\texttt{site} \subset \texttt{copy} \subset \texttt
 
 **This choice, not the units, decides exponential versus linear growth** — because a count that
 *tracks the growing quantity* compounds, and one that does not, cannot. You can see it directly in
-the species models. `BirthDeath` puts one clock on each lineage (`lineage`); `SharedBirthDeath` puts
-one clock on the whole tree (`shared`):
+the species models. `BirthDeath` defaults to one clock per lineage (`per="lineage"`); passing
+`per="shared"` puts one clock on the whole tree:
 
 ```python
 import zombi2 as z
 
-# one clock per lineage: births compound → exponential
+# one clock per lineage (the default): births compound → exponential
 per_lineage = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), age=8.0,
                                       direction="forward", seed=3)
 
 # one shared clock: constant total birth rate → linear
-shared = z.simulate_species_tree(z.SharedBirthDeath(1.0, 0.2), age=8.0,
+shared = z.simulate_species_tree(z.BirthDeath(1.0, 0.2, per="shared"), age=8.0,
                                  direction="forward", seed=3)
 ```
 
 With the same rates and seed, the per-lineage tree reaches thousands of tips while the shared tree
 reaches a few dozen: same *speed* per clock, a different *number of clocks*. The genome level offers
-the same choice one rung down — gene-family rates counted **per gene copy** (`--rate-per copy`, the
-default, so families grow exponentially) or **per lineage** (`--rate-per lineage`, size-independent,
-so content grows linearly). "Per lineage" is exactly the size-independent measure speciation uses
-one level up: a lineage carries one genome, so *per genome* **is** *per lineage*.
+the same choice one rung down, through the same `per=` knob: gene-family rates counted **per gene
+copy** (`per="copy"`, the default, so families grow exponentially), **per lineage** (`per="lineage"`,
+size-independent, so content grows linearly), or **shared** (`per="shared"`, one clock for the whole
+family). "Per lineage" is exactly the size-independent measure speciation uses one level up: a lineage
+carries one genome, so *per genome* **is** *per lineage*.
 
 ### The modifiers — context
 
@@ -124,18 +125,18 @@ The payoff is that the same shape holds everywhere:
 | Level | Opportunity it uses | "How fast" set by |
 |---|---|---|
 | **species** | `lineage` (or `shared`) | the diversification model |
-| **genome content** | `copy` (default) or `lineage` | the DTL rates, ± per-family/per-lineage modifiers |
+| **genome content** | `copy` (default), `lineage`, or `shared` | the DTL rates, ± per-family/per-lineage modifiers |
 | **sequences** | `site` | the substitution rate, ± a [molecular clock](#molecular-clocks) |
 
 Read any rate in the book by asking the two questions: *how many clocks (per what?)*, and *how fast
 does each tick?*
 
 ::: note
-Today the opportunity is chosen by the *model you pick* — `BirthDeath` versus `SharedBirthDeath`,
-per-copy versus per-lineage rates — or, for genomes, by `--rate-per`. A planned refinement makes it
-a single named knob, `per=` (`--rate-per` / `--per`), available the same way at every level, with
-those classes kept as friendly shorthands. When it lands, the code will read exactly the way this
-section teaches; nothing here changes.
+The opportunity is one named knob, **`per=`** (`--rate-per` / `--per` on the command line), available
+the same way at every level: `per="lineage"` or `per="shared"` on `BirthDeath`; `per="copy"`,
+`"lineage"`, or `"shared"` on `Rates`; down to `per="site"` for sequences. You can even mix the unit
+per event — `Per("shared", 0.5)` for one rate, `Per("copy", 0.3)` for another. The older preset
+classes (`SharedBirthDeath`, `PerCopyRates`, `PerLineageRates`) still work as friendly shorthands.
 :::
 
 ## The ZOMBI2 vocabulary

@@ -44,7 +44,9 @@ from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, read_gff_all, GffGenome,
-    RateModel, PerCopyRates, PerLineageRates, FamilySampledRates,
+    RateModel, Rates, Per,
+    PerCopyRates, PerLineageRates,  # deprecated presets for Rates(per=…); importable, not in __all__
+    FamilySampledRates,
     LineageRates, Modifier, ModifiedRates, LineageModifier,
     FamilyModifier,
     EventWeight, TransferModel, PairModifier, ConversionModel, read_family_rates,
@@ -101,16 +103,18 @@ __all__ = [
     "EventType", "GeneOp", "EventRecord", "Selection", "Region", "TargetParams",
     # tree
     "Tree", "TreeNode", "read_newick", "prune",
-    # species tree
+    # species tree (SharedBirthDeath is a deprecated preset for BirthDeath(per="shared"):
+    # importable, warns on construction, absent from __all__)
     "BirthDeath", "Yule", "EpisodicBirthDeath", "ClaDS", "DiversityDependent",
-    "SharedBirthDeath", "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
+    "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Block",
     "read_gff", "read_gff_all", "GffGenome",
-    # rates & transfers
-    "RateModel", "PerCopyRates", "PerLineageRates",
+    # rates & transfers (PerCopyRates/PerLineageRates are deprecated presets for Rates(per=…):
+    # importable, warn on construction, absent from __all__)
+    "RateModel", "Rates", "Per",
     "FamilySampledRates", "LineageRates", "Modifier", "ModifiedRates",
     "LineageModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",

@@ -26,7 +26,7 @@ import pytest
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -65,7 +65,7 @@ def _fingerprint_nucleotide(res) -> str:
 
 def _ordered_run(seed, n_chromosomes, circular):
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=3.0, seed=seed)
-    rates = SharedRates(duplication=0.4, loss=0.3, transfer=0.2, origination=0.1,
+    rates = Rates(duplication=0.4, loss=0.3, transfer=0.2, origination=0.1,
                         inversion=0.3, transposition=0.3)
     return simulate_genomes(
         tree, rates, initial_families=20, seed=seed,
