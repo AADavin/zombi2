@@ -85,7 +85,7 @@ def test_reproducible_given_seed(name):
 def test_applies_to_gene_trees_too(name):
     """A clock scales any Tree — including a gene tree loaded from Newick."""
     tree = _tree(n_tips=12, age=4.0, seed=9)
-    g = z.simulate_genomes(tree, z.SharedRates(duplication=0.2, transfer=0.1, loss=0.2,
+    g = z.simulate_genomes(tree, z.Rates(duplication=0.2, transfer=0.1, loss=0.2,
                                                origination=0.5), initial_families=12, seed=9)
     fam = next(f for f, (_, e) in g.gene_trees().items() if e)
     gene_tree = z.read_newick(g.gene_trees()[fam][1])

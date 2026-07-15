@@ -242,8 +242,8 @@ def test_zero_effect_is_uncoupled():
 
 def test_default_rate_model_has_no_refresh_times():
     # backward-compat: an ordinary rate model contributes no breakpoints
-    from zombi2 import SharedRates
-    assert SharedRates(0.1, 0.1, 0.1).refresh_times(0.0, 1.0) == []
+    from zombi2 import Rates
+    assert Rates(0.1, 0.1, 0.1).refresh_times(0.0, 1.0) == []
 
 
 # ── 6. CLI ───────────────────────────────────────────────────────────────────

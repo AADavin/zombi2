@@ -7,7 +7,7 @@ import numpy as np
 from zombi2 import (
     BirthDeath,
     GenomeSimulator,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -69,7 +69,7 @@ def test_reproducible_full_run():
 def test_rate_model_or_shorthand_not_both():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=6, age=2.0, seed=0)
     try:
-        simulate_genomes(tree, SharedRates(loss=0.1), loss=0.2)
+        simulate_genomes(tree, Rates(loss=0.1), loss=0.2)
     except ValueError:
         pass
     else:
@@ -92,7 +92,7 @@ def test_dl_mean_copy_number():
     """D/L-only: mean copy number at a leaf matches exp((d-l)*path_length)."""
     d, l, A = 0.1, 0.25, 2.0
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=A, seed=0)
-    rates = SharedRates(duplication=d, transfer=0.0, loss=l, origination=0.0)
+    rates = Rates(duplication=d, transfer=0.0, loss=l, origination=0.0)
     gs = GenomeSimulator()
 
     counts = []
