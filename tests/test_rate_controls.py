@@ -228,7 +228,7 @@ def test_cli_family_rates_and_branch_receptivity(tmp_path):
     rc = main(["genomes", "--tree", tree_nwk, "--dup", "0.1", "--trans", "0.3", "--loss", "0.1",
                "--branch-rates", str(br), "--initial-families", "6", "--seed", "4",
                "--write", "profiles", "-o", str(out2)])
-    assert rc == 0 and (out2 / "Profiles.tsv").exists()
+    assert rc == 0 and (out2 / "profiles.tsv").exists()
 
 
 def test_family_and_branch_files_drive_a_full_run(tmp_path):

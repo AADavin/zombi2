@@ -282,9 +282,9 @@ class NucleotideResult:
     def write_reconciliations(self, outdir) -> dict:
         """Write the reconciled trees + the events table to ``outdir``.
 
-        ``Reconciled_complete.nwk`` / ``Reconciled_extant.nwk`` — one ``block_id<TAB>newick``
+        ``reconciled_complete.nwk`` / ``reconciled_extant.nwk`` — one ``block_id<TAB>newick``
         line per block (the complete history with losses, and the observable cherries);
-        ``Reconciliation_events.tsv`` — the events (S/D/T/L) with their species location,
+        ``reconciliation_events.tsv`` — the events (S/D/T/L) with their species location,
         transfer recipient, time and gene lineage. Returns a small summary dict.
         """
         out = Path(outdir)
@@ -301,9 +301,9 @@ class NucleotideResult:
                 ev_lines.append(f"{block_id}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
                                 f"{e.time:.10g}\t{e.gene or ''}")
                 n_events += 1
-        (out / "Reconciled_complete.nwk").write_text("\n".join(complete_lines) + "\n")
-        (out / "Reconciled_extant.nwk").write_text("\n".join(extant_lines) + "\n")
-        (out / "Reconciliation_events.tsv").write_text("\n".join(ev_lines) + "\n")
+        (out / "reconciled_complete.nwk").write_text("\n".join(complete_lines) + "\n")
+        (out / "reconciled_extant.nwk").write_text("\n".join(extant_lines) + "\n")
+        (out / "reconciliation_events.tsv").write_text("\n".join(ev_lines) + "\n")
         return {"path": str(out), "n_blocks": len(complete_lines), "n_events": n_events}
 
     # --- per-block history (step 7: the events that touched each segment) ---

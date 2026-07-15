@@ -32,7 +32,7 @@ z.StrictClock(rate=1.0).scale(tree, seed=1).to_newick() == tree.to_newick()   # 
 
 `scale` is the shared entry point of every clock. It takes a `Tree` and a seed and returns a
 `RateScaledTree` — the phylogram, plus the rates it drew. A **relaxed** clock is anything that lets
-that per-branch rate vary. The clocks differ only in *how* the rate is drawn, and they split into two
+that per-lineage rate vary. The clocks differ only in *how* the rate is drawn, and they split into two
 kinds:
 
 - **Uncorrelated** clocks draw an **independent** multiplier for each branch. A branch's rate tells
@@ -101,7 +101,7 @@ dependence is what sets it apart from the plain gamma clock above.
 z.WhiteNoiseClock(sigma=0.5).scale(tree, seed=2)
 ```
 
-![The per-branch rate distribution behind each uncorrelated clock, and the one knob that sets its spread. All three are centred on mean rate 1, so the tree's average length is preserved. **Lognormal**: `sigma` widens the spread ($\sigma = 0$ recovers the strict clock). **Gamma**: the `shape` controls it *inversely* — a large shape concentrates rates near 1. **White noise**: the same gamma, but its variance is $\sigma^2/\Delta t$, so a short branch draws a wildly variable rate while a long branch averages back toward 1.](figures/clock_distributions.pdf){width=100%}
+![The per-lineage rate distribution behind each uncorrelated clock, and the one knob that sets its spread. All three are centred on mean rate 1, so the tree's average length is preserved. **Lognormal**: `sigma` widens the spread ($\sigma = 0$ recovers the strict clock). **Gamma**: the `shape` controls it *inversely* — a large shape concentrates rates near 1. **White noise**: the same gamma, but its variance is $\sigma^2/\Delta t$, so a short branch draws a wildly variable rate while a long branch averages back toward 1.](figures/clock_distributions.pdf){width=100%}
 
 ::: note
 The uncorrelated clocks are memoryless across branches. Two branches meeting at a node can have very
@@ -187,7 +187,7 @@ family, then multiplied by each family's own speed. Passing `branch_sigma` remai
 
 ## Usage from the CLI
 
-The `zombi2 sequence` command grows a `--clock` selector for the family. As in Chapter 14 it runs on
+The `zombi2 sequences` command grows a `--clock` selector for the family. As in Chapter 14 it runs on
 a prior `genomes` result whose event trace was written (`--write trace`):
 
 ```bash
@@ -195,11 +195,11 @@ zombi2 genomes -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
 
 # an uncorrelated lognormal lineage clock, plus per-family speed
-zombi2 sequence --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
+zombi2 sequences --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
     --family-speed 0.5 -o run/
 
 # a mean-reverting CIR clock instead
-zombi2 sequence --genomes run/ --clock cir --clock-theta 1.0 --clock-sigma 0.4 -o run/
+zombi2 sequences --genomes run/ --clock cir --clock-theta 1.0 --clock-sigma 0.4 -o run/
 ```
 
 `--clock` chooses the model — `strict`, `autocorrelated-lognormal`, `uncorrelated-lognormal`,

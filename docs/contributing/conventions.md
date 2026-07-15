@@ -43,7 +43,7 @@ Reproducibility is a first-class guarantee, not a nicety.
 ### The run manifest
 
 **Every CLI command writes a run manifest** to the output directory — always, for
-reproducibility (`species_tree.log`, `genomes.log`, `trait.log`, `sequence.log`,
+reproducibility (`species.log`, `genomes.log`, `traits.log`, `sequences.log`,
 `coevolve.log`). It is a headed, tab-separated key–value file:
 
 ```
@@ -66,13 +66,21 @@ it recorded here for free — do not write a second, bespoke parameter file.
 
 - **Rates are per unit time.** Branch lengths are time; every rate is the parameter of an
   exponential (Gillespie) process in the same units.
+- **Two words, and only two: `rate` and `modifier`.** A **rate** is a quantity *with units*
+  (events, or substitutions/site, per unit time) — the base number you set. A **modifier** is a
+  *dimensionless* multiplier (default 1) that scales a rate in some context (a family, a lineage, a
+  lineage-pair, a site). Those are the only two "how fast" kinds anywhere the simulator runs forward.
 - **Gene-family D/T/L are per gene copy** by default (`PerCopyRates`): the genome-wide rate is
-  the per-copy rate times the number of copies. `PerGenomeRates` instead fires at a constant
-  per-genome rate. `BranchRates` scales any base model by per-branch factors.
-- **Origination is per branch**, not per copy — one new family per event, independent of
+  the per-copy rate times the number of copies. `PerLineageRates` instead fires at a constant
+  per-lineage rate. `LineageRates` scales any base model by per-lineage factors.
+- **Origination is per lineage**, not per copy — one new family per event, independent of
   genome size.
-- State a model's rate semantics in its docstring in these terms (per copy / per genome / per
-  branch / per site), so a reader never has to guess what a number multiplies.
+- State a model's rate semantics in its docstring in these terms (per copy / per lineage / per
+  site), so a reader never has to guess what a number multiplies.
+- **Odds, not rates, in the undated tools.** `zombi2 tools reconcile --model undated/reldated` and
+  `zombi2 tools simulate` have no time, so their D/T/L parameters are dimensionless per-branch
+  **odds** (each the ratio of that event to vertical descent), not rates. That is the one place the
+  word "odds" applies; everywhere the simulator runs forward it is rates and modifiers.
 
 ## Outputs
 
@@ -90,22 +98,22 @@ The `genomes` command writes a chosen subset of parts (`--write PART ...`); the 
 
 | Part | Files |
 |---|---|
-| `profiles` | `Profiles.tsv` + `Presence.tsv` (or `Profiles_sparse.tsv` with `--sparse`) |
+| `profiles` | `profiles.tsv` + `presence.tsv` (or `profiles_sparse.tsv` with `--sparse`) |
 | `trees` | `gene_trees/<family>_complete.nwk` + `_extant.nwk` |
-| `trace` | `Events_trace.tsv` (one compact, scalable event log) |
+| `trace` | `events_trace.tsv` (one compact, scalable event log) |
 | `events` | `gene_family_events/<family>_events.tsv` (per-family detail) |
-| `transfers` | `Transfers.tsv` |
-| `summary` | `Gene_family_summary.tsv` |
-| `branch_events` | `Branch_events.tsv` (per-species-branch event counts, with `is_extant`) |
-| `bed` | [nucleotide, genic] `genes.bed` + `BED/<node>.bed` (BED6 gene annotations) |
-| `ancestral` | [nucleotide] `Architecture/`, `Genomes/<node>.fasta.gz`, `Gene_alignments/` |
+| `transfers` | `transfers.tsv` |
+| `summary` | `gene_family_summary.tsv` |
+| `branch_events` | `branch_events.tsv` (per-species-branch event counts, with `is_extant`) |
+| `bed` | [nucleotide, genic] `genes.bed` + `bed/<node>.bed` (BED6 gene annotations) |
+| `ancestral` | [nucleotide] `architecture/`, `genomes/<node>.fasta.gz`, `gene_alignments/` |
 
 Representative schemas (quote these when adding a related output):
 
 ```
-# Profiles.tsv          family  n0  n1  n2 ...        (copy counts)
-# Events_trace.tsv      time  event  branch  donor  recipient  family  parent  child1  child2
-# Branch_events.tsv     branch  time  is_leaf  is_extant  origination  duplication  transfer_in  transfer_out  loss  inversion  transposition  total
+# profiles.tsv          family  n0  n1  n2 ...        (copy counts)
+# events_trace.tsv      time  event  branch  donor  recipient  family  parent  child1  child2
+# branch_events.tsv     branch  time  is_leaf  is_extant  origination  duplication  transfer_in  transfer_out  loss  inversion  transposition  total
 # <node>.bed            chrom  chromStart  chromEnd  name  score  strand      (BED6, 0-based half-open)
 # species_nodes.tsv     name  time  is_leaf  is_extant
 ```
@@ -128,7 +136,7 @@ Event codes are single letters: **O**rigination, **D**uplication, **T**ransfer, 
 
 ## CLI grammar
 
-The CLI is one subcommand per level: `species`, `genomes`, `trait`, `sequence`, `coevolve`.
+The CLI is one subcommand per level: `species`, `genomes`, `traits`, `sequences`, `coevolve`.
 Within a subcommand:
 
 - A **`general`** argument group carries the shared flags: `--seed N` and the required

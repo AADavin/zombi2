@@ -32,7 +32,7 @@ def test_cli_ordered_accepts_mean_length(tmp_path):
                "--inversion", "0.3", "--mean-length", "3", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists()
+    assert (out / "profiles.tsv").exists()
 
 
 def test_cli_nucleotide_accepts_mean_length(tmp_path):
@@ -42,7 +42,7 @@ def test_cli_nucleotide_accepts_mean_length(tmp_path):
                "--root-length", "800", "--mean-length", "50", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists()
+    assert (out / "profiles.tsv").exists()
 
 
 def test_cli_mean_length_below_one_is_a_clean_error(tmp_path, capsys):

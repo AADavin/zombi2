@@ -155,10 +155,10 @@ def test_profiles_vs_genomes_family_counts_agree():
 def test_write_produces_all_files(tmp_path):
     tree = _tree()
     z.simulate_genomes(tree, seed=7, **FULL).write(tmp_path)
-    species, _ = _read_profiles(tmp_path / "Profiles.tsv")
+    species, _ = _read_profiles(tmp_path / "profiles.tsv")
     assert len(species) == len(tree.extant_leaves())
-    for f in ["species_tree.nwk", "species_nodes.tsv", "Transfers.tsv",
-              "Gene_family_summary.tsv", "Profiles.tsv", "Presence.tsv"]:
+    for f in ["species_tree.nwk", "species_nodes.tsv", "transfers.tsv",
+              "gene_family_summary.tsv", "profiles.tsv", "presence.tsv"]:
         assert (tmp_path / f).exists()
     assert (tmp_path / "gene_trees").is_dir()
     assert (tmp_path / "gene_family_events").is_dir()
@@ -167,7 +167,7 @@ def test_write_produces_all_files(tmp_path):
 def test_write_gene_tree_invariant(tmp_path):
     tree = _tree(n=40, seed=3)
     z.simulate_genomes(tree, seed=5, **FULL).write(tmp_path)
-    _, prof = _read_profiles(tmp_path / "Profiles.tsv")
+    _, prof = _read_profiles(tmp_path / "profiles.tsv")
     checked = 0
     for fam, row in prof.items():
         rowsum = sum(row)
@@ -180,8 +180,8 @@ def test_write_gene_tree_invariant(tmp_path):
 
 def test_write_presence_matches_profiles(tmp_path):
     z.simulate_genomes(_tree(), seed=1, **FULL).write(tmp_path)
-    _, prof = _read_profiles(tmp_path / "Profiles.tsv")
-    _, pres = _read_profiles(tmp_path / "Presence.tsv")
+    _, prof = _read_profiles(tmp_path / "profiles.tsv")
+    _, pres = _read_profiles(tmp_path / "presence.tsv")
     for fam in prof:
         assert pres[fam] == [1 if x > 0 else 0 for x in prof[fam]]
 
@@ -190,8 +190,8 @@ def test_write_reproducible(tmp_path):
     tree = _tree()
     z.simulate_genomes(tree, seed=9, **FULL).write(tmp_path / "a")
     z.simulate_genomes(tree, seed=9, **FULL).write(tmp_path / "b")
-    assert (tmp_path / "a" / "Profiles.tsv").read_text() == (tmp_path / "b" / "Profiles.tsv").read_text()
-    assert (tmp_path / "a" / "Transfers.tsv").read_text() == (tmp_path / "b" / "Transfers.tsv").read_text()
+    assert (tmp_path / "a" / "profiles.tsv").read_text() == (tmp_path / "b" / "profiles.tsv").read_text()
+    assert (tmp_path / "a" / "transfers.tsv").read_text() == (tmp_path / "b" / "transfers.tsv").read_text()
 
 
 # --- transfer mechanics ----------------------------------------------------------
@@ -208,8 +208,8 @@ def test_transfer_self(tmp_path):
                 initial_families=25, max_family_size=0.9, seed=5)
     z.simulate_genomes(tree, transfers=z.TransferModel(allow_self=False), **base).write(tmp_path / "no")
     z.simulate_genomes(tree, transfers=z.TransferModel(allow_self=True), **base).write(tmp_path / "yes")
-    assert _self_transfer_rows(tmp_path / "no" / "Transfers.tsv") == 0
-    assert _self_transfer_rows(tmp_path / "yes" / "Transfers.tsv") > 0
+    assert _self_transfer_rows(tmp_path / "no" / "transfers.tsv") == 0
+    assert _self_transfer_rows(tmp_path / "yes" / "transfers.tsv") > 0
 
 
 def test_transfer_replacement_reduces_growth():
@@ -252,7 +252,7 @@ def test_transfer_distance_decay_prefers_close(tmp_path):
     base = dict(transfer=0.4, loss=0.1, origination=0.4, initial_families=40, max_family_size=0.9, seed=11)
     z.simulate_genomes(tree, **base).write(tmp_path / "u")
     z.simulate_genomes(tree, transfers=z.TransferModel(distance_decay=5.0), **base).write(tmp_path / "d")
-    assert mean_dist(tmp_path / "d" / "Transfers.tsv") < mean_dist(tmp_path / "u" / "Transfers.tsv")
+    assert mean_dist(tmp_path / "d" / "transfers.tsv") < mean_dist(tmp_path / "u" / "transfers.tsv")
 
 
 def test_transfer_mechanics_invariant():

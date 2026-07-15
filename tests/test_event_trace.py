@@ -89,7 +89,7 @@ def test_events_trace_file_is_compact(tmp_path):
     tr = z.simulate_genomes(tree, output="trace", seed=3, **RATES)
 
     tr.write(tmp_path / "trace", include={"trace"})
-    lines = (tmp_path / "trace" / "Events_trace.tsv").read_text().splitlines()
+    lines = (tmp_path / "trace" / "events_trace.tsv").read_text().splitlines()
     assert lines[0] == EVENTS_TRACE_HEADER
     events = [ln.split("\t")[1] for ln in lines[1:] if ln.strip()]
     assert "S" not in events                       # no speciation rows
@@ -107,7 +107,7 @@ def test_events_trace_file_roundtrips(tmp_path):
     tree = _tree()
     tr = z.simulate_genomes(tree, output="trace", seed=7, **RATES)
     tr.write(tmp_path / "trace", include={"trace"})
-    text = (tmp_path / "trace" / "Events_trace.tsv").read_text()
+    text = (tmp_path / "trace" / "events_trace.tsv").read_text()
 
     families = read_events_trace(text, tree)               # expands (compact → full)
     g2s = extant_species_from_records(families, tree)
@@ -131,14 +131,14 @@ def test_trace_write_default_and_heavy_parts(tmp_path):
 
     # default include is trace + profiles
     tr.write(tmp_path / "a")
-    assert (tmp_path / "a" / "Events_trace.tsv").exists()
-    assert (tmp_path / "a" / "Profiles.tsv").exists()
+    assert (tmp_path / "a" / "events_trace.tsv").exists()
+    assert (tmp_path / "a" / "profiles.tsv").exists()
     assert (tmp_path / "a" / "species_tree.nwk").exists()
 
     # a heavy part (trees) is honoured by promoting to the full log on demand
     tr2 = z.simulate_genomes(tree, output="trace", seed=4, **RATES)
     tr2.write(tmp_path / "b", include={"trace", "trees"})
-    assert (tmp_path / "b" / "Events_trace.tsv").exists()
+    assert (tmp_path / "b" / "events_trace.tsv").exists()
     assert (tmp_path / "b" / "gene_trees").is_dir()
 
 
@@ -165,4 +165,4 @@ def test_genomes_write_supports_trace_part(tmp_path):
     """The 'trace' component is also available on a full Genomes (record-based writer)."""
     g = z.simulate_genomes(_tree(), seed=6, **RATES)
     g.write(tmp_path / "g", include={"trace"})
-    assert (tmp_path / "g" / "Events_trace.tsv").exists()
+    assert (tmp_path / "g" / "events_trace.tsv").exists()

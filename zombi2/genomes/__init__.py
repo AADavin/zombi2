@@ -17,18 +17,20 @@ redefine anything.
 
 from __future__ import annotations
 
+import warnings
+
 from zombi2.genomes.genome import Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome
 from zombi2.genomes.nucleotide_genome import NucleotideGenome, Segment
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
 from zombi2.genomes.gff import read_gff, read_gff_all, GffGenome
 from zombi2.genomes.rates import (
-    RateModel, PerCopyRates, SharedRates, PerLineageRates, PerGenomeRates, FamilySampledRates,
-    LineageRates, BranchRates, Modifier, ModifiedRates, LineageModifier, BranchModifier,
+    RateModel, PerCopyRates, PerLineageRates, FamilySampledRates,
+    LineageRates, Modifier, ModifiedRates, LineageModifier,
     FamilyModifier, EventWeight,
 )
 from zombi2.genomes.transfers import TransferModel, PairModifier
 from zombi2.genomes.conversion import ConversionModel
-from zombi2.genomes.read_rates import read_family_rates, read_lineage_rates, read_branch_rates
+from zombi2.genomes.read_rates import read_family_rates, read_lineage_rates
 from zombi2.genomes.genome_sim import GenomeSimulator, GenomeResult
 from zombi2.genomes.profiles import ProfileMatrix
 from zombi2.genomes.reconciliation import build_gene_trees
@@ -39,12 +41,36 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
-    "RateModel", "PerCopyRates", "SharedRates", "PerLineageRates", "PerGenomeRates",
-    "FamilySampledRates", "LineageRates", "BranchRates", "Modifier", "ModifiedRates",
-    "LineageModifier", "BranchModifier", "FamilyModifier",
+    "RateModel", "PerCopyRates", "PerLineageRates",
+    "FamilySampledRates", "LineageRates", "Modifier", "ModifiedRates",
+    "LineageModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
-    "read_family_rates", "read_lineage_rates", "read_branch_rates",
+    "read_family_rates", "read_lineage_rates",
     "GenomeSimulator", "GenomeResult", "ProfileMatrix",
     "simulate_genomes", "Genomes", "GenomeTrace", "read_events_trace",
     "build_gene_trees", "run_replicates",
 ]
+
+# --- deprecated aliases (PEP 562) -------------------------------------------
+# Kept working for one minor version but marked: they resolve here with a
+# DeprecationWarning and are absent from __all__/dir(). Removal: 0.4.0.
+# See docs/design/naming-consolidation.md.
+_DEPRECATED_ALIASES = {
+    "SharedRates": "PerCopyRates",
+    "PerGenomeRates": "PerLineageRates",
+    "BranchRates": "LineageRates",
+    "BranchModifier": "LineageModifier",
+    "read_branch_rates": "read_lineage_rates",
+}
+
+
+def __getattr__(name):
+    canonical = _DEPRECATED_ALIASES.get(name)
+    if canonical is not None:
+        warnings.warn(
+            f"zombi2.genomes.{name} was renamed to zombi2.genomes.{canonical}; the old name "
+            f"still works but is deprecated and will be removed in 0.4.0.",
+            DeprecationWarning, stacklevel=2,
+        )
+        return globals()[canonical]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

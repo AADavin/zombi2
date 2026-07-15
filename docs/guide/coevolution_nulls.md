@@ -85,11 +85,11 @@ diversification.](../img/coevolve_null_archetypes.svg)
 | Edge (driver → target) | The arrow | `neutral` | `cid` | `timing` |
 | --- | --- | --- | --- | --- |
 | `traits:species` (SSE) | trait state → λ, μ | λ₀=λ₁, μ₀=μ₁ (constant-rate BD) | **HiSSE CID-2/-4**: hidden classes carry λ, μ; equal within each class | — |
-| `genes:species` (key innov.) | driver-gene presence → λ, μ | β_spec = β_ext = 0 (genes neutral) | *(free)* drivers hidden; analyse the **neutral overlay genome** | — |
-| `genes:traits` (modifier → OU) | gene presence → OU optimum θ | θ_present = θ_absent (plain OU) | *(free)* modifier hidden; observe a **neutral overlay genome** | — |
-| `traits:genes` (trait → panel) | trait state → panel loss/gain | effect_loss = 0 (uncoupled panel) | hidden trait drives the panel; observe a **second neutral trait** | — |
+| `genomes:species` (key innov.) | driver-gene presence → λ, μ | β_spec = β_ext = 0 (genes neutral) | *(free)* drivers hidden; analyse the **neutral overlay genome** | — |
+| `genomes:traits` (modifier → OU) | gene presence → OU optimum θ | θ_present = θ_absent (plain OU) | *(free)* modifier hidden; observe a **neutral overlay genome** | — |
+| `traits:genomes` (trait → panel) | trait state → panel loss/gain | effect_loss = 0 (uncoupled panel) | hidden trait drives the panel; observe a **second neutral trait** | — |
 | `species:traits` (cladogenetic) | speciation event → trait jump | shift = 0 / jump_sigma2 = 0 (anagenetic only) | — | same jump variance, Poisson **along** branches |
-| `species:genes` (clado genome) | speciation event → gene burst | clado_loss = clado_gain = 0 (anagenetic only) | — | same turnover, Poisson **along** branches |
+| `species:genomes` (clado genome) | speciation event → gene burst | clado_loss = clado_gain = 0 (anagenetic only) | — | same turnover, Poisson **along** branches |
 
 The symmetry is the point: the four **state→rate** edges all take a **HiSSE-shaped** null
 (hidden, uncorrelated driver); the two **→at-speciation** edges take a **punctuation-anywhere**
@@ -119,17 +119,17 @@ on the target. And for two of the four edges it already exists in the toolbox fo
   what `CID` (a constrained `HiSSE`) builds, and
   what the figure script `fig_sse_hisse.py` draws — *"the honest null a raw BiSSE fit would
   wrongly read as a trait effect."*
-- **`genes:species` → CID (free).** The standard workflow **already** produces the null: the
+- **`genomes:species` → CID (free).** The standard workflow **already** produces the null: the
   drivers shape a genuinely heterogeneous tree, and the **neutral bulk genome** overlaid
   afterward with `zombi2 genomes` is a whole panel of real families that vary across that tree
-  *without causing any of it*. The null hands the analyst `{tree + neutral Profiles.tsv}` and
+  *without causing any of it*. The null hands the analyst `{tree + neutral profiles.tsv}` and
   **withholds** the drivers (kept only as ground-truth). No new simulation — the decoupled
   observations were there all along.
-- **`genes:traits` → CID (free).** Same trick: the modifier gene shapes a trait with real
+- **`genomes:traits` → CID (free).** Same trick: the modifier gene shapes a trait with real
   optimum shifts, then a **neutral genome** is overlaid and presented as the observed gene
   content, with the modifier withheld. The trait varies; the genes the analyst tests do not
   explain it.
-- **`traits:genes` → CID (one extra trait).** The only edge whose observable is a *trait*, so
+- **`traits:genomes` → CID (one extra trait).** The only edge whose observable is a *trait*, so
   there is no free genome to reuse: a **hidden** trait drives the panel's retention while a
   **second, independent neutral trait** — one extra `simulate_traits` call on the same tree — is
   presented as the observed trait. The panel carries real, trait-shaped heterogeneity that the
@@ -158,7 +158,7 @@ shared branch length allows.](../img/coevolve_null_timing.svg)
   Both are computed from the parameters and the tree's expected node count — no realized run is
   inspected. Sister tips now differ *no more than their shared branch length allows*, so a
   detector keyed on node-concentrated change should not fire.
-- **`species:genes` → timing.** Replace the founder-effect burst with matched anagenetic
+- **`species:genomes` → timing.** Replace the founder-effect burst with matched anagenetic
   `loss`/`origination` — the per-event `cladogenetic_loss`/`cladogenetic_gain` × `E[n]` nodes,
   spread over branch length as a constant rate — so the *same* expected total gene turnover is
   applied gradually. The punctuational signature — *sister tips differ because change was
@@ -193,9 +193,9 @@ message pointing here.
 
 **The three gene/trait `cid` nulls are a *workflow*, not a model method** — their honest null is
 not a reparameterised model but "run the coupled model, then observe a **neutral channel on the
-same tree** while withholding the driver" (see above). For `genes:species` and `genes:traits`
+same tree** while withholding the driver" (see above). For `genomes:species` and `genomes:traits`
 that channel is the neutral genome you already overlay with [`zombi2 genomes`](../cli.md); for
-`traits:genes` it is one extra `simulate_traits` call. The CLI `--null cid` (below) orchestrates
+`traits:genomes` it is one extra `simulate_traits` call. The CLI `--null cid` (below) orchestrates
 this and records the hidden driver as ground-truth; in Python it is the ordinary `simulate_*`
 call plus the neutral overlay.
 
@@ -236,12 +236,12 @@ zombi2 coevolve --couple traits:species --sse-model bisse --null cid --hidden 2 
     --tips 200 --seed 1 -o out/null
 
 # Timing null for the punctuational genome: same turnover, spread along branches
-zombi2 coevolve --couple species:genes -t species_tree.nwk --null timing \
+zombi2 coevolve --couple species:genomes -t species_tree.nwk --null timing \
     --genome-size 30 --clado-gene-loss 0.15 --clado-gene-gain 3 --seed 2 -o out/null_punct
 
-# CID workflow (genes:species): the drivers shape the tree, a NEUTRAL overlay genome is the
-# observed data (Profiles.tsv), the drivers are withheld in drivers_ground_truth.tsv
-zombi2 coevolve --couple genes:species --drivers 2 --driver-speciation 1.4 \
+# CID workflow (genomes:species): the drivers shape the tree, a NEUTRAL overlay genome is the
+# observed data (profiles.tsv), the drivers are withheld in drivers_ground_truth.tsv
+zombi2 coevolve --couple genomes:species --drivers 2 --driver-speciation 1.4 \
     --tips 60 --null cid --genome-size 30 --seed 1 -o out/cid_genes
 ```
 
@@ -250,7 +250,7 @@ The valid `--null` values depend on the edge (see the table): the state→rate e
 runs the ordinary coupled model. An invalid combination errors early, pointing back here.
 
 The three gene/trait `cid` workflows overlay a neutral genome (a plain `transfer=1.0`, `loss=0.5`
-panel of `--genome-size` families) or, for `traits:genes`, a second independent neutral trait — the
+panel of `--genome-size` families) or, for `traits:genomes`, a second independent neutral trait — the
 neutral rates are recorded in the manifest; re-run [`zombi2 genomes`](../cli.md) for other rates.
 
 ### Provenance
@@ -284,7 +284,7 @@ coevolution [validation](coevolution.md) suite:
 - **`cid` nulls** — the *observed* driver is statistically independent of the target's
   heterogeneity, by construction. For `traits:species`, the tip-state fraction is uncorrelated
   with clade size even though clade sizes vary widely (the existing
-  `test_hisse_hidden_drives_diversification_not_observed` is the template). For `genes:species`,
+  `test_hisse_hidden_drives_diversification_not_observed` is the template). For `genomes:species`,
   observed-driver prevalence is uncorrelated with the rate the tree actually experienced.
 - **`timing` nulls** — the punctuational signature is absent: sister-tip divergence is
   explained by shared branch length alone (no excess at nodes), while the marginal amount of
@@ -313,7 +313,7 @@ where it sits among all of ZOMBI2's rates, is the next page: [Rates: a primer](r
   CID null.)
 - Maddison, W. P. & FitzJohn, R. G. (2015). The unsolved challenge to phylogenetic correlation
   tests for categorical characters. *Systematic Biology* 64(1): 127–136. (Proper nulls for
-  trait-correlation tests — the same problem for `traits:genes`/`genes:traits`.)
+  trait-correlation tests — the same problem for `traits:genomes`/`genomes:traits`.)
 - Uyeda, J. C., Zenil-Ferguson, R. & Pennell, M. W. (2018). Rethinking phylogenetic comparative
   methods. *Systematic Biology* 67(6): 1091–1109. (Unreplicated bursts and the limits of what a
   single tree can distinguish — why the `timing` nulls matter.)

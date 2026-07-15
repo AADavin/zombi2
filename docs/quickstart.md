@@ -11,7 +11,7 @@ the **command line**; the same run in **Python** and the full list of outputs fo
 zombi2 species --birth 1 --death 0.3 --tips 20 --age 5 --seed 1 -o out/
 
 # 2. gene families along it. --write all also emits the ground-truth event tables
-#    (Gene_family_summary.tsv, gene_family_events/, Transfers.tsv) — the DTL "truth" of the run.
+#    (gene_family_summary.tsv, gene_family_events/, transfers.tsv) — the DTL "truth" of the run.
 zombi2 genomes --tree out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 \
     --initial-families 40 --write all -o out/
 ```
@@ -53,17 +53,17 @@ keeps minting new families along the tree, so the final family count grows past
 | `species_nodes.tsv` | node name, time, leaf/extant flags |
 | `gene_family_events/<fid>_events.tsv` | per-family event log (see the event codes below) |
 | `gene_trees/<fid>_complete.nwk` / `_extant.nwk` | reconstructed gene trees (with / without losses) |
-| `Transfers.tsv` | every transfer (donor, recipient, ids) |
-| `Gene_family_summary.tsv` | per-family event counts and extant copies |
-| `Events_trace.tsv` | compact one-row-per-event trace (O/D/T/L), replayable by `zombi2 sequence` |
-| `Profiles.tsv` / `Presence.tsv` | families × species copy-number / presence matrix |
+| `transfers.tsv` | every transfer (donor, recipient, ids) |
+| `gene_family_summary.tsv` | per-family event counts and extant copies |
+| `events_trace.tsv` | compact one-row-per-event trace (O/D/T/L), replayable by `zombi2 sequences` |
+| `profiles.tsv` / `presence.tsv` | families × species copy-number / presence matrix |
 
 Event codes used in the logs and the trace: **O** origination · **D** duplication ·
 **T** transfer · **S** speciation · **L** loss (each row also carries the gene-lineage ids it
 touches).
 
 The Python `write()` saves **all** of these by default. The `zombi2 genomes` **command line**
-writes a subset — `Profiles.tsv`, `Presence.tsv` and `gene_trees/` (its `--write` default is
+writes a subset — `profiles.tsv`, `presence.tsv` and `gene_trees/` (its `--write` default is
 `profiles trees`); pass `--write all` for the full set above.
 
 ## Next steps

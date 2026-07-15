@@ -4,7 +4,7 @@ Species trees and gene trees in ZOMBI2 are **timetrees** — branch lengths are 
 branch lengths you would infer from *sequence data*, ZOMBI2 turns each gene tree into evolving
 **molecular sequences** in two stages: first a **relaxed clock** rescales the tree from time into
 expected **substitutions per site** (a chronogram into a phylogram), then a **substitution process**
-evolves an actual alignment down it. Both run from the [`zombi2 sequence`](../cli.md) command (or
+evolves an actual alignment down it. Both run from the [`zombi2 sequences`](../cli.md) command (or
 `SequenceEvolution` / `evolve_on_tree` in Python).
 
 <figure markdown="span">
@@ -21,8 +21,8 @@ variation. A *relaxed* clock lets the rate change branch to branch, either **unc
 draws, a branch's rate says nothing about its neighbours') or **autocorrelated** (a branch's rate is
 anchored to its parent's, so nearby lineages evolve at similar rates). ZOMBI2 ships a whole family of
 clocks in the `zombi2.sequences` namespace, all sharing one `Clock` interface — `scale(tree, seed=...)`
-returns the phylogram — differing only in how the per-branch rate is drawn. In the language of
-[Rates: a primer](rates.md), a relaxed clock is a **per-branch modifier** on the substitution rate,
+returns the phylogram — differing only in how the per-lineage rate is drawn. In the language of
+[Rates: a primer](rates.md), a relaxed clock is a **per-lineage modifier** on the substitution rate,
 and among-site variation (gamma rates) is the matching **per-site modifier** — the same idea applied
 to two different contexts.
 
@@ -176,7 +176,7 @@ branches (after pruning) just sums the pieces.
 `s_g` is drawn at random, but you can also **name** a specific family's speed: pass
 `family_factors={family_id: factor}` (CLI `--family-speeds FILE`), the sequence-level analogue of
 [`FamilyModifier`](rates.md#modifiers-context-that-rescales-the-base). A named factor **multiplies**
-the random `s_g` and the branch clock `R_b` — so you can make one gene evolve, say, 3× faster while
+the random `s_g` and the lineage clock `R_b` — so you can make one gene evolve, say, 3× faster while
 branch and random effects still apply. Families not listed keep a factor of `1`.
 
 ```python
@@ -232,7 +232,7 @@ from zombi2.sequences import (
 tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.3), n_tips=30, age=8.0, seed=1)
 
 # Pick any clock and rescale time -> expected substitutions/site (a phylogram).
-clock = UncorrelatedLogNormalClock(sigma=0.5, mean=1.0)   # i.i.d. lognormal per branch
+clock = UncorrelatedLogNormalClock(sigma=0.5, mean=1.0)   # i.i.d. lognormal per lineage
 phylo = clock.scale(tree, seed=2)
 
 phylo.to_newick()             # the phylogram in Newick (substitution branch lengths)
@@ -255,7 +255,7 @@ drive one shared lineage clock across every gene family at once, pass the clock 
 
 ### From the CLI
 
-Sequence evolution is a **separate command**, `zombi2 sequence`, run on a prior `genomes`
+Sequence evolution is a **separate command**, `zombi2 sequences`, run on a prior `genomes`
 result — so you can retune the clock without re-simulating gene content. `genomes` just has to
 have written the event trace (`trace` in `--write`):
 
@@ -264,12 +264,12 @@ zombi2 genomes  -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 
     --write trace profiles -o run/
 
 # any clock in the family via --clock (here an uncorrelated lognormal)
-zombi2 sequence --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
+zombi2 sequences --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
     --family-speed 0.5 -o run/
 
 # the autocorrelated lognormal and the discrete-bin GTDB clock also have shorthands
-zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
-zombi2 sequence --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
+zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+zombi2 sequences --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
     --family-speed 0.5 -o run/
 ```
 
@@ -282,7 +282,7 @@ discrete-bin clocks. Parameter defaults are `--clock-mean 1.0`, `--clock-sigma 0
 `--clock-shape 3.0`, and `--clock-theta 1.0`. The discrete-bin shorthand also takes
 `--branch-switch-rate` and `--branch-up-bias`.
 
-`sequence` replays `run/Events_trace.tsv`, rebuilds the reconciled gene trees, and writes
+`sequence` replays `run/events_trace.tsv`, rebuilds the reconciled gene trees, and writes
 `run/gene_trees/<family>_extant_subst.nwk` (and `_complete_subst.nwk`), plus
 `gene_family_speeds.tsv` and `branch_rates.tsv` recording the drawn `s_g` and `R_b` for
 reproducibility. A lineage clock alone (any `--clock`, `--branch-speed`, or `--branch-bins`) is a
@@ -291,9 +291,9 @@ gene × lineage model. `--family-speed SIGMA` draws each family's constant multi
 
 ### Clock output
 
-`zombi2 sequence` writes, into the output directory: `gene_trees/` — the rescaled substitution-unit
+`zombi2 sequences` writes, into the output directory: `gene_trees/` — the rescaled substitution-unit
 gene trees, `<family>_complete_subst.nwk` and `<family>_extant_subst.nwk` per family;
-`branch_rates.tsv` — the per-species-branch clock rate applied to the shared lineage clock;
+`branch_rates.tsv` — the per-lineage clock rate applied to the shared lineage clock;
 `gene_family_speeds.tsv` — each family's intrinsic `--family-speed` multiplier; and `sequence.log`,
 the run manifest. Adding `--subst-model` also writes an `alignments/` directory of simulated
 DNA/protein alignments, one per family.
@@ -343,11 +343,11 @@ its records headed by the same `<species>_<gene-id>` labels the leaves carry in 
 
 ```bash
 # DNA alignments (HKY85), 600 bp
-zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
+zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
     --subst-model hky85 --seq-length 600 -o run/
 
 # protein alignments under LG, 300 aa, with +Γ across-site rate heterogeneity
-zombi2 sequence --genomes run/ --branch-speed 0.4 \
+zombi2 sequences --genomes run/ --branch-speed 0.4 \
     --subst-model lg --seq-length 300 --gamma-shape 0.5 -o run/
 ```
 
@@ -426,7 +426,7 @@ nearly uniform. Use it whenever real substitution rates vary from one site to th
 
 ### DNA from the command line
 
-Sequence simulation is its own step: run [`zombi2 sequence`](../cli.md#sequence) on a `genomes` run
+Sequence simulation is its own step: run [`zombi2 sequences`](../cli.md#sequence) on a `genomes` run
 that was written with `trace` in `--write`. `--subst-model` picks the model (`jc69`/`k80`/`hky85`/`gtr`
 for DNA; the name auto-detects DNA vs protein), and the model-specific knobs are `--kappa`,
 `--base-freqs`, `--gtr-rates`, and `--gamma-shape`. Omit `--subst-model` to only rescale the trees
@@ -439,17 +439,17 @@ zombi2 genomes -t run/species_tree.nwk --dup 0.3 --trans 0.1 --loss 0.3 \
     --orig 0.5 --write trace --seed 1 -o run/
 
 # JC69 — no free parameters
-zombi2 sequence --genomes run/ --subst-model jc69 --branch-speed 0.4 --seed 7 -o jc/
+zombi2 sequences --genomes run/ --subst-model jc69 --branch-speed 0.4 --seed 7 -o jc/
 
 # K80 with a transition/transversion ratio
-zombi2 sequence --genomes run/ --subst-model k80 --kappa 4 --seed 7 -o k80/
+zombi2 sequences --genomes run/ --subst-model k80 --kappa 4 --seed 7 -o k80/
 
 # HKY85: ti/tv bias plus unequal base frequencies (A C G T)
-zombi2 sequence --genomes run/ --subst-model hky85 --kappa 4 \
+zombi2 sequences --genomes run/ --subst-model hky85 --kappa 4 \
     --base-freqs 0.4 0.1 0.1 0.4 --seed 7 -o hky/
 
 # GTR: 6 exchangeabilities [AC AG AT CG CT GT] + base freqs, with +Gamma across sites
-zombi2 sequence --genomes run/ --subst-model gtr \
+zombi2 sequences --genomes run/ --subst-model gtr \
     --gtr-rates 1 2.5 1 1 2.5 1 --base-freqs 0.3 0.2 0.2 0.3 \
     --gamma-shape 0.5 --branch-speed 0.4 --seed 7 -o gtr/
 ```
@@ -488,12 +488,12 @@ seqs = evolve_on_tree(root, subst, model, np.random.default_rng(0),
 g = gtr(rates=(1, 2.5, 1, 1, 2.5, 1), freqs=(0.3, 0.2, 0.2, 0.3))
 ```
 
-In practice you drive this through the `zombi2 sequence` command (or `SequenceEvolution`), which
+In practice you drive this through the `zombi2 sequences` command (or `SequenceEvolution`), which
 supplies the rescaled gene trees; `evolve_on_tree` is the low-level engine underneath.
 
 ### DNA output
 
-`zombi2 sequence --subst-model MODEL` writes, under `-o`:
+`zombi2 sequences --subst-model MODEL` writes, under `-o`:
 `gene_trees/` with the substitution-unit phylograms (`<fam>_complete_subst.nwk` and
 `<fam>_extant_subst.nwk` per family), `alignments/<fam>.fasta` with the simulated per-family DNA
 alignment (one record per surviving gene copy), `branch_rates.tsv` and `gene_family_speeds.tsv`
@@ -604,11 +604,11 @@ zombi2 genomes -t run/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0
     --write trace --seed 1 -o run/
 
 # 2) evolve LG protein alignments along the rescaled gene trees
-zombi2 sequence --genomes run/ --subst-model lg --seq-length 200 \
+zombi2 sequences --genomes run/ --subst-model lg --seq-length 200 \
     --branch-speed 0.4 --seed 7 -o seqs/
 
 # WAG with across-site rate heterogeneity
-zombi2 sequence --genomes run/ --subst-model wag --gamma-shape 0.5 --seed 7 -o seqs/
+zombi2 sequences --genomes run/ --subst-model wag --gamma-shape 0.5 --seed 7 -o seqs/
 ```
 
 ### Protein from Python
@@ -768,19 +768,19 @@ sequences).
 zombi2 genomes -t species_tree.nwk -o out --dup 0.3 --loss 0.3 --write trace --seed 1
 
 # GY94 under strong purifying selection (dN/dS = 0.1), 200 codons = 600 bp
-zombi2 sequence --genomes out -o out --subst-model gy94 --omega 0.1 --kappa 3 \
+zombi2 sequences --genomes out -o out --subst-model gy94 --omega 0.1 --kappa 3 \
   --seq-length 200 --branch-speed 0.4 --seed 1
 
 # MG94 with positive selection (dN/dS = 2) and skewed base frequencies
-zombi2 sequence --genomes out -o out --subst-model mg94 --omega 2.0 \
+zombi2 sequences --genomes out -o out --subst-model mg94 --omega 2.0 \
   --base-freqs 0.32 0.18 0.22 0.28 --seed 1
 
 # site model M2a: dN/dS varies across sites (50% purifying, 30% neutral, 20% positive)
-zombi2 sequence --genomes out -o out --subst-model gy94 --omega-model m2a \
+zombi2 sequences --genomes out -o out --subst-model gy94 --omega-model m2a \
   --omega-p0 0.5 --omega0 0.05 --omega-p1 0.3 --omega2 3.0 --seed 1
 
 # site model M8: a Beta(0.5,2) bulk plus a 10% positive class at ω = 2.5
-zombi2 sequence --genomes out -o out --subst-model gy94 --omega-model m8 \
+zombi2 sequences --genomes out -o out --subst-model gy94 --omega-model m8 \
   --beta-p 0.5 --beta-q 2 --omega-p0 0.9 --omega-s 2.5 --seed 1
 ```
 
