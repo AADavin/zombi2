@@ -40,7 +40,7 @@ from zombi2.coevolve.cladogenetic_genome import (
     CladogeneticGenome, simulate_cladogenetic_genome, _branch_count_and_length,
 )
 from zombi2.coevolve.gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
-from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
+from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_conditioned_genomes
 from zombi2.coevolve.trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
 from zombi2.traits.models import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -954,7 +954,7 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
 
     # 3) run
     t0 = time.perf_counter()
-    res = simulate_trait_linked_genomes(tree, result, coupling, trait_steps=args.trait_steps, rng=rng)
+    res = simulate_trait_conditioned_genomes(tree, result, coupling, trait_steps=args.trait_steps, rng=rng)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.out, exist_ok=True)
@@ -1400,7 +1400,7 @@ def _run_traits_genes_cid_null(args: argparse.Namespace, parser: argparse.Argume
         transfer=args.trans, duplication=args.dup, origination=args.orig,
         state_values=state_values, rng=rng)
     t0 = time.perf_counter()
-    res = simulate_trait_linked_genomes(tree, hidden_trait, coupling, trait_steps=args.trait_steps,
+    res = simulate_trait_conditioned_genomes(tree, hidden_trait, coupling, trait_steps=args.trait_steps,
                                         rng=rng)
     observed_trait = simulate_traits(tree, _build_trait_model(args), rng=rng)   # independent, decoupled
     dt = time.perf_counter() - t0
@@ -2896,8 +2896,10 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                             "uncorrelated-gamma", "white-noise", "cir", "discrete-bin"],
                    help="relaxed clock model: strict | autocorrelated-lognormal | "
                         "uncorrelated-lognormal | uncorrelated-gamma | white-noise | cir | "
-                        "discrete-bin (default: autocorrelated-lognormal via --branch-speed, "
-                        "or discrete-bin if --branch-bins is given)")
+                        "discrete-bin. Its parameters are the --clock-* flags below (--clock-sigma "
+                        "for the lognormal/white-noise/cir spread; --clock-bins/--clock-switch-rate/"
+                        "--clock-up-bias for discrete-bin). Default: autocorrelated-lognormal with "
+                        "no rate variation (sigma 0)")
     g.add_argument("--clock-mean", type=float, default=1.0, metavar="M",
                    help="mean / strict / root rate of the clock (default 1.0)")
     g.add_argument("--clock-sigma", type=float, default=0.5, metavar="SIGMA",
@@ -2908,15 +2910,19 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "mean (default 3.0)")
     g.add_argument("--clock-theta", type=float, default=1.0, metavar="THETA",
                    help="[--clock cir] CIR mean-reversion speed (default 1.0)")
+    # --branch-speed is the deprecated shorthand for `--clock autocorrelated-lognormal --clock-sigma`
+    # (byte-identical); the discrete-bin knobs are the deprecated --branch-* spellings of --clock-*.
     g.add_argument("--branch-speed", type=float, default=0.0, metavar="SIGMA",
-                   help="shorthand for the autocorrelated-lognormal clock: drift SIGMA per "
-                        "sqrt(time) (0 = strict). Used when --clock is not given")
-    g.add_argument("--branch-bins", default=None, metavar="R1,R2,...",
+                   help=argparse.SUPPRESS)
+    g.add_argument("--clock-bins", "--branch-bins", dest="clock_bins", default=None, metavar="R1,R2,...",
                    help="[--clock discrete-bin] comma-separated ORDERED rate multipliers "
-                        "(e.g. 0.25,0.5,1,2,4), a Markov walk between adjacent bins")
-    g.add_argument("--branch-switch-rate", type=float, default=1.0, metavar="RATE",
+                        "(e.g. 0.25,0.5,1,2,4), a Markov walk between adjacent bins "
+                        "(--branch-bins is a deprecated alias)")
+    g.add_argument("--clock-switch-rate", "--branch-switch-rate", dest="clock_switch_rate",
+                   type=float, default=1.0, metavar="RATE",
                    help="[--clock discrete-bin] rate of stepping to a neighbouring bin (default 1.0)")
-    g.add_argument("--branch-up-bias", type=float, default=0.5, metavar="P",
+    g.add_argument("--clock-up-bias", "--branch-up-bias", dest="clock_up_bias",
+                   type=float, default=0.5, metavar="P",
                    help="[--clock discrete-bin] probability a step goes to the faster neighbour "
                         "(default 0.5 = symmetric walk)")
 
@@ -2982,14 +2988,14 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
 def _build_lineage_clock(args: argparse.Namespace):
     """Resolve the sequence command's lineage-clock flags to a (Clock, description) pair.
 
-    ``--clock`` selects the model explicitly; without it we fall back to the historical flags
-    (``--branch-bins`` -> discrete-bin, otherwise the autocorrelated lognormal at
+    ``--clock`` selects the model explicitly; without it we fall back to the historical shorthand
+    (``--clock-bins`` -> discrete-bin, otherwise the autocorrelated lognormal at the deprecated
     ``--branch-speed``), so old command lines keep working.
     """
     mean = args.clock_mean
     model = args.clock
     if model is None:
-        model = "discrete-bin" if args.branch_bins else "autocorrelated-lognormal-legacy"
+        model = "discrete-bin" if args.clock_bins else "autocorrelated-lognormal-legacy"
 
     if model == "strict":
         return StrictClock(mean), f"strict {mean:g}"
@@ -3012,11 +3018,11 @@ def _build_lineage_clock(args: argparse.Namespace):
         return CIRClock(theta=args.clock_theta, sigma=args.clock_sigma, mean=mean), \
             f"cir theta={args.clock_theta:g} sigma={args.clock_sigma:g}"
     if model == "discrete-bin":
-        if not args.branch_bins:
-            raise ValueError("--clock discrete-bin needs --branch-bins R1,R2,... (ordered rates)")
-        bins = [float(x) for x in args.branch_bins.split(",") if x.strip() != ""]
-        return RateVariation(bins=bins, switch_rate=args.branch_switch_rate,
-                             up_bias=args.branch_up_bias), f"discrete-bin [{args.branch_bins}]"
+        if not args.clock_bins:
+            raise ValueError("--clock discrete-bin needs --clock-bins R1,R2,... (ordered rates)")
+        bins = [float(x) for x in args.clock_bins.split(",") if x.strip() != ""]
+        return RateVariation(bins=bins, switch_rate=args.clock_switch_rate,
+                             up_bias=args.clock_up_bias), f"discrete-bin [{args.clock_bins}]"
     raise ValueError(f"unknown --clock {model!r}")
 
 
@@ -3066,10 +3072,10 @@ def _run_sequence(args: argparse.Namespace) -> str:
 
     if args.family_speed < 0 or args.branch_speed < 0:
         raise ValueError("--family-speed / --branch-speed must be >= 0")
-    if args.clock is None and args.branch_speed > 0 and args.branch_bins:
-        raise ValueError("--branch-speed (lognormal clock) and --branch-bins (discrete-bin "
-                         "clock) are two lineage clocks; give at most one, or select one "
-                         "explicitly with --clock")
+    if args.clock is None and args.branch_speed > 0 and args.clock_bins:
+        raise ValueError("--branch-speed (autocorrelated lognormal) and --clock-bins (discrete-bin) "
+                         "are two lineage clocks; give at most one, or select one explicitly with "
+                         "--clock")
     lineage_clock, clock_desc = _build_lineage_clock(args)
     model = None
     if args.subst_model and args.omega_model:
@@ -3732,10 +3738,10 @@ def main(argv: list[str] | None = None) -> int:
         aliases=["sequence"],
         epilog=_examples(
             "  # rescale gene trees into substitutions/site (needs a 'genomes' run done with --write trace)",
-            "  zombi2 sequences --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/",
+            "  zombi2 sequences --genomes out/ --clock autocorrelated-lognormal --clock-sigma 0.4 --family-speed 0.5 --seed 7 -o out/",
             "",
             "  # ...and also simulate DNA alignments under HKY85",
-            "  zombi2 sequences --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
+            "  zombi2 sequences --genomes out/ --subst-model hky85 --clock autocorrelated-lognormal --clock-sigma 0.4 --seed 7 -o out/",
         ))
 
     _add_subcommand(
@@ -3785,6 +3791,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"warning: 'zombi2 {args.command}' is deprecated; use 'zombi2 {canonical}'.",
               file=sys.stderr)
         args.command = canonical
+    # The sequence-clock --branch-* shortcuts were folded into the --clock interface; warn on use.
+    if args.command == "sequences":
+        _DEPRECATED_CLOCK_FLAGS = {
+            "--branch-speed": "--clock autocorrelated-lognormal --clock-sigma",
+            "--branch-bins": "--clock-bins", "--branch-switch-rate": "--clock-switch-rate",
+            "--branch-up-bias": "--clock-up-bias",
+        }
+        for _tok in (argv if argv is not None else sys.argv[1:]):
+            _repl = _DEPRECATED_CLOCK_FLAGS.get(_tok.split("=", 1)[0])
+            if _repl is not None:
+                print(f"warning: {_tok.split('=', 1)[0]} is deprecated; use {_repl}.", file=sys.stderr)
     try:
         return _dispatch(args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:

@@ -206,12 +206,13 @@ zombi2 sequences --genomes run/ --clock cir --clock-theta 1.0 --clock-sigma 0.4 
 `uncorrelated-gamma`, `white-noise`, `cir`, or `discrete-bin`. Its parameter is supplied by
 `--clock-sigma` (the spread of the lognormal, white-noise and CIR clocks), `--clock-shape` (the gamma
 shape), `--clock-theta` (the CIR mean-reversion speed), and `--clock-mean` (the target/strict/root
-rate, default 1); the discrete-bin clock reads its bins from `--branch-bins`. The output is exactly as
+rate, default 1); the discrete-bin clock reads its bins from `--clock-bins`. The output is exactly as
 in Chapter 14 — one phylogram per family under `run/gene_trees/`, plus `gene_family_speeds.tsv` and
 `branch_rates.tsv` recording the drawn rates.
 
-The historical flags still work: `--branch-speed SIGMA` is the autocorrelated lognormal clock and
-`--branch-bins R1,R2,...` the discrete-bin one, so old command lines are unchanged.
+The old `--branch-*` spellings still work as deprecated aliases — `--branch-speed SIGMA` is
+`--clock autocorrelated-lognormal --clock-sigma SIGMA`, and `--branch-bins`/`--branch-switch-rate`/`--branch-up-bias`
+are `--clock-bins`/`--clock-switch-rate`/`--clock-up-bias` — so old command lines are unchanged.
 
 ::: tip
 Because `sequence` only replays the event trace on disk, one expensive `genomes` run feeds any number

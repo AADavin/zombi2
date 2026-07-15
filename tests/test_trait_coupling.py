@@ -29,7 +29,7 @@ from zombi2 import (
 from zombi2.genomes.events import EventType
 from zombi2.genomes.genome import Gene, IdManager, UnorderedGenome
 from zombi2.coevolve.trait_coupling import (
-    TraitGeneCoupling, TraitLinkedRates, TraitTrajectory, simulate_trait_linked_genomes,
+    TraitGeneCoupling, TraitGeneRates, TraitTrajectory, simulate_trait_conditioned_genomes,
 )
 from zombi2.tree import Tree, TreeNode
 
@@ -151,7 +151,7 @@ def test_loss_modulation_formula():
                                  effect_loss=2.0, base_loss=1.5, transfer=0.4)
     s = 0.75
     traj = TraitTrajectory(starts={}, vals={}, boundaries=[], default=s)
-    rates = TraitLinkedRates(coupling, traj)
+    rates = TraitGeneRates(coupling, traj)
 
     weights = {(ew.event, ew.family): ew.rate
                for ew in rates.event_weights(_genome(["F0", "F1"]), "b", 0.0)}
@@ -164,7 +164,7 @@ def test_effect_gain_scales_transfer():
     coupling = TraitGeneCoupling(n_families=1, weights=np.array([1.0]),
                                  effect_gain=0.5, transfer=1.0, base_loss=1.0)
     traj = TraitTrajectory(starts={}, vals={}, boundaries=[], default=2.0)
-    rates = TraitLinkedRates(coupling, traj)
+    rates = TraitGeneRates(coupling, traj)
     tr = next(ew.rate for ew in rates.event_weights(_genome(["F0"]), "b", 0.0)
               if ew.event is EventType.TRANSFER)
     assert tr == pytest.approx(1.0 * 1 * math.exp(0.5 * 2.0))
@@ -194,7 +194,7 @@ def test_inject_recover_trait_tracks_responsive_families():
 
     coupling = TraitGeneCoupling.build(40, 0.5, weight=1.0, effect_loss=3.0,
                                        base_loss=1.0, transfer=0.4, seed=9)
-    res = simulate_trait_linked_genomes(tree, trait, coupling, seed=13)
+    res = simulate_trait_conditioned_genomes(tree, trait, coupling, seed=13)
 
     pres = res.profiles.presence()                         # (40, n_species) 0/1
     order = res.profiles.species
@@ -219,8 +219,8 @@ def test_driver_shape_and_reproducible():
     mk = Mk.equal_rates(2, 0.5)
     coupling = TraitGeneCoupling.build(16, 0.5, effect_loss=2.0, seed=3)
 
-    a = simulate_trait_linked_genomes(tree, mk, coupling, seed=100)
-    b = simulate_trait_linked_genomes(tree, mk, coupling, seed=100)
+    a = simulate_trait_conditioned_genomes(tree, mk, coupling, seed=100)
+    b = simulate_trait_conditioned_genomes(tree, mk, coupling, seed=100)
     assert a.profiles.shape == (16, len(tree.extant_leaves()))
     assert np.array_equal(a.profiles.matrix, b.profiles.matrix)   # same seed → identical
     assert a.genomes().profiles.shape == a.profiles.shape          # promotes to Genomes
@@ -232,7 +232,7 @@ def test_zero_effect_is_uncoupled():
     trait = simulate_traits(tree, Mk.equal_rates(2, 0.6), seed=4)
     coupling = TraitGeneCoupling.build(30, 0.5, weight=1.0, effect_loss=0.0,
                                        base_loss=0.6, transfer=0.5, seed=5)
-    res = simulate_trait_linked_genomes(tree, trait, coupling, seed=6)
+    res = simulate_trait_conditioned_genomes(tree, trait, coupling, seed=6)
     # responsive and inert families have indistinguishable prevalence (coupling is off)
     pres = res.profiles.presence()
     resp = [coupling.index[i] for i in coupling.responsive_ids]

@@ -148,9 +148,9 @@ Each event type fires at a constant per-genome rate (independent of copy number)
 sizes grow linearly rather than exponentially:
 
 ```python
-from zombi2.genomes import simulate_genomes, PerGenomeRates
+from zombi2.genomes import simulate_genomes, PerLineageRates
 
-genomes = simulate_genomes(tree, PerGenomeRates(
+genomes = simulate_genomes(tree, PerLineageRates(
     duplication=0.5, transfer=0.3, loss=0.4, origination=0.5), seed=42)
 ```
 

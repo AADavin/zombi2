@@ -175,11 +175,11 @@ the phylograms:
 ```bash
 zombi2 genomes  -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
-zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 --family-speed 0.5 -o run/
 ```
 
 The rescaling model is `rate(family g, species branch b) = R_b · s_g`: a **shared lineage clock**
-`R_b` (either `--branch-speed` autocorrelated lognormal, or `--branch-bins` for the discrete-bin
+`R_b` (either `--clock-sigma` autocorrelated lognormal, or `--clock-bins` for the discrete-bin
 GTDB model) times a **per-family speed** `s_g ~ LogNormal(0, --family-speed)`. It writes
 `gene_trees/<family>_extant_subst.nwk` (+ `_complete_subst.nwk`) and, for reproducibility,
 `gene_family_speeds.tsv` / `branch_rates.tsv`. See
@@ -273,7 +273,7 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | Option | Meaning |
 | --- | --- |
 | `--tree` / `-t` | input species tree in Newick format |
-| `--genome-resolution {unordered,ordered,nucleotide}` | genome level: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
+| `--genome-resolution {unordered,ordered,nucleotide}` | genome resolution: `unordered` (default) evolves gene families with no positional structure; `ordered` places genes on a chromosome where order matters (adds inversion/transposition on gene segments); `nucleotide`: nucleotide-resolution genomes with variable-length structural events ([see below](#nucleotide-genomes-genome-model-nucleotide)) |
 | `--rate-per {copy,lineage}` | what each rate is counted per — the opportunity that scales it: `copy` (default, Rust): per gene copy, so totals grow with genome size; `lineage` (Python): a constant rate per lineage (the whole genome as one unit), linear growth. Per-family rates come from `--family-rates`; nucleotide is always per nucleotide. (`genome` is a deprecated alias of `lineage`; `--rate-model {shared,per-genome,family}` is the deprecated old spelling) |
 | `--dup` `--trans` `--loss` `--orig` | duplication / transfer / loss / origination rates (per copy; **per nucleotide** for `--genome-resolution nucleotide`) |
 | `--conversion` `--conversion-bias` | intra-genome gene-conversion rate (per copy; one copy overwrites another of the same family — concerted evolution) and its donor directionality in `[0,1]` (0 = uniform donor, 1 = the oldest copy). Unordered genomes, per-copy rates; runs on the Python engine |
@@ -322,8 +322,8 @@ Substitution branch lengths (sequence evolution) are a **separate step** — run
 | --- | --- |
 | `--genomes DIR` | a prior `genomes` output directory — reads its `species_tree.nwk` + `events_trace.tsv` (run `genomes` with `trace` in `--write`) (required) |
 | `--family-speed SIGMA` | per-family intrinsic substitution speed `~ LogNormal(0, SIGMA)`, constant per family (`0` = every family the same) |
-| `--branch-speed SIGMA` | shared lineage clock — autocorrelated lognormal relaxed clock, drift `SIGMA` per `√time` (`0` = strict). Exclusive with `--branch-bins` |
-| `--branch-bins R1,R2,...` | alternative lineage clock — the discrete-bin GTDB model: ordered rate multipliers, a Markov walk between adjacent bins (`--branch-switch-rate`, `--branch-up-bias`) |
+| `--clock-sigma SIGMA` | shared lineage clock — autocorrelated lognormal relaxed clock, drift `SIGMA` per `√time` (`0` = strict). Exclusive with `--clock-bins` |
+| `--clock-bins R1,R2,...` | alternative lineage clock — the discrete-bin GTDB model: ordered rate multipliers, a Markov walk between adjacent bins (`--clock-switch-rate`, `--clock-up-bias`) |
 | `--subst-model MODEL` | simulate an alignment per family: DNA (`jc69`, `k80`, `hky85`, `gtr`), protein (`poisson`, `lg`, `wag`, `jtt`, `dayhoff`) or codon (`gy94`, `mg94`); auto-detected. Omit to only rescale the trees (no sequences) |
 | `--seq-length N` | alignment length in sites (default `300`; **codons** for `gy94`/`mg94` → 3N nt); ignored where `--root-fasta` seeds a family's root |
 | `--root-fasta FILE` | FASTA (optionally `.gz`) of per-family root sequences keyed by family id — seeds each family's root instead of a random draw; its length overrides `--seq-length` per family |
