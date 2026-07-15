@@ -186,10 +186,11 @@ Not all rungs cost the same. In rough order of effort:
 
 - **A — Species knob.** ✅ `BirthDeath(per="lineage"|"shared")`; `--per` on `zombi2 species`;
   `SharedBirthDeath` → deprecated preset. Pure surface; byte-identical. *(shipped)*
-- **B — Genome knob (existing rungs).** `Rates(per="copy"|"lineage")` unifying `PerCopyRates` /
-  `PerLineageRates` under one model + `--rate-per`; give the *base* models (incl. `FamilySampledRates`)
-  a `per=` so per-family heterogeneity and opportunity are independently selectable (closes the
-  hard-coded-`copy` wrinkle above). Surface + the declarative interface (step 4).
+- **B — Genome knob (existing rungs).** ✅ `Rates(per="copy"|"lineage")` unifies `PerCopyRates` /
+  `PerLineageRates` under one model + `--rate-per`/`--per`; `FamilySampledRates` gains `per=` so
+  per-family heterogeneity and opportunity are independently selectable (closes the hard-coded-`copy`
+  wrinkle above); Rust gate generalised to `isinstance(rates, Rates) and per=="copy"`. Byte-identical.
+  *(shipped; the declarative interface — step 4 — is deferred to phase C, where `shared` needs it.)*
 - **C — Genome `shared`.** The global-pool engine work (step 3). New capability; the three-panel
   duplication figure becomes its validation.
 - **D — Per-event mixing.** `Per(unit, rate)` overrides → self-limiting and mixed models.
