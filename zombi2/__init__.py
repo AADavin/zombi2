@@ -38,7 +38,7 @@ from zombi2._rust import available as rust_available
 from zombi2.species import (
     Tree, TreeNode, read_newick, prune,
     BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent,
-    CladeShiftBirthDeath, simulate_species_tree, add_ghost_lineages,
+    SharedBirthDeath, CladeShiftBirthDeath, simulate_species_tree, add_ghost_lineages,
 )
 from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
@@ -103,7 +103,7 @@ __all__ = [
     "Tree", "TreeNode", "read_newick", "prune",
     # species tree
     "BirthDeath", "Yule", "EpisodicBirthDeath", "ClaDS", "DiversityDependent",
-    "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
+    "SharedBirthDeath", "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)

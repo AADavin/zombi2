@@ -34,24 +34,65 @@ Every rate in ZOMBI2 has the same shape:
 - **modifiers** — a set of multipliers, each attached to a specific context. Default 1, and they
   multiply together.
 
+Only the **base** carries units — it is a *rate*, `time⁻¹`. **Opportunities** (a count) and
+**modifiers** (a multiplier) are both **dimensionless**: they say *how many* places and *how much
+faster*, never touching the units. The product is again a `time⁻¹` rate — the actual propensity.
+So every rate has two questions: **what are its units** (it is `time⁻¹`, always) and **per what**
+(the opportunity). The first is fixed; the second is a modelling choice, and it is the interesting one.
+
 That is the whole grammar. Speciation, duplication, substitution, trait change — all of them read
 this way. Everything below is just what each piece means at each level.
 
 ## Opportunities: "per what?"
 
-The single most clarifying question you can ask about any rate is **"per what?"**
+The single most clarifying question you can ask about any rate is **"per what?"** Every rate is per
+unit time; the choice is whether it is *also* per some object, and which. The opportunity is a
+**dimensionless count read off the current state** — it turns the base into the propensity:
+`propensity = base × opportunities`.
 
-| The event acts… | opportunities = | so a bigger … means more events |
+| The base fires… | opportunities (the count) = | total propensity |
 |---|---|---|
-| per **lineage** | 1 per living lineage | more lineages |
-| per **gene copy** | number of copies | bigger gene family / genome |
-| per **nucleotide** | sequence length | longer sequence |
+| **globally** (per the whole process) | 1 | just the base — constant |
+| per **lineage** | number of living lineages | base × N |
+| per **gene copy** | number of copies in the genome | base × copies |
+| per **nucleotide** | sequence length | base × length |
 
-This is where the "per copy vs per lineage" choice actually lives — and "per lineage" is not special
-to genomes (it is the same measure speciation uses). **Per copy** means *opportunities = number of
-copies*, so a family with 100 copies is duplicated 100× as often as a family with one. **Per lineage**
-means *opportunities = 1*, a fixed pace no matter how big the genome grows (one genome per lineage).
-Choosing between them is simply choosing what counts as an opportunity.
+**The count decides the dynamics** — specifically, whether it *tracks the quantity that is growing*:
+
+- If it **tracks** (the count grows with the thing) → **multiplicative → exponential**. A per-copy
+  duplication rate: more copies → more duplications → more copies. A per-lineage speciation rate:
+  more lineages → more speciations → more lineages.
+- If it is **fixed** (the count does not grow) → **additive → linear**. A per-genome (not per-copy)
+  loss rate stays put as copies pile up; a global speciation rate stays put as lineages pile up.
+
+This is the one place "per copy vs per lineage" actually lives, and it is the same axis up on the
+species tree and down in the genome — but **mind the word "lineage"**, because it flips:
+
+- **Species, per lineage** — each of `N` lineages speciates on its own. Opportunity = `N`, which *is*
+  the growing quantity, so it tracks → the tree grows **exponentially**. (The standard birth–death.)
+- **Genome, per copy** — each copy duplicates on its own. Opportunity = copies, the growing quantity
+  → families grow **exponentially**.
+- **Genome, per lineage** (`PerLineageRates`) — here the *genome*, not the copy, is the unit;
+  opportunity = 1 per family, fixed as copies pile up → families grow **linearly**.
+
+So "per lineage" is exponential for speciation but linear for a gene family — *same words, opposite
+scaling* — because in one case the lineages are what grows and in the other the copies are. The rule
+is always the same: **does the opportunity count track the growing quantity?**
+
+**And "per what" is really "independent, or shared?"** A per-lineage rate says the lineages act
+**independently** — each one behaves as if the others were not there (the honest null, and the
+default). A global rate says they **share one budget**: one event every `1/base` on average,
+*whoever* it lands on, regardless of how many lineages exist — a strong coupling. That is the deep
+reason per-lineage is standard.
+
+!!! example "Two birth–death trees, same units"
+    Speciate at rate `λ` **per lineage**: propensity `= λN`, so `E[N(t)] = N₀·e^{(λ−μ)t}` —
+    exponential. Speciate at a constant **global** rate `Λ` (pick the lineage uniformly): propensity
+    `= Λ`, so `E[N(t)] = N₀ + (Λ−M)t` — linear. Both `λ` and `Λ` are `time⁻¹`; the *only* difference
+    is the opportunity count (`N` vs `1`). Equivalently, a global rate `Λ` shared among `N` lineages
+    is a per-lineage rate `λ(N) = Λ/N` — diversity-dependence in disguise. ZOMBI2 parametrises the
+    per-lineage version by default (`BirthDeath`); the shared version is a real, different model —
+    `--diversification shared` (`SharedBirthDeath`), see [Species trees](species-trees.md).
 
 ## Modifiers: context that rescales the base
 
