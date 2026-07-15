@@ -82,8 +82,8 @@ object in Python); the two ends are:
 
 | `--rate-per` | The rate is counted… | Family size grows | Object |
 |---|---|---|---|
-| **copy** (default) | per gene copy — the total rate scales with genome size | exponentially | `PerCopyRates` |
-| **lineage** | per lineage — one constant rate for the whole genome, size-independent | linearly | `PerLineageRates` |
+| **copy** (default) | per gene copy — the total rate scales with genome size | exponentially | `Rates` |
+| **lineage** | per lineage — one constant rate for the whole genome, size-independent | linearly | `Rates(per="lineage")` |
 
 "Per lineage" is the size-independent measure that speciation already uses one level up (a lineage
 carries exactly one genome, so "per genome" *is* "per lineage"). On top of either end, **multipliers**

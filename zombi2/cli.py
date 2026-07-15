@@ -23,7 +23,7 @@ from zombi2.sequences.clocks import (
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
 from zombi2.genomes.genome import OrderedGenome
-from zombi2.genomes.rates import LineageRates, FamilySampledRates, PerCopyRates, PerLineageRates
+from zombi2.genomes.rates import LineageRates, FamilySampledRates, Rates
 from zombi2.genomes.conversion import ConversionModel
 from zombi2.genomes.read_rates import read_lineage_rates, read_family_rates, read_family_speeds
 from zombi2.sequences.evolution import SequenceEvolution
@@ -246,8 +246,8 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
                         "(see the nucleotide sections). --genome-model is a deprecated alias")
-    g.add_argument("--rate-per", choices=("copy", "lineage", "genome"), default=None, dest="rate_per",
-                   metavar="UNIT",
+    g.add_argument("--rate-per", "--per", choices=("copy", "lineage", "genome"), default=None,
+                   dest="rate_per", metavar="UNIT",
                    help="what each rate is counted per — the opportunity that scales it "
                         "(unordered/ordered resolutions): copy = per gene copy, so total rates grow with "
                         "genome size (default; Rust for unordered); lineage = a constant rate per "
@@ -1996,7 +1996,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         if ordered and (args.inversion is not None or args.transposition is not None):
             parser.error("rearrangements (--inversion/--transposition) need --rate-per copy; "
                          "per-lineage rates do not carry them")
-        rates = PerLineageRates(args.dup, args.trans, args.loss, args.orig)
+        rates = Rates(args.dup, args.trans, args.loss, args.orig, per="lineage")
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "
@@ -2004,11 +2004,11 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
-        rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
-                             inversion=inv, transposition=tps, translocation=args.translocation,
-                             chromosome_origination=args.chromosome_origination,
-                             chromosome_loss=args.chromosome_loss,
-                             fission=args.fission, fusion=args.fusion)
+        rates = Rates(args.dup, args.trans, args.loss, args.orig,
+                      inversion=inv, transposition=tps, translocation=args.translocation,
+                      chromosome_origination=args.chromosome_origination,
+                      chromosome_loss=args.chromosome_loss,
+                      fission=args.fission, fusion=args.fusion)
     elif family_mode:  # each family its own rates, from the table (unlisted -> --dup/--trans/--loss)
         rates = FamilySampledRates(duplication=args.dup, transfer=args.trans, loss=args.loss,
                                    origination=args.orig,
@@ -2019,8 +2019,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.lineage_rates is not None:
         emission, receptivity = read_lineage_rates(args.lineage_rates)
         if rates is None:  # plain per-copy base — carry the conversion rate through the overlay
-            rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
-                                 conversion=args.conversion)
+            rates = Rates(args.dup, args.trans, args.loss, args.orig,
+                          conversion=args.conversion)
         if emission:
             rates = LineageRates(rates, factors=emission, events=("transfer",))
         if receptivity:

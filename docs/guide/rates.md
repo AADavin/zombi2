@@ -72,7 +72,7 @@ species tree and down in the genome — but **mind the word "lineage"**, because
   the growing quantity, so it tracks → the tree grows **exponentially**. (The standard birth–death.)
 - **Genome, per copy** — each copy duplicates on its own. Opportunity = copies, the growing quantity
   → families grow **exponentially**.
-- **Genome, per lineage** (`PerLineageRates`) — here the *genome*, not the copy, is the unit;
+- **Genome, per lineage** (`Rates(per="lineage")`) — here the *genome*, not the copy, is the unit;
   opportunity = 1 per family, fixed as copies pile up → families grow **linearly**.
 
 So "per lineage" is exponential for speciation but linear for a gene family — *same words, opposite
@@ -131,9 +131,9 @@ family **A** holds 3 copies and family **B** holds 1:
 
 | model | family A | family B | what varies |
 |---|---|---|---|
-| `PerCopyRates(dup=0.5)` | 0.5 × 3 = 1.5 | 0.5 × 1 = 0.5 | nothing per-family — one base, × copies |
+| `Rates(dup=0.5)` | 0.5 × 3 = 1.5 | 0.5 × 1 = 0.5 | nothing per-family — one base, × copies |
 | `FamilySampledRates` (A→0.8, B→0.2) | **0.8** × 3 = 2.4 | **0.2** × 1 = 0.2 | the **base rate** |
-| `PerCopyRates(0.5)` + `FamilyModifier` (A→1.6, B→0.4) | 0.5 × **1.6** × 3 = 2.4 | 0.5 × **0.4** × 1 = 0.2 | a **modifier** |
+| `Rates(0.5)` + `FamilyModifier` (A→1.6, B→0.4) | 0.5 × **1.6** × 3 = 2.4 | 0.5 × **0.4** × 1 = 0.2 | a **modifier** |
 
 The last two rows are identical (2.4, 0.2): same effective rate, two spellings. Pick by intent — you
 have actual per-family rate *values* → the **base** (`FamilySampledRates`); you want to rescale a

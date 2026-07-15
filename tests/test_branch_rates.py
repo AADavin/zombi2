@@ -7,7 +7,7 @@ from zombi2 import (
     BranchRates,
     GenomeSimulator,
     LogNormal,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -16,7 +16,7 @@ from zombi2.tree import Tree, TreeNode
 
 
 def _base():
-    return SharedRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
+    return Rates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.4)
 
 
 def test_explicit_map_boosts_its_branch():
@@ -38,7 +38,7 @@ def test_explicit_map_boosts_its_branch():
 
 def test_autocorr_zero_sigma_equals_base():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=3)
-    # A bare SharedRates is the built-in model (Rust engine); a BranchRates wrapper runs on
+    # A bare Rates is the built-in model (Rust engine); a BranchRates wrapper runs on
     # Python. To check the sigma=0 identity byte-for-byte, both must run on the same engine, so
     # run the base on the Python engine explicitly.
     from zombi2 import GenomeSimulator, ProfileMatrix
@@ -109,7 +109,7 @@ def _mean_losses_on_A(factor, *, families, loss, age, reps, seed0):
     counts = np.empty(reps)
     for i in range(reps):
         rng = np.random.default_rng(seed0 + i)
-        rates = BranchRates(SharedRates(loss=loss), factors={"A": factor})
+        rates = BranchRates(Rates(loss=loss), factors={"A": factor})
         res = GenomeSimulator().simulate(tree, rates, rng, initial_size=families)
         counts[i] = sum(1 for r in res.event_log
                         if r.event is EventType.LOSS and r.branch == "A")

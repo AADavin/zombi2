@@ -44,7 +44,9 @@ from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, read_gff_all, GffGenome,
-    RateModel, PerCopyRates, PerLineageRates, FamilySampledRates,
+    RateModel, Rates,
+    PerCopyRates, PerLineageRates,  # deprecated presets for Rates(per=…); importable, not in __all__
+    FamilySampledRates,
     LineageRates, Modifier, ModifiedRates, LineageModifier,
     FamilyModifier,
     EventWeight, TransferModel, PairModifier, ConversionModel, read_family_rates,
@@ -110,8 +112,9 @@ __all__ = [
     # nucleotide genome (structural events at nucleotide resolution)
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Block",
     "read_gff", "read_gff_all", "GffGenome",
-    # rates & transfers
-    "RateModel", "PerCopyRates", "PerLineageRates",
+    # rates & transfers (PerCopyRates/PerLineageRates are deprecated presets for Rates(per=…):
+    # importable, warn on construction, absent from __all__)
+    "RateModel", "Rates",
     "FamilySampledRates", "LineageRates", "Modifier", "ModifiedRates",
     "LineageModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",

@@ -12,7 +12,7 @@ import numpy as np
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -136,7 +136,7 @@ def test_content_conserved_over_a_mix_of_chromosome_events():
 # --- sampler integration: the events fire in a full simulation ------------------------
 
 def _chromo_rates():
-    return SharedRates(duplication=0.3, loss=0.2, transfer=0.1, origination=0.2,
+    return Rates(duplication=0.3, loss=0.2, transfer=0.1, origination=0.2,
                        inversion=0.1, transposition=0.1,
                        chromosome_origination=0.3, chromosome_loss=0.2, fission=0.3, fusion=0.2)
 
@@ -174,7 +174,7 @@ def test_chromosome_sim_is_reproducible():
 def test_gene_trees_survive_chromosome_loss():
     """Chromosome loss logs a LOSS for each gene it held, so gene-tree reconstruction still works."""
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=2)
-    rates = SharedRates(duplication=0.2, loss=0.1, origination=0.2,
+    rates = Rates(duplication=0.2, loss=0.1, origination=0.2,
                         chromosome_origination=0.5, chromosome_loss=0.4)
     g = simulate_genomes(tree, rates, initial_families=15, seed=2, genome_factory=_ordered_2chrom)
     assert any(r.event is EventType.CHROMOSOME_LOSS for r in g.event_log.chromosome_records)

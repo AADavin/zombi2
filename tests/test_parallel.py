@@ -1,6 +1,6 @@
 """Replicate-level parallel runner."""
 
-from zombi2 import BirthDeath, SharedRates, run_replicates
+from zombi2 import BirthDeath, Rates, run_replicates
 
 
 def _summary_keys(rows):
@@ -45,7 +45,7 @@ def test_reproducible_by_base_seed(tmp_path):
 def test_parallel_matches_serial(tmp_path):
     # results depend only on the (base seed, replicate index), not the process count
     kw = dict(species_model=BirthDeath(1.0, 0.3), n_tips=10, age=4.0,
-              rates=SharedRates(0.2, 0.1, 0.2, 0.5), initial_families=10, seed=5)
+              rates=Rates(0.2, 0.1, 0.2, 0.5), initial_families=10, seed=5)
     serial = run_replicates(4, str(tmp_path / "s"), **kw, processes=1)
     parallel = run_replicates(4, str(tmp_path / "p"), **kw, processes=2)
     assert _summary_keys(serial) == _summary_keys(parallel)

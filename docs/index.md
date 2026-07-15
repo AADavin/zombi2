@@ -42,7 +42,7 @@ result = simulate_sse(model, n_tips=40, seed=1)   # tips end up biased toward th
   heterogeneous-rate diversification (ClaDS, diversity-dependent, clade shifts), mass
   extinctions and ghost lineages. The Rust engine scales to millions of tips.
 - **Gene families** — duplication / transfer / loss / origination along the tree, with
-  per-copy (`PerCopyRates`), per-family-sampled (`FamilySampledRates`, ZOMBI1 style) and
+  per-copy (`Rates`), per-family-sampled (`FamilySampledRates`, ZOMBI1 style) and
   per-genome rate models; transfers additive or **replacement** with distance-weighted
   recipients; ordered chromosomes with **inversions** and **transpositions**; and
   nucleotide-resolution genomes. Output as full event logs, compact event traces, or

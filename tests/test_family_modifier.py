@@ -15,7 +15,7 @@ from zombi2 import (
     FamilyModifier,
     LogNormal,
     ModifiedRates,
-    PerCopyRates,
+    Rates,
     PerGenomeRates,
     simulate_genomes,
     simulate_species_tree,
@@ -38,7 +38,7 @@ def test_explicit_family_factor_boosts_that_family():
     def copies(factor, seeds=range(6)):
         # Loss-only (pure death) keeps genomes bounded; scaling *only* family "1"'s loss makes it
         # disappear from more leaves. origination=0 keeps the family set to the seeded 1..10.
-        rates = ModifiedRates(PerCopyRates(loss=0.25, origination=0.0),
+        rates = ModifiedRates(Rates(loss=0.25, origination=0.0),
                               [FamilyModifier(factors={"1": factor}, events=("loss",))])
         return sum(_family_copies(simulate_genomes(tree, rates, initial_families=10, seed=s), "1")
                    for s in seeds)
@@ -65,7 +65,7 @@ def test_family_and_branch_compose():
     # dup < loss keeps every family a shrinking (bounded) process whatever factors it draws.
     tree = _tree()
     rates = ModifiedRates(
-        PerCopyRates(duplication=0.2, loss=0.3, origination=0.3),
+        Rates(duplication=0.2, loss=0.3, origination=0.3),
         [FamilyModifier(per_family=LogNormal(0.0, 0.5)), BranchModifier(autocorr_sigma=0.4)])
     g = simulate_genomes(tree, rates, initial_families=10, seed=5, max_family_size=40)
     assert g.profiles.matrix.shape[1] == 10
@@ -74,7 +74,7 @@ def test_family_and_branch_compose():
 
 def test_reproducible_given_seed():
     tree = _tree()
-    make = lambda: ModifiedRates(PerCopyRates(duplication=0.2, loss=0.2, origination=0.3),
+    make = lambda: ModifiedRates(Rates(duplication=0.2, loss=0.2, origination=0.3),
                                  [FamilyModifier(per_family=LogNormal(0.0, 0.5))])
     a = simulate_genomes(tree, make(), initial_families=10, seed=11, max_family_size=40)
     b = simulate_genomes(tree, make(), initial_families=10, seed=11, max_family_size=40)

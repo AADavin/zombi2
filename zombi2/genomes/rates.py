@@ -28,6 +28,7 @@ unaffected.
 from __future__ import annotations
 
 import math
+import warnings
 from abc import ABC, abstractmethod
 from collections import namedtuple
 
@@ -110,8 +111,21 @@ class RateModel(ABC):
         self._max_family_size = max_family_size
 
 
-class PerCopyRates(RateModel):
-    """Per-copy rates: every gene family shares the same per-copy D/T/L rates (the default).
+class Rates(RateModel):
+    """Gene-family event rates, with a selectable **opportunity** (``per``) — the unit the clock rides.
+
+    - ``per="copy"`` (default) — one clock **per gene copy**: the total D/T/L rate scales with the
+      genome's copy number, so families grow **exponentially**. This is the built-in model the Rust
+      engine implements.
+    - ``per="lineage"`` — one clock **per genome**: the total D/T/L rate is a constant regardless of
+      how many copies the genome holds (the target copy is chosen uniformly), so families grow
+      **linearly**. Only the D/T/L/origination rates apply; rearrangement/chromosome events are a
+      per-copy notion and are rejected here.
+
+    ``per`` is the opportunity axis; it is orthogonal to *per-family* heterogeneity (which lives in the
+    base :class:`FamilySampledRates` or a :class:`FamilyModifier`) — see ``docs/guide/rates.md`` and
+    ``docs/design/opportunity-knob.md``. (``per="shared"`` — one clock for a whole family across the
+    tree — is planned; not yet implemented for genomes.)
 
     An optional per-copy ``conversion`` rate adds **intra-genome gene conversion**: one copy of a
     family overwrites ("converts") another copy of the *same* family in the same genome —
@@ -126,13 +140,18 @@ class PerCopyRates(RateModel):
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0,
-                 *, inversion: float = 0.0, transposition: float = 0.0,
+                 *, per: str = "copy",
+                 inversion: float = 0.0, transposition: float = 0.0,
                  translocation: float = 0.0,
                  insertion: float = 0.0, deletion: float = 0.0,
                  conversion: float = 0.0,
                  chromosome_origination: float = 0.0, chromosome_loss: float = 0.0,
                  fission: float = 0.0, fusion: float = 0.0,
                  carrying_capacity: float | None = None):
+        if per not in ("copy", "lineage"):
+            extra = " ('shared' is planned but not yet implemented for genomes)" if per == "shared" else ""
+            raise ValueError(f"per must be 'copy' or 'lineage', got {per!r}{extra}")
+        self.per = per
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
                  ("transposition", transposition), ("translocation", translocation),
@@ -164,6 +183,21 @@ class PerCopyRates(RateModel):
         self.fission = float(fission)
         self.fusion = float(fusion)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
+        if self.per == "lineage":
+            per_copy_only = {
+                "inversion": self.inversion, "transposition": self.transposition,
+                "translocation": self.translocation, "insertion": self.insertion,
+                "deletion": self.deletion, "conversion": self.conversion,
+                "chromosome_origination": self.chromosome_origination,
+                "chromosome_loss": self.chromosome_loss, "fission": self.fission,
+                "fusion": self.fusion,
+            }
+            set_now = [k for k, v in per_copy_only.items() if v]
+            if set_now or self.carrying_capacity is not None:
+                bad = set_now + (["carrying_capacity"] if self.carrying_capacity is not None else [])
+                raise ValueError(
+                    f"per='lineage' supports only duplication/transfer/loss/origination; "
+                    f"remove {', '.join(bad)} (a per-copy notion)")
 
     def _regulated(self) -> bool:
         # Only the *soft* carrying capacity needs per-family duplication weights. A hard
@@ -172,7 +206,22 @@ class PerCopyRates(RateModel):
         return self.carrying_capacity is not None
 
     def event_weights(self, genome, branch, time):
-        n = genome.size()
+        if self.per == "lineage":
+            # one clock per genome: constant totals (not scaled by copy number), target chosen
+            # uniformly. Only D/T/L/origination apply (rearrangements rejected at construction).
+            out: list[EventWeight] = []
+            if genome.size() > 0:
+                if self.duplication > 0:
+                    out.append(EventWeight(EventType.DUPLICATION, None, self.duplication))
+                if self.transfer > 0:
+                    out.append(EventWeight(EventType.TRANSFER, None, self.transfer))
+                if self.loss > 0:
+                    out.append(EventWeight(EventType.LOSS, None, self.loss))
+            if self.origination > 0:
+                out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
+            return out
+
+        n = genome.size()   # per == "copy"
         out: list[EventWeight] = []
 
         if self.duplication > 0 and n > 0:
@@ -226,52 +275,39 @@ class PerCopyRates(RateModel):
         return out
 
 
-#: Backwards-compatible alias. ``SharedRates`` was renamed to :class:`PerCopyRates` (the name now
-#: says what it is — its rates are counted *per copy*). The old name is the **same class object**, so
-#: existing code, ``type(rates) is SharedRates`` checks, and the Rust fast-path selection keep working.
-SharedRates = PerCopyRates
+class PerCopyRates(Rates):
+    """Deprecated preset for ``Rates(per="copy")`` — one clock per gene copy (exponential families,
+    the built-in Rust model). The opportunity is now a knob on :class:`Rates`, so this named class is
+    redundant: it still works but warns and has left ``zombi2.__all__``; removed in 0.4.0."""
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "PerCopyRates is deprecated; use Rates(..., per='copy') (the default). "
+            "The old name still works but is removed in 0.4.0.",
+            DeprecationWarning, stacklevel=2,
+        )
+        super().__init__(*args, per="copy", **kwargs)
 
 
-class PerLineageRates(RateModel):
-    """Per-lineage rates: each event type fires at a **constant rate per lineage** (the whole
-    genome as one unit), independent of how many gene copies the genome holds.
-
-    Contrast :class:`PerCopyRates`, where the total duplication/transfer/loss rate scales
-    with genome size (per-copy rates). Here the totals are fixed, so when an event fires a
-    target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
-    rather than exponentially, so per-lineage models are intrinsically far less prone to
-    runaway growth. Origination is per lineage.
-
-    In the rate grammar (``base × opportunities × modifiers``) this is the **fixed-opportunity**
-    case: *opportunity = 1 per family* (the genome as the unit), not the copy count — which is why
-    growth is linear. Note that this is the *opposite* scaling from species-tree *per-lineage*
-    speciation, where the opportunity is the growing lineage count `N` and growth is exponential;
-    the word "per lineage" tracks the growing quantity there but not here. See ``docs/guide/rates.md``.
-    """
+class PerLineageRates(Rates):
+    """Deprecated preset for ``Rates(per="lineage")`` — one clock per genome (constant D/T/L totals,
+    a uniformly chosen target, so families grow *linearly* not exponentially). The opportunity is now
+    a knob on :class:`Rates`: this named class is redundant, warns, and has left ``zombi2.__all__``;
+    removed in 0.4.0."""
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
                  loss: float = 0.0, origination: float = 0.0):
-        for name, value in (("duplication", duplication), ("transfer", transfer),
-                            ("loss", loss), ("origination", origination)):
-            if value < 0:
-                raise ValueError(f"{name} rate must be >= 0, got {value}")
-        self.duplication = float(duplication)
-        self.transfer = float(transfer)
-        self.loss = float(loss)
-        self.origination = float(origination)
+        warnings.warn(
+            "PerLineageRates is deprecated; use Rates(..., per='lineage'). "
+            "The old name still works but is removed in 0.4.0.",
+            DeprecationWarning, stacklevel=2,
+        )
+        super().__init__(duplication, transfer, loss, origination, per="lineage")
 
-    def event_weights(self, genome, branch, time):
-        out: list[EventWeight] = []
-        if genome.size() > 0:
-            if self.duplication > 0:
-                out.append(EventWeight(EventType.DUPLICATION, None, self.duplication))
-            if self.transfer > 0:
-                out.append(EventWeight(EventType.TRANSFER, None, self.transfer))
-            if self.loss > 0:
-                out.append(EventWeight(EventType.LOSS, None, self.loss))
-        if self.origination > 0:
-            out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
-        return out
+
+#: Backwards-compatible alias for the (now deprecated) per-copy preset. ``SharedRates`` was the
+#: original name for ``PerCopyRates``; both now point at the same deprecated class object.
+SharedRates = PerCopyRates
 
 
 class FamilySampledRates(RateModel):
@@ -288,7 +324,11 @@ class FamilySampledRates(RateModel):
     """
 
     def __init__(self, duplication=0.0, transfer=0.0, loss=0.0, origination: float = 0.0,
-                 *, rates: dict | None = None, carrying_capacity: float | None = None):
+                 *, per: str = "copy", rates: dict | None = None,
+                 carrying_capacity: float | None = None):
+        if per not in ("copy", "lineage"):
+            raise ValueError(f"per must be 'copy' or 'lineage', got {per!r}")
+        self.per = per
         self._dup = as_distribution(duplication)
         self._trans = as_distribution(transfer)
         self._loss = as_distribution(loss)
@@ -296,6 +336,8 @@ class FamilySampledRates(RateModel):
             raise ValueError(f"origination rate must be >= 0, got {origination}")
         self.origination = float(origination)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
+        if self.per == "lineage" and self.carrying_capacity is not None:
+            raise ValueError("per='lineage' does not support carrying_capacity (a per-copy notion)")
         self._fixed: dict[str, tuple[float, float, float]] = {}
         for fam, triple in (rates or {}).items():
             d, t, l = triple
@@ -327,11 +369,22 @@ class FamilySampledRates(RateModel):
 
     def event_weights(self, genome, branch, time):
         out: list[EventWeight] = []
+        lineage = self.per == "lineage"
         for family in genome.families():
             cn = genome.copy_number(family)
             if cn == 0:
                 continue
             d, t, l = self.rates_for(family)
+            if lineage:
+                # one clock per genome for this family: constant totals (not × copy number),
+                # a uniformly chosen copy within the family
+                if d > 0:
+                    out.append(EventWeight(EventType.DUPLICATION, family, d))
+                if t > 0:
+                    out.append(EventWeight(EventType.TRANSFER, family, t))
+                if l > 0:
+                    out.append(EventWeight(EventType.LOSS, family, l))
+                continue
             if d > 0:
                 f = duplication_factor(cn, self.carrying_capacity, self._max_family_size)
                 if f > 0:

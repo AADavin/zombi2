@@ -71,7 +71,7 @@ def test_column_sums_match_event_log_and_total_excludes_transfer_in():
 def test_ordered_model_counts_rearrangements():
     tree = _tree(n=20, seed=2)
     g = z.simulate_genomes(
-        tree, rates=z.SharedRates(0.1, 0.0, 0.1, 0.0, inversion=0.4, transposition=0.4),
+        tree, rates=z.Rates(0.1, 0.0, 0.1, 0.0, inversion=0.4, transposition=0.4),
         initial_families=15, seed=4,
         genome_factory=lambda ids: z.OrderedGenome(ids, extension=0.7))
     _, rows = _parse(branch_events_table(g.event_log, tree))

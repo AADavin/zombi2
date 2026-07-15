@@ -6,12 +6,12 @@ the built-in model to Rust automatically, and flexible models to Python. The eng
 by the model, so a given `seed` is always reproducible against a single engine.
 
 * **Built-in model → Rust (required).** The default `UnorderedGenome` with a plain
-  `PerCopyRates` (per-copy duplication / transfer / loss, per-lineage origination, optional
+  `Rates` (per-copy duplication / transfer / loss, per-lineage origination, optional
   hard `max_family_size`) — plus the **full `TransferModel`** (replacement, distance-weighted
   recipients, self-transfers) — runs on Rust. If the extension isn't built, `simulate_genomes`
   raises a clear error telling you to build it (there is no silent Python fallback for the
   built-in model, which is what keeps results reproducible against one engine).
-* **Flexible models → Python.** `FamilySampledRates`, `PerLineageRates`, `LineageRates`, soft
+* **Flexible models → Python.** `FamilySampledRates`, `Rates(per="lineage")`, `LineageRates`, soft
   `carrying_capacity`, ordered genomes, rearrangements, or a custom `sampler` run on the
   pure-Python engine automatically.
 

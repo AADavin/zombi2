@@ -120,7 +120,7 @@ This is the native alternative to un-pruning a backward tree
 
 ### The same rates for every family (shared)
 
-The keyword shorthand builds a `PerCopyRates` for you:
+The keyword shorthand builds a `Rates` for you:
 
 ```python
 from zombi2.genomes import simulate_genomes
@@ -148,10 +148,10 @@ Each event type fires at a constant per-genome rate (independent of copy number)
 sizes grow linearly rather than exponentially:
 
 ```python
-from zombi2.genomes import simulate_genomes, PerLineageRates
+from zombi2.genomes import simulate_genomes, Rates
 
-genomes = simulate_genomes(tree, PerLineageRates(
-    duplication=0.5, transfer=0.3, loss=0.4, origination=0.5), seed=42)
+genomes = simulate_genomes(tree, Rates(
+    duplication=0.5, transfer=0.3, loss=0.4, origination=0.5, per="lineage"), seed=42)
 ```
 
 ### Custom distributions
@@ -236,23 +236,23 @@ simulate_genomes(tree, duplication=0.5, transfer=0.2, loss=0.1, origination=0.5,
 dependence; family size settles around `K`:
 
 ```python
-from zombi2.genomes import simulate_genomes, PerCopyRates
+from zombi2.genomes import simulate_genomes, Rates
 
-simulate_genomes(tree, PerCopyRates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), seed=1)
+simulate_genomes(tree, Rates(0.5, 0.0, 0.1, 0.5, carrying_capacity=10), seed=1)
 ```
 
 ## Gene order & rearrangements
 
 Put genes on an ordered chromosome and enable inversions/transpositions. The rearrangement
-rates live on `PerCopyRates`; the ordered genome is selected via `genome_factory` (see
+rates live on `Rates`; the ordered genome is selected via `genome_factory` (see
 [ordered genomes](guide/genomes.md)):
 
 ```python
-from zombi2.genomes import simulate_genomes, PerCopyRates, OrderedGenome
+from zombi2.genomes import simulate_genomes, Rates, OrderedGenome
 
 genomes = simulate_genomes(
     tree,
-    PerCopyRates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
+    Rates(duplication=0.2, transfer=0.1, loss=0.2, origination=0.5,
                 inversion=0.3, transposition=0.3),
     genome_factory=lambda ids: OrderedGenome(ids, extension=0.5),
     seed=1)
