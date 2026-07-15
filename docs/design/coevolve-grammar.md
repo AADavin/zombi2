@@ -2,6 +2,14 @@
 
 *Design/engineering guideline for re-packaging the `zombi2.coevolve` subsystem onto one unified coupling grammar over the S/T/G/Σ diamond. Target home for this document: `docs/design/coevolve-grammar.md` (lowercase-kebab, per D2).*
 
+> **Implementation status** (branch `claude/coevolve-grammar-migration`) — the *disjoint* slices (independent of the in-flight `Rates(per=…)` rate rename) are landing:
+> - ✅ **Grammar core** — `zombi2/coevolve/grammar.py`: `Response` (`Scalar`/`Table`/`Curve`), `Driver`, `TargetVariable`, `Coupling`, `CouplingGraph` (layer/fuse via SCC), the null legality layer (`neutral`/`cid`/`timing`), `solve_plan`, the `DriverSignal` protocol.
+> - ✅ **Genome rate bridge** — `rate_bridge.py`: `CouplingModifier` (a `Modifier`); verified `null == base` byte-identical.
+> - ✅ **`genomes:traits` reframed** — `trait_bridge.py` `walk_optimum_coupled_trait`; **byte-identical** to the pre-reframe edge.
+> - ✅ **Sequence tier, part 1** — `sequence_bridge.py` `DriverClock` (the `T→Σ` substitution-speed edge).
+> - ⏸️ **Waiting on the rate rename** — the `traits:genomes` rate reframe (sits on `PerCopyRates`/`ModifiedRates`) and P2 into-species (species birth–death).
+> - ⚪ **Heavier follow-ups** — sequence `selection` (ω, model-per-branch codon), `G→Σ` (per-event `_annotate` hook), the `G↔Σ` showcase.
+
 ---
 
 ## 1. Purpose & scope
