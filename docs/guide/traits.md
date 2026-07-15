@@ -125,17 +125,17 @@ two traits tend to move together down the tree.</figcaption>
 
 ### Command line
 
-`zombi2 trait` needs a tree — make one first with `zombi2 species` (writing `species_tree.nwk`). The CLI covers the scalar continuous models `--model bm | ou | eb`; the vector-valued models (MultivariateBrownian, MultivariateOU) and MultiOptimumOU are Python-only. Shared flags: `--sigma2` (default `1.0`), `--x0` (root value; OU defaults it to `--theta`), `--trend` (bm/eb). OU adds `--alpha` (default `1.0`) and `--theta` (default `0.0`); EB adds `--rate` (negative = early burst, default `1.0`).
+`zombi2 traits` needs a tree — make one first with `zombi2 species` (writing `species_tree.nwk`). The CLI covers the scalar continuous models `--model bm | ou | eb`; the vector-valued models (MultivariateBrownian, MultivariateOU) and MultiOptimumOU are Python-only. Shared flags: `--sigma2` (default `1.0`), `--x0` (root value; OU defaults it to `--theta`), `--trend` (bm/eb). OU adds `--alpha` (default `1.0`) and `--theta` (default `0.0`); EB adds `--rate` (negative = early burst, default `1.0`).
 
 ```bash
 # Brownian motion
-zombi2 trait -t run/species_tree.nwk --model bm --sigma2 0.5 --seed 1 -o run/
+zombi2 traits -t run/species_tree.nwk --model bm --sigma2 0.5 --seed 1 -o run/
 
 # Ornstein–Uhlenbeck toward an optimum
-zombi2 trait -t run/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o run/
+zombi2 traits -t run/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o run/
 
 # early burst (rate decays through time)
-zombi2 trait -t run/species_tree.nwk --model eb --sigma2 1 --rate -1.5 --seed 1 -o run/
+zombi2 traits -t run/species_tree.nwk --model eb --sigma2 1 --rate -1.5 --seed 1 -o run/
 ```
 
 Add `--replicates N` to write `traits.tsv` with one column per replicate.
@@ -312,17 +312,17 @@ The `trait` command covers the two discrete models that need no auxiliary struct
 zombi2 species --birth 1 --death 0.3 --tips 30 --age 5 --seed 1 -o run/
 
 # Mk: 3-state equal-rates character
-zombi2 trait -t run/species_tree.nwk --model mk --states 3 --rate 0.4 --seed 1 -o mk/
+zombi2 traits -t run/species_tree.nwk --model mk --states 3 --rate 0.4 --seed 1 -o mk/
 
 # Mk: ordered (meristic) 4-state character, 20 replicates
-zombi2 trait -t run/species_tree.nwk --model mk --states 4 --ordered --replicates 20 --seed 1 -o mko/
+zombi2 traits -t run/species_tree.nwk --model mk --states 4 --ordered --replicates 20 --seed 1 -o mko/
 
 # threshold: binary (default) and a 3-state ordered character
-zombi2 trait -t run/species_tree.nwk --model threshold --seed 1 -o th/
-zombi2 trait -t run/species_tree.nwk --model threshold --thresholds=-1,1 --seed 1 -o th3/
+zombi2 traits -t run/species_tree.nwk --model threshold --seed 1 -o th/
+zombi2 traits -t run/species_tree.nwk --model threshold --thresholds=-1,1 --seed 1 -o th3/
 ```
 
-(Invoke the CLI as `python -m zombi2 trait …`.) `--replicates N` writes `traits.tsv` with one column per replicate.
+(Invoke the CLI as `python -m zombi2 traits …`.) `--replicates N` writes `traits.tsv` with one column per replicate.
 
 ### Python
 
@@ -454,7 +454,7 @@ speciation.</figcaption>
 zombi2 species --birth 1 --death 0.3 --tips 30 --age 5 --seed 1 -o run/
 
 # DEC over 3 areas, starting the root in area 0
-zombi2 trait -t run/species_tree.nwk --model dec --areas 3 \
+zombi2 traits -t run/species_tree.nwk --model dec --areas 3 \
     --dispersal 0.2 --extinction 0.1 --root-range 0 --seed 1 -o run/bio/
 ```
 

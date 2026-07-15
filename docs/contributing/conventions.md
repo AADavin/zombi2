@@ -43,7 +43,7 @@ Reproducibility is a first-class guarantee, not a nicety.
 ### The run manifest
 
 **Every CLI command writes a run manifest** to the output directory — always, for
-reproducibility (`species_tree.log`, `genomes.log`, `trait.log`, `sequence.log`,
+reproducibility (`species_tree.log`, `genomes.log`, `traits.log`, `sequences.log`,
 `coevolve.log`). It is a headed, tab-separated key–value file:
 
 ```
@@ -136,7 +136,7 @@ Event codes are single letters: **O**rigination, **D**uplication, **T**ransfer, 
 
 ## CLI grammar
 
-The CLI is one subcommand per level: `species`, `genomes`, `trait`, `sequence`, `coevolve`.
+The CLI is one subcommand per level: `species`, `genomes`, `traits`, `sequences`, `coevolve`.
 Within a subcommand:
 
 - A **`general`** argument group carries the shared flags: `--seed N` and the required

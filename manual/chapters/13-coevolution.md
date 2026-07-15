@@ -335,7 +335,7 @@ res.trait              # the TraitResult the genes were conditioned on
 res.genomes()          # promote to a full Genomes (gene trees, reconciliations)
 ```
 
-The command builds the trait for you from `--trait-model` (any `zombi2 trait` model) and selects the
+The command builds the trait for you from `--trait-model` (any `zombi2 traits` model) and selects the
 responsive families with `--responsive` (a count, a fraction, or an id list):
 
 ```bash

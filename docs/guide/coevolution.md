@@ -20,21 +20,21 @@ species tree.
 three coupled levels {species, genomes, traits} gives a directed edge `driver → target` — six of them. For
 each *undirected* pair, switching **both** arrows on together gives a bidirectional **joint** model
 in which one coupled object drives both directions at once — three of them (traits↔species =
-**ClaSSE**, genes↔species = **co-diversification**, traits↔genes = **trait–gene feedback**). Every
+**ClaSSE**, genomes↔species = **co-diversification**, traits↔genomes = **trait–gene feedback**). Every
 row below is one `zombi2 coevolve --couple driver:target` invocation (the joint models pass the flag
 twice, once per arrow).
 
 | Model | Edge (driver:target) | What it does | `--couple` selector |
 | --- | --- | --- | --- |
 | **BiSSE / MuSSE / QuaSSE / HiSSE** | traits→species | a trait (binary, k-state, continuous, or hidden) sets each lineage's λ, μ | `--couple traits:species` |
-| **Key-innovation diversification** | genes→species | gene content (key innovations, spread by HGT) drives the radiation | `--couple genomes:species` |
+| **Key-innovation diversification** | genomes→species | gene content (key innovations, spread by HGT) drives the radiation | `--couple genomes:species` |
 | **Cladogenetic trait evolution** | species→traits | the trait jumps *at* each speciation (speciational change) | `--couple species:traits` |
-| **Cladogenetic genome evolution** | species→genes | gene gain/loss bursts *at* speciations — punctuational genome | `--couple species:genomes` |
-| **Trait-conditioned gene families** | traits→genes | a trait's history shapes which gene families are retained | `--couple traits:genomes` |
-| **Gene-conditioned trait** | genes→traits | a modifier gene unlocks a new phenotypic optimum | `--couple genomes:traits` |
+| **Cladogenetic genome evolution** | species→genomes | gene gain/loss bursts *at* speciations — punctuational genome | `--couple species:genomes` |
+| **Trait-conditioned gene families** | traits→genomes | a trait's history shapes which gene families are retained | `--couple traits:genomes` |
+| **Gene-conditioned trait** | genomes→traits | a modifier gene unlocks a new phenotypic optimum | `--couple genomes:traits` |
 | **ClaSSE** *(joint, traits↔species)* | traits→species + species→traits | SSE *plus* a state jump *at* each speciation | `--couple traits:species --couple species:traits` |
-| **Co-diversification** *(joint, genes↔species)* | genes→species + species→genes | speciation itself reshuffles the rate-setting drivers (genomic ClaSSE) | `--couple genomes:species --couple species:genomes` |
-| **Trait–gene feedback** *(joint, traits↔genes)* | traits→genes + genes→traits | a trait and a gene panel modulate each other, no single imposed arrow | `--couple traits:genomes --couple genomes:traits` |
+| **Co-diversification** *(joint, genomes↔species)* | genomes→species + species→genomes | speciation itself reshuffles the rate-setting drivers (genomic ClaSSE) | `--couple genomes:species --couple species:genomes` |
+| **Trait–gene feedback** *(joint, traits↔genomes)* | traits→genomes + genomes→traits | a trait and a gene panel modulate each other, no single imposed arrow | `--couple traits:genomes --couple genomes:traits` |
 
 The **directed** rows into species (`traits:species`, `genomes:species`) grow the tree — give
 `--age`/`--tips` and no `-t`; the other directed rows overlay a tree you pass with `-t`. A **joint**
@@ -96,7 +96,7 @@ trait model. `shift` is the per-daughter state-hop probability (discrete); `jump
 jump variance (continuous). Switching this on **together** with `traits:species` gives the joint
 **ClaSSE** feedback above. In Python it is `simulate_traits(tree, model, cladogenesis=Cladogenesis(…))`.
 
-### Key-innovation diversification (genes→species)
+### Key-innovation diversification (genomes→species)
 
 A small panel of binary **driver** ("key innovation") gene families whose *presence* sets each
 lineage's speciation/extinction rate: a present driver scales λ by `exp(driver_speciation)` and μ by
@@ -108,7 +108,7 @@ The neutral bulk genome, which does not touch diversification, is overlaid after
 tree with the ordinary [`genomes`](../cli.md) (exact under independent families). `root_drivers` seeds
 the first *m* drivers at the root.
 
-### Cladogenetic genome evolution (species→genes)
+### Cladogenetic genome evolution (species→genomes)
 
 The reverse of `genomes:species`: gene content does **not** affect diversification, so this is an
 overlay on a given tree — the genomic twin of cladogenetic trait evolution. A genome of
@@ -119,7 +119,7 @@ Poisson(`cladogenetic_gain`) count of new families — on top of optional gradua
 signature is that *sister tips differ* because change is injected at their split rather than spread
 along branches.
 
-### Gene-conditioned trait (genes→traits)
+### Gene-conditioned trait (genomes→traits)
 
 The reverse of `traits:genomes`: here gene content conditions a **trait**. A binary *modifier* gene
 comes and goes along the tree (a two-state Markov chain, `gene_gain`/`gene_loss`, optionally
@@ -128,7 +128,7 @@ carrying the gene is pulled toward `theta_present`, one without it drifts back t
 mean-reversion `alpha` (0 = Brownian) and diffusion `sigma2`. "Gene presence enables a trait shift."
 Tips carrying the modifier end up near `theta_present`, those without near `theta_absent`.
 
-### Trait-conditioned gene families (traits→genes)
+### Trait-conditioned gene families (traits→genomes)
 
 The **trait-linked-genomes** model, and the most detailed edge here: a trait is evolved down the
 tree, then a fixed **panel** of gene families is evolved along it whose **loss depends on the local
@@ -285,9 +285,9 @@ lost tree-wide and the inert rows go all-zero.
     - the into-species edges (`traits:species` = SSE, `genomes:species`) that couple traits and gene
       families *back* to the diversification process, up to the fully joint `--all` model.
 
-### Co-diversification (joint, genes↔species)
+### Co-diversification (joint, genomes↔species)
 
-Both species↔genes arrows at once: the same driver panel **sets** the diversification rates
+Both species↔genomes arrows at once: the same driver panel **sets** the diversification rates
 (`genomes:species`) *and* is **reshuffled by a cladogenetic burst** at every speciation
 (`species:genomes`: a daughter drops each carried driver with probability `cladogenetic_loss` and gains
 each absent one with probability `cladogenetic_gain`). Because a burst can hand one daughter a key
@@ -296,9 +296,9 @@ ClaSSE. One arrow points into S, so the tree is an **output** (`simulate_co_dive
 `--couple genomes:species --couple species:genomes`). It reduces to `GeneDiversification` when both
 cladogenetic probabilities are 0.
 
-### Trait–gene feedback (joint, traits↔genes)
+### Trait–gene feedback (joint, traits↔genomes)
 
-Both traits↔genes arrows at once: a continuous trait and a coupled panel of `n_families` modulate each
+Both traits↔genomes arrows at once: a continuous trait and a coupled panel of `n_families` modulate each
 other, integrated jointly along each branch — the panel's present count sets the trait's OU optimum
 (interpolated between `theta_low` at an empty panel and `theta_high` at a full one), while the trait
 sets each responsive family's retention exactly as in `traits:genomes` (`effect_loss`, `base_loss`,
@@ -389,12 +389,12 @@ PATH.
 ### Trait-linked (traits:genomes) CLI options
 
 `zombi2 coevolve --couple traits:genomes` runs the whole trait-linked pipeline on a species tree you
-provide. It simulates the trait (`--trait-model`, reusing every `zombi2 trait` model), builds the
+provide. It simulates the trait (`--trait-model`, reusing every `zombi2 traits` model), builds the
 coupling (`--panel`, `--responsive`, `--weight`, `--effect-loss`), and writes the gene-family output
 plus the trait and a coupling manifest. Besides the usual gene-family files (chosen with `--write`,
 exactly as in [`genomes`](../cli.md)), it always writes:
 
-- **`traits.tsv`** / **`trait_tree.nwk`** — the trait at every node (as `zombi2 trait` writes).
+- **`traits.tsv`** / **`trait_tree.nwk`** — the trait at every node (as `zombi2 traits` writes).
 - **`coupling.tsv`** — the per-family coupling weights and the effect sizes, so the exact trait↔gene
   linkage that generated the profiles is on record for downstream inference.
 
@@ -406,7 +406,7 @@ Useful options:
 - `--trait-steps K` sets the within-branch resolution for a continuous trait.
 - `--trait-file traits.tsv` reuses a precomputed trait instead of simulating one — a
   `node`/`value` table over **every** node (numeric values; encode discrete states as numbers),
-  as `zombi2 trait` writes with its all-nodes output.
+  as `zombi2 traits` writes with its all-nodes output.
 - `--effect-gain` turns on the optional donor-side HGT-activity coupling.
 
 ## Python

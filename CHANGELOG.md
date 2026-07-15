@@ -45,6 +45,10 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   sequences).
 - **Coevolve nodes standardise on `genomes`** (C6): `--couple traits:genomes`, `genomes:species`,
   etc. The old node spelling `genes` is still accepted but warns — one domain word everywhere.
+- **CLI commands are plural nouns** (C5): `zombi2 traits` and `zombi2 sequences` (matching `species`
+  / `genomes`, the packages, and the guide). The singular `trait` / `sequence` still work but warn.
+  The run-manifest filename follows the command, so these runs now write `traits.log` / `sequences.log`
+  (were `trait.log` / `sequence.log`).
 - **Rate vocabulary clarified in the docs and manual** (naming consolidation C2/C3). The guide,
   the manual, and `conventions.md` now state a single two-word rule — a **rate** is a quantity per
   unit time, a **modifier** is a dimensionless multiplier on a rate — and reserve **odds** for the

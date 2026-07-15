@@ -88,7 +88,7 @@ cores. See
 
 ### Do the simulated alignments have gaps / indels?
 
-No. `zombi2 sequence` evolves **substitutions only** along fixed-length alignments (set by
+No. `zombi2 sequences` evolves **substitutions only** along fixed-length alignments (set by
 `--seq-length`), so every family's FASTA is **gapless** — there is no indel/gap process and no
 codon model. The "insertions/deletions" in the nucleotide genome layer are *structural* (they
 add, remove, or reorder genes) and never appear as alignment columns. See

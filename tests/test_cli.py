@@ -466,7 +466,7 @@ def test_sequence_command_writes_phylograms(tmp_path):
     """`zombi2 sequence` replays a genomes run's trace and writes substitution-unit gene trees."""
     run = _genomes_run_with_trace(tmp_path)
     out = tmp_path / "seq"
-    rc = main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+    rc = main(["sequences", "--genomes", str(run), "--family-speed", "0.5",
                "--branch-speed", "0.4", "--seed", "7", "-o", str(out)])
     assert rc == 0
     subst = list((out / "gene_trees").glob("*_extant_subst.nwk"))
@@ -474,14 +474,14 @@ def test_sequence_command_writes_phylograms(tmp_path):
     assert all(p.read_text().strip().endswith(";") for p in subst)
     assert (out / "gene_family_speeds.tsv").read_text().startswith("family\tspeed")
     assert (out / "branch_rates.tsv").read_text().startswith("species_branch\trate")
-    assert (out / "sequence.log").exists()
+    assert (out / "sequences.log").exists()
 
 
 def test_sequence_command_discrete_bins(tmp_path):
     """`--branch-bins` selects the discrete-bin (GTDB) lineage clock."""
     run = _genomes_run_with_trace(tmp_path)
     out = tmp_path / "seq"
-    rc = main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+    rc = main(["sequences", "--genomes", str(run), "--family-speed", "0.5",
                "--branch-bins", "0.25,0.5,1,2,4", "--branch-switch-rate", "1.5",
                "--seed", "7", "-o", str(out)])
     assert rc == 0
@@ -502,7 +502,7 @@ def test_sequence_command_relaxed_clocks(tmp_path, flags):
     """Each --clock model rescales the gene trees and writes per-branch rates."""
     run = _genomes_run_with_trace(tmp_path)
     out = tmp_path / "seq"
-    rc = main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+    rc = main(["sequences", "--genomes", str(run), "--family-speed", "0.5",
                *flags, "--seed", "7", "-o", str(out)])
     assert rc == 0
     assert list((out / "gene_trees").glob("*_extant_subst.nwk"))
@@ -512,7 +512,7 @@ def test_sequence_command_relaxed_clocks(tmp_path, flags):
 def test_sequence_clock_discrete_bin_without_bins_errors(tmp_path):
     """`--clock discrete-bin` needs the ordered bin list."""
     run = _genomes_run_with_trace(tmp_path)
-    rc = main(["sequence", "--genomes", str(run), "--clock", "discrete-bin",
+    rc = main(["sequences", "--genomes", str(run), "--clock", "discrete-bin",
                "-o", str(tmp_path / "seq")])
     assert rc == 1
 
@@ -522,7 +522,7 @@ def test_sequence_command_reproducible(tmp_path):
     run = _genomes_run_with_trace(tmp_path)
     a, b = tmp_path / "a", tmp_path / "b"
     for out in (a, b):
-        main(["sequence", "--genomes", str(run), "--family-speed", "0.5",
+        main(["sequences", "--genomes", str(run), "--family-speed", "0.5",
               "--branch-speed", "0.4", "--seed", "7", "-o", str(out)])
     fa = sorted((a / "gene_trees").glob("*_extant_subst.nwk"))
     fb = sorted((b / "gene_trees").glob("*_extant_subst.nwk"))
@@ -533,7 +533,7 @@ def test_sequence_command_reproducible(tmp_path):
 def test_sequence_two_clocks_rejected(tmp_path):
     """--branch-speed and --branch-bins are two lineage clocks — giving both is an error."""
     run = _genomes_run_with_trace(tmp_path)
-    rc = main(["sequence", "--genomes", str(run), "--branch-speed", "0.4",
+    rc = main(["sequences", "--genomes", str(run), "--branch-speed", "0.4",
                "--branch-bins", "0.5,1,2", "-o", str(tmp_path / "seq")])
     assert rc == 1
 
@@ -543,7 +543,7 @@ def test_sequence_missing_trace_is_clean_error(tmp_path):
     sp = tmp_path / "sp"
     main(["species", "--tips", "15", "--seed", "1", "-o", str(sp)])
     # a genomes dir with only a species tree (no Events_trace.tsv)
-    rc = main(["sequence", "--genomes", str(sp), "--branch-speed", "0.4",
+    rc = main(["sequences", "--genomes", str(sp), "--branch-speed", "0.4",
                "-o", str(tmp_path / "seq")])
     assert rc == 1
 
@@ -563,7 +563,7 @@ def test_sequence_command_dna_alignments(tmp_path):
     """`zombi2 sequence --subst-model hky85` writes per-family FASTA over the ACGT alphabet."""
     run = _genomes_run_with_trace(tmp_path)
     out = tmp_path / "seq"
-    rc = main(["sequence", "--genomes", str(run), "--subst-model", "hky85",
+    rc = main(["sequences", "--genomes", str(run), "--subst-model", "hky85",
                "--seq-length", "60", "--branch-speed", "0.3", "--seed", "7", "-o", str(out)])
     assert rc == 0
     files, letters = _alignment_letters(out / "alignments")
@@ -577,7 +577,7 @@ def test_sequence_command_protein_alignments(tmp_path):
     """`zombi2 sequence --subst-model lg` writes per-family FASTA over the 20-AA alphabet."""
     run = _genomes_run_with_trace(tmp_path)
     out = tmp_path / "seq"
-    rc = main(["sequence", "--genomes", str(run), "--subst-model", "lg",
+    rc = main(["sequences", "--genomes", str(run), "--subst-model", "lg",
                "--seq-length", "50", "--gamma-shape", "0.5", "--seed", "7", "-o", str(out)])
     assert rc == 0
     files, letters = _alignment_letters(out / "alignments")
@@ -594,7 +594,7 @@ def test_sequence_without_model_writes_no_alignments(tmp_path):
     """Omitting --subst-model keeps the old rescale-only behaviour (no alignments/ dir)."""
     run = _genomes_run_with_trace(tmp_path)
     out = tmp_path / "seq"
-    rc = main(["sequence", "--genomes", str(run), "--branch-speed", "0.3",
+    rc = main(["sequences", "--genomes", str(run), "--branch-speed", "0.3",
                "--seed", "7", "-o", str(out)])
     assert rc == 0
     assert not (out / "alignments").exists()
@@ -604,7 +604,7 @@ def test_sequence_without_model_writes_no_alignments(tmp_path):
 def test_sequence_gamma_without_model_rejected(tmp_path):
     """--gamma-shape without --subst-model is a clean error (nothing to apply it to)."""
     run = _genomes_run_with_trace(tmp_path)
-    rc = main(["sequence", "--genomes", str(run), "--gamma-shape", "0.5",
+    rc = main(["sequences", "--genomes", str(run), "--gamma-shape", "0.5",
                "-o", str(tmp_path / "seq")])
     assert rc == 1
 
@@ -635,7 +635,7 @@ def _tree_file(tmp_path, tips=10, seed=1):
 def test_trait_writes_tips_and_ancestral_values(tmp_path):
     tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "tr"
-    rc = main(["trait", "-t", tree, "--model", "ou", "--alpha", "3", "--theta", "5",
+    rc = main(["traits", "-t", tree, "--model", "ou", "--alpha", "3", "--theta", "5",
                "--seed", "2", "-o", str(dest)])
     assert rc == 0
     rows = (dest / "traits.tsv").read_text().splitlines()
@@ -649,13 +649,13 @@ def test_trait_writes_tips_and_ancestral_values(tmp_path):
 
 def test_trait_requires_tree_and_out(tmp_path):
     with pytest.raises(SystemExit):                          # -t and -o are required
-        main(["trait", "--model", "bm"])
+        main(["traits", "--model", "bm"])
 
 
 def test_trait_mk_writes_discrete_states(tmp_path):
     tree = _tree_file(tmp_path, tips=8)
     dest = tmp_path / "tr"
-    main(["trait", "-t", tree, "--model", "mk", "--states", "3", "--rate", "0.6",
+    main(["traits", "-t", tree, "--model", "mk", "--states", "3", "--rate", "0.6",
           "--seed", "1", "-o", str(dest)])
     values = {r.split("\t")[1] for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
     assert values <= {"0", "1", "2"}
@@ -666,7 +666,7 @@ def test_trait_reproducible(tmp_path):
 
     def run(name):
         dest = tmp_path / name
-        main(["trait", "-t", tree, "--model", "bm", "--sigma2", "0.5", "--seed", "3",
+        main(["traits", "-t", tree, "--model", "bm", "--sigma2", "0.5", "--seed", "3",
               "-o", str(dest)])
         return (dest / "traits.tsv").read_text()
 
@@ -676,7 +676,7 @@ def test_trait_reproducible(tmp_path):
 def test_trait_replicates_write_wide_table(tmp_path):
     tree = _tree_file(tmp_path, tips=8)
     dest = tmp_path / "rep"
-    rc = main(["trait", "-t", tree, "--model", "bm", "--sigma2", "0.5",
+    rc = main(["traits", "-t", tree, "--model", "bm", "--sigma2", "0.5",
                "--replicates", "5", "--seed", "1", "-o", str(dest)])
     assert rc == 0
     rows = (dest / "traits.tsv").read_text().splitlines()
@@ -688,7 +688,7 @@ def test_trait_replicates_write_wide_table(tmp_path):
 def test_trait_mk_ordered(tmp_path):
     tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "ord"
-    rc = main(["trait", "-t", tree, "--model", "mk", "--states", "4", "--rate", "0.6",
+    rc = main(["traits", "-t", tree, "--model", "mk", "--states", "4", "--rate", "0.6",
                "--ordered", "--seed", "1", "-o", str(dest)])
     assert rc == 0
     vals = {r.split("\t")[1] for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
@@ -700,7 +700,7 @@ def test_trait_mk_q_matrix(tmp_path):
     q.write_text("0 2 0\n1 0 1\n0 3 0\n")               # a 3-state arbitrary Markov chain
     tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "qm"
-    rc = main(["trait", "-t", tree, "--model", "mk", "--q-matrix", str(q),
+    rc = main(["traits", "-t", tree, "--model", "mk", "--q-matrix", str(q),
                "--seed", "1", "-o", str(dest)])
     assert rc == 0
     vals = {r.split("\t")[1] for r in (dest / "traits.tsv").read_text().splitlines()[1:]}
@@ -710,7 +710,7 @@ def test_trait_mk_q_matrix(tmp_path):
 def test_trait_dec_writes_ranges(tmp_path):
     tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "dec"
-    rc = main(["trait", "-t", tree, "--model", "dec", "--areas", "A,B,C",
+    rc = main(["traits", "-t", tree, "--model", "dec", "--areas", "A,B,C",
                "--dispersal", "0.3", "--extinction", "0.1", "--root-range", "A",
                "--seed", "1", "-o", str(dest)])
     assert rc == 0
@@ -725,9 +725,9 @@ def test_trait_writes_log(tmp_path):
     """`trait` always writes trait.log with the command line and the full parameter set."""
     tree = _tree_file(tmp_path, tips=10)
     dest = tmp_path / "tr"
-    rc = main(["trait", "-t", tree, "--model", "bm", "--seed", "5", "-o", str(dest)])
+    rc = main(["traits", "-t", tree, "--model", "bm", "--seed", "5", "-o", str(dest)])
     assert rc == 0
-    log = (dest / "trait.log").read_text()
+    log = (dest / "traits.log").read_text()
     assert "zombi2_version" in log and "command_line\t" in log
     assert "model\tbm" in log and "seed\t5" in log
 

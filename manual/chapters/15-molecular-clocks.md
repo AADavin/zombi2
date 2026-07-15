@@ -187,7 +187,7 @@ family, then multiplied by each family's own speed. Passing `branch_sigma` remai
 
 ## Usage from the CLI
 
-The `zombi2 sequence` command grows a `--clock` selector for the family. As in Chapter 14 it runs on
+The `zombi2 sequences` command grows a `--clock` selector for the family. As in Chapter 14 it runs on
 a prior `genomes` result whose event trace was written (`--write trace`):
 
 ```bash
@@ -195,11 +195,11 @@ zombi2 genomes -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
 
 # an uncorrelated lognormal lineage clock, plus per-family speed
-zombi2 sequence --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
+zombi2 sequences --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5 \
     --family-speed 0.5 -o run/
 
 # a mean-reverting CIR clock instead
-zombi2 sequence --genomes run/ --clock cir --clock-theta 1.0 --clock-sigma 0.4 -o run/
+zombi2 sequences --genomes run/ --clock cir --clock-theta 1.0 --clock-sigma 0.4 -o run/
 ```
 
 `--clock` chooses the model — `strict`, `autocorrelated-lognormal`, `uncorrelated-lognormal`,

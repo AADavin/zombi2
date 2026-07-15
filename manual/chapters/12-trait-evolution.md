@@ -334,20 +334,20 @@ res.changes()             # anagenetic dispersal / extinction events
 
 ## From the command line
 
-The `zombi2 trait` command runs a single model on a tree you provide and writes the tip and ancestral
+The `zombi2 traits` command runs a single model on a tree you provide and writes the tip and ancestral
 values:
 
 ```bash
 T=species_tree.nwk
 
-zombi2 trait -t $T --model bm --sigma2 0.5 --seed 1 -o out/
-zombi2 trait -t $T --model ou --alpha 2.0 --theta 10.0 -o out/
-zombi2 trait -t $T --model eb --rate -0.8 -o out/
-zombi2 trait -t $T --model mk --states 3 -o out/         # equal-rates Mk
-zombi2 trait -t $T --model mk --ordered -o out/          # adjacent-only chain
-zombi2 trait -t $T --model mk --q-matrix Q.tsv -o out/   # arbitrary Q
-zombi2 trait -t $T --model threshold -o out/
-zombi2 trait -t $T --model dec --areas A,B,C --dispersal 0.3 -o out/
+zombi2 traits -t $T --model bm --sigma2 0.5 --seed 1 -o out/
+zombi2 traits -t $T --model ou --alpha 2.0 --theta 10.0 -o out/
+zombi2 traits -t $T --model eb --rate -0.8 -o out/
+zombi2 traits -t $T --model mk --states 3 -o out/         # equal-rates Mk
+zombi2 traits -t $T --model mk --ordered -o out/          # adjacent-only chain
+zombi2 traits -t $T --model mk --q-matrix Q.tsv -o out/   # arbitrary Q
+zombi2 traits -t $T --model threshold -o out/
+zombi2 traits -t $T --model dec --areas A,B,C --dispersal 0.3 -o out/
 ```
 
 For the Mk model, `--model mk` is equal-rates by default, `--ordered` gives the adjacent-only
