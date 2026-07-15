@@ -63,10 +63,37 @@ def test_presets_warn_and_left_public_api():
 
 
 def test_validation():
-    with pytest.raises(ValueError, match="copy.*lineage|shared"):
-        z.Rates(duplication=0.3, per="shared")   # genome shared not yet implemented
-    with pytest.raises(ValueError, match="per='lineage'"):
+    with pytest.raises(ValueError, match="per must be"):
+        z.Rates(duplication=0.3, per="bogus")
+    with pytest.raises(ValueError, match="supports only"):
         z.Rates(duplication=0.3, per="lineage", inversion=0.1)   # rearrangements are per-copy
+    with pytest.raises(ValueError, match="transfer"):
+        z.Rates(duplication=0.3, transfer=0.1, per="shared")     # transfer not yet supported for shared
+
+
+def test_per_shared_is_one_tree_wide_clock():
+    # per="shared": a single tree-wide duplication clock → #dup events ≈ base·age, INDEPENDENT of how
+    # many lineages the family spans (contrast per-lineage, which scales with the lineage count).
+    from zombi2.genomes.events import EventType
+    tree = z.simulate_species_tree(z.BirthDeath(1.5, 0.2), age=5.0, direction="forward", seed=1)
+    assert len(tree.extant_leaves()) > 20   # a bushy tree, so "independent of lineage count" bites
+
+    def n_dups(rates, seed):
+        g = z.simulate_genomes(tree, rates, initial_families=1, seed=seed)
+        return sum(1 for e in g.event_log.records if e.event == EventType.DUPLICATION)
+
+    shared = [n_dups(z.Rates(duplication=0.6, per="shared"), s) for s in range(120)]
+    lineage = [n_dups(z.Rates(duplication=0.6, per="lineage"), s) for s in range(40)]
+    assert 2.0 < np.mean(shared) < 4.5          # ≈ 0.6 × 5 = 3, not scaled by the many lineages
+    assert np.mean(lineage) > 3 * np.mean(shared)  # per-lineage scales with the lineage count → far more
+
+
+def test_per_shared_is_deterministic_and_python_engine():
+    tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), age=4.0, direction="forward", seed=1)
+    a = z.simulate_genomes(tree, z.Rates(duplication=0.5, loss=0.1, per="shared"), initial_families=2, seed=9)
+    b = z.simulate_genomes(tree, z.Rates(duplication=0.5, loss=0.1, per="shared"), initial_families=2, seed=9)
+    assert a.profiles.to_tsv() == b.profiles.to_tsv()          # reproducible
+    assert not _rust.eligible(z.Rates(duplication=0.5, per="shared"), UnorderedGenome, None)  # Python
 
 
 def test_family_sampled_rates_per_lineage_closes_the_wrinkle():

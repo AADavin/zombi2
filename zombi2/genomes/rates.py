@@ -79,6 +79,14 @@ class RateModel(ABC):
     def event_weights(self, genome, branch: str, time: float) -> list[EventWeight]:
         ...
 
+    def shared_event_weights(self, family) -> list[tuple]:
+        """For a ``per="shared"`` model: the **tree-wide** base rate of each per-family event —
+        ``[(EventType, rate), ...]`` — for ``family``. The simulator runs one such constant-rate
+        clock per family present anywhere on the tree (independent of copy number), localising a
+        fire to a copy chosen uniformly across the whole family. Default: none (not a shared model),
+        so the simulator's shared pool stays empty and every other model is untouched."""
+        return []
+
     def target_params(self, event: EventType, genome, branch: str, time: float) -> TargetParams:
         return TargetParams()
 
@@ -148,9 +156,8 @@ class Rates(RateModel):
                  chromosome_origination: float = 0.0, chromosome_loss: float = 0.0,
                  fission: float = 0.0, fusion: float = 0.0,
                  carrying_capacity: float | None = None):
-        if per not in ("copy", "lineage"):
-            extra = " ('shared' is planned but not yet implemented for genomes)" if per == "shared" else ""
-            raise ValueError(f"per must be 'copy' or 'lineage', got {per!r}{extra}")
+        if per not in ("copy", "lineage", "shared"):
+            raise ValueError(f"per must be 'copy', 'lineage', or 'shared', got {per!r}")
         self.per = per
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
@@ -183,7 +190,7 @@ class Rates(RateModel):
         self.fission = float(fission)
         self.fusion = float(fusion)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
-        if self.per == "lineage":
+        if self.per in ("lineage", "shared"):
             per_copy_only = {
                 "inversion": self.inversion, "transposition": self.transposition,
                 "translocation": self.translocation, "insertion": self.insertion,
@@ -196,8 +203,11 @@ class Rates(RateModel):
             if set_now or self.carrying_capacity is not None:
                 bad = set_now + (["carrying_capacity"] if self.carrying_capacity is not None else [])
                 raise ValueError(
-                    f"per='lineage' supports only duplication/transfer/loss/origination; "
+                    f"per={self.per!r} supports only duplication/transfer/loss/origination; "
                     f"remove {', '.join(bad)} (a per-copy notion)")
+        if self.per == "shared" and self.transfer > 0:
+            raise ValueError("per='shared' does not yet support transfer; use duplication/loss "
+                             "(and origination, which stays per lineage)")
 
     def _regulated(self) -> bool:
         # Only the *soft* carrying capacity needs per-family duplication weights. A hard
@@ -206,6 +216,12 @@ class Rates(RateModel):
         return self.carrying_capacity is not None
 
     def event_weights(self, genome, branch, time):
+        if self.per == "shared":
+            # duplication/loss are tree-wide per-family clocks the simulator drives through its
+            # shared pool (see GenomeSimulator); only origination (per lineage, family-agnostic)
+            # fires through the per-branch path here.
+            return ([EventWeight(EventType.ORIGINATION, None, self.origination)]
+                    if self.origination > 0 else [])
         if self.per == "lineage":
             # one clock per genome: constant totals (not scaled by copy number), target chosen
             # uniformly. Only D/T/L/origination apply (rearrangements rejected at construction).
@@ -272,6 +288,16 @@ class Rates(RateModel):
                 out.append(EventWeight(EventType.FUSION, None, self.fusion * n_chrom))
             if self.translocation > 0 and n > 0:  # per-nucleotide: move an arc to another chromosome
                 out.append(EventWeight(EventType.TRANSLOCATION, None, self.translocation * n))
+        return out
+
+    def shared_event_weights(self, family):
+        if self.per != "shared":
+            return []
+        out = []
+        if self.duplication > 0:
+            out.append((EventType.DUPLICATION, self.duplication))
+        if self.loss > 0:
+            out.append((EventType.LOSS, self.loss))
         return out
 
 
