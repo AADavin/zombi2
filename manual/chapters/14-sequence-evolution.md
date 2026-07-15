@@ -9,7 +9,7 @@ lived for a quarter as long can look identical in an alignment.
 Sequence evolution is the step that closes this gap. It overlays a substitution rate that varies
 across the tree and rescales every branch from time into substitutions per site, turning a
 **chronogram** (branch lengths in time) into a **phylogram** (branch lengths in substitutions). This
-chapter covers the shared gene $\times$ lineage clock and the `zombi2 sequence` command that applies
+chapter covers the shared gene $\times$ lineage clock and the `zombi2 sequences` command that applies
 it to a completed gene-family simulation.
 
 ## The problem
@@ -114,7 +114,7 @@ decreasing) order of rate.
 
 ## Usage from the CLI
 
-Sequence evolution is a **separate command**, `zombi2 sequence`, run on a prior `genomes` result.
+Sequence evolution is a **separate command**, `zombi2 sequences`, run on a prior `genomes` result.
 Decoupling the two means you can retune the clock without re-simulating gene content. The only
 requirement is that the `genomes` run wrote its event trace — pass `trace` to `--write`:
 
@@ -123,10 +123,10 @@ zombi2 genomes -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
 
 # lognormal lineage clock + per-family speed
-zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
 
 # discrete-bin lineage clock instead of --branch-speed
-zombi2 sequence --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
+zombi2 sequences --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
     --family-speed 0.5 -o run/
 ```
 
@@ -159,11 +159,11 @@ sequence at every leaf, evolved base by base (or residue by residue) under a sub
 
 ```bash
 # DNA alignments (HKY85) along the rescaled gene trees
-zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
+zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
     --subst-model hky85 --seq-length 600 -o run/
 
 # protein alignments under the LG model, with +Γ rate heterogeneity across sites
-zombi2 sequence --genomes run/ --branch-speed 0.4 \
+zombi2 sequences --genomes run/ --branch-speed 0.4 \
     --subst-model lg --seq-length 300 --gamma-shape 0.5 -o run/
 ```
 

@@ -725,7 +725,7 @@ nucleotides (`extension=0.99` → ~100 nt). Two extra knobs edit only intergene 
 `insertion` lays down a run of novel nucleotides (a fresh block) and `deletion` removes a run from
 within a single intergene, each with mean `indel_mean_length`. These are **structural** edits to
 the genome — they add or remove nucleotides between genes — and are *not* alignment gaps: the
-sequence layer (`zombi2 sequence`) is [gapless](sequences.md), so they never surface as alignment
+sequence layer (`zombi2 sequences`) is [gapless](sequences.md), so they never surface as alignment
 columns.
 
 ```python

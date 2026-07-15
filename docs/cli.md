@@ -11,10 +11,10 @@ zombi2 genomes --tree out/species_tree.nwk \
     --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/
 
 # 3. a phenotypic trait along that tree
-zombi2 trait --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
+zombi2 traits --tree out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/
 
 # 4. DNA sequences along the gene trees (from a genomes run written with --write trace)
-zombi2 sequence --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq/
+zombi2 sequences --genomes out/ --subst-model hky85 --kappa 4 --seed 7 -o out/seq/
 ```
 
 `species` writes `species_tree.nwk` (plus `species_nodes.tsv` and a run log; forward mode also
@@ -131,12 +131,12 @@ values. Pick a model with `--model`:
 ```bash
 T=out/species_tree.nwk
 
-zombi2 trait -t $T --model bm --sigma2 0.5 -o out/                     # Brownian motion
-zombi2 trait -t $T --model ou --alpha 2 --theta 5 -o out/             # pulled toward an optimum
-zombi2 trait -t $T --model eb --sigma2 1 --rate -1.5 -o out/          # early burst (rate < 0)
-zombi2 trait -t $T --model mk --states 3 --rate 0.5 -o out/           # discrete 3-state
-zombi2 trait -t $T --model threshold --thresholds 0 -o out/          # binary from a liability
-zombi2 trait -t $T --model dec --areas A,B,C --dispersal 0.3 -o out/ # geographic ranges
+zombi2 traits -t $T --model bm --sigma2 0.5 -o out/                     # Brownian motion
+zombi2 traits -t $T --model ou --alpha 2 --theta 5 -o out/             # pulled toward an optimum
+zombi2 traits -t $T --model eb --sigma2 1 --rate -1.5 -o out/          # early burst (rate < 0)
+zombi2 traits -t $T --model mk --states 3 --rate 0.5 -o out/           # discrete 3-state
+zombi2 traits -t $T --model threshold --thresholds 0 -o out/          # binary from a liability
+zombi2 traits -t $T --model dec --areas A,B,C --dispersal 0.3 -o out/ # geographic ranges
 ```
 
 It writes two files: **`traits.tsv`** (a `node`/`trait` table over *every* node — tips named
@@ -148,7 +148,7 @@ writes a **wide** `traits.tsv` — one column per replicate (`rep_1 … rep_N`),
 instead of the annotated tree. Handy for an empirical distribution or method-testing dataset:
 
 ```bash
-zombi2 trait -t $T --model bm --sigma2 0.5 --replicates 100 --seed 1 -o out/
+zombi2 traits -t $T --model bm --sigma2 0.5 --replicates 100 --seed 1 -o out/
 ```
 
 **The Mk chain.** For `--model mk` the transition structure is up to you: the default is
@@ -175,7 +175,7 @@ the phylograms:
 ```bash
 zombi2 genomes  -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
-zombi2 sequence --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
 ```
 
 The rescaling model is `rate(family g, species branch b) = R_b · s_g`: a **shared lineage clock**
@@ -198,10 +198,10 @@ nucleotides), `--gamma-shape` adds across-site rate heterogeneity, and the model
 instead of a random draw:
 
 ```bash
-zombi2 sequence --genomes run/ --subst-model hky85 --kappa 4 --seed 7 -o seq/
+zombi2 sequences --genomes run/ --subst-model hky85 --kappa 4 --seed 7 -o seq/
 
 # codon model under purifying selection (dN/dS = 0.1), 200 codons = 600 bp of coding DNA
-zombi2 sequence --genomes run/ --subst-model gy94 --omega 0.1 --kappa 3 --seq-length 200 -o seq/
+zombi2 sequences --genomes run/ --subst-model gy94 --omega 0.1 --kappa 3 --seq-length 200 -o seq/
 ```
 
 This writes one `alignments/<family>.fasta` per gene family (plus the rescaled `gene_trees/`); codon
@@ -215,7 +215,7 @@ positive-selection class). Class parameters are `--omega0`/`--omega2`/`--omega-s
 
 ```bash
 # M2a: 50% purifying, 30% neutral, 20% positively-selected sites
-zombi2 sequence --genomes run/ --subst-model gy94 --omega-model m2a \
+zombi2 sequences --genomes run/ --subst-model gy94 --omega-model m2a \
   --omega-p0 0.5 --omega0 0.05 --omega-p1 0.3 --omega2 3.0 -o seq/
 ```
 
@@ -298,7 +298,7 @@ parameters, the joint (both-arrow) models, and the CLI options.
 | `--seed` / `-o` / `--out` | RNG seed / output directory |
 
 Substitution branch lengths (sequence evolution) are a **separate step** — run
-[`zombi2 sequence`](#sequence) on a genomes run, rather than a flag here.
+[`zombi2 sequences`](#sequence) on a genomes run, rather than a flag here.
 
 ### `trait`
 

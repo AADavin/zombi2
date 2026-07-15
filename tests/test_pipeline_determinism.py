@@ -54,7 +54,7 @@ def _run_pipeline(base):
     assert main(["genomes", "--tree", str(sp / "species_tree.nwk"),
                  "--write", "trace", "profiles",  # trace needed so 'sequence' can replay
                  "--seed", "7", "-o", str(gen)]) == 0
-    assert main(["sequence", "--genomes", str(gen), "--family-speed", "0.5",
+    assert main(["sequences", "--genomes", str(gen), "--family-speed", "0.5",
                  "--seed", "7", "-o", str(seq)]) == 0
     return {"species": sp, "genomes": gen, "sequence": seq}
 

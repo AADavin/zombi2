@@ -55,7 +55,7 @@ keeps minting new families along the tree, so the final family count grows past
 | `gene_trees/<fid>_complete.nwk` / `_extant.nwk` | reconstructed gene trees (with / without losses) |
 | `Transfers.tsv` | every transfer (donor, recipient, ids) |
 | `Gene_family_summary.tsv` | per-family event counts and extant copies |
-| `Events_trace.tsv` | compact one-row-per-event trace (O/D/T/L), replayable by `zombi2 sequence` |
+| `Events_trace.tsv` | compact one-row-per-event trace (O/D/T/L), replayable by `zombi2 sequences` |
 | `Profiles.tsv` / `Presence.tsv` | families × species copy-number / presence matrix |
 
 Event codes used in the logs and the trace: **O** origination · **D** duplication ·

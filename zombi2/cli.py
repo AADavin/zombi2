@@ -58,10 +58,10 @@ Species trees
 
 Gene families & sequences
   genomes              evolve gene families along a species tree (Newick)
-  sequence             simulate DNA/protein alignments along a genomes run's gene trees
+  sequences            simulate DNA/protein alignments along a genomes run's gene trees
 
 Traits & coevolution
-  trait                evolve a phenotypic trait along a given species tree
+  traits               evolve a phenotypic trait along a given species tree
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
@@ -1047,7 +1047,7 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
                    help="per-state extinction rates (k values)")
     g.add_argument("--q-matrix", default=None, metavar="FILE",
                    help="path to a k x k anagenetic transition-rate matrix (same format as "
-                        "'zombi2 trait --q-matrix')")
+                        "'zombi2 traits --q-matrix')")
 
     g = p.add_argument_group("QuaSSE", "--sse-model quasse (continuous trait)")
     g.add_argument("--spec-low", type=float, default=0.5, metavar="RATE",
@@ -3598,15 +3598,16 @@ def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentPar
 
 
 def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder,
-                    epilog: str | None = None):
+                    epilog: str | None = None, aliases=None):
     """Register a subcommand with the house-style formatter and a hand-written compact usage.
 
     The command list itself is curated (grouped by theme) in the top-level description, so the
     per-command ``help`` is suppressed from argparse's auto listing to avoid a duplicate dump.
     ``epilog`` (built with :func:`_examples`) adds a worked-example block below the options.
+    ``aliases`` are accepted (deprecated) spellings — e.g. the singular ``trait`` for ``traits``.
     """
-    p = sub.add_parser(name, help=help, description=description, usage=usage,
-                       epilog=epilog, formatter_class=ZombiHelpFormatter)
+    p = sub.add_parser(name, aliases=aliases or [], help=help, description=description,
+                       usage=usage, epilog=epilog, formatter_class=ZombiHelpFormatter)
     adder(p)
     return p
 
@@ -3658,7 +3659,7 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 genomes -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/",
             "",
             "  # 3. a trait (or sequences, or coupled processes) on the same tree",
-            "  zombi2 trait -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
+            "  zombi2 traits -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
             "",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
         ),
@@ -3694,45 +3695,47 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "trait", "evolve a phenotypic trait along a given species tree",
+        sub, "traits", "evolve a phenotypic trait along a given species tree",
         "Evolve a phenotypic trait along a species tree, writing tip and ancestral values.",
-        "zombi2 trait -t FILE -o DIR [--model MODEL] [options]", _add_trait_args,
+        "zombi2 traits -t FILE -o DIR [--model MODEL] [options]", _add_trait_args,
+        aliases=["trait"],
         epilog=_examples(
             "  # Ornstein-Uhlenbeck continuous trait",
-            "  zombi2 trait -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
+            "  zombi2 traits -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
             "",
             "  # 3-state discrete Mk trait, 20 replicates",
-            "  zombi2 trait -t out/species_tree.nwk --model mk --states 3 --replicates 20 --seed 1 -o out/",
+            "  zombi2 traits -t out/species_tree.nwk --model mk --states 3 --replicates 20 --seed 1 -o out/",
         ))
 
     _add_subcommand(
         sub, "coevolve", "co-evolve coupled processes (--couple driver:target)",
-        "Co-evolve coupled processes over {species, traits, genes} — pick directed edges with "
-        "--couple (e.g. traits:species = SSE, traits:genes = trait-conditioned gene families).",
+        "Co-evolve coupled processes over {species, genomes, traits} — pick directed edges with "
+        "--couple (e.g. traits:species = SSE, traits:genomes = trait-conditioned gene families).",
         "zombi2 coevolve -o DIR --couple DRIVER:TARGET [-t FILE] [--age T|--tips N] [options]",
         _add_coevolve_mode_args,
         epilog=_examples(
             "  # trait-conditioned gene families (loss/gain depends on a simulated trait)",
-            "  zombi2 coevolve --couple traits:genes -t out/species_tree.nwk --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/",
+            "  zombi2 coevolve --couple traits:genomes -t out/species_tree.nwk --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/",
             "",
             "  # trait-dependent diversification (BiSSE), grows the tree",
             "  zombi2 coevolve --couple traits:species --sse-model bisse --tips 50 --seed 1 -o out/",
         ))
 
     _add_subcommand(
-        sub, "sequence", "simulate DNA/protein alignments along a genomes run's gene trees",
+        sub, "sequences", "simulate DNA/protein alignments along a genomes run's gene trees",
         "Rescale a 'genomes' run's gene trees from time into substitutions/site under a "
         "gene × lineage clock, then (with --subst-model) simulate a DNA or protein sequence "
         "alignment along each rescaled gene tree.",
-        "zombi2 sequence --genomes DIR -o DIR [--subst-model MODEL] "
+        "zombi2 sequences --genomes DIR -o DIR [--subst-model MODEL] "
         "[--clock MODEL [--clock-sigma S]] [options]",
         _add_sequence_args,
+        aliases=["sequence"],
         epilog=_examples(
             "  # rescale gene trees into substitutions/site (needs a 'genomes' run done with --write trace)",
-            "  zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/",
+            "  zombi2 sequences --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/",
             "",
             "  # ...and also simulate DNA alignments under HKY85",
-            "  zombi2 sequence --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
+            "  zombi2 sequences --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
         ))
 
     _add_subcommand(
@@ -3774,6 +3777,14 @@ def main(argv: list[str] | None = None) -> int:
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
+    # Commands are plural nouns; the singular spellings (trait/sequence) are accepted but deprecated.
+    # Normalise so dispatch and the run-manifest filename use the canonical plural.
+    _SINGULAR_COMMANDS = {"trait": "traits", "sequence": "sequences"}
+    if args.command in _SINGULAR_COMMANDS:
+        canonical = _SINGULAR_COMMANDS[args.command]
+        print(f"warning: 'zombi2 {args.command}' is deprecated; use 'zombi2 {canonical}'.",
+              file=sys.stderr)
+        args.command = canonical
     try:
         return _dispatch(args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
@@ -3859,16 +3870,16 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)
         return 0
 
-    if args.command == "trait":
+    if args.command == "traits":
         summary = _run_trait(args)
         print(summary)
-        _write_params_log(os.path.join(args.out, "trait.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "traits.log"), args, summary)
         return 0
 
-    if args.command == "sequence":
+    if args.command == "sequences":
         summary = _run_sequence(args)
         print(summary)
-        _write_params_log(os.path.join(args.out, "sequence.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "sequences.log"), args, summary)
         return 0
 
     if args.command == "coevolve":

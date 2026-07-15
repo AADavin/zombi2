@@ -71,3 +71,16 @@ def test_deep_module_anchor_stays_silent():
     assert BranchRates is z.LineageRates
     assert BranchModifier is z.LineageModifier
     assert read_branch_rates is z.read_lineage_rates
+
+
+def test_singular_command_aliases_still_work_and_warn(tmp_path, capsys):
+    """The commands are plural (`traits`, `sequences`); the singular spellings are accepted but
+    deprecated — they warn and produce the canonical (plural) run-manifest name."""
+    from zombi2.cli import main
+    tree = tmp_path / "sp.nwk"
+    tree.write_text("((A:1,B:1):1,C:2);")
+    rc = main(["trait", "-t", str(tree), "--model", "bm", "--seed", "1", "-o", str(tmp_path / "o")])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "deprecated" in err and "traits" in err
+    assert (tmp_path / "o" / "traits.log").exists()   # canonical output, whichever spelling was used

@@ -49,7 +49,7 @@ zombi2 tools red -t gene_tree.nwk                 # or print the table to stdout
 | `red` | Relative Evolutionary Divergence, in `[0, 1]` |
 
 The tree is any single Newick — a dated species tree from `zombi2 species`, a phylogram from
-`zombi2 sequence`, or an external tree. Branch lengths are read as-is.
+`zombi2 sequences`, or an external tree. Branch lengths are read as-is.
 
 ## Python
 
