@@ -43,6 +43,7 @@ import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
+from typing import Protocol, runtime_checkable
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # The diamond: levels, tiers, and the implicit downstream (substrate) edges
@@ -205,6 +206,26 @@ class Driver:
             raise ValueError(f"driver kind must be 'state' or 'event', got {self.kind!r}")
 
 
+@runtime_checkable
+class DriverSignal(Protocol):
+    """The realized history of a **state** driver: its value along every lineage, plus the interior
+    change-points at which a downstream rate must be refreshed.
+
+    This is the seam between a :class:`Driver` (which only names *which* level drives) and a
+    concrete simulated history. :class:`zombi2.coevolve.trait_coupling.TraitTrajectory` already
+    satisfies this contract — it is the canonical implementation, so the eventual
+    ``Driver``↔trajectory bridge needs no new signal type, only an adapter that produces one.
+    """
+
+    def value(self, lineage: str, time: float) -> float:
+        """The driver's value on ``lineage`` at ``time`` (right-continuous at change-points)."""
+        ...
+
+    def refresh_times(self, t0: float, t1: float):
+        """The interior change-points strictly inside ``(t0, t1)`` — where a coupled rate refreshes."""
+        ...
+
+
 @dataclass(frozen=True)
 class TargetVariable:
     """The variable of a level that a coupling bends, from the closed per-level menu
@@ -280,6 +301,27 @@ def _reachable(start: str, adj: dict[str, set[str]]) -> set[str]:
                 seen.add(v)
                 stack.append(v)
     return seen
+
+
+def _toposort(nodes, adj) -> list:
+    """Kahn topological sort of a DAG (``adj: node → set(node)``), roots (no incoming) first,
+    ties broken by node order for determinism. The condensation of any digraph is a DAG, so this
+    never sees a cycle."""
+    indeg = {n: 0 for n in nodes}
+    for u in adj:
+        for v in adj[u]:
+            indeg[v] = indeg.get(v, 0) + 1
+    ready = sorted(n for n in nodes if indeg[n] == 0)
+    order: list = []
+    while ready:
+        n = ready.pop(0)
+        order.append(n)
+        for v in sorted(adj.get(n, ())):
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                ready.append(v)
+        ready.sort()
+    return order
 
 
 class _SCC:
@@ -365,6 +407,35 @@ class CouplingGraph:
     def mode(self) -> str:
         """``"bidirectional"`` if any coupling fuses, else ``"directional"``."""
         return "bidirectional" if any(self.is_fused(c) for c in self.couplings) else "directional"
+
+    def solve_plan(self) -> list[tuple[str, object]]:
+        """The execution plan: an ordered list of steps, each ``("layer", coupling)`` or
+        ``("fuse", [couplings])``, ordered so every coupling's driver level is produced before the
+        coupling runs. Directional couplings run in dependency order; each cycle co-integrates as
+        one fused step. Every coupling appears exactly once.
+
+        The order comes from a topological sort of the *condensation* (the SCCs of the coupling +
+        substrate graph): substrate roots first, so a driver level is always simulated before the
+        coupling that reads it, and a fused cycle is emitted as a single co-integrated block.
+        """
+        comp = self._scc.component
+        cond_adj: dict[int, set[int]] = {}
+        for u, v in self._edges():
+            cu, cv = comp[u], comp[v]
+            if cu != cv:
+                cond_adj.setdefault(cu, set()).add(cv)
+        plan: list[tuple[str, object]] = []
+        for cid in _toposort(set(comp.values()), cond_adj):
+            if len(self._scc.members[cid]) > 1:
+                group = [c for c in self.couplings
+                         if comp[c.driver.level] == cid and comp[c.target.level] == cid]
+                if group:
+                    plan.append(("fuse", group))
+            else:
+                for c in self.couplings:
+                    if not self.is_fused(c) and comp[c.target.level] == cid:
+                        plan.append(("layer", c))
+        return plan
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

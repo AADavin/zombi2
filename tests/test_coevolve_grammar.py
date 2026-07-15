@@ -15,7 +15,7 @@ import math
 import pytest
 
 from zombi2.coevolve.grammar import (
-    LEVELS, TARGET_VARIABLES, Coupling, CouplingGraph, Curve, Driver, Scalar, Table,
+    LEVELS, TARGET_VARIABLES, Coupling, CouplingGraph, Curve, Driver, DriverSignal, Scalar, Table,
     TargetVariable, couple, legal_null_kinds, make_null, null_response,
 )
 
@@ -221,3 +221,51 @@ def test_timing_is_legal_only_for_event_drivers():
 def test_unknown_null_kind_is_rejected():
     with pytest.raises(ValueError, match="unknown null kind"):
         make_null(_state_edge(), "shuffle")
+
+
+# ── 5. The execution plan ─────────────────────────────────────────────────────
+def _flatten(plan):
+    out = []
+    for mode, payload in plan:
+        out.extend(payload if mode == "fuse" else [payload])
+    return out
+
+
+def test_plan_orders_directional_edges_by_dependency():
+    a = couple("traits", "genomes", "loss", -0.8)
+    b = couple("genomes", "sequences", "selection", 0.5)
+    plan = CouplingGraph([b, a]).solve_plan()          # deliberately reversed input
+    assert [m for m, _ in plan] == ["layer", "layer"]
+    # traits→genomes must precede genomes→sequences (its driver, genomes, is produced first)
+    assert [p for _, p in plan] == [a, b]
+
+
+def test_plan_emits_a_cycle_as_one_fused_step():
+    a = couple("traits", "genomes", "loss", -0.8)
+    b = couple("genomes", "traits", "optimum", 0.8)
+    plan = CouplingGraph([a, b]).solve_plan()
+    assert len(plan) == 1
+    mode, group = plan[0]
+    assert mode == "fuse"
+    assert len(group) == 2 and a in group and b in group    # membership by ==, not hashing
+
+
+def test_plan_covers_every_coupling_exactly_once():
+    sse = couple("traits", "species", "speciation", 1.2)       # fused (into species)
+    down = couple("genomes", "sequences", "selection", 0.4)    # layered
+    g = CouplingGraph([sse, down])
+    flat = _flatten(g.solve_plan())
+    assert sorted(map(id, flat)) == sorted(map(id, [sse, down]))
+    # the into-species fuse comes before the downstream layer step
+    assert g.solve_plan()[0][0] == "fuse"
+
+
+# ── 6. The driver-signal seam ─────────────────────────────────────────────────
+def test_trait_trajectory_satisfies_the_driver_signal_protocol():
+    # The grammar's DriverSignal contract must match the existing TraitTrajectory, so the eventual
+    # Driver↔trajectory bridge needs only an adapter, not a new signal type.
+    from zombi2.coevolve.trait_coupling import TraitTrajectory
+    traj = TraitTrajectory({}, {}, [], default=0.0)            # a trivial (empty) trajectory
+    assert isinstance(traj, DriverSignal)
+    assert traj.value("any_lineage", 1.0) == 0.0              # falls back to the default value
+    assert traj.refresh_times(0.0, 1.0) == []
