@@ -24,6 +24,14 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   per-family heterogeneity and the opportunity are now **independently selectable** (per-family × per-
   lineage no longer needs the modifier route). CLI `--rate-per` gains a `--per` alias. Same seed →
   byte-identical (Rust and Python paths).
+- **Shared gene-family clock (`Rates(per="shared")`)** — the gene analogue of `SharedBirthDeath`
+  (Part 3, phase C). Duplication and loss become **one tree-wide clock per family**: the total rate is
+  a constant regardless of how many lineages carry the family or how many copies it holds, so the
+  family's size grows **linearly and pooled** (`#events ≈ base × time`, independent of the tree's
+  size) — a fire is localised to a copy chosen uniformly across the whole family. CLI
+  `zombi2 genomes --per shared`. Unordered genomes only for now; duplication/loss (transfer and
+  rearrangements are rejected); origination stays per lineage. Implemented as a "shared pool" beside
+  the per-branch Gillespie, inert for every other model → those stay byte-identical.
 - **Codon substitution models** — `zombi2 sequence --subst-model gy94`/`mg94` evolve in-frame coding
   DNA over the 61 sense codons with `dN/dS` set directly by `--omega` (`<1` purifying, `1` neutral,
   `>1` positive selection) and a ti/tv bias `--kappa`. GY94 (Goldman & Yang 1994) weights by the

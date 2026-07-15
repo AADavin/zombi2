@@ -444,6 +444,27 @@ def test_genomes_per_lineage_rate(tmp_path):
     assert "rate_model" not in log  # the deprecated field is gone from the params log
 
 
+def test_genomes_per_shared_rate(tmp_path):
+    """--per shared runs (one tree-wide clock per family, Python engine) and is logged."""
+    sp = tmp_path / "sp"
+    main(["species", "--mode", "forward", "--age", "5", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "gsh"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--loss", "0.1",
+               "--per", "shared", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert "rate_per\tshared" in (out / "genomes.log").read_text()
+    assert (out / "profiles.tsv").exists()
+
+
+def test_genomes_per_shared_rejects_transfer(tmp_path):
+    """--per shared does not yet support transfer."""
+    sp = tmp_path / "sp"
+    main(["species", "--mode", "forward", "--age", "5", "--seed", "1", "-o", str(sp)])
+    with pytest.raises(SystemExit):
+        main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--trans", "0.2",
+              "--per", "shared", "-o", str(tmp_path / "x")])
+
+
 def test_genomes_rate_per_genome_deprecated_alias(tmp_path, capsys):
     """--rate-per genome is a deprecated spelling of --rate-per lineage: warns, runs, logs lineage."""
     sp = tmp_path / "sp"

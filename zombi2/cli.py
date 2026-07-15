@@ -246,13 +246,15 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
                         "(see the nucleotide sections). --genome-model is a deprecated alias")
-    g.add_argument("--rate-per", "--per", choices=("copy", "lineage", "genome"), default=None,
+    g.add_argument("--rate-per", "--per", choices=("copy", "lineage", "shared", "genome"), default=None,
                    dest="rate_per", metavar="UNIT",
                    help="what each rate is counted per — the opportunity that scales it "
                         "(unordered/ordered resolutions): copy = per gene copy, so total rates grow with "
                         "genome size (default; Rust for unordered); lineage = a constant rate per "
                         "lineage (the whole genome as one unit), giving linear rather than "
-                        "exponential growth (Python). Per-family rates come from --family-rates; "
+                        "exponential growth (Python); shared = one tree-wide clock per family "
+                        "(constant TOTAL duplication/loss rate however many lineages carry it — "
+                        "unordered only, Python). Per-family rates come from --family-rates; "
                         "nucleotide genomes are always per nucleotide. Rearrangements "
                         "(--inversion/--transposition) need --rate-per copy. (genome = deprecated "
                         "alias of lineage)")
@@ -1956,7 +1958,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if (args.family_rates or args.lineage_rates) and args.genome_model != "unordered":
         parser.error("--family-rates / --lineage-rates are only for --genome-resolution unordered")
     per_lineage = rate_per == "lineage"
-    args.rate_per = "lineage" if per_lineage else "copy"  # record the effective value in the log
+    per_shared = rate_per == "shared"
+    if per_shared and args.genome_model != "unordered":
+        parser.error("--rate-per shared is currently supported for --genome-resolution unordered only")
+    args.rate_per = rate_per if rate_per in ("lineage", "shared") else "copy"  # effective value in the log
     if not (0.0 <= args.transposition_flip <= 1.0):
         parser.error("--transposition-flip must be a probability in [0, 1]")
     if args.transposition_flip and not ordered:
@@ -1997,6 +2002,15 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
             parser.error("rearrangements (--inversion/--transposition) need --rate-per copy; "
                          "per-lineage rates do not carry them")
         rates = Rates(args.dup, args.trans, args.loss, args.orig, per="lineage")
+    elif per_shared:
+        if args.conversion:
+            parser.error("gene conversion (--conversion) needs --rate-per copy")
+        if family_mode:
+            parser.error("--family-rates does not combine with --rate-per shared")
+        if args.trans:
+            parser.error("--rate-per shared does not yet support transfer; use --dup/--loss "
+                         "(and --orig, which stays per lineage)")
+        rates = Rates(args.dup, 0.0, args.loss, args.orig, per="shared")
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "

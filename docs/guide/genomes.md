@@ -68,8 +68,9 @@ base model).
 
 | Model | Rates | Reach for it when |
 | --- | --- | --- |
-| **Rates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast and shared |
+| **Rates** | one per-copy D/T/L for every family (Rust engine) | the default DTL backbone, fast |
 | **Rates(per="lineage")** | constant per-lineage totals; families grow linearly | you want size-independent rates and no runaway growth |
+| **Rates(per="shared")** | one tree-wide clock per family; dup/loss total constant across the whole tree | a family expands under a single shared budget (the gene twin of `SharedBirthDeath`; unordered only) |
 | **FamilySampledRates** | each family draws its own D/T/L (ZOMBI1 style) | families should differ in their evolutionary rates |
 | **LineageRates** | a per-lineage factor scaling any base model | rates vary across the species tree (relaxed clock) |
 

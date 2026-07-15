@@ -191,8 +191,12 @@ Not all rungs cost the same. In rough order of effort:
   per-family heterogeneity and opportunity are independently selectable (closes the hard-coded-`copy`
   wrinkle above); Rust gate generalised to `isinstance(rates, Rates) and per=="copy"`. Byte-identical.
   *(shipped; the declarative interface — step 4 — is deferred to phase C, where `shared` needs it.)*
-- **C — Genome `shared`.** The global-pool engine work (step 3). New capability; the three-panel
-  duplication figure becomes its validation.
+- **C — Genome `shared`.** ✅ `Rates(per="shared")` / `zombi2 genomes --per shared`: one tree-wide
+  clock per family for duplication and loss (constant total rate; a fire localises to a copy chosen
+  uniformly across the family). Implemented as a "shared pool" beside the per-branch Gillespie —
+  inert for every other model, so those stay byte-identical (mechanism (a), the global pool). v1 scope:
+  unordered genomes, dup/loss (transfer/rearrangements rejected), origination stays per-lineage;
+  `FamilySampledRates(per="shared")` and the full declarative interface (step 4) deferred. *(shipped)*
 - **D — Per-event mixing.** `Per(unit, rate)` overrides → self-limiting and mixed models.
 - **E — Sequences `site`.** Name the axis at the nucleotide level.
 
