@@ -418,8 +418,13 @@ aliased+warned), and **C7** (every output file/dir lowercased — a deliberate b
 **no** `--legacy-filenames` shim, per Adrián; file *contents* are byte-identical, only the names
 changed). Everything except C5's run-manifest name and C7's filenames is byte-identical output.
 
-**Deferred for a separate discussion:** the sequence-clock **`--branch-*` / `--family-speed` σ
-flags** (they are spread parameters, not modifiers) — the last remaining item.
+**Sequence-clock `--branch-*` flags — DONE** (option 2, per Adrián): folded into the `--clock`
+interface. The discrete-bin knobs are now `--clock-bins` / `--clock-switch-rate` / `--clock-up-bias`
+(old `--branch-*` = deprecated aliases), and `--branch-speed S` = `--clock autocorrelated-lognormal
+--clock-sigma S` (verified byte-identical across every parameter combination). This retires the last
+"branch" residue on the CLI. **The only remaining sliver:** `--family-speed` / `--family-speeds` — a
+*per-family* multiplier σ, not a clock flag, so out of scope for the clock fold; leave it, or rename
+to `--family-sigma` in a later pass.
 
 ## The rule, in one line
 

@@ -123,16 +123,16 @@ zombi2 genomes -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
     --write trace profiles -o run/
 
 # lognormal lineage clock + per-family speed
-zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 --family-speed 0.5 -o run/
 
-# discrete-bin lineage clock instead of --branch-speed
-zombi2 sequences --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
+# discrete-bin lineage clock instead of the autocorrelated lognormal
+zombi2 sequences --genomes run/ --clock-bins 0.25,0.5,1,2,4 --clock-switch-rate 1.0 \
     --family-speed 0.5 -o run/
 ```
 
-Here `--branch-speed` sets the lognormal $\sigma$ and `--family-speed` the spread of the per-family
-speed distribution. The `--branch-bins` form supplies the discrete-bin clock's ordered multipliers,
-with `--branch-switch-rate` the rate of stepping to a neighbouring bin.
+Here `--clock-sigma` sets the lognormal $\sigma$ and `--family-speed` the spread of the per-family
+speed distribution. The `--clock-bins` form supplies the discrete-bin clock's ordered multipliers,
+with `--clock-switch-rate` the rate of stepping to a neighbouring bin.
 
 `sequence` replays `run/events_trace.tsv`, rebuilds the reconciled gene trees from the recorded
 events, and writes one phylogram per family to `run/gene_trees/<family>_extant_subst.nwk` (and
@@ -140,13 +140,13 @@ events, and writes one phylogram per family to `run/gene_trees/<family>_extant_s
 `branch_rates.tsv`, recording the drawn $s_g$ and $R_b$ so a run is fully reproducible.
 
 ::: note
-`--branch-speed` **or** `--branch-bins` alone is a shared lineage clock; `--family-speed` alone is
+`--clock-sigma` **or** `--clock-bins` alone is a shared lineage clock; `--family-speed` alone is
 per-family speed; together they are the full gene $\times$ lineage model.
 :::
 
 ::: tip
 Because `sequence` reads only the event trace on disk, a single expensive `genomes` run can feed many
-sequence-evolution runs. Sweep the clock parameters — different `--branch-speed`, different bins,
+sequence-evolution runs. Sweep the clock parameters — different `--clock-sigma`, different bins,
 different `--family-speed` — reusing the same gene content each time.
 :::
 
@@ -159,11 +159,11 @@ sequence at every leaf, evolved base by base (or residue by residue) under a sub
 
 ```bash
 # DNA alignments (HKY85) along the rescaled gene trees
-zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 --family-speed 0.5 \
     --subst-model hky85 --seq-length 600 -o run/
 
 # protein alignments under the LG model, with +Γ rate heterogeneity across sites
-zombi2 sequences --genomes run/ --branch-speed 0.4 \
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 \
     --subst-model lg --seq-length 300 --gamma-shape 0.5 -o run/
 ```
 

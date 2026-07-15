@@ -45,6 +45,13 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   sequences).
 - **Coevolve nodes standardise on `genomes`** (C6): `--couple traits:genomes`, `genomes:species`,
   etc. The old node spelling `genes` is still accepted but warns — one domain word everywhere.
+- **Sequence-clock flags folded into `--clock`** (naming consolidation). The discrete-bin knobs are
+  now `--clock-bins` / `--clock-switch-rate` / `--clock-up-bias` (the old `--branch-bins` /
+  `--branch-switch-rate` / `--branch-up-bias` remain as accepted, deprecated aliases), and
+  `--branch-speed SIGMA` is deprecated in favour of `--clock autocorrelated-lognormal --clock-sigma SIGMA`
+  (byte-identical). This retires the last "branch" residue on the CLI and the redundant parallel
+  clock interface — the `--clock` model selector plus its `--clock-*` parameters is now the one way.
+  The old spellings still work but warn.
 - **Coevolve `traits:genomes` classes use one stem** (C8): `TraitLinkedRates`, `TraitLinkedResult`,
   and `simulate_trait_linked_genomes` were renamed to `TraitGeneRates`, `TraitGeneResult`, and
   `simulate_trait_conditioned_genomes` — matching the edge's config (`TraitGeneCoupling`) and its
