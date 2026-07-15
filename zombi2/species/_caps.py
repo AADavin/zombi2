@@ -59,12 +59,18 @@ class SpeciesCaps:
 
 
 def species_caps(model) -> SpeciesCaps:
-    """The :class:`SpeciesCaps` declared on ``model``'s class.
+    """The :class:`SpeciesCaps` in force for ``model``.
 
-    Walks the MRO so a subclass (e.g. ``Yule(BirthDeath)``) inherits its parent's caps. Raises
-    :class:`TypeError` for a model with no declared caps — the loud error that replaces a
-    forgotten ``isinstance`` branch silently routing a model into the wrong engine.
+    An **instance** may override its class caps by setting ``self._caps`` — used when a model's
+    engine depends on its configuration (e.g. ``BirthDeath(per="shared")`` is forward-only Gillespie
+    where the per-lineage default is backward-capable). Otherwise walks the MRO so a subclass (e.g.
+    ``Yule(BirthDeath)``) inherits its parent's caps. Raises :class:`TypeError` for a model with no
+    declared caps — the loud error that replaces a forgotten ``isinstance`` branch silently routing a
+    model into the wrong engine.
     """
+    inst = model.__dict__.get("_caps")
+    if isinstance(inst, SpeciesCaps):
+        return inst
     for klass in type(model).__mro__:
         caps = klass.__dict__.get("_caps")
         if isinstance(caps, SpeciesCaps):

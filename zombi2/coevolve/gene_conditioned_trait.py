@@ -27,6 +27,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from zombi2.coevolve.grammar import Table
+from zombi2.coevolve.trait_bridge import walk_optimum_coupled_trait
+from zombi2.coevolve.trait_coupling import TraitTrajectory
 from zombi2.traits.models import Mk, TraitResult, simulate_traits
 from zombi2.tree import Tree, TreeNode
 
@@ -92,17 +95,6 @@ class GeneConditionedTrait:
         if kind == "timing":
             raise ValueError("genes:traits has no 'timing' null; use kind='neutral'")
         raise ValueError(f"unknown null kind {kind!r}; expected 'neutral'")
-
-    def _ou_step(self, x: float, present: bool, dt: float, rng) -> float:
-        """Exact OU transition over ``dt`` toward the optimum selected by the gene state."""
-        theta = self.theta_present if present else self.theta_absent
-        if self.alpha <= 0.0:                                   # Brownian-motion limit (no pull)
-            std = (self.sigma2 * dt) ** 0.5
-            return x + (rng.normal(0.0, std) if std > 0.0 else 0.0)
-        e = np.exp(-self.alpha * dt)
-        mean = theta + (x - theta) * e
-        var = (self.sigma2 / (2.0 * self.alpha)) * (1.0 - e * e)
-        return float(rng.normal(mean, var ** 0.5)) if var > 0.0 else float(mean)
 
     def __repr__(self):
         return (f"GeneConditionedTrait(theta_absent={self.theta_absent:g}, "
@@ -178,15 +170,12 @@ def simulate_gene_conditioned_trait(
                     root=(1 if model.root_gene else 0))
     gene = simulate_traits(tree, gene_model, rng=rng)          # .history[node] = [(state, dur), ...]
 
-    # 2) the trait: OU whose optimum follows the gene state, switching within a branch exactly at
-    #    each gain/loss event (walk the gene's per-branch stochastic map).
-    node_trait = {tree.root: model.x0}
-    for node in tree.nodes_preorder():
-        if node.parent is None:
-            continue
-        x = node_trait[node.parent]
-        for state, dur in gene.history[node]:
-            x = model._ou_step(x, present=(state == 1), dt=dur, rng=rng)
-        node_trait[node] = x
+    # 2) express the coupling in the grammar and walk it: the gene's presence history is the
+    #    driver signal, a per-state Table maps presence 0/1 → the OU optimum (θ_absent / θ_present),
+    #    and the optimum-target bridge walks the OU trait, switching θ exactly at each gain/loss.
+    driver = TraitTrajectory.from_result(gene)
+    response = Table({0: model.theta_absent, 1: model.theta_present})
+    node_trait = walk_optimum_coupled_trait(
+        tree, driver, response, alpha=model.alpha, sigma2=model.sigma2, x0=model.x0, rng=rng)
 
     return GeneConditionedTraitResult(tree=tree, model=model, node_trait=node_trait, gene=gene)

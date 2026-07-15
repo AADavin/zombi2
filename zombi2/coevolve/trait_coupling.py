@@ -51,10 +51,12 @@ from zombi2.genomes.events import EventType
 from zombi2.genomes.genome import Gene, UnorderedGenome
 from zombi2.genomes.genome_sim import GenomeSimulator
 from zombi2.genomes.profiles import ProfileMatrix, _natkey
-from zombi2.genomes.rates import EventWeight, RateModel
+from zombi2.genomes.rates import ModifiedRates, Rates
 from zombi2.traits.models import TraitResult, simulate_traits
 from zombi2.genomes.transfers import TransferModel
 from zombi2.tree import Tree
+from zombi2.coevolve.grammar import Scalar
+from zombi2.coevolve.rate_bridge import CouplingModifier
 
 #: Clamp on the loss/gain exponent so an extreme ``effect·w·s`` never overflows ``exp`` (or
 #: drives the Gillespie loop into an instant loss/gain hot cycle).
@@ -310,54 +312,39 @@ def _resolve_responsive(n: int, responsive, rng) -> list[int]:
 # ═══════════════════════════════════════════════════════════════════════════════
 # The rate model
 # ═══════════════════════════════════════════════════════════════════════════════
-class TraitGeneRates(RateModel):
-    """Trait-conditioned loss over a fixed family panel, plus field-blind transfer gain.
+class TraitGeneRates(ModifiedRates):
+    """The ``traits:genomes`` edge, compiled onto the grammar.
 
-    For every present family it emits a per-family loss weight — ``base_loss·copies`` for an
-    inert family, and ``base_loss·copies·exp(-effect_loss·w_i·s)`` for a responsive one, with
-    ``s`` the local trait value from the :class:`TraitTrajectory`. Gain is a single field-blind
-    ``TRANSFER`` channel (optionally scaled by ``exp(effect_gain·s)``), plus optional
-    duplication and background origination.
+    A :class:`~zombi2.genomes.rates.ModifiedRates` over a :class:`~zombi2.genomes.rates.Rates`
+    (``per="copy"``) base, with one :class:`~zombi2.coevolve.rate_bridge.CouplingModifier` per trait-coupled channel:
 
-    The weights change only at gene events and at the trajectory's own breakpoints, so
-    ``time_dependent`` stays ``False`` and the simulator refreshes a branch exactly when it
-    fires an event or crosses a trait change (:meth:`refresh_times`) — no blunt full refresh.
+    * **retention** — a responsive family's per-copy loss is scaled by ``exp(-effect_loss·w_i·s)``
+      (``s`` the local trait value), so a favoured family is kept and a disfavoured one purged; an
+      inert family (weight 0) keeps ``base_loss·copies``;
+    * **gain** — an optional field-blind ``TRANSFER`` scaled by ``exp(effect_gain·s)`` (off by
+      default).
+
+    Duplication and background origination come straight from the base. The trajectory's breakpoints
+    are each modifier's :meth:`~zombi2.genomes.rates.Modifier.refresh_times`, so the simulator
+    refreshes a branch exactly at a gene event or a trait change — all inherited from
+    ``ModifiedRates`` (nothing re-implemented here). Emission is per-family on every channel via the
+    ``ModifiedRates`` expansion — distributionally identical to the previous mixed
+    per-family-loss / aggregate-gain emission (see ``docs/design/coevolve-grammar.md`` §6).
     """
 
     def __init__(self, coupling: TraitGeneCoupling, trajectory: TraitTrajectory):
         self.c = coupling
         self.traj = trajectory
-        self._w = coupling.weights_by_id
-
-    def event_weights(self, genome, branch, time):
-        c = self.c
-        s = self.traj.value(branch, time)
-        out: list[EventWeight] = []
-
-        for fam in genome.families():
-            cn = genome.copy_number(fam)
-            w = self._w.get(fam, 0.0)
-            if w != 0.0 and c.effect_loss != 0.0 and s != 0.0:
-                rate = c.base_loss * cn * math.exp(_clamp(-c.effect_loss * w * s))
-            else:
-                rate = c.base_loss * cn
-            if rate > 0.0:
-                out.append(EventWeight(EventType.LOSS, fam, rate))
-
-        n = genome.size()
-        if c.duplication > 0.0 and n > 0:
-            out.append(EventWeight(EventType.DUPLICATION, None, c.duplication * n))
-        if c.transfer > 0.0 and n > 0:
-            rate = c.transfer * n
-            if c.effect_gain != 0.0 and s != 0.0:
-                rate *= math.exp(_clamp(c.effect_gain * s))
-            out.append(EventWeight(EventType.TRANSFER, None, rate))
-        if c.origination > 0.0:
-            out.append(EventWeight(EventType.ORIGINATION, None, c.origination))
-        return out
-
-    def refresh_times(self, t0, t1):
-        return self.traj.refresh_times(t0, t1)
+        base = Rates(loss=coupling.base_loss, transfer=coupling.transfer,
+                     duplication=coupling.duplication, origination=coupling.origination)  # per="copy"
+        # retention: a responsive family sees w_i·s, so loss ×= exp(-effect_loss·w_i·s); inert
+        # families (absent from weights_by_id) are unmodified.
+        modifiers = [CouplingModifier(trajectory, Scalar(-coupling.effect_loss), EventType.LOSS,
+                                      weights=coupling.weights_by_id)]
+        if coupling.effect_gain != 0.0:      # optional field-blind gain: transfer ×= exp(effect_gain·s)
+            modifiers.append(
+                CouplingModifier(trajectory, Scalar(coupling.effect_gain), EventType.TRANSFER))
+        super().__init__(base, modifiers)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

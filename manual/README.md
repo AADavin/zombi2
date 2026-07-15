@@ -13,8 +13,10 @@ manual/
   chapters/NN-title.md   the chapters (order = numeric filename prefix)
   metadata.yaml          title, author, document class, link colours
   preamble.tex           LaTeX preamble (callout boxes, figure defaults, captions)
+  preamble-tools.tex     extra glyph coverage, tools book only (see below)
   callouts.lua           maps ::: note / ::: warning / ::: tip to boxes
-  Makefile               figures + per-chapter PDFs + the merged book
+  tools_to_chapters.py   docs/tools/*.md -> tools-book chapters (see below)
+  Makefile               figures + per-chapter PDFs + the merged book(s)
   figures/               SVG→PDF, auto-built from ../docs/img (git-ignored)
   build/                 output PDFs (git-ignored)
 ```
@@ -29,6 +31,7 @@ cd manual
 make build/01-introduction.pdf   # one chapter (fast; what you use while writing)
 make chapters                    # every chapter as its own PDF
 make manual                      # the merged book -> build/zombi2-manual.pdf
+make tools-manual                # the tools book -> build/zombi2-tools-manual.pdf
 make clean
 ```
 
@@ -55,6 +58,24 @@ To work on a chapter you only need: **that one chapter file**, this README, and
 - **Code.** Fenced code blocks with a language tag (```` ```python ````) are syntax-highlighted.
 - **Cross-references.** Link to another chapter/section by its heading id, e.g.
   `[unordered genomes](#unordered-genomes)` (resolves in the merged book).
+
+## The tools manual (generated, don't hand-edit)
+
+`make tools-manual` builds a *second*, standalone book — `build/zombi2-tools-manual.pdf`
+— covering only the `zombi2.tools` analysis/interop layer. Unlike the main manual's
+hand-authored chapters, this book is **generated from `../docs/tools/`** (the single
+source of truth), so there is no copy to keep in sync: edit the docs, rebuild, done.
+
+`tools_to_chapters.py` does the MkDocs→pandoc bridging: it rewrites MkDocs admonitions
+(`!!! note "…"`) into the same `::: note` callouts the main manual uses, points figure
+references at the auto-built `figures/`, turns links to sibling tools pages into
+intra-PDF jumps, and turns links that leave the tools section into URLs on the live docs
+site. Chapter order follows the `Tools:` nav in `../mkdocs.yml` (mirrored in the
+`TOOLS_ORDER` list in the Makefile). `preamble-tools.tex` adds glyph coverage for the
+literal Unicode math symbols (τ, ≤, ℓ, …) the docs use freely but Latin Modern lacks.
+
+To add a tool to the book: write its `../docs/tools/NAME.md` page, then add `NAME` to
+`TOOLS_ORDER` in the Makefile (and to the nav in `mkdocs.yml`). Nothing else to touch.
 
 ## Scope
 

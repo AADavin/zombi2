@@ -20,9 +20,9 @@ You select the representation by passing a `genome_factory` to `simulate_genomes
 that builds one from the gene ids:
 
 ```python
-from zombi2.genomes import PerCopyRates, OrderedGenome, simulate_genomes
+from zombi2.genomes import Rates, OrderedGenome, simulate_genomes
 
-rates = PerCopyRates(
+rates = Rates(
     duplication=0.2, transfer=0.1, loss=0.2, origination=0.4,
     inversion=0.3, transposition=0.3,      # rearrangement rates (ordered genomes only)
 )
@@ -138,7 +138,7 @@ likely, regardless of size), then a position within it. A **translocation** *mov
 between chromosomes of the *same* genome — like a transposition, but the segment re-inserts on a
 *different* chromosome (chosen uniformly among the others). It needs at least two chromosomes and,
 like transposition, leaves gene lineages untouched, so it never reaches the gene trees
-(`--translocation`, or `PerCopyRates(translocation=...)`; off by default).
+(`--translocation`, or `Rates(translocation=...)`; off by default).
 
 On top of these, a **chromosome tier** of events acts on whole chromosomes:
 
@@ -152,7 +152,7 @@ On top of these, a **chromosome tier** of events acts on whole chromosomes:
 
 Fission and fusion only move genes between chromosomes, so gene lineages are untouched; only
 chromosome loss ends the lineages it carries. Their rates default to zero (set `--fission`,
-`--fusion`, `--chromosome-origination`, `--chromosome-loss`, or the matching `PerCopyRates`
+`--fusion`, `--chromosome-origination`, `--chromosome-loss`, or the matching `Rates`
 arguments), so a single circular chromosome (`n_chromosomes=1`, the default) reproduces the
 single-chromosome model exactly, event for event.
 
@@ -166,7 +166,7 @@ output is unchanged. In the Python API the same information is on `leaf.chromoso
 
 ## How events reach the genome
 
-Rearrangement and chromosome-tier rates are emitted by `PerCopyRates` as candidate events, but a
+Rearrangement and chromosome-tier rates are emitted by `Rates` as candidate events, but a
 genome only undergoes the events it declares in `supported_events()`:
 
 - `UnorderedGenome` supports `{O, D, T, L}`. It silently ignores every rearrangement and

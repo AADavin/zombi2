@@ -23,14 +23,13 @@ from zombi2.sequences.clocks import (
     UncorrelatedGammaClock, UncorrelatedLogNormalClock, WhiteNoiseClock,
 )
 from zombi2.genomes.genome import OrderedGenome
-from zombi2.genomes.rates import LineageRates, FamilySampledRates, PerCopyRates, PerLineageRates
+from zombi2.genomes.rates import LineageRates, FamilySampledRates, Rates
 from zombi2.genomes.conversion import ConversionModel
 from zombi2.genomes.read_rates import read_lineage_rates, read_family_rates, read_family_speeds
 from zombi2.sequences.evolution import SequenceEvolution
 from zombi2.genomes.simulation import Genomes, simulate_genomes
 from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
-    SharedBirthDeath,
 )
 from zombi2.species.sim import simulate_species_tree
 from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, HiSSE, simulate_sse
@@ -163,8 +162,13 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                    default="constant", metavar="PROCESS",
                    help="constant-rate birth-death (default); clads = per-lineage rates that "
                         "shift at each speciation (ClaDS); diversity-dependent = rates decline "
-                        "toward a carrying capacity; shared = one tree-wide diversification budget "
-                        "(fixed TOTAL rate, not per lineage) -> linear rather than exponential growth")
+                        "toward a carrying capacity. (shared is deprecated -> use --per shared)")
+    g.add_argument("--per", "--rate-per", dest="per", choices=("lineage", "shared"),
+                   default="lineage", metavar="UNIT",
+                   help="opportunity — the unit the diversification clock rides on: lineage "
+                        "(default, one clock per lineage -> exponential growth) or shared (one clock "
+                        "for the whole tree, a fixed TOTAL rate -> linear growth). "
+                        "See docs/design/opportunity-knob.md")
     g.add_argument("--birth", type=float, nargs="+", default=[1.0], metavar="RATE",
                    help="speciation rate (default 1.0); several values with --shifts give an "
                         "episodic (skyline) model. For clads/diversity-dependent it is the "
@@ -242,13 +246,15 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
                         "(see the nucleotide sections). --genome-model is a deprecated alias")
-    g.add_argument("--rate-per", choices=("copy", "lineage", "genome"), default=None, dest="rate_per",
-                   metavar="UNIT",
+    g.add_argument("--rate-per", "--per", choices=("copy", "lineage", "shared", "genome"), default=None,
+                   dest="rate_per", metavar="UNIT",
                    help="what each rate is counted per — the opportunity that scales it "
                         "(unordered/ordered resolutions): copy = per gene copy, so total rates grow with "
                         "genome size (default; Rust for unordered); lineage = a constant rate per "
                         "lineage (the whole genome as one unit), giving linear rather than "
-                        "exponential growth (Python). Per-family rates come from --family-rates; "
+                        "exponential growth (Python); shared = one tree-wide clock per family "
+                        "(constant TOTAL duplication/loss rate however many lineages carry it — "
+                        "unordered only, Python). Per-family rates come from --family-rates; "
                         "nucleotide genomes are always per nucleotide. Rearrangements "
                         "(--inversion/--transposition) need --rate-per copy. (genome = deprecated "
                         "alias of lineage)")
@@ -481,6 +487,17 @@ def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentPars
     # [(age, fraction), ...] pulses, or None; carried by whichever model is built
     mass_ext = args.mass_extinction
 
+    # opportunity knob: --diversification shared is the deprecated spelling of --per shared
+    if args.diversification == "shared":
+        print("warning: --diversification shared is deprecated; use --per shared.", file=sys.stderr)
+        args.per = "shared"
+        args.diversification = "constant"
+    if args.per == "shared":
+        if args.diversification != "constant":
+            parser.error("--per shared only composes with --diversification constant "
+                         "(the shared clock is a constant-rate birth-death)")
+        return _build_shared_model(args, parser, mass_ext)
+
     if args.clade_shift and args.diversification != "constant":
         parser.error("--clade-shift is its own constant-background model; it does not combine "
                      "with --diversification clads/diversity-dependent")
@@ -504,6 +521,21 @@ def _build_species_model(args: argparse.Namespace, parser: argparse.ArgumentPars
                               mass_extinctions=mass_ext)
 
 
+def _build_shared_model(args: argparse.Namespace, parser: argparse.ArgumentParser, mass_ext):
+    """Build a shared-clock birth–death — ``BirthDeath(per="shared")``: a constant-rate, forward-only
+    process whose *total* diversification rate is fixed (linear rather than exponential growth)."""
+    if args.model != "forward":
+        parser.error("--per shared is a forward-in-time process; add --mode forward")
+    if args.clade_shift:
+        parser.error("--clade-shift does not combine with --per shared")
+    if args.shifts is not None or len(args.birth) > 1 or len(args.death) > 1:
+        parser.error("--per shared takes a single --birth/--death (no episodic --shifts)")
+    if args.fossilization or args.removal != 1.0:
+        parser.error("--fossilization / --removal are not supported with --per shared")
+    return BirthDeath(args.birth[0], args.death[0], per="shared",
+                      sampling_fraction=args.sampling_fraction, mass_extinctions=mass_ext)
+
+
 def _build_heterogeneous_model(args: argparse.Namespace, parser: argparse.ArgumentParser,
                                mass_ext):
     """Build a ClaDS or DiversityDependent model — both forward-only, per-lineage/diversity-
@@ -521,10 +553,6 @@ def _build_heterogeneous_model(args: argparse.Namespace, parser: argparse.Argume
         return ClaDS(args.birth[0], alpha=args.clads_alpha, sigma=args.clads_sigma,
                      turnover=args.turnover, sampling_fraction=args.sampling_fraction,
                      mass_extinctions=mass_ext)
-    if args.diversification == "shared":
-        return SharedBirthDeath(args.birth[0], args.death[0],
-                                sampling_fraction=args.sampling_fraction,
-                                mass_extinctions=mass_ext)
     # diversity-dependent
     if args.carrying_capacity is None:
         parser.error("--diversification diversity-dependent needs --carrying-capacity/-K")
@@ -1930,7 +1958,10 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if (args.family_rates or args.lineage_rates) and args.genome_model != "unordered":
         parser.error("--family-rates / --lineage-rates are only for --genome-resolution unordered")
     per_lineage = rate_per == "lineage"
-    args.rate_per = "lineage" if per_lineage else "copy"  # record the effective value in the log
+    per_shared = rate_per == "shared"
+    if per_shared and args.genome_model != "unordered":
+        parser.error("--rate-per shared is currently supported for --genome-resolution unordered only")
+    args.rate_per = rate_per if rate_per in ("lineage", "shared") else "copy"  # effective value in the log
     if not (0.0 <= args.transposition_flip <= 1.0):
         parser.error("--transposition-flip must be a probability in [0, 1]")
     if args.transposition_flip and not ordered:
@@ -1970,7 +2001,19 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         if ordered and (args.inversion is not None or args.transposition is not None):
             parser.error("rearrangements (--inversion/--transposition) need --rate-per copy; "
                          "per-lineage rates do not carry them")
-        rates = PerLineageRates(args.dup, args.trans, args.loss, args.orig)
+        rates = Rates(args.dup, args.trans, args.loss, args.orig, per="lineage")
+    elif per_shared:
+        if args.conversion:
+            parser.error("gene conversion (--conversion) needs --rate-per copy")
+        if family_mode:
+            parser.error("--family-rates does not combine with --rate-per shared")
+        if args.trans:
+            parser.error("--rate-per shared does not yet support transfer; use --dup/--loss "
+                         "(and --orig, which stays per lineage)")
+        if args.lineage_rates:
+            parser.error("--rate-per shared does not support --lineage-rates (per-lineage transfer "
+                         "emission/receptivity); the shared clock has no transfer channel")
+        rates = Rates(args.dup, 0.0, args.loss, args.orig, per="shared")
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "
@@ -1978,11 +2021,11 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
-        rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
-                             inversion=inv, transposition=tps, translocation=args.translocation,
-                             chromosome_origination=args.chromosome_origination,
-                             chromosome_loss=args.chromosome_loss,
-                             fission=args.fission, fusion=args.fusion)
+        rates = Rates(args.dup, args.trans, args.loss, args.orig,
+                      inversion=inv, transposition=tps, translocation=args.translocation,
+                      chromosome_origination=args.chromosome_origination,
+                      chromosome_loss=args.chromosome_loss,
+                      fission=args.fission, fusion=args.fusion)
     elif family_mode:  # each family its own rates, from the table (unlisted -> --dup/--trans/--loss)
         rates = FamilySampledRates(duplication=args.dup, transfer=args.trans, loss=args.loss,
                                    origination=args.orig,
@@ -1993,8 +2036,8 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.lineage_rates is not None:
         emission, receptivity = read_lineage_rates(args.lineage_rates)
         if rates is None:  # plain per-copy base — carry the conversion rate through the overlay
-            rates = PerCopyRates(args.dup, args.trans, args.loss, args.orig,
-                                 conversion=args.conversion)
+            rates = Rates(args.dup, args.trans, args.loss, args.orig,
+                          conversion=args.conversion)
         if emission:
             rates = LineageRates(rates, factors=emission, events=("transfer",))
         if receptivity:

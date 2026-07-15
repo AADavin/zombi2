@@ -5,7 +5,7 @@ the nucleotide and ordered models), and the nucleotide ``--write geneorder`` ser
 ``geneorder_events.tsv`` (native half-open coordinates). See docs/design/geneorder-export.md.
 """
 
-from zombi2 import BirthDeath, OrderedGenome, SharedRates, simulate_genomes, simulate_species_tree
+from zombi2 import BirthDeath, OrderedGenome, Rates, simulate_genomes, simulate_species_tree
 from zombi2.cli import main
 from zombi2.genomes.events import EventType, Region
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes
@@ -33,7 +33,7 @@ def test_inversion_records_carry_region():
 def test_ordered_model_also_carries_region():
     # the user asked for both models; the ordered genome fills Region the same way
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=2)
-    rates = SharedRates(inversion=0.5, transposition=0.3, origination=0.0)
+    rates = Rates(inversion=0.5, transposition=0.3, origination=0.0)
     g = simulate_genomes(tree, rates, initial_families=10, seed=3,
                          genome_factory=lambda ids: OrderedGenome(ids, extension=0.5))
     inv = [r for r in g.event_log if r.event is EventType.INVERSION]

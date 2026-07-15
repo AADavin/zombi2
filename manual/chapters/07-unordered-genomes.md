@@ -48,21 +48,21 @@ tables are supplied from files with `--family-rates` / `--lineage-rates` (below)
 
 ### Per-copy rates
 
-`PerCopyRates` gives every family the same per-copy D/T/L rates and a per-lineage origination
+`Rates` gives every family the same per-copy D/T/L rates and a per-lineage origination
 rate:
 
 ```python
 from zombi2.genomes import (
-    PerCopyRates, PerLineageRates, FamilySampledRates, TransferModel, simulate_genomes,
+    Rates, FamilySampledRates, TransferModel, simulate_genomes,
 )
 from zombi2.distributions import Gamma, Exponential, LogNormal, Uniform, Fixed
 
-rates = PerCopyRates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
+rates = Rates(duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
 genomes = simulate_genomes(tree, rates, initial_families=40, seed=42)
 ```
 
 Because the family-level rate scales with copy number, this is a per-copy model: bigger families
-experience more events. There is a shorthand that builds `PerCopyRates` for you from the same
+experience more events. There is a shorthand that builds `Rates` for you from the same
 keywords:
 
 ```python
@@ -72,13 +72,13 @@ genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
 
 ### Per-lineage rates
 
-`PerLineageRates` fires each event at a **constant rate per lineage** (the whole genome as one unit),
+`Rates(per="lineage")` fires each event at a **constant rate per lineage** (the whole genome as one unit),
 independent of genome size; a target copy is then chosen uniformly among the copies present:
 
 ```python
-genomes = simulate_genomes(tree, PerLineageRates(duplication=1.0, transfer=0.3,
-                                                     loss=0.5, origination=0.4),
-                             initial_families=20, seed=1)
+genomes = simulate_genomes(tree, Rates(duplication=1.0, transfer=0.3, loss=0.5,
+                                       origination=0.4, per="lineage"),
+                           initial_families=20, seed=1)
 ```
 
 Because the rate no longer scales with copy number, family sizes grow *linearly* rather than
@@ -186,7 +186,7 @@ A branch can be made more prone to transfer in two independent ways — as a **d
 
   ```python
   # branch i3 donates transfers 5x as often (its duplication/loss are untouched)
-  rates = LineageRates(PerCopyRates(transfer=0.2), factors={"i3": 5.0}, events=("transfer",))
+  rates = LineageRates(Rates(transfer=0.2), factors={"i3": 5.0}, events=("transfer",))
   ```
 
 - **Receptivity** (how likely a branch is to *receive*) is a *selection weight* on recipient choice,
@@ -242,16 +242,16 @@ surviving copies now coalesce at the conversion time, not at the (older) duplica
 complete gene tree from a run with conversion, with the conversion (filled circle) shown against the
 duplications (squares) and losses (crosses).](figures/gene_conversion.pdf){width=100%}
 
-The rate is a per-copy `conversion` rate on `PerCopyRates` (or the `conversion=` shorthand); a
+The rate is a per-copy `conversion` rate on `Rates` (or the `conversion=` shorthand); a
 `ConversionModel` sets *what a conversion does* once it fires — the donor directionality — exactly as
 a `TransferModel` does for transfers:
 
 ```python
-from zombi2 import simulate_genomes, PerCopyRates, ConversionModel
+from zombi2 import simulate_genomes, Rates, ConversionModel
 
 genomes = simulate_genomes(
     tree,
-    PerCopyRates(duplication=0.4, loss=0.1, conversion=1.0),
+    Rates(duplication=0.4, loss=0.1, conversion=1.0),
     conversions=ConversionModel(bias=0.0),   # 0 = unbiased donor; 1 = toward the founder
     initial_families=40, seed=42,
 )
@@ -312,7 +312,7 @@ is scaled by $\max(0,\, 1 - n/K)$, so family size settles *around* $K$ with a pr
 distribution:
 
 ```python
-PerCopyRates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
+Rates(duplication=0.5, loss=0.1, origination=0.3, carrying_capacity=20)
 ```
 
 ::: note

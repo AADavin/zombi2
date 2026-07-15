@@ -24,7 +24,7 @@ from zombi2.genomes.events import (
     ChromosomeEvent, EventLog, EventRecord, EventType, GeneOp, Region, Selection,
 )
 from zombi2.genomes.genome import Gene, Genome, IdManager, UnorderedGenome
-from zombi2.genomes.rates import RateModel
+from zombi2.genomes.rates import RateModel, EventWeight
 from zombi2.genomes.transfers import TransferModel
 from zombi2.tree import Tree, TreeNode
 
@@ -265,6 +265,11 @@ class GenomeSimulator:
         list is empty (every existing rate model).
         """
         refresh_all = getattr(rate_model, "time_dependent", False)
+        # per="shared": duplication/loss are tree-wide per-family clocks (constant total rate,
+        # independent of copy number). They live in a shared pool beside the per-branch Fenwick;
+        # the whole mechanism is inert (empty pool) for every other model, so their streams are
+        # byte-identical.
+        shared = getattr(rate_model, "has_shared", False)
         t = t0
         if refresh_all:
             for b in list(alive):
@@ -275,7 +280,9 @@ class GenomeSimulator:
         bi, nb = 0, len(breaks)
 
         for _ in range(self.max_events_per_interval):
-            total = fenwick.total
+            pool, pool_total = self._shared_pool(alive, rate_model) if shared else ((), 0.0)
+            branch_total = fenwick.total
+            total = branch_total + pool_total
             next_bt = breaks[bi][0] if bi < nb else math.inf
             if total <= 0.0:
                 # nothing can fire until a scheduled change alters the rates; skip to it
@@ -297,10 +304,17 @@ class GenomeSimulator:
                 return  # crossed t1 with no earlier breakpoint — interval done
             t += dt
 
-            # (1 - U) keeps the draw in (0, total], so we always land on a live branch
-            branch = nodes_by_index[fenwick.find((1.0 - rng.random()) * total)]
-            ew = self._pick_entry(cache[branch][0], cache[branch][1], rng)
-            changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
+            # (1 - U) keeps the draw in (0, total]. A pick within branch_total is a per-branch event
+            # (the unchanged path — byte-identical when the shared pool is empty); above branch_total
+            # it is a tree-wide shared per-family clock, localised to a copy chosen uniformly across
+            # the whole family (branch ∝ copies, then a uniform copy within the branch).
+            pick = (1.0 - rng.random()) * total
+            if pick <= branch_total:
+                branch = nodes_by_index[fenwick.find(pick)]
+                ew = self._pick_entry(cache[branch][0], cache[branch][1], rng)
+                changed = self._fire(ew, branch, alive, t, rate_model, log, rng)
+            else:
+                changed = self._fire_shared(pick - branch_total, pool, alive, t, rate_model, log, rng)
 
             if self.max_segments_per_genome is not None:
                 self._check_runaway(changed, alive)
@@ -362,6 +376,45 @@ class GenomeSimulator:
             if acc >= r:
                 return ew
         return kept[-1]
+
+    # --- shared (tree-wide, per-family) clocks: per="shared" duplication/loss -----------
+    @staticmethod
+    def _shared_pool(alive, rate_model):
+        """Tree-wide shared clocks for a ``per="shared"`` model: one constant-rate entry per
+        (family present anywhere on the tree, event). Returns ``(entries, total)`` with each entry a
+        ``(family, EventType, rate)``. Families are visited in sorted order for reproducibility. The
+        rate is independent of copy number — that is what makes a shared family grow *linearly*."""
+        families = set()
+        for g in alive.values():
+            families.update(g.families())
+        entries = []
+        for f in sorted(families):
+            for event, rate in rate_model.shared_event_weights(f):
+                if rate > 0.0:
+                    entries.append((f, event, rate))
+        return entries, math.fsum(e[2] for e in entries)
+
+    def _fire_shared(self, r, entries, alive, t, rate_model, log, rng):
+        """Fire one tree-wide shared clock: pick which (family, event) fired by accumulated rate,
+        then localise it to a branch holding that family, weighted by copy count — so the acting copy
+        is uniform across the whole family — and apply it through the normal per-family fire."""
+        acc, chosen = 0.0, entries[-1]
+        for entry in entries:
+            acc += entry[2]
+            if acc >= r:
+                chosen = entry
+                break
+        family, event, _ = chosen
+        branches, weights = [], []
+        for b, g in alive.items():
+            c = g.copy_number(family)
+            if c > 0:
+                branches.append(b)
+                weights.append(float(c))
+        if not branches:
+            return ()
+        branch = branches[self.sampler.choose_index(weights, rng)]
+        return self._fire(EventWeight(event, family, 0.0), branch, alive, t, rate_model, log, rng)
 
     # --- recipient choice (uniform, distance-weighted, and/or per-branch receptivity) -----
     def _choose_recipient(self, donor, alive, t, rng):
