@@ -88,6 +88,15 @@ def test_per_shared_is_one_tree_wide_clock():
     assert np.mean(lineage) > 3 * np.mean(shared)  # per-lineage scales with the lineage count → far more
 
 
+def test_modifiers_reject_a_shared_base():
+    # a modifier scales per-branch weights, but per="shared" routes dup/loss through a tree-wide pool
+    # a ModifiedRates never sees — wrapping one would silently switch the shared clock off, so refuse it
+    with pytest.raises(ValueError, match="shared"):
+        z.LineageRates(z.Rates(duplication=0.5, per="shared"), factors={"n1": 2.0})
+    with pytest.raises(ValueError, match="shared"):
+        z.ModifiedRates(z.Rates(duplication=0.5, per="shared"), [z.FamilyModifier(factors={"1": 2.0})])
+
+
 def test_per_shared_is_deterministic_and_python_engine():
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), age=4.0, direction="forward", seed=1)
     a = z.simulate_genomes(tree, z.Rates(duplication=0.5, loss=0.1, per="shared"), initial_families=2, seed=9)

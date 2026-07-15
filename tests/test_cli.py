@@ -465,6 +465,17 @@ def test_genomes_per_shared_rejects_transfer(tmp_path):
               "--per", "shared", "-o", str(tmp_path / "x")])
 
 
+def test_genomes_per_shared_rejects_lineage_rates(tmp_path):
+    """--per shared + --lineage-rates would silently disable the shared clock — reject it."""
+    sp = tmp_path / "sp"
+    main(["species", "--mode", "forward", "--age", "5", "--seed", "1", "-o", str(sp)])
+    lr = tmp_path / "lr.tsv"
+    lr.write_text("n1\t2.0\n")
+    with pytest.raises(SystemExit):
+        main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--per", "shared",
+              "--lineage-rates", str(lr), "-o", str(tmp_path / "x")])
+
+
 def test_genomes_rate_per_genome_deprecated_alias(tmp_path, capsys):
     """--rate-per genome is a deprecated spelling of --rate-per lineage: warns, runs, logs lineage."""
     sp = tmp_path / "sp"
