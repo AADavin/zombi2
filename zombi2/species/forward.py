@@ -39,6 +39,7 @@ import numpy as np
 
 from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
+    SharedBirthDeath,
 )
 from zombi2.species._caps import GrowthEngine, species_caps
 from zombi2.tree import Tree, TreeNode
@@ -256,6 +257,28 @@ class _DDView:
         return state, state
 
 
+class _SharedView:
+    """Shared-clock birth–death. The *total* birth and death rates are fixed, so each of the ``n``
+    live lineages carries ``(birth/n, death/n)`` — the summed rate is a constant ``(birth, death)``
+    regardless of ``n`` (equivalently, per-lineage ``λ(n) = birth/n``). All lineages share it
+    equally, so the actor is chosen uniformly. The per-lineage state is an unused dummy."""
+
+    __slots__ = ("initial_state", "birth", "death", "rho", "scheduled")
+
+    def __init__(self, model: SharedBirthDeath, present):
+        self.initial_state = None
+        self.birth = model.birth
+        self.death = model.death
+        self.rho = model.sampling_fraction
+        self.scheduled = _build_schedule(present, model.mass_extinctions)
+
+    def lineage_rates(self, state, n):
+        return self.birth / n, self.death / n
+
+    def split(self, state, rng):
+        return state, state
+
+
 class _ShiftView:
     """Clade-specific rate shifts. Each lineage's state is its current ``(λ, μ)`` regime; daughters
     inherit the parent's regime. Shifts arrive as scheduled ``clade_shift`` events that reassign one
@@ -277,7 +300,8 @@ class _ShiftView:
 
 #: Gillespie models -> their per-lineage rate view. Data-driven replacement for the isinstance
 #: view ladder in ``simulate_forward`` (keyed by exact type; these classes have no subclasses).
-_GILLESPIE_VIEWS = {ClaDS: _ClaDSView, DiversityDependent: _DDView, CladeShiftBirthDeath: _ShiftView}
+_GILLESPIE_VIEWS = {ClaDS: _ClaDSView, DiversityDependent: _DDView, CladeShiftBirthDeath: _ShiftView,
+                    SharedBirthDeath: _SharedView}
 
 
 def _weighted_index(weights, total, rng) -> int:

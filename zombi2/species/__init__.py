@@ -16,7 +16,7 @@ from __future__ import annotations
 from zombi2.tree import Tree, TreeNode, read_newick, prune
 from zombi2.species.model import (
     BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent,
-    CladeShiftBirthDeath,
+    SharedBirthDeath, CladeShiftBirthDeath,
 )
 from zombi2.species.sim import simulate_species_tree
 from zombi2.species.ghosts import add_ghost_lineages
@@ -24,5 +24,5 @@ from zombi2.species.ghosts import add_ghost_lineages
 __all__ = [
     "Tree", "TreeNode", "read_newick", "prune",
     "BirthDeath", "Yule", "EpisodicBirthDeath", "ClaDS", "DiversityDependent",
-    "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
+    "SharedBirthDeath", "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
 ]
