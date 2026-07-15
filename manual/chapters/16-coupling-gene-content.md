@@ -1,191 +1,17 @@
-# Coevolution
+# Coupling gene content
 
-## The idea
+Gene content can be coupled to the tree that carries it — genes that drive diversification, genes
+reshuffled at each speciation — and to a **trait** — genes whose retention tracks a phenotype, a gene
+that unlocks a phenotypic optimum. This chapter takes the species–genes and traits–genes pairs in
+turn, and closes with the null models that let you tell a real coupling from the tree's own
+heterogeneity.
 
-ZOMBI2 normally simulates in a **pipeline**: it builds a species tree, then evolves a trait along it,
-then evolves gene families along it. This works because the couplings between the three axes are
-*one-directional* and the joint distribution factorises,
-
-$$P(\text{tree}) \cdot P(\text{trait} \mid \text{tree}) \cdot P(\text{genes} \mid \text{tree}, \text{trait}),$$
-
-so each stage can be drawn on the frozen output of the previous one. The moment a trait or a genome
-feeds **back** into the process that generated the tree, this factorisation breaks: the tree, the
-trait and the gene content must be grown *together*. The **`coevolve`** mode is for these coupled
-scenarios.
-
-There are three processes:
-
-- **S** — species diversification (the birth–death process that grows the tree),
-- **T** — a phenotypic trait (BM/OU/EB/Mk/threshold),
-- **G** — gene-family content (the DTL process).
-
-A **coupling is a directed edge** `driver -> target`: the driver's state modulates the target's
-rates. A coevolution scenario is a **set of directed edges** on these three nodes. That single
-abstraction covers everything from state-dependent diversification to full three-way feedback, and it
-makes the one thing that matters — *direction* — explicit.
-
-On the command line the coupling is one repeatable flag, `--couple driver:target`, where the order
-reads as the arrow (driver first):
-
-```bash
-zombi2 coevolve --couple traits:species ...   # T->S: trait sets speciation (SSE)
-zombi2 coevolve --couple species:traits ...   # S->T: speciation drives the trait
-# both arrows at once = ClaSSE:
-zombi2 coevolve --couple traits:species --couple species:traits ...
-```
-
-So `--couple species:traits` and `--couple traits:species` are deliberately **different models**, and
-a bidirectional coupling is simply *both* edges. The `:` (rather than `->`) keeps the flag shell-safe.
-
-The three processes give six directed edges (Table \ref{tbl:edges}), each a distinct model:
-
-| Edge (`--couple`) | Direction | Model |
-|:------------------|:----------|:-----------------------------------------------|
-| `traits:species` | T $\to$ S | state-dependent diversification (SSE / ClaSSE) |
-| `species:traits` | S $\to$ T | cladogenetic trait jumps at speciation |
-| `genomes:species` | G $\to$ S | key-innovation diversification |
-| `species:genomes` | S $\to$ G | punctuational (cladogenetic) genome |
-| `traits:genomes` | T $\to$ G | trait-linked gene families |
-| `genomes:traits` | G $\to$ T | gene-conditioned trait |
-
-: The six directed coupling edges of `coevolve` mode — the `--couple driver:target` flag, the direction of the arrow, and the model each one selects. \label{tbl:edges}
-
-These six are the *building blocks*. They are not the whole story, because each node-pair's two edges
-can be switched on **together**, giving a **joint (bidirectional) model** — three more: **ClaSSE**
-(traits $\leftrightarrow$ species), **co-diversification** (species $\leftrightarrow$ genes) and
-**trait–gene feedback** (traits $\leftrightarrow$ genes), each documented in the "Both arrows" section
-under its pair. (And the named literature models are choices *within* an edge: BiSSE, MuSSE and QuaSSE
-are three flavours of the single `traits:species` edge, picked with `--sse-model`.) So there are more
-models than arrows.
-
-![The couplings of `coevolve` mode. Each **directed** arrow driver $\to$ target is one model, coloured to match its label and selected with `--couple driver:target`; the two that point *into* S are drawn heavy, because an arrow into S makes the tree depend on the coupled state, so the tree becomes an output (the other four are overlays on a tree you supply). The straight **double-headed** arrow between each pair is that pair's *joint* model — both edges at once: ClaSSE (traits $\leftrightarrow$ species), co-diversification (species $\leftrightarrow$ genes) and trait–gene feedback (traits $\leftrightarrow$ genes).](figures/coevolve_modes.pdf){width=100%}
-
-The one rule that governs their difficulty is: **does any active edge point into S?** If no edge
-points into S, the tree is fixed — it is read from `-t/--tree` and every coupling is an *overlay* on a
-frozen tree. If an edge does point into S (`traits:species` or `genomes:species`), the tree topology
-depends on the coupled state and cannot be drawn first: the tree becomes an **output**, and those runs
-are forward-only and take no `-t`.
-
-Note the asymmetry: an arrow pointing *out* of S (`species:traits`, `species:genomes`) does **not**
-trigger joint simulation. S drives the target but listens to nothing, so S can be drawn (or supplied
-via `-t`) first and the target overlaid on it — the tree stays an input. It is only an arrow *into* S
-that puts S downstream of its driver, breaks the pipeline factorisation, and forces the tree to be
-grown jointly as an output. So "touches S" is not the trigger; "points into S" is.
-
-The rest of the chapter takes the three node-pairs in turn — species and traits, species and genes,
-traits and genes — documenting both directions of each, and the combined model where both arrows are
-on. The overlay edges all run on a species tree you provide; the examples build one with
+The overlay examples below (every edge except the two that grow the tree) run on a species tree you
+supply; they build one with
 
 ```python
-from zombi2.species import BirthDeath, simulate_species_tree, prune
+from zombi2.species import BirthDeath, simulate_species_tree
 tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=60, age=6.0, seed=1)
-```
-
-## Species and traits
-
-### `traits:species` — state-dependent diversification (SSE)
-
-A discrete or continuous trait drives speciation and extinction, and the tree is grown *jointly* with
-the trait. Because the trait shapes the topology, this edge **produces** the tree (it takes no `-t`)
-and a stopping condition (`n_tips` or `age`) instead. The driver is `simulate_sse`:
-
-```python
-from zombi2.coevolve import simulate_sse, BiSSE
-
-# BiSSE: state 1 speciates 3x faster, so it dominates the standing tips
-res = simulate_sse(
-    BiSSE(lambda0=1, lambda1=3, mu0=0.2, mu1=0.2, q01=0.1, q10=0.1),
-    n_tips=200, seed=1)
-res.tree               # complete tree; prune() for the reconstructed one
-res.labeled_values()   # the trait at the extant tips
-```
-
-![State-dependent diversification (BiSSE). **A**, the model: two states, the anagenetic transitions (arrow width = rate), and each state's speciation rate drawn as a fork (width = $\lambda$) — state 1 branches three times faster. **B**, one `simulate_sse` realization: branches are heavy where the lineage is in state 1 and light in state 0, lineages that go extinct end in a cross, and the extant tips carry chips. The fast (state-1) lineages proliferate and fill most of the standing tips — the diversification signal, written into the shape of the tree itself.](figures/sse.pdf){width=100%}
-
-`BiSSE` is the **binary** state-dependent birth–death process [@maddison2007bisse]; `MuSSE` the
-**k-state** variant [@fitzjohn2012diversitree]; `QuaSSE` the **continuous-trait** variant, whose
-speciation and extinction are functions of the trait value [@fitzjohn2010quasse]; and `HiSSE` the
-**hidden-state** model [@beaulieu2016hisse], where diversification is driven by an unobserved class
-rather than the focal trait — the honest null against which a real association must be judged.
-
-```python
-import numpy as np
-from zombi2.coevolve import MuSSE, QuaSSE, HiSSE
-
-# k-state:
-MuSSE(birth=[1, 3], death=[0.2, 0.2], Q=np.array([[-0.1, 0.1], [0.1, -0.1]]))
-# continuous trait:
-QuaSSE(speciation=lambda x: 1 + 2 / (1 + np.exp(-x)),
-       extinction=lambda x: 0.2, sigma2=0.5, rate_bound=5.0, x0=0.0)
-# hidden classes:
-HiSSE(classes=[BiSSE(0.5, 0.7, 0.2, 0.2, 0.1, 0.1),
-               BiSSE(2.0, 3.0, 0.2, 0.2, 0.1, 0.1)], hidden_transition=0.1)
-```
-
-From the command line, `--sse-model` picks the flavour:
-
-```bash
-zombi2 coevolve --couple traits:species --sse-model bisse \
-    --lambda0 1 --lambda1 3 --mu0 0.2 --mu1 0.2 --q01 0.1 --q10 0.1 \
-    --tips 200 --seed 1 -o out/
-```
-
-It writes `species_tree.nwk` (the tree the trait's rates shaped), `traits.tsv` (every node — tips
-*and* ancestral states) and `trait_tree.nwk`. `--sse-model musse` takes `--birth`/`--death` vectors
-and a `--q-matrix` file; `--sse-model quasse` takes a sigmoidal speciation (`--spec-low/high/center/slope`)
-and Brownian `--diffusion`; and `--sse-model hisse` adds `--hidden-classes` diversification regimes
-spanning the base rates up to `--hidden-scale`× faster (`--hidden-switch` between them). **What it
-recovers:** the fast-speciating state accumulates lineages, so it dominates the standing tips — the
-diversification signal is written into the tree shape itself.
-
-![The continuous variant, QuaSSE. **A**, the model: the speciation rate is a rising function $\lambda(x)$ of the trait while extinction is flat, and the trait itself diffuses by Brownian motion (the axis is tinted with the viridis ramp used to paint the tree). **B**, one realization, each branch painted by its trait value: the high-value (yellow) lineages branch faster and proliferate, while the low-value (blue) lineages stay sparse and go extinct — the same "fast state fills the tips" signal as BiSSE, now on a continuous character.](figures/sse_quasse.pdf){width=100%}
-
-### `species:traits` — cladogenetic trait jumps
-
-The reverse arrow makes the trait jump *at* each speciation rather than (or in addition to) drifting
-along the branches — speciational, or *cladogenetic*, evolution: sister species differ because
-something happened at their split. On its own this edge has no arrow into S, so it runs on a **given**
-tree, with a `Cladogenesis` kernel layered on an ordinary anagenetic trait model. Setting the
-anagenetic rates to zero gives *purely* speciational change:
-
-```python
-import numpy as np
-from zombi2 import Cladogenesis, simulate_traits, Mk
-
-# a purely speciational binary trait: no within-branch change (zero-rate
-# Mk), a jump at each split
-res = simulate_traits(tree, Mk(np.zeros((2, 2))),
-                      cladogenesis=Cladogenesis(shift=0.4), seed=2)
-```
-
-`Cladogenesis(shift=…)` is the per-daughter state-hop probability for a discrete trait;
-`Cladogenesis(jump_sigma2=…)` is the Gaussian jump variance for a continuous one. On the command line:
-
-```bash
-zombi2 coevolve --couple species:traits -t species_tree.nwk \
-    --sse-model bisse --q01 0 --q10 0 --clado-shift 0.4 --seed 2 -o out/
-```
-
-**What it recovers:** change concentrated at the nodes — closely related tips can differ sharply while
-long unbranched stretches stay constant, the signature a purely-gradual model cannot produce.
-
-![Where trait change happens: anagenetic (as in BiSSE) vs cladogenetic (the ClaSSE addition), drawn on **one shared tree** so that only the *location* of change differs. **A**, anagenetic — the trait changes *along* the branches (open circles); at a speciation the daughters inherit the parent, so the amount of change scales with elapsed time and sister tips are usually alike. **B**, cladogenetic — the trait changes *at* the splits (filled diamonds), each daughter drawn as part of the speciation event; change scales with the number of speciations, so sister tips can differ sharply while long unbranched lineages stay constant. Same Gillespie, same tree — only the consequence of a speciation event differs.](figures/sse_cladogenetic.pdf){width=100%}
-
-### Both arrows: ClaSSE
-
-Turn on **both** `traits:species` and `species:traits` and you get the full ClaSSE feedback: the trait
-shapes the tree *and* is kicked by its own branching. Because one arrow points into S, the tree is
-again an output:
-
-```python
-res = simulate_sse(BiSSE(1, 3, 0.05, 0.05, 0.05, 0.05),
-                   n_tips=200, cladogenesis=Cladogenesis(shift=0.3), seed=3)
-```
-
-```bash
-zombi2 coevolve --couple traits:species --couple species:traits \
-    --lambda0 1 --lambda1 3 --q01 0.05 --q10 0.05 --clado-shift 0.3 \
-    --tips 200 --seed 3 -o out/
 ```
 
 ## Species and genes
@@ -420,7 +246,7 @@ none.
 
 ## Null models of coevolution
 
-Every model in this chapter is a *claim*: this driver shapes that target. The hard part is not
+Every model in this part is a *claim*: this driver shapes that target. The hard part is not
 simulating the claim but knowing, from data, whether it is true — and that is an inference problem
 with a famous trap. Fit a trait-dependent speciation model (BiSSE) and it will almost always report
 that your trait drives diversification, *even for a trait that does not* [@raboskygoldberg2015]. The
@@ -433,7 +259,7 @@ that was diversifying quickly anyway?
 
 The fix is a null model that is as flexible as the alternative, minus the causal link: a dataset with
 the same amount of variation in the target, but where that variation is **not** produced by the
-driver [@beaulieu2016hisse]. ZOMBI2 gives every edge in this chapter exactly such a null, so
+driver [@beaulieu2016hisse]. ZOMBI2 gives every edge in this part exactly such a null, so
 "simulate coupled → simulate the matched null → run your detector on both → measure its
 false-positive rate" is a one-command workflow.
 
