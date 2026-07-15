@@ -9,6 +9,14 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Added
 
+- **Opportunity knob for species diversification (`per=`)** — `BirthDeath(birth, death, per="shared")`
+  (CLI `zombi2 species --per shared`, alias `--rate-per`) grows a species tree under one *shared*
+  diversification clock: the total speciation rate is a fixed `birth` regardless of how many lineages
+  stand, so diversity grows **linearly** rather than exponentially (a diversity-dependent process in
+  disguise, `λ(N)=birth/N`). The default `per="lineage"` is the usual per-lineage birth–death. This is
+  the first step (Part 3, phase A) of making the rate *opportunity* — the unit the clock rides on —
+  a selectable knob at every level; see `docs/design/opportunity-knob.md`. Forward-only; same seed →
+  byte-identical to the previous `SharedBirthDeath`.
 - **Codon substitution models** — `zombi2 sequence --subst-model gy94`/`mg94` evolve in-frame coding
   DNA over the 61 sense codons with `dN/dS` set directly by `--omega` (`<1` purifying, `1` neutral,
   `>1` positive selection) and a ti/tv bias `--kappa`. GY94 (Goldman & Yang 1994) weights by the
@@ -87,6 +95,10 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Deprecated
 
+- **`SharedBirthDeath` → `BirthDeath(per="shared")`**, and the CLI token **`--diversification shared`
+  → `--per shared`**. The shared-clock birth–death is now an *opportunity* setting on `BirthDeath`, so
+  the standalone name is redundant. The old spellings still work but warn (the class on construction,
+  the flag on use) and `SharedBirthDeath` has left `zombi2.__all__`; both are removed in **0.4.0**.
 - **Renamed rate names retired from the public API surface** (naming consolidation, see
   `docs/design/naming-consolidation.md`). The five backwards-compatible aliases
   `SharedRates`→`PerCopyRates`, `PerGenomeRates`→`PerLineageRates`, `BranchRates`→`LineageRates`,

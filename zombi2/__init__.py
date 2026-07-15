@@ -101,9 +101,10 @@ __all__ = [
     "EventType", "GeneOp", "EventRecord", "Selection", "Region", "TargetParams",
     # tree
     "Tree", "TreeNode", "read_newick", "prune",
-    # species tree
+    # species tree (SharedBirthDeath is a deprecated preset for BirthDeath(per="shared"):
+    # importable, warns on construction, absent from __all__)
     "BirthDeath", "Yule", "EpisodicBirthDeath", "ClaDS", "DiversityDependent",
-    "SharedBirthDeath", "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
+    "CladeShiftBirthDeath", "simulate_species_tree", "add_ghost_lineages",
     # genome
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     # nucleotide genome (structural events at nucleotide resolution)
