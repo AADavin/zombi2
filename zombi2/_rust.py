@@ -28,7 +28,7 @@ from zombi2.genomes.events import EventLog, EventRecord, EventType, GeneOp
 from zombi2.genomes.genome_sim import resolve_max_family_size
 from zombi2.genomes.nucleotide_sim import NucleotideResult
 from zombi2.genomes.profiles import ProfileMatrix
-from zombi2.genomes.rates import PerCopyRates
+from zombi2.genomes.rates import Rates
 from zombi2.genomes.simulation import Genomes
 
 try:  # optional native extension
@@ -67,7 +67,8 @@ def eligible(rates, genome_factory, sampler) -> bool:
     return (
         genome_factory is UnorderedGenome
         and sampler is None
-        and type(rates) is PerCopyRates
+        and isinstance(rates, Rates)
+        and rates._all_copy
         and rates.carrying_capacity is None
         and not rates.inversion
         and not rates.transposition
@@ -95,9 +96,9 @@ class _FastNucleotideResult(NucleotideResult):
 
 def _resolve_rates(rates):
     """Return (d, t, l, o) from a PerCopyRates, rejecting features Rust does not implement."""
-    if type(rates) is not PerCopyRates:
+    if not isinstance(rates, Rates) or not rates._all_copy:
         raise TypeError(
-            f"the Rust engine only supports PerCopyRates, not {type(rates).__name__}; "
+            f"the Rust engine only supports a plain per-copy Rates, not {type(rates).__name__}; "
             f"use simulate_genomes for that model"
         )
     unsupported = []

@@ -9,6 +9,37 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Added
 
+- **Opportunity knob for species diversification (`per=`)** — `BirthDeath(birth, death, per="shared")`
+  (CLI `zombi2 species --per shared`, alias `--rate-per`) grows a species tree under one *shared*
+  diversification clock: the total speciation rate is a fixed `birth` regardless of how many lineages
+  stand, so diversity grows **linearly** rather than exponentially (a diversity-dependent process in
+  disguise, `λ(N)=birth/N`). The default `per="lineage"` is the usual per-lineage birth–death. This is
+  the first step (Part 3, phase A) of making the rate *opportunity* — the unit the clock rides on —
+  a selectable knob at every level; see `docs/design/opportunity-knob.md`. Forward-only; same seed →
+  byte-identical to the previous `SharedBirthDeath`.
+- **Opportunity knob for gene-family rates (`Rates(per=…)`)** — the gene D/T/L rate models unify under
+  one `zombi2.Rates(duplication=…, …, per="copy"|"lineage")` (Part 3, phase B). `per="copy"` (default)
+  scales the total rate by copy number → exponential families (the built-in Rust model); `per="lineage"`
+  is a constant rate per genome → linear families. `FamilySampledRates` gains the same `per=`, so
+  per-family heterogeneity and the opportunity are now **independently selectable** (per-family × per-
+  lineage no longer needs the modifier route). CLI `--rate-per` gains a `--per` alias. Same seed →
+  byte-identical (Rust and Python paths).
+- **Per-event opportunity mixing (`Per(unit, rate)`)** — each of a gene family's duplication / loss /
+  transfer rates can carry its **own** opportunity, overriding the model-level `per` (Part 3, phase D).
+  `Rates(duplication=Per("shared", 0.5), loss=Per("copy", 0.3))` is a **self-limiting** family: a shared
+  (tree-wide) duplication clock with per-copy loss, so births are capped while deaths grow with copy
+  number and the family stays bounded near `copies ≈ dup/loss` instead of exploding. Exposed as
+  `zombi2.Per`; API-only for now. Rearrangements / `carrying_capacity` require every event per-copy, and
+  a shared *transfer* clock is not yet supported. Byte-identical for every non-mixed model.
+- **Shared gene-family clock (`Rates(per="shared")`)** — the gene analogue of `SharedBirthDeath`
+  (Part 3, phase C). Duplication and loss become **one tree-wide clock per family**: the total rate is
+  a constant regardless of how many lineages carry the family or how many copies it holds, so the
+  family's size grows **linearly and pooled** (`#events ≈ base × time`, independent of the tree's
+  size) — a fire is localised to a copy chosen uniformly across the whole family. CLI
+  `zombi2 genomes --per shared`. Unordered genomes only for now; duplication/loss (transfer,
+  rearrangements, and rate *modifiers* — `LineageRates` / `--lineage-rates` — are rejected, since a
+  modifier would silently bypass the shared clock); origination stays per lineage. Implemented as a
+  "shared pool" beside the per-branch Gillespie, inert for every other model → those stay byte-identical.
 - **Codon substitution models** — `zombi2 sequence --subst-model gy94`/`mg94` evolve in-frame coding
   DNA over the 61 sense codons with `dN/dS` set directly by `--omega` (`<1` purifying, `1` neutral,
   `>1` positive selection) and a ti/tv bias `--kappa`. GY94 (Goldman & Yang 1994) weights by the
@@ -87,6 +118,15 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Deprecated
 
+- **`SharedBirthDeath` → `BirthDeath(per="shared")`**, and the CLI token **`--diversification shared`
+  → `--per shared`**. The shared-clock birth–death is now an *opportunity* setting on `BirthDeath`, so
+  the standalone name is redundant. The old spellings still work but warn (the class on construction,
+  the flag on use) and `SharedBirthDeath` has left `zombi2.__all__`; both are removed in **0.4.0**.
+- **`PerCopyRates` / `PerLineageRates` → `Rates(per="copy"|"lineage")`.** The gene D/T/L opportunity is
+  now a knob on `Rates`, so the two named classes are redundant presets: they still work but warn on
+  construction and have left `zombi2.__all__` (along with `SharedRates`, the older alias for
+  `PerCopyRates`). The `--rate-per genome` token remains the deprecated spelling of `--rate-per lineage`.
+  All removed in **0.4.0**.
 - **Renamed rate names retired from the public API surface** (naming consolidation, see
   `docs/design/naming-consolidation.md`). The five backwards-compatible aliases
   `SharedRates`→`PerCopyRates`, `PerGenomeRates`→`PerLineageRates`, `BranchRates`→`LineageRates`,

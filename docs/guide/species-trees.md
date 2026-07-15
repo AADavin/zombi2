@@ -4,7 +4,7 @@ ZOMBI2 simulates the species tree **backward in time** as a *reconstructed birth
 
 The species tree is the scaffold you later simulate genomes, traits, or sequences along. This page covers how to simulate it, the two constant-rate models (birth–death and Yule), the advanced heterogeneous-rate models, and how to recover the dead ("ghost") lineages that the reconstructed tree hides.
 
-Speciation and extinction are **per-lineage rates**: every lineage carries its own speciation "clock", so `N` lineages speciate `N×` as fast and diversity grows **exponentially**. Almost every model below keeps that *one clock per lineage* and only changes the *speed* — a per-lineage drift (ClaDS), a diversity-dependent slowdown `(1 − N/K)`, a mass-extinction pulse. The one that changes *how many* clocks there are is **`--diversification shared`**: a single tree-wide budget instead of one per lineage, so diversity grows **linearly**. *How many clocks, and how fast* is the whole grammar; see [Rates: a primer](rates.md).
+Speciation and extinction are **per-lineage rates**: every lineage carries its own speciation "clock", so `N` lineages speciate `N×` as fast and diversity grows **exponentially**. Almost every model below keeps that *one clock per lineage* and only changes the *speed* — a per-lineage drift (ClaDS), a diversity-dependent slowdown `(1 − N/K)`, a mass-extinction pulse. The one that changes *how many* clocks there are is the opportunity knob **`--per shared`** (`BirthDeath(per="shared")`): a single tree-wide budget instead of one per lineage, so diversity grows **linearly**. *How many clocks, and how fast* is the whole grammar; see [Rates: a primer](rates.md).
 
 !!! note "“Coalescent point process” ≠ multispecies coalescent"
     The backward sampler is a *coalescent point process* — a way to draw the reconstructed
@@ -194,23 +194,25 @@ Both ClaDS and diversity-dependent are grown by an exact-Gillespie loop (their r
 carrying capacity <em>K</em> — fast radiation early, a plateau near <em>K</em>.</figcaption>
 </figure>
 
-### Shared-clock birth–death
+### Shared-clock birth–death — `per="shared"`
 
-**`SharedBirthDeath`** turns the usual assumption around. A standard birth–death gives every lineage its own speciation clock, so the *total* speciation rate is `birth × N` and diversity grows **exponentially**. `SharedBirthDeath(birth, death)` instead makes `birth` the **total** rate — one clock shared by the whole tree, ticking at the same pace whether there are 3 lineages or 300, with the speciating lineage picked uniformly. Diversity then grows **linearly**: `E[n(t)] ≈ n_crown + (birth − death)·t`. It is the species-tree twin of the genome's `PerLineageRates` (a fixed per-genome budget rather than per-copy), and — since a total rate `Λ` shared among `N` lineages is a per-lineage rate `Λ/N` — a diversity-dependent process in disguise. Reach for it when speciation is limited by a shared resource rather than proceeding independently in every lineage.
+Birth–death carries an **opportunity** knob, `per`: the unit the diversification clock rides on. The default, `per="lineage"`, gives every lineage its own speciation clock, so the *total* rate is `birth × N` and diversity grows **exponentially**. `BirthDeath(birth, death, per="shared")` instead makes `birth` the **total**, tree-wide rate — one clock shared by the whole tree, ticking at the same pace whether there are 3 lineages or 300, with the speciating lineage picked uniformly. Diversity then grows **linearly**: `E[n(t)] ≈ n_crown + (birth − death)·t`. It is the species-tree twin of the genome's `per="lineage"` gene rates (a fixed budget rather than per-copy), and — since a total rate `Λ` shared among `N` lineages is a per-lineage rate `Λ/N` — a diversity-dependent process in disguise. Reach for it when speciation is limited by a shared resource rather than proceeding independently in every lineage. (The `per` knob is the same idea at every level — see [opportunity-knob](../design/opportunity-knob.md).)
 
 ```python
-from zombi2.species import SharedBirthDeath, simulate_species_tree
+from zombi2.species import BirthDeath, simulate_species_tree
 
-m = SharedBirthDeath(birth=1.0, death=0.2)          # birth/death are TOTAL, tree-wide rates
+m = BirthDeath(birth=1.0, death=0.2, per="shared")   # birth/death are TOTAL, tree-wide rates
 tree = simulate_species_tree(m, age=20.0, direction="forward", seed=1)   # or n_tips
 ```
 
 - Forward-only; `age` or `n_tips` mode. Reaching `N` tips takes ~`N/birth` time (linear), not ~`log N / birth` (exponential).
-- On the command line it is `--diversification shared`:
+- On the command line it is `--per shared`:
 
 ```bash
-zombi2 species --diversification shared --birth 1 --death 0.2 --mode forward --age 20 --seed 1 -o out/
+zombi2 species --per shared --birth 1 --death 0.2 --mode forward --age 20 --seed 1 -o out/
 ```
+
+> The `SharedBirthDeath` class and `--diversification shared` still work as deprecated spellings of `BirthDeath(per="shared")` / `--per shared` (removed in 0.4.0).
 
 ### Clade-specific rate shifts
 

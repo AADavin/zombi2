@@ -12,7 +12,7 @@ import pytest
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -21,7 +21,7 @@ from zombi2.cli import main
 
 def _multichrom(seed=4, n_chromosomes=3, transfer=0.3, **rate_kw):
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=seed)
-    rates = SharedRates(duplication=0.3, loss=0.2, transfer=transfer, origination=0.2,
+    rates = Rates(duplication=0.3, loss=0.2, transfer=transfer, origination=0.2,
                         inversion=0.2, transposition=0.2, **rate_kw)
     return simulate_genomes(tree, rates, initial_families=18, seed=seed,
                             genome_factory=lambda i: OrderedGenome(
@@ -89,7 +89,7 @@ def test_layout_and_karyotype_are_opt_in(tmp_path):
 def test_single_chromosome_output_folder_is_unchanged(tmp_path):
     """A single-chromosome ordered run writes no new files; layout is still available on request."""
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=1)
-    rates = SharedRates(duplication=0.3, loss=0.2, origination=0.3, inversion=0.2)
+    rates = Rates(duplication=0.3, loss=0.2, origination=0.3, inversion=0.2)
     g = simulate_genomes(tree, rates, initial_families=12, seed=1,
                          genome_factory=lambda i: OrderedGenome(i, extension=0.6))
     out = tmp_path / "gen"

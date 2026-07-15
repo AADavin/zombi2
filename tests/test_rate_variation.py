@@ -5,7 +5,7 @@ import numpy as np
 from zombi2 import (
     BirthDeath,
     RateVariation,
-    SharedRates,
+    Rates,
     read_newick,
     simulate_genomes,
     simulate_species_tree,
@@ -76,7 +76,7 @@ def test_newick_round_trip():
 
 def test_rate_variation_applies_to_gene_trees():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=12, age=4.0, seed=9)
-    g = simulate_genomes(tree, SharedRates(duplication=0.2, transfer=0.1, loss=0.2,
+    g = simulate_genomes(tree, Rates(duplication=0.2, transfer=0.1, loss=0.2,
                                             origination=0.5), initial_families=12, seed=9)
     fam = max(g.profiles.families, key=lambda f: g.profiles.matrix[g.profiles.families.index(f)].sum())
     _, extant = g.gene_trees()[fam]

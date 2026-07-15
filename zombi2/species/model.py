@@ -9,10 +9,15 @@ cleanly apart.
 from __future__ import annotations
 
 import math
+import warnings
 
 import numpy as np
 
 from zombi2.species._caps import FOSSILIZATION, REMOVAL, GrowthEngine, SpeciesCaps
+
+#: Caps a birth–death instance switches to when ``per="shared"``: the shared clock has no closed-form
+#: reconstructed CDF, so it is forward-only (Gillespie), exactly like ``DiversityDependent``/``ClaDS``.
+_SHARED_CAPS = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
 
 
 def _finite(name: str, value: float) -> float:
@@ -60,6 +65,18 @@ def _validate_mass_extinctions(mes) -> None:
 class BirthDeath:
     """Constant-rate birth-death process (speciation ``birth`` λ, extinction ``death`` μ).
 
+    **Opportunity** (``per``) — the unit the diversification clock rides on:
+
+    - ``per="lineage"`` (default) — one clock **per lineage**: the total speciation rate is
+      ``birth·n``, so diversity grows **exponentially**. Backward-capable (closed-form
+      reconstructed sampler).
+    - ``per="shared"`` — one clock **shared** by the whole tree: the *total* speciation rate is a
+      constant ``birth`` regardless of the standing lineage count, so diversity grows **linearly**
+      (``E[n(t)] ≈ n₀ + (birth−death)·t``) — a diversity-dependent process in disguise
+      (``λ(n)=birth/n``). **Forward-only** (no closed-form CDF); ``fossilization``/``removal`` do not
+      apply. See the "how many clocks?" section of ``docs/guide/rates.md`` and
+      ``docs/design/opportunity-knob.md``.
+
     Optional (forward-simulation) extras: serial ``fossilization`` (ψ, dated fossils), extant
     ``sampling_fraction`` (ρ), ``removal`` (r) on sampling, and ``mass_extinctions`` (tree-wide
     survival pulses) — see :func:`~zombi2.simulate_species_tree` with ``direction="forward"``.
@@ -77,14 +94,19 @@ class BirthDeath:
     )
 
     def __init__(self, birth: float, death: float = 0.0, *,
+                 per: str = "lineage",
                  fossilization: float = 0.0, sampling_fraction: float = 1.0,
                  removal: float = 1.0, mass_extinctions=None):
         self.birth = float(birth)
         self.death = float(death)
+        self.per = str(per)
         self.fossilization = float(fossilization)
         self.sampling_fraction = float(sampling_fraction)
         self.removal = float(removal)
         self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
+        # A shared clock has no backward sampler → flip this instance to forward-only Gillespie.
+        if self.per == "shared":
+            self._caps = _SHARED_CAPS
 
     def validate(self) -> None:
         _finite("birth rate", self.birth)
@@ -92,6 +114,11 @@ class BirthDeath:
         _finite("fossilization rate", self.fossilization)
         _finite("sampling_fraction", self.sampling_fraction)
         _finite("removal", self.removal)
+        if self.per not in ("lineage", "shared"):
+            raise ValueError(f"per must be 'lineage' or 'shared', got {self.per!r}")
+        if self.per == "shared" and (self.fossilization != 0.0 or self.removal != 1.0):
+            raise ValueError("fossilization/removal are not supported with per='shared' "
+                             "(the shared clock is a plain forward birth–death)")
         if self.birth <= 0:
             raise ValueError(f"birth rate must be > 0, got {self.birth}")
         if self.death < 0:
@@ -368,44 +395,25 @@ class DiversityDependent:
         _validate_mass_extinctions(self.mass_extinctions)
 
 
-class SharedBirthDeath:
-    """Shared-clock birth–death: one tree-wide diversification *budget*, not one clock per lineage.
+class SharedBirthDeath(BirthDeath):
+    """Deprecated preset for ``BirthDeath(birth, death, per="shared")``.
 
-    Where :class:`BirthDeath` gives every lineage its own speciation clock — total speciation rate
-    ``birth·n``, so diversity grows **exponentially** — here the lineages **share** it: the *total*
-    speciation rate is a constant ``birth`` and the *total* extinction rate a constant ``death``, no
-    matter how many lineages stand. One event every ``1/(birth+death)`` on average, landing on a
-    uniformly chosen lineage. Diversity therefore grows **linearly** (``E[n(t)] ≈ n₀ + (birth −
-    death)·t``). Equivalently it is a per-lineage rate ``λ(n) = birth/n`` — a diversity-dependent
-    process in disguise (see the "how many clocks?" section of ``docs/guide/rates.md``). It is the
-    species-tree counterpart of the genome's :class:`~zombi2.PerLineageRates` (a fixed per-genome
-    budget rather than per-copy).
-
-    A **forward-only** model (the per-lineage rate depends on the running lineage count ``n``).
-    ``age`` or ``n_tips`` mode both work; ``sampling_fraction`` (ρ) and ``mass_extinctions`` overlay
-    as for :class:`BirthDeath` (mass extinctions still require ``age`` mode).
+    The shared-clock birth–death — one tree-wide diversification *budget* (total speciation rate a
+    constant ``birth`` regardless of how many lineages stand), so diversity grows **linearly**
+    (``E[n(t)] ≈ n₀ + (birth−death)·t``) rather than exponentially. The opportunity is now a knob on
+    :class:`BirthDeath` (``per="shared"``), so this named class is redundant: it still works but emits
+    a ``DeprecationWarning`` and is removed in 0.4.0. See ``docs/design/opportunity-knob.md``.
     """
-
-    _caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
 
     def __init__(self, birth: float, death: float = 0.0, *,
                  sampling_fraction: float = 1.0, mass_extinctions=None):
-        self.birth = float(birth)
-        self.death = float(death)
-        self.sampling_fraction = float(sampling_fraction)
-        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
-
-    def validate(self) -> None:
-        _finite("birth (total speciation rate)", self.birth)
-        _finite("death rate", self.death)
-        _finite("sampling_fraction", self.sampling_fraction)
-        if self.birth <= 0:
-            raise ValueError(f"birth (total speciation rate) must be > 0, got {self.birth}")
-        if self.death < 0:
-            raise ValueError(f"death rate must be >= 0, got {self.death}")
-        if not (0.0 < self.sampling_fraction <= 1.0):
-            raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
-        _validate_mass_extinctions(self.mass_extinctions)
+        warnings.warn(
+            "SharedBirthDeath is deprecated; use BirthDeath(birth, death, per='shared'). "
+            "The old name still works but is removed in 0.4.0.",
+            DeprecationWarning, stacklevel=2,
+        )
+        super().__init__(birth, death, per="shared",
+                         sampling_fraction=sampling_fraction, mass_extinctions=mass_extinctions)
 
 
 class CladeShiftBirthDeath:

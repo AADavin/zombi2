@@ -1,6 +1,7 @@
 # Design: opportunity as a first-class knob (opportunity, Part 3)
 
-**Status:** proposed (2026-07-15). The third and final part of the opportunity line
+**Status:** shipped (2026-07-15) — phases **A–E complete** (PR #147 = A–C, PR #149 = D–E). The third
+and final part of the opportunity line
 ([opportunity](opportunity.md) — Parts 1 (docs) and 2 (`SharedBirthDeath`) shipped in PR #146). Where
 Part 1 *taught* the opportunity axis and Part 2 *added the one missing model*, Part 3 makes
 **opportunity a thing you select**, not a thing you pick a class for. The goal, in Adrián's words:
@@ -53,6 +54,27 @@ Reading the ladder as growth laws for one focal quantity (say, a gene family's c
 regardless of copies), `shared` → **linear and pooled** (one clock for the whole family).
 The finest rung, `site`, is the substitution/indel world Adrián flagged: a per-nucleotide clock, the
 same axis one level down.
+
+## Opportunity is not heterogeneity
+
+Opportunity is easy to confuse with *per-family rates*, but they are different slots of
+`base × opportunity × modifiers`:
+
+- **opportunity** (`per=`) — *how the rate scales with counts* (per site / copy / lineage / shared).
+  The middle term.
+- **heterogeneity** — *which families (or branches, or pairs) get which values*. It lives in the
+  **base** (`FamilySampledRates` — each family its own rate) or a **modifier** (`FamilyModifier` — a
+  shared base times a per-family factor), never in the opportunity.
+
+A family can be `per="copy"` **and** carry its own rate; the slots are orthogonal. "Per family" is
+therefore never an opportunity value — there is no `per="family"`. (Worked table in
+[the rates primer](../guide/rates.md).)
+
+One wrinkle this design should close: `FamilySampledRates` currently hard-codes opportunity = `copy`,
+so *per-family rates with a per-lineage opportunity* is reachable only through the modifier route
+(`FamilyModifier` on a per-lineage base). Giving the base models a `per=` of their own — part of
+phase B — makes all three slots independently selectable, so the orthogonality the docs teach is the
+orthogonality the code offers.
 
 ## Where ZOMBI2 is today
 
@@ -163,14 +185,30 @@ Not all rungs cost the same. In rough order of effort:
 
 ## Phasing (each independently shippable)
 
-- **A — Species knob.** `BirthDeath(per="lineage"|"shared")`; `--per` on `zombi2 species`;
-  `SharedBirthDeath` → preset. Pure surface; byte-identical.
-- **B — Genome knob (existing rungs).** `Rates(per="copy"|"lineage")` unifying `PerCopyRates` /
-  `PerLineageRates` under one model + `--rate-per`. Surface + the declarative interface (step 4).
-- **C — Genome `shared`.** The global-pool engine work (step 3). New capability; the three-panel
-  duplication figure becomes its validation.
-- **D — Per-event mixing.** `Per(unit, rate)` overrides → self-limiting and mixed models.
-- **E — Sequences `site`.** Name the axis at the nucleotide level.
+- **A — Species knob.** ✅ `BirthDeath(per="lineage"|"shared")`; `--per` on `zombi2 species`;
+  `SharedBirthDeath` → deprecated preset. Pure surface; byte-identical. *(shipped)*
+- **B — Genome knob (existing rungs).** ✅ `Rates(per="copy"|"lineage")` unifies `PerCopyRates` /
+  `PerLineageRates` under one model + `--rate-per`/`--per`; `FamilySampledRates` gains `per=` so
+  per-family heterogeneity and opportunity are independently selectable (closes the hard-coded-`copy`
+  wrinkle above); Rust gate generalised to `isinstance(rates, Rates) and per=="copy"`. Byte-identical.
+  *(shipped; the declarative interface — step 4 — is deferred to phase C, where `shared` needs it.)*
+- **C — Genome `shared`.** ✅ `Rates(per="shared")` / `zombi2 genomes --per shared`: one tree-wide
+  clock per family for duplication and loss (constant total rate; a fire localises to a copy chosen
+  uniformly across the family). Implemented as a "shared pool" beside the per-branch Gillespie —
+  inert for every other model, so those stay byte-identical (mechanism (a), the global pool). v1 scope:
+  unordered genomes, dup/loss (transfer/rearrangements rejected), origination stays per-lineage;
+  `FamilySampledRates(per="shared")` and the full declarative interface (step 4) deferred. *(shipped)*
+- **D — Per-event mixing.** ✅ `Rates(duplication=Per("shared", …), loss=Per("copy", …))` — each event
+  carries its own opportunity via `Per(unit, rate)`, overriding the model-level `per`. Enables the
+  self-limiting family (shared birth + per-copy loss). Byte-identical for non-mixed models: the plain
+  per-copy body runs only when every event is per-copy (`_all_copy`), and the lineage/shared/mixed
+  router reproduces the old branches exactly; the engine's shared flag became "any event shared"
+  (`has_shared`). API-only for now (no per-event CLI flags). *(shipped)*
+- **E — Sequences `site`.** ✅ The finest rung is named **`site`** across the docs (the rates primer's
+  opportunity tables use `shared / lineage / copy / site`, and state the nesting `site ⊂ copy ⊂ lineage`
+  explicitly). Substitution and nucleotide-indel rates are per-site by construction (no copy/lineage
+  alternative), so this is a naming/vocabulary completion — the same axis, named the same way at every
+  level. *(shipped)*
 
 ## Decisions (resolved with Adrián, 2026-07-15)
 

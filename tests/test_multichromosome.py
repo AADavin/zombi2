@@ -14,7 +14,7 @@ import pytest
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -36,7 +36,7 @@ def _chromosomes(genomes):
 
 
 def _rates():
-    return SharedRates(duplication=0.4, loss=0.3, transfer=0.2, origination=0.1,
+    return Rates(duplication=0.4, loss=0.3, transfer=0.2, origination=0.1,
                        inversion=0.3, transposition=0.3)
 
 
@@ -243,7 +243,7 @@ def test_transfer_recipient_chromosome_is_uniform_not_size_weighted():
 def test_transfer_moves_families_across_chromosomes_end_to_end():
     """A full simulation with heavy transfer: some family ends up on more than one chromosome
     within a single leaf, which (with no chromosome-tier events) can only happen via a transfer."""
-    rates = SharedRates(duplication=0.2, loss=0.2, transfer=0.6, origination=0.1,
+    rates = Rates(duplication=0.2, loss=0.2, transfer=0.6, origination=0.1,
                         inversion=0.1, transposition=0.1)
     spanned = False
     for seed in (1, 2, 3, 4, 5):

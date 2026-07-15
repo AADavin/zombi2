@@ -70,8 +70,8 @@ it recorded here for free — do not write a second, bespoke parameter file.
   (events, or substitutions/site, per unit time) — the base number you set. A **modifier** is a
   *dimensionless* multiplier (default 1) that scales a rate in some context (a family, a lineage, a
   lineage-pair, a site). Those are the only two "how fast" kinds anywhere the simulator runs forward.
-- **Gene-family D/T/L are per gene copy** by default (`PerCopyRates`): the genome-wide rate is
-  the per-copy rate times the number of copies. `PerLineageRates` instead fires at a constant
+- **Gene-family D/T/L are per gene copy** by default (`Rates`): the genome-wide rate is
+  the per-copy rate times the number of copies. `Rates(per="lineage")` instead fires at a constant
   per-lineage rate. `LineageRates` scales any base model by per-lineage factors.
 - **Origination is per lineage**, not per copy — one new family per event, independent of
   genome size.

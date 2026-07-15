@@ -152,8 +152,8 @@ def test_profiles_fast_path_rejects_indels():
 
 
 def test_negative_indel_rate_rejected():
-    from zombi2.genomes.rates import SharedRates
+    from zombi2.genomes.rates import Rates
     with pytest.raises(ValueError, match="insertion"):
-        SharedRates(insertion=-1.0)
+        Rates(insertion=-1.0)
     with pytest.raises(ValueError, match="deletion"):
-        SharedRates(deletion=-1.0)
+        Rates(deletion=-1.0)
