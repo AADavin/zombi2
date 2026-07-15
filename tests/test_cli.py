@@ -100,6 +100,34 @@ def test_species_diversity_dependent_needs_K(tmp_path):
               "--age", "10", "-o", str(tmp_path / "a")])
 
 
+def test_species_per_shared_is_linear(tmp_path):
+    """--per shared builds a shared-clock birth-death: diversity stays linear (small at these rates)."""
+    import zombi2 as z
+    out = tmp_path / "shared"
+    rc = main(["species", "--mode", "forward", "--per", "shared", "--birth", "1", "--death", "0.2",
+               "--age", "6", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    tree = z.read_newick((out / "species_tree.nwk").read_text())
+    assert sum(1 for lf in tree.leaves() if lf.is_extant) < 40   # linear, not exponential
+
+
+def test_species_diversification_shared_is_deprecated_alias(tmp_path, capsys):
+    """--diversification shared warns and is byte-identical to --per shared (same seed)."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    assert main(["species", "--mode", "forward", "--per", "shared", "--birth", "1", "--death", "0.2",
+                 "--age", "6", "--seed", "3", "-o", str(a)]) == 0
+    assert main(["species", "--mode", "forward", "--diversification", "shared", "--birth", "1",
+                 "--death", "0.2", "--age", "6", "--seed", "3", "-o", str(b)]) == 0
+    assert "deprecated" in capsys.readouterr().err
+    assert (a / "species_tree.nwk").read_text() == (b / "species_tree.nwk").read_text()
+
+
+def test_species_per_shared_is_forward_only(tmp_path):
+    """--per shared is a forward process; backward errors."""
+    with pytest.raises(SystemExit):
+        main(["species", "--per", "shared", "--tips", "20", "-o", str(tmp_path / "e")])
+
+
 def test_species_clads_requires_forward(tmp_path):
     """clads/diversity-dependent are forward-only; backward errors."""
     with pytest.raises(SystemExit):

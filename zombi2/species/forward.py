@@ -299,9 +299,21 @@ class _ShiftView:
 
 
 #: Gillespie models -> their per-lineage rate view. Data-driven replacement for the isinstance
-#: view ladder in ``simulate_forward`` (keyed by exact type; these classes have no subclasses).
+#: view ladder in ``simulate_forward``. ``BirthDeath`` appears here for its ``per="shared"`` form
+#: only — a per-lineage ``BirthDeath`` is backward/THINNING and never reaches the Gillespie engine,
+#: so a shared-clock ``BirthDeath`` correctly resolves to ``_SharedView``.
 _GILLESPIE_VIEWS = {ClaDS: _ClaDSView, DiversityDependent: _DDView, CladeShiftBirthDeath: _ShiftView,
-                    SharedBirthDeath: _SharedView}
+                    SharedBirthDeath: _SharedView, BirthDeath: _SharedView}
+
+
+def _gillespie_view(model):
+    """The Gillespie rate view for ``model``, resolved MRO-aware so a subclass (e.g. the deprecated
+    ``SharedBirthDeath(BirthDeath)`` preset) inherits its base's view."""
+    for klass in type(model).__mro__:
+        view = _GILLESPIE_VIEWS.get(klass)
+        if view is not None:
+            return view
+    raise KeyError(f"no Gillespie view registered for {type(model).__name__}")
 
 
 def _weighted_index(weights, total, rng) -> int:
@@ -526,7 +538,7 @@ def simulate_forward(
 
     present = age if age is not None else 0.0
     if heterogeneous:
-        view = _GILLESPIE_VIEWS[type(model)](model, present)
+        view = _gillespie_view(model)(model, present)
         grow = _grow_gillespie
     else:
         view = _ForwardRates(model, present=present)
