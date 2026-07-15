@@ -433,7 +433,7 @@ def reverse_complement(seq: str) -> str:
 # --------------------------------------------------------------------------- #
 def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
                    rng: np.random.Generator, *, root_seq=None, length: int | None = None,
-                   gamma: GammaRates | None = None) -> dict:
+                   gamma: GammaRates | None = None, model_for=None) -> dict:
     """Evolve a sequence over a gene tree; return ``{node.gid: end_sequence}`` for every node.
 
     ``root`` is a tree node (``reconciliation._Node``: has ``.gid`` and ``.children``); ``subst`` maps
@@ -449,6 +449,12 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
     stationary distribution). Each site is then assigned a class from the mixture's ``proportions``
     and evolves under that class's matrix — mutually exclusive with ``gamma`` (both are per-site
     category layers).
+
+    ``model_for`` (optional) is a callable ``node → SubstitutionModel`` selecting a **per-branch**
+    model — e.g. a per-lineage ``ω`` (a trait drives dN/dS) or a post-event ``ω`` (relaxed selection
+    after a duplication). Every model it returns must share ``model``'s stationary distribution,
+    alphabet and ``k`` (codon ``ω``-classes do — they differ only in the non-synonymous rates), and
+    it is mutually exclusive with a codon site mixture / ``gamma`` (per-*site* layers).
     """
     pi = model.stationary
     alphabet = model.alphabet
@@ -465,6 +471,9 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
     if components is not None and gamma is not None:
         raise ValueError("a codon site model (per-site ω mixture) and gamma across-site rates are "
                          "both per-site category layers; give at most one")
+    if model_for is not None and (components is not None or gamma is not None):
+        raise ValueError("model_for (a per-branch model, e.g. a per-lineage ω) is mutually exclusive "
+                         "with a codon site mixture or gamma (per-site category layers)")
     if components is not None:
         site_cat = rng.choice(len(components), size=length, p=model.proportions)
     elif gamma is not None:
@@ -500,6 +509,8 @@ def evolve_on_tree(root, subst: dict, model: SubstitutionModel,
                 if mask.any():
                     cum = p_for(t, comp).cumsum(1)
                     states[mask] = sample(parent_states[mask], cum)
+        elif model_for is not None:                        # per-branch model (e.g. per-lineage ω)
+            states = sample(parent_states, p_for(t, model_for(node)).cumsum(1))
         elif gamma is None:
             states = sample(parent_states, p_for(t).cumsum(1))
         else:

@@ -118,3 +118,82 @@ def test_scale_produces_a_phylogram():
 def test_base_rate_must_be_positive():
     with pytest.raises(ValueError, match="base_rate"):
         DriverClock(_ConstDriver(1.0), Scalar(0.0), base_rate=0.0)
+
+
+# ── selection (ω): OmegaSelector (T→Σ) and GeneEventOmega (G→Σ) ────────────────
+import numpy as np
+
+from zombi2.coevolve.grammar import Scalar
+from zombi2.coevolve.sequence_bridge import GeneEventOmega, OmegaSelector
+from zombi2.genomes.events import EventType
+from zombi2.sequences.models import GammaRates, evolve_on_tree
+
+
+class _FakeNode:
+    """A minimal reconciliation-node stand-in for the ω selectors / evolve_on_tree."""
+
+    def __init__(self, gid="g", *, branch=None, species=None, birth=0.0, end=1.0, kind=None,
+                 children=None):
+        self.gid = gid
+        self.branch = branch
+        self.species = species
+        self.birth = birth
+        self.end = end
+        self.kind = kind
+        self.children = children or []
+
+
+def test_omega_selector_scales_omega_with_the_trait():
+    node = _FakeNode(branch="b1", birth=0.0, end=2.0)
+    sel = OmegaSelector(_ConstDriver(1.0), Scalar(0.5), base_omega=0.2)
+    assert sel.omega_for(node) == pytest.approx(0.2 * math.exp(0.5))     # driver 1.0
+    null = OmegaSelector(_ConstDriver(9.0), Scalar(0.0), base_omega=0.2)
+    assert null.omega_for(node) == pytest.approx(0.2)                    # null → uniform ω
+
+
+def test_omega_class_cache_reuses_one_model_per_class():
+    sel = OmegaSelector(_MapDriver({"hot": 1.0, "cold": -1.0}), Scalar(1.0),
+                        base_omega=0.3, resolution=0.02)
+    m_hot = sel.model_for(_FakeNode(branch="hot", birth=0.0, end=1.0))
+    m_hot_again = sel.model_for(_FakeNode(branch="hot", birth=0.5, end=1.5))
+    m_cold = sel.model_for(_FakeNode(branch="cold"))
+    assert m_hot is m_hot_again                                          # same ω class → cached
+    assert m_cold is not m_hot                                          # different ω class
+    assert m_hot.k == 61                                                # a 61-state codon model
+
+
+def test_gene_event_omega_relaxes_selection_on_the_event_branch():
+    geo = GeneEventOmega(Scalar(0.7), base_omega=0.2, events=(EventType.DUPLICATION,))
+    dup = _FakeNode(kind=EventType.DUPLICATION)
+    spec = _FakeNode(kind=EventType.SPECIATION)
+    assert geo.omega_for(dup) == pytest.approx(0.2 * math.exp(0.7))     # relaxed after duplication
+    assert geo.omega_for(spec) == pytest.approx(0.2)                    # base elsewhere
+    assert geo.model_for(dup) is not geo.model_for(spec)
+
+
+def test_omega_base_model_is_a_codon_model_and_validation():
+    assert OmegaSelector(_ConstDriver(0.0), Scalar(1.0)).base_model.k == 61
+    with pytest.raises(ValueError, match="base_omega"):
+        OmegaSelector(_ConstDriver(1.0), Scalar(0.0), base_omega=-1.0)
+    with pytest.raises(ValueError, match="resolution"):
+        GeneEventOmega(Scalar(0.0), resolution=0.0)
+
+
+def test_evolve_on_tree_uses_the_per_branch_omega_model():
+    sel = OmegaSelector(_MapDriver({"root_sp": 0.0, "child_sp": 2.0}), Scalar(1.0), base_omega=0.2)
+    root = _FakeNode("r", branch="root_sp", birth=0.0, end=1.0)
+    child = _FakeNode("c", branch="child_sp", birth=1.0, end=3.0)
+    root.children = [child]
+    out = evolve_on_tree(root, {root: 0.0, child: 0.5}, sel.base_model,
+                         np.random.default_rng(0), length=6, model_for=sel.model_for)
+    assert set(out) == {"r", "c"}
+    assert len(out["c"]) == 18                                          # 6 codon sites × 3 nt
+    assert sel.model_for(child) is not sel.base_model                   # child ran under its own ω
+
+
+def test_model_for_is_mutually_exclusive_with_gamma():
+    sel = OmegaSelector(_ConstDriver(1.0), Scalar(0.5))
+    root = _FakeNode("r")
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        evolve_on_tree(root, {root: 0.0}, sel.base_model, np.random.default_rng(0),
+                       length=3, model_for=sel.model_for, gamma=GammaRates(0.5))
