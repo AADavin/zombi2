@@ -241,6 +241,12 @@ class PerLineageRates(RateModel):
     target copy is chosen uniformly. A useful consequence: family sizes grow *linearly*
     rather than exponentially, so per-lineage models are intrinsically far less prone to
     runaway growth. Origination is per lineage.
+
+    In the rate grammar (``base × opportunities × modifiers``) this is the **fixed-opportunity**
+    case: *opportunity = 1 per family* (the genome as the unit), not the copy count — which is why
+    growth is linear. Note that this is the *opposite* scaling from species-tree *per-lineage*
+    speciation, where the opportunity is the growing lineage count `N` and growth is exponential;
+    the word "per lineage" tracks the growing quantity there but not here. See ``docs/guide/rates.md``.
     """
 
     def __init__(self, duplication: float = 0.0, transfer: float = 0.0,
