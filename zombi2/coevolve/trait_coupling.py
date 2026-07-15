@@ -51,7 +51,7 @@ from zombi2.genomes.events import EventType
 from zombi2.genomes.genome import Gene, UnorderedGenome
 from zombi2.genomes.genome_sim import GenomeSimulator
 from zombi2.genomes.profiles import ProfileMatrix, _natkey
-from zombi2.genomes.rates import ModifiedRates, PerCopyRates
+from zombi2.genomes.rates import ModifiedRates, Rates
 from zombi2.traits.models import TraitResult, simulate_traits
 from zombi2.genomes.transfers import TransferModel
 from zombi2.tree import Tree
@@ -315,8 +315,8 @@ def _resolve_responsive(n: int, responsive, rng) -> list[int]:
 class TraitGeneRates(ModifiedRates):
     """The ``traits:genomes`` edge, compiled onto the grammar.
 
-    A :class:`~zombi2.genomes.rates.ModifiedRates` over a :class:`~zombi2.genomes.rates.PerCopyRates`
-    base, with one :class:`~zombi2.coevolve.rate_bridge.CouplingModifier` per trait-coupled channel:
+    A :class:`~zombi2.genomes.rates.ModifiedRates` over a :class:`~zombi2.genomes.rates.Rates`
+    (``per="copy"``) base, with one :class:`~zombi2.coevolve.rate_bridge.CouplingModifier` per trait-coupled channel:
 
     * **retention** — a responsive family's per-copy loss is scaled by ``exp(-effect_loss·w_i·s)``
       (``s`` the local trait value), so a favoured family is kept and a disfavoured one purged; an
@@ -335,8 +335,8 @@ class TraitGeneRates(ModifiedRates):
     def __init__(self, coupling: TraitGeneCoupling, trajectory: TraitTrajectory):
         self.c = coupling
         self.traj = trajectory
-        base = PerCopyRates(loss=coupling.base_loss, transfer=coupling.transfer,
-                            duplication=coupling.duplication, origination=coupling.origination)
+        base = Rates(loss=coupling.base_loss, transfer=coupling.transfer,
+                     duplication=coupling.duplication, origination=coupling.origination)  # per="copy"
         # retention: a responsive family sees w_i·s, so loss ×= exp(-effect_loss·w_i·s); inert
         # families (absent from weights_by_id) are unmodified.
         modifiers = [CouplingModifier(trajectory, Scalar(-coupling.effect_loss), EventType.LOSS,

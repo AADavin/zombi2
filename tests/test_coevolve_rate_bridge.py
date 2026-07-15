@@ -5,7 +5,7 @@ Two layers:
 1. **Unit — the factor** — a :class:`CouplingModifier` applies its :class:`Response` to its target
    event only, keys per-family weights the trait→gene way, and forwards the driver's change points.
 2. **Integration — the engine** — composed through :class:`~zombi2.genomes.rates.ModifiedRates` over
-   a real :class:`~zombi2.genomes.rates.PerCopyRates` base, it reproduces the trait→gene loss formula
+   a real :class:`~zombi2.genomes.rates.Rates` (per='copy') base, it reproduces the trait→gene loss formula
    ``base_loss · cn · exp(-strength · w_f · s)`` per family, and a null coupling leaves the base
    weights byte-identical.
 """
@@ -18,7 +18,7 @@ from zombi2.coevolve.grammar import Scalar
 from zombi2.coevolve.rate_bridge import EVENT_FOR_VARIABLE, CouplingModifier
 from zombi2.genomes.events import EventType
 from zombi2.genomes.genome import Gene, IdManager, UnorderedGenome
-from zombi2.genomes.rates import ModifiedRates, PerCopyRates
+from zombi2.genomes.rates import ModifiedRates, Rates
 
 
 class _ConstSignal:
@@ -74,7 +74,7 @@ def test_event_for_variable_maps_the_unambiguous_targets():
     assert EVENT_FOR_VARIABLE["transfer"] is EventType.TRANSFER
 
 
-# ── 2. Integration: through ModifiedRates over PerCopyRates ────────────────────
+# ── 2. Integration: through ModifiedRates over a Rates (per='copy') base ──────
 def _genome(copies):
     """An UnorderedGenome with ``copies = {family: n}``."""
     ids = IdManager()
@@ -92,7 +92,7 @@ def _by_target(weights):
 def test_reproduces_trait_gene_loss_formula_per_family():
     # base_loss=1, F1 responsive (weight 1), F2 inert; constant trait s=1, strength -0.5.
     g = _genome({"F1": 2, "F2": 1})
-    base = PerCopyRates(loss=1.0)
+    base = Rates(loss=1.0)
     cm = CouplingModifier(_ConstSignal(1.0), Scalar(-0.5), EventType.LOSS, weights={"F1": 1.0})
     weights = _by_target(ModifiedRates(base, [cm]).event_weights(g, "b", 0.0))
 
@@ -103,7 +103,7 @@ def test_reproduces_trait_gene_loss_formula_per_family():
 
 def test_null_coupling_is_byte_identical_to_the_base():
     g = _genome({"F1": 2, "F2": 3})
-    base = PerCopyRates(duplication=0.4, transfer=0.6, loss=1.0, origination=0.1)
+    base = Rates(duplication=0.4, transfer=0.6, loss=1.0, origination=0.1)
     cm = CouplingModifier(_ConstSignal(9.0), Scalar(0.0), EventType.LOSS)   # null: strength 0
     assert (ModifiedRates(base, [cm]).event_weights(g, "b", 0.0)
             == base.event_weights(g, "b", 0.0))
@@ -111,7 +111,7 @@ def test_null_coupling_is_byte_identical_to_the_base():
 
 def test_only_the_targeted_channel_is_scaled():
     g = _genome({"F1": 2})
-    base = PerCopyRates(transfer=0.5, loss=1.0)
+    base = Rates(transfer=0.5, loss=1.0)
     cm = CouplingModifier(_ConstSignal(1.0), Scalar(1.0), EventType.TRANSFER)   # scales TRANSFER only
     weights = _by_target(ModifiedRates(base, [cm]).event_weights(g, "b", 0.0))
     assert weights[(EventType.TRANSFER, None)] == pytest.approx(0.5 * 2 * math.exp(1.0))  # scaled
