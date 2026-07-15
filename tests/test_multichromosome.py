@@ -282,7 +282,7 @@ def test_cli_ordered_multichromosome_runs(tmp_path):
                "--n-chromosomes", "4", "--linear-chromosomes",
                "--initial-families", "20", "--seed", "3", "--write", "profiles", "-o", str(gen)])
     assert rc == 0
-    assert (gen / "Profiles.tsv").exists()
+    assert (gen / "profiles.tsv").exists()
 
 
 def test_cli_rejects_n_chromosomes_without_ordered(tmp_path):

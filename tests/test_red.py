@@ -112,7 +112,7 @@ def test_cli_red_writes_tsv(tmp_path):
     out = tmp_path / "out"
     rc = main(["tools", "red", "-t", str(nwk), "-o", str(out)])
     assert rc == 0
-    text = (out / "RED.tsv").read_text().strip().splitlines()
+    text = (out / "red.tsv").read_text().strip().splitlines()
     header = text[0].split("\t")
     assert header == ["node", "is_leaf", "red"]
     rows = {r.split("\t")[0]: r.split("\t") for r in text[1:]}

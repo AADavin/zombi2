@@ -676,8 +676,8 @@ def test_write_reconciliations(tmp_path):
     res = simulate_nucleotide_genomes(tree, inversion=0.004, duplication=0.004, transfer=0.004,
                                       loss=0.004, root_length=200, extension=0.9, seed=55)
     summary = res.write_reconciliations(tmp_path)
-    assert (tmp_path / "Reconciled_complete.nwk").exists()
-    assert (tmp_path / "Reconciled_extant.nwk").exists()
-    events_file = tmp_path / "Reconciliation_events.tsv"
+    assert (tmp_path / "reconciled_complete.nwk").exists()
+    assert (tmp_path / "reconciled_extant.nwk").exists()
+    events_file = tmp_path / "reconciliation_events.tsv"
     assert events_file.read_text().splitlines()[0] == "block\tevent\tspecies\trecipient\ttime\tgene"
     assert summary["n_blocks"] > 0 and summary["n_events"] > 0

@@ -57,7 +57,7 @@ trees disagree with it?
 zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 --seed 1 -o out/
 ```
 
-writes `out/gene_trees.nwk` (one gene tree per line) and reports the fraction whose topology matches the
+writes `out/ils_gene_trees.nwk` (one gene tree per line) and reports the fraction whose topology matches the
 species tree — a direct read-out of how much ILS the chosen $N$ produced. From Python:
 
 ```python
@@ -94,7 +94,7 @@ The feature is a post-process on a genomes run written with its event trace:
 
 ```
 zombi2 genomes -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.1 --write trace -o run/
-zombi2 experimental ils -t species_tree.nwk --events-trace run/Events_trace.tsv -N 0.5 -o out/
+zombi2 experimental ils -t species_tree.nwk --events-trace run/events_trace.tsv -N 0.5 -o out/
 ```
 
 The second command writes `out/gene_trees/<family>.nwk`, one coalescent gene tree per surviving family

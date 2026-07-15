@@ -273,15 +273,15 @@ genomes.write("out/")
 
 The returned `Genomes` object (and `--write`) exposes:
 
-- **Profile matrix** — `genomes.profiles`; `Profiles.tsv` (copy counts, families × extant species) and
-  `Presence.tsv` (its 0/1 binarization). `--sparse` writes `Profiles_sparse.tsv` instead.
+- **Profile matrix** — `genomes.profiles`; `profiles.tsv` (copy counts, families × extant species) and
+  `presence.tsv` (its 0/1 binarization). `--sparse` writes `profiles_sparse.tsv` instead.
 - **Gene trees** — `genomes.gene_trees()`; `gene_trees/<family>_complete.nwk` (all lineages) and
   `_extant.nwk` (survivors only), each **reconciled** with the species tree.
 - **Reconciliations & per-family events** — `gene_family_events/<family>_events.tsv` records where each
   family's D/T/L/S events map onto the species tree.
-- **Events trace** — `Events_trace.tsv`, one compact chronological log of every event, from which gene
-  trees can be reconstructed on demand. Also `Transfers.tsv` and `Gene_family_summary.tsv`.
-- **Per-branch event counts** — `--write branch_events` writes `Branch_events.tsv`: one row per branch
+- **Events trace** — `events_trace.tsv`, one compact chronological log of every event, from which gene
+  trees can be reconstructed on demand. Also `transfers.tsv` and `gene_family_summary.tsv`.
+- **Per-branch event counts** — `--write branch_events` writes `branch_events.tsv`: one row per branch
   of the species tree with the number of each event that fired on it (`origination`, `duplication`,
   `transfer_out`, `transfer_in`, `loss`, and `inversion`/`transposition` for ordered genomes) plus a
   `total`. An `is_extant` column (derived from node times: extant = ancestral to a present-day leaf)
@@ -619,8 +619,8 @@ genomes.event_log.chromosome_records   # the fission / fusion / origination / lo
 
 !!! note "Output"
     With more than one chromosome (or any chromosome-tier rate set), a run writes two extra files:
-    **`Gene_order.tsv`** — the layout (`species · chromosome · position · family · gid · orientation`),
-    i.e. which chromosome each gene sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    **`gene_order.tsv`** — the layout (`species · chromosome · position · family · gid · orientation`),
+    i.e. which chromosome each gene sits on and in what order — and **`karyotype_trace.tsv`** — the
     fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). From the CLI both
     are added automatically when the karyotype is non-trivial; elsewhere request them with
     `--write layout karyotype`. A single-chromosome run's output is unchanged.
@@ -674,12 +674,12 @@ leaf.chromosome     # ordered list of OrderedGene(gid, family, orientation=±1)
 
 ### Output
 
-The ordered level writes the usual gene-family output — `Profiles.tsv` / `Presence.tsv` (copy-number
+The ordered level writes the usual gene-family output — `profiles.tsv` / `presence.tsv` (copy-number
 and presence matrices over extant leaves), `species_nodes.tsv`, and per-family reconstructed gene
 trees under `gene_trees/` when `trees` is requested; inversions and transpositions appear in the event
 log and the final chromosome order, not in the profiles. `species_tree.nwk` is always written and
 `genomes.log` is the run manifest. With [multiple chromosomes](#multiple-chromosomes) the karyotype
-is written too — `Gene_order.tsv` (which chromosome each gene sits on) and `Karyotype_trace.tsv`
+is written too — `gene_order.tsv` (which chromosome each gene sits on) and `karyotype_trace.tsv`
 (the fission/fusion/origination/loss genealogy).
 
 ### Validation
@@ -811,9 +811,9 @@ Use `--gff-seqid ID` to select a single sequence, or `--linear-chromosomes` to f
 linear. Fusion only ever joins two chromosomes of the *same* topology.
 
 !!! note "Karyotype output"
-    A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`Chromosomes.tsv`**
+    A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`chromosomes.tsv`**
     — the per-leaf layout (`species · chromosome · position · source · start · end · strand`), i.e.
-    which chromosome each block sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    which chromosome each block sits on and in what order — and **`karyotype_trace.tsv`** — the
     fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). Both need the
     Python engine (`--write trees`, or any chromosome-tier rate, which forces it). A single-chromosome
     run's output is unchanged.
@@ -910,9 +910,9 @@ zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
 
-where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
-annotation, including originated genes), gene/intergene trees under `Gene_trees/` and
-`Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
+where `genes.tsv` is a bed/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
+annotation, including originated genes), gene/intergene trees under `gene_trees/` and
+`intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `pseudogenizations.tsv`.
 
 #### BED gene annotations
 
@@ -926,9 +926,9 @@ zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
 
 - `genes.bed` — the **root (seed)** genome's genes, using the input sequence name as the chromosome
   (the GFF/FASTA seqid), so it overlays the original genome.
-- `BED/<node>.bed` — every node's genes at their coordinates on **that node's** genome, *after* the
+- `bed/<node>.bed` — every node's genes at their coordinates on **that node's** genome, *after* the
   rearrangements on the path from the root. The chromosome is the node id, matching
-  `Genomes/<node>.fasta.gz` from `--write ancestral`, so a leaf's BED and FASTA line up in a browser.
+  `genomes/<node>.fasta.gz` from `--write ancestral`, so a leaf's BED and FASTA line up in a browser.
 
 Columns are `chrom  chromStart  chromEnd  name  score  strand` (0-based half-open, the convention
 ZOMBI2 uses internally). `strand` is orientation **relative to the root** — every gene is `+` at the
@@ -938,7 +938,7 @@ needs declared genes (`--genes`/`--gff`); it drives the Python engine and can co
 
 #### Gene-order events & export
 
-`--write geneorder` writes **`Geneorder_events.tsv`** — one row per structural event across every
+`--write geneorder` writes **`geneorder_events.tsv`** — one row per structural event across every
 branch, with its physical breakpoint (`chrom  start  length  strand  dest`, native half-open
 coordinates). It is the on-disk record of *where* each inversion / transposition / loss /
 duplication / origination / transfer acted, keyed by `branch` for a per-branch view.
@@ -1022,12 +1022,12 @@ zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --subst-model hky85 --kappa 2 --subst-rate 0.05 --write ancestral -o out/
 ```
 
-writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node, with a
-`chromosome` column), gzipped `Genomes/<node>.fasta.gz` (the assembled DNA of every node —
-`root.fasta.gz` reproduces the input), and `Gene_alignments/<gene>.fasta` (the extant per-gene
+writes `architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node, with a
+`chromosome` column), gzipped `genomes/<node>.fasta.gz` (the assembled DNA of every node —
+`root.fasta.gz` reproduces the input), and `gene_alignments/<gene>.fasta` (the extant per-gene
 alignments). For a [multi-chromosome](#multiple-chromosomes-the-chromosome-tier) genome the FASTA
 holds **one record per chromosome** (`>node_chr<id>`) and a multi-record `--genome-fasta` seeds each
-replicon's real root DNA (matched by sequence name). Add `bed` to `--write` for a `BED/<node>.bed`
+replicon's real root DNA (matched by sequence name). Add `bed` to `--write` for a `bed/<node>.bed`
 that annotates the genes on each of those FASTA files. Substitution-model
 options: `--subst-model`, `--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`.
 Sequence simulation runs on the Python engine and scales to real genomes (E. coli's 4.6 Mbp in a
@@ -1064,14 +1064,14 @@ zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
     --root-length 1000 --write profiles trees --seed 1 -o out/
 ```
 
-The nucleotide level emits the block-based architecture: `Profiles.tsv`/`Presence.tsv` are over
-**blocks**, `blocks.tsv` describes each block (and its `kind`/`gene_id` in genic mode), `Mosaics.tsv`
+The nucleotide level emits the block-based architecture: `profiles.tsv`/`presence.tsv` are over
+**blocks**, `blocks.tsv` describes each block (and its `kind`/`gene_id` in genic mode), `mosaics.tsv`
 gives every leaf as an ordered signed block sequence, `gene_trees/` holds one reconstructed tree per
-block, and `Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv` record
+block, and `reconciled_complete.nwk` / `reconciled_extant.nwk` / `reconciliation_events.tsv` record
 the block reconciliations. `--write ancestral` additionally simulates DNA and reconstructs the genome
-at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `BED/<node>.bed`).
+at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `bed/<node>.bed`).
 A [multi-chromosome or chromosome-tier](#multiple-chromosomes-the-chromosome-tier) run also writes
-`Chromosomes.tsv` (the per-leaf layout) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss
+`chromosomes.tsv` (the per-leaf layout) and `karyotype_trace.tsv` (the fission/fusion/origination/loss
 genealogy). `species_tree.nwk` is always written and `genomes.log` is the run manifest.
 
 ### Validation
@@ -1135,9 +1135,9 @@ genomes.write("out/")
 | `species_nodes.tsv` | node name, time, is_leaf, is_extant |
 | `gene_family_events/<fid>_events.tsv` | per-family events: time, event, branch, donor, recipient, `role=id` nodes |
 | `gene_trees/<fid>_complete.nwk`, `_extant.nwk` | reconstructed gene trees |
-| `Transfers.tsv` | one row per transfer: time, family, donor, recipient, ids |
-| `Gene_family_summary.tsv` | per family: origin, event counts, extant copies, species present |
-| `Profiles.tsv`, `Presence.tsv` | copy-number and presence matrices |
+| `transfers.tsv` | one row per transfer: time, family, donor, recipient, ids |
+| `gene_family_summary.tsv` | per family: origin, event counts, extant copies, species present |
+| `profiles.tsv`, `presence.tsv` | copy-number and presence matrices |
 
 ### The event log directly
 

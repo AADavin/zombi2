@@ -263,7 +263,7 @@ zombi2 coevolve --couple species:genomes -t species_tree.nwk \
 
 `--clado-gene-loss` is the per-family drop probability at each speciation and `--clado-gene-gain` the
 mean number of families gained (Poisson); `--gene-loss`/`--gene-origination` add gradual along-branch
-change (both `0` = pure punctuation). It writes `Profiles.tsv`/`Presence.tsv` and `genome_sizes.tsv`.
+change (both `0` = pure punctuation). It writes `profiles.tsv`/`presence.tsv` and `genome_sizes.tsv`.
 **What it recovers:** the model's signature is that **sister tips differ** — change is injected at
 their split, not spread evenly along the branches.
 

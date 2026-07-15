@@ -512,7 +512,7 @@ with `zombi2.prune(result.tree)` for downstream analysis. The gene-driven into-s
 `drivers_manifest.tsv` (the effect sizes β and rates).
 
 The **overlay** edges write onto the tree you passed. `species:genomes` writes
-`Profiles.tsv`/`Presence.tsv` (families × extant tips) and `genome_sizes.tsv`. The trait-side edges
+`profiles.tsv`/`presence.tsv` (families × extant tips) and `genome_sizes.tsv`. The trait-side edges
 (`genomes:traits`, `traits:genomes`, feedback) always write `traits.tsv` (the trait at every node);
 `genomes:traits` and `traits:genomes` also write `trait_tree.nwk`, and `traits:genomes` additionally writes
 the usual gene-family files chosen with `--write` ({profiles, trace, trees, events, transfers,

@@ -61,7 +61,7 @@ schedule. Each would enter only after clearing the bar above.
 - **Gene-family gain/loss likelihood (Count-lite).** A per-family two-state (presence/absence)
   gain–loss likelihood on the phylogenetic-profile matrix — the fast, likelihood-based
   complement to the full reconciliation likelihood, for scoring *origins* without gene trees.
-- **Phylogenetic-profile / co-occurrence statistics.** Bounded summaries of a `Profiles.tsv`:
+- **Phylogenetic-profile / co-occurrence statistics.** Bounded summaries of a `profiles.tsv`:
   pairwise presence/absence co-occurrence scores, phylogenetic-profile distances, and clustering
   of co-occurring families.
 - **Interop exporters.** Convert ZOMBI2 reconciliations and gene trees into the formats other

@@ -258,7 +258,7 @@ def test_cli_coevolve_smoke(tmp_path):
                "--states", "2", "--trait-center", "--panel", "24", "--responsive", "0.5",
                "--effect-loss", "3", "--write", "profiles", "trees", "--seed", "7", "-o", str(out)])
     assert rc == 0
-    for name in ("Profiles.tsv", "Presence.tsv", "traits.tsv", "trait_tree.nwk",
+    for name in ("profiles.tsv", "presence.tsv", "traits.tsv", "trait_tree.nwk",
                  "coupling.tsv", "coevolve.log", "species_tree.nwk"):
         assert (out / name).exists(), name
     assert (out / "gene_trees").is_dir()

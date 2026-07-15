@@ -282,7 +282,7 @@ discrete-bin clocks. Parameter defaults are `--clock-mean 1.0`, `--clock-sigma 0
 `--clock-shape 3.0`, and `--clock-theta 1.0`. The discrete-bin shorthand also takes
 `--branch-switch-rate` and `--branch-up-bias`.
 
-`sequence` replays `run/Events_trace.tsv`, rebuilds the reconciled gene trees, and writes
+`sequence` replays `run/events_trace.tsv`, rebuilds the reconciled gene trees, and writes
 `run/gene_trees/<family>_extant_subst.nwk` (and `_complete_subst.nwk`), plus
 `gene_family_speeds.tsv` and `branch_rates.tsv` recording the drawn `s_g` and `R_b` for
 reproducibility. A lineage clock alone (any `--clock`, `--branch-speed`, or `--branch-bins`) is a

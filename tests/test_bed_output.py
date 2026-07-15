@@ -49,7 +49,7 @@ def test_genes_bed_is_valid_bed6_matching_seed(tmp_path):
 def test_per_node_bed_written_for_every_node(tmp_path):
     out = tmp_path / "g"
     assert _run_bed(tmp_path, out) == 0
-    bdir = out / "BED"
+    bdir = out / "bed"
     tree = read_newick((out / "species_tree.nwk").read_text())
     node_names = [n.name for n in tree.nodes_preorder()]
     assert node_names  # sanity
@@ -65,7 +65,7 @@ def test_bed_coordinates_monotonic_and_named(tmp_path):
     out = tmp_path / "g"
     assert _run_bed(tmp_path, out) == 0
     seed_genes = {"geneA", "geneB", "geneC"}
-    for bed in (out / "BED").glob("*.bed"):
+    for bed in (out / "bed").glob("*.bed"):
         rows = _bed_rows(bed)
         starts = [int(r[1]) for r in rows]
         assert starts == sorted(starts)                    # features in genome order
@@ -85,5 +85,5 @@ def test_bed_and_ancestral_together(tmp_path):
     out = tmp_path / "g"
     assert _run_bed(tmp_path, out, extra=("ancestral",)) == 0
     assert (out / "genes.bed").exists()
-    assert (out / "BED" / "root.bed").exists()
-    assert list((out / "Genomes").glob("*.fasta.gz"))     # ancestral genomes still produced
+    assert (out / "bed" / "root.bed").exists()
+    assert list((out / "genomes").glob("*.fasta.gz"))     # ancestral genomes still produced

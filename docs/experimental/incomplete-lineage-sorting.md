@@ -56,7 +56,7 @@ zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 --seed 1 -o out/
 | `-n/--replicates` | number of independent gene trees to draw |
 | `-k/--samples` | gene copies sampled per species tip (default 1 = single-copy orthologs) |
 
-It writes `out/gene_trees.nwk` (one gene tree per line), a copy of the species tree, and a run log.
+It writes `out/ils_gene_trees.nwk` (one gene tree per line), a copy of the species tree, and a run log.
 With one copy per species it also reports the fraction of gene trees whose topology matches the
 species tree — a direct read-out of how much ILS the chosen `N` produced.
 
@@ -95,7 +95,7 @@ tightest self-check.
 zombi2 genomes -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.1 --write trace -o run/
 
 # ...then a coalescent gene tree per family under DTL + ILS
-zombi2 experimental ils -t species_tree.nwk --events-trace run/Events_trace.tsv -N 0.5 -o out/
+zombi2 experimental ils -t species_tree.nwk --events-trace run/events_trace.tsv -N 0.5 -o out/
 ```
 
 It writes `out/gene_trees/<family>.nwk` (one gene tree per surviving family; `--replicates R` draws `R`

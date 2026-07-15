@@ -20,7 +20,7 @@ def test_run_replicates_serial_writes_outputs(tmp_path):
         assert r["n_species"] == 8
         d = tmp_path / f"replicate_{i:04d}"
         assert (d / "species_tree.nwk").exists()
-        assert (d / "Profiles.tsv").exists()
+        assert (d / "profiles.tsv").exists()
         assert (d / "gene_trees").is_dir()
 
 

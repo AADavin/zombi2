@@ -12,7 +12,7 @@ It is the ZOMBI2 counterpart of the `zombiExporter` utility in Krister Swenson's
 
 The export reads what the genomes run already wrote — no re-simulation:
 
-- **`BED/<node>.bed`** — each node's genes in genome order, with orientation (written by
+- **`bed/<node>.bed`** — each node's genes in genome order, with orientation (written by
   `--write bed`, which needs a gene annotation via `--genes` / `--gff`). This *is* the
   reconstructed gene order at every node, and it drives the order-based formats.
 - **`species_tree.nwk`** — to walk parent→child edges.
@@ -44,7 +44,7 @@ Each `--format` writes one file into `-o DIR` (or prints to stdout if `-o` is om
 
 ### `breakpoints` — adjacencies broken per tree edge
 
-`Breakpoints.tsv`: for every species-tree edge, the gene adjacencies that the rearrangements on
+`breakpoints.tsv`: for every species-tree edge, the gene adjacencies that the rearrangements on
 that branch broke. A genome is represented as its set of **circular signed-gene adjacencies** (each
 gene has a head `_h` and a tail `_t`; consecutive genes meet at a pair of extremities), and the
 broken set on an edge is `adjacencies(parent) − adjacencies(child)`.
@@ -62,7 +62,7 @@ synteny divergence along a tree.
 
 ### `gff` — every node's genes as one GFF3
 
-`Genes.gff`: a single GFF3 in which each node is a sequence (`seqid`) and every gene is a `gene`
+`genes.gff`: a single GFF3 in which each node is a sequence (`seqid`) and every gene is a `gene`
 feature (1-based inclusive coordinates; the gene family is the `Name` attribute, the `ID` is unique
 per node so a family may recur after a duplication).
 
@@ -75,7 +75,7 @@ n1  zombi2  gene  238  337  .  +  .  ID=n1.1;Name=g2
 
 ### `posortho` — positional ortholog sets
 
-`Positional_orthologs.tsv`: genes across the extant leaves grouped by ancestral family. Because a
+`positional_orthologs.tsv`: genes across the extant leaves grouped by ancestral family. Because a
 gene keeps its identity across the whole tree, every occurrence of one family is an ortholog of the
 others; the table lists, per family, its occurrences over the leaves.
 

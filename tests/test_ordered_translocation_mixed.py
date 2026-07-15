@@ -205,14 +205,14 @@ def _species(tmp_path):
 
 def test_cli_ordered_translocation_runs(tmp_path):
     """`--translocation` is accepted for the ordered model with >= 2 chromosomes and produces a
-    layout (Gene_order.tsv is auto-surfaced for a multi-chromosome run)."""
+    layout (gene_order.tsv is auto-surfaced for a multi-chromosome run)."""
     tree = _species(tmp_path)
     out = tmp_path / "gen"
     rc = main(["genomes", "--tree", tree, "--genome-model", "ordered", "--n-chromosomes", "2",
                "--dup", "0.2", "--loss", "0.2", "--orig", "0.3", "--translocation", "0.5",
                "--initial-families", "18", "--seed", "3", "-o", str(out)])
     assert rc == 0
-    assert (out / "Gene_order.tsv").exists()
+    assert (out / "gene_order.tsv").exists()
 
 
 def test_cli_translocation_rejected_without_chromosomes(tmp_path):

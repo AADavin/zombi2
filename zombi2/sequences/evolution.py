@@ -142,7 +142,7 @@ class SequenceEvolution:
 
         ``families`` is ``{family: [EventRecord]}`` and ``gid2species`` maps each extant gene
         id to its species. This is the entry point used by ``zombi2 sequence`` after replaying a
-        written ``Events_trace.tsv``; :meth:`scale` delegates here for the in-process case.
+        written ``events_trace.tsv``; :meth:`scale` delegates here for the in-process case.
         """
         return self._scale_families(species_tree, families, gid2species, rng=rng, seed=seed)[0]
 
