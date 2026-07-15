@@ -14,7 +14,7 @@ from zombi2 import (
     Gamma,
     GenomeSimulator,
     RateModel,
-    SharedRates,
+    Rates,
     UnorderedGenome,
     simulate_genomes,
     simulate_species_tree,
@@ -101,7 +101,7 @@ class OrderedListGenome(UnorderedGenome):
 def test_alternative_genome_representation_swap():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=0)
     gr = GenomeSimulator().simulate(
-        tree, SharedRates(0.15, 0.1, 0.2, 0.4),
+        tree, Rates(0.15, 0.1, 0.2, 0.4),
         np.random.default_rng(1), initial_size=8, genome_factory=OrderedListGenome,
     )
     assert gr.leaf_genomes

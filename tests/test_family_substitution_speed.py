@@ -10,7 +10,7 @@ import pytest
 from zombi2 import (
     BirthDeath,
     LogNormal,
-    PerCopyRates,
+    Rates,
     SequenceEvolution,
     simulate_genomes,
     simulate_species_tree,
@@ -19,7 +19,7 @@ from zombi2 import (
 
 def _genomes():
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=1)
-    return simulate_genomes(tree, PerCopyRates(duplication=0.2, loss=0.1, origination=0.5),
+    return simulate_genomes(tree, Rates(duplication=0.2, loss=0.1, origination=0.5),
                             initial_families=8, seed=1)
 
 

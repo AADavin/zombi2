@@ -100,6 +100,34 @@ def test_species_diversity_dependent_needs_K(tmp_path):
               "--age", "10", "-o", str(tmp_path / "a")])
 
 
+def test_species_per_shared_is_linear(tmp_path):
+    """--per shared builds a shared-clock birth-death: diversity stays linear (small at these rates)."""
+    import zombi2 as z
+    out = tmp_path / "shared"
+    rc = main(["species", "--mode", "forward", "--per", "shared", "--birth", "1", "--death", "0.2",
+               "--age", "6", "--seed", "3", "-o", str(out)])
+    assert rc == 0
+    tree = z.read_newick((out / "species_tree.nwk").read_text())
+    assert sum(1 for lf in tree.leaves() if lf.is_extant) < 40   # linear, not exponential
+
+
+def test_species_diversification_shared_is_deprecated_alias(tmp_path, capsys):
+    """--diversification shared warns and is byte-identical to --per shared (same seed)."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    assert main(["species", "--mode", "forward", "--per", "shared", "--birth", "1", "--death", "0.2",
+                 "--age", "6", "--seed", "3", "-o", str(a)]) == 0
+    assert main(["species", "--mode", "forward", "--diversification", "shared", "--birth", "1",
+                 "--death", "0.2", "--age", "6", "--seed", "3", "-o", str(b)]) == 0
+    assert "deprecated" in capsys.readouterr().err
+    assert (a / "species_tree.nwk").read_text() == (b / "species_tree.nwk").read_text()
+
+
+def test_species_per_shared_is_forward_only(tmp_path):
+    """--per shared is a forward process; backward errors."""
+    with pytest.raises(SystemExit):
+        main(["species", "--per", "shared", "--tips", "20", "-o", str(tmp_path / "e")])
+
+
 def test_species_clads_requires_forward(tmp_path):
     """clads/diversity-dependent are forward-only; backward errors."""
     with pytest.raises(SystemExit):
@@ -414,6 +442,38 @@ def test_genomes_per_lineage_rate(tmp_path):
     log = (out / "genomes.log").read_text()
     assert "rate_per\tlineage" in log
     assert "rate_model" not in log  # the deprecated field is gone from the params log
+
+
+def test_genomes_per_shared_rate(tmp_path):
+    """--per shared runs (one tree-wide clock per family, Python engine) and is logged."""
+    sp = tmp_path / "sp"
+    main(["species", "--mode", "forward", "--age", "5", "--seed", "1", "-o", str(sp)])
+    out = tmp_path / "gsh"
+    rc = main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--loss", "0.1",
+               "--per", "shared", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert "rate_per\tshared" in (out / "genomes.log").read_text()
+    assert (out / "profiles.tsv").exists()
+
+
+def test_genomes_per_shared_rejects_transfer(tmp_path):
+    """--per shared does not yet support transfer."""
+    sp = tmp_path / "sp"
+    main(["species", "--mode", "forward", "--age", "5", "--seed", "1", "-o", str(sp)])
+    with pytest.raises(SystemExit):
+        main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--trans", "0.2",
+              "--per", "shared", "-o", str(tmp_path / "x")])
+
+
+def test_genomes_per_shared_rejects_lineage_rates(tmp_path):
+    """--per shared + --lineage-rates would silently disable the shared clock — reject it."""
+    sp = tmp_path / "sp"
+    main(["species", "--mode", "forward", "--age", "5", "--seed", "1", "-o", str(sp)])
+    lr = tmp_path / "lr.tsv"
+    lr.write_text("n1\t2.0\n")
+    with pytest.raises(SystemExit):
+        main(["genomes", "-t", str(sp / "species_tree.nwk"), "--dup", "0.5", "--per", "shared",
+              "--lineage-rates", str(lr), "-o", str(tmp_path / "x")])
 
 
 def test_genomes_rate_per_genome_deprecated_alias(tmp_path, capsys):

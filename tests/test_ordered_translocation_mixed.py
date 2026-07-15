@@ -24,7 +24,7 @@ import pytest
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -45,7 +45,7 @@ def _all_events_rates(**over):
               inversion=0.2, transposition=0.2, translocation=0.4,
               chromosome_origination=0.08, chromosome_loss=0.05, fission=0.1, fusion=0.1)
     kw.update(over)
-    return SharedRates(**kw)
+    return Rates(**kw)
 
 
 # --- Part A: translocation is a lineage-neutral pure move -----------------------------------
@@ -104,7 +104,7 @@ def test_translocation_is_a_supported_ordered_event():
 def test_translocation_fires_and_reconstructs(seed):
     """A high-rate translocation run simulates end to end: gene trees and reconciliations both
     reconstruct (translocation records are lineage-neutral, so the genealogy is well-formed)."""
-    rates = SharedRates(duplication=0.3, transfer=0.2, loss=0.3, origination=0.1,
+    rates = Rates(duplication=0.3, transfer=0.2, loss=0.3, origination=0.1,
                         inversion=0.2, transposition=0.2, translocation=0.6, fission=0.05)
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=8, age=3.0, seed=seed)
     g = simulate_genomes(tree, rates, initial_families=15, seed=1000 + seed,

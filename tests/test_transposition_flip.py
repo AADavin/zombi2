@@ -11,7 +11,7 @@ import numpy as np
 from zombi2 import (
     BirthDeath,
     OrderedGenome,
-    SharedRates,
+    Rates,
     simulate_genomes,
     simulate_species_tree,
 )
@@ -64,7 +64,7 @@ def _segment(genome, start, length):
 def test_default_matches_explicit_zero_flip():
     """Passing the new default explicitly changes nothing (same seed -> identical leaves)."""
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=1)
-    rates = SharedRates(transposition=0.3)
+    rates = Rates(transposition=0.3)
     a = simulate_genomes(tree, rates, initial_families=15, seed=1,
                          genome_factory=lambda ids: OrderedGenome(ids, extension=0.6))
     b = simulate_genomes(tree, rates, initial_families=15, seed=1,
@@ -115,7 +115,7 @@ def test_flip_one_differs_from_no_flip_in_simulation():
     """Over a real ordered sim with transpositions, flip==1.0 produces a clearly different genome
     layout than flip==0.0 (reversed/strand-flipped relocated blocks)."""
     tree = simulate_species_tree(BirthDeath(1.0, 0.2), n_tips=10, age=3.0, seed=1)
-    rates = SharedRates(transposition=0.5)
+    rates = Rates(transposition=0.5)
     no_flip = simulate_genomes(tree, rates, initial_families=15, seed=1,
                                genome_factory=_ordered(flip=0.0))
     flipped = simulate_genomes(tree, rates, initial_families=15, seed=1,
