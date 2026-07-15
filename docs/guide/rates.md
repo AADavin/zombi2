@@ -91,7 +91,8 @@ reason per-lineage is standard.
     `= Λ`, so `E[N(t)] = N₀ + (Λ−M)t` — linear. Both `λ` and `Λ` are `time⁻¹`; the *only* difference
     is the opportunity count (`N` vs `1`). Equivalently, a global rate `Λ` shared among `N` lineages
     is a per-lineage rate `λ(N) = Λ/N` — diversity-dependence in disguise. ZOMBI2 parametrises the
-    per-lineage version by default; the global version is a legitimate, different model.
+    per-lineage version by default (`BirthDeath`); the shared version is a real, different model —
+    `--diversification shared` (`SharedBirthDeath`), see [Species trees](species-trees.md).
 
 ## Modifiers: context that rescales the base
 
