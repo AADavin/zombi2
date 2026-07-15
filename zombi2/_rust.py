@@ -324,7 +324,7 @@ def _build_event_log(cols, nodes) -> EventLog:
 
 
 def events_trace_tsv(columns, nodes) -> str:
-    """Serialise the raw Rust event columns as the compact ``Events_trace.tsv`` text — the fast
+    """Serialise the raw Rust event columns as the compact ``events_trace.tsv`` text — the fast
     path behind ``output="trace"``. This never builds an :class:`~zombi2.genomes.events.EventRecord`;
     it formats the columns directly, which is the whole point (object construction is the wall
     on large trees). The format matches the record-based

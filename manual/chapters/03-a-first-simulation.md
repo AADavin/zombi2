@@ -69,7 +69,7 @@ genomes.write("out/")
 ```
 
 That single call writes the full layout below. On the command line the default `zombi2 genomes`
-command writes only the common subset (`Profiles.tsv`, `Presence.tsv` and `gene_trees/`); add
+command writes only the common subset (`profiles.tsv`, `presence.tsv` and `gene_trees/`); add
 `--write all` for everything shown here — Chapter 9 covers `--write` in full. Here is what you
 will find:
 
@@ -79,9 +79,9 @@ will find:
 | `species_nodes.tsv` | node name, time, `is_leaf`, `is_extant` |
 | `gene_family_events/<fid>_events.tsv` | per-family event log (O/D/T/S/L with lineage ids) |
 | `gene_trees/<fid>_complete.nwk`, `_extant.nwk` | reconstructed gene trees (with / without losses) |
-| `Transfers.tsv` | one row per transfer: time, family, donor, recipient, ids |
-| `Gene_family_summary.tsv` | per family: origin, event counts, extant copies, species present |
-| `Profiles.tsv`, `Presence.tsv` | families × species copy-number and presence matrices |
+| `transfers.tsv` | one row per transfer: time, family, donor, recipient, ids |
+| `gene_family_summary.tsv` | per family: origin, event counts, extant copies, species present |
+| `profiles.tsv`, `presence.tsv` | families × species copy-number and presence matrices |
 
 Two things are worth understanding before you open these files.
 
@@ -121,11 +121,11 @@ P.matrix        # integer copy numbers
 P.presence()    # binary presence / absence
 P.families      # row labels
 P.species       # column labels
-P.to_tsv()      # tab-separated text (as written to Profiles.tsv)
+P.to_tsv()      # tab-separated text (as written to profiles.tsv)
 ```
 
-`P.matrix` is exactly what was written to `Profiles.tsv`, and `P.presence()` matches
-`Presence.tsv`. Each entry counts how many copies of a family survive in a species.
+`P.matrix` is exactly what was written to `profiles.tsv`, and `P.presence()` matches
+`presence.tsv`. Each entry counts how many copies of a family survive in a species.
 
 If you want the raw events instead of reconstructed trees, iterate the event log directly:
 
@@ -142,7 +142,7 @@ and `recipient`, and `genes` — the per-gene rows, the first being the source l
 rest its descendants.
 
 ::: note
-`Transfers.tsv` gives you the same transfer events in flat tabular form, one row each, if you
+`transfers.tsv` gives you the same transfer events in flat tabular form, one row each, if you
 would rather not walk the log in code.
 :::
 

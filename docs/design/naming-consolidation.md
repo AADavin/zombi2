@@ -408,13 +408,17 @@ on the full suite; the only observable change is warnings on deprecated spelling
 
 ## What shipped overnight 2026-07-14 (branch `claude/zombi2-clarity-polish-dd870b`)
 
-Delivered, byte-identical, suite green: **C1** (deprecation machinery + 5 aliases retired), **C9**
-(ESM purge + a dead-code fixup), **C2/C3** (rate/modifier/odds docs clarity), **C4**
-(`--genome-resolution`), **C6** (`genomes` node + "level"=domains reframe), **C8** (edge→class
-comment fix). **Deferred for focused, human-reviewed follow-up**, each noted above: **C5** plural
-commands, **C7/PR5** lowercase filenames, the sequence-clock **`--branch-*` / `--family-speed` σ
-flags**, and the **C8 class-stem rename** — the four items that break byte-identity / downstream
-compatibility or are entangled, so best done deliberately rather than in an autonomous sweep.
+Delivered, suite green: **C1** (deprecation machinery + 5 aliases retired), **C9** (ESM purge +
+dead-code fixup), **C2/C3** (rate/modifier/odds docs clarity), **C4** (`--genome-resolution`), **C6**
+(`genomes` node + "level"=domains reframe), **C8** (edge→class comment fix), **C5** (plural commands
+`traits`/`sequences`, singular aliased+warned), and **C7** (every output file/dir lowercased — a
+deliberate breaking change with **no** `--legacy-filenames` shim, per Adrián; file *contents* are
+byte-identical, only the names changed). Everything except C5's run-manifest name and C7's filenames
+is byte-identical output.
+
+**Deferred for a separate discussion** (both flagged above): the sequence-clock **`--branch-*` /
+`--family-speed` σ flags** (they are spread parameters, not modifiers) and the **C8
+`TraitLinked*`→`TraitGene*` class-stem rename** (internal API churn).
 
 ## The rule, in one line
 

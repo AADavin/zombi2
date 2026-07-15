@@ -106,7 +106,7 @@ def test_cli_species_genes(tmp_path):
                "--genome-size", "25", "--clado-gene-loss", "0.15", "--clado-gene-gain", "3",
                "--seed", "2", "-o", str(out)])
     assert rc == 0
-    for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv", "genome_sizes.tsv"):
+    for f in ("species_tree.nwk", "profiles.tsv", "presence.tsv", "genome_sizes.tsv"):
         assert (out / f).exists()
     # genome_sizes covers every node; the root has exactly --genome-size families
     rows = dict(line.split("\t") for line in (out / "genome_sizes.tsv").read_text().splitlines()[1:])

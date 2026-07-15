@@ -111,7 +111,7 @@ reconciliation log-likelihood at a **given** set of DTL rates — the direct CLI
 # one log-likelihood, printed to stdout (dated model)
 zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15
 
-# all three models, written into out/Reconciliation_likelihoods.tsv
+# all three models, written into out/reconciliation_likelihoods.tsv
 zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk \
     --dup 0.1 --trans 0.05 --loss 0.15 --model dated undated reldated -o out/
 ```
@@ -120,14 +120,14 @@ zombi2 tools reconcile -g gene_trees.nwk -t species_tree.nwk \
 `<species>|<gid>`, the species matching a leaf of the dated `-t` species tree). With a single
 tree and a single model the bare log-likelihood is printed — handy for scripting,
 `ll=$(zombi2 tools reconcile …)`; otherwise a `family / extant_copies / <model>_loglik…` table
-is printed, and `-o DIR` writes that table as `DIR/Reconciliation_likelihoods.tsv` (the same
+is printed, and `-o DIR` writes that table as `DIR/reconciliation_likelihoods.tsv` (the same
 file `genomes --score-likelihoods` produces). Flags mirror the API: `--model` (one or more of
 `dated undated reldated`, default `dated`), `--n-steps` (dated grid resolution),
 `--origination` (`root`|`uniform`).
 
 Produce a `-g` file from a ZOMBI2 run with `zombi2 genomes … --write reconciliations`, which
-writes `Reconciled_extant.nwk` — one reconciled gene tree per line, tips `<species>|<gid>` — the
-exact input this tool reads (alongside `Reconciled_complete.nwk`).
+writes `reconciled_extant.nwk` — one reconciled gene tree per line, tips `<species>|<gid>` — the
+exact input this tool reads (alongside `reconciled_complete.nwk`).
 
 #### Score a whole simulation in one pass — `genomes --score-likelihoods`
 
@@ -140,7 +140,7 @@ zombi2 genomes --tree species_tree.nwk \
     --write trees --score-likelihoods --score-model dated undated -o out/
 ```
 
-This writes `out/Reconciliation_likelihoods.tsv`. Flags: `--score-model` (one or more of
+This writes `out/reconciliation_likelihoods.tsv`. Flags: `--score-model` (one or more of
 `dated undated reldated`, default `dated undated`), `--score-nsteps` (dated grid resolution),
 `--score-origination` (`root`|`uniform`). Scoring forces the full gene-family path (the
 counts-only / trace fast paths do not reconstruct gene trees).
@@ -150,10 +150,10 @@ counts-only / trace fast paths do not reconstruct gene trees).
 - **Python** — `reconciliation_likelihood(...)` returns a `float` (log-likelihood). The
   per-family helpers return `FamilyScore(family, extant_tips, logliks)` rows, where `logliks`
   maps each model name to its log-likelihood.
-- **CLI / `write_scores_tsv`** — `Reconciliation_likelihoods.tsv`, one row per extant family:
+- **CLI / `write_scores_tsv`** — `reconciliation_likelihoods.tsv`, one row per extant family:
   `family`, `extant_copies`, and a `<model>_loglik` column for each scored model.
 - **CLI `tools reconcile`** — prints the bare log-likelihood to stdout for a single tree and a
-  single model, else the same table; `-o DIR` writes it as `DIR/Reconciliation_likelihoods.tsv`.
+  single model, else the same table; `-o DIR` writes it as `DIR/reconciliation_likelihoods.tsv`.
 
 ## Validation
 

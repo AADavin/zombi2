@@ -134,7 +134,7 @@ Here `--branch-speed` sets the lognormal $\sigma$ and `--family-speed` the sprea
 speed distribution. The `--branch-bins` form supplies the discrete-bin clock's ordered multipliers,
 with `--branch-switch-rate` the rate of stepping to a neighbouring bin.
 
-`sequence` replays `run/Events_trace.tsv`, rebuilds the reconciled gene trees from the recorded
+`sequence` replays `run/events_trace.tsv`, rebuilds the reconciled gene trees from the recorded
 events, and writes one phylogram per family to `run/gene_trees/<family>_extant_subst.nwk` (and
 `_complete_subst.nwk` for the trees that include losses). It also writes `gene_family_speeds.tsv` and
 `branch_rates.tsv`, recording the drawn $s_g$ and $R_b$ so a run is fully reproducible.

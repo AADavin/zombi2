@@ -53,7 +53,7 @@ def test_cli_export_breakpoints(tmp_path):
     out = tmp_path / "export"
     rc = main(["tools", "export", str(g), "--format", "breakpoints", "-o", str(out)])
     assert rc == 0
-    f = out / "Breakpoints.tsv"
+    f = out / "breakpoints.tsv"
     assert f.exists()
     lines = f.read_text().strip().splitlines()
     assert lines[0] == "parent\tchild\tadjacency"
@@ -80,7 +80,7 @@ def test_cli_export_gff(tmp_path):
     g = _make_run(tmp_path)
     out = tmp_path / "export"
     assert main(["tools", "export", str(g), "--format", "gff", "-o", str(out)]) == 0
-    text = (out / "Genes.gff").read_text()
+    text = (out / "genes.gff").read_text()
     assert text.startswith("##gff-version 3")
     feats = [ln.split("\t") for ln in text.splitlines() if ln and not ln.startswith("#")]
     assert feats
@@ -95,7 +95,7 @@ def test_cli_export_posortho(tmp_path):
     g = _make_run(tmp_path)
     out = tmp_path / "export"
     assert main(["tools", "export", str(g), "--format", "posortho", "-o", str(out)]) == 0
-    lines = (out / "Positional_orthologs.tsv").read_text().strip().splitlines()
+    lines = (out / "positional_orthologs.tsv").read_text().strip().splitlines()
     assert lines[0] == "family\tleaf\tstrand\tstart"
     rows = [ln.split("\t") for ln in lines[1:]]
     assert {r[0] for r in rows} == {"g1", "g2", "g3"}       # all seed genes are orthologs
@@ -112,7 +112,7 @@ def test_cli_export_multiple_formats_at_once(tmp_path):
     out = tmp_path / "export"
     assert main(["tools", "export", str(g), "--format", "breakpoints", "gff", "posortho",
                  "-o", str(out)]) == 0
-    for name in ("Breakpoints.tsv", "Genes.gff", "Positional_orthologs.tsv"):
+    for name in ("breakpoints.tsv", "genes.gff", "positional_orthologs.tsv"):
         assert (out / name).exists()
 
 

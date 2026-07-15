@@ -124,18 +124,18 @@ zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
 
-where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
-annotation, including originated genes), gene and intergene trees under `Gene_trees/` and
-`Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
+where `genes.tsv` is a bed/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
+annotation, including originated genes), gene and intergene trees under `gene_trees/` and
+`intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `pseudogenizations.tsv`.
 
 ### BED gene annotations
 
 Adding `bed` to `--write` (genic mode) emits the gene annotations in standard **BED6**, ready for a
 genome browser (IGV, JBrowse, UCSC) or `bedtools`. Two things are written: `genes.bed`, the root
 (seed) genome's genes keyed to the input sequence name (the GFF/FASTA seqid), and one
-`BED/<node>.bed` per node giving that node's genes at their coordinates *after* the rearrangements
+`bed/<node>.bed` per node giving that node's genes at their coordinates *after* the rearrangements
 on the path from the root, keyed to the node id so a leaf's BED lines up with its
-`Genomes/<node>.fasta.gz` (from `--write ancestral`). Columns are
+`genomes/<node>.fasta.gz` (from `--write ancestral`). Columns are
 `chrom  chromStart  chromEnd  name  score  strand`, 0-based half-open — the convention ZOMBI2 uses
 internally, so no conversion is needed. `strand` is orientation *relative to the root* (every gene
 is `+` at the root; an inversion flips it), not a GFF coding strand, which the genic model does not
@@ -232,8 +232,8 @@ on.
 
 ::: note
 The karyotype is written out when it is non-trivial — a run with more than one chromosome, or any
-chromosome-tier rate, also produces `Chromosomes.tsv` (which chromosome each block sits on, and in
-what order) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy). A
+chromosome-tier rate, also produces `chromosomes.tsv` (which chromosome each block sits on, and in
+what order) and `karyotype_trace.tsv` (the fission/fusion/origination/loss genealogy). A
 single-chromosome run's output is unchanged. In the Python API the same information is on
 `leaf.chromosomes` and `result.event_log.chromosome_records`. `--write ancestral` reconstructs the
 DNA of **each** replicon at every node (one FASTA record per chromosome; seed the real root DNA with

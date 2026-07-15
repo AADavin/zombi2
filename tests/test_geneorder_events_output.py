@@ -1,8 +1,8 @@
-"""Geneorder_events.tsv — the structural-event log with physical breakpoints (design phase 1).
+"""geneorder_events.tsv — the structural-event log with physical breakpoints (design phase 1).
 
 Covers the two additive pieces: the event ``region`` now survives into the ``EventLog`` (for both
 the nucleotide and ordered models), and the nucleotide ``--write geneorder`` serialises it as
-``Geneorder_events.tsv`` (native half-open coordinates). See docs/design/geneorder-export.md.
+``geneorder_events.tsv`` (native half-open coordinates). See docs/design/geneorder-export.md.
 """
 
 from zombi2 import BirthDeath, OrderedGenome, SharedRates, simulate_genomes, simulate_species_tree
@@ -94,7 +94,7 @@ def _run_genomes(tmp_path, tag, seed):
                "--genes", str(genes), "--root-length", "300", "--inversion", "0.05",
                "--transposition", "0.03", "--write", "geneorder", "--seed", str(seed), "-o", str(g)])
     assert rc == 0
-    return g / "Geneorder_events.tsv"
+    return g / "geneorder_events.tsv"
 
 
 def test_cli_writes_geneorder_with_populated_breakpoints(tmp_path):

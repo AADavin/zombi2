@@ -122,7 +122,7 @@ on the target. And for two of the four edges it already exists in the toolbox fo
 - **`genomes:species` → CID (free).** The standard workflow **already** produces the null: the
   drivers shape a genuinely heterogeneous tree, and the **neutral bulk genome** overlaid
   afterward with `zombi2 genomes` is a whole panel of real families that vary across that tree
-  *without causing any of it*. The null hands the analyst `{tree + neutral Profiles.tsv}` and
+  *without causing any of it*. The null hands the analyst `{tree + neutral profiles.tsv}` and
   **withholds** the drivers (kept only as ground-truth). No new simulation — the decoupled
   observations were there all along.
 - **`genomes:traits` → CID (free).** Same trick: the modifier gene shapes a trait with real
@@ -240,7 +240,7 @@ zombi2 coevolve --couple species:genomes -t species_tree.nwk --null timing \
     --genome-size 30 --clado-gene-loss 0.15 --clado-gene-gain 3 --seed 2 -o out/null_punct
 
 # CID workflow (genomes:species): the drivers shape the tree, a NEUTRAL overlay genome is the
-# observed data (Profiles.tsv), the drivers are withheld in drivers_ground_truth.tsv
+# observed data (profiles.tsv), the drivers are withheld in drivers_ground_truth.tsv
 zombi2 coevolve --couple genomes:species --drivers 2 --driver-speciation 1.4 \
     --tips 60 --null cid --genome-size 30 --seed 1 -o out/cid_genes
 ```

@@ -56,7 +56,7 @@ def test_species_forward_mass_extinction(tmp_path):
                "--mass-extinction", "4", "0.5", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "species_tree.nwk").read_text().strip().endswith(";")
-    log = (out / "species_tree.log").read_text()
+    log = (out / "species.log").read_text()
     assert "mass_extinction" in log and "[2.0, 0.8]" in log
 
 
@@ -115,7 +115,7 @@ def test_species_clade_shift(tmp_path):
                "--clade-shift", "1.5", "0.4", "0.6", "--seed", "1", "-o", str(out)])
     assert rc == 0
     assert (out / "species_tree.nwk").read_text().strip().endswith(";")
-    assert "clade_shift" in (out / "species_tree.log").read_text()
+    assert "clade_shift" in (out / "species.log").read_text()
 
 
 def test_species_clade_shift_needs_age_not_tips(tmp_path):
@@ -143,7 +143,7 @@ def test_genomes_on_supplied_tree(tmp_path):
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
                "--max-family-size", "0.5", "--seed", "42", "-o", str(gen)])
     assert rc == 0
-    for f in ("species_tree.nwk", "Profiles.tsv"):     # default output = profiles + trees
+    for f in ("species_tree.nwk", "profiles.tsv"):     # default output = profiles + trees
         assert (gen / f).exists()
     assert os.listdir(gen / "gene_trees")
 
@@ -160,7 +160,7 @@ def test_genomes_score_likelihoods_writes_table(tmp_path):
                "--seed", "5", "--write", "trees",
                "--score-likelihoods", "--score-model", "dated", "undated", "-o", str(gen)])
     assert rc == 0
-    table = gen / "Reconciliation_likelihoods.tsv"
+    table = gen / "reconciliation_likelihoods.tsv"
     assert table.exists()
     lines = table.read_text().strip().split("\n")
     assert lines[0] == "family\textant_copies\tdated_loglik\tundated_loglik"
@@ -186,7 +186,7 @@ def test_tools_reconcile_matches_api(tmp_path):
                "--dup", "0.1", "--trans", "0.05", "--loss", "0.15",
                "--model", "dated", "undated", "-o", str(out)])
     assert rc == 0
-    lines = (out / "Reconciliation_likelihoods.tsv").read_text().strip().split("\n")
+    lines = (out / "reconciliation_likelihoods.tsv").read_text().strip().split("\n")
     assert lines[0] == "family\textant_copies\tdated_loglik\tundated_loglik"
     assert len(lines) == 3  # header + 2 trees
 
@@ -236,8 +236,8 @@ def test_genomes_output_all_writes_full(tmp_path):
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
                "--seed", "42", "--write", "all", "-o", str(gen)])
     assert rc == 0
-    for f in ("species_tree.nwk", "Profiles.tsv", "Presence.tsv", "Transfers.tsv",
-              "Gene_family_summary.tsv"):
+    for f in ("species_tree.nwk", "profiles.tsv", "presence.tsv", "transfers.tsv",
+              "gene_family_summary.tsv"):
         assert (gen / f).exists()
     assert os.listdir(gen / "gene_trees")
     assert os.listdir(gen / "gene_family_events")
@@ -255,16 +255,16 @@ def test_genomes_output_profiles(tmp_path):
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
                "--seed", "42", "--write", "profiles", "-o", str(gen)])
     assert rc == 0
-    assert (gen / "Profiles.tsv").exists()
-    assert (gen / "Presence.tsv").exists()
+    assert (gen / "profiles.tsv").exists()
+    assert (gen / "presence.tsv").exists()
     assert not (gen / "gene_trees").exists()
-    assert not (gen / "Transfers.tsv").exists()
+    assert not (gen / "transfers.tsv").exists()
 
 
 @needs_rust
 def test_genomes_output_trace(tmp_path):
     """`--output trace` (optionally + profiles) writes the compact single-file event log via the
-    fast path — Events_trace.tsv, no per-family event files, no gene trees."""
+    fast path — events_trace.tsv, no per-family event files, no gene trees."""
     sp = tmp_path / "sp"
     main(["species", "--birth", "1", "--death", "0.3",
           "--tips", "40", "--age", "5", "--seed", "1", "-o", str(sp)])
@@ -274,12 +274,12 @@ def test_genomes_output_trace(tmp_path):
                "--dup", "0.2", "--trans", "0.1", "--loss", "0.25", "--orig", "0.5",
                "--seed", "42", "--write", "trace", "profiles", "--sparse", "-o", str(gen)])
     assert rc == 0
-    assert (gen / "Events_trace.tsv").exists()
-    assert (gen / "Profiles_sparse.tsv").exists()
+    assert (gen / "events_trace.tsv").exists()
+    assert (gen / "profiles_sparse.tsv").exists()
     assert not (gen / "gene_family_events").exists()   # the per-family dir is not written
     assert not (gen / "gene_trees").exists()            # trees are only reconstructed on request
     # header + at least the root originations
-    lines = (gen / "Events_trace.tsv").read_text().splitlines()
+    lines = (gen / "events_trace.tsv").read_text().splitlines()
     assert lines[0].split("\t") == ["time", "event", "branch", "donor", "recipient",
                                      "family", "parent", "child1", "child2"]
     assert len(lines) > 1
@@ -295,7 +295,7 @@ def test_genomes_output_trace_with_trees(tmp_path):
                "--loss", "0.25", "--orig", "0.5", "--seed", "1",
                "--write", "trace", "trees", "-o", str(gen)])
     assert rc == 0
-    assert (gen / "Events_trace.tsv").exists()
+    assert (gen / "events_trace.tsv").exists()
     assert os.listdir(gen / "gene_trees")
 
 
@@ -309,8 +309,8 @@ def test_genomes_output_selection(tmp_path):
                "--loss", "0.2", "--orig", "0.5", "--seed", "1",
                "--write", "trees", "transfers", "-o", str(gen)])
     assert rc == 0
-    assert (gen / "gene_trees").exists() and (gen / "Transfers.tsv").exists()
-    assert not (gen / "Profiles.tsv").exists()          # profiles not requested
+    assert (gen / "gene_trees").exists() and (gen / "transfers.tsv").exists()
+    assert not (gen / "profiles.tsv").exists()          # profiles not requested
     assert not (gen / "gene_family_events").exists()    # events not requested
 
 
@@ -376,10 +376,10 @@ def test_species_backward_fossils_is_error(tmp_path):
 
 
 def test_log_written_by_default(tmp_path):
-    """Every run always writes species_tree.log with the full set of parameters."""
+    """Every run always writes species.log with the full set of parameters."""
     out = tmp_path / "sp"
     main(["species", "--tips", "15", "--seed", "3", "-o", str(out)])
-    log = (out / "species_tree.log").read_text()
+    log = (out / "species.log").read_text()
     assert "zombi2_version" in log and "seed\t3" in log and "model\tbackward" in log
 
 
@@ -450,7 +450,7 @@ def test_max_family_size_parses_int_and_fraction(tmp_path):
 
 
 def _genomes_run_with_trace(tmp_path):
-    """A helper: species -> genomes (per-lineage, with a written Events_trace.tsv). No Rust."""
+    """A helper: species -> genomes (per-lineage, with a written events_trace.tsv). No Rust."""
     sp = tmp_path / "sp"
     main(["species", "--tips", "20", "--seed", "1", "-o", str(sp)])
     run = tmp_path / "run"
@@ -458,7 +458,7 @@ def _genomes_run_with_trace(tmp_path):
                "--loss", "0.3", "--orig", "0.6", "--rate-per", "lineage",
                "--write", "trace", "profiles", "--seed", "2", "-o", str(run)])
     assert rc == 0
-    assert (run / "Events_trace.tsv").exists()
+    assert (run / "events_trace.tsv").exists()
     return run
 
 
@@ -542,7 +542,7 @@ def test_sequence_missing_trace_is_clean_error(tmp_path):
     """A genomes run without a written trace gives a clear error, not a traceback."""
     sp = tmp_path / "sp"
     main(["species", "--tips", "15", "--seed", "1", "-o", str(sp)])
-    # a genomes dir with only a species tree (no Events_trace.tsv)
+    # a genomes dir with only a species tree (no events_trace.tsv)
     rc = main(["sequences", "--genomes", str(sp), "--branch-speed", "0.4",
                "-o", str(tmp_path / "seq")])
     assert rc == 1
@@ -620,7 +620,7 @@ def test_seed_makes_genomes_reproducible(tmp_path):
         dest = tmp_path / name
         main(["genomes", "--tree", tree, "--dup", "0.2", "--loss", "0.2",
               "--orig", "0.5", "--seed", "7", "-o", str(dest)])
-        return (dest / "Profiles.tsv").read_text()
+        return (dest / "profiles.tsv").read_text()
 
     assert run("a") == run("b")
 
@@ -742,8 +742,8 @@ def test_genomes_nucleotide_model(tmp_path):
     rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide",
                "--dup", "0.0006", "--loss", "0.0006", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    for f in ("species_tree.nwk", "blocks.tsv", "Profiles.tsv", "Presence.tsv",
-              "Mosaics.tsv", "Reconciled_complete.nwk", "Reconciliation_events.tsv"):
+    for f in ("species_tree.nwk", "blocks.tsv", "profiles.tsv", "presence.tsv",
+              "mosaics.tsv", "reconciled_complete.nwk", "reconciliation_events.tsv"):
         assert (out / f).exists()
     assert os.listdir(out / "gene_trees")                    # one gene tree per block
     assert "genome_model\tnucleotide" in (out / "genomes.log").read_text()
@@ -758,20 +758,20 @@ def test_genomes_nucleotide_profiles_only(tmp_path):
                "--dup", "0.0006", "--loss", "0.0006", "--write", "profiles",
                "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists() and (out / "blocks.tsv").exists()
+    assert (out / "profiles.tsv").exists() and (out / "blocks.tsv").exists()
     assert not (out / "gene_trees").exists()
-    assert not (out / "Reconciled_complete.nwk").exists()
+    assert not (out / "reconciled_complete.nwk").exists()
 
 
 def test_genomes_nucleotide_sparse(tmp_path):
-    """Nucleotide profiles honour --sparse (single Profiles_sparse.tsv long table)."""
+    """Nucleotide profiles honour --sparse (single profiles_sparse.tsv long table)."""
     tree = _tree_file(tmp_path, tips=12)
     out = tmp_path / "nt"
     rc = main(["genomes", "-t", tree, "--genome-model", "nucleotide", "--loss", "0.0008",
                "--write", "profiles", "--sparse", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles_sparse.tsv").exists()
-    assert not (out / "Profiles.tsv").exists()
+    assert (out / "profiles_sparse.tsv").exists()
+    assert not (out / "profiles.tsv").exists()
 
 
 def test_genomes_nucleotide_genic(tmp_path):
@@ -787,9 +787,9 @@ def test_genomes_nucleotide_genic(tmp_path):
                "--pseudogenization", "0.4", "--replacement", "0.6",
                "--write", "profiles", "trees", "--seed", "9", "-o", str(out)])
     assert rc == 0
-    for f in ("genes.tsv", "blocks.tsv", "Profiles.tsv", "Pseudogenizations.tsv"):
+    for f in ("genes.tsv", "blocks.tsv", "profiles.tsv", "pseudogenizations.tsv"):
         assert (out / f).exists()
-    assert os.listdir(out / "Gene_trees") and os.listdir(out / "Intergene_trees")
+    assert os.listdir(out / "gene_trees") and os.listdir(out / "intergene_trees")
     # blocks.tsv carries the classification; the four seed genes are present in genes.tsv
     assert "kind\tgene_id" in (out / "blocks.tsv").read_text()
     genes_txt = (out / "genes.tsv").read_text()
@@ -828,7 +828,7 @@ def test_genomes_nucleotide_from_gff(tmp_path):
     genes_txt = (out / "genes.tsv").read_text()
     for locus in ("a", "b", "d"):
         assert locus in genes_txt
-    assert (out / "blocks.tsv").exists() and os.listdir(out / "Gene_trees")
+    assert (out / "blocks.tsv").exists() and os.listdir(out / "gene_trees")
     assert "root_length\t600" in (out / "genomes.log").read_text()   # length came from the GFF
 
 
@@ -862,14 +862,14 @@ def test_genomes_nucleotide_ancestral(tmp_path):
                "--subst-model", "hky85", "--subst-rate", "0.4", "--gamma-shape", "0.5",
                "--genome-fasta", str(fasta), "--write", "ancestral", "--seed", "5", "-o", str(out)])
     assert rc == 0
-    assert os.listdir(out / "Architecture") and os.listdir(out / "Genomes")
-    assert os.listdir(out / "Gene_alignments")
+    assert os.listdir(out / "architecture") and os.listdir(out / "genomes")
+    assert os.listdir(out / "gene_alignments")
     # the root genome FASTA reconstructs the input exactly
-    with gzip.open(out / "Genomes" / "root.fasta.gz", "rt") as fh:
+    with gzip.open(out / "genomes" / "root.fasta.gz", "rt") as fh:
         root_seq = "".join(l.strip() for l in fh if not l.startswith(">"))
     assert root_seq == genome
     # root architecture keeps the four genes intact and in order
-    arch = (out / "Architecture" / "root.tsv").read_text()
+    arch = (out / "architecture" / "root.tsv").read_text()
     assert arch.count("\tgene\t") == 4
 
 
@@ -944,7 +944,7 @@ def test_coevolve_traits_genes_on_given_tree(tmp_path):
                "--responsive", "0.5", "--effect-loss", "3", "--write", "profiles", "trees",
                "--seed", "7", "-o", str(out)])
     assert rc == 0
-    for name in ("Profiles.tsv", "traits.tsv", "trait_tree.nwk", "coupling.tsv",
+    for name in ("profiles.tsv", "traits.tsv", "trait_tree.nwk", "coupling.tsv",
                  "coevolve.log", "species_tree.nwk"):
         assert (out / name).exists(), name
     assert (out / "gene_trees").is_dir()
@@ -1053,7 +1053,7 @@ def test_coevolve_genes_species_then_genomes_overlay(tmp_path):
     rc = main(["genomes", "-t", str(out / "species_tree.nwk"), "--trans", "1", "--loss", "0.5",
                "--write", "profiles", "-o", str(ov)])
     assert rc == 0
-    assert (ov / "Profiles.tsv").exists()
+    assert (ov / "profiles.tsv").exists()
 
 
 def test_coevolve_genes_species_rejects_tree(tmp_path):
@@ -1118,7 +1118,7 @@ def test_renamed_flags_work_and_old_names_rejected(tmp_path):
 
 def test_genomes_ordered_transposition_fires(tmp_path):
     """`genomes --genome-model ordered --transposition` moves gene segments within the genome;
-    the events surface as transposition ('P') rows in Events_trace.tsv (Python engine, no Rust)."""
+    the events surface as transposition ('P') rows in events_trace.tsv (Python engine, no Rust)."""
     sp = tmp_path / "sp"
     assert main(["species", "--tips", "8", "--seed", "1", "-o", str(sp)]) == 0
     out = tmp_path / "g"
@@ -1127,7 +1127,7 @@ def test_genomes_ordered_transposition_fires(tmp_path):
                "--dup", "0.1", "--loss", "0.1", "--transposition", "0.5",
                "--initial-families", "15", "--seed", "3", "--write", "trace", "-o", str(out)])
     assert rc == 0
-    trace = (out / "Events_trace.tsv").read_text().splitlines()
+    trace = (out / "events_trace.tsv").read_text().splitlines()
     assert trace[0].startswith("time\tevent\tbranch")
     n_transpositions = sum(1 for ln in trace[1:] if ln.split("\t")[1] == "P")
     assert n_transpositions > 0

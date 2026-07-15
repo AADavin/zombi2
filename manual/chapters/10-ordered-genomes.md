@@ -157,8 +157,8 @@ single-chromosome model exactly, event for event.
 
 ::: note
 The karyotype is written out when it is non-trivial: a run with more than one chromosome (or any
-chromosome-tier rate) also produces `Gene_order.tsv` — which chromosome each gene sits on, in order —
-and `Karyotype_trace.tsv`, the fission/fusion/origination/loss genealogy. A single-chromosome run's
+chromosome-tier rate) also produces `gene_order.tsv` — which chromosome each gene sits on, in order —
+and `karyotype_trace.tsv`, the fission/fusion/origination/loss genealogy. A single-chromosome run's
 output is unchanged. In the Python API the same information is on `leaf.chromosomes` (a
 `dict` of `Chromosome` objects) and `genomes.event_log.chromosome_records`.
 :::

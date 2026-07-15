@@ -95,7 +95,7 @@ zombi2 tools simulate -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.3 -n 20
 zombi2 tools simulate -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.3 -n 200 --score
 
 # feed the ground truth to recon-accuracy to score an inferred reconciliation against it
-zombi2 tools recon-accuracy -t truth/Reconciled_extant.nwk -i inferred.nwk
+zombi2 tools recon-accuracy -t truth/reconciled_extant.nwk -i inferred.nwk
 ```
 
 `--model` selects `undated` (default) or `reldated`; `--origination` is `root` (default) or
@@ -109,10 +109,10 @@ With `-o DIR`, four files are written:
 
 | File | Contents |
 | --- | --- |
-| `Reconciled_extant.nwk` | the **survivors-only** reconciled gene tree of each surviving family, one bare Newick per line — the format [`tools recon-accuracy`](recon-accuracy.md) reads. Internal labels `branch\|EVENT` (`donor\|T>recipient` for transfers), tips `species\|gid`. |
-| `Reconciled_complete.nwk` | the **complete** history including `LOSS\|branch` tips — the full ground truth. |
-| `Reconciliation_events.tsv` | a flat event table, one row per S/D/T/L event: `family`, `event`, `species`, `recipient`, `time`, `gene`. |
-| `Gene_family_profiles.tsv` | the **phyletic pattern**: a `family × species` copy-number matrix over the surviving families (the classic undated observable). |
+| `reconciled_extant.nwk` | the **survivors-only** reconciled gene tree of each surviving family, one bare Newick per line — the format [`tools recon-accuracy`](recon-accuracy.md) reads. Internal labels `branch\|EVENT` (`donor\|T>recipient` for transfers), tips `species\|gid`. |
+| `reconciled_complete.nwk` | the **complete** history including `LOSS\|branch` tips — the full ground truth. |
+| `reconciliation_events.tsv` | a flat event table, one row per S/D/T/L event: `family`, `event`, `species`, `recipient`, `time`, `gene`. |
+| `gene_family_profiles.tsv` | the **phyletic pattern**: a `family × species` copy-number matrix over the surviving families (the classic undated observable). |
 
 ## Validation
 

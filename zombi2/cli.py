@@ -310,20 +310,20 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "'tools recon-accuracy' and 'tools reconcile'. "
                         "species_tree.nwk is always written; 'profiles' alone takes the fast Rust "
                         "counts-only path; 'trace' (optionally with 'profiles') writes the compact "
-                        "single-file event log Events_trace.tsv near counts-only speed, from which "
+                        "single-file event log events_trace.tsv near counts-only speed, from which "
                         "gene trees can be reconstructed later on demand; 'branch_events' writes "
-                        "Branch_events.tsv, the per-species-branch event counts (with an is_extant "
-                        "flag). [ordered] 'layout' writes Gene_order.tsv (which chromosome each gene "
-                        "sits on) and 'karyotype' writes Karyotype_trace.tsv (fission/fusion/"
+                        "branch_events.tsv, the per-species-branch event counts (with an is_extant "
+                        "flag). [ordered] 'layout' writes gene_order.tsv (which chromosome each gene "
+                        "sits on) and 'karyotype' writes karyotype_trace.tsv (fission/fusion/"
                         "origination/loss) — both added automatically for a multi-chromosome or "
                         "fission/fusion run. [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
                         "(architecture + gzipped FASTA) at every node; 'bed' writes BED gene "
                         "annotations — genes.bed for the root genome and BED/<node>.bed per node "
-                        "(needs --genes/--gff); 'geneorder' writes Geneorder_events.tsv, the "
+                        "(needs --genes/--gff); 'geneorder' writes geneorder_events.tsv, the "
                         "structural-event log with physical breakpoints (chrom/start/length/strand) "
                         "per branch — the input for gene-order / breakpoint export)")
     g.add_argument("--sparse", action="store_true",
-                   help="write the profile as a sparse long table (Profiles_sparse.tsv: "
+                   help="write the profile as a sparse long table (profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense matrix — "
                         "the scalable output for huge trees (needs 'profiles' in --write)")
     g.add_argument("--threads", type=int, default=1, metavar="N",
@@ -338,7 +338,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
         "reconciliation likelihoods (ALE)",
         "score every extant gene tree (forces the full gene-family path)")
     g.add_argument("--score-likelihoods", action="store_true",
-                   help="also write Reconciliation_likelihoods.tsv: the ALE reconciliation "
+                   help="also write reconciliation_likelihoods.tsv: the ALE reconciliation "
                         "log-likelihood of every extant family's gene tree, under each "
                         "--score-model, at the --dup/--trans/--loss rates (zombi2.tools ALElite)")
     g.add_argument("--score-model", nargs="+", metavar="MODEL",
@@ -386,8 +386,8 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "--genome-resolution ordered (default: circular, as for bacteria). Nucleotide "
                         "chromosomes are always circular")
     # chromosome-tier events (ordered + nucleotide genomes; off by default). When any is set — or
-    # with more than one chromosome — the run also writes the karyotype (Gene_order.tsv /
-    # Chromosomes.tsv layout) + Karyotype_trace.tsv.
+    # with more than one chromosome — the run also writes the karyotype (gene_order.tsv /
+    # chromosomes.tsv layout) + karyotype_trace.tsv.
     g.add_argument("--fission", type=float, default=0.0, metavar="RATE",
                    help="[ordered/nucleotide] chromosome fission rate, per chromosome: a chromosome "
                         "splits in two (linear: one breakpoint; circular: two) (default 0 = off)")
@@ -1319,7 +1319,7 @@ def _run_genes_species_cid_null(args: argparse.Namespace, parser: argparse.Argum
     _write_drivers_manifest(args.out, model)
     _write_null_manifest(
         args.out, "genes:species", "cid", cut="gene content -> (lambda, mu)",
-        preserved="a hidden driver panel (drivers_ground_truth.tsv) shaped the tree; Profiles.tsv is "
+        preserved="a hidden driver panel (drivers_ground_truth.tsv) shaped the tree; profiles.tsv is "
                   "a neutral overlay genome, decoupled from diversification",
         extra={"observed": f"neutral overlay: {args.genome_size} families, transfer=1.0 loss=0.5",
                "hidden_drivers": model.n_drivers})
@@ -1351,9 +1351,9 @@ def _run_genes_traits_cid_null(args: argparse.Namespace, parser: argparse.Argume
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")
-    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
         f.write(profiles.to_tsv())                         # OBSERVED neutral genome
-    with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+    with open(os.path.join(args.out, "presence.tsv"), "w") as f:
         f.write(profiles.to_tsv(presence=True))
     with open(os.path.join(args.out, "traits.tsv"), "w") as f:  # the trait (real optimum shifts), observed
         f.write("node\ttrait\n")
@@ -1366,7 +1366,7 @@ def _run_genes_traits_cid_null(args: argparse.Namespace, parser: argparse.Argume
     _write_null_manifest(
         args.out, "genes:traits", "cid", cut="gene presence -> trait optimum",
         preserved="a hidden modifier (modifier_ground_truth.tsv) shifted the trait's optimum; "
-                  "Profiles.tsv is a neutral overlay genome, decoupled from the trait",
+                  "profiles.tsv is a neutral overlay genome, decoupled from the trait",
         extra={"observed": f"neutral overlay: {args.genome_size} families, transfer=1.0 loss=0.5"})
     return (f"wrote genes:traits [cid null] to {args.out}/ ({len(tree.extant_leaves())} tips; "
             f"{len(profiles.families)} neutral observed families, hidden modifier) in {dt:.3g} s")
@@ -1705,9 +1705,9 @@ def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser
     with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")              # the given tree, for provenance
     pm = res.profile_matrix()
-    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
         f.write(pm.to_tsv())
-    with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+    with open(os.path.join(args.out, "presence.tsv"), "w") as f:
         f.write(pm.to_tsv(presence=True))
     sizes = res.genome_sizes()
     with open(os.path.join(args.out, "genome_sizes.tsv"), "w") as f:
@@ -1796,7 +1796,7 @@ def _run_trait_gene_feedback(args: argparse.Namespace, parser: argparse.Argument
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")                  # the given tree, for provenance
-    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
         f.write(res.profiles.to_tsv(presence=True))       # panel presence at the extant tips
     with open(os.path.join(args.out, "traits.tsv"), "w") as f:
         f.write("node\ttrait\tpanel_occupancy\n")         # the coupled trait + panel at every node
@@ -1813,19 +1813,19 @@ def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -
     """Emit the reduced profiles-only output: tree + copy-number/presence matrices.
 
     With ``sparse=True`` the profile is written as a single COO long table
-    (``Profiles_sparse.tsv``) that is O(present cells), so the output scales to trees
+    (``profiles_sparse.tsv``) that is O(present cells), so the output scales to trees
     where the dense families x species matrix would be astronomically large.
     """
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")
     if sparse:
-        with open(os.path.join(out, "Profiles_sparse.tsv"), "w") as f:
+        with open(os.path.join(out, "profiles_sparse.tsv"), "w") as f:
             f.write(profiles.to_coo_tsv())
         return
-    with open(os.path.join(out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(out, "profiles.tsv"), "w") as f:
         f.write(profiles.to_tsv())
-    with open(os.path.join(out, "Presence.tsv"), "w") as f:
+    with open(os.path.join(out, "presence.tsv"), "w") as f:
         f.write(profiles.to_tsv(presence=True))
 
 
@@ -2029,7 +2029,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         n_families = len(profiles.families)
     elif ("trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered
           and not args.conversion):
-        # event-trace fast path: compact Events_trace.tsv (+ profile), no per-event objects,
+        # event-trace fast path: compact events_trace.tsv (+ profile), no per-event objects,
         # no gene-tree reconstruction — near counts-only speed, trees reconstructable later
         trace = simulate_genomes(tree, output="trace", **rate_kw)
         dt = time.perf_counter() - t0
@@ -2043,13 +2043,13 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         n_families = len(genomes.profiles.families)
         if score:
             _write_reconciliation_likelihoods(genomes, args)
-    suffix = " + Reconciliation_likelihoods.tsv" if score else ""
+    suffix = " + reconciliation_likelihoods.tsv" if score else ""
     return (f"wrote [{' '.join(sorted(parts))}]{suffix} to {args.out}/ "
             f"({len(tree.leaves())} tips, {n_families} gene families) in {dt:.3g} s")
 
 
 def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None:
-    """Score every extant family's gene tree (ALElite) and write Reconciliation_likelihoods.tsv."""
+    """Score every extant family's gene tree (ALElite) and write reconciliation_likelihoods.tsv."""
     from .tools.reconciliation import write_scores_tsv
 
     models = list(dict.fromkeys(args.score_model))  # de-dupe, keep order
@@ -2057,7 +2057,7 @@ def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None
         args.dup, args.trans, args.loss, models=models,
         origination=args.score_origination, n_steps=args.score_nsteps,
     )
-    write_scores_tsv(rows, os.path.join(args.out, "Reconciliation_likelihoods.tsv"), models=models)
+    write_scores_tsv(rows, os.path.join(args.out, "reconciliation_likelihoods.tsv"), models=models)
 
 
 def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
@@ -2099,7 +2099,7 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
 
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "Reconciliation_likelihoods.tsv")
+        path = os.path.join(args.out, "reconciliation_likelihoods.tsv")
         write_scores_tsv(rows, path, models=tuple(models))
         print(f"wrote {path} ({len(rows)} gene tree(s) x {len(models)} model(s))")
     elif len(rows) == 1 and len(models) == 1:
@@ -2149,8 +2149,8 @@ def _run_tools_simulate(args: argparse.Namespace, parser: argparse.ArgumentParse
     if args.out:
         os.makedirs(args.out, exist_ok=True)
         n_extant = _write_undated_sim(res, args.out)
-        print(f"wrote Reconciled_complete.nwk, Reconciled_extant.nwk ({n_extant} survivors), "
-              f"Reconciliation_events.tsv and Gene_family_profiles.tsv into {args.out}/")
+        print(f"wrote reconciled_complete.nwk, reconciled_extant.nwk ({n_extant} survivors), "
+              f"reconciliation_events.tsv and gene_family_profiles.tsv into {args.out}/")
     return 0
 
 
@@ -2171,10 +2171,10 @@ def _write_undated_sim(res, out: str) -> int:
     prof_lines = ["family\t" + "\t".join(res.leaf_names)]
     for fam, counts in res.profile_rows():
         prof_lines.append(fam + "\t" + "\t".join(str(c) for c in counts))
-    for name, lines in (("Reconciled_complete.nwk", complete_lines),
-                        ("Reconciled_extant.nwk", extant_lines),
-                        ("Reconciliation_events.tsv", ev_lines),
-                        ("Gene_family_profiles.tsv", prof_lines)):
+    for name, lines in (("reconciled_complete.nwk", complete_lines),
+                        ("reconciled_extant.nwk", extant_lines),
+                        ("reconciliation_events.tsv", ev_lines),
+                        ("gene_family_profiles.tsv", prof_lines)):
         with open(os.path.join(out, name), "w") as f:
             f.write("\n".join(lines) + ("\n" if lines else ""))
     return len(extant_lines)
@@ -2227,7 +2227,7 @@ def _run_tools_treedist(args: argparse.Namespace, parser: argparse.ArgumentParse
     header = "\t".join(_TREEDIST_COLS)
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "Tree_distances.tsv")
+        path = os.path.join(args.out, "tree_distances.tsv")
         with open(path, "w") as f:
             f.write(header + "\n" + "\n".join(rows) + "\n")
         print(f"wrote {path} ({len(rows)} comparison(s))")
@@ -2291,7 +2291,7 @@ def _run_tools_recon_accuracy(args: argparse.Namespace, parser: argparse.Argumen
     header = "\t".join(_RECONACC_COLS)
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "Reconciliation_accuracy.tsv")
+        path = os.path.join(args.out, "reconciliation_accuracy.tsv")
         with open(path, "w") as f:
             f.write(header + "\n" + "\n".join(rows) + "\n" + pooled + "\n")
         print(f"wrote {path} ({len(rows)} family(ies))")
@@ -2422,7 +2422,7 @@ def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "RED.tsv")
+        path = os.path.join(args.out, "red.tsv")
         with open(path, "w") as f:
             f.write("node\tis_leaf\tred\n")
             for name, leaf, r in rows:
@@ -2441,9 +2441,9 @@ def _run_tools_export(args: argparse.Namespace, parser: argparse.ArgumentParser)
 
     if not os.path.isdir(args.genomes_dir):
         parser.error(f"{args.genomes_dir} is not a directory")
-    builders = {"breakpoints": ("Breakpoints.tsv", breakpoints_tsv),
-                "gff": ("Genes.gff", gff_text),
-                "posortho": ("Positional_orthologs.tsv", posortho_tsv)}
+    builders = {"breakpoints": ("breakpoints.tsv", breakpoints_tsv),
+                "gff": ("genes.gff", gff_text),
+                "posortho": ("positional_orthologs.tsv", posortho_tsv)}
     if args.out:
         os.makedirs(args.out, exist_ok=True)
     for fmt in args.formats:
@@ -2467,7 +2467,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
 
     Genes are not atomic here — they emerge as **blocks** (maximal intervals with one shared
     history). ``profiles`` writes the emergent block-by-species profile (plus ``blocks.tsv`` and
-    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-block gene trees and their
+    the per-leaf ``mosaics.tsv``); ``trees`` writes the per-block gene trees and their
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
@@ -2573,12 +2573,12 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         block_ids, species, matrix = result.profile_matrix()
         pm = ProfileMatrix([f"block{a}" for a in block_ids], species, matrix)
         if args.sparse:
-            with open(os.path.join(args.out, "Profiles_sparse.tsv"), "w") as f:
+            with open(os.path.join(args.out, "profiles_sparse.tsv"), "w") as f:
                 f.write(pm.to_coo_tsv())
         else:
-            with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+            with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
                 f.write(pm.to_tsv())
-            with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+            with open(os.path.join(args.out, "presence.tsv"), "w") as f:
                 f.write(pm.to_tsv(presence=True))
         _write_mosaics(args.out, result)
     if "trees" in want or "reconciliations" in want:
@@ -2593,10 +2593,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         _write_bed(args.out, result, tree, gff_info, gff_all)
     if "geneorder" in want:
         from zombi2.genomes.simulation import geneorder_events_from_log
-        with open(os.path.join(args.out, "Geneorder_events.tsv"), "w") as f:
+        with open(os.path.join(args.out, "geneorder_events.tsv"), "w") as f:
             f.write(geneorder_events_from_log(result.event_log))
     # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
-    # (Chromosomes.tsv) and the fission/fusion/origination/loss genealogy (Karyotype_trace.tsv).
+    # (chromosomes.tsv) and the fission/fusion/origination/loss genealogy (karyotype_trace.tsv).
     # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
     py_engine = any(isinstance(getattr(g, "chromosomes", None), dict)
                     for g in result.leaf_genomes.values())
@@ -2621,9 +2621,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
 def _write_nucleotide_karyotype(out: str, result) -> None:
     """Write the karyotype of a multi-chromosome / chromosome-tier nucleotide run.
 
-    ``Chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order,
+    ``chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order,
     with the chromosome's topology (``species chromosome topology position source start end strand``);
-    ``Karyotype_trace.tsv`` — the fission / fusion / origination / loss genealogy
+    ``karyotype_trace.tsv`` — the fission / fusion / origination / loss genealogy
     (``time event branch parents children``), one row per chromosome-tier event (header-only if the
     karyotype never changed).
     """
@@ -2638,7 +2638,7 @@ def _write_nucleotide_karyotype(out: str, result) -> None:
                 strand = "+" if s.strand >= 0 else "-"
                 lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{topology}\t{pos}\t{s.source}\t"
                            f"{s.src_start}\t{s.src_end}\t{strand}")
-    with open(os.path.join(out, "Chromosomes.tsv"), "w") as f:
+    with open(os.path.join(out, "chromosomes.tsv"), "w") as f:
         f.write("\n".join(lay) + "\n")
 
     kar = ["time\tevent\tbranch\tparents\tchildren"]
@@ -2646,17 +2646,17 @@ def _write_nucleotide_karyotype(out: str, result) -> None:
         parents = ";".join(str(p) for p in r.parents)
         children = ";".join(str(c) for c in r.children)
         kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
-    with open(os.path.join(out, "Karyotype_trace.tsv"), "w") as f:
+    with open(os.path.join(out, "karyotype_trace.tsv"), "w") as f:
         f.write("\n".join(kar) + "\n")
 
 
 def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> None:
     """Simulate sequences and write the genome (architecture + gzipped DNA) at every node.
 
-    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome
+    ``architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome
     (a ``chromosome`` column keeps replicons apart); ``Genomes/<node>.fasta.gz`` — its assembled DNA,
     one FASTA record per chromosome for a multi-chromosome genome (else one record, the whole
-    genome); ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is
+    genome); ``gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is
     seeded from ``--genome-fasta`` when given (a multi-record FASTA for a multi-sequence GFF, matched
     to each replicon by sequence name), else drawn at random.
     """
@@ -2690,8 +2690,8 @@ def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> No
     result.simulate_sequences(model, gamma=gamma, root_fasta=root_fasta,
                               subst_rate=args.subst_rate, seed=args.seed)
 
-    adir = os.path.join(out, "Architecture")
-    gdir = os.path.join(out, "Genomes")
+    adir = os.path.join(out, "architecture")
+    gdir = os.path.join(out, "genomes")
     os.makedirs(adir, exist_ok=True)
     os.makedirs(gdir, exist_ok=True)
     for node in tree.nodes_preorder():
@@ -2711,7 +2711,7 @@ def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> No
                    else {f"{name}_chr{cid}": dna for cid, dna in seqs.items()})
         write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), records, gzip_out=True)
 
-    aln_dir = os.path.join(out, "Gene_alignments")
+    aln_dir = os.path.join(out, "gene_alignments")
     os.makedirs(aln_dir, exist_ok=True)
     for gene, aln in result.gene_alignments().items():
         write_fasta(os.path.join(aln_dir, f"{gene}.fasta"), aln)
@@ -2795,7 +2795,7 @@ def _write_bed(out: str, result, tree, gff_info, gff_all=None) -> None:
     write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_name))
 
     # every node's genome (ancestral + extant), each contig keyed to its FASTA record id
-    bdir = os.path.join(out, "BED")
+    bdir = os.path.join(out, "bed")
     os.makedirs(bdir, exist_ok=True)
     for node in tree.nodes_preorder():
         node_name = ((lambda cid, n=node.name: f"{n}_chr{cid}") if multi
@@ -2814,11 +2814,11 @@ def _write_genes_table(out: str, registry) -> None:
 
 
 def _write_pseudogenizations(out: str, result) -> None:
-    """Write ``Pseudogenizations.tsv`` — every gene->intergene state flip (branch, time, lineage)."""
+    """Write ``pseudogenizations.tsv`` — every gene->intergene state flip (branch, time, lineage)."""
     lines = ["block\tgene\tspecies_branch\ttime\tgene_lineage"]
     for block_id, gene_id, species, t, gid in result.pseudogenizations():
         lines.append(f"block{block_id}\t{gene_id}\t{species}\t{t:.10g}\t{gid}")
-    with open(os.path.join(out, "Pseudogenizations.tsv"), "w") as f:
+    with open(os.path.join(out, "pseudogenizations.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -2836,13 +2836,13 @@ def _write_blocks_table(out: str, blocks) -> None:
 
 
 def _write_mosaics(out: str, result) -> None:
-    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of blocks."""
+    """Write ``mosaics.tsv`` — each extant genome as an ordered, signed sequence of blocks."""
     lines = ["leaf\tmosaic"]
     for leaf in sorted(result.leaf_genomes, key=lambda n: n.name):
         seq = " ".join(("+" if s > 0 else "-") + f"block{aid}"
                        for aid, s in result.leaf_mosaic(leaf))
         lines.append(f"{leaf.name}\t{seq}")
-    with open(os.path.join(out, "Mosaics.tsv"), "w") as f:
+    with open(os.path.join(out, "mosaics.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -2850,7 +2850,7 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
     """Write per-block trees to ``block<id>_complete.nwk`` / ``_extant.nwk``.
 
     Plain nucleotide model: everything under ``gene_trees/``. Genic mode: gene blocks under
-    ``Gene_trees/`` and intergene blocks under ``Intergene_trees/`` (both tree sets recovered).
+    ``gene_trees/`` and intergene blocks under ``intergene_trees/`` (both tree sets recovered).
     """
     def dump(tdir: str, trees: dict) -> None:
         os.makedirs(tdir, exist_ok=True)
@@ -2863,8 +2863,8 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
                     f.write(extant + "\n")
 
     if genic:
-        dump(os.path.join(out, "Gene_trees"), result.gene_trees())
-        dump(os.path.join(out, "Intergene_trees"), result.intergene_trees())
+        dump(os.path.join(out, "gene_trees"), result.gene_trees())
+        dump(os.path.join(out, "intergene_trees"), result.intergene_trees())
     else:
         dump(os.path.join(out, "gene_trees"), result.block_gene_trees())
 
@@ -2874,7 +2874,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     _add_params_arg(g)
     g.add_argument("--genomes", required=True, metavar="DIR",
                    help="a prior 'zombi2 genomes' output directory — reads its species_tree.nwk "
-                        "and Events_trace.tsv (run genomes with 'trace' in --write)")
+                        "and events_trace.tsv (run genomes with 'trace' in --write)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -3050,7 +3050,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     """Overlay the gene x lineage substitution clock on a prior genomes run's gene trees, and —
     with ``--subst-model`` — simulate a DNA or protein alignment down each rescaled tree.
 
-    Replays the compact ``Events_trace.tsv`` (no re-simulation of gene content), rescales every
+    Replays the compact ``events_trace.tsv`` (no re-simulation of gene content), rescales every
     reconciled gene tree from time into substitutions/site, and writes the phylograms plus the
     drawn per-family speeds and per-branch rates. The lineage clock is shared across families
     (``--branch-speed`` lognormal or ``--branch-bins`` discrete-bin); each family draws one
@@ -3085,7 +3085,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
 
     tree_path = os.path.join(args.genomes, "species_tree.nwk")
-    trace_path = os.path.join(args.genomes, "Events_trace.tsv")
+    trace_path = os.path.join(args.genomes, "events_trace.tsv")
     if not os.path.exists(trace_path):
         raise FileNotFoundError(
             f"{trace_path} not found — re-run 'zombi2 genomes' on that tree with 'trace' in "
@@ -3224,7 +3224,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "  zombi2 tools simulate -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.3 -n 200 -o truth/",
             "",
             "  # then score an inferred reconciliation against that truth",
-            "  zombi2 tools recon-accuracy -t truth/Reconciled_extant.nwk -i inferred_recon.nwk",
+            "  zombi2 tools recon-accuracy -t truth/reconciled_extant.nwk -i inferred_recon.nwk",
         ),
     )
     _add_tools_simulate_args(smp)
@@ -3355,7 +3355,7 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("-t", "--species-tree", required=True, metavar="FILE",
                    help="dated species-tree Newick (as written by 'zombi2 species')")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Reconciliation_likelihoods.tsv into DIR (default: print to "
+                   help="write reconciliation_likelihoods.tsv into DIR (default: print to "
                         "stdout — a bare number for one tree and one model, else a table)")
 
     g = p.add_argument_group("DTL rates")
@@ -3383,8 +3383,8 @@ def _add_tools_simulate_args(p: argparse.ArgumentParser) -> None:
                    help="species-tree Newick; a cladogram with no branch lengths is fine for the "
                         "undated model (unit branches are assumed) — reldated needs real dates")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Reconciled_complete.nwk, Reconciled_extant.nwk and "
-                        "Reconciliation_events.tsv into DIR (default: print a summary to stdout)")
+                   help="write reconciled_complete.nwk, reconciled_extant.nwk and "
+                        "reconciliation_events.tsv into DIR (default: print a summary to stdout)")
 
     g = p.add_argument_group("DTL odds (per-branch, relative to a speciation — NOT per-unit-time)")
     g.add_argument("--dup", type=float, default=0.0, metavar="ODDS", help="duplication odds d")
@@ -3417,7 +3417,7 @@ def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
                    help="Newick file of one or more comparison trees (one per line); each is "
                         "compared to the reference and must share its leaf label set")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Tree_distances.tsv into DIR (default: print the table to stdout)")
+                   help="write tree_distances.tsv into DIR (default: print the table to stdout)")
 
     g = p.add_argument_group("metrics")
     g.add_argument("--no-quartet", action="store_true",
@@ -3439,7 +3439,7 @@ def _add_tools_recon_accuracy_args(p: argparse.ArgumentParser) -> None:
                    help="annotated reconciled Newick(s) of the INFERRED reconciliation, paired "
                         "with --truth line by line (same gene-tree topology and tip labels)")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Reconciliation_accuracy.tsv into DIR (default: print to stdout)")
+                   help="write reconciliation_accuracy.tsv into DIR (default: print to stdout)")
 
 
 def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
@@ -3449,7 +3449,7 @@ def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
                         "(substitutions) to recover relative ages, or a dated tree for exact "
                         "relative ages. Works with the trees 'zombi2 species'/'sequence' write.")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write RED.tsv (node, is_leaf, red) into DIR (default: print the table to stdout)")
+                   help="write red.tsv (node, is_leaf, red) into DIR (default: print the table to stdout)")
 
 
 def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
@@ -3496,7 +3496,7 @@ def _add_experimental_args(p: argparse.ArgumentParser) -> None:
             "  zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 --seed 1 -o out/",
             "",
             "  # DTL + ILS: a coalescent gene tree per family from a 'genomes' run (write it with --write trace)",
-            "  zombi2 experimental ils -t species_tree.nwk --events-trace run/Events_trace.tsv -N 0.5 -o out/",
+            "  zombi2 experimental ils -t species_tree.nwk --events-trace run/events_trace.tsv -N 0.5 -o out/",
         ),
     )
     _add_experimental_ils_args(sp_ils)
@@ -3508,7 +3508,7 @@ def _add_experimental_ils_args(p: argparse.ArgumentParser) -> None:
                    help="species-tree Newick (as written by 'zombi2 species') -- the coalescent "
                         "container, and (with --events-trace) the frame the locus trees live in")
     g.add_argument("--events-trace", default=None, metavar="FILE", dest="events_trace",
-                   help="a 'genomes' run's Events_trace.tsv (write it with 'zombi2 genomes ... "
+                   help="a 'genomes' run's events_trace.tsv (write it with 'zombi2 genomes ... "
                         "--write trace'). When given, run DTL + ILS: the coalescent within each gene "
                         "family's locus tree, one gene tree per family. Without it, plain species-tree ILS")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -3583,7 +3583,7 @@ def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentPar
         return 0
 
     genes = msc.sample_gene_trees(tree, args.replicates, samples=args.samples, rng=rng)
-    with open(os.path.join(args.out, "gene_trees.nwk"), "w") as f:
+    with open(os.path.join(args.out, "ils_gene_trees.nwk"), "w") as f:
         for g in genes:
             f.write(g.to_newick(include_internal_names=False) + "\n")
     copies = "1 copy/species" if args.samples == 1 else f"{args.samples} copies/species"
@@ -3856,7 +3856,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             parts.append(f"{n_unsampled} unsampled")
         summary = " + ".join(parts) + " tips"
         print(f"wrote {args.out}/{wrote} ({summary}) in {dt:.3g} s")
-        _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "species.log"), args, summary)
         return 0
 
     if args.command == "genomes":

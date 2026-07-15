@@ -43,7 +43,7 @@ Reproducibility is a first-class guarantee, not a nicety.
 ### The run manifest
 
 **Every CLI command writes a run manifest** to the output directory — always, for
-reproducibility (`species_tree.log`, `genomes.log`, `traits.log`, `sequences.log`,
+reproducibility (`species.log`, `genomes.log`, `traits.log`, `sequences.log`,
 `coevolve.log`). It is a headed, tab-separated key–value file:
 
 ```
@@ -98,22 +98,22 @@ The `genomes` command writes a chosen subset of parts (`--write PART ...`); the 
 
 | Part | Files |
 |---|---|
-| `profiles` | `Profiles.tsv` + `Presence.tsv` (or `Profiles_sparse.tsv` with `--sparse`) |
+| `profiles` | `profiles.tsv` + `presence.tsv` (or `profiles_sparse.tsv` with `--sparse`) |
 | `trees` | `gene_trees/<family>_complete.nwk` + `_extant.nwk` |
-| `trace` | `Events_trace.tsv` (one compact, scalable event log) |
+| `trace` | `events_trace.tsv` (one compact, scalable event log) |
 | `events` | `gene_family_events/<family>_events.tsv` (per-family detail) |
-| `transfers` | `Transfers.tsv` |
-| `summary` | `Gene_family_summary.tsv` |
-| `branch_events` | `Branch_events.tsv` (per-species-branch event counts, with `is_extant`) |
-| `bed` | [nucleotide, genic] `genes.bed` + `BED/<node>.bed` (BED6 gene annotations) |
-| `ancestral` | [nucleotide] `Architecture/`, `Genomes/<node>.fasta.gz`, `Gene_alignments/` |
+| `transfers` | `transfers.tsv` |
+| `summary` | `gene_family_summary.tsv` |
+| `branch_events` | `branch_events.tsv` (per-species-branch event counts, with `is_extant`) |
+| `bed` | [nucleotide, genic] `genes.bed` + `bed/<node>.bed` (BED6 gene annotations) |
+| `ancestral` | [nucleotide] `architecture/`, `genomes/<node>.fasta.gz`, `gene_alignments/` |
 
 Representative schemas (quote these when adding a related output):
 
 ```
-# Profiles.tsv          family  n0  n1  n2 ...        (copy counts)
-# Events_trace.tsv      time  event  branch  donor  recipient  family  parent  child1  child2
-# Branch_events.tsv     branch  time  is_leaf  is_extant  origination  duplication  transfer_in  transfer_out  loss  inversion  transposition  total
+# profiles.tsv          family  n0  n1  n2 ...        (copy counts)
+# events_trace.tsv      time  event  branch  donor  recipient  family  parent  child1  child2
+# branch_events.tsv     branch  time  is_leaf  is_extant  origination  duplication  transfer_in  transfer_out  loss  inversion  transposition  total
 # <node>.bed            chrom  chromStart  chromEnd  name  score  strand      (BED6, 0-based half-open)
 # species_nodes.tsv     name  time  is_leaf  is_extant
 ```

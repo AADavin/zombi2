@@ -90,16 +90,16 @@ assert a.event_accuracy == 1.0 and a.transfer.n_true == a.transfer.both_correct
 ## Command line
 
 ```bash
-# 1. simulate a truth — --write reconciliations writes Reconciled_extant.nwk (tips <species>|<gid>)
+# 1. simulate a truth — --write reconciliations writes reconciled_extant.nwk (tips <species>|<gid>)
 zombi2 genomes -t species_tree.nwk --dup 0.1 --trans 0.05 --loss 0.15 \
     --initial-families 50 --seed 7 --write reconciliations -o truth/
 
 # 2. run your method on the same extant gene trees, then score it against the truth
-zombi2 tools recon-accuracy -t truth/Reconciled_extant.nwk -i inferred_recon.nwk
+zombi2 tools recon-accuracy -t truth/reconciled_extant.nwk -i inferred_recon.nwk
 ```
 
 `-t` and `-i` are files of annotated reconciled Newicks, **one family per line**, paired line by
-line (same count). `-o DIR` writes `DIR/Reconciliation_accuracy.tsv`; otherwise the table prints
+line (same count). `-o DIR` writes `DIR/reconciliation_accuracy.tsv`; otherwise the table prints
 to stdout. Blank/`#`-comment lines are skipped.
 
 ## Output

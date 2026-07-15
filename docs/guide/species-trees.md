@@ -43,7 +43,7 @@ Node times increase forward from the root (time 0) to the extant leaves (`total_
 
 ### Output
 
-`species_tree.nwk` (the complete tree, extinct/ghost tips kept), and — when dead tips are present — `species_tree_extant.nwk` pruned to the sampled-extant leaves. `species_nodes.tsv` gives per-node metadata (`name`, `time`, `is_leaf`, `is_extant`), and `species_tree.log` is the run manifest. Leaves use the [standard node names](../contributing/conventions.md#naming): `n*` extant, `e*` extinct, `u*` unsampled, `i*` internal.
+`species_tree.nwk` (the complete tree, extinct/ghost tips kept), and — when dead tips are present — `species_tree_extant.nwk` pruned to the sampled-extant leaves. `species_nodes.tsv` gives per-node metadata (`name`, `time`, `is_leaf`, `is_extant`), and `species.log` is the run manifest. Leaves use the [standard node names](../contributing/conventions.md#naming): `n*` extant, `e*` extinct, `u*` unsampled, `i*` internal.
 
 ## Basic models (birth–death & Yule)
 

@@ -49,6 +49,19 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   / `genomes`, the packages, and the guide). The singular `trait` / `sequence` still work but warn.
   The run-manifest filename follows the command, so these runs now write `traits.log` / `sequences.log`
   (were `trait.log` / `sequence.log`).
+- **Output filenames are `lowercase_snake`** (naming consolidation C7). Every file and directory a
+  run writes is lowercased: `Profiles.tsv`→`profiles.tsv`, `Presence.tsv`→`presence.tsv`,
+  `Events_trace.tsv`→`events_trace.tsv`, `Transfers.tsv`→`transfers.tsv`,
+  `Reconciled_complete.nwk`/`Reconciled_extant.nwk`→`reconciled_*.nwk`,
+  `Reconciliation_*.tsv`→`reconciliation_*.tsv`, `Tree_distances.tsv`→`tree_distances.tsv`,
+  `RED.tsv`→`red.tsv`, `Karyotype_trace.tsv`, `Chromosomes.tsv`, `Mosaics.tsv`, `Genes.gff`→`genes.gff`,
+  and the `Gene_trees/`, `Intergene_trees/`, `Gene_alignments/`, `Architecture/`, `Genomes/`, `BED/`
+  directories. `species_tree.log`→`species.log` (matching the `<command>.log` convention);
+  `Branch_events.tsv`→`branch_events.tsv` (kept "branch" — it is a genuine per-tree-edge table); and
+  the plain-ILS single-file output `gene_trees.nwk`→`ils_gene_trees.nwk` so it no longer shadows the
+  `gene_trees/` directory. **Breaking change with no compatibility shim** — update downstream scripts;
+  file *contents* are byte-identical, only the names changed. (`species_tree.nwk` / `species_nodes.tsv`
+  were already lowercase.)
 - **Rate vocabulary clarified in the docs and manual** (naming consolidation C2/C3). The guide,
   the manual, and `conventions.md` now state a single two-word rule — a **rate** is a quantity per
   unit time, a **modifier** is a dimensionless multiplier on a rate — and reserve **odds** for the
