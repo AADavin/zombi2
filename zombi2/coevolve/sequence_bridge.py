@@ -69,5 +69,8 @@ class DriverClock(Clock):
                 rate_time += r * (s1 - s0)
             segments[node.name] = segs
             span = b1 - b0
-            avg[node.name] = (rate_time / span) if span > 0 else self.base_rate
+            # A zero-length branch contributes no substitution length; report its instantaneous
+            # driver-scaled rate (not a bare base_rate) so branch_rate matches sibling branches.
+            avg[node.name] = (rate_time / span) if span > 0 else (
+                self.base_rate * self.response.rate_multiplier(self.driver.value(node.name, b0)))
         return segments, avg

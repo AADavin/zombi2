@@ -426,15 +426,18 @@ class CouplingGraph:
                 cond_adj.setdefault(cu, set()).add(cv)
         plan: list[tuple[str, object]] = []
         for cid in _toposort(set(comp.values()), cond_adj):
+            # layered couplings that produce INTO this SCC (driver already available upstream) —
+            # emitted whether this SCC is a singleton or a cycle, so an edge feeding into a fused
+            # cycle (e.g. species→traits when traits↔genomes feed back) is never dropped.
+            for c in self.couplings:
+                if not self.is_fused(c) and comp[c.target.level] == cid:
+                    plan.append(("layer", c))
+            # the fused cycle of this SCC, co-integrated as one step.
             if len(self._scc.members[cid]) > 1:
                 group = [c for c in self.couplings
-                         if comp[c.driver.level] == cid and comp[c.target.level] == cid]
+                         if self.is_fused(c) and comp[c.driver.level] == cid]
                 if group:
                     plan.append(("fuse", group))
-            else:
-                for c in self.couplings:
-                    if not self.is_fused(c) and comp[c.target.level] == cid:
-                        plan.append(("layer", c))
         return plan
 
 

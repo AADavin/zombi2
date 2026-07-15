@@ -250,6 +250,20 @@ def test_plan_emits_a_cycle_as_one_fused_step():
     assert len(group) == 2 and a in group and b in group    # membership by ==, not hashing
 
 
+def test_plan_includes_a_layered_edge_feeding_into_a_cycle():
+    # Regression: a layered (directional) edge whose TARGET sits inside a fused cycle must still
+    # appear in the plan. species→traits is layered; traits↔genomes is a fused cycle containing
+    # traits — the layered edge must not be dropped.
+    lay = couple("species", "traits", "value", 0.3, driver_kind="event")
+    a = couple("traits", "genomes", "loss", -0.8)
+    b = couple("genomes", "traits", "optimum", 0.5)
+    plan = CouplingGraph([a, b, lay]).solve_plan()
+    flat = _flatten(plan)
+    assert len(flat) == 3 and lay in flat and a in flat and b in flat   # every coupling, once
+    assert [m for m, _ in plan].count("fuse") == 1                      # the cycle is one step
+    assert ("layer", lay) in plan
+
+
 def test_plan_covers_every_coupling_exactly_once():
     sse = couple("traits", "species", "speciation", 1.2)       # fused (into species)
     down = couple("genomes", "sequences", "selection", 0.4)    # layered
