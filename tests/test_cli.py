@@ -549,6 +549,49 @@ def test_sequence_command_discrete_bins(tmp_path):
     assert (out / "branch_rates.tsv").exists()
 
 
+# --- sequence-tier grammar coupling (--couple) -------------------------------
+def test_sequence_coupling_traits_selection(tmp_path):
+    """`zombi2 sequences --couple traits:selection` — a trait sets per-lineage dN/dS (codon GY94)."""
+    from zombi2.sequences.models import read_fasta
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequences", "--genomes", str(run), "--couple", "traits:selection",
+               "--couple-strength", "1.5", "--seq-length", "30", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    alns = list((out / "alignments").glob("*.fasta"))
+    assert alns
+    d = read_fasta(str(alns[0]))
+    assert all(len(v) % 3 == 0 for v in d.values())          # a codon alignment
+
+
+def test_sequence_coupling_gene_event_selection(tmp_path):
+    """`--couple genomes:selection` — a gene event (duplication) relaxes selection (codon GY94)."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequences", "--genomes", str(run), "--couple", "genomes:selection",
+               "--couple-strength", "0.8", "--seq-length", "24", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert list((out / "alignments").glob("*.fasta"))
+
+
+def test_sequence_coupling_traits_speed(tmp_path):
+    """`--couple traits:speed` — a trait scales the substitution rate (with a DNA model)."""
+    run = _genomes_run_with_trace(tmp_path)
+    out = tmp_path / "seq"
+    rc = main(["sequences", "--genomes", str(run), "--couple", "traits:speed",
+               "--subst-model", "hky85", "--seq-length", "24", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert list((out / "alignments").glob("*.fasta"))
+
+
+def test_sequence_coupling_selection_rejects_subst_model(tmp_path):
+    """A selection coupling builds its own codon model; passing --subst-model there is an error."""
+    run = _genomes_run_with_trace(tmp_path)
+    rc = main(["sequences", "--genomes", str(run), "--couple", "traits:selection",
+               "--subst-model", "hky85", "-o", str(tmp_path / "x")])
+    assert rc == 1                                           # conflicting model → error
+
+
 @pytest.mark.parametrize("flags", [
     ["--clock", "strict"],
     ["--clock", "autocorrelated-lognormal", "--clock-sigma", "0.4"],
