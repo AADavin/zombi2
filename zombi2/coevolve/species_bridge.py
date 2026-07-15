@@ -91,3 +91,41 @@ def simulate_gene_driven_diversification(n_drivers, *, speciation: Response,
                            else 0.0),
         loss=loss, origination=origination, transfer=transfer, root_drivers=root_drivers)
     return simulate_gene_diversification(model, age=age, n_tips=n_tips, seed=seed, rng=rng)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# species:X (cladogenetic) — speciation reshapes a character on a GIVEN tree
+# ═══════════════════════════════════════════════════════════════════════════════
+# The reverse direction: species drives a character. The driver is the speciation EVENT (not a
+# state), and the effect is a JUMP at each split — an overlay on a given tree (a *layer* edge, unlike
+# the into-species edges above). These reuse the existing cladogenetic engines unchanged. (A formal
+# grammar JUMP `Response` for event drivers is a future refinement — docs §2.1; here the jump
+# magnitudes are passed directly.)
+def simulate_cladogenetic_trait(tree, model, *, jump_sigma2: float = 0.0, shift: float = 0.0,
+                                root_state=None, seed=None, rng=None):
+    """The **species:traits** edge: speciation reshapes the trait. At each branching, a daughter's
+    trait jumps — a mean-zero Gaussian of variance ``jump_sigma2`` (continuous trait) or a move to a
+    random state with probability ``shift`` (discrete trait) — layered on the anagenetic ``model``.
+    An overlay on a given ``tree``. Reuses :func:`~zombi2.simulate_traits` with a ``Cladogenesis``.
+    """
+    from zombi2.traits.models import Cladogenesis, simulate_traits
+    return simulate_traits(tree, model,
+                           cladogenesis=Cladogenesis(jump_sigma2=jump_sigma2, shift=shift),
+                           root_state=root_state, seed=seed, rng=rng)
+
+
+def simulate_cladogenetic_genomes(tree, *, initial_families: int, loss: float = 0.0,
+                                  origination: float = 0.0, cladogenetic_loss: float = 0.0,
+                                  cladogenetic_gain: float = 0.0, seed=None, rng=None):
+    """The **species:genomes** edge: speciation reshuffles the genome. At each split every daughter
+    independently drops each family it carries with probability ``cladogenetic_loss`` and gains
+    ``Poisson(cladogenetic_gain)`` new families (a founder burst), plus anagenetic ``loss`` /
+    ``origination`` along branches. An overlay on a given ``tree``. Reuses the
+    :class:`~zombi2.coevolve.cladogenetic_genome.CladogeneticGenome` engine.
+    """
+    from zombi2.coevolve.cladogenetic_genome import (
+        CladogeneticGenome, simulate_cladogenetic_genome,
+    )
+    model = CladogeneticGenome(initial_families=initial_families, loss=loss, origination=origination,
+                               cladogenetic_loss=cladogenetic_loss, cladogenetic_gain=cladogenetic_gain)
+    return simulate_cladogenetic_genome(tree, model, seed=seed, rng=rng)
