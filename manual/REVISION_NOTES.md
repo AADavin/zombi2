@@ -3,6 +3,115 @@
 Adrián's feedback, organized so nothing is lost. Status: [ ] todo · [~] in progress ·
 [x] done · [?] needs discussion/decision.
 
+## 🧭 Readability & clarity revision (2026-07-15, ratified with Adrián)
+
+A structural pass to improve readability, aligned to the programmed **rates** (opportunity /
+"how many clocks") and **coevolution** (`--all`) work. Ratified decisions:
+
+1. **Book grouped into Parts I–VI** (matches this README's plan) via raw-LaTeX `\part{}` at each
+   part opener. Chapters keep their numbers, so every "Chapter N" prose ref stays valid.
+2. **Ghost lineages demoted** from a chapter to a `## Ghost lineages` section inside Ch5 (advanced
+   species trees) — its natural home (complete-vs-reconstructed). `06-ghost-lineages.md` removed;
+   no inbound links existed.
+3. **Rates taught once**: new short anchor `06-how-rates-work.md` ("how many clocks, how fast" —
+   `base × opportunity × modifiers`), owning the rate-model detail. Ch7 overview keeps levels +
+   events-by-level and points to Ch6; Ch8/Ch5/Ch15 reference it. Speaks `per=`/opportunity ahead of
+   Part 3 (the unified `--rate-per`/`per=` knob), so it never teaches a soon-deprecated class name.
+4. **Manual teaches the concept; the online guide keeps the exhaustive catalog** — esp. Ch13
+   coevolution (trim to one worked example per pair; `--all` = one section when it lands).
+
+**Pass 2 (Adrián's structural feedback, ratified via AskUserQuestion):** rates does not belong in
+Part III after species trees; add a global-overview chapter to Part I; merge install + first-sim;
+split the massive coevolution chapter. Decisions: the rate concept → a **section of the new Ch2
+tour**; coevolution → **3 chapters**. FINAL TOC (16 chapters + App A):
+
+- **I Getting started** — 01 Introduction · 02 **A tour of ZOMBI2** (four levels · pipeline vs
+  coevolution · **how rates work** §2.3 · ZOMBI2 vocabulary) · 03 **Getting started** (install +
+  first-sim MERGED)
+- **II Species trees** — 04 basic · 05 advanced (+ §Ghost lineages)
+- **III Genomes** — 06 Genome evolution (overview) · 07 unordered · 08 gene-trees/output · 09
+  ordered · 10 nucleotide
+- **IV Traits** — 11 Trait evolution
+- **V Coevolution** — 12 **the framework** (+ `--all` roadmap note) · 13 **State-dependent
+  diversification** (species–traits: SSE, cladogenetic, ClaSSE) · 14 **Coupling gene content**
+  (species–genes + traits–genes + **Null models** §14.3)
+- **VI Sequences** — 15 sequence evolution · 16 Relaxed molecular clocks
+- **App A** Gillespie · ILS supplement
+
+DONE + verified (uncommitted, held for review): full renumber via `git mv`; new
+`02-a-tour-of-zombi2.md` + `03-getting-started.md`; Ch1 levels section removed (→ tour); old
+`06-how-rates-work` folded into the tour; coevolution split `13`→`{12,13,14}`; all 6 Part dividers
+placed; **every hard "Chapter N" prose ref converted to a stable heading-id link** (restructure-proof;
+the clocks heading got an explicit `{#molecular-clocks}` id); `↔`→en-dash (lmroman lacks the glyph).
+`make manual` clean (no undefined refs / missing glyphs), **128 pp**; all snippets run (including the
+redistributed coevolution ones). STILL PENDING: [ ] vocabulary/`per=` sweep across the genome
+chapters (the concept now lives in the tour) · [ ] Ch16 clocks reframed as a *rate modifier* tied to
+the tour · [ ] Adrián reviews, then commit.
+
+**Pass 3 (discussion, 2026-07-15) — further decisions, NOT yet executed:**
+- **Sequences go BEFORE coevolution.** Parts become IV Traits → **V Sequences** → **VI Coevolution**
+  (coevolution is the capstone that couples all four levels, so all four must be introduced first).
+- **Coevolution is organised by what is TARGETED** (Adrián's call): framework, then chapters grouped
+  by the arrow's target — *shaping the tree* (into-S: SSE, key innovation, the joints — these grow the
+  tree), *shaping traits & gene content* (overlays), *shaping sequences* (the new node). This axis
+  scales to the 4th node; the earlier pair-based split (12/13/14) will be re-cut this way. Exact chapter
+  count held until the sequence-target content lands.
+- **Sequence coevolution: sequences are a TARGET-only node** (a driver would be harder — deferred),
+  and it **lives in the coevolution part** as the 4th node. An agent is building this now; the specific
+  sequence-target edges/labels are TBD.
+- **Traits stays ONE chapter** (no split).
+- **Figures drafted** (`figures/scripts/`, rendered to `figures/<name>/`, NOT yet copied to `docs/img/`
+  or wired into chapters — drafts for review): (1) `fig_coevolve_modes4.py` → the framework figure as a
+  **4-node graph** (S/T/G triangle unchanged + sequences Q as a dashed target-only node); the two
+  Q-edge labels (`selection`, `regime`) are **placeholders** pending the real model. (2)
+  `fig_rate_clocks.py` → the tour's **"how many clocks"** figure: the three opportunities as clock
+  schematics + a real-data exponential-vs-linear LTT (BirthDeath vs SharedBirthDeath, mean over 40
+  seeds). NB figure scripts that import `zombi2` must `sys.path.insert(0, repo_root)` — the editable
+  install points at the *main* checkout, which lacks `SharedBirthDeath`.
+
+**EXECUTED for the review PDF (2026-07-15):** (1) **Sequences reordered before Coevolution** — Part V
+= Sequence evolution (12 sequence, 13 clocks), Part VI = Coevolution (14 framework, 15 SDD, 16
+coupling gene content); clean rotation via git mv/mv, all cross-refs survive (heading-id links). (2)
+**`rate_clocks` figure wired into the tour** (`docs/img/rate_clocks.svg`, Figure 2.2 in §2.3 "How
+rates work"), sits full-width and clean. `make manual` green, **128 pp**, `build/zombi2-manual.pdf`
+ready for Adrián to check. STILL DEFERRED (needs the sequence-target model first): the **coevolution
+by-target re-cut** (framework / shapes-the-tree / shapes-traits-and-genes / [future] shapes-sequences)
+— chapters 14–16 are still the by-pair cut for now — and wiring the **4-node `coevolve_modes4`**
+figure into the framework.
+
+**FOUND the sequence-coevolution model (branch `claude/coevolve-grammar-migration`, design
+`docs/design/coevolve-grammar.md`, 2026-07-15):** the whole coevolve subsystem is being reframed onto
+ONE grammar — every edge is `driver → target-variable : response` — over the 4-node **diamond
+{S, T, G, Σ}**. Sequences (Σ) ride *gene* trees, are **target-only**, and the **S–Σ edge is
+FORBIDDEN** (Σ couples only to its tier neighbours T, G). Sequence edges: **T→Σ** = trait-driven
+selection (ω = dN/dS) + substitution speed (`DriverClock`/`OmegaSelector`); **G→Σ** = post-duplication
+relaxed selection (`GeneEventOmega`). Nulls become `response = 0` (uniform); structural names
+(`traits:species`) become primary, literature names (SSE/ClaSSE) aliases. **This grammar IS Adrián's
+"organise by what is targeted."** Sequence tier LANDED on the branch; the into-species reframe waits on
+the `Rates(per=…)` rate rename merging to main.
+- **`coevolve_modes4` figure FINALISED to the real model** (Σ node renders fine; T→Σ "selection
+  (dN/dS)", G→Σ "relaxed selection", no S–Σ, subtitle explains why). It is the intended framework
+  figure, to drop in **when the coevolution part is rewritten onto the grammar** — the right,
+  non-throwaway home for the by-target re-cut + the sequence sections; best done as/after the grammar
+  lands on main (every-snippet-runs).
+
+**EXECUTED 2026-07-15 (later):** Framework (Ch14) reframed onto the **four-level diamond** + the
+diamond figure `coevolve_modes4` wired in (Fig 14.1, p100); the tour's levels figure (Fig 2.1)
+**replaced by a single-panel diamond** `fig_levels_diamond.py` → `docs/img/levels_diamond.svg` (four
+levels + the pipeline arrows S→T, S→G, G→Σ). PDF rebuilt, **129 pp**, clean.
+
+**⚠️ `per=` opportunity knob LANDED ON MAIN (Part 3, phases A–E) — worktree is ~13 commits behind
+`origin/main`.** New on main: `BirthDeath(per=…)` (A), `Rates(per="copy"|"lineage"|"shared")` (B/C),
+`Per(unit, rate)` per-event mixing (D), the finest rung named `site` (E); preset classes
+(`SharedBirthDeath`, `PerCopyRates`, `PerLineageRates`) are now deprecated shorthands. **This makes the
+tour's "How rates work" `::: note` STALE** (it calls `per=` a *planned* refinement). To include it: (1)
+**sync the worktree to `origin/main`** (commit the manual WIP on the branch, then merge — needed so the
+new snippets run); (2) rewrite the tour note to teach `per=` as real; (3) migrate snippets
+`SharedBirthDeath(…)` → `BirthDeath(…, per="shared")` (incl. the `fig_rate_clocks.py` figure) and
+`--rate-per`/`PerCopyRates` → `per=` in the genome chapters; optionally show `Per(unit, rate)` mixing.
+Also on main: standalone **Tools PDF** (PR #148, `manual/tools_to_chapters.py`). PENDING Adrián's OK to
+sync.
+
 ## ⭐ Outstanding questions for Adrián (when you're back)
 
 Decisions I couldn't make for you (the rest I'm proceeding on with sensible defaults):

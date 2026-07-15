@@ -1,7 +1,8 @@
 # Nucleotide genomes
 
-Chapter 7 introduced three models of genome evolution. The first two — unordered gene families
-(Chapter 8) and ordered gene families (Chapter 10) — treat each gene as an indivisible token. This
+[Genome evolution](#genome-evolution) introduced three models of genome evolution. The first two —
+unordered gene families ([unordered genomes](#unordered-genomes)) and ordered gene families
+([ordered genomes](#ordered-genomes)) — treat each gene as an indivisible token. This
 chapter covers the third and most detailed: the **nucleotide genome** model, where a genome is a
 real sequence of base pairs and structural events act on **variable-length segments** of
 nucleotides. This resolves duplication, lateral gene transfer, and gene order and orientation at
@@ -185,7 +186,7 @@ raise `extension` toward `0.999` for realistically long segments.
 
 ## Multiple chromosomes and the chromosome tier
 
-Like the ordered model (Chapter 10), a nucleotide genome can be a **karyotype** of several
+Like the ordered model ([ordered genomes](#ordered-genomes)), a nucleotide genome can be a **karyotype** of several
 chromosomes rather than one. The simplest way is `initial_chromosomes` (Python) or `--n-chromosomes`
 (CLI): each is an independent, full-length copy of the root chromosome under its own source, so an
 $N$-chromosome genome starts at $N \times$ `root_length` nucleotides. Chromosomes are circular by

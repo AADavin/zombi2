@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1240" height="1055" viewBox="0 0 1240 1055">
+<defs>
+</defs>
+<rect x="0" y="0" width="1240" height="1055" fill="white" />
+<text x="620.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The coevolution diamond: species, traits, genes, sequences</text>
+<text x="620.0" y="80" font-size="22" font-family="Helvetica" text-anchor="middle" font-style="italic" fill="#777">sequences ride gene trees, so there is no species-sequence edge</text>
+<path d="M328.9559067635208,550.6022195377251 Q417.3866583435057,403.7758193116414,567.4641488388304,320.9824833782655" fill="none" stroke="#446b28" stroke-width="5.2" stroke-linecap="round" />
+<path d="M567.4641488388304,320.9824833782655 L550.5932182532097,343.32910954811865 L539.5631684036375,323.3352032415266 Z" fill="#446b28" />
+<text x="393.8057647381589" y="379.2821169215715" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#446b28" font-weight="bold">trait-driven</text>
+<path d="M589.0440932364792,343.3977804622749 Q500.6133416564943,490.2241806883586,350.5358511611696,573.0175166217344" fill="none" stroke="#9ec27c" stroke-width="3.2" stroke-linecap="round" />
+<path d="M350.5358511611696,573.0175166217344 L367.4067817467904,550.6708904518813 L378.4368315963625,570.6647967584734 Z" fill="#9ec27c" />
+<text x="524.1942352618411" y="490.7178830784285" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#446b28" font-weight="bold">cladogenetic</text>
+<path d="M889.4641488388304,573.0175166217344 Q739.3866583435057,490.2241806883586,650.9559067635208,343.3977804622749" fill="none" stroke="#1f5c63" stroke-width="5.2" stroke-linecap="round" />
+<path d="M650.9559067635208,343.3977804622749 L673.9268633271637,359.408250616247 L654.3660798961138,371.18933887855917 Z" fill="#1f5c63" />
+<text x="689.8057647381589" y="524.7178830784285" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1f5c63" font-weight="bold">key innovation</text>
+<path d="M672.5358511611696,320.9824833782655 Q822.6133416564943,403.7758193116414,911.0440932364792,550.6022195377251" fill="none" stroke="#86bdc1" stroke-width="3.2" stroke-linecap="round" />
+<path d="M911.0440932364792,550.6022195377251 L888.0731366728363,534.591749383753 L907.6339201038862,522.8106611214408 Z" fill="#86bdc1" />
+<text x="846.1942352618411" y="379.2821169215715" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1f5c63" font-weight="bold">punctuational</text>
+<path d="M357.39696961967,593.5147186257615 Q620.0,556.0,882.60303038033,593.5147186257614" fill="none" stroke="#93492e" stroke-width="3.2" stroke-linecap="round" />
+<path d="M882.60303038033,593.5147186257614 L855.6788472085307,601.2016140024006 L858.9081452408616,578.5965277760839 Z" fill="#93492e" />
+<text x="620.0" y="544.0" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#93492e" font-weight="bold">trait-linked</text>
+<path d="M882.60303038033,610.4852813742386 Q620.0,648.0,357.39696961967,610.4852813742385" fill="none" stroke="#dc9f80" stroke-width="3.2" stroke-linecap="round" />
+<path d="M357.39696961967,610.4852813742385 L384.32115279146933,602.7983859975993 L381.0918547591384,625.403472223916 Z" fill="#dc9f80" />
+<text x="620.0" y="648.0" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#93492e" font-weight="bold">gene-conditioned</text>
+<path d="M341.2241806883586,560.3866583435057 L576.7758193116414,333.6133416564943" stroke="#6b6b6b" stroke-width="3.4" stroke-linecap="round" />
+<path d="M341.2241806883586,560.3866583435057 L350.22387920572913,538.1379409288672 L363.798499243469,552.2380301293582 Z" fill="#6b6b6b" />
+<path d="M576.7758193116414,333.6133416564943 L567.7761207942708,355.8620590711328 L554.201500756531,341.76196987064174 Z" fill="#6b6b6b" />
+<rect x="416.35" y="430.5" width="85.30000000000001" height="33" fill="white" stroke="none" />
+<text x="459.0" y="447.0" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#6b6b6b" font-weight="bold">ClaSSE</text>
+<path d="M898.7758193116414,560.3866583435057 L663.2241806883586,333.6133416564943" stroke="#6b6b6b" stroke-width="3.4" stroke-linecap="round" />
+<path d="M898.7758193116414,560.3866583435057 L876.201500756531,552.2380301293582 L889.7761207942708,538.1379409288672 Z" fill="#6b6b6b" />
+<path d="M663.2241806883586,333.6133416564943 L685.798499243469,341.76196987064174 L672.2238792057292,355.8620590711328 Z" fill="#6b6b6b" />
+<rect x="669.05" y="430.5" width="223.9" height="33" fill="white" stroke="none" />
+<text x="781.0" y="447.0" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#6b6b6b" font-weight="bold">co-diversification</text>
+<path d="M358.0,602.0 L882.0,602.0" stroke="#6b6b6b" stroke-width="3.4" stroke-linecap="round" />
+<path d="M358.0,602.0 L379.9141345674954,592.2137491265703 L379.9141345674954,611.7862508734297 Z" fill="#6b6b6b" />
+<path d="M882.0,602.0 L860.0858654325046,611.7862508734297 L860.0858654325046,592.2137491265703 Z" fill="#6b6b6b" />
+<rect x="502.275" y="585.5" width="235.45000000000002" height="33" fill="white" stroke="none" />
+<text x="620.0" y="602.0" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#6b6b6b" font-weight="bold">trait-gene feedback</text>
+<path d="M331.8206522929252,651.559696109652 Q430.2866039406056,795.8485347323042,571.497501543576,898.6799257718137" fill="none" stroke="#a79bcf" stroke-width="3.2" stroke-linecap="round" />
+<path d="M571.497501543576,898.6799257718137 L544.1091968294288,892.8592071834418 L557.5511843341861,874.4002998213367 Z" fill="#a79bcf" />
+<text x="403.6228965019992" y="813.950082308302" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#4a3f70" font-weight="bold">selection (dN/dS)</text>
+<path d="M893.497501543576,637.3200742281863 Q752.2866039406056,740.1514652676958,653.8206522929253,884.440303890348" fill="none" stroke="#a79bcf" stroke-width="3.2" stroke-linecap="round" />
+<path d="M653.8206522929253,884.440303890348 L658.8012826906295,856.8868409348235 L677.6625345538513,869.758183803108 Z" fill="#a79bcf" />
+<text x="741.6228965019992" y="722.049917691698" font-size="21" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#4a3f70" font-weight="bold">relaxed selection</text>
+<circle cx="620.0" cy="292" r="60" fill="#2f7d84" stroke="white" stroke-width="3.2" />
+<circle cx="620.0" cy="292" r="66" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="620.0" y="285" font-size="38" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">S</text>
+<text x="620.0" y="319" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">species</text>
+<circle cx="298.0" cy="602" r="60" fill="#5f7d34" stroke="white" stroke-width="3.2" />
+<circle cx="298.0" cy="602" r="66" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="298.0" y="595" font-size="38" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">T</text>
+<text x="298.0" y="629" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">traits</text>
+<circle cx="942.0" cy="602" r="60" fill="#b5654a" stroke="white" stroke-width="3.2" />
+<circle cx="942.0" cy="602" r="66" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
+<text x="942.0" y="595" font-size="38" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">G</text>
+<text x="942.0" y="629" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">genes</text>
+<circle cx="620.0" cy="934" r="60" fill="#5a4e86" stroke="white" stroke-width="3.2" />
+<circle cx="620.0" cy="934" r="66" fill="none" stroke="#1a1a1a" stroke-width="1.6" stroke-dasharray="5 5" />
+<text x="620.0" y="927" font-size="38" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">Σ</text>
+<text x="620.0" y="961" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">sequences</text>
+<path d="M60,108 L106,108" stroke="#1a1a1a" stroke-width="5.2" stroke-linecap="round" />
+<text x="120" y="108" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">into S: the tree is grown as an OUTPUT</text>
+<path d="M60,140 L106,140" stroke="#1a1a1a" stroke-width="3.2" stroke-linecap="round" />
+<text x="120" y="140" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">overlay: runs on a given tree</text>
+<path d="M67,172 L99,172" stroke="#6b6b6b" stroke-width="3.4" stroke-linecap="round" />
+<path d="M67,172 L75.21780046281077,168.33015592246386 L75.21780046281077,175.66984407753614 Z" fill="#6b6b6b" />
+<path d="M99,172 L90.78219953718923,175.66984407753614 L90.78219953718923,168.33015592246386 Z" fill="#6b6b6b" />
+<text x="120" y="172" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#6b6b6b">both edges at once: the joint (bidirectional) model</text>
+<circle cx="83" cy="204" r="11" fill="none" stroke="#1a1a1a" stroke-width="1.6" stroke-dasharray="4 4" />
+<text x="120" y="204" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#5a4e86">sequences (Σ): a coupling target only (never drives)</text>
+</svg>

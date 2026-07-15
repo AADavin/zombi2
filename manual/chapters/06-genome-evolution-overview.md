@@ -1,3 +1,7 @@
+```{=latex}
+\part{Genomes}
+```
+
 # Genome evolution
 
 Once ZOMBI2 has a species tree, it populates the branches with **genomes**. ZOMBI2 offers three
@@ -30,17 +34,17 @@ therefore which events can act on it (see *Events, by level* below); each level 
 one beneath it. On the command line, `--genome-resolution` selects the level: `unordered` (the default),
 `ordered`, or `nucleotide`.
 
-The second choice, orthogonal to the first, is **how each rate is counted** — its *opportunity*.
-Every rate is a base number times the number of independent chances the event has right now: **per
+The second choice, orthogonal to the first, is the **opportunity** — how each rate is counted: **per
 gene copy** (the default, so a bigger genome has proportionally more events) or **per lineage** (one
-chance for the whole genome, size-independent). This is the `--rate-per` flag (see *Rate models*
-below); per-family or per-lineage **multipliers** can be layered on top.
+chance for the whole genome, size-independent), set by `--rate-per`. The [tour](#how-rates-work-how-many-clocks-how-fast) covers
+the opportunity axis — and the per-family / per-lineage multipliers you can layer on top — in full;
+here it matters only as the second of the two knobs.
 
-| Level (`--genome-resolution`) | A genome is… | Chapter |
+| Level (`--genome-resolution`) | A genome is… | See |
 |---|---|---|
-| **unordered** | a *set* of gene families (presence/absence) | Chapter 8 |
-| **ordered** | genes on a chromosome (order matters, length does not) | Chapter 10 |
-| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | Chapter 11 |
+| **unordered** | a *set* of gene families (presence/absence) | [Unordered genomes](#unordered-genomes) |
+| **ordered** | genes on a chromosome (order matters, length does not) | [Ordered genomes](#ordered-genomes) |
+| **nucleotide** | a real sequence (genes + intergenes at true coordinates) | [Nucleotide genomes](#nucleotide-genomes) |
 
 ## Events, by level
 
@@ -73,24 +77,15 @@ Each level is a strict superset: choosing a richer level never removes an event,
 ones its extra structure makes possible. A nucleotide genome still undergoes duplication, transfer,
 loss and rearrangement — but now they have real lengths and can split or fuse at any base.
 
-## Rate models
+## Rates at the genome level
 
-Within the unordered level, a second axis controls **the opportunity each rate is counted per** —
-how many independent chances the event has at any moment. Every rate reads the same way: a base
-number × opportunities × any multipliers. The opportunity is the `--rate-per` flag (a `RateModel`
-object in Python); the two ends are:
+The opportunity axis of the [tour](#how-rates-work-how-many-clocks-how-fast) applies here directly: `--rate-per copy` (the default,
+`PerCopyRates` — the total rate scales with genome size, so families grow *exponentially*) or
+`--rate-per lineage` (`PerLineageRates` — one constant rate for the whole genome, size-independent,
+so content grows *linearly*). On top of either, **multipliers** make rates differ by context — per
+family (`FamilySampledRates`, or a `FamilyModifier` overlay) or per lineage (a `LineageModifier`, the
+relaxed-clock analogue) — changing *how fast*, not *how many chances*.
 
-| `--rate-per` | The rate is counted… | Family size grows | Object |
-|---|---|---|---|
-| **copy** (default) | per gene copy — the total rate scales with genome size | exponentially | `PerCopyRates` |
-| **lineage** | per lineage — one constant rate for the whole genome, size-independent | linearly | `PerLineageRates` |
-
-"Per lineage" is the size-independent measure that speciation already uses one level up (a lineage
-carries exactly one genome, so "per genome" *is* "per lineage"). On top of either end, **multipliers**
-make rates differ by context — per family (`FamilySampledRates`, or a `FamilyModifier` overlay) or per
-lineage (a `LineageModifier`, the relaxed-clock analogue); these change *how fast*, not *how many
-chances*.
-
-The level and the rate model are independent: any rate model can drive any unordered run, and the
-choice never affects *which* events fire, only *how often* each family fires them. Chapter 8 works
-through the rate models in detail.
+The level and the opportunity are independent: any rate model can drive any level, and the choice
+never affects *which* events fire, only *how often* each family fires them.
+[Unordered genomes](#unordered-genomes) works through the genome rate models in detail.
