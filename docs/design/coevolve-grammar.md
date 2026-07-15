@@ -5,10 +5,10 @@
 > **Implementation status** (branch `claude/coevolve-grammar-migration`) — the *disjoint* slices (independent of the in-flight `Rates(per=…)` rate rename) are landing:
 > - ✅ **Grammar core** — `zombi2/coevolve/grammar.py`: `Response` (`Scalar`/`Table`/`Curve`), `Driver`, `TargetVariable`, `Coupling`, `CouplingGraph` (layer/fuse via SCC), the null legality layer (`neutral`/`cid`/`timing`), `solve_plan`, the `DriverSignal` protocol.
 > - ✅ **Genome rate bridge** — `rate_bridge.py`: `CouplingModifier` (a `Modifier`); verified `null == base` byte-identical.
-> - ✅ **`genomes:traits` reframed** — `trait_bridge.py` `walk_optimum_coupled_trait`; **byte-identical** to the pre-reframe edge.
+> - ✅ **P1 trait–gene pair reframed** — `genomes:traits` (`walk_optimum_coupled_trait`, **byte-identical**) and `traits:genomes` (`TraitGeneRates` → a `ModifiedRates` over `PerCopyRates` + `CouplingModifier`, loss values byte-exact, per-family gain = statistical identity per §6).
 > - ✅ **Sequence tier** — `sequence_bridge.py`: `DriverClock` (`T→Σ` substitution-speed) · `OmegaSelector` (`T→Σ` selection, ω/dN-dS) · `GeneEventOmega` (`G→Σ` selection, post-event relaxed selection). ω rides a small `model_for` hook added to `evolve_on_tree` (backward-compatible) with an ω-class cache.
-> - ⏸️ **Waiting on the rate rename** — the `traits:genomes` rate reframe (sits on `PerCopyRates`/`ModifiedRates`) and P2 into-species (species birth–death).
-> - ⚪ **Remaining follow-ups** — `G→Σ` substitution-speed (per-node `_annotate` factor), the `G↔Σ` concerted-evolution showcase, and CLI/public-API wiring of the new edges.
+> - ⏸️ **Waiting on the rate rename to *merge to main*** — P2 into-species (SSE / key-innovation / cladogenetic; species birth–death, which the `Rates(per=…)` work also touches). The rate code is complete on its branch but not yet in `main`.
+> - ⚪ **Remaining follow-ups** — `G→Σ` substitution-speed (per-node `_annotate` factor), the `G↔Σ` concerted-evolution showcase (research-grade, deferred), and CLI/public-API wiring of the new edges.
 
 ---
 
