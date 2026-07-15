@@ -39,6 +39,21 @@ from zombi2.genomes.events import EventType, TargetParams
 #: on a uniformly chosen gene copy (used for uniform/genome-wise rates and origination).
 EventWeight = namedtuple("EventWeight", ["event", "family", "rate"])
 
+#: A per-event **opportunity override**. Attach a specific opportunity ``unit`` — ``"copy"`` /
+#: ``"lineage"`` / ``"shared"`` — to a single event's ``rate``, overriding the model-level ``per``.
+#: e.g. ``Rates(duplication=Per("shared", 0.5), loss=0.3)`` is a shared duplication clock with per-copy
+#: loss — a *self-limiting* family (births capped tree-wide, deaths growing with copy number). A bare
+#: number uses the model-level ``per``. See ``docs/design/opportunity-knob.md``.
+Per = namedtuple("Per", ["unit", "rate"])
+
+
+def _opportunity(value, default_unit):
+    """Split a rate spec into ``(rate, unit)``: a bare number uses ``default_unit``; a :class:`Per`
+    overrides it with its own unit."""
+    if isinstance(value, Per):
+        return float(value.rate), str(value.unit)
+    return float(value), default_unit
+
 
 def duplication_factor(n: int, carrying_capacity: float | None, max_copies: int | None) -> float:
     """Multiplier on the per-copy duplication rate for a family with ``n`` copies."""
@@ -159,6 +174,16 @@ class Rates(RateModel):
         if per not in ("copy", "lineage", "shared"):
             raise ValueError(f"per must be 'copy', 'lineage', or 'shared', got {per!r}")
         self.per = per
+        # per-event opportunity: duplication/transfer/loss may each be a Per(unit, rate) that
+        # overrides the model-level `per` (e.g. duplication=Per("shared", ...) with per-copy loss).
+        duplication, dup_unit = _opportunity(duplication, per)
+        transfer, transfer_unit = _opportunity(transfer, per)
+        loss, loss_unit = _opportunity(loss, per)
+        self._units = {EventType.DUPLICATION: dup_unit, EventType.TRANSFER: transfer_unit,
+                       EventType.LOSS: loss_unit}
+        for u in self._units.values():
+            if u not in ("copy", "lineage", "shared"):
+                raise ValueError(f"opportunity unit must be 'copy', 'lineage', or 'shared', got {u!r}")
         rates = (("duplication", duplication), ("transfer", transfer), ("loss", loss),
                  ("origination", origination), ("inversion", inversion),
                  ("transposition", transposition), ("translocation", translocation),
@@ -190,7 +215,7 @@ class Rates(RateModel):
         self.fission = float(fission)
         self.fusion = float(fusion)
         self.carrying_capacity = _check_carrying_capacity(carrying_capacity)
-        if self.per in ("lineage", "shared"):
+        if not self._all_copy:
             per_copy_only = {
                 "inversion": self.inversion, "transposition": self.transposition,
                 "translocation": self.translocation, "insertion": self.insertion,
@@ -203,11 +228,40 @@ class Rates(RateModel):
             if set_now or self.carrying_capacity is not None:
                 bad = set_now + (["carrying_capacity"] if self.carrying_capacity is not None else [])
                 raise ValueError(
-                    f"per={self.per!r} supports only duplication/transfer/loss/origination; "
-                    f"remove {', '.join(bad)} (a per-copy notion)")
-        if self.per == "shared" and self.transfer > 0:
-            raise ValueError("per='shared' does not yet support transfer; use duplication/loss "
-                             "(and origination, which stays per lineage)")
+                    "rearrangements / carrying_capacity require every event per-copy (no "
+                    f"per='lineage'/'shared' and no Per(...) overrides); remove {', '.join(bad)}")
+        if self.transfer > 0 and self._units[EventType.TRANSFER] == "shared":
+            raise ValueError("a shared transfer clock is not yet supported; use per-copy/lineage "
+                             "transfer (duplication and loss can be shared)")
+
+    @property
+    def has_shared(self) -> bool:
+        """True if any per-family event rides the ``shared`` opportunity (a tree-wide clock the
+        simulator drives through its shared pool)."""
+        return any(u == "shared" for u in self._units.values())
+
+    @property
+    def _all_copy(self) -> bool:
+        """True if every per-family event is per-copy (the default) — the plain model the Rust engine
+        implements and the only one that carries rearrangements / carrying_capacity."""
+        return all(u == "copy" for u in self._units.values())
+
+    def _mixed_weights(self, genome):
+        """Per-branch weights for a lineage/shared/mixed model: per-copy events scale by copy count,
+        per-lineage events are constant, shared events go to the simulator's pool (not emitted here)."""
+        out: list[EventWeight] = []
+        n = genome.size()
+        for event, rate in ((EventType.DUPLICATION, self.duplication),
+                             (EventType.TRANSFER, self.transfer), (EventType.LOSS, self.loss)):
+            if rate > 0 and n > 0:
+                unit = self._units[event]
+                if unit == "copy":
+                    out.append(EventWeight(event, None, rate * n))
+                elif unit == "lineage":
+                    out.append(EventWeight(event, None, rate))
+        if self.origination > 0:
+            out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
+        return out
 
     def _regulated(self) -> bool:
         # Only the *soft* carrying capacity needs per-family duplication weights. A hard
@@ -216,28 +270,13 @@ class Rates(RateModel):
         return self.carrying_capacity is not None
 
     def event_weights(self, genome, branch, time):
-        if self.per == "shared":
-            # duplication/loss are tree-wide per-family clocks the simulator drives through its
-            # shared pool (see GenomeSimulator); only origination (per lineage, family-agnostic)
-            # fires through the per-branch path here.
-            return ([EventWeight(EventType.ORIGINATION, None, self.origination)]
-                    if self.origination > 0 else [])
-        if self.per == "lineage":
-            # one clock per genome: constant totals (not scaled by copy number), target chosen
-            # uniformly. Only D/T/L/origination apply (rearrangements rejected at construction).
-            out: list[EventWeight] = []
-            if genome.size() > 0:
-                if self.duplication > 0:
-                    out.append(EventWeight(EventType.DUPLICATION, None, self.duplication))
-                if self.transfer > 0:
-                    out.append(EventWeight(EventType.TRANSFER, None, self.transfer))
-                if self.loss > 0:
-                    out.append(EventWeight(EventType.LOSS, None, self.loss))
-            if self.origination > 0:
-                out.append(EventWeight(EventType.ORIGINATION, None, self.origination))
-            return out
+        if not self._all_copy:
+            # any lineage/shared/mixed per-event opportunity → the simple per-event router (shared
+            # events go to the simulator's pool, not here). The full per-copy body below (rearrangements,
+            # regulation, conversion, chromosomes) runs only when every event is per-copy.
+            return self._mixed_weights(genome)
 
-        n = genome.size()   # per == "copy"
+        n = genome.size()   # every per-family event is per-copy (the plain, Rust-eligible model)
         out: list[EventWeight] = []
 
         if self.duplication > 0 and n > 0:
@@ -291,13 +330,10 @@ class Rates(RateModel):
         return out
 
     def shared_event_weights(self, family):
-        if self.per != "shared":
-            return []
         out = []
-        if self.duplication > 0:
-            out.append((EventType.DUPLICATION, self.duplication))
-        if self.loss > 0:
-            out.append((EventType.LOSS, self.loss))
+        for event, rate in ((EventType.DUPLICATION, self.duplication), (EventType.LOSS, self.loss)):
+            if rate > 0 and self._units[event] == "shared":
+                out.append((event, rate))
         return out
 
 

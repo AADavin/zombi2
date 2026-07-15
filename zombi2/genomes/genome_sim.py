@@ -269,7 +269,7 @@ class GenomeSimulator:
         # independent of copy number). They live in a shared pool beside the per-branch Fenwick;
         # the whole mechanism is inert (empty pool) for every other model, so their streams are
         # byte-identical.
-        shared = getattr(rate_model, "per", None) == "shared"
+        shared = getattr(rate_model, "has_shared", False)
         t = t0
         if refresh_all:
             for b in list(alive):

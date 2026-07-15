@@ -24,7 +24,7 @@ from zombi2.genomes.nucleotide_genome import NucleotideGenome, Segment
 from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, NucleotideResult, Block
 from zombi2.genomes.gff import read_gff, read_gff_all, GffGenome
 from zombi2.genomes.rates import (
-    RateModel, Rates,
+    RateModel, Rates, Per,
     PerCopyRates, PerLineageRates,  # deprecated presets for Rates(per=…); importable, not in __all__
     FamilySampledRates,
     LineageRates, Modifier, ModifiedRates, LineageModifier,
@@ -43,7 +43,7 @@ __all__ = [
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
-    "RateModel", "Rates",
+    "RateModel", "Rates", "Per",
     "FamilySampledRates", "LineageRates", "Modifier", "ModifiedRates",
     "LineageModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
