@@ -93,3 +93,40 @@ def test_grammar_classifies_genes_species_as_fuse_and_tree_growing():
     edge = couple("genomes", "species", "speciation", 1.0)   # genomes → species (into-species)
     g = CouplingGraph([edge])
     assert g.grows_tree and g.is_fused(edge)
+
+
+# ── species:traits / species:genomes (cladogenetic overlays) ──────────────────
+import zombi2 as z
+from zombi2.coevolve.species_bridge import (
+    simulate_cladogenetic_genomes, simulate_cladogenetic_trait,
+)
+
+
+def _species_tree(tips=60, seed=1):
+    return z.simulate_species_tree(z.BirthDeath(1, 0.3), n_tips=tips, age=5, seed=seed)
+
+
+def test_cladogenetic_trait_jump_adds_tip_variance():
+    tree = _species_tree()
+    no_jump = simulate_cladogenetic_trait(tree, z.BrownianMotion(sigma2=0.05), jump_sigma2=0.0, seed=1)
+    with_jump = simulate_cladogenetic_trait(tree, z.BrownianMotion(sigma2=0.05), jump_sigma2=3.0, seed=1)
+    var_no = np.var(list(no_jump.values.values()))
+    var_yes = np.var(list(with_jump.values.values()))
+    assert var_yes > var_no                               # cladogenetic jumps spread the tips
+
+
+def test_cladogenetic_genomes_runs_and_is_reproducible():
+    tree = _species_tree(tips=40)
+    kw = dict(initial_families=30, cladogenetic_loss=0.12, cladogenetic_gain=2.0)
+    a = simulate_cladogenetic_genomes(tree, seed=2, **kw)
+    b = simulate_cladogenetic_genomes(tree, seed=2, **kw)
+    assert a.profile_matrix().to_tsv() == b.profile_matrix().to_tsv()   # deterministic given seed
+
+
+def test_grammar_classifies_species_traits_as_an_overlay():
+    # the reverse direction (species → trait) does NOT grow the tree; it overlays a given one
+    edge = couple("species", "traits", "value", 0.3, driver_kind="event")
+    g = CouplingGraph([edge])
+    assert not g.grows_tree
+    assert not g.is_fused(edge)
+    assert g.mode == "directional"
