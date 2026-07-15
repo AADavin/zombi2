@@ -71,3 +71,6 @@ event types drop in as subclasses without touching the engine. See
 - Prefer a narrative? The
   [**Concepts & Tutorial manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf)
   walks through every model with worked examples and figures.
+- Working with the analysis layer? The
+  [**Tools reference manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-tools-manual.pdf)
+  collects the whole [`zombi2.tools`](tools/index.md) surface in one place.
