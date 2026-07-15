@@ -84,3 +84,27 @@ def test_singular_command_aliases_still_work_and_warn(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "deprecated" in err and "traits" in err
     assert (tmp_path / "o" / "traits.log").exists()   # canonical output, whichever spelling was used
+
+
+# C8: the traits:genomes edge's TraitLinked* names were unified onto the TraitGene* stem.
+COEVOLVE_DEPRECATED = {
+    "TraitLinkedRates": "TraitGeneRates",
+    "TraitLinkedResult": "TraitGeneResult",
+    "simulate_trait_linked_genomes": "simulate_trait_conditioned_genomes",
+}
+
+
+@pytest.mark.parametrize("old,new", list(COEVOLVE_DEPRECATED.items()))
+def test_coevolve_traitgene_alias_warns_and_resolves(old, new):
+    """The old TraitLinked* names warn and resolve to the TraitGene* stem, at both the top level
+    and the coevolve namespace; the deep implementation module stays a silent anchor."""
+    import zombi2.coevolve as cv
+    with pytest.warns(DeprecationWarning, match=old):
+        assert getattr(z, old) is getattr(z, new)
+    with pytest.warns(DeprecationWarning, match=old):
+        assert getattr(cv, old) is getattr(cv, new)
+    assert old not in z.__all__ and old not in cv.__all__ and old not in dir(cv)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # the deep module must not warn
+        from zombi2.coevolve import trait_coupling as tc
+        assert getattr(tc, old) is getattr(tc, new)

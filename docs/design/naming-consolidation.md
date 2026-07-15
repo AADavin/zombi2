@@ -398,9 +398,11 @@ The four open forks, resolved 2026-07-14:
    corrupts the class. Do this one file-family at a time, with the ratified `--legacy-filenames` shim,
    updating the ~137 test assertions / 48 write-sites / 79 doc refs in lockstep; rewrites the
    `conventions.md` §Outputs schemas.
-6. **PR 6 (C8) — comment/doc part DONE** (`999ab7c`); the `TraitLinked*`→`TraitGene*` class-stem
-   rename is deferred as internal API churn (needs a coevolve `__getattr__` + `test_api_namespaces`
-   update). `coevolution.md` already documents the edge→class map and cross-references `Cladogenesis`.
+6. **PR 6 (C8) — DONE** — the `__init__` edge→class comment fix (`999ab7c`) plus the
+   `TraitLinked*`→`TraitGene*` class-stem rename (`TraitLinkedRates`→`TraitGeneRates`,
+   `TraitLinkedResult`→`TraitGeneResult`, `simulate_trait_linked_genomes`→`simulate_trait_conditioned_genomes`),
+   with the old names kept as warned aliases (coevolve `__getattr__` + deep-module anchor).
+   `coevolution.md` documents the edge→class map and cross-references `Cladogenesis`.
 7. **0.4.0** — drop every alias and the `--legacy-filenames` shim.
 
 Every PR except PR 2 (the deliberate removal) is byte-identical in simulation output (P4) and green
@@ -410,15 +412,19 @@ on the full suite; the only observable change is warnings on deprecated spelling
 
 Delivered, suite green: **C1** (deprecation machinery + 5 aliases retired), **C9** (ESM purge +
 dead-code fixup), **C2/C3** (rate/modifier/odds docs clarity), **C4** (`--genome-resolution`), **C6**
-(`genomes` node + "level"=domains reframe), **C8** (edge→class comment fix), **C5** (plural commands
-`traits`/`sequences`, singular aliased+warned), and **C7** (every output file/dir lowercased — a
-deliberate breaking change with **no** `--legacy-filenames` shim, per Adrián; file *contents* are
-byte-identical, only the names changed). Everything except C5's run-manifest name and C7's filenames
-is byte-identical output.
+(`genomes` node + "level"=domains reframe), **C8** (edge→class comment fix **and** the
+`TraitLinked*`→`TraitGene*` class-stem rename), **C5** (plural commands `traits`/`sequences`, singular
+aliased+warned), and **C7** (every output file/dir lowercased — a deliberate breaking change with
+**no** `--legacy-filenames` shim, per Adrián; file *contents* are byte-identical, only the names
+changed). Everything except C5's run-manifest name and C7's filenames is byte-identical output.
 
-**Deferred for a separate discussion** (both flagged above): the sequence-clock **`--branch-*` /
-`--family-speed` σ flags** (they are spread parameters, not modifiers) and the **C8
-`TraitLinked*`→`TraitGene*` class-stem rename** (internal API churn).
+**Sequence-clock `--branch-*` flags — DONE** (option 2, per Adrián): folded into the `--clock`
+interface. The discrete-bin knobs are now `--clock-bins` / `--clock-switch-rate` / `--clock-up-bias`
+(old `--branch-*` = deprecated aliases), and `--branch-speed S` = `--clock autocorrelated-lognormal
+--clock-sigma S` (verified byte-identical across every parameter combination). This retires the last
+"branch" residue on the CLI. **The only remaining sliver:** `--family-speed` / `--family-speeds` — a
+*per-family* multiplier σ, not a clock flag, so out of scope for the clock fold; leave it, or rename
+to `--family-sigma` in a later pass.
 
 ## The rule, in one line
 

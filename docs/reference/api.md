@@ -56,10 +56,10 @@ Auto-generated from the source docstrings.
 
 ## Trait-linked gene families
 
-::: zombi2.coevolve.trait_coupling.simulate_trait_linked_genomes
+::: zombi2.coevolve.trait_coupling.simulate_trait_conditioned_genomes
 ::: zombi2.coevolve.trait_coupling.TraitGeneCoupling
-::: zombi2.coevolve.trait_coupling.TraitLinkedResult
-::: zombi2.coevolve.trait_coupling.TraitLinkedRates
+::: zombi2.coevolve.trait_coupling.TraitGeneResult
+::: zombi2.coevolve.trait_coupling.TraitGeneRates
 ::: zombi2.coevolve.trait_coupling.TraitTrajectory
 
 ## Rate models

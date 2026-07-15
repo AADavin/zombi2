@@ -82,8 +82,8 @@ from zombi2.traits import (
     DEC, simulate_biogeography,
 )
 from zombi2.coevolve import (
-    TraitGeneCoupling, TraitTrajectory, TraitLinkedRates, TraitLinkedResult,
-    simulate_trait_linked_genomes,
+    TraitGeneCoupling, TraitTrajectory, TraitGeneRates, TraitGeneResult,
+    simulate_trait_conditioned_genomes,
     GeneDiversification, GeneDiversificationResult, simulate_gene_diversification,
     simulate_co_diversification,
     CladogeneticGenome, CladogeneticGenomeResult, simulate_cladogenetic_genome,
@@ -121,8 +121,8 @@ __all__ = [
     "GenomeSimulator", "GenomeResult", "ProfileMatrix", "simulate_genomes", "Genomes", "GenomeTrace",
     "read_events_trace", "build_gene_trees",
     # trait-conditioned gene families (trait <-> gene-family coupling)
-    "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates", "TraitLinkedResult",
-    "simulate_trait_linked_genomes",
+    "TraitGeneCoupling", "TraitTrajectory", "TraitGeneRates", "TraitGeneResult",
+    "simulate_trait_conditioned_genomes",
     # relaxed molecular clocks (chronogram -> phylogram; the shared lineage clock family)
     "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",
     "UncorrelatedGammaClock", "WhiteNoiseClock", "AutocorrelatedLogNormalClock",
@@ -176,6 +176,10 @@ _DEPRECATED_ALIASES = {
     "BranchRates": "LineageRates",
     "BranchModifier": "LineageModifier",
     "read_branch_rates": "read_lineage_rates",
+    # C8: the traits:genomes edge's TraitLinked* stem was unified to TraitGene*
+    "TraitLinkedRates": "TraitGeneRates",
+    "TraitLinkedResult": "TraitGeneResult",
+    "simulate_trait_linked_genomes": "simulate_trait_conditioned_genomes",
 }
 
 

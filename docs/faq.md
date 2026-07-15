@@ -40,7 +40,7 @@ bit-identical. A given `seed` is reproducible **within** one engine.
 For the **built-in** model (`UnorderedGenome` + `PerCopyRates`, plus the full
 `TransferModel`), yes — it runs on Rust with no silent Python fallback, so `simulate_genomes`
 raises a clear "build the extension" error if it isn't compiled. **Flexible** models
-(`FamilySampledRates`, `PerGenomeRates`, `BranchRates`, soft `carrying_capacity`, ordered or
+(`FamilySampledRates`, `PerLineageRates`, `LineageRates`, soft `carrying_capacity`, ordered or
 nucleotide genomes, a custom `sampler`) run on pure Python automatically and need no Rust. See
 [installation](installation.md) and [the Rust engine](guide/rust-engine.md).
 

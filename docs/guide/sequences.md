@@ -70,7 +70,8 @@ variable. That branch-length dependence is what distinguishes it from UGAM; `sig
 The rate evolves down the tree as a geometric random walk anchored to the parent,
 `R_child = R_parent · exp(𝒩(0, σ·√ℓ))` with `ℓ` the branch length in time. A child's rate is centred
 on its parent's, so nearby lineages have similar rates. `sigma = 0` freezes the walk into a strict
-clock at `root_rate`. This is the shorthand `--branch-speed` clock (Thorne, Kishino & Painter 1998).
+clock at `root_rate`. This is the autocorrelated-lognormal clock (`--clock autocorrelated-lognormal
+--clock-sigma`; Thorne, Kishino & Painter 1998).
 
 #### CIR
 
@@ -268,8 +269,8 @@ zombi2 sequences --genomes run/ --clock uncorrelated-lognormal --clock-sigma 0.5
     --family-speed 0.5 -o run/
 
 # the autocorrelated lognormal and the discrete-bin GTDB clock also have shorthands
-zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 -o run/
-zombi2 sequences --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rate 1.0 \
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 --family-speed 0.5 -o run/
+zombi2 sequences --genomes run/ --clock-bins 0.25,0.5,1,2,4 --clock-switch-rate 1.0 \
     --family-speed 0.5 -o run/
 ```
 
@@ -277,15 +278,16 @@ zombi2 sequences --genomes run/ --branch-bins 0.25,0.5,1,2,4 --branch-switch-rat
 `{strict, autocorrelated-lognormal, uncorrelated-lognormal, uncorrelated-gamma, white-noise, cir,
 discrete-bin}` — with its parameter given by `--clock-sigma` (lognormal / white-noise / CIR spread),
 `--clock-shape` (gamma), `--clock-theta` (CIR mean-reversion), or `--clock-mean` (the target/strict
-rate). `--branch-speed` and `--branch-bins` remain as shorthands for the autocorrelated-lognormal and
-discrete-bin clocks. Parameter defaults are `--clock-mean 1.0`, `--clock-sigma 0.5`,
+rate). The old `--branch-*` spellings (`--branch-speed`, `--branch-bins`, `--branch-switch-rate`,
+`--branch-up-bias`) still work as deprecated aliases — e.g. `--branch-speed S` is
+`--clock autocorrelated-lognormal --clock-sigma S`. Parameter defaults are `--clock-mean 1.0`, `--clock-sigma 0.5`,
 `--clock-shape 3.0`, and `--clock-theta 1.0`. The discrete-bin shorthand also takes
-`--branch-switch-rate` and `--branch-up-bias`.
+`--clock-switch-rate` and `--clock-up-bias`.
 
 `sequence` replays `run/events_trace.tsv`, rebuilds the reconciled gene trees, and writes
 `run/gene_trees/<family>_extant_subst.nwk` (and `_complete_subst.nwk`), plus
 `gene_family_speeds.tsv` and `branch_rates.tsv` recording the drawn `s_g` and `R_b` for
-reproducibility. A lineage clock alone (any `--clock`, `--branch-speed`, or `--branch-bins`) is a
+reproducibility. A lineage clock alone (any `--clock`, `--clock-sigma`, or `--clock-bins`) is a
 shared lineage clock; `--family-speed` alone is per-family speed; together they are the full
 gene × lineage model. `--family-speed SIGMA` draws each family's constant multiplier ~ LogNormal(0, SIGMA).
 
@@ -343,11 +345,11 @@ its records headed by the same `<species>_<gene-id>` labels the leaves carry in 
 
 ```bash
 # DNA alignments (HKY85), 600 bp
-zombi2 sequences --genomes run/ --branch-speed 0.4 --family-speed 0.5 \
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 --family-speed 0.5 \
     --subst-model hky85 --seq-length 600 -o run/
 
 # protein alignments under LG, 300 aa, with +Γ across-site rate heterogeneity
-zombi2 sequences --genomes run/ --branch-speed 0.4 \
+zombi2 sequences --genomes run/ --clock autocorrelated-lognormal --clock-sigma 0.4 \
     --subst-model lg --seq-length 300 --gamma-shape 0.5 -o run/
 ```
 
@@ -439,7 +441,7 @@ zombi2 genomes -t run/species_tree.nwk --dup 0.3 --trans 0.1 --loss 0.3 \
     --orig 0.5 --write trace --seed 1 -o run/
 
 # JC69 — no free parameters
-zombi2 sequences --genomes run/ --subst-model jc69 --branch-speed 0.4 --seed 7 -o jc/
+zombi2 sequences --genomes run/ --subst-model jc69 --clock autocorrelated-lognormal --clock-sigma 0.4 --seed 7 -o jc/
 
 # K80 with a transition/transversion ratio
 zombi2 sequences --genomes run/ --subst-model k80 --kappa 4 --seed 7 -o k80/
@@ -451,11 +453,11 @@ zombi2 sequences --genomes run/ --subst-model hky85 --kappa 4 \
 # GTR: 6 exchangeabilities [AC AG AT CG CT GT] + base freqs, with +Gamma across sites
 zombi2 sequences --genomes run/ --subst-model gtr \
     --gtr-rates 1 2.5 1 1 2.5 1 --base-freqs 0.3 0.2 0.2 0.3 \
-    --gamma-shape 0.5 --branch-speed 0.4 --seed 7 -o gtr/
+    --gamma-shape 0.5 --clock autocorrelated-lognormal --clock-sigma 0.4 --seed 7 -o gtr/
 ```
 
 `--seq-length N` sets the alignment length (default 300); `--root-fasta` seeds each family's root
-from a FASTA instead of a random draw. The `--branch-speed`/`--family-speed`/`--clock` knobs govern
+from a FASTA instead of a random draw. The `--clock-sigma`/`--family-speed`/`--clock` knobs govern
 the relaxed clock that turns the time tree into a phylogram — see the
 [substitution branch-lengths](../cli.md#sequence) section.
 
@@ -595,7 +597,7 @@ select a protein model with `--subst-model` (DNA vs protein is auto-detected fro
 `genomes` run must have been done with `trace` in `--write`. Alignment length is set with
 `--seq-length` (amino acids; default 300), and `--gamma-shape` adds discrete-Gamma across-site rate
 heterogeneity. The empirical models take no further parameters — `S` and `π` are fixed. The lineage
-clock knobs (e.g. `--branch-speed`, `--family-speed`) rescale the trees exactly as for DNA.
+clock knobs (e.g. `--clock-sigma`, `--family-speed`) rescale the trees exactly as for DNA.
 
 ```bash
 # 1) a genomes run recorded with the event trace
@@ -605,7 +607,7 @@ zombi2 genomes -t run/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0
 
 # 2) evolve LG protein alignments along the rescaled gene trees
 zombi2 sequences --genomes run/ --subst-model lg --seq-length 200 \
-    --branch-speed 0.4 --seed 7 -o seqs/
+    --clock autocorrelated-lognormal --clock-sigma 0.4 --seed 7 -o seqs/
 
 # WAG with across-site rate heterogeneity
 zombi2 sequences --genomes run/ --subst-model wag --gamma-shape 0.5 --seed 7 -o seqs/
@@ -769,7 +771,7 @@ zombi2 genomes -t species_tree.nwk -o out --dup 0.3 --loss 0.3 --write trace --s
 
 # GY94 under strong purifying selection (dN/dS = 0.1), 200 codons = 600 bp
 zombi2 sequences --genomes out -o out --subst-model gy94 --omega 0.1 --kappa 3 \
-  --seq-length 200 --branch-speed 0.4 --seed 1
+  --seq-length 200 --clock autocorrelated-lognormal --clock-sigma 0.4 --seed 1
 
 # MG94 with positive selection (dN/dS = 2) and skewed base frequencies
 zombi2 sequences --genomes out -o out --subst-model mg94 --omega 2.0 \

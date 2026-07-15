@@ -142,14 +142,14 @@ content as a record of a trait's history.
 ```python
 from zombi2.species import simulate_species_tree, BirthDeath
 from zombi2.traits import Mk
-from zombi2.coevolve import TraitGeneCoupling, simulate_trait_linked_genomes
+from zombi2.coevolve import TraitGeneCoupling, simulate_trait_conditioned_genomes
 
 tree = simulate_species_tree(BirthDeath(1.0, 0.3), n_tips=60, age=6.0, seed=1)
 
 # a binary aerobic(1)/anaerobic(0) trait, then genes conditioned on it
 coupling = TraitGeneCoupling.build(n_families=40, responsive=0.3, weight=1.0,
                                    effect_loss=3.0, base_loss=0.5, transfer=1.0, seed=1)
-res = simulate_trait_linked_genomes(tree, Mk.equal_rates(2, 0.4), coupling, seed=2)
+res = simulate_trait_conditioned_genomes(tree, Mk.equal_rates(2, 0.4), coupling, seed=2)
 
 res.profiles.presence()        # panel families × extant species (0/1) — the trait-linked data
 res.trait.labeled_values()     # the trait at the tips, from the same run
@@ -217,9 +217,9 @@ The trait value varies *along* each branch, and the simulation follows it exactl
 
 ```python
 from zombi2.traits import BrownianMotion
-from zombi2.coevolve import simulate_trait_linked_genomes
+from zombi2.coevolve import simulate_trait_conditioned_genomes
 
-simulate_trait_linked_genomes(tree, BrownianMotion(0.6), coupling, trait_steps=24, seed=1)
+simulate_trait_conditioned_genomes(tree, BrownianMotion(0.6), coupling, trait_steps=24, seed=1)
 ```
 
 For a binary trait it is usually best to **center** the two states around zero
@@ -237,22 +237,22 @@ coupling = TraitGeneCoupling.build(40, 0.3, weight=1.0, effect_loss=3.0,
 
 #### Reusing an already-simulated trait
 
-`simulate_trait_linked_genomes` accepts either a trait **model** (evolved for you) or an
+`simulate_trait_conditioned_genomes` accepts either a trait **model** (evolved for you) or an
 already-simulated `TraitResult`, so you can inspect or reuse the exact trait the genes were
 conditioned on:
 
 ```python
 from zombi2.traits import simulate_traits, Mk
-from zombi2.coevolve import simulate_trait_linked_genomes
+from zombi2.coevolve import simulate_trait_conditioned_genomes
 
 trait = simulate_traits(tree, Mk.equal_rates(2, 0.4), seed=2)
-res = simulate_trait_linked_genomes(tree, trait, coupling, seed=3)
+res = simulate_trait_conditioned_genomes(tree, trait, coupling, seed=3)
 assert res.trait is trait
 ```
 
 #### The result
 
-`simulate_trait_linked_genomes` returns a `TraitLinkedResult`:
+`simulate_trait_conditioned_genomes` returns a `TraitGeneResult`:
 
 | Access | Meaning |
 | --- | --- |
@@ -422,7 +422,7 @@ from zombi2.coevolve import (
     GeneDiversification, simulate_gene_diversification, simulate_co_diversification,
     CladogeneticGenome, simulate_cladogenetic_genome,
     GeneConditionedTrait, simulate_gene_conditioned_trait,
-    TraitGeneCoupling, simulate_trait_linked_genomes,
+    TraitGeneCoupling, simulate_trait_conditioned_genomes,
     TraitGeneFeedback, simulate_trait_gene_feedback,
 )
 from zombi2.traits import Cladogenesis
@@ -478,7 +478,7 @@ gct = simulate_gene_conditioned_trait(
 coupling = TraitGeneCoupling.build(40, 0.3, weight=1.0, effect_loss=3.0,
                                    base_loss=0.5, transfer=1.0,
                                    state_values=[-1.0, 1.0], seed=1)
-tl = simulate_trait_linked_genomes(tree, z.Mk.equal_rates(2, 0.4), coupling, seed=2)
+tl = simulate_trait_conditioned_genomes(tree, z.Mk.equal_rates(2, 0.4), coupling, seed=2)
 tl.profiles.presence()       # panel families x extant species (the trait-linked data)
 tl.trait                     # the trait the genes were conditioned on
 
