@@ -15,7 +15,7 @@ import zombi2 as z
 from zombi2.coevolve import (
     CID, GeneDiversification, GeneConditionedTrait, CladogeneticGenome, TraitGeneCoupling,
     simulate_gene_diversification, simulate_cladogenetic_genome,
-    simulate_gene_conditioned_trait, simulate_trait_linked_genomes,
+    simulate_gene_conditioned_trait, simulate_trait_conditioned_genomes,
 )
 from zombi2.coevolve.cladogenetic_genome import _branch_count_and_length
 
@@ -260,7 +260,7 @@ def test_trait_gene_coupling_neutral_cuts_both_channels():
     n = coup.null("neutral")
     assert n.effect_loss == 0.0 and n.effect_gain == 0.0
     # still simulates and yields the full panel
-    res = simulate_trait_linked_genomes(_tree(), z.Mk.equal_rates(2, 0.4), n, seed=2)
+    res = simulate_trait_conditioned_genomes(_tree(), z.Mk.equal_rates(2, 0.4), n, seed=2)
     assert res.profiles.presence().shape[0] == 30
 
 
