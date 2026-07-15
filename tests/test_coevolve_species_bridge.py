@@ -9,7 +9,7 @@ classifies the edge as fuse / tree-growing.
 import numpy as np
 import pytest
 
-from zombi2.coevolve.grammar import CouplingGraph, Scalar, Table, couple
+from zombi2.coevolve.grammar import CouplingGraph, Jump, Scalar, Table, couple
 from zombi2.coevolve.species_bridge import (
     musse_from_responses, simulate_gene_driven_diversification,
     simulate_trait_driven_diversification,
@@ -108,8 +108,8 @@ def _species_tree(tips=60, seed=1):
 
 def test_cladogenetic_trait_jump_adds_tip_variance():
     tree = _species_tree()
-    no_jump = simulate_cladogenetic_trait(tree, z.BrownianMotion(sigma2=0.05), jump_sigma2=0.0, seed=1)
-    with_jump = simulate_cladogenetic_trait(tree, z.BrownianMotion(sigma2=0.05), jump_sigma2=3.0, seed=1)
+    no_jump = simulate_cladogenetic_trait(tree, z.BrownianMotion(sigma2=0.05), Jump(), seed=1)
+    with_jump = simulate_cladogenetic_trait(tree, z.BrownianMotion(sigma2=0.05), Jump(scale=3.0), seed=1)
     var_no = np.var(list(no_jump.values.values()))
     var_yes = np.var(list(with_jump.values.values()))
     assert var_yes > var_no                               # cladogenetic jumps spread the tips
@@ -117,9 +117,9 @@ def test_cladogenetic_trait_jump_adds_tip_variance():
 
 def test_cladogenetic_genomes_runs_and_is_reproducible():
     tree = _species_tree(tips=40)
-    kw = dict(initial_families=30, cladogenetic_loss=0.12, cladogenetic_gain=2.0)
-    a = simulate_cladogenetic_genomes(tree, seed=2, **kw)
-    b = simulate_cladogenetic_genomes(tree, seed=2, **kw)
+    jump = Jump(probability=0.12, gain=2.0)
+    a = simulate_cladogenetic_genomes(tree, jump, initial_families=30, seed=2)
+    b = simulate_cladogenetic_genomes(tree, jump, initial_families=30, seed=2)
     assert a.profile_matrix().to_tsv() == b.profile_matrix().to_tsv()   # deterministic given seed
 
 
@@ -130,3 +130,24 @@ def test_grammar_classifies_species_traits_as_an_overlay():
     assert not g.grows_tree
     assert not g.is_fused(edge)
     assert g.mode == "directional"
+
+
+# ── joints: ClaSSE (traits↔species) and co-diversification (genes↔species) ─────
+def test_classe_joint_jumps_the_trait_at_speciation():
+    kw = dict(speciation=Table({0: 1.0, 1: 2.5}), extinction=Table({0: 0.2, 1: 0.2}),
+              n_tips=120, root_state=0)
+    plain = simulate_trait_driven_diversification([0, 1], _Q2, seed=4, **kw)
+    classe = simulate_trait_driven_diversification([0, 1], _Q2, cladogenesis=Jump(probability=0.4),
+                                                   seed=4, **kw)
+    assert len(plain.values) == len(classe.values) == 120     # both grow the tree
+    # ClaSSE also shifts the state at each split → the seeded runs diverge
+    assert ({n.name: s for n, s in plain.values.items()}
+            != {n.name: s for n, s in classe.values.items()})
+
+
+def test_co_diversification_joint_runs_with_a_founder_burst():
+    res = simulate_gene_driven_diversification(
+        3, speciation=Scalar(1.2), root_drivers=1,
+        cladogenesis=Jump(probability=0.1, gain=1.0), n_tips=120, seed=5)
+    assert len(res.tree.extant_leaves()) == 120
+    assert len(res.tip_prevalence()) == 3                     # the joint reshuffles the driver panel
