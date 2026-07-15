@@ -197,7 +197,12 @@ Not all rungs cost the same. In rough order of effort:
   inert for every other model, so those stay byte-identical (mechanism (a), the global pool). v1 scope:
   unordered genomes, dup/loss (transfer/rearrangements rejected), origination stays per-lineage;
   `FamilySampledRates(per="shared")` and the full declarative interface (step 4) deferred. *(shipped)*
-- **D — Per-event mixing.** `Per(unit, rate)` overrides → self-limiting and mixed models.
+- **D — Per-event mixing.** ✅ `Rates(duplication=Per("shared", …), loss=Per("copy", …))` — each event
+  carries its own opportunity via `Per(unit, rate)`, overriding the model-level `per`. Enables the
+  self-limiting family (shared birth + per-copy loss). Byte-identical for non-mixed models: the plain
+  per-copy body runs only when every event is per-copy (`_all_copy`), and the lineage/shared/mixed
+  router reproduces the old branches exactly; the engine's shared flag became "any event shared"
+  (`has_shared`). API-only for now (no per-event CLI flags). *(shipped)*
 - **E — Sequences `site`.** Name the axis at the nucleotide level.
 
 ## Decisions (resolved with Adrián, 2026-07-15)

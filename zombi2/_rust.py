@@ -68,7 +68,7 @@ def eligible(rates, genome_factory, sampler) -> bool:
         genome_factory is UnorderedGenome
         and sampler is None
         and isinstance(rates, Rates)
-        and rates.per == "copy"
+        and rates._all_copy
         and rates.carrying_capacity is None
         and not rates.inversion
         and not rates.transposition
@@ -96,9 +96,9 @@ class _FastNucleotideResult(NucleotideResult):
 
 def _resolve_rates(rates):
     """Return (d, t, l, o) from a PerCopyRates, rejecting features Rust does not implement."""
-    if not isinstance(rates, Rates) or rates.per != "copy":
+    if not isinstance(rates, Rates) or not rates._all_copy:
         raise TypeError(
-            f"the Rust engine only supports Rates(per='copy'), not {type(rates).__name__}; "
+            f"the Rust engine only supports a plain per-copy Rates, not {type(rates).__name__}; "
             f"use simulate_genomes for that model"
         )
     unsupported = []
