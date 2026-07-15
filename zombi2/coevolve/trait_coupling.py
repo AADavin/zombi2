@@ -35,7 +35,7 @@ later).
 
 Only the family-side rate model is new; the simulator, genome and output are untouched, so a
 coupled run reuses the whole pipeline (profiles, gene trees, reconciliations) via
-:meth:`TraitLinkedResult.genomes`.
+:meth:`TraitGeneResult.genomes`.
 """
 
 from __future__ import annotations
@@ -310,7 +310,7 @@ def _resolve_responsive(n: int, responsive, rng) -> list[int]:
 # ═══════════════════════════════════════════════════════════════════════════════
 # The rate model
 # ═══════════════════════════════════════════════════════════════════════════════
-class TraitLinkedRates(RateModel):
+class TraitGeneRates(RateModel):
     """Trait-conditioned loss over a fixed family panel, plus field-blind transfer gain.
 
     For every present family it emits a per-family loss weight — ``base_loss·copies`` for an
@@ -364,8 +364,8 @@ class TraitLinkedRates(RateModel):
 # Driving a trait-linked simulation
 # ═══════════════════════════════════════════════════════════════════════════════
 @dataclass
-class TraitLinkedResult:
-    """Output of :func:`simulate_trait_linked_genomes`.
+class TraitGeneResult:
+    """Output of :func:`simulate_trait_conditioned_genomes`.
 
     ``profiles`` is the ``N × extant-species`` panel matrix (all panel rows kept, including
     all-absent ones); ``trait`` is the :class:`~zombi2.traits.TraitResult` the genes were
@@ -415,7 +415,7 @@ def _panel_profile(leaf_genomes, coupling: TraitGeneCoupling) -> ProfileMatrix:
     return ProfileMatrix(families=list(coupling.panel_ids), species=species, coo=(rows, cols, data))
 
 
-def simulate_trait_linked_genomes(
+def simulate_trait_conditioned_genomes(
     tree: Tree,
     trait,
     coupling: TraitGeneCoupling,
@@ -425,7 +425,7 @@ def simulate_trait_linked_genomes(
     rng: np.random.Generator | None = None,
     transfers: TransferModel | None = None,
     initial_presence=None,
-) -> TraitLinkedResult:
+) -> TraitGeneResult:
     """Simulate gene families along ``tree`` conditioned on a trait.
 
     ``trait`` is either a trait **model** (e.g. :class:`~zombi2.Mk`, :class:`~zombi2.BrownianMotion`)
@@ -453,13 +453,13 @@ def simulate_trait_linked_genomes(
             raise ValueError(f"initial_presence must have shape ({coupling.n_families},)")
         seed_families = [fam for fam, on in zip(coupling.panel_ids, mask) if on]
 
-    rates = TraitLinkedRates(coupling, trajectory)
+    rates = TraitGeneRates(coupling, trajectory)
     tm = transfers if transfers is not None else TransferModel(replacement=1.0)
     gres = GenomeSimulator().simulate(
         tree, rates, rng, initial_size=0, transfers=tm,
         genome_factory=_seed_panel_factory(seed_families),
     )
-    return TraitLinkedResult(
+    return TraitGeneResult(
         species_tree=tree,
         profiles=_panel_profile(gres.leaf_genomes, coupling),
         trait=result,
@@ -467,3 +467,13 @@ def simulate_trait_linked_genomes(
         event_log=gres.event_log,
         coupling=coupling,
     )
+
+
+# Backwards-compatible aliases — the ``traits:genomes`` edge standardised on the ``TraitGene*`` stem
+# (matching its config :class:`TraitGeneCoupling` and the joint :class:`TraitGeneFeedback`); the old
+# ``TraitLinked*`` names named the same edge. They remain the **same objects**, so existing deep
+# imports (``from zombi2.coevolve.trait_coupling import TraitLinkedRates``) keep working silently;
+# the package surfaces (``zombi2`` / ``zombi2.coevolve``) resolve them with a DeprecationWarning.
+TraitLinkedRates = TraitGeneRates
+TraitLinkedResult = TraitGeneResult
+simulate_trait_linked_genomes = simulate_trait_conditioned_genomes

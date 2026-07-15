@@ -40,7 +40,7 @@ from zombi2.coevolve.cladogenetic_genome import (
     CladogeneticGenome, simulate_cladogenetic_genome, _branch_count_and_length,
 )
 from zombi2.coevolve.gene_conditioned_trait import GeneConditionedTrait, simulate_gene_conditioned_trait
-from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_linked_genomes
+from zombi2.coevolve.trait_coupling import TraitGeneCoupling, simulate_trait_conditioned_genomes
 from zombi2.coevolve.trait_gene_feedback import TraitGeneFeedback, simulate_trait_gene_feedback
 from zombi2.traits.models import (
     BrownianMotion, OrnsteinUhlenbeck, EarlyBurst, Mk, ThresholdModel, TraitResult,
@@ -954,7 +954,7 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
 
     # 3) run
     t0 = time.perf_counter()
-    res = simulate_trait_linked_genomes(tree, result, coupling, trait_steps=args.trait_steps, rng=rng)
+    res = simulate_trait_conditioned_genomes(tree, result, coupling, trait_steps=args.trait_steps, rng=rng)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.out, exist_ok=True)
@@ -1400,7 +1400,7 @@ def _run_traits_genes_cid_null(args: argparse.Namespace, parser: argparse.Argume
         transfer=args.trans, duplication=args.dup, origination=args.orig,
         state_values=state_values, rng=rng)
     t0 = time.perf_counter()
-    res = simulate_trait_linked_genomes(tree, hidden_trait, coupling, trait_steps=args.trait_steps,
+    res = simulate_trait_conditioned_genomes(tree, hidden_trait, coupling, trait_steps=args.trait_steps,
                                         rng=rng)
     observed_trait = simulate_traits(tree, _build_trait_model(args), rng=rng)   # independent, decoupled
     dt = time.perf_counter() - t0

@@ -68,8 +68,8 @@ NAMESPACES = {
         "is_codon_site_model", "CODON_SITE_MODELS",
     ],
     "coevolve": [
-        "TraitGeneCoupling", "TraitTrajectory", "TraitLinkedRates",
-        "TraitLinkedResult", "simulate_trait_linked_genomes",
+        "TraitGeneCoupling", "TraitTrajectory", "TraitGeneRates",
+        "TraitGeneResult", "simulate_trait_conditioned_genomes",
         "GeneDiversification", "GeneDiversificationResult",
         "simulate_gene_diversification", "simulate_co_diversification",
         "CladogeneticGenome", "CladogeneticGenomeResult",
@@ -128,7 +128,7 @@ def test_from_import_style_works():
     from zombi2.traits import OrnsteinUhlenbeck
     from zombi2.sequences import lg, StrictClock, UncorrelatedLogNormalClock
     from zombi2.genomes import simulate_genomes
-    from zombi2.coevolve import simulate_trait_linked_genomes
+    from zombi2.coevolve import simulate_trait_conditioned_genomes
     from zombi2.distributions import Gamma
 
     assert DiversityDependent is z.DiversityDependent
@@ -138,7 +138,7 @@ def test_from_import_style_works():
     assert StrictClock is z.StrictClock
     assert UncorrelatedLogNormalClock is z.UncorrelatedLogNormalClock
     assert simulate_genomes is z.simulate_genomes
-    assert simulate_trait_linked_genomes is z.simulate_trait_linked_genomes
+    assert simulate_trait_conditioned_genomes is z.simulate_trait_conditioned_genomes
     assert Gamma is z.Gamma
 
 

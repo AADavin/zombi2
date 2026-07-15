@@ -45,6 +45,11 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   sequences).
 - **Coevolve nodes standardise on `genomes`** (C6): `--couple traits:genomes`, `genomes:species`,
   etc. The old node spelling `genes` is still accepted but warns — one domain word everywhere.
+- **Coevolve `traits:genomes` classes use one stem** (C8): `TraitLinkedRates`, `TraitLinkedResult`,
+  and `simulate_trait_linked_genomes` were renamed to `TraitGeneRates`, `TraitGeneResult`, and
+  `simulate_trait_conditioned_genomes` — matching the edge's config (`TraitGeneCoupling`) and its
+  joint model (`TraitGeneFeedback`), so the whole edge reads with one `TraitGene*` stem. The old
+  names still work but warn (removed in 0.4.0).
 - **CLI commands are plural nouns** (C5): `zombi2 traits` and `zombi2 sequences` (matching `species`
   / `genomes`, the packages, and the guide). The singular `trait` / `sequence` still work but warn.
   The run-manifest filename follows the command, so these runs now write `traits.log` / `sequences.log`
