@@ -24,6 +24,13 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   per-family heterogeneity and the opportunity are now **independently selectable** (per-family × per-
   lineage no longer needs the modifier route). CLI `--rate-per` gains a `--per` alias. Same seed →
   byte-identical (Rust and Python paths).
+- **Per-event opportunity mixing (`Per(unit, rate)`)** — each of a gene family's duplication / loss /
+  transfer rates can carry its **own** opportunity, overriding the model-level `per` (Part 3, phase D).
+  `Rates(duplication=Per("shared", 0.5), loss=Per("copy", 0.3))` is a **self-limiting** family: a shared
+  (tree-wide) duplication clock with per-copy loss, so births are capped while deaths grow with copy
+  number and the family stays bounded near `copies ≈ dup/loss` instead of exploding. Exposed as
+  `zombi2.Per`; API-only for now. Rearrangements / `carrying_capacity` require every event per-copy, and
+  a shared *transfer* clock is not yet supported. Byte-identical for every non-mixed model.
 - **Shared gene-family clock (`Rates(per="shared")`)** — the gene analogue of `SharedBirthDeath`
   (Part 3, phase C). Duplication and loss become **one tree-wide clock per family**: the total rate is
   a constant regardless of how many lineages carry the family or how many copies it holds, so the

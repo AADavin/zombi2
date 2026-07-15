@@ -65,7 +65,7 @@ def test_presets_warn_and_left_public_api():
 def test_validation():
     with pytest.raises(ValueError, match="per must be"):
         z.Rates(duplication=0.3, per="bogus")
-    with pytest.raises(ValueError, match="supports only"):
+    with pytest.raises(ValueError, match="per-copy"):
         z.Rates(duplication=0.3, per="lineage", inversion=0.1)   # rearrangements are per-copy
     with pytest.raises(ValueError, match="transfer"):
         z.Rates(duplication=0.3, transfer=0.1, per="shared")     # transfer not yet supported for shared
@@ -86,6 +86,30 @@ def test_per_shared_is_one_tree_wide_clock():
     lineage = [n_dups(z.Rates(duplication=0.6, per="lineage"), s) for s in range(40)]
     assert 2.0 < np.mean(shared) < 4.5          # ≈ 0.6 × 5 = 3, not scaled by the many lineages
     assert np.mean(lineage) > 3 * np.mean(shared)  # per-lineage scales with the lineage count → far more
+
+
+def test_per_event_mixing_is_self_limiting():
+    # Per(unit, rate) overrides the model-level `per` for one event: a shared duplication clock with
+    # per-copy loss is a *self-limiting* family (births capped tree-wide, deaths grow with copy count),
+    # so the family stays bounded near the equilibrium copies ≈ dup/loss rather than exploding.
+    tree = _tree()
+    mixed = z.Rates(duplication=z.Per("shared", 1.0), loss=z.Per("copy", 0.5))
+    assert mixed.has_shared and not mixed._all_copy
+    assert not _rust.eligible(mixed, UnorderedGenome, None)   # mixed → Python engine
+    g = z.simulate_genomes(tree, mixed, initial_families=1, seed=3)
+    assert max((gm.copy_number("1") for gm in g.leaf_genomes.values()), default=0) < 8   # bounded
+    # a plain per-copy Rates is untouched — still the Rust-eligible model
+    assert z.Rates(duplication=0.5)._all_copy
+    assert _rust.eligible(z.Rates(duplication=0.5), UnorderedGenome, None)
+
+
+def test_per_event_validation():
+    with pytest.raises(ValueError, match="transfer"):
+        z.Rates(transfer=z.Per("shared", 0.1))                       # shared transfer not supported
+    with pytest.raises(ValueError, match="per-copy"):
+        z.Rates(duplication=z.Per("shared", 0.5), inversion=0.1)     # rearrangements need all per-copy
+    with pytest.raises(ValueError, match="unit"):
+        z.Rates(duplication=z.Per("bogus", 0.5))
 
 
 def test_modifiers_reject_a_shared_base():

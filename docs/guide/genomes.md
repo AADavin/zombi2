@@ -74,6 +74,12 @@ base model).
 | **FamilySampledRates** | each family draws its own D/T/L (ZOMBI1 style) | families should differ in their evolutionary rates |
 | **LineageRates** | a per-lineage factor scaling any base model | rates vary across the species tree (relaxed clock) |
 
+!!! note "Counting shared-clock events"
+    Under `Rates(per="shared")` the expected number of duplications is `base × elapsed time` — but that
+    is *conditional on the family surviving*. When a family can die out (few copies, or loss ≥ duplication)
+    the shared clock correctly stops once no lineage carries it, so the realized average runs a little
+    lower than `base × time`.
+
 #### Rates — every family the same
 
 Every gene family shares the same per-copy `duplication`, `transfer`, and `loss` rates, plus a

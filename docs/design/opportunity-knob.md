@@ -1,6 +1,7 @@
 # Design: opportunity as a first-class knob (opportunity, Part 3)
 
-**Status:** proposed (2026-07-15). The third and final part of the opportunity line
+**Status:** shipped (2026-07-15) — phases **A–E complete** (PR #147 = A–C, PR #149 = D–E). The third
+and final part of the opportunity line
 ([opportunity](opportunity.md) — Parts 1 (docs) and 2 (`SharedBirthDeath`) shipped in PR #146). Where
 Part 1 *taught* the opportunity axis and Part 2 *added the one missing model*, Part 3 makes
 **opportunity a thing you select**, not a thing you pick a class for. The goal, in Adrián's words:
@@ -197,8 +198,17 @@ Not all rungs cost the same. In rough order of effort:
   inert for every other model, so those stay byte-identical (mechanism (a), the global pool). v1 scope:
   unordered genomes, dup/loss (transfer/rearrangements rejected), origination stays per-lineage;
   `FamilySampledRates(per="shared")` and the full declarative interface (step 4) deferred. *(shipped)*
-- **D — Per-event mixing.** `Per(unit, rate)` overrides → self-limiting and mixed models.
-- **E — Sequences `site`.** Name the axis at the nucleotide level.
+- **D — Per-event mixing.** ✅ `Rates(duplication=Per("shared", …), loss=Per("copy", …))` — each event
+  carries its own opportunity via `Per(unit, rate)`, overriding the model-level `per`. Enables the
+  self-limiting family (shared birth + per-copy loss). Byte-identical for non-mixed models: the plain
+  per-copy body runs only when every event is per-copy (`_all_copy`), and the lineage/shared/mixed
+  router reproduces the old branches exactly; the engine's shared flag became "any event shared"
+  (`has_shared`). API-only for now (no per-event CLI flags). *(shipped)*
+- **E — Sequences `site`.** ✅ The finest rung is named **`site`** across the docs (the rates primer's
+  opportunity tables use `shared / lineage / copy / site`, and state the nesting `site ⊂ copy ⊂ lineage`
+  explicitly). Substitution and nucleotide-indel rates are per-site by construction (no copy/lineage
+  alternative), so this is a naming/vocabulary completion — the same axis, named the same way at every
+  level. *(shipped)*
 
 ## Decisions (resolved with Adrián, 2026-07-15)
 
