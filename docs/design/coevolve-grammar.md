@@ -7,7 +7,7 @@
 > - ✅ **Genome rate bridge** — `rate_bridge.py`: `CouplingModifier` (a `Modifier`); verified `null == base` byte-identical.
 > - ✅ **P1 trait–gene pair reframed** — `genomes:traits` (`walk_optimum_coupled_trait`, **byte-identical**) and `traits:genomes` (`TraitGeneRates` → a `ModifiedRates` over `PerCopyRates` + `CouplingModifier`, loss values byte-exact, per-family gain = statistical identity per §6).
 > - ✅ **Sequence tier** — `sequence_bridge.py`: `DriverClock` (`T→Σ` substitution-speed) · `OmegaSelector` (`T→Σ` selection, ω/dN-dS) · `GeneEventOmega` (`G→Σ` selection, post-event relaxed selection). ω rides a small `model_for` hook added to `evolve_on_tree` (backward-compatible) with an ω-class cache.
-> - ⏸️ **Waiting on the rate rename to *merge to main*** — P2 into-species (SSE / key-innovation / cladogenetic; species birth–death, which the `Rates(per=…)` work also touches). The rate code is complete on its branch but not yet in `main`.
+> - 🔵 **P2 into-species (started)** — rebased onto current main (rate rename PR #151 merged). `species_bridge.py` `simulate_trait_driven_diversification` runs the **traits:species** edge (SSE) through the grammar (a `Table` response → per-state birth/death). Remaining P2: `genes:species` (key innovation), `species:traits`/`species:genomes` (cladogenetic), and the joints (ClaSSE / co-diversification / feedback).
 > - ⚪ **Remaining follow-ups** — `G→Σ` substitution-speed (per-node `_annotate` factor), the `G↔Σ` concerted-evolution showcase (research-grade, deferred), and CLI/public-API wiring of the new edges.
 
 ---
