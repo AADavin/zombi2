@@ -296,7 +296,7 @@ def test_cli_species_genes_timing_writes_output_and_manifest(tmp_path):
                "--genome-size", "25", "--clado-gene-loss", "0.15", "--clado-gene-gain", "3",
                "--null", "timing", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists()
+    assert (out / "profiles.tsv").exists()
     assert "null\ttiming" in (out / "null_manifest.tsv").read_text()
 
 
@@ -324,7 +324,7 @@ def test_cli_genes_species_cid_workflow(tmp_path):
                "--driver-speciation", "1.4", "--tips", "40", "--seed", "1", "--null", "cid",
                "--genome-size", "25", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists()                       # the observed neutral genome
+    assert (out / "profiles.tsv").exists()                       # the observed neutral genome
     assert (out / "drivers_ground_truth.tsv").exists()           # the hidden drivers
     assert "null\tcid" in (out / "null_manifest.tsv").read_text()
 
@@ -335,7 +335,7 @@ def test_cli_genes_traits_cid_workflow(tmp_path):
                "--modifier-gain", "0.6", "--modifier-loss", "0.6", "--theta-present", "5",
                "--seed", "2", "--null", "cid", "--genome-size", "20", "-o", str(out)])
     assert rc == 0
-    assert (out / "Profiles.tsv").exists() and (out / "traits.tsv").exists()
+    assert (out / "profiles.tsv").exists() and (out / "traits.tsv").exists()
     assert (out / "modifier_ground_truth.tsv").exists()          # the hidden modifier
 
 
@@ -371,7 +371,7 @@ def test_cli_traits_genes_cid_observed_trait_is_decoupled(tmp_path):
                "--panel", "50", "--responsive", "0.8", "--effect-loss", "5", "--loss", "0.5",
                "--trans", "1.0", "--seed", "5", "--null", "cid", "--write", "profiles", "-o", str(out)])
     assert rc == 0
-    occ = _read_presence(out / "Presence.tsv")
+    occ = _read_presence(out / "presence.tsv")
     gap_hidden = _state_gap(occ, _read_trait(out / "trait_ground_truth.tsv"))
     gap_observed = _state_gap(occ, _read_trait(out / "traits.tsv"))
     # the panel strongly tracks the HIDDEN driver; the OBSERVED trait keeps only the faint

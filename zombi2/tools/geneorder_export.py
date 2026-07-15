@@ -7,14 +7,14 @@ the formats gene-order studies want. Inputs, by format:
 - ``BED/<node>.bed`` (written by ``--write bed``) — each node's genes in genome order, with
   orientation. This *is* the reconstructed gene order at every node, so the order-based formats
   read it directly rather than re-simulating.
-- ``Geneorder_events.tsv`` (written by ``--write geneorder``) — the structural-event log with
+- ``geneorder_events.tsv`` (written by ``--write geneorder``) — the structural-event log with
   breakpoints, used for the event-count formats.
 - ``species_tree.nwk`` — the tree, to walk parent→child edges.
 
 Implemented: ``breakpoints`` (adjacencies broken on each tree edge), ``gff`` (every node's genes as
 one GFF3) and ``posortho`` (positional ortholog sets over the leaves) — all from the per-node BED
 gene orders. ``ffgc`` and a gene-level ``dupinfo`` are planned (see docs/design/geneorder-export.md:
-dupinfo needs ``Reconciliation_events.tsv`` to carry the user gene name rather than the internal
+dupinfo needs ``reconciliation_events.tsv`` to carry the user gene name rather than the internal
 segment id, a small genomes-side fix).
 """
 
@@ -24,7 +24,7 @@ import os
 
 from zombi2.tree import read_newick
 
-BED_DIR = "BED"
+BED_DIR = "bed"
 SPECIES_TREE = "species_tree.nwk"
 
 
@@ -118,7 +118,7 @@ def broken_adjacencies(genomes_dir: str) -> list[tuple[str, str, list[str]]]:
 
 
 def breakpoints_tsv(genomes_dir: str) -> str:
-    """``Breakpoints.tsv`` text: one row per broken adjacency, ``parent  child  adjacency``."""
+    """``breakpoints.tsv`` text: one row per broken adjacency, ``parent  child  adjacency``."""
     rows = ["parent\tchild\tadjacency"]
     for parent, child, broken in broken_adjacencies(genomes_dir):
         for adj in broken:
@@ -173,7 +173,7 @@ def positional_orthologs(genomes_dir: str) -> dict[str, list[tuple[str, int, int
 
 
 def posortho_tsv(genomes_dir: str) -> str:
-    """``Positional_orthologs.tsv``: ``family  leaf  strand  start`` — one row per gene occurrence."""
+    """``positional_orthologs.tsv``: ``family  leaf  strand  start`` — one row per gene occurrence."""
     sets = positional_orthologs(genomes_dir)
     rows = ["family\tleaf\tstrand\tstart"]
     for family in sorted(sets):

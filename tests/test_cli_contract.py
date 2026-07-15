@@ -34,9 +34,9 @@ def test_write_reconciliations_produces_scorable_truth(tmp_path, capsys):
                "--initial-families", "6", "--seed", "7", "--write", "reconciliations",
                "-o", str(out)])
     assert rc == 0
-    for name in ("Reconciled_complete.nwk", "Reconciled_extant.nwk", "Reconciliation_events.tsv"):
+    for name in ("reconciled_complete.nwk", "reconciled_extant.nwk", "reconciliation_events.tsv"):
         assert (out / name).exists(), name
-    extant_file = out / "Reconciled_extant.nwk"
+    extant_file = out / "reconciled_extant.nwk"
     lines = extant_file.read_text().strip().splitlines()
     assert lines, "no reconciled gene trees written"
     assert lines[0].endswith(";") and "|" in lines[0]      # tips are <species>|<gid>
@@ -62,7 +62,7 @@ def test_write_reconciliations_nucleotide(tmp_path):
                "--dup", "0.2", "--loss", "0.2", "--seed", "3",
                "--write", "reconciliations", "-o", str(out)])
     assert rc == 0
-    assert (out / "Reconciled_extant.nwk").exists()
+    assert (out / "reconciled_extant.nwk").exists()
 
 
 @pytest.mark.parametrize("extra, needle", [
@@ -93,4 +93,4 @@ def test_threads_gt1_valid_combo_still_runs(tmp_path):
     rc = main(["genomes", "-t", sp, "--dup", "0.2", "--loss", "0.2",
                "--write", "profiles", "--threads", "4", "-o", str(tmp_path / "ok")])
     assert rc == 0
-    assert (tmp_path / "ok" / "Profiles.tsv").exists()
+    assert (tmp_path / "ok" / "profiles.tsv").exists()

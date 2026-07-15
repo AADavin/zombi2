@@ -17,11 +17,11 @@ from zombi2.genomes.rates import RateModel, PerCopyRates
 from zombi2.tree import Tree
 
 
-#: Header of the compact single-file event trace (``Events_trace.tsv``): one row per event
+#: Header of the compact single-file event trace (``events_trace.tsv``): one row per event
 #: (O/D/T/L/S), the scalable alternative to the per-family ``gene_family_events/`` directory.
 EVENTS_TRACE_HEADER = ("time\tevent\tbranch\tdonor\trecipient\tfamily\tparent\tchild1\tchild2")
 
-#: Header of the per-species-branch event summary (``Branch_events.tsv``): one row per branch of
+#: Header of the per-species-branch event summary (``branch_events.tsv``): one row per branch of
 #: the species tree, with the count of each gene-family event that fired on it. Transfers are split
 #: into ``transfer_out`` (this branch is the donor) and ``transfer_in`` (the recipient). ``is_extant``
 #: flags the branches that survive to the present, so a table restricted to the *extant* tree is
@@ -31,7 +31,7 @@ BRANCH_EVENTS_HEADER = (
     "\tloss\tinversion\ttransposition\ttotal"
 )
 
-#: Event kinds that are counted, per firing branch, in ``Branch_events.tsv`` (transfers are handled
+#: Event kinds that are counted, per firing branch, in ``branch_events.tsv`` (transfers are handled
 #: separately because they touch two branches). The value is the column name.
 _BRANCH_EVENT_COLUMNS = {
     EventType.ORIGINATION: "origination",
@@ -83,7 +83,7 @@ def branch_events_table(event_log, species_tree) -> str:
     *extant* species tree is this file filtered to ``is_extant == 1``.
 
     Counts follow the event log's own granularity, so a multi-gene transfer on an ordered genome
-    contributes one row per gene — matching ``Transfers.tsv``. The compact trace path routes here
+    contributes one row per gene — matching ``transfers.tsv``. The compact trace path routes here
     through :meth:`Genomes.write`, so speciation markers are already reinstated.
     """
     counts: dict[str, dict[str, int]] = {}
@@ -130,14 +130,14 @@ def _write_tree_and_nodes(out: Path, tree: Tree) -> None:
 def _write_profiles(out: Path, profiles: ProfileMatrix, sparse: bool) -> None:
     """Write the copy-number profile: one sparse long table, or the dense matrix pair."""
     if sparse:
-        (out / "Profiles_sparse.tsv").write_text(profiles.to_coo_tsv())
+        (out / "profiles_sparse.tsv").write_text(profiles.to_coo_tsv())
     else:
-        (out / "Profiles.tsv").write_text(profiles.to_tsv())
-        (out / "Presence.tsv").write_text(profiles.to_tsv(presence=True))
+        (out / "profiles.tsv").write_text(profiles.to_tsv())
+        (out / "presence.tsv").write_text(profiles.to_tsv(presence=True))
 
 
 def _write_reconciliations(out: Path, recons: dict) -> None:
-    """Write annotated reconciled gene trees: ``Reconciled_complete.nwk`` / ``Reconciled_extant.nwk``
+    """Write annotated reconciled gene trees: ``reconciled_complete.nwk`` / ``reconciled_extant.nwk``
     (one family per line — tips ``<species>|<gid>``, internal labels ``<species-branch>|<EVENT>``,
     the format ``tools recon-accuracy`` and ``tools reconcile`` read) plus a flat S/D/T/L event
     table. Mirrors ``tools simulate``'s ground-truth output so a simulated truth can be scored."""
@@ -151,13 +151,13 @@ def _write_reconciliations(out: Path, recons: dict) -> None:
         for e in recon.events:
             ev.append(f"{fam}\t{e.event}\t{e.species}\t{e.recipient or ''}\t"
                       f"{e.time:.10g}\t{e.gene or ''}")
-    (out / "Reconciled_complete.nwk").write_text("\n".join(complete) + ("\n" if complete else ""))
-    (out / "Reconciled_extant.nwk").write_text("\n".join(extant) + ("\n" if extant else ""))
-    (out / "Reconciliation_events.tsv").write_text("\n".join(ev) + "\n")
+    (out / "reconciled_complete.nwk").write_text("\n".join(complete) + ("\n" if complete else ""))
+    (out / "reconciled_extant.nwk").write_text("\n".join(extant) + ("\n" if extant else ""))
+    (out / "reconciliation_events.tsv").write_text("\n".join(ev) + "\n")
 
 
 def events_trace_from_log(event_log) -> str:
-    """Serialise an :class:`~zombi2.events.EventLog` as the compact ``Events_trace.tsv`` text.
+    """Serialise an :class:`~zombi2.events.EventLog` as the compact ``events_trace.tsv`` text.
 
     One row per event; the gene-lineage ids are the record's ``parent -> child1[,child2]``
     gids (empty when the event has no children). This is the record-based writer; the Rust
@@ -174,7 +174,7 @@ def events_trace_from_log(event_log) -> str:
     return "\n".join(rows) + "\n"
 
 
-#: Header of ``Geneorder_events.tsv`` — the structural-event log with *positional* columns, one
+#: Header of ``geneorder_events.tsv`` — the structural-event log with *positional* columns, one
 #: row per event across every branch (filter on ``branch`` for the per-branch view). ``chrom /
 #: start / length / strand`` are the physical arc the event acted on (half-open ``[start,
 #: start+length)`` on the acting genome, circular), empty for events with no region (e.g. a plain
@@ -184,7 +184,7 @@ GENEORDER_EVENTS_HEADER = (
 
 
 def geneorder_events_from_log(event_log) -> str:
-    """Serialise an :class:`~zombi2.events.EventLog` as ``Geneorder_events.tsv`` text.
+    """Serialise an :class:`~zombi2.events.EventLog` as ``geneorder_events.tsv`` text.
 
     Native zombi2 coordinates: the ``region`` on each record is the physical arc of the operation
     (``[start, start+length)``, half-open, circular). ``dest`` is the paste / insert position for a
@@ -212,7 +212,7 @@ def geneorder_events_from_log(event_log) -> str:
 
 
 def read_events_trace(text: str, species_tree=None) -> dict:
-    """Parse ``Events_trace.tsv`` text back into ``{family: [EventRecord]}`` (time-ordered).
+    """Parse ``events_trace.tsv`` text back into ``{family: [EventRecord]}`` (time-ordered).
 
     The inverse of :func:`events_trace_from_log`. Each row rebuilds one
     :class:`~zombi2.events.EventRecord`; only the gene-lineage genealogy is recovered (``GeneOp``
@@ -234,7 +234,7 @@ def read_events_trace(text: str, species_tree=None) -> dict:
     if not lines:
         return families
     if lines[0] != EVENTS_TRACE_HEADER:
-        raise ValueError(f"not an Events_trace.tsv (header was {lines[0]!r})")
+        raise ValueError(f"not an events_trace.tsv (header was {lines[0]!r})")
     for line in lines[1:]:
         if not line.strip():
             continue
@@ -351,24 +351,24 @@ class Genomes:
 
         ``include`` selects which components to write — any subset of :attr:`WRITE_PARTS`.
         ``None`` (the default) writes them all **except** the opt-in ordered-genome parts
-        ``"layout"`` (``Gene_order.tsv`` — the per-leaf chromosome layout) and ``"karyotype"``
-        (``Karyotype_trace.tsv`` — the fission/fusion/origination/loss genealogy), which are written
+        ``"layout"`` (``gene_order.tsv`` — the per-leaf chromosome layout) and ``"karyotype"``
+        (``karyotype_trace.tsv`` — the fission/fusion/origination/loss genealogy), which are written
         only when asked for, so single-chromosome output is unchanged. ``species_tree.nwk`` and
         ``species_nodes.tsv`` are always written. Omitted components do no work — notably ``"trees"``
         drives the (expensive) gene-tree reconstruction.
 
-        ``"trace"`` writes the compact single-file event log ``Events_trace.tsv`` (one row per
+        ``"trace"`` writes the compact single-file event log ``events_trace.tsv`` (one row per
         event); it is the scalable alternative to ``"events"`` (per-family files) and is the
         record from which gene trees can be reconstructed later on demand. See
         :class:`GenomeTrace` for the fast path that produces it without materialising the log.
 
-        ``"branch_events"`` writes ``Branch_events.tsv`` — the per-species-branch event counts
+        ``"branch_events"`` writes ``branch_events.tsv`` — the per-species-branch event counts
         (D/T/L/O and, for ordered genomes, inversion/transposition), one row per branch with an
         ``is_extant`` flag so the extant-tree view is a filter (see :func:`branch_events_table`).
 
         With ``sparse=True`` the copy-number profile is written as a single sparse long
-        table (``Profiles_sparse.tsv``) instead of the dense ``Profiles.tsv`` /
-        ``Presence.tsv`` pair — the latter is ``families × species`` (O(N²) in tip count)
+        table (``profiles_sparse.tsv``) instead of the dense ``profiles.tsv`` /
+        ``presence.tsv`` pair — the latter is ``families × species`` (O(N²) in tip count)
         and is the one output that does not scale; the sparse form is O(present cells).
         """
         want = (set(self.WRITE_PARTS) - self._OPT_IN_PARTS) if include is None else set(include)
@@ -382,7 +382,7 @@ class Genomes:
         _write_tree_and_nodes(out, self.species_tree)
 
         if "trace" in want:
-            (out / "Events_trace.tsv").write_text(events_trace_from_log(self.event_log))
+            (out / "events_trace.tsv").write_text(events_trace_from_log(self.event_log))
 
         # per-family event lists — needed only by the events and summary tables
         families = self.gene_families if (want & {"events", "summary"}) else {}
@@ -424,12 +424,12 @@ class Genomes:
                 if r.event is EventType.TRANSFER:
                     p, dc, tc = (op.gid for op in r.genes)
                     tr_lines.append(f"{r.time:.10g}\t{r.family}\t{r.donor}\t{r.recipient}\t{p}\t{dc}\t{tc}")
-            (out / "Transfers.tsv").write_text("\n".join(tr_lines) + "\n")
+            (out / "transfers.tsv").write_text("\n".join(tr_lines) + "\n")
 
         if "branch_events" in want:
             # per-species-branch event counts (see branch_events_table); is_extant column
             # makes the extant-tree view a filter.
-            (out / "Branch_events.tsv").write_text(
+            (out / "branch_events.tsv").write_text(
                 branch_events_table(self.event_log, self.species_tree))
 
         if "summary" in want:
@@ -457,7 +457,7 @@ class Genomes:
                     f"{counts_of(records, EventType.TRANSFER)}\t{counts_of(records, EventType.LOSS)}\t"
                     f"{counts_of(records, EventType.SPECIATION)}\t{extant_copies}\t{species_present}"
                 )
-            (out / "Gene_family_summary.tsv").write_text("\n".join(sum_lines) + "\n")
+            (out / "gene_family_summary.tsv").write_text("\n".join(sum_lines) + "\n")
 
         if "profiles" in want:
             _write_profiles(out, self.profiles, sparse)
@@ -476,7 +476,7 @@ class Genomes:
                         strand = "+" if getattr(g, "orientation", 1) >= 0 else "-"
                         lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{pos}\t"
                                    f"{g.family}\t{g.gid}\t{strand}")
-            (out / "Gene_order.tsv").write_text("\n".join(lay) + "\n")
+            (out / "gene_order.tsv").write_text("\n".join(lay) + "\n")
 
         if "karyotype" in want:
             # the chromosome-tier genealogy: fission / fusion / chromosome origination / loss, each
@@ -487,7 +487,7 @@ class Genomes:
                 parents = ";".join(str(p) for p in r.parents)
                 children = ";".join(str(c) for c in r.children)
                 kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
-            (out / "Karyotype_trace.tsv").write_text("\n".join(kar) + "\n")
+            (out / "karyotype_trace.tsv").write_text("\n".join(kar) + "\n")
 
 
 @dataclass
@@ -497,7 +497,7 @@ class GenomeTrace:
     This is what ``simulate_genomes(..., output="trace")`` returns. The genealogy is held in
     its cheapest form — the engine's raw event columns (Rust path) or an already-built
     :class:`~zombi2.events.EventLog` (Python path) — so writing the scalable single-file
-    ``Events_trace.tsv`` and the copy-number profile costs almost nothing: the per-event
+    ``events_trace.tsv`` and the copy-number profile costs almost nothing: the per-event
     Python objects and the gene trees are built **only if you ask** (via :meth:`event_log` /
     :meth:`genomes` / :meth:`gene_trees`). It is the intermediate between the counts-only
     ``ProfileMatrix`` and the full :class:`Genomes`.
@@ -581,9 +581,9 @@ class GenomeTrace:
         if "trace" in want:
             if self._columns is not None:  # fast: straight from the Rust columns, no objects
                 from zombi2._rust import events_trace_tsv
-                (out / "Events_trace.tsv").write_text(events_trace_tsv(self._columns, self._nodes))
+                (out / "events_trace.tsv").write_text(events_trace_tsv(self._columns, self._nodes))
             else:
-                (out / "Events_trace.tsv").write_text(events_trace_from_log(self.event_log))
+                (out / "events_trace.tsv").write_text(events_trace_from_log(self.event_log))
 
         if "profiles" in want:
             _write_profiles(out, self.profiles, sparse)
@@ -633,8 +633,8 @@ def simulate_genomes(
     Engine (automatic, not a user choice): the **built-in** model — the default
     ``UnorderedGenome`` with a plain :class:`~zombi2.PerCopyRates` — runs on the compiled
     ``zombi2_core`` Rust extension and **requires** it (a clear error asks you to build it if
-    it is missing). Flexible models (``FamilySampledRates`` / ``PerGenomeRates`` /
-    ``BranchRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
+    it is missing). Flexible models (``FamilySampledRates`` / ``PerLineageRates`` /
+    ``LineageRates``, ordered genomes, soft carrying capacity, custom samplers) run on the
     pure-Python engine.
 
     ``output``:
@@ -642,7 +642,7 @@ def simulate_genomes(
         ``write()``). ``"profiles"`` returns only a :class:`~zombi2.ProfileMatrix`; for the
         built-in model this takes the Rust counts-only path (no gene ids / log / trees) — the
         fast route for ABC and large presence/absence datasets. ``"trace"`` returns a
-        :class:`GenomeTrace` — the compact event trace (``Events_trace.tsv``) plus the profile,
+        :class:`GenomeTrace` — the compact event trace (``events_trace.tsv``) plus the profile,
         without materialising the per-event Python objects or gene trees (built lazily, only if
         asked). It is the intermediate for very large datasets: near counts-only speed, yet
         gene trees remain reconstructable on demand.
@@ -725,7 +725,7 @@ def simulate_genomes(
         return profiles
     if output == "trace":
         # the Python engine already built the log during simulation, so there is no object cost
-        # to defer; wrap it so the return type and Events_trace.tsv output match the Rust path.
+        # to defer; wrap it so the return type and events_trace.tsv output match the Rust path.
         return GenomeTrace(species_tree=species_tree, leaf_genomes=result.leaf_genomes,
                            profiles=profiles, _event_log=result.event_log)
     return Genomes(

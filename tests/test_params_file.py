@@ -61,7 +61,7 @@ def test_pipeline_file_with_sections_and_list_value(tmp_path):
     assert main(["species", "--params", str(f), "-o", str(sp)]) == 0
     assert main(["genomes", "--params", str(f), "-t", str(sp / "species_tree.nwk"),
                  "-o", str(g)]) == 0
-    assert (g / "Profiles.tsv").exists() and (g / "gene_trees").exists()  # the list write applied
+    assert (g / "profiles.tsv").exists() and (g / "gene_trees").exists()  # the list write applied
 
 
 def test_unknown_key_is_a_clean_cli_error(tmp_path):

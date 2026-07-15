@@ -22,6 +22,8 @@ Public API::
 
 from __future__ import annotations
 
+import warnings
+
 __version__ = "0.2.0"
 
 # Low-level primitives (kept at top level only; no scikit-style namespace).
@@ -42,11 +44,11 @@ from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, read_gff_all, GffGenome,
-    RateModel, PerCopyRates, SharedRates, PerLineageRates, PerGenomeRates, FamilySampledRates,
-    LineageRates, BranchRates, Modifier, ModifiedRates, LineageModifier, BranchModifier,
+    RateModel, PerCopyRates, PerLineageRates, FamilySampledRates,
+    LineageRates, Modifier, ModifiedRates, LineageModifier,
     FamilyModifier,
     EventWeight, TransferModel, PairModifier, ConversionModel, read_family_rates,
-    read_lineage_rates, read_branch_rates,
+    read_lineage_rates,
     GenomeSimulator, GenomeResult, ProfileMatrix,
     simulate_genomes, Genomes, GenomeTrace, read_events_trace,
     build_gene_trees, run_replicates,
@@ -108,11 +110,11 @@ __all__ = [
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes", "NucleotideResult", "Block",
     "read_gff", "read_gff_all", "GffGenome",
     # rates & transfers
-    "RateModel", "PerCopyRates", "SharedRates", "PerLineageRates", "PerGenomeRates",
-    "FamilySampledRates", "LineageRates", "BranchRates", "Modifier", "ModifiedRates",
-    "LineageModifier", "BranchModifier", "FamilyModifier",
+    "RateModel", "PerCopyRates", "PerLineageRates",
+    "FamilySampledRates", "LineageRates", "Modifier", "ModifiedRates",
+    "LineageModifier", "FamilyModifier",
     "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
-    "read_family_rates", "read_lineage_rates", "read_branch_rates",
+    "read_family_rates", "read_lineage_rates",
     # distributions
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "as_distribution",
     # simulation
@@ -144,20 +146,46 @@ __all__ = [
     "pagel_lambda", "pagel_delta", "pagel_kappa",
     # historical biogeography (range evolution)
     "DEC", "simulate_biogeography",
-    # state-dependent diversification (trait drives the tree — coevolve traits:species)
+    # state-dependent diversification (a trait drives the tree — coevolve traits:species)
     "BiSSE", "MuSSE", "HiSSE", "QuaSSE", "CID", "simulate_sse",
-    # gene-content-dependent diversification (genes drive the tree — coevolve genes:species,
-    # + species:genes = the co-diversification joint model)
+    # gene-content-dependent diversification (gene content drives the tree — coevolve
+    # genomes:species). The pure species:genomes edge is CladogeneticGenome below; the
+    # genomes<->species joint (both arrows on) is the co-diversification model.
     "GeneDiversification", "GeneDiversificationResult", "simulate_gene_diversification",
     "simulate_co_diversification",
-    # cladogenetic genome evolution (speciation drives gene content — coevolve species:genes)
+    # cladogenetic genome evolution (speciation drives gene content — coevolve species:genomes)
     "CladogeneticGenome", "CladogeneticGenomeResult", "simulate_cladogenetic_genome",
-    # gene-conditioned trait (gene content drives a trait — coevolve genes:traits)
+    # gene-conditioned trait (gene content drives a trait — coevolve genomes:traits)
     "GeneConditionedTrait", "GeneConditionedTraitResult", "simulate_gene_conditioned_trait",
-    # trait<->genes joint model (trait-gene feedback — coevolve traits:genes + genes:traits)
+    # trait<->genomes joint model (trait-gene feedback — coevolve traits:genomes + genomes:traits)
     "TraitGeneFeedback", "TraitGeneFeedbackResult", "simulate_trait_gene_feedback",
     # parallelism
     "run_replicates",
     # Rust engine diagnostic (the built-in model requires the compiled extension)
     "rust_available",
 ]
+
+# --- deprecated aliases -----------------------------------------------------
+# Renamed public names are kept working for one minor version, but *marked*: they
+# resolve here via PEP 562 ``__getattr__`` with a ``DeprecationWarning`` and are
+# deliberately absent from ``__all__``/``dir()`` (so they leave the API reference and
+# tab-completion). Removal is scheduled for 0.4.0. See docs/design/naming-consolidation.md.
+_DEPRECATED_ALIASES = {
+    "SharedRates": "PerCopyRates",
+    "PerGenomeRates": "PerLineageRates",
+    "BranchRates": "LineageRates",
+    "BranchModifier": "LineageModifier",
+    "read_branch_rates": "read_lineage_rates",
+}
+
+
+def __getattr__(name):
+    canonical = _DEPRECATED_ALIASES.get(name)
+    if canonical is not None:
+        warnings.warn(
+            f"zombi2.{name} was renamed to zombi2.{canonical}; the old name still works "
+            f"but is deprecated and will be removed in 0.4.0.",
+            DeprecationWarning, stacklevel=2,
+        )
+        return globals()[canonical]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

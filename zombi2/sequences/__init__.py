@@ -38,7 +38,7 @@ from zombi2.sequences.codon_models import (
 # NOTE: the codon *utilities* (translate, GENETIC_CODE, SENSE_CODONS, STOP_CODONS, expected_dnds,
 # make_codon_site_model, beta_category_omegas) are intentionally not re-exported here — import them
 # from ``zombi2.sequences.codon_models``. This keeps the ``zombi2.sequences`` namespace to the model
-# API and avoids clashing with the separate ``zombi2.experimental.codon_selection.translate``.
+# API.
 
 __all__ = [
     "Clock", "RateScaledTree", "StrictClock", "UncorrelatedLogNormalClock",

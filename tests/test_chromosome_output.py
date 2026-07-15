@@ -1,5 +1,5 @@
-"""Output of the chromosome tier (Stage 5): Gene_order.tsv (the per-leaf layout — which chromosome
-each gene sits on, and in what order) and Karyotype_trace.tsv (the fission / fusion / origination /
+"""Output of the chromosome tier (Stage 5): gene_order.tsv (the per-leaf layout — which chromosome
+each gene sits on, and in what order) and karyotype_trace.tsv (the fission / fusion / origination /
 loss genealogy).
 
 Both are opt-in ordered-genome parts: they never appear for a single-chromosome run's default
@@ -35,13 +35,13 @@ def _layout_rows(path):
 
 
 def test_layout_round_trips_the_karyotype(tmp_path):
-    """Gene_order.tsv reproduces every leaf's chromosomes exactly (family order + gids), keyed by
+    """gene_order.tsv reproduces every leaf's chromosomes exactly (family order + gids), keyed by
     chrom_id — the information the profiles alone do not carry."""
     g = _multichrom()
     out = tmp_path / "gen"
     g.write(out, include=["layout"])
     recon = defaultdict(lambda: defaultdict(list))
-    for species, chrom, pos, family, gid, _orient in _layout_rows(out / "Gene_order.tsv"):
+    for species, chrom, pos, family, gid, _orient in _layout_rows(out / "gene_order.tsv"):
         recon[species][int(chrom)].append((int(pos), family, gid))
     for leaf, genome in g.leaf_genomes.items():
         for chrom in genome.chromosomes.values():
@@ -58,7 +58,7 @@ def test_layout_shows_a_family_spanning_chromosomes_after_transfer(tmp_path):
         out = tmp_path / f"g{seed}"
         g.write(out, include=["layout"])
         fam_chroms = defaultdict(set)
-        for species, chrom, _pos, family, _gid, _orient in _layout_rows(out / "Gene_order.tsv"):
+        for species, chrom, _pos, family, _gid, _orient in _layout_rows(out / "gene_order.tsv"):
             fam_chroms[(species, family)].add(chrom)
         if any(len(cs) >= 2 for cs in fam_chroms.values()):
             return
@@ -69,7 +69,7 @@ def test_karyotype_trace_records_the_genealogy(tmp_path):
     g = _multichrom(seed=3, chromosome_origination=0.3, chromosome_loss=0.2, fission=0.3, fusion=0.2)
     out = tmp_path / "gen"
     g.write(out, include=["karyotype"])
-    lines = (out / "Karyotype_trace.tsv").read_text().splitlines()
+    lines = (out / "karyotype_trace.tsv").read_text().splitlines()
     assert lines[0] == "time\tevent\tbranch\tparents\tchildren"
     events = [line.split("\t")[1] for line in lines[1:]]
     assert "FI" in events and "CL" in events                       # fission + chromosome loss appear
@@ -81,9 +81,9 @@ def test_layout_and_karyotype_are_opt_in(tmp_path):
     g = _multichrom()
     out = tmp_path / "gen"
     g.write(out)                                            # include=None
-    assert not (out / "Gene_order.tsv").exists()
-    assert not (out / "Karyotype_trace.tsv").exists()
-    assert (out / "Profiles.tsv").exists()                  # the usual output is unaffected
+    assert not (out / "gene_order.tsv").exists()
+    assert not (out / "karyotype_trace.tsv").exists()
+    assert (out / "profiles.tsv").exists()                  # the usual output is unaffected
 
 
 def test_single_chromosome_output_folder_is_unchanged(tmp_path):
@@ -94,10 +94,10 @@ def test_single_chromosome_output_folder_is_unchanged(tmp_path):
                          genome_factory=lambda i: OrderedGenome(i, extension=0.6))
     out = tmp_path / "gen"
     g.write(out, include=["profiles", "trace"])
-    assert not (out / "Gene_order.tsv").exists()
-    assert not (out / "Karyotype_trace.tsv").exists()
+    assert not (out / "gene_order.tsv").exists()
+    assert not (out / "karyotype_trace.tsv").exists()
     g.write(out, include=["layout"])                        # exposes gene order even at one chromosome
-    assert (out / "Gene_order.tsv").exists()
+    assert (out / "gene_order.tsv").exists()
 
 
 # --- CLI: automatic inclusion + the chromosome-tier rate flags ------------------------
@@ -110,15 +110,15 @@ def _species(tmp_path):
 
 
 def test_cli_multichromosome_auto_writes_layout(tmp_path):
-    """`--n-chromosomes > 1` auto-adds Gene_order.tsv; with no chromosome-tier events, no trace."""
+    """`--n-chromosomes > 1` auto-adds gene_order.tsv; with no chromosome-tier events, no trace."""
     tree = _species(tmp_path)
     out = tmp_path / "gen"
     rc = main(["genomes", "--tree", tree, "--genome-model", "ordered", "--n-chromosomes", "4",
                "--dup", "0.2", "--loss", "0.2", "--orig", "0.3", "--inversion", "0.2",
                "--initial-families", "15", "--seed", "3", "--write", "profiles", "-o", str(out)])
     assert rc == 0
-    assert (out / "Gene_order.tsv").exists()
-    assert not (out / "Karyotype_trace.tsv").exists()
+    assert (out / "gene_order.tsv").exists()
+    assert not (out / "karyotype_trace.tsv").exists()
 
 
 def test_cli_fission_auto_writes_karyotype_trace(tmp_path):
@@ -129,8 +129,8 @@ def test_cli_fission_auto_writes_karyotype_trace(tmp_path):
                "--fission", "0.4", "--chromosome-origination", "0.3", "--chromosome-loss", "0.2",
                "--initial-families", "15", "--seed", "3", "--write", "profiles", "-o", str(out)])
     assert rc == 0
-    assert (out / "Gene_order.tsv").exists() and (out / "Karyotype_trace.tsv").exists()
-    assert len((out / "Karyotype_trace.tsv").read_text().splitlines()) > 1  # events recorded
+    assert (out / "gene_order.tsv").exists() and (out / "karyotype_trace.tsv").exists()
+    assert len((out / "karyotype_trace.tsv").read_text().splitlines()) > 1  # events recorded
 
 
 def test_cli_single_chromosome_writes_no_karyotype_files(tmp_path):
@@ -140,8 +140,8 @@ def test_cli_single_chromosome_writes_no_karyotype_files(tmp_path):
                "--dup", "0.2", "--loss", "0.2", "--orig", "0.3", "--inversion", "0.2",
                "--initial-families", "15", "--seed", "3", "-o", str(out)])
     assert rc == 0
-    assert not (out / "Gene_order.tsv").exists()
-    assert not (out / "Karyotype_trace.tsv").exists()
+    assert not (out / "gene_order.tsv").exists()
+    assert not (out / "karyotype_trace.tsv").exists()
 
 
 def test_cli_rejects_chromosome_tier_rates_without_ordered(tmp_path):
@@ -153,7 +153,7 @@ def test_cli_rejects_chromosome_tier_rates_without_ordered(tmp_path):
 # --- CLI: the nucleotide model shares the unified chromosome tier ---------------------
 
 def _nuc_chrom_counts(path):
-    """species -> number of distinct chromosomes, from a Chromosomes.tsv layout file."""
+    """species -> number of distinct chromosomes, from a chromosomes.tsv layout file."""
     lines = path.read_text().splitlines()
     assert lines[0] == "species\tchromosome\ttopology\tposition\tsource\tstart\tend\tstrand"
     by = defaultdict(set)
@@ -164,7 +164,7 @@ def _nuc_chrom_counts(path):
 
 
 def test_cli_nucleotide_n_chromosomes_writes_layout(tmp_path):
-    """`--genome-model nucleotide --n-chromosomes N` seeds N chromosomes and writes Chromosomes.tsv
+    """`--genome-model nucleotide --n-chromosomes N` seeds N chromosomes and writes chromosomes.tsv
     (the unified flag; no chromosome-tier events -> no trace)."""
     tree = _species(tmp_path)
     out = tmp_path / "gen"
@@ -172,9 +172,9 @@ def test_cli_nucleotide_n_chromosomes_writes_layout(tmp_path):
                "--inversion", "0.01", "--root-length", "200", "--seed", "3",
                "--write", "trees", "-o", str(out)])
     assert rc == 0
-    assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {3}  # every leaf has 3
-    assert not (out / "Karyotype_trace.tsv").exists() or \
-        len((out / "Karyotype_trace.tsv").read_text().splitlines()) == 1     # header only
+    assert set(_nuc_chrom_counts(out / "chromosomes.tsv").values()) == {3}  # every leaf has 3
+    assert not (out / "karyotype_trace.tsv").exists() or \
+        len((out / "karyotype_trace.tsv").read_text().splitlines()) == 1     # header only
 
 
 def test_cli_nucleotide_fission_writes_karyotype_trace(tmp_path):
@@ -185,8 +185,8 @@ def test_cli_nucleotide_fission_writes_karyotype_trace(tmp_path):
                "--chromosome-origination", "0.2", "--chromosome-loss", "0.1",
                "--root-length", "200", "--seed", "3", "--write", "profiles", "-o", str(out)])
     assert rc == 0                                       # tier rates force the Python engine
-    assert (out / "Chromosomes.tsv").exists() and (out / "Karyotype_trace.tsv").exists()
-    events = [ln.split("\t")[1] for ln in (out / "Karyotype_trace.tsv").read_text().splitlines()[1:]]
+    assert (out / "chromosomes.tsv").exists() and (out / "karyotype_trace.tsv").exists()
+    events = [ln.split("\t")[1] for ln in (out / "karyotype_trace.tsv").read_text().splitlines()[1:]]
     assert "FI" in events                                # fission recorded
 
 
@@ -197,8 +197,8 @@ def test_cli_nucleotide_single_chromosome_writes_no_karyotype_files(tmp_path):
                "--inversion", "0.01", "--root-length", "200", "--seed", "3",
                "--write", "trees", "-o", str(out)])
     assert rc == 0
-    assert not (out / "Chromosomes.tsv").exists()
-    assert not (out / "Karyotype_trace.tsv").exists()
+    assert not (out / "chromosomes.tsv").exists()
+    assert not (out / "karyotype_trace.tsv").exists()
 
 
 def test_cli_nucleotide_initial_chromosomes_is_a_deprecated_alias(tmp_path):
@@ -208,11 +208,11 @@ def test_cli_nucleotide_initial_chromosomes_is_a_deprecated_alias(tmp_path):
                "--inversion", "0.01", "--root-length", "200", "--seed", "3",
                "--write", "trees", "-o", str(out)])
     assert rc == 0
-    assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {2}
+    assert set(_nuc_chrom_counts(out / "chromosomes.tsv").values()) == {2}
 
 
 def _nuc_topologies(path):
-    """set of topologies present in a Chromosomes.tsv layout file (asserting per-chromosome
+    """set of topologies present in a chromosomes.tsv layout file (asserting per-chromosome
     consistency: every chromosome's rows share one topology)."""
     rows = [ln.split("\t") for ln in path.read_text().splitlines()[1:]]
     per_chrom = defaultdict(set)
@@ -230,7 +230,7 @@ def test_cli_nucleotide_linear_chromosomes(tmp_path):
                "--linear-chromosomes", "--inversion", "0.005", "--root-length", "250",
                "--write", "trees", "--seed", "3", "-o", str(out)])
     assert rc == 0
-    assert _nuc_topologies(out / "Chromosomes.tsv") == {"linear"}
+    assert _nuc_topologies(out / "chromosomes.tsv") == {"linear"}
 
 
 def test_cli_multisequence_gff_keeps_per_replicon_topology(tmp_path):
@@ -250,7 +250,7 @@ def test_cli_multisequence_gff_keeps_per_replicon_topology(tmp_path):
     rc = main(["genomes", "--tree", tree, "--genome-model", "nucleotide", "--gff", str(gff),
                "--inversion", "0.003", "--write", "trees", "--seed", "3", "-o", str(out)])
     assert rc == 0
-    assert _nuc_topologies(out / "Chromosomes.tsv") == {"linear", "circular"}   # mixed genome
+    assert _nuc_topologies(out / "chromosomes.tsv") == {"linear", "circular"}   # mixed genome
 
 
 _MULTI_GFF = """\
@@ -276,7 +276,7 @@ def test_cli_multisequence_gff_seeds_one_chromosome_per_sequence(tmp_path):
                "--inversion", "0.002", "--loss", "0.001", "--seed", "3",
                "--write", "trees", "-o", str(out)])
     assert rc == 0
-    assert set(_nuc_chrom_counts(out / "Chromosomes.tsv").values()) == {2}   # both replicons present
+    assert set(_nuc_chrom_counts(out / "chromosomes.tsv").values()) == {2}   # both replicons present
     genes = {ln.split("\t")[0] for ln in (out / "genes.tsv").read_text().splitlines()[1:]}
     assert {"A1", "A2", "A3", "B1", "B2"} <= genes                          # nothing dropped
 
@@ -290,7 +290,7 @@ def test_cli_gff_seqid_still_picks_one_sequence(tmp_path):
                "--gff-seqid", "plasmid", "--inversion", "0.002", "--seed", "3",
                "--write", "trees", "-o", str(out)])
     assert rc == 0
-    assert not (out / "Chromosomes.tsv").exists()                            # single chromosome
+    assert not (out / "chromosomes.tsv").exists()                            # single chromosome
     genes = {ln.split("\t")[0] for ln in (out / "genes.tsv").read_text().splitlines()[1:]}
     assert genes == {"B1", "B2"}                                             # only the picked sequence
 
@@ -311,7 +311,7 @@ def test_cli_multichromosome_ancestral_reproduces_each_replicon(tmp_path):
                "--subst-rate", "0.0", "--write", "ancestral", "--seed", "3", "-o", str(out)])
     assert rc == 0
     recs = {}
-    with gzip.open(out / "Genomes" / "root.fasta.gz", "rt") as fh:
+    with gzip.open(out / "genomes" / "root.fasta.gz", "rt") as fh:
         name = None
         for line in fh:
             line = line.strip()
@@ -321,7 +321,7 @@ def test_cli_multichromosome_ancestral_reproduces_each_replicon(tmp_path):
                 recs[name] += line
     assert len(recs) == 2                                     # one record per replicon
     assert set(recs.values()) == {chr1, plasmid}             # each replicon reproduced exactly
-    header = (out / "Architecture" / "root.tsv").read_text().splitlines()[0]
+    header = (out / "architecture" / "root.tsv").read_text().splitlines()[0]
     assert header.split("\t")[0] == "chromosome"             # architecture keeps replicons apart
 
 
@@ -346,7 +346,7 @@ def test_cli_multichromosome_bed_is_per_replicon(tmp_path):
     # the plasmid's coordinates restart at 0 (B1 at 29 on its own contig, not offset past chr1)
     assert min(s for _, s in by_contig["plasmid"]) == 29
     # BED/root.bed contigs match the ancestral FASTA record naming (<node>_chr<id>)
-    node_contigs = {ln.split("\t")[0] for ln in (out / "BED" / "root.bed").read_text().splitlines()}
+    node_contigs = {ln.split("\t")[0] for ln in (out / "bed" / "root.bed").read_text().splitlines()}
     assert node_contigs == {"root_chr0", "root_chr1"}
 
 
@@ -362,9 +362,9 @@ def test_cli_translocation_moves_material_across_chromosomes(tmp_path):
                "--inversion", "0.005", "--translocation", "0.03", "--root-length", "250",
                "--write", "trees", "--seed", "5", "-o", str(out)])
     assert rc == 0
-    # Chromosomes.tsv columns: species chromosome topology position source start end strand
+    # chromosomes.tsv columns: species chromosome topology position source start end strand
     by = defaultdict(lambda: defaultdict(set))          # species -> source -> {chromosome ids}
-    for line in (out / "Chromosomes.tsv").read_text().splitlines()[1:]:
+    for line in (out / "chromosomes.tsv").read_text().splitlines()[1:]:
         parts = line.split("\t")
         species, chrom, source = parts[0], parts[1], parts[4]
         by[species][source].add(chrom)

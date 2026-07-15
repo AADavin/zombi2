@@ -58,17 +58,17 @@ Species trees
 
 Gene families & sequences
   genomes              evolve gene families along a species tree (Newick)
-  sequence             simulate DNA/protein alignments along a genomes run's gene trees
+  sequences            simulate DNA/protein alignments along a genomes run's gene trees
 
 Traits & coevolution
-  trait                evolve a phenotypic trait along a given species tree
+  traits               evolve a phenotypic trait along a given species tree
   coevolve             co-evolve coupled processes (--couple driver:target)
 
 Analysis tools
   tools                compute on ZOMBI2 outputs (reconcile, treedist, recon-accuracy, red, parse, export)
 
 Experimental (unstable, opt-in)
-  experimental         not-yet-validated models (selection: ESM2 dN/dS; ils: multispecies coalescent)
+  experimental         not-yet-validated models (ils: multispecies-coalescent gene trees)
 """
 
 
@@ -230,19 +230,19 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     _add_params_arg(g)
     g.add_argument("-t", "--tree", required=True, metavar="FILE",
                    help="input species tree in Newick format (e.g. species_tree.nwk)")
-    g.add_argument("--genome-model", dest="genome_model",
+    g.add_argument("--genome-resolution", "--genome-model", dest="genome_model",
                    choices=("unordered", "ordered", "nucleotide"), default="unordered",
-                   metavar="LEVEL",
-                   help="genome level: unordered (default) evolves gene families with no "
+                   metavar="RESOLUTION",
+                   help="genome resolution: unordered (default) evolves gene families with no "
                         "positional structure; ordered places genes on a chromosome where order "
                         "matters (adds inversion/transposition on gene segments; distance counted "
                         "in genes, not nucleotides); nucleotide evolves nucleotide-resolution "
                         "genomes by variable-length structural events, genes emerge as 'blocks' "
-                        "(see the nucleotide sections)")
+                        "(see the nucleotide sections). --genome-model is a deprecated alias")
     g.add_argument("--rate-per", choices=("copy", "lineage", "genome"), default=None, dest="rate_per",
                    metavar="UNIT",
                    help="what each rate is counted per — the opportunity that scales it "
-                        "(unordered/ordered levels): copy = per gene copy, so total rates grow with "
+                        "(unordered/ordered resolutions): copy = per gene copy, so total rates grow with "
                         "genome size (default; Rust for unordered); lineage = a constant rate per "
                         "lineage (the whole genome as one unit), giving linear rather than "
                         "exponential growth (Python). Per-family rates come from --family-rates; "
@@ -251,8 +251,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "alias of lineage)")
     g.add_argument("--rate-model", choices=("shared", "per-genome", "family"), default=None,
                    metavar="MODEL",
-                   help="(deprecated) old spelling of --rate-per: shared -> --rate-per copy, "
-                        "per-genome -> --rate-per lineage, family -> --family-rates")
+                   help=argparse.SUPPRESS)  # deprecated -> --rate-per (still accepted; warns on use)
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -260,7 +259,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group(
         "gene-family rates",
         "per gene copy (--rate-per copy) or per lineage (--rate-per lineage); "
-        "per nucleotide for --genome-model nucleotide")
+        "per nucleotide for --genome-resolution nucleotide")
     g.add_argument("--dup", type=float, default=0.0, metavar="RATE", help="duplication rate")
     g.add_argument("--trans", type=float, default=0.0, metavar="RATE", help="transfer (HGT) rate")
     g.add_argument("--loss", type=float, default=0.0, metavar="RATE", help="loss/deletion rate")
@@ -269,10 +268,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
                    help="number of gene families seeded at the root, for the unordered and ordered "
-                        "genome levels (--genome-model unordered/ordered) (default: 20)")
+                        "genome resolutions (--genome-resolution unordered/ordered) (default: 20)")
     g.add_argument("--max-family-size", type=_int_or_float, default=None, metavar="CAP",
                    help="bound family growth: integer = absolute cap, decimal = fraction of the "
-                        "number of species (e.g. 0.5) [not used by --genome-model nucleotide]")
+                        "number of species (e.g. 0.5) [not used by --genome-resolution nucleotide]")
 
     g = p.add_argument_group(
         "gene conversion",
@@ -311,20 +310,20 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "'tools recon-accuracy' and 'tools reconcile'. "
                         "species_tree.nwk is always written; 'profiles' alone takes the fast Rust "
                         "counts-only path; 'trace' (optionally with 'profiles') writes the compact "
-                        "single-file event log Events_trace.tsv near counts-only speed, from which "
+                        "single-file event log events_trace.tsv near counts-only speed, from which "
                         "gene trees can be reconstructed later on demand; 'branch_events' writes "
-                        "Branch_events.tsv, the per-species-branch event counts (with an is_extant "
-                        "flag). [ordered] 'layout' writes Gene_order.tsv (which chromosome each gene "
-                        "sits on) and 'karyotype' writes Karyotype_trace.tsv (fission/fusion/"
+                        "branch_events.tsv, the per-species-branch event counts (with an is_extant "
+                        "flag). [ordered] 'layout' writes gene_order.tsv (which chromosome each gene "
+                        "sits on) and 'karyotype' writes karyotype_trace.tsv (fission/fusion/"
                         "origination/loss) — both added automatically for a multi-chromosome or "
                         "fission/fusion run. [nucleotide] 'ancestral' simulates DNA and reconstructs the genome "
                         "(architecture + gzipped FASTA) at every node; 'bed' writes BED gene "
                         "annotations — genes.bed for the root genome and BED/<node>.bed per node "
-                        "(needs --genes/--gff); 'geneorder' writes Geneorder_events.tsv, the "
+                        "(needs --genes/--gff); 'geneorder' writes geneorder_events.tsv, the "
                         "structural-event log with physical breakpoints (chrom/start/length/strand) "
                         "per branch — the input for gene-order / breakpoint export)")
     g.add_argument("--sparse", action="store_true",
-                   help="write the profile as a sparse long table (Profiles_sparse.tsv: "
+                   help="write the profile as a sparse long table (profiles_sparse.tsv: "
                         "family/species/copies, present cells only) instead of the dense matrix — "
                         "the scalable output for huge trees (needs 'profiles' in --write)")
     g.add_argument("--threads", type=int, default=1, metavar="N",
@@ -339,7 +338,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
         "reconciliation likelihoods (ALE)",
         "score every extant gene tree (forces the full gene-family path)")
     g.add_argument("--score-likelihoods", action="store_true",
-                   help="also write Reconciliation_likelihoods.tsv: the ALE reconciliation "
+                   help="also write reconciliation_likelihoods.tsv: the ALE reconciliation "
                         "log-likelihood of every extant family's gene tree, under each "
                         "--score-model, at the --dup/--trans/--loss rates (zombi2.tools ALElite)")
     g.add_argument("--score-model", nargs="+", metavar="MODEL",
@@ -355,21 +354,21 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "families) or 'uniform' over branches")
 
     g = p.add_argument_group("structural events (rearrangements)",
-                             "--genome-model ordered/nucleotide")
+                             "--genome-resolution ordered/nucleotide")
     g.add_argument("--inversion", type=float, default=None, metavar="RATE",
-                   help="inversion rate — per gene copy for --genome-model ordered (default 0), "
+                   help="inversion rate — per gene copy for --genome-resolution ordered (default 0), "
                         "per nucleotide for nucleotide (default 0.001)")
     g.add_argument("--transposition", type=float, default=None, metavar="RATE",
-                   help="transposition rate — per gene copy for --genome-model ordered, per "
+                   help="transposition rate — per gene copy for --genome-resolution ordered, per "
                         "nucleotide for nucleotide (default 0)")
     g.add_argument("--mean-length", type=float, default=None, metavar="L", dest="mean_length",
                    help="mean length of an inversion/transposition segment (geometric): in genes "
-                        "for --genome-model ordered (default 1 = single-gene events), in "
+                        "for --genome-resolution ordered (default 1 = single-gene events), in "
                         "nucleotides for nucleotide (default 100)")
     g.add_argument("--transposition-flip", type=float, default=0.0, metavar="P",
                    dest="transposition_flip",
                    help="probability a transposed segment reinserts reverse-complemented "
-                        "(gene order reversed and strands flipped), for --genome-model ordered "
+                        "(gene order reversed and strands flipped), for --genome-resolution ordered "
                         "(default 0 = always keep orientation)")
     g.add_argument("--translocation", type=float, default=0.0, metavar="RATE",
                    help="[ordered/nucleotide] translocation rate: a segment (ordered, per gene) or "
@@ -377,18 +376,18 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "genome (needs >1 chromosome; distinct from transposition, which stays on one "
                         "chromosome) (default 0 = off)")
     g.add_argument("--n-chromosomes", type=int, default=1, metavar="N", dest="n_chromosomes",
-                   help="number of chromosomes seeded at the root, for --genome-model "
+                   help="number of chromosomes seeded at the root, for --genome-resolution "
                         "ordered/nucleotide (default 1). [ordered] the root's initial families are "
                         "spread across them; [nucleotide] each is an independent full-length copy of "
                         "the root chromosome. Rearrangements stay within a chromosome (see "
                         "--fission/--fusion for chromosome-level changes)")
     g.add_argument("--linear-chromosomes", action="store_true", dest="linear_chromosomes",
                    help="ordered chromosomes are linear (segments never wrap the origin), for "
-                        "--genome-model ordered (default: circular, as for bacteria). Nucleotide "
+                        "--genome-resolution ordered (default: circular, as for bacteria). Nucleotide "
                         "chromosomes are always circular")
     # chromosome-tier events (ordered + nucleotide genomes; off by default). When any is set — or
-    # with more than one chromosome — the run also writes the karyotype (Gene_order.tsv /
-    # Chromosomes.tsv layout) + Karyotype_trace.tsv.
+    # with more than one chromosome — the run also writes the karyotype (gene_order.tsv /
+    # chromosomes.tsv layout) + karyotype_trace.tsv.
     g.add_argument("--fission", type=float, default=0.0, metavar="RATE",
                    help="[ordered/nucleotide] chromosome fission rate, per chromosome: a chromosome "
                         "splits in two (linear: one breakpoint; circular: two) (default 0 = off)")
@@ -404,10 +403,10 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                    help="[ordered/nucleotide] chromosome loss rate, per chromosome: a whole "
                         "chromosome and its genes are lost (default 0 = off)")
 
-    g = p.add_argument_group("nucleotide model", "with --genome-model nucleotide")
+    g = p.add_argument_group("nucleotide model", "with --genome-resolution nucleotide")
     g.add_argument("--initial-chromosomes", type=int, default=None, metavar="N",
                    dest="initial_chromosomes",
-                   help="deprecated alias for --n-chromosomes (--genome-model nucleotide)")
+                   help=argparse.SUPPRESS)  # deprecated -> --n-chromosomes (still accepted; warns on use)
     g.add_argument("--root-length", type=int, default=1000, metavar="BP",
                    help="length of the root chromosome, in nucleotides (default 1000)")
     g.add_argument("--insertion", type=float, default=0.0, metavar="RATE",
@@ -423,7 +422,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "separate knob from --mean-length (default 10)")
 
     g = p.add_argument_group("genes & intergenes",
-                             "--genome-model nucleotide; declare genes to enable genic mode")
+                             "--genome-resolution nucleotide; declare genes to enable genic mode")
     g.add_argument("--gff", metavar="FILE", default=None,
                    help="a GFF3 annotation (optionally .gz) to start from a real genome: sets the "
                         "chromosome length and the gene coordinates (intergenes are the gaps). "
@@ -445,7 +444,7 @@ def _add_rate_args(p: argparse.ArgumentParser) -> None:
                         "additive when no homolog) (default 0)")
 
     g = p.add_argument_group("sequences & ancestral genomes",
-                             "--genome-model nucleotide, with --write ancestral")
+                             "--genome-resolution nucleotide, with --write ancestral")
     g.add_argument("--subst-model", choices=("jc69", "k80", "hky85", "gtr"), default="hky85",
                    metavar="MODEL",
                    help="nucleotide substitution model for the sequences (default hky85)")
@@ -978,7 +977,7 @@ def _run_traits_genes(args: argparse.Namespace, parser: argparse.ArgumentParser)
 # ═══════════════════════════════════════════════════════════════════════════════
 # coevolve: the directed-coupling umbrella over {species, traits, genes}
 # ═══════════════════════════════════════════════════════════════════════════════
-_COEVOLVE_NODES = ("species", "traits", "genes")
+_COEVOLVE_NODES = ("species", "traits", "genomes")
 # every directed edge in the coevolution design (docs/guide/coevolution.md); all six directed
 # edges and the joint (both-arrow) models are implemented.
 _COEVOLVE_EDGES = {
@@ -990,18 +989,18 @@ _COEVOLVE_EDGES = {
 def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     g.add_argument("--couple", action="append", nargs="+", metavar="DRIVER:TARGET", default=None,
-                   help="a directed coupling edge 'driver:target' over {species, traits, genes} — "
+                   help="a directed coupling edge 'driver:target' over {species, traits, genomes} — "
                         "the driver's state modulates the target's rates. Implemented: "
                         "'traits:species' (SSE), 'species:traits' (cladogenetic), their "
-                        "combination = ClaSSE, 'genes:species' (key innovations), 'species:genes' "
-                        "(cladogenetic genome), 'genes:traits' (a modifier gene switches a trait "
-                        "optimum) and 'traits:genes' (a trait conditions a gene-family panel). "
+                        "combination = ClaSSE, 'genomes:species' (key innovations), 'species:genomes' "
+                        "(cladogenetic genome), 'genomes:traits' (a modifier gene switches a trait "
+                        "optimum) and 'traits:genomes' (a trait conditions a gene-family panel). "
                         "Repeatable; default traits:species. See docs/guide/coevolution.md for "
-                        "the full edge set")
+                        "the full edge set ('genes' is a deprecated node alias of 'genomes')")
     g.add_argument("-t", "--tree", default=None, metavar="FILE",
                    help="input species tree (Newick) — required for the on-a-given-tree edges "
-                        "(species:traits, species:genes, genes:traits, traits:genes). Omit for the "
-                        "into-species edges (traits:species / ClaSSE / genes:species), which GROW "
+                        "(species:traits, species:genomes, genomes:traits, traits:genomes). Omit for the "
+                        "into-species edges (traits:species / ClaSSE / genomes:species), which GROW "
                         "the tree via --age/--tips")
     g.add_argument("--age", type=float, default=None, metavar="T",
                    help="[into-species] crown age to grow for (the extant tip count is random)")
@@ -1048,7 +1047,7 @@ def _add_coevolve_mode_args(p: argparse.ArgumentParser) -> None:
                    help="per-state extinction rates (k values)")
     g.add_argument("--q-matrix", default=None, metavar="FILE",
                    help="path to a k x k anagenetic transition-rate matrix (same format as "
-                        "'zombi2 trait --q-matrix')")
+                        "'zombi2 traits --q-matrix')")
 
     g = p.add_argument_group("QuaSSE", "--sse-model quasse (continuous trait)")
     g.add_argument("--spec-low", type=float, default=0.5, metavar="RATE",
@@ -1320,7 +1319,7 @@ def _run_genes_species_cid_null(args: argparse.Namespace, parser: argparse.Argum
     _write_drivers_manifest(args.out, model)
     _write_null_manifest(
         args.out, "genes:species", "cid", cut="gene content -> (lambda, mu)",
-        preserved="a hidden driver panel (drivers_ground_truth.tsv) shaped the tree; Profiles.tsv is "
+        preserved="a hidden driver panel (drivers_ground_truth.tsv) shaped the tree; profiles.tsv is "
                   "a neutral overlay genome, decoupled from diversification",
         extra={"observed": f"neutral overlay: {args.genome_size} families, transfer=1.0 loss=0.5",
                "hidden_drivers": model.n_drivers})
@@ -1352,9 +1351,9 @@ def _run_genes_traits_cid_null(args: argparse.Namespace, parser: argparse.Argume
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")
-    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
         f.write(profiles.to_tsv())                         # OBSERVED neutral genome
-    with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+    with open(os.path.join(args.out, "presence.tsv"), "w") as f:
         f.write(profiles.to_tsv(presence=True))
     with open(os.path.join(args.out, "traits.tsv"), "w") as f:  # the trait (real optimum shifts), observed
         f.write("node\ttrait\n")
@@ -1367,7 +1366,7 @@ def _run_genes_traits_cid_null(args: argparse.Namespace, parser: argparse.Argume
     _write_null_manifest(
         args.out, "genes:traits", "cid", cut="gene presence -> trait optimum",
         preserved="a hidden modifier (modifier_ground_truth.tsv) shifted the trait's optimum; "
-                  "Profiles.tsv is a neutral overlay genome, decoupled from the trait",
+                  "profiles.tsv is a neutral overlay genome, decoupled from the trait",
         extra={"observed": f"neutral overlay: {args.genome_size} families, transfer=1.0 loss=0.5"})
     return (f"wrote genes:traits [cid null] to {args.out}/ ({len(tree.extant_leaves())} tips; "
             f"{len(profiles.families)} neutral observed families, hidden modifier) in {dt:.3g} s")
@@ -1436,6 +1435,16 @@ def _run_coevolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser
     # --couple accepts both repeated flags and space-separated lists (append + nargs); flatten
     raw = args.couple or [["traits:species"]]
     edges = [e.strip().lower() for group in raw for e in group]
+    # Coevolve nodes standardise on "genomes" (the domain word used everywhere else); "genes" is a
+    # deprecated node spelling. Accept both on input, normalise to the internal genes-form, warn on
+    # the old spelling.
+    def _normalise_couple_edge(e):
+        toks = e.split(":")
+        if "genes" in toks:
+            print("warning: the coevolve node 'genes' is deprecated; use 'genomes' "
+                  "(e.g. --couple traits:genomes).", file=sys.stderr)
+        return ":".join("genes" if t == "genomes" else t for t in toks)
+    edges = [_normalise_couple_edge(e) for e in edges]
     for e in edges:
         if e not in _COEVOLVE_EDGES:
             parser.error(f"unknown --couple edge {e!r}: expected 'driver:target' over "
@@ -1696,9 +1705,9 @@ def _run_species_genes(args: argparse.Namespace, parser: argparse.ArgumentParser
     with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")              # the given tree, for provenance
     pm = res.profile_matrix()
-    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
         f.write(pm.to_tsv())
-    with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+    with open(os.path.join(args.out, "presence.tsv"), "w") as f:
         f.write(pm.to_tsv(presence=True))
     sizes = res.genome_sizes()
     with open(os.path.join(args.out, "genome_sizes.tsv"), "w") as f:
@@ -1787,7 +1796,7 @@ def _run_trait_gene_feedback(args: argparse.Namespace, parser: argparse.Argument
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")                  # the given tree, for provenance
-    with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
         f.write(res.profiles.to_tsv(presence=True))       # panel presence at the extant tips
     with open(os.path.join(args.out, "traits.tsv"), "w") as f:
         f.write("node\ttrait\tpanel_occupancy\n")         # the coupled trait + panel at every node
@@ -1804,19 +1813,19 @@ def _write_profiles_only(out: str, tree: Tree, profiles, sparse: bool = False) -
     """Emit the reduced profiles-only output: tree + copy-number/presence matrices.
 
     With ``sparse=True`` the profile is written as a single COO long table
-    (``Profiles_sparse.tsv``) that is O(present cells), so the output scales to trees
+    (``profiles_sparse.tsv``) that is O(present cells), so the output scales to trees
     where the dense families x species matrix would be astronomically large.
     """
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "species_tree.nwk"), "w") as f:
         f.write(tree.to_newick() + "\n")
     if sparse:
-        with open(os.path.join(out, "Profiles_sparse.tsv"), "w") as f:
+        with open(os.path.join(out, "profiles_sparse.tsv"), "w") as f:
             f.write(profiles.to_coo_tsv())
         return
-    with open(os.path.join(out, "Profiles.tsv"), "w") as f:
+    with open(os.path.join(out, "profiles.tsv"), "w") as f:
         f.write(profiles.to_tsv())
-    with open(os.path.join(out, "Presence.tsv"), "w") as f:
+    with open(os.path.join(out, "presence.tsv"), "w") as f:
         f.write(profiles.to_tsv(presence=True))
 
 
@@ -1851,7 +1860,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         if parts != {"profiles"}:
             reason = "use it with exactly --write profiles"
         elif args.genome_model != "unordered":
-            reason = f"--genome-model {args.genome_model} runs serially; use --genome-model unordered"
+            reason = f"--genome-resolution {args.genome_model} runs serially; use --genome-resolution unordered"
         elif (args.rate_per in ("lineage", "genome") or args.rate_model in ("per-genome", "family")
               or args.family_rates):
             reason = ("the built-in per-copy rates are required "
@@ -1888,22 +1897,22 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     if args.genome_model == "nucleotide":
         if rate_per is not None:
             parser.error("--rate-per (and the deprecated --rate-model) apply to the unordered/"
-                         "ordered genome levels; the nucleotide model is per nucleotide by "
+                         "ordered genome resolutions; the nucleotide model is per nucleotide by "
                          "construction")
         if args.initial_families is not None:
-            parser.error("--initial-families is for the unordered genome level "
-                         "(--genome-model unordered); the nucleotide model uses --n-chromosomes")
+            parser.error("--initial-families is for the unordered genome resolution "
+                         "(--genome-resolution unordered); the nucleotide model uses --n-chromosomes")
         if getattr(args, "score_likelihoods", False):
             parser.error("--score-likelihoods scores reconstructed gene-family trees, which the "
-                         "nucleotide genome model does not produce; use --genome-model "
+                         "nucleotide genome model does not produce; use --genome-resolution "
                          "unordered/ordered to score reconciliation likelihoods")
         return _run_nucleotides(tree, args, parts)
 
     if args.initial_chromosomes is not None:
-        parser.error("--initial-chromosomes is only for --genome-model nucleotide; the "
-                     "unordered and ordered genome levels use --initial-families")
+        parser.error("--initial-chromosomes is only for --genome-resolution nucleotide; the "
+                     "unordered and ordered genome resolutions use --initial-families")
     if args.translocation and args.genome_model != "ordered":
-        parser.error("--translocation needs chromosomes: use --genome-model ordered or nucleotide "
+        parser.error("--translocation needs chromosomes: use --genome-resolution ordered or nucleotide "
                      "(it moves a segment/arc between chromosomes of a multi-chromosome genome)")
 
     ordered = args.genome_model == "ordered"
@@ -1912,25 +1921,25 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     # user-supplied custom rate tables are unordered-only (Python engine, except a
     # receptivity-only --lineage-rates on a plain PerCopyRates, which stays on Rust)
     if (args.family_rates or args.lineage_rates) and args.genome_model != "unordered":
-        parser.error("--family-rates / --lineage-rates are only for --genome-model unordered")
+        parser.error("--family-rates / --lineage-rates are only for --genome-resolution unordered")
     per_lineage = rate_per == "lineage"
     args.rate_per = "lineage" if per_lineage else "copy"  # record the effective value in the log
     if not (0.0 <= args.transposition_flip <= 1.0):
         parser.error("--transposition-flip must be a probability in [0, 1]")
     if args.transposition_flip and not ordered:
         parser.error("--transposition-flip applies to transpositions on an ordered chromosome; "
-                     "use --genome-model ordered")
+                     "use --genome-resolution ordered")
     if args.n_chromosomes < 1:
         parser.error("--n-chromosomes must be >= 1")
     if args.n_chromosomes != 1 and not ordered:  # nucleotide is handled in its own branch above
-        parser.error("--n-chromosomes applies to --genome-model ordered or nucleotide")
+        parser.error("--n-chromosomes applies to --genome-resolution ordered or nucleotide")
     if args.linear_chromosomes and not ordered:
-        parser.error("--linear-chromosomes applies to --genome-model ordered")
+        parser.error("--linear-chromosomes applies to --genome-resolution ordered")
     chrom_tier = bool(args.fission or args.fusion or args.chromosome_origination
                       or args.chromosome_loss)
     if chrom_tier and not ordered:
         parser.error("--fission / --fusion / --chromosome-origination / --chromosome-loss apply to "
-                     "--genome-model ordered or nucleotide")
+                     "--genome-resolution ordered or nucleotide")
     if ordered and (args.n_chromosomes > 1 or chrom_tier):
         # auto-surface the karyotype outputs when non-trivial, so a multi-chromosome or fission /
         # fusion run captures its layout (and genealogy) without the user asking; single-chromosome
@@ -1958,7 +1967,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
             parser.error("gene conversion (--conversion) is only supported on unordered genomes "
-                         "(--genome-model unordered)")
+                         "(--genome-resolution unordered)")
         inv = 0.0 if args.inversion is None else args.inversion
         tps = 0.0 if args.transposition is None else args.transposition
         args.inversion, args.transposition = inv, tps  # record effective values in the params log
@@ -2020,7 +2029,7 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         n_families = len(profiles.families)
     elif ("trace" in parts and parts <= {"trace", "profiles"} and not score and not ordered
           and not args.conversion):
-        # event-trace fast path: compact Events_trace.tsv (+ profile), no per-event objects,
+        # event-trace fast path: compact events_trace.tsv (+ profile), no per-event objects,
         # no gene-tree reconstruction — near counts-only speed, trees reconstructable later
         trace = simulate_genomes(tree, output="trace", **rate_kw)
         dt = time.perf_counter() - t0
@@ -2034,13 +2043,13 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         n_families = len(genomes.profiles.families)
         if score:
             _write_reconciliation_likelihoods(genomes, args)
-    suffix = " + Reconciliation_likelihoods.tsv" if score else ""
+    suffix = " + reconciliation_likelihoods.tsv" if score else ""
     return (f"wrote [{' '.join(sorted(parts))}]{suffix} to {args.out}/ "
             f"({len(tree.leaves())} tips, {n_families} gene families) in {dt:.3g} s")
 
 
 def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None:
-    """Score every extant family's gene tree (ALElite) and write Reconciliation_likelihoods.tsv."""
+    """Score every extant family's gene tree (ALElite) and write reconciliation_likelihoods.tsv."""
     from .tools.reconciliation import write_scores_tsv
 
     models = list(dict.fromkeys(args.score_model))  # de-dupe, keep order
@@ -2048,7 +2057,7 @@ def _write_reconciliation_likelihoods(genomes, args: argparse.Namespace) -> None
         args.dup, args.trans, args.loss, models=models,
         origination=args.score_origination, n_steps=args.score_nsteps,
     )
-    write_scores_tsv(rows, os.path.join(args.out, "Reconciliation_likelihoods.tsv"), models=models)
+    write_scores_tsv(rows, os.path.join(args.out, "reconciliation_likelihoods.tsv"), models=models)
 
 
 def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
@@ -2090,7 +2099,7 @@ def _run_tools_reconcile(args: argparse.Namespace, parser: argparse.ArgumentPars
 
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "Reconciliation_likelihoods.tsv")
+        path = os.path.join(args.out, "reconciliation_likelihoods.tsv")
         write_scores_tsv(rows, path, models=tuple(models))
         print(f"wrote {path} ({len(rows)} gene tree(s) x {len(models)} model(s))")
     elif len(rows) == 1 and len(models) == 1:
@@ -2140,8 +2149,8 @@ def _run_tools_simulate(args: argparse.Namespace, parser: argparse.ArgumentParse
     if args.out:
         os.makedirs(args.out, exist_ok=True)
         n_extant = _write_undated_sim(res, args.out)
-        print(f"wrote Reconciled_complete.nwk, Reconciled_extant.nwk ({n_extant} survivors), "
-              f"Reconciliation_events.tsv and Gene_family_profiles.tsv into {args.out}/")
+        print(f"wrote reconciled_complete.nwk, reconciled_extant.nwk ({n_extant} survivors), "
+              f"reconciliation_events.tsv and gene_family_profiles.tsv into {args.out}/")
     return 0
 
 
@@ -2162,10 +2171,10 @@ def _write_undated_sim(res, out: str) -> int:
     prof_lines = ["family\t" + "\t".join(res.leaf_names)]
     for fam, counts in res.profile_rows():
         prof_lines.append(fam + "\t" + "\t".join(str(c) for c in counts))
-    for name, lines in (("Reconciled_complete.nwk", complete_lines),
-                        ("Reconciled_extant.nwk", extant_lines),
-                        ("Reconciliation_events.tsv", ev_lines),
-                        ("Gene_family_profiles.tsv", prof_lines)):
+    for name, lines in (("reconciled_complete.nwk", complete_lines),
+                        ("reconciled_extant.nwk", extant_lines),
+                        ("reconciliation_events.tsv", ev_lines),
+                        ("gene_family_profiles.tsv", prof_lines)):
         with open(os.path.join(out, name), "w") as f:
             f.write("\n".join(lines) + ("\n" if lines else ""))
     return len(extant_lines)
@@ -2218,7 +2227,7 @@ def _run_tools_treedist(args: argparse.Namespace, parser: argparse.ArgumentParse
     header = "\t".join(_TREEDIST_COLS)
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "Tree_distances.tsv")
+        path = os.path.join(args.out, "tree_distances.tsv")
         with open(path, "w") as f:
             f.write(header + "\n" + "\n".join(rows) + "\n")
         print(f"wrote {path} ({len(rows)} comparison(s))")
@@ -2282,7 +2291,7 @@ def _run_tools_recon_accuracy(args: argparse.Namespace, parser: argparse.Argumen
     header = "\t".join(_RECONACC_COLS)
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "Reconciliation_accuracy.tsv")
+        path = os.path.join(args.out, "reconciliation_accuracy.tsv")
         with open(path, "w") as f:
             f.write(header + "\n" + "\n".join(rows) + "\n" + pooled + "\n")
         print(f"wrote {path} ({len(rows)} family(ies))")
@@ -2413,7 +2422,7 @@ def _run_tools_red(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
     if args.out:
         os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, "RED.tsv")
+        path = os.path.join(args.out, "red.tsv")
         with open(path, "w") as f:
             f.write("node\tis_leaf\tred\n")
             for name, leaf, r in rows:
@@ -2432,9 +2441,9 @@ def _run_tools_export(args: argparse.Namespace, parser: argparse.ArgumentParser)
 
     if not os.path.isdir(args.genomes_dir):
         parser.error(f"{args.genomes_dir} is not a directory")
-    builders = {"breakpoints": ("Breakpoints.tsv", breakpoints_tsv),
-                "gff": ("Genes.gff", gff_text),
-                "posortho": ("Positional_orthologs.tsv", posortho_tsv)}
+    builders = {"breakpoints": ("breakpoints.tsv", breakpoints_tsv),
+                "gff": ("genes.gff", gff_text),
+                "posortho": ("positional_orthologs.tsv", posortho_tsv)}
     if args.out:
         os.makedirs(args.out, exist_ok=True)
     for fmt in args.formats:
@@ -2458,7 +2467,7 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
 
     Genes are not atomic here — they emerge as **blocks** (maximal intervals with one shared
     history). ``profiles`` writes the emergent block-by-species profile (plus ``blocks.tsv`` and
-    the per-leaf ``Mosaics.tsv``); ``trees`` writes the per-block gene trees and their
+    the per-leaf ``mosaics.tsv``); ``trees`` writes the per-block gene trees and their
     reconciliations. Only ``profiles``/``trees`` apply here (the family-model ``events`` /
     ``transfers`` / ``summary`` do not). ``profiles`` alone takes the fast Rust path.
     """
@@ -2469,10 +2478,15 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
                          "branch_events do not apply to it")
     ancestral = "ancestral" in want
     bed = "bed" in want
-    # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias
-    # that takes precedence when explicitly given.
-    initial_chromosomes = (args.initial_chromosomes if args.initial_chromosomes is not None
-                           else args.n_chromosomes)
+    # --n-chromosomes is the unified flag (both models); --initial-chromosomes is a deprecated alias.
+    # The canonical flag wins; the deprecated one is honoured only when --n-chromosomes is at its
+    # default, and a genuine conflict is an error rather than a silent override.
+    initial_chromosomes = args.n_chromosomes
+    if args.initial_chromosomes is not None:
+        print("warning: --initial-chromosomes is deprecated; use --n-chromosomes.", file=sys.stderr)
+        if args.n_chromosomes != 1 and args.n_chromosomes != args.initial_chromosomes:
+            raise ValueError("pass --n-chromosomes or the deprecated --initial-chromosomes, not both")
+        initial_chromosomes = args.initial_chromosomes
     if initial_chromosomes < 1:
         raise ValueError("--n-chromosomes must be >= 1")
     args.n_chromosomes = args.initial_chromosomes = initial_chromosomes  # effective value in the log
@@ -2559,12 +2573,12 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         block_ids, species, matrix = result.profile_matrix()
         pm = ProfileMatrix([f"block{a}" for a in block_ids], species, matrix)
         if args.sparse:
-            with open(os.path.join(args.out, "Profiles_sparse.tsv"), "w") as f:
+            with open(os.path.join(args.out, "profiles_sparse.tsv"), "w") as f:
                 f.write(pm.to_coo_tsv())
         else:
-            with open(os.path.join(args.out, "Profiles.tsv"), "w") as f:
+            with open(os.path.join(args.out, "profiles.tsv"), "w") as f:
                 f.write(pm.to_tsv())
-            with open(os.path.join(args.out, "Presence.tsv"), "w") as f:
+            with open(os.path.join(args.out, "presence.tsv"), "w") as f:
                 f.write(pm.to_tsv(presence=True))
         _write_mosaics(args.out, result)
     if "trees" in want or "reconciliations" in want:
@@ -2579,10 +2593,10 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
         _write_bed(args.out, result, tree, gff_info, gff_all)
     if "geneorder" in want:
         from zombi2.genomes.simulation import geneorder_events_from_log
-        with open(os.path.join(args.out, "Geneorder_events.tsv"), "w") as f:
+        with open(os.path.join(args.out, "geneorder_events.tsv"), "w") as f:
             f.write(geneorder_events_from_log(result.event_log))
     # karyotype: when the run is multi-chromosome or uses the chromosome tier, surface the layout
-    # (Chromosomes.tsv) and the fission/fusion/origination/loss genealogy (Karyotype_trace.tsv).
+    # (chromosomes.tsv) and the fission/fusion/origination/loss genealogy (karyotype_trace.tsv).
     # Needs the Python engine (the Rust profiles path is single-chromosome and event-log-free).
     py_engine = any(isinstance(getattr(g, "chromosomes", None), dict)
                     for g in result.leaf_genomes.values())
@@ -2607,9 +2621,9 @@ def _run_nucleotides(tree: Tree, args: argparse.Namespace, parts: set) -> str:
 def _write_nucleotide_karyotype(out: str, result) -> None:
     """Write the karyotype of a multi-chromosome / chromosome-tier nucleotide run.
 
-    ``Chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order,
+    ``chromosomes.tsv`` — per extant leaf, which chromosome each segment sits on and in what order,
     with the chromosome's topology (``species chromosome topology position source start end strand``);
-    ``Karyotype_trace.tsv`` — the fission / fusion / origination / loss genealogy
+    ``karyotype_trace.tsv`` — the fission / fusion / origination / loss genealogy
     (``time event branch parents children``), one row per chromosome-tier event (header-only if the
     karyotype never changed).
     """
@@ -2624,7 +2638,7 @@ def _write_nucleotide_karyotype(out: str, result) -> None:
                 strand = "+" if s.strand >= 0 else "-"
                 lay.append(f"{leaf.name}\t{chrom.chrom_id}\t{topology}\t{pos}\t{s.source}\t"
                            f"{s.src_start}\t{s.src_end}\t{strand}")
-    with open(os.path.join(out, "Chromosomes.tsv"), "w") as f:
+    with open(os.path.join(out, "chromosomes.tsv"), "w") as f:
         f.write("\n".join(lay) + "\n")
 
     kar = ["time\tevent\tbranch\tparents\tchildren"]
@@ -2632,17 +2646,17 @@ def _write_nucleotide_karyotype(out: str, result) -> None:
         parents = ";".join(str(p) for p in r.parents)
         children = ";".join(str(c) for c in r.children)
         kar.append(f"{r.time:.10g}\t{r.event.value}\t{r.branch}\t{parents}\t{children}")
-    with open(os.path.join(out, "Karyotype_trace.tsv"), "w") as f:
+    with open(os.path.join(out, "karyotype_trace.tsv"), "w") as f:
         f.write("\n".join(kar) + "\n")
 
 
 def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> None:
     """Simulate sequences and write the genome (architecture + gzipped DNA) at every node.
 
-    ``Architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome
+    ``architecture/<node>.tsv`` — the ordered, oriented gene/intergene mosaic of the node's genome
     (a ``chromosome`` column keeps replicons apart); ``Genomes/<node>.fasta.gz`` — its assembled DNA,
     one FASTA record per chromosome for a multi-chromosome genome (else one record, the whole
-    genome); ``Gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is
+    genome); ``gene_alignments/<gene>.fasta`` — the extant per-gene alignments. The root sequence is
     seeded from ``--genome-fasta`` when given (a multi-record FASTA for a multi-sequence GFF, matched
     to each replicon by sequence name), else drawn at random.
     """
@@ -2676,8 +2690,8 @@ def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> No
     result.simulate_sequences(model, gamma=gamma, root_fasta=root_fasta,
                               subst_rate=args.subst_rate, seed=args.seed)
 
-    adir = os.path.join(out, "Architecture")
-    gdir = os.path.join(out, "Genomes")
+    adir = os.path.join(out, "architecture")
+    gdir = os.path.join(out, "genomes")
     os.makedirs(adir, exist_ok=True)
     os.makedirs(gdir, exist_ok=True)
     for node in tree.nodes_preorder():
@@ -2697,7 +2711,7 @@ def _write_ancestral(out: str, result, tree, args, gff_info, gff_all=None) -> No
                    else {f"{name}_chr{cid}": dna for cid, dna in seqs.items()})
         write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), records, gzip_out=True)
 
-    aln_dir = os.path.join(out, "Gene_alignments")
+    aln_dir = os.path.join(out, "gene_alignments")
     os.makedirs(aln_dir, exist_ok=True)
     for gene, aln in result.gene_alignments().items():
         write_fasta(os.path.join(aln_dir, f"{gene}.fasta"), aln)
@@ -2781,7 +2795,7 @@ def _write_bed(out: str, result, tree, gff_info, gff_all=None) -> None:
     write_bed(os.path.join(out, "genes.bed"), bed_rows(tree.root, root_name))
 
     # every node's genome (ancestral + extant), each contig keyed to its FASTA record id
-    bdir = os.path.join(out, "BED")
+    bdir = os.path.join(out, "bed")
     os.makedirs(bdir, exist_ok=True)
     for node in tree.nodes_preorder():
         node_name = ((lambda cid, n=node.name: f"{n}_chr{cid}") if multi
@@ -2800,11 +2814,11 @@ def _write_genes_table(out: str, registry) -> None:
 
 
 def _write_pseudogenizations(out: str, result) -> None:
-    """Write ``Pseudogenizations.tsv`` — every gene->intergene state flip (branch, time, lineage)."""
+    """Write ``pseudogenizations.tsv`` — every gene->intergene state flip (branch, time, lineage)."""
     lines = ["block\tgene\tspecies_branch\ttime\tgene_lineage"]
     for block_id, gene_id, species, t, gid in result.pseudogenizations():
         lines.append(f"block{block_id}\t{gene_id}\t{species}\t{t:.10g}\t{gid}")
-    with open(os.path.join(out, "Pseudogenizations.tsv"), "w") as f:
+    with open(os.path.join(out, "pseudogenizations.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -2822,13 +2836,13 @@ def _write_blocks_table(out: str, blocks) -> None:
 
 
 def _write_mosaics(out: str, result) -> None:
-    """Write ``Mosaics.tsv`` — each extant genome as an ordered, signed sequence of blocks."""
+    """Write ``mosaics.tsv`` — each extant genome as an ordered, signed sequence of blocks."""
     lines = ["leaf\tmosaic"]
     for leaf in sorted(result.leaf_genomes, key=lambda n: n.name):
         seq = " ".join(("+" if s > 0 else "-") + f"block{aid}"
                        for aid, s in result.leaf_mosaic(leaf))
         lines.append(f"{leaf.name}\t{seq}")
-    with open(os.path.join(out, "Mosaics.tsv"), "w") as f:
+    with open(os.path.join(out, "mosaics.tsv"), "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -2836,7 +2850,7 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
     """Write per-block trees to ``block<id>_complete.nwk`` / ``_extant.nwk``.
 
     Plain nucleotide model: everything under ``gene_trees/``. Genic mode: gene blocks under
-    ``Gene_trees/`` and intergene blocks under ``Intergene_trees/`` (both tree sets recovered).
+    ``gene_trees/`` and intergene blocks under ``intergene_trees/`` (both tree sets recovered).
     """
     def dump(tdir: str, trees: dict) -> None:
         os.makedirs(tdir, exist_ok=True)
@@ -2849,8 +2863,8 @@ def _write_block_gene_trees(out: str, result, genic: bool = False) -> None:
                     f.write(extant + "\n")
 
     if genic:
-        dump(os.path.join(out, "Gene_trees"), result.gene_trees())
-        dump(os.path.join(out, "Intergene_trees"), result.intergene_trees())
+        dump(os.path.join(out, "gene_trees"), result.gene_trees())
+        dump(os.path.join(out, "intergene_trees"), result.intergene_trees())
     else:
         dump(os.path.join(out, "gene_trees"), result.block_gene_trees())
 
@@ -2860,7 +2874,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     _add_params_arg(g)
     g.add_argument("--genomes", required=True, metavar="DIR",
                    help="a prior 'zombi2 genomes' output directory — reads its species_tree.nwk "
-                        "and Events_trace.tsv (run genomes with 'trace' in --write)")
+                        "and events_trace.tsv (run genomes with 'trace' in --write)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -3036,7 +3050,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     """Overlay the gene x lineage substitution clock on a prior genomes run's gene trees, and —
     with ``--subst-model`` — simulate a DNA or protein alignment down each rescaled tree.
 
-    Replays the compact ``Events_trace.tsv`` (no re-simulation of gene content), rescales every
+    Replays the compact ``events_trace.tsv`` (no re-simulation of gene content), rescales every
     reconciled gene tree from time into substitutions/site, and writes the phylograms plus the
     drawn per-family speeds and per-branch rates. The lineage clock is shared across families
     (``--branch-speed`` lognormal or ``--branch-bins`` discrete-bin); each family draws one
@@ -3071,7 +3085,7 @@ def _run_sequence(args: argparse.Namespace) -> str:
     gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
 
     tree_path = os.path.join(args.genomes, "species_tree.nwk")
-    trace_path = os.path.join(args.genomes, "Events_trace.tsv")
+    trace_path = os.path.join(args.genomes, "events_trace.tsv")
     if not os.path.exists(trace_path):
         raise FileNotFoundError(
             f"{trace_path} not found — re-run 'zombi2 genomes' on that tree with 'trace' in "
@@ -3210,7 +3224,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "  zombi2 tools simulate -t species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.3 -n 200 -o truth/",
             "",
             "  # then score an inferred reconciliation against that truth",
-            "  zombi2 tools recon-accuracy -t truth/Reconciled_extant.nwk -i inferred_recon.nwk",
+            "  zombi2 tools recon-accuracy -t truth/reconciled_extant.nwk -i inferred_recon.nwk",
         ),
     )
     _add_tools_simulate_args(smp)
@@ -3313,7 +3327,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
             "  # simulate with the gene-order outputs, then export the broken adjacencies + GFF",
-            "  zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \\",
+            "  zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide --genes genes.tsv \\",
             "      --root-length 3000 --inversion 0.01 --transposition 0.005 --write bed geneorder -o run/",
             "  zombi2 tools export run/ --format breakpoints gff posortho -o export/",
         ),
@@ -3324,7 +3338,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
 def _add_tools_export_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("input / output")
     g.add_argument("genomes_dir", metavar="GENOMES_DIR",
-                   help="a 'zombi2 genomes --genome-model nucleotide' output directory")
+                   help="a 'zombi2 genomes --genome-resolution nucleotide' output directory")
     g.add_argument("--format", dest="formats", nargs="+", required=True,
                    choices=("breakpoints", "gff", "posortho"), metavar="FORMAT",
                    help="which format(s) to export: breakpoints / gff / posortho (all need "
@@ -3341,7 +3355,7 @@ def _add_tools_reconcile_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("-t", "--species-tree", required=True, metavar="FILE",
                    help="dated species-tree Newick (as written by 'zombi2 species')")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Reconciliation_likelihoods.tsv into DIR (default: print to "
+                   help="write reconciliation_likelihoods.tsv into DIR (default: print to "
                         "stdout — a bare number for one tree and one model, else a table)")
 
     g = p.add_argument_group("DTL rates")
@@ -3369,8 +3383,8 @@ def _add_tools_simulate_args(p: argparse.ArgumentParser) -> None:
                    help="species-tree Newick; a cladogram with no branch lengths is fine for the "
                         "undated model (unit branches are assumed) — reldated needs real dates")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Reconciled_complete.nwk, Reconciled_extant.nwk and "
-                        "Reconciliation_events.tsv into DIR (default: print a summary to stdout)")
+                   help="write reconciled_complete.nwk, reconciled_extant.nwk and "
+                        "reconciliation_events.tsv into DIR (default: print a summary to stdout)")
 
     g = p.add_argument_group("DTL odds (per-branch, relative to a speciation — NOT per-unit-time)")
     g.add_argument("--dup", type=float, default=0.0, metavar="ODDS", help="duplication odds d")
@@ -3403,7 +3417,7 @@ def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
                    help="Newick file of one or more comparison trees (one per line); each is "
                         "compared to the reference and must share its leaf label set")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Tree_distances.tsv into DIR (default: print the table to stdout)")
+                   help="write tree_distances.tsv into DIR (default: print the table to stdout)")
 
     g = p.add_argument_group("metrics")
     g.add_argument("--no-quartet", action="store_true",
@@ -3425,7 +3439,7 @@ def _add_tools_recon_accuracy_args(p: argparse.ArgumentParser) -> None:
                    help="annotated reconciled Newick(s) of the INFERRED reconciliation, paired "
                         "with --truth line by line (same gene-tree topology and tip labels)")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write Reconciliation_accuracy.tsv into DIR (default: print to stdout)")
+                   help="write reconciliation_accuracy.tsv into DIR (default: print to stdout)")
 
 
 def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
@@ -3435,7 +3449,7 @@ def _add_tools_red_args(p: argparse.ArgumentParser) -> None:
                         "(substitutions) to recover relative ages, or a dated tree for exact "
                         "relative ages. Works with the trees 'zombi2 species'/'sequence' write.")
     g.add_argument("-o", "--out", metavar="DIR", default=None,
-                   help="write RED.tsv (node, is_leaf, red) into DIR (default: print the table to stdout)")
+                   help="write red.tsv (node, is_leaf, red) into DIR (default: print the table to stdout)")
 
 
 def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
@@ -3457,36 +3471,9 @@ def _add_tools_parse_args(p: argparse.ArgumentParser) -> None:
 # --------------------------------------------------------------------------- #
 def _add_experimental_args(p: argparse.ArgumentParser) -> None:
     """The ``experimental`` command groups unstable, not-yet-validated models (the
-    ``zombi2.experimental`` layer). Each is a sub-subcommand: ``selection`` (ESM2 codon dN/dS) and
-    ``ils`` (multispecies coalescent)."""
+    ``zombi2.experimental`` layer). Currently one sub-subcommand: ``ils`` (multispecies
+    coalescent)."""
     esub = p.add_subparsers(dest="experimental_command", metavar="<model>", required=True)
-    sp = esub.add_parser(
-        "selection",
-        help="language-model (ESM2) codon selection on a real annotated genome (emergent dN/dS)",
-        description=(
-            "Evolve a real annotated genome down a species tree with protein-language-model "
-            "selection on its coding genes. The nucleotide genome model runs the structural "
-            "simulation (inversion/duplication/loss/transfer/...); each gene evolves as coding DNA "
-            "along its own gene tree under a codon mutation-selection process whose selection comes "
-            "from an ESM2 critic (mutation on DNA, selection on the encoded protein -> emergent "
-            "dN/dS), while intergenic DNA drifts neutrally. Genomes are reconstructed at every node.\n\n"
-            "EXPERIMENTAL: APIs and outputs may change; needs the optional deps "
-            "(pip install 'zombi2[selection]': torch, fair-esm, scipy)."
-        ),
-        usage="zombi2 experimental selection -t FILE --gff FILE --genome-fasta FILE -o DIR [options]",
-        formatter_class=ZombiHelpFormatter,
-        epilog=_examples(
-            "  # evolve a real genome with ESM2 purifying selection on its genes",
-            "  zombi2 experimental selection -t species_tree.nwk --gff genome.gff --genome-fasta genome.fna \\",
-            "      --beta 1.0 --dup 0.01 --loss 0.01 --seed 1 -o out/",
-            "",
-            "  # ...or calibrate the selection strength to a target genome-wide dN/dS, with the big ESM2",
-            "  zombi2 experimental selection -t species_tree.nwk --gff genome.gff --genome-fasta genome.fna \\",
-            "      --target-dnds 0.2 --esm-model esm2_t33_650M_UR50D -o out/",
-        ),
-    )
-    _add_experimental_selection_args(sp)
-
     sp_ils = esub.add_parser(
         "ils",
         help="incomplete lineage sorting: gene trees under the multispecies coalescent",
@@ -3509,76 +3496,10 @@ def _add_experimental_args(p: argparse.ArgumentParser) -> None:
             "  zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 --seed 1 -o out/",
             "",
             "  # DTL + ILS: a coalescent gene tree per family from a 'genomes' run (write it with --write trace)",
-            "  zombi2 experimental ils -t species_tree.nwk --events-trace run/Events_trace.tsv -N 0.5 -o out/",
+            "  zombi2 experimental ils -t species_tree.nwk --events-trace run/events_trace.tsv -N 0.5 -o out/",
         ),
     )
     _add_experimental_ils_args(sp_ils)
-
-
-def _add_experimental_selection_args(p: argparse.ArgumentParser) -> None:
-    g = p.add_argument_group("input / output")
-    g.add_argument("-t", "--tree", required=True, metavar="FILE",
-                   help="dated species-tree Newick (as written by 'zombi2 species')")
-    g.add_argument("--gff", required=True, metavar="FILE",
-                   help="GFF3 with CDS features (keeps strand + reading frame); defines the coding "
-                        "genes. Single-exon CDS only")
-    g.add_argument("--gff-seqid", default=None, metavar="ID",
-                   help="which sequence/contig of the GFF (and FASTA) to use (default: the GFF's "
-                        "sole sequence; required if it has several)")
-    g.add_argument("--genome-fasta", required=True, metavar="FILE",
-                   help="the root genome FASTA (optionally .gz); its length sets the chromosome "
-                        "length and it seeds the root that then evolves")
-    g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
-    g.add_argument("--seed", type=int, default=None, metavar="N", help="RNG seed for reproducibility")
-
-    g = p.add_argument_group("selection (the language-model critic)")
-    g.add_argument("--critic", choices=["esm2"], default="esm2", metavar="NAME",
-                   help="the protein-language-model critic (default: esm2; the Critic API is "
-                        "pluggable from Python for other models)")
-    g.add_argument("--esm-model", default="esm2_t6_8M_UR50D", metavar="NAME",
-                   help="ESM2 model: small default esm2_t6_8M_UR50D (8M params); go big with e.g. "
-                        "esm2_t33_650M_UR50D (650M, GPU recommended)")
-    sel = g.add_mutually_exclusive_group()
-    sel.add_argument("--beta", type=float, default=None, metavar="B",
-                     help="selection strength (>= 0; 0 = neutral). Default 1.0 unless --target-dnds "
-                          "is given. Larger = stronger purifying selection (lower dN/dS)")
-    sel.add_argument("--target-dnds", type=float, default=None, metavar="W",
-                     help="instead of --beta, calibrate beta so the genome-wide expected dN/dS is "
-                          "about W (in (0, 1)); measured on the root proteins")
-
-    g = p.add_argument_group("mutation model (nucleotide; codon backbone + intergene)")
-    g.add_argument("--subst-model", default="hky85", metavar="MODEL",
-                   choices=["jc69", "k80", "hky85", "gtr"],
-                   help="nucleotide substitution model: jc69 | k80 | hky85 | gtr (default hky85)")
-    g.add_argument("--kappa", type=float, default=2.0, metavar="K",
-                   help="[k80/hky85] transition/transversion ratio (default 2.0)")
-    g.add_argument("--base-freqs", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
-                   help="[hky85/gtr] equilibrium base frequencies (default equal)")
-    g.add_argument("--gtr-rates", type=float, nargs=6, default=None,
-                   metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
-                   help="[gtr] the 6 exchangeabilities (default all 1)")
-    g.add_argument("--subst-rate", type=float, default=1.0, metavar="R",
-                   help="overall divergence scale: neutral substitutions/site at the root (default 1.0)")
-    g.add_argument("--gamma-shape", type=float, default=None, metavar="ALPHA",
-                   help="discrete-Gamma across-site rate heterogeneity for INTERGENE blocks "
-                        "(coding-block heterogeneity is emergent from selection; default: none)")
-
-    g = p.add_argument_group("genome structural events (per-nucleotide rates)")
-    g.add_argument("--inversion", type=float, default=0.001, metavar="R",
-                   help="inversion rate (default 0.001)")
-    g.add_argument("--duplication", "--dup", type=float, default=0.0, dest="duplication",
-                   metavar="R", help="segmental duplication rate (default 0)")
-    g.add_argument("--loss", type=float, default=0.0, metavar="R",
-                   help="loss / deletion rate (default 0)")
-    g.add_argument("--transfer", "--trans", type=float, default=0.0, dest="transfer",
-                   metavar="R", help="transfer rate (default 0)")
-    g.add_argument("--transposition", type=float, default=0.0, metavar="R",
-                   help="transposition rate (default 0)")
-    g.add_argument("--origination", "--orig", type=float, default=0.0, dest="origination",
-                   metavar="R", help="per-branch novel-gene origination rate (default 0)")
-    g.add_argument("--pseudogenization", type=float, default=0.0, metavar="P",
-                   help="probability a loss demotes a gene to intergene rather than deleting it "
-                        "(default 0). Note: pseudogenized lineages currently stay under selection")
 
 
 def _add_experimental_ils_args(p: argparse.ArgumentParser) -> None:
@@ -3587,7 +3508,7 @@ def _add_experimental_ils_args(p: argparse.ArgumentParser) -> None:
                    help="species-tree Newick (as written by 'zombi2 species') -- the coalescent "
                         "container, and (with --events-trace) the frame the locus trees live in")
     g.add_argument("--events-trace", default=None, metavar="FILE", dest="events_trace",
-                   help="a 'genomes' run's Events_trace.tsv (write it with 'zombi2 genomes ... "
+                   help="a 'genomes' run's events_trace.tsv (write it with 'zombi2 genomes ... "
                         "--write trace'). When given, run DTL + ILS: the coalescent within each gene "
                         "family's locus tree, one gene tree per family. Without it, plain species-tree ILS")
     g.add_argument("-o", "--out", required=True, metavar="DIR", help="output directory")
@@ -3602,21 +3523,6 @@ def _add_experimental_ils_args(p: argparse.ArgumentParser) -> None:
                    help="independent gene trees to draw (default 1); with --events-trace, per family")
     g.add_argument("-k", "--samples", type=int, default=1, metavar="C",
                    help="alleles sampled per species tip / per extant gene copy (default 1)")
-
-
-def _selection_cds_protein(genome: str, c, translate, reverse_complement):
-    """The clean 5'->3' protein of one CDS, or ``None`` if it is out-of-frame / has an internal stop /
-    is not ACGT (so calibration only sees translatable coding sequence)."""
-    sub = genome[c.start:c.end]
-    coding = sub if c.strand == 1 else reverse_complement(sub)
-    if c.phase != 0 or len(coding) % 3 or any(ch not in "ACGT" for ch in coding):
-        return None
-    if len(coding) >= 3 and translate(coding[-3:]) == "*":
-        coding = coding[:-3]
-    if not coding:
-        return None
-    prot = translate(coding)
-    return None if "*" in prot else prot
 
 
 def _gff_contigs(path: str) -> set:
@@ -3634,117 +3540,6 @@ def _gff_contigs(path: str) -> set:
             if len(f) >= 3 and f[2] == "CDS":
                 contigs.add(f[0])
     return contigs
-
-
-def _calibrate_beta_genomewide(critic, proteins, target_dnds, nuc_model, *,
-                               hi: float = 64.0, tol: float = 1e-3, max_iter: int = 48) -> float:
-    """Find one ``beta`` whose LENGTH-WEIGHTED-MEAN expected dN/dS over ``proteins`` is ~ ``target_dnds``.
-
-    Each protein is profiled by the critic **once** (bounded by the CDS length, so tractable), then dN/dS
-    is analytic per beta — unlike a single genome-length concatenation, which would blow up the critic's
-    O(L^2) attention. dN/dS is monotone decreasing in beta, so a bisection on ``[0, hi]`` converges.
-    """
-    from zombi2.experimental.codon_selection import CodonSelection
-    from zombi2.experimental.selection import FixedProfileCritic
-    if not 0.0 < target_dnds < 1.0:
-        raise ValueError(f"--target-dnds must be in (0, 1), got {target_dnds}")
-    # one critic call per CDS, then a reusable analytic model per CDS (beta is set live in the loop)
-    models = [(CodonSelection(FixedProfileCritic(critic.profile(p)), beta=1.0, nuc_model=nuc_model), p)
-              for p in proteins]
-    total = float(sum(len(p) for _, p in models))
-
-    def omega(b: float) -> float:
-        acc = 0.0
-        for sel, p in models:
-            sel.beta = b
-            acc += len(p) * sel.dnds(p)
-        return acc / total
-
-    if omega(hi) > target_dnds:
-        raise ValueError(f"--target-dnds {target_dnds} needs beta > {hi}; choose a less extreme target")
-    lo, high = 0.0, float(hi)
-    for _ in range(max_iter):
-        mid = 0.5 * (lo + high)
-        w = omega(mid)
-        if w > 0.0 and abs(w - target_dnds) <= tol:
-            return mid
-        lo, high = (mid, high) if w > target_dnds else (lo, mid)
-    mid = 0.5 * (lo + high)
-    if abs(omega(mid) - target_dnds) > tol:
-        raise ValueError(f"--target-dnds calibration did not converge within {max_iter} iterations; "
-                         "try a less extreme target")
-    return mid
-
-
-def _run_experimental_selection(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    print("zombi2: 'experimental selection' is unstable — APIs and outputs may change "
-          "(zombi2.experimental).", file=sys.stderr)
-    import importlib.util
-    missing = [m for m in ("torch", "esm", "scipy") if importlib.util.find_spec(m) is None]
-    if missing:                                        # probe the ACTUAL optional deps (all lazy inside)
-        raise RuntimeError(f"experimental selection needs optional dependencies {missing}; install them "
-                           "with:  pip install 'zombi2[selection]'  (torch, fair-esm, scipy)")
-    from zombi2.experimental import read_cds_gff, simulate_nucleotide_selection
-    from zombi2.experimental.codon_selection import translate
-    from zombi2.experimental.selection import ESM2Critic
-    from zombi2.sequences.models import GammaRates, make_model, read_fasta, reverse_complement
-
-    with open(args.tree) as f:
-        tree = read_newick(f.read())
-    fa = read_fasta(args.genome_fasta)
-    # pick ONE sequence and use the same id for both the GFF and the FASTA, so CDS coordinates can
-    # never be silently applied to the wrong contig
-    if args.gff_seqid is not None:
-        seqid = args.gff_seqid
-    else:
-        contigs = _gff_contigs(args.gff)
-        if len(contigs) != 1:
-            raise ValueError(f"the GFF spans {len(contigs)} sequences {sorted(contigs)}; "
-                             "pass --gff-seqid to pick one")
-        seqid = next(iter(contigs))
-    if seqid not in fa:
-        raise ValueError(f"the GFF is annotated on {seqid!r} but --genome-fasta has no such sequence "
-                         f"(have: {', '.join(fa)}); supply the matching FASTA or --gff-seqid")
-    genome = fa[seqid].upper()
-    cds = read_cds_gff(args.gff, seqid=seqid)
-    if not cds:
-        raise ValueError(f"no CDS features found for {seqid!r} in {args.gff!r}")
-
-    model = make_model(args.subst_model, kappa=args.kappa, freqs=args.base_freqs, rates=args.gtr_rates)
-    gamma = GammaRates(args.gamma_shape) if args.gamma_shape else None
-    critic = ESM2Critic(args.esm_model)                # args.critic == "esm2" (the only choice)
-
-    if args.target_dnds is not None:
-        proteins = [p for p in (_selection_cds_protein(genome, c, translate, reverse_complement)
-                                for c in cds) if p]
-        if not proteins:
-            raise ValueError("no cleanly-translatable CDS to calibrate --target-dnds on")
-        beta = _calibrate_beta_genomewide(critic, proteins, args.target_dnds, model)
-        print(f"zombi2: calibrated beta = {beta:.4g} for a genome-wide dN/dS ~ {args.target_dnds} "
-              f"(length-weighted over {len(proteins)} CDS)", file=sys.stderr)
-    else:
-        beta = 1.0 if args.beta is None else args.beta
-
-    result, report = simulate_nucleotide_selection(
-        tree, genome, cds, critic=critic, beta=beta, nuc_model=model, gamma=gamma,
-        subst_rate=args.subst_rate, seed=args.seed,
-        inversion=args.inversion, duplication=args.duplication, loss=args.loss,
-        transfer=args.transfer, transposition=args.transposition, origination=args.origination,
-        pseudogenization=args.pseudogenization)
-
-    os.makedirs(args.out, exist_ok=True)
-    with open(os.path.join(args.out, "species_tree.nwk"), "w") as f:
-        f.write(tree.to_newick())
-    _write_selection_outputs(args.out, result, tree, report, beta)
-
-    n_nodes = sum(1 for _ in tree.nodes_preorder())
-    summary = (f"experimental selection: {report.n_selected}/{report.n_gene_blocks} gene blocks under "
-               f"selection ({report.n_neutral_fallback} fell back to neutral), "
-               f"{report.n_intergene} intergene blocks; beta={beta:.4g}. "
-               f"Genomes for {n_nodes} nodes -> {args.out}/")
-    print(summary)
-    _write_params_log(os.path.join(args.out, "selection.log"), args, summary)
-    return 0
 
 
 def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
@@ -3788,7 +3583,7 @@ def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentPar
         return 0
 
     genes = msc.sample_gene_trees(tree, args.replicates, samples=args.samples, rng=rng)
-    with open(os.path.join(args.out, "gene_trees.nwk"), "w") as f:
+    with open(os.path.join(args.out, "ils_gene_trees.nwk"), "w") as f:
         for g in genes:
             f.write(g.to_newick(include_internal_names=False) + "\n")
     copies = "1 copy/species" if args.samples == 1 else f"{args.samples} copies/species"
@@ -3802,53 +3597,17 @@ def _run_experimental_ils(args: argparse.Namespace, parser: argparse.ArgumentPar
     return 0
 
 
-def _write_selection_outputs(out: str, result, tree, report, beta: float) -> None:
-    """Write the per-node genomes + architecture, the extant gene alignments, and the selection report."""
-    from zombi2.sequences.models import write_fasta
-    adir = os.path.join(out, "Architecture")
-    gdir = os.path.join(out, "Genomes")
-    os.makedirs(adir, exist_ok=True)
-    os.makedirs(gdir, exist_ok=True)
-    for node in tree.nodes_preorder():
-        name = node.name
-        lines = ["order\tblock\tkind\tgene_id\tstrand\tlength"]
-        for i, (aid, strand) in enumerate(result.node_mosaic(node)):
-            a = result._block_by_id[aid]
-            lines.append(f"{i}\tblock{aid}\t{a.kind}\t{a.gene_id or '-'}\t"
-                         f"{'+' if strand > 0 else '-'}\t{a.length}")
-        with open(os.path.join(adir, f"{name}.tsv"), "w") as f:
-            f.write("\n".join(lines) + "\n")
-        write_fasta(os.path.join(gdir, f"{name}.fasta.gz"), {name: result.node_sequence(node)},
-                    gzip_out=True)
-
-    aln_dir = os.path.join(out, "Gene_alignments")
-    os.makedirs(aln_dir, exist_ok=True)
-    for gene, aln in result.gene_alignments().items():
-        write_fasta(os.path.join(aln_dir, f"{gene}.fasta"), aln)
-
-    with open(os.path.join(out, "Selection_report.tsv"), "w") as f:
-        f.write("metric\tvalue\n")
-        for k in ("n_blocks", "n_gene_blocks", "n_selected", "n_neutral_fallback",
-                  "n_intergene", "n_empty"):
-            f.write(f"{k}\t{getattr(report, k)}\n")
-        f.write(f"beta\t{beta:.6g}\n")
-    if report.fallbacks:
-        with open(os.path.join(out, "Selection_fallbacks.tsv"), "w") as f:
-            f.write("block_id\tgene_id\treason\n")
-            for block_id, gene_id, reason in report.fallbacks:
-                f.write(f"{block_id}\t{gene_id or '-'}\t{reason}\n")
-
-
 def _add_subcommand(sub, name: str, help: str, description: str, usage: str, adder,
-                    epilog: str | None = None):
+                    epilog: str | None = None, aliases=None):
     """Register a subcommand with the house-style formatter and a hand-written compact usage.
 
     The command list itself is curated (grouped by theme) in the top-level description, so the
     per-command ``help`` is suppressed from argparse's auto listing to avoid a duplicate dump.
     ``epilog`` (built with :func:`_examples`) adds a worked-example block below the options.
+    ``aliases`` are accepted (deprecated) spellings — e.g. the singular ``trait`` for ``traits``.
     """
-    p = sub.add_parser(name, help=help, description=description, usage=usage,
-                       epilog=epilog, formatter_class=ZombiHelpFormatter)
+    p = sub.add_parser(name, aliases=aliases or [], help=help, description=description,
+                       usage=usage, epilog=epilog, formatter_class=ZombiHelpFormatter)
     adder(p)
     return p
 
@@ -3900,7 +3659,7 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 genomes -t out/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.25 --orig 0.5 --seed 42 -o out/",
             "",
             "  # 3. a trait (or sequences, or coupled processes) on the same tree",
-            "  zombi2 trait -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
+            "  zombi2 traits -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
             "",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
         ),
@@ -3924,7 +3683,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree.",
-        "zombi2 genomes -t FILE -o DIR [--genome-model LEVEL] [--rate-per UNIT] "
+        "zombi2 genomes -t FILE -o DIR [--genome-resolution RESOLUTION] [--rate-per UNIT] "
         "[--write PART ...] [options]",
         _add_rate_args,
         epilog=_examples(
@@ -3936,45 +3695,47 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "trait", "evolve a phenotypic trait along a given species tree",
+        sub, "traits", "evolve a phenotypic trait along a given species tree",
         "Evolve a phenotypic trait along a species tree, writing tip and ancestral values.",
-        "zombi2 trait -t FILE -o DIR [--model MODEL] [options]", _add_trait_args,
+        "zombi2 traits -t FILE -o DIR [--model MODEL] [options]", _add_trait_args,
+        aliases=["trait"],
         epilog=_examples(
             "  # Ornstein-Uhlenbeck continuous trait",
-            "  zombi2 trait -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
+            "  zombi2 traits -t out/species_tree.nwk --model ou --alpha 2 --theta 5 --seed 1 -o out/",
             "",
             "  # 3-state discrete Mk trait, 20 replicates",
-            "  zombi2 trait -t out/species_tree.nwk --model mk --states 3 --replicates 20 --seed 1 -o out/",
+            "  zombi2 traits -t out/species_tree.nwk --model mk --states 3 --replicates 20 --seed 1 -o out/",
         ))
 
     _add_subcommand(
         sub, "coevolve", "co-evolve coupled processes (--couple driver:target)",
-        "Co-evolve coupled processes over {species, traits, genes} — pick directed edges with "
-        "--couple (e.g. traits:species = SSE, traits:genes = trait-conditioned gene families).",
+        "Co-evolve coupled processes over {species, genomes, traits} — pick directed edges with "
+        "--couple (e.g. traits:species = SSE, traits:genomes = trait-conditioned gene families).",
         "zombi2 coevolve -o DIR --couple DRIVER:TARGET [-t FILE] [--age T|--tips N] [options]",
         _add_coevolve_mode_args,
         epilog=_examples(
             "  # trait-conditioned gene families (loss/gain depends on a simulated trait)",
-            "  zombi2 coevolve --couple traits:genes -t out/species_tree.nwk --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/",
+            "  zombi2 coevolve --couple traits:genomes -t out/species_tree.nwk --trait-model mk --states 2 --trait-center --responsive 0.3 --effect-loss 3 --seed 1 -o out/",
             "",
             "  # trait-dependent diversification (BiSSE), grows the tree",
             "  zombi2 coevolve --couple traits:species --sse-model bisse --tips 50 --seed 1 -o out/",
         ))
 
     _add_subcommand(
-        sub, "sequence", "simulate DNA/protein alignments along a genomes run's gene trees",
+        sub, "sequences", "simulate DNA/protein alignments along a genomes run's gene trees",
         "Rescale a 'genomes' run's gene trees from time into substitutions/site under a "
         "gene × lineage clock, then (with --subst-model) simulate a DNA or protein sequence "
         "alignment along each rescaled gene tree.",
-        "zombi2 sequence --genomes DIR -o DIR [--subst-model MODEL] "
+        "zombi2 sequences --genomes DIR -o DIR [--subst-model MODEL] "
         "[--clock MODEL [--clock-sigma S]] [options]",
         _add_sequence_args,
+        aliases=["sequence"],
         epilog=_examples(
             "  # rescale gene trees into substitutions/site (needs a 'genomes' run done with --write trace)",
-            "  zombi2 sequence --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/",
+            "  zombi2 sequences --genomes out/ --branch-speed 0.4 --family-speed 0.5 --seed 7 -o out/",
             "",
             "  # ...and also simulate DNA alignments under HKY85",
-            "  zombi2 sequence --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
+            "  zombi2 sequences --genomes out/ --subst-model hky85 --branch-speed 0.4 --seed 7 -o out/",
         ))
 
     _add_subcommand(
@@ -4002,24 +3763,28 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _add_subcommand(
-        sub, "experimental", "unstable, opt-in models (selection: ESM2 dN/dS; ils: multispecies coalescent)",
+        sub, "experimental", "unstable, opt-in models (ils: multispecies-coalescent gene trees)",
         "Experimental, not-yet-validated models (the zombi2.experimental layer) — APIs and outputs "
         "may change. Each is a sub-subcommand; run 'zombi2 experimental <model> -h' for its options.\n\n"
         "Models\n"
-        "  selection            language-model (ESM2) codon selection on a real annotated genome\n"
         "  ils                  incomplete lineage sorting (multispecies-coalescent gene trees)",
         "zombi2 experimental <model> [options]",
         _add_experimental_args,
         epilog=_examples(
-            "  # evolve a real genome down a species tree with ESM2 purifying selection on its genes",
-            "  zombi2 experimental selection -t species_tree.nwk --gff genome.gff --genome-fasta genome.fna --beta 1 -o out/",
-            "",
             "  # draw 1000 gene trees under the multispecies coalescent (incomplete lineage sorting)",
             "  zombi2 experimental ils -t species_tree.nwk -N 0.5 -n 1000 -o out/",
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
+    # Commands are plural nouns; the singular spellings (trait/sequence) are accepted but deprecated.
+    # Normalise so dispatch and the run-manifest filename use the canonical plural.
+    _SINGULAR_COMMANDS = {"trait": "traits", "sequence": "sequences"}
+    if args.command in _SINGULAR_COMMANDS:
+        canonical = _SINGULAR_COMMANDS[args.command]
+        print(f"warning: 'zombi2 {args.command}' is deprecated; use 'zombi2 {canonical}'.",
+              file=sys.stderr)
+        args.command = canonical
     try:
         return _dispatch(args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
@@ -4091,7 +3856,7 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             parts.append(f"{n_unsampled} unsampled")
         summary = " + ".join(parts) + " tips"
         print(f"wrote {args.out}/{wrote} ({summary}) in {dt:.3g} s")
-        _write_params_log(os.path.join(args.out, "species_tree.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "species.log"), args, summary)
         return 0
 
     if args.command == "genomes":
@@ -4105,16 +3870,16 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         _write_params_log(os.path.join(args.out, "genomes.log"), args, summary)
         return 0
 
-    if args.command == "trait":
+    if args.command == "traits":
         summary = _run_trait(args)
         print(summary)
-        _write_params_log(os.path.join(args.out, "trait.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "traits.log"), args, summary)
         return 0
 
-    if args.command == "sequence":
+    if args.command == "sequences":
         summary = _run_sequence(args)
         print(summary)
-        _write_params_log(os.path.join(args.out, "sequence.log"), args, summary)
+        _write_params_log(os.path.join(args.out, "sequences.log"), args, summary)
         return 0
 
     if args.command == "coevolve":
@@ -4141,8 +3906,6 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         parser.error(f"unknown tool {args.tools_command!r}")   # unreachable: subparsers validate
 
     if args.command == "experimental":
-        if args.experimental_command == "selection":
-            return _run_experimental_selection(args, parser)
         if args.experimental_command == "ils":
             return _run_experimental_ils(args, parser)
         parser.error(f"unknown experimental model {args.experimental_command!r}")   # unreachable

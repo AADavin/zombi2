@@ -132,7 +132,7 @@ def test_bad_parameters_rejected():
         z.SequenceEvolution(root_rate=0.0)
 
 
-# --- replaying from a written Events_trace.tsv (what `zombi2 sequence` does) ----------------
+# --- replaying from a written events_trace.tsv (what `zombi2 sequence` does) ----------------
 
 def test_scale_families_equals_scale():
     """The low-level scale_families entry point matches scale() byte-for-byte at full precision."""

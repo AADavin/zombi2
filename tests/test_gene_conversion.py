@@ -20,7 +20,7 @@ The suite, strongest first (see docs/validation.md):
 * **Oracle** — the mean within-family coalescence depth of a stable two-copy family matches ``1/(2c)``.
 * **Bias** — the directional knob tilts the donor toward the family's oldest lineage.
 * **Core surface** — the public API carries it and it routes to the pure-Python engine.
-* **Trace** — a conversion survives the ``Events_trace.tsv`` round-trip and the compact-trace expansion.
+* **Trace** — a conversion survives the ``events_trace.tsv`` round-trip and the compact-trace expansion.
 """
 
 from __future__ import annotations
@@ -230,7 +230,7 @@ def test_conversion_runs_on_the_python_engine():
 
 def test_conversion_survives_events_trace_roundtrip():
     """A conversion (a 3-id ``C`` row + its paired ``L`` row) survives writing and re-reading
-    ``Events_trace.tsv``."""
+    ``events_trace.tsv``."""
     tree = z.simulate_species_tree(z.BirthDeath(1.0, 0.2), n_tips=8, age=4.0, seed=5)
     g = z.simulate_genomes(tree, SharedRates(duplication=0.5, conversion=1.0),
                            initial_families=5, seed=9)

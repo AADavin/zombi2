@@ -131,7 +131,7 @@ class MultispeciesCoalescent:
         tree once and draw ``replicates`` gene trees under DTL + ILS. Returns ``{family: list[Tree]}``
         (families with no surviving copy omitted). ``families`` is ``{family: list[EventRecord]}`` and
         ``gid2species`` is ``{gid: extant species}`` — exactly what a ``Genomes`` result or a written
-        ``Events_trace.tsv`` (via ``read_events_trace`` + ``extant_species_from_records``) provides."""
+        ``events_trace.tsv`` (via ``read_events_trace`` + ``extant_species_from_records``) provides."""
         from zombi2.genomes.reconciliation import _node_tree     # lazy: keep the module import light
         out: dict = {}
         for family, records in families.items():

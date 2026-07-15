@@ -1,4 +1,4 @@
-"""Per-species-branch event summary (``Branch_events.tsv`` / ``--write branch_events``).
+"""Per-species-branch event summary (``branch_events.tsv`` / ``--write branch_events``).
 
 :func:`branch_events_table` aggregates the event log into one row per species-tree branch: the
 count of each event that fired on it (D/T/L/O, plus inversion/transposition for ordered genomes),
@@ -109,9 +109,9 @@ def test_cli_writes_branch_events(tmp_path):
                "--dup", "0.2", "--trans", "0.3", "--loss", "0.25", "--orig", "0.3",
                "--seed", "7", "--write", "branch_events", "transfers", "-o", str(out)])
     assert rc == 0
-    text = (out / "Branch_events.tsv").read_text()
+    text = (out / "branch_events.tsv").read_text()
     assert text.splitlines()[0] == BRANCH_EVENTS_HEADER
     _, rows = _parse(text)
-    # cross-check the transfer split against Transfers.tsv
-    n_transfers = len((out / "Transfers.tsv").read_text().strip().splitlines()) - 1
+    # cross-check the transfer split against transfers.tsv
+    n_transfers = len((out / "transfers.tsv").read_text().strip().splitlines()) - 1
     assert sum(int(r["transfer_out"]) for r in rows) == n_transfers

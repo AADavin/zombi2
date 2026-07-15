@@ -33,11 +33,11 @@ NAMESPACES = {
         "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
         "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
         "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
-        "RateModel", "PerCopyRates", "SharedRates", "PerLineageRates", "PerGenomeRates",
-        "FamilySampledRates", "LineageRates", "BranchRates", "Modifier", "ModifiedRates",
-        "LineageModifier", "BranchModifier", "FamilyModifier",
+        "RateModel", "PerCopyRates", "PerLineageRates",
+        "FamilySampledRates", "LineageRates", "Modifier", "ModifiedRates",
+        "LineageModifier", "FamilyModifier",
         "EventWeight", "TransferModel", "PairModifier", "ConversionModel",
-        "read_family_rates", "read_lineage_rates", "read_branch_rates",
+        "read_family_rates", "read_lineage_rates",
         "GenomeSimulator", "GenomeResult", "ProfileMatrix",
         "simulate_genomes", "Genomes", "GenomeTrace", "read_events_trace",
         "build_gene_trees", "run_replicates",
@@ -144,7 +144,7 @@ def test_from_import_style_works():
 
 def test_top_level_still_exposes_all_original_names():
     """(c) ``import zombi2`` still exposes every name in its ``__all__``."""
-    assert len(z.__all__) == 156   # + codon site models: CodonSiteModel, m1a..m8, is_codon_site_model, CODON_SITE_MODELS
+    assert len(z.__all__) == 151   # 156 - 5 deprecated rate aliases retired from __all__ (PEP-562 __getattr__)
     missing = [n for n in z.__all__ if not hasattr(z, n)]
     assert missing == [], f"top-level zombi2 lost names: {missing}"
 

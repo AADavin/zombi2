@@ -39,11 +39,11 @@ tagged with its family and a strand orientation of $+1$ or $-1$.
 
 ### From the command line
 
-The ordered level is also a `--genome-model`, so the same run is available from the `genomes`
+The ordered level is also a `--genome-resolution`, so the same run is available from the `genomes`
 command:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model ordered \
+zombi2 genomes -t species_tree.nwk --genome-resolution ordered \
     --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
     --inversion 0.3 --transposition 0.2 --mean-length 2 \
     --initial-families 25 --seed 1 --write profiles trees events -o out/
@@ -121,7 +121,7 @@ genome_factory=lambda ids: OrderedGenome(ids, extension=0.5, circular=[True, Fal
 On the command line the same two knobs are `--n-chromosomes` and `--linear-chromosomes`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model ordered \
+zombi2 genomes -t species_tree.nwk --genome-resolution ordered \
     --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
     --inversion 0.3 --transposition 0.2 --translocation 0.1 --mean-length 2 \
     --n-chromosomes 8 --linear-chromosomes \
@@ -157,8 +157,8 @@ single-chromosome model exactly, event for event.
 
 ::: note
 The karyotype is written out when it is non-trivial: a run with more than one chromosome (or any
-chromosome-tier rate) also produces `Gene_order.tsv` — which chromosome each gene sits on, in order —
-and `Karyotype_trace.tsv`, the fission/fusion/origination/loss genealogy. A single-chromosome run's
+chromosome-tier rate) also produces `gene_order.tsv` — which chromosome each gene sits on, in order —
+and `karyotype_trace.tsv`, the fission/fusion/origination/loss genealogy. A single-chromosome run's
 output is unchanged. In the Python API the same information is on `leaf.chromosomes` (a
 `dict` of `Chromosome` objects) and `genomes.event_log.chromosome_records`.
 :::

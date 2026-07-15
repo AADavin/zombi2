@@ -38,6 +38,67 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 - Documented that `--transposition` (a segment moved elsewhere in the genome) applies to both the
   `ordered` and `nucleotide` genome models, not only `nucleotide`.
+- **`--genome-resolution` replaces `--genome-model`** (naming consolidation C4). The genome
+  representation axis (unordered / ordered / nucleotide) is a *resolution*, not a "level" or a
+  stochastic "model"; `--genome-model` is kept as an accepted (deprecated) alias. The metavar is now
+  `RESOLUTION`, and "level" is reserved for the four simulation domains (species, genomes, traits,
+  sequences).
+- **Coevolve nodes standardise on `genomes`** (C6): `--couple traits:genomes`, `genomes:species`,
+  etc. The old node spelling `genes` is still accepted but warns — one domain word everywhere.
+- **CLI commands are plural nouns** (C5): `zombi2 traits` and `zombi2 sequences` (matching `species`
+  / `genomes`, the packages, and the guide). The singular `trait` / `sequence` still work but warn.
+  The run-manifest filename follows the command, so these runs now write `traits.log` / `sequences.log`
+  (were `trait.log` / `sequence.log`).
+- **Output filenames are `lowercase_snake`** (naming consolidation C7). Every file and directory a
+  run writes is lowercased: `Profiles.tsv`→`profiles.tsv`, `Presence.tsv`→`presence.tsv`,
+  `Events_trace.tsv`→`events_trace.tsv`, `Transfers.tsv`→`transfers.tsv`,
+  `Reconciled_complete.nwk`/`Reconciled_extant.nwk`→`reconciled_*.nwk`,
+  `Reconciliation_*.tsv`→`reconciliation_*.tsv`, `Tree_distances.tsv`→`tree_distances.tsv`,
+  `RED.tsv`→`red.tsv`, `Karyotype_trace.tsv`, `Chromosomes.tsv`, `Mosaics.tsv`, `Genes.gff`→`genes.gff`,
+  and the `Gene_trees/`, `Intergene_trees/`, `Gene_alignments/`, `Architecture/`, `Genomes/`, `BED/`
+  directories. `species_tree.log`→`species.log` (matching the `<command>.log` convention);
+  `Branch_events.tsv`→`branch_events.tsv` (kept "branch" — it is a genuine per-tree-edge table); and
+  the plain-ILS single-file output `gene_trees.nwk`→`ils_gene_trees.nwk` so it no longer shadows the
+  `gene_trees/` directory. **Breaking change with no compatibility shim** — update downstream scripts;
+  file *contents* are byte-identical, only the names changed. (`species_tree.nwk` / `species_nodes.tsv`
+  were already lowercase.)
+- **Rate vocabulary clarified in the docs and manual** (naming consolidation C2/C3). The guide,
+  the manual, and `conventions.md` now state a single two-word rule — a **rate** is a quantity per
+  unit time, a **modifier** is a dimensionless multiplier on a rate — and reserve **odds** for the
+  undated-ALE tools alone (`tools reconcile --model undated/reldated`, `tools simulate`), where the
+  D/T/L parameters are per-branch odds, not rates. Retired class/function names (`PerGenomeRates`,
+  `BranchRates`, `BranchModifier`, `read_branch_rates`, the `shared` rate model) and per-branch
+  rate/modifier phrasing were updated to the `per-lineage` / `PerLineageRates` / `LineageRates` /
+  `read_lineage_rates` vocabulary throughout the prose. (The sequence-clock `--branch-*` /
+  `--family-speed` flags are σ/spread parameters and are left unchanged pending a naming decision;
+  see `docs/design/naming-consolidation.md` §C3.)
+
+### Deprecated
+
+- **Renamed rate names retired from the public API surface** (naming consolidation, see
+  `docs/design/naming-consolidation.md`). The five backwards-compatible aliases
+  `SharedRates`→`PerCopyRates`, `PerGenomeRates`→`PerLineageRates`, `BranchRates`→`LineageRates`,
+  `BranchModifier`→`LineageModifier`, and `read_branch_rates`→`read_lineage_rates` still work but now
+  emit a `DeprecationWarning` and no longer appear in `zombi2.__all__`, `dir(zombi2)`, or the API
+  reference (they resolve via a PEP-562 `__getattr__`; the deep-module spelling
+  `zombi2.genomes.rates.SharedRates` stays silent). The deprecated CLI flags `--rate-model` and
+  `--initial-chromosomes` are hidden from `--help` (still accepted, with a warning). All are
+  scheduled for removal in **0.4.0**.
+
+### Removed
+
+- **Experimental protein-language-model selection** — `zombi2 experimental selection`,
+  `zombi2.experimental.selection` (+ `codon_selection` / `genome_selection` /
+  `nucleotide_selection` / `realism`), and the `zombi2[selection]` extra with its `torch` /
+  `fair-esm` dependencies have been removed (naming consolidation, `docs/design/naming-consolidation.md`
+  §C9). It was the ESM2-critic realism feature; the active protein-realism work continues off-repo.
+  `experimental ils` is unaffected and is now the sole experimental model. "Selection" now
+  unambiguously refers to the core codon `dN/dS` models (`--subst-model gy94/mg94`, `--omega`).
+
+### Fixed
+
+- `--initial-chromosomes` (deprecated) no longer silently overrides the canonical `--n-chromosomes`;
+  passing both with conflicting values is now an error.
 
 ## [0.2.0] - 2026-07-07
 

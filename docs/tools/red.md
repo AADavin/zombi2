@@ -36,11 +36,11 @@ relative age, `node.time / total_age`, exactly — the identity the tool is vali
 
 ```bash
 # a phylogram recovers relative ages; a dated tree gives them exactly
-zombi2 tools red -t species_tree.nwk -o out/     # writes out/RED.tsv
+zombi2 tools red -t species_tree.nwk -o out/     # writes out/red.tsv
 zombi2 tools red -t gene_tree.nwk                 # or print the table to stdout
 ```
 
-`RED.tsv` has one row per node:
+`red.tsv` has one row per node:
 
 | column | meaning |
 | --- | --- |
@@ -49,7 +49,7 @@ zombi2 tools red -t gene_tree.nwk                 # or print the table to stdout
 | `red` | Relative Evolutionary Divergence, in `[0, 1]` |
 
 The tree is any single Newick — a dated species tree from `zombi2 species`, a phylogram from
-`zombi2 sequence`, or an external tree. Branch lengths are read as-is.
+`zombi2 sequences`, or an external tree. Branch lengths are read as-is.
 
 ## Python
 

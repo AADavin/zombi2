@@ -185,7 +185,7 @@ def test_ils_end_to_end_writes_gene_trees(tmp_path, capsys):
     out = tmp_path / "out"
     rc = main(["experimental", "ils", "-t", str(t), "-N", "0.5", "-n", "50", "--seed", "1", "-o", str(out)])
     assert rc == 0
-    gene_trees = (out / "gene_trees.nwk").read_text().splitlines()
+    gene_trees = (out / "ils_gene_trees.nwk").read_text().splitlines()
     assert len(gene_trees) == 50
     assert (out / "species_tree.nwk").exists() and (out / "ils.log").exists()
     # each line is a parseable gene tree on the 5 species
@@ -282,10 +282,10 @@ def test_ils_dtl_cli_end_to_end(tmp_path):
     grun = tmp_path / "grun"
     rc = main(["genomes", "-t", str(t), "--dup", "0.3", "--trans", "0.2", "--loss", "0.3",
                "--orig", "0.1", "--initial-families", "20", "--seed", "5", "--write", "trace", "-o", str(grun)])
-    assert rc == 0 and (grun / "Events_trace.tsv").exists()
+    assert rc == 0 and (grun / "events_trace.tsv").exists()
 
     out = tmp_path / "ilsout"
-    rc = main(["experimental", "ils", "-t", str(t), "--events-trace", str(grun / "Events_trace.tsv"),
+    rc = main(["experimental", "ils", "-t", str(t), "--events-trace", str(grun / "events_trace.tsv"),
                "-N", "0.5", "-n", "2", "--seed", "1", "-o", str(out)])
     assert rc == 0
     files = list((out / "gene_trees").glob("*.nwk"))

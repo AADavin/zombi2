@@ -117,22 +117,22 @@ The selectable components are exactly `Genomes.WRITE_PARTS`: `profiles`, `trace`
 | Component | Path(s) written |
 |---|---|
 | *(always)* | `species_tree.nwk`, `species_nodes.tsv` |
-| `profiles` | `Profiles.tsv` + `Presence.tsv` (dense), or `Profiles_sparse.tsv` (with `--sparse`) |
+| `profiles` | `profiles.tsv` + `presence.tsv` (dense), or `profiles_sparse.tsv` (with `--sparse`) |
 | `trees` | `gene_trees/<fid>_complete.nwk`, `gene_trees/<fid>_extant.nwk` |
 | `events` | `gene_family_events/<fid>_events.tsv` — one file per family |
-| `transfers` | `Transfers.tsv` — one row per transfer |
-| `summary` | `Gene_family_summary.tsv` — per-family origin, event counts, copies |
-| `trace` | `Events_trace.tsv` — the whole genealogy in one file |
-| `branch_events` | `Branch_events.tsv` — per-species-branch event counts, with an `is_extant` flag |
+| `transfers` | `transfers.tsv` — one row per transfer |
+| `summary` | `gene_family_summary.tsv` — per-family origin, event counts, copies |
+| `trace` | `events_trace.tsv` — the whole genealogy in one file |
+| `branch_events` | `branch_events.tsv` — per-species-branch event counts, with an `is_extant` flag |
 
 `species_nodes.tsv` carries `name`, `time`, `is_leaf`, `is_extant` per node. A per-family events file
 has columns `time`, `event`, `branch`, `donor`, `recipient`, `nodes`, where `nodes` is a
-`;`-separated list of `role=gid` pairs. `Transfers.tsv` gives `time`, `family`, `donor_branch`,
-`recipient_branch`, `parent_id`, `donor_copy_id`, `transfer_id`. `Gene_family_summary.tsv` reports,
+`;`-separated list of `role=gid` pairs. `transfers.tsv` gives `time`, `family`, `donor_branch`,
+`recipient_branch`, `parent_id`, `donor_copy_id`, `transfer_id`. `gene_family_summary.tsv` reports,
 per family, the origin time and branch, the D / T / L / speciation counts, and the extant copy and
 species-present totals — the last two taken from the sparse profile so no dense matrix is built.
 
-`Branch_events.tsv` transposes the event log onto the *species* tree: one row per branch, with
+`branch_events.tsv` transposes the event log onto the *species* tree: one row per branch, with
 `origination`, `duplication`, `transfer_in`, `transfer_out`, `loss`, `inversion`, `transposition`
 and a `total` (the events that fired on the branch — `transfer_out` counts, `transfer_in` does not,
 as it fired on the donor). The `is_extant` column, derived from node times (extant = ancestral to a
@@ -141,8 +141,8 @@ present-day leaf), makes the per-branch table of the *extant* tree a one-line fi
 
 ### Sparse profiles
 
-`--sparse` (Python `sparse=True`) replaces the dense `Profiles.tsv` / `Presence.tsv` pair with a
-single `Profiles_sparse.tsv` in the COO long format described above. The dense pair is the one output
+`--sparse` (Python `sparse=True`) replaces the dense `profiles.tsv` / `presence.tsv` pair with a
+single `profiles_sparse.tsv` in the COO long format described above. The dense pair is the one output
 that does not scale — it is `families × species` — so at large tip counts the sparse form is the only
 viable profile output. It only affects the profile component; the CLI rejects `--sparse` unless
 `profiles` is among the requested parts.
@@ -150,7 +150,7 @@ viable profile output. It only affects the profile component; the CLI rejects `-
 ### The event trace and its fast path
 
 `events` writes one small file per family; `trace` writes the entire log as a single
-`Events_trace.tsv`. Its header is:
+`events_trace.tsv`. Its header is:
 
 ```
 time    event   branch  donor   recipient       family  parent  child1  child2
@@ -172,7 +172,7 @@ genomes = trace.genomes()                             # promote on demand
 ```
 
 `trace.write(...)` defaults to `include=("trace", "profiles")`, the two components that cost almost
-nothing; writing `Events_trace.tsv` from the engine's raw columns never materialises a single
+nothing; writing `events_trace.tsv` from the engine's raw columns never materialises a single
 `EventRecord`. Requesting any heavier component (`trees`, `events`, `transfers`, `summary`)
 transparently promotes the trace to a full `Genomes` first, so the fast path is exactly the subset
 `{trace, profiles}`. On the command line the same fast path fires automatically when `--write` is

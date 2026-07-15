@@ -128,7 +128,7 @@ def extant_species_from_records(families, species_tree) -> dict:
     """Reconstruct ``{gid: extant_species}`` for surviving gene lineages, from event records only.
 
     The live simulator reads this off its ``leaf_genomes``; when replaying from a written
-    ``Events_trace.tsv`` there are none, so recover it from the genealogy. A lineage that is
+    ``events_trace.tsv`` there are none, so recover it from the genealogy. A lineage that is
     never the *parent* of a later event survives to the present, and the species it lives in is
     the branch it was **born into**, fixed by the event that created it:
 

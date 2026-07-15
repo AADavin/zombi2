@@ -38,8 +38,8 @@ class TransferModel:
         multiplied by its receptivity (branches not listed default to ``1.0``), composing with
         ``distance_decay`` if that is also set. A branch with weight ``0`` never receives; a branch
         with weight ``2`` is twice as likely as an unlisted one at the same distance. Reachable from
-        the CLI via ``--branch-rates FILE`` (see
-        :func:`~zombi2.genomes.read_rates.read_branch_rates`).
+        the CLI via ``--lineage-rates FILE`` (see
+        :func:`~zombi2.genomes.read_rates.read_lineage_rates`).
     pair:
         A :class:`PairModifier` biasing transfer by the **(donor, recipient) pair** — the mechanism
         behind transfer *highways*. ``None`` (default) leaves pair choice unbiased. Otherwise each

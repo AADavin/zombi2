@@ -95,7 +95,7 @@ labels. Options:
 
 | Flag | Meaning |
 | --- | --- |
-| `-o DIR` | write `DIR/Tree_distances.tsv` (default: print the table to stdout) |
+| `-o DIR` | write `DIR/tree_distances.tsv` (default: print the table to stdout) |
 | `--no-quartet` | skip the quartet distance (it is `O(n⁴)`) |
 | `--max-leaves N` | quartet guard: skip it above `N` leaves (default 100); raise to force it |
 | `--branch-order {1,2}` | branch-score norm: `2` = L2 / Kuhner–Felsenstein (default), `1` = L1 |

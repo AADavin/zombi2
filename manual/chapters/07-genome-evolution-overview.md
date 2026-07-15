@@ -27,7 +27,7 @@ Two independent choices define a genome run.
 
 The first is the **level** — unordered, ordered, or nucleotide. The level is what a genome *is*, and
 therefore which events can act on it (see *Events, by level* below); each level *adds* events to the
-one beneath it. On the command line, `--genome-model` selects the level: `unordered` (the default),
+one beneath it. On the command line, `--genome-resolution` selects the level: `unordered` (the default),
 `ordered`, or `nucleotide`.
 
 The second choice, orthogonal to the first, is **how each rate is counted** — its *opportunity*.
@@ -36,7 +36,7 @@ gene copy** (the default, so a bigger genome has proportionally more events) or 
 chance for the whole genome, size-independent). This is the `--rate-per` flag (see *Rate models*
 below); per-family or per-lineage **multipliers** can be layered on top.
 
-| Level (`--genome-model`) | A genome is… | Chapter |
+| Level (`--genome-resolution`) | A genome is… | Chapter |
 |---|---|---|
 | **unordered** | a *set* of gene families (presence/absence) | Chapter 8 |
 | **ordered** | genes on a chromosome (order matters, length does not) | Chapter 10 |

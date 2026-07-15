@@ -1,10 +1,12 @@
 # Genomes
 
-A genome in ZOMBI2 evolves **along a species tree**, and you can model it at three levels of
-resolution — pick the coarsest one that answers your question.
+A genome in ZOMBI2 evolves **along a species tree**, and you can model it at three **resolutions** —
+pick the coarsest one that answers your question. (These are resolutions of the one *genomes* level,
+not levels themselves — "level" is reserved for the four domains species / genomes / traits /
+sequences.)
 
 <figure markdown="span">
-  ![The three genome levels: unordered gene families, ordered chromosomes, and nucleotide genomes.](../img/genome_models.svg){ width="560" }
+  ![The three genome resolutions: unordered gene families, ordered chromosomes, and nucleotide genomes.](../img/genome_models.svg){ width="560" }
 </figure>
 
 **Gene families (unordered).** The default: a genome is a **bag of gene families** with copy
@@ -16,13 +18,13 @@ optionally rescaled by **per-family** or **per-lineage** multipliers (see [Rates
 genome also undergoes **inversions and transpositions** — so gene *order* and orientation carry
 signal, not just presence and absence.
 
-**Nucleotide genomes.** The finest level: a **nucleotide-resolution** genome of root-anchored
+**Nucleotide genomes.** The finest resolution: a **nucleotide-resolution** genome of root-anchored
 segments, with variable-length structural events (inversions, transpositions, indels), an explicit
 gene/intergene structure, homologous replacement, and GFF import to start from a real genome. Every
 block carries its own gene tree, and ancestral sequences can be reconstructed at every node.
 
 All three run the same way — `simulate_genomes(tree, ...)` in Python, or `zombi2 genomes` on the
-command line (`--genome-model {unordered, ordered, nucleotide}`, default `unordered`; in Python,
+command line (`--genome-resolution {unordered, ordered, nucleotide}`, default `unordered`; in Python,
 ordered chromosomes can also be selected with the `genome_factory` argument). Growth can be bounded
 with a hard `max_family_size` cap or a soft `carrying_capacity` — see [Bounding growth](#bounding-growth)
 below. For what the simulation produces, see [Gene trees & output](#gene-trees-output).
@@ -159,10 +161,10 @@ per-lineage models are far less prone to runaway growth. Selected on the CLI wit
 
 #### LineageRates — per-lineage rates
 
-`LineageRates` makes rates vary **per species-tree branch** by scaling any base rate model
+`LineageRates` makes rates vary **per species-tree lineage** by scaling any base rate model
 with a per-lineage factor. By default the factor scales duplication/transfer/loss together
 (origination is left unscaled); pass `events=("transfer",)` to scale **only** transfer — the
-transfer-*emission* dial (how often a branch donates). It composes with the base model, so branch
+transfer-*emission* dial (how often a branch donates). It composes with the base model, so lineage
 and family heterogeneity combine. Choose one factor source:
 
 ```python
@@ -219,7 +221,7 @@ zombi2 genomes -t run/species_tree.nwk --rate-per lineage \
 ### Python
 
 Models live in `zombi2.genomes` (and re-export at the top level, so `zombi2.PerCopyRates` also
-works; the former name `zombi2.SharedRates` remains as an alias):
+works):
 
 ```python
 from zombi2.species import BirthDeath, simulate_species_tree
@@ -271,15 +273,15 @@ genomes.write("out/")
 
 The returned `Genomes` object (and `--write`) exposes:
 
-- **Profile matrix** — `genomes.profiles`; `Profiles.tsv` (copy counts, families × extant species) and
-  `Presence.tsv` (its 0/1 binarization). `--sparse` writes `Profiles_sparse.tsv` instead.
+- **Profile matrix** — `genomes.profiles`; `profiles.tsv` (copy counts, families × extant species) and
+  `presence.tsv` (its 0/1 binarization). `--sparse` writes `profiles_sparse.tsv` instead.
 - **Gene trees** — `genomes.gene_trees()`; `gene_trees/<family>_complete.nwk` (all lineages) and
   `_extant.nwk` (survivors only), each **reconciled** with the species tree.
 - **Reconciliations & per-family events** — `gene_family_events/<family>_events.tsv` records where each
   family's D/T/L/S events map onto the species tree.
-- **Events trace** — `Events_trace.tsv`, one compact chronological log of every event, from which gene
-  trees can be reconstructed on demand. Also `Transfers.tsv` and `Gene_family_summary.tsv`.
-- **Per-branch event counts** — `--write branch_events` writes `Branch_events.tsv`: one row per branch
+- **Events trace** — `events_trace.tsv`, one compact chronological log of every event, from which gene
+  trees can be reconstructed on demand. Also `transfers.tsv` and `gene_family_summary.tsv`.
+- **Per-branch event counts** — `--write branch_events` writes `branch_events.tsv`: one row per branch
   of the species tree with the number of each event that fired on it (`origination`, `duplication`,
   `transfer_out`, `transfer_in`, `loss`, and `inversion`/`transposition` for ordered genomes) plus a
   `total`. An `is_extant` column (derived from node times: extant = ancestral to a present-day leaf)
@@ -361,7 +363,7 @@ transfers are damped but never forbidden.
     co-existing lineage (`O(alive · depth)`). It is the one hot spot; for very large trees
     it can be swapped for a sparse-table LCA later.
 
-### Per-branch receptivity (absorption)
+### Per-lineage receptivity (absorption)
 
 `receptivity` biases **which** branch receives a transfer — the absorption counterpart to the
 transfer *emission* rate scaled by [`LineageRates`](#lineagerates-per-lineage-rates). Pass a
@@ -421,7 +423,7 @@ zombi2 genomes -t species_tree.nwk \
     --initial-families 40 --seed 42 -o out/
 ```
 
-`read_family_rates(path)` and `read_branch_rates(path)` (both in `zombi2.genomes`) parse the same
+`read_family_rates(path)` and `read_lineage_rates(path)` (both in `zombi2.genomes`) parse the same
 files in Python, returning the `{family: (d,t,l)}` map and the `(emission, receptivity)` pair the
 models consume. Either `--lineage-rates` column is optional; a header row is honoured, otherwise
 columns are positional.
@@ -532,7 +534,7 @@ operons, rearrangements) use **`OrderedGenome`**, the basic ZOMBI1 model: a circ
 chromosome of genes, each carrying a strand orientation, with no intergenic regions. Genes sit on
 an ordered, circular chromosome, and the chromosome evolves not just by gaining and losing genes but
 by *shuffling* them — inversions and transpositions rearrange contiguous segments so that gene
-**order** itself carries phylogenetic signal. Selecting the level is `--genome-model ordered`. A
+**order** itself carries phylogenetic signal. Selecting the level is `--genome-resolution ordered`. A
 genome may hold a single chromosome (the default) or [several](#multiple-chromosomes), circular or
 linear.
 
@@ -563,7 +565,7 @@ higher values → longer segments.
 Inversions and transpositions change gene order/orientation but **not** gene content, so
 they leave the profile matrix and the gene trees unchanged — they show up in the event log
 and in the final chromosome order. Rearrangement rates are per gene copy; segment length is set by
-`--mean-length` (in genes). Rearrangements require the `shared` rate model.
+`--mean-length` (in genes). Rearrangements require the `PerCopyRates` rate model.
 
 ### Multiple chromosomes
 
@@ -617,8 +619,8 @@ genomes.event_log.chromosome_records   # the fission / fusion / origination / lo
 
 !!! note "Output"
     With more than one chromosome (or any chromosome-tier rate set), a run writes two extra files:
-    **`Gene_order.tsv`** — the layout (`species · chromosome · position · family · gid · orientation`),
-    i.e. which chromosome each gene sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    **`gene_order.tsv`** — the layout (`species · chromosome · position · family · gid · orientation`),
+    i.e. which chromosome each gene sits on and in what order — and **`karyotype_trace.tsv`** — the
     fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). From the CLI both
     are added automatically when the karyotype is non-trivial; elsewhere request them with
     `--write layout karyotype`. A single-chromosome run's output is unchanged.
@@ -638,12 +640,12 @@ extensibility design that underpins the [contributing guide](../contributing/add
 
 ### Command line
 
-`--genome-model ordered` selects the level; `--inversion`/`--transposition` are the rearrangement
+`--genome-resolution ordered` selects the level; `--inversion`/`--transposition` are the rearrangement
 rates (per gene copy), and `--mean-length` sets the segment length (in genes).
 
 ```bash
 # ordered: gene-order rearrangements on a circular chromosome
-zombi2 genomes -t species_tree.nwk --genome-model ordered \
+zombi2 genomes -t species_tree.nwk --genome-resolution ordered \
     --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.4 \
     --inversion 0.3 --transposition 0.3 --mean-length 2 \
     --initial-families 30 --write profiles trees --seed 1 -o out/
@@ -672,12 +674,12 @@ leaf.chromosome     # ordered list of OrderedGene(gid, family, orientation=±1)
 
 ### Output
 
-The ordered level writes the usual gene-family output — `Profiles.tsv` / `Presence.tsv` (copy-number
+The ordered level writes the usual gene-family output — `profiles.tsv` / `presence.tsv` (copy-number
 and presence matrices over extant leaves), `species_nodes.tsv`, and per-family reconstructed gene
 trees under `gene_trees/` when `trees` is requested; inversions and transpositions appear in the event
 log and the final chromosome order, not in the profiles. `species_tree.nwk` is always written and
 `genomes.log` is the run manifest. With [multiple chromosomes](#multiple-chromosomes) the karyotype
-is written too — `Gene_order.tsv` (which chromosome each gene sits on) and `Karyotype_trace.tsv`
+is written too — `gene_order.tsv` (which chromosome each gene sits on) and `karyotype_trace.tsv`
 (the fission/fusion/origination/loss genealogy).
 
 ### Validation
@@ -695,7 +697,7 @@ model works one level down: a genome is a sequence of individual nucleotides, an
 act on **variable-length segments** of them. This resolves paralogy, xenology, and gene
 order/orientation at nucleotide resolution, and reconstructs a gene tree for every stretch of shared
 ancestry. Reach for it when you need nucleotide-resolution structure, want to start from a real
-genome, or need per-block gene trees. Selecting the level is `--genome-model nucleotide`.
+genome, or need per-block gene trees. Selecting the level is `--genome-resolution nucleotide`.
 
 | Model | Substrate | Rearrangements | Reach for it when |
 | --- | --- | --- | --- |
@@ -723,7 +725,7 @@ nucleotides (`extension=0.99` → ~100 nt). Two extra knobs edit only intergene 
 `insertion` lays down a run of novel nucleotides (a fresh block) and `deletion` removes a run from
 within a single intergene, each with mean `indel_mean_length`. These are **structural** edits to
 the genome — they add or remove nucleotides between genes — and are *not* alignment gaps: the
-sequence layer (`zombi2 sequence`) is [gapless](sequences.md), so they never surface as alignment
+sequence layer (`zombi2 sequences`) is [gapless](sequences.md), so they never surface as alignment
 columns.
 
 ```python
@@ -809,9 +811,9 @@ Use `--gff-seqid ID` to select a single sequence, or `--linear-chromosomes` to f
 linear. Fusion only ever joins two chromosomes of the *same* topology.
 
 !!! note "Karyotype output"
-    A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`Chromosomes.tsv`**
+    A multi-chromosome or chromosome-tier nucleotide run writes two extra files: **`chromosomes.tsv`**
     — the per-leaf layout (`species · chromosome · position · source · start · end · strand`), i.e.
-    which chromosome each block sits on and in what order — and **`Karyotype_trace.tsv`** — the
+    which chromosome each block sits on and in what order — and **`karyotype_trace.tsv`** — the
     fission/fusion/origination/loss genealogy (`parents → children` chromosome ids). Both need the
     Python engine (`--write trees`, or any chromosome-tier rate, which forces it). A single-chromosome
     run's output is unchanged.
@@ -903,14 +905,14 @@ Blocks carry their classification (`block.kind` is `"gene"`/`"intergene"`, `bloc
 engine only (the Rust `profiles` path does not model genes). On the CLI:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --genes genes.tsv --pseudogenization 0.3 --replacement 0.4 \
   --inversion 0.001 --loss 0.0008 --write profiles trees -o out/
 ```
 
-where `genes.tsv` is a BED/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
-annotation, including originated genes), gene/intergene trees under `Gene_trees/` and
-`Intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `Pseudogenizations.tsv`.
+where `genes.tsv` is a bed/TSV of `start end [name]` lines. The run writes `genes.tsv` (the
+annotation, including originated genes), gene/intergene trees under `gene_trees/` and
+`intergene_trees/`, a `kind`/`gene_id` column in `blocks.tsv`, and `pseudogenizations.tsv`.
 
 #### BED gene annotations
 
@@ -918,15 +920,15 @@ annotation, including originated genes), gene/intergene trees under `Gene_trees/
 browser (IGV, JBrowse, UCSC) or `bedtools`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --transposition 2e-6 --inversion 2e-6 --write bed -o out/
 ```
 
 - `genes.bed` — the **root (seed)** genome's genes, using the input sequence name as the chromosome
   (the GFF/FASTA seqid), so it overlays the original genome.
-- `BED/<node>.bed` — every node's genes at their coordinates on **that node's** genome, *after* the
+- `bed/<node>.bed` — every node's genes at their coordinates on **that node's** genome, *after* the
   rearrangements on the path from the root. The chromosome is the node id, matching
-  `Genomes/<node>.fasta.gz` from `--write ancestral`, so a leaf's BED and FASTA line up in a browser.
+  `genomes/<node>.fasta.gz` from `--write ancestral`, so a leaf's BED and FASTA line up in a browser.
 
 Columns are `chrom  chromStart  chromEnd  name  score  strand` (0-based half-open, the convention
 ZOMBI2 uses internally). `strand` is orientation **relative to the root** — every gene is `+` at the
@@ -936,7 +938,7 @@ needs declared genes (`--genes`/`--gff`); it drives the Python engine and can co
 
 #### Gene-order events & export
 
-`--write geneorder` writes **`Geneorder_events.tsv`** — one row per structural event across every
+`--write geneorder` writes **`geneorder_events.tsv`** — one row per structural event across every
 branch, with its physical breakpoint (`chrom  start  length  strand  dest`, native half-open
 coordinates). It is the on-disk record of *where* each inversion / transposition / loss /
 duplication / origination / transfer acted, keyed by `branch` for a per-branch view.
@@ -946,7 +948,7 @@ gene-order / synteny study formats — **breakpoints** (adjacencies broken per t
 and **positional orthologs** — the analysis complement of the fork's `zombiExporter`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide --genes genes.tsv \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide --genes genes.tsv \
   --inversion 1e-3 --transposition 5e-4 --write bed geneorder -o run/
 zombi2 tools export run/ --format breakpoints gff posortho -o export/
 ```
@@ -974,7 +976,7 @@ result = simulate_nucleotide_genomes(
 On the CLI, `--gff` sets the length and genes in one step (superseding `--genes`/`--root-length`):
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --inversion 2e-6 --loss 1.5e-6 --pseudogenization 0.3 \
   --write profiles trees -o out/
 ```
@@ -1015,17 +1017,17 @@ substrings, so the reconstructed root genome is byte-identical to the input.
 On the CLI, `--write ancestral`:
 
 ```bash
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
   --gff ecoli.gff --genome-fasta ecoli.fna \
   --subst-model hky85 --kappa 2 --subst-rate 0.05 --write ancestral -o out/
 ```
 
-writes `Architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node, with a
-`chromosome` column), gzipped `Genomes/<node>.fasta.gz` (the assembled DNA of every node —
-`root.fasta.gz` reproduces the input), and `Gene_alignments/<gene>.fasta` (the extant per-gene
+writes `architecture/<node>.tsv` (the oriented gene/intergene mosaic of every node, with a
+`chromosome` column), gzipped `genomes/<node>.fasta.gz` (the assembled DNA of every node —
+`root.fasta.gz` reproduces the input), and `gene_alignments/<gene>.fasta` (the extant per-gene
 alignments). For a [multi-chromosome](#multiple-chromosomes-the-chromosome-tier) genome the FASTA
 holds **one record per chromosome** (`>node_chr<id>`) and a multi-record `--genome-fasta` seeds each
-replicon's real root DNA (matched by sequence name). Add `bed` to `--write` for a `BED/<node>.bed`
+replicon's real root DNA (matched by sequence name). Add `bed` to `--write` for a `bed/<node>.bed`
 that annotates the genes on each of those FASTA files. Substitution-model
 options: `--subst-model`, `--kappa`, `--base-freqs`, `--gtr-rates`, `--gamma-shape`, `--subst-rate`.
 Sequence simulation runs on the Python engine and scales to real genomes (E. coli's 4.6 Mbp in a
@@ -1047,7 +1049,7 @@ result = simulate_nucleotide_genomes(tree, duplication=1e-4, loss=1.5e-4,
 
 ### Command line & output summary
 
-`--genome-model nucleotide` selects the level; `--inversion`/`--transposition` are the rearrangement
+`--genome-resolution nucleotide` selects the level; `--inversion`/`--transposition` are the rearrangement
 rates (per nucleotide), and `--mean-length` sets the segment length (in nucleotides). `--root-length`
 sets the root chromosome length; `--insertion`/`--deletion` with `--indel-mean-length` edit intergene
 positions; and declaring genes with `--genes` or `--gff` switches on genic mode
@@ -1057,19 +1059,19 @@ positions; and declaring genes with `--genes` or `--gff` switches on genic mode
 
 ```bash
 # nucleotide: structural events at nucleotide resolution, blocks + per-block trees
-zombi2 genomes -t species_tree.nwk --genome-model nucleotide \
+zombi2 genomes -t species_tree.nwk --genome-resolution nucleotide \
     --inversion 0.001 --transposition 5e-5 --loss 1.5e-4 --dup 1e-4 --trans 5e-5 --orig 0.2 \
     --root-length 1000 --write profiles trees --seed 1 -o out/
 ```
 
-The nucleotide level emits the block-based architecture: `Profiles.tsv`/`Presence.tsv` are over
-**blocks**, `blocks.tsv` describes each block (and its `kind`/`gene_id` in genic mode), `Mosaics.tsv`
+The nucleotide level emits the block-based architecture: `profiles.tsv`/`presence.tsv` are over
+**blocks**, `blocks.tsv` describes each block (and its `kind`/`gene_id` in genic mode), `mosaics.tsv`
 gives every leaf as an ordered signed block sequence, `gene_trees/` holds one reconstructed tree per
-block, and `Reconciled_complete.nwk` / `Reconciled_extant.nwk` / `Reconciliation_events.tsv` record
+block, and `reconciled_complete.nwk` / `reconciled_extant.nwk` / `reconciliation_events.tsv` record
 the block reconciliations. `--write ancestral` additionally simulates DNA and reconstructs the genome
-at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `BED/<node>.bed`).
+at every node; `--write bed` (genic mode) writes BED gene annotations (`genes.bed` + `bed/<node>.bed`).
 A [multi-chromosome or chromosome-tier](#multiple-chromosomes-the-chromosome-tier) run also writes
-`Chromosomes.tsv` (the per-leaf layout) and `Karyotype_trace.tsv` (the fission/fusion/origination/loss
+`chromosomes.tsv` (the per-leaf layout) and `karyotype_trace.tsv` (the fission/fusion/origination/loss
 genealogy). `species_tree.nwk` is always written and `genomes.log` is the run manifest.
 
 ### Validation
@@ -1133,9 +1135,9 @@ genomes.write("out/")
 | `species_nodes.tsv` | node name, time, is_leaf, is_extant |
 | `gene_family_events/<fid>_events.tsv` | per-family events: time, event, branch, donor, recipient, `role=id` nodes |
 | `gene_trees/<fid>_complete.nwk`, `_extant.nwk` | reconstructed gene trees |
-| `Transfers.tsv` | one row per transfer: time, family, donor, recipient, ids |
-| `Gene_family_summary.tsv` | per family: origin, event counts, extant copies, species present |
-| `Profiles.tsv`, `Presence.tsv` | copy-number and presence matrices |
+| `transfers.tsv` | one row per transfer: time, family, donor, recipient, ids |
+| `gene_family_summary.tsv` | per family: origin, event counts, extant copies, species present |
+| `profiles.tsv`, `presence.tsv` | copy-number and presence matrices |
 
 ### The event log directly
 
