@@ -29,9 +29,10 @@ project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   a constant regardless of how many lineages carry the family or how many copies it holds, so the
   family's size grows **linearly and pooled** (`#events ≈ base × time`, independent of the tree's
   size) — a fire is localised to a copy chosen uniformly across the whole family. CLI
-  `zombi2 genomes --per shared`. Unordered genomes only for now; duplication/loss (transfer and
-  rearrangements are rejected); origination stays per lineage. Implemented as a "shared pool" beside
-  the per-branch Gillespie, inert for every other model → those stay byte-identical.
+  `zombi2 genomes --per shared`. Unordered genomes only for now; duplication/loss (transfer,
+  rearrangements, and rate *modifiers* — `LineageRates` / `--lineage-rates` — are rejected, since a
+  modifier would silently bypass the shared clock); origination stays per lineage. Implemented as a
+  "shared pool" beside the per-branch Gillespie, inert for every other model → those stay byte-identical.
 - **Codon substitution models** — `zombi2 sequence --subst-model gy94`/`mg94` evolve in-frame coding
   DNA over the 61 sense codons with `dN/dS` set directly by `--omega` (`<1` purifying, `1` neutral,
   `>1` positive selection) and a ti/tv bias `--kappa`. GY94 (Goldman & Yang 1994) weights by the

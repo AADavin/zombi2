@@ -495,6 +495,13 @@ class ModifiedRates(RateModel):
     """
 
     def __init__(self, base: RateModel, modifiers):
+        # Modifiers scale the *per-branch* weights; a per="shared" base routes duplication/loss through
+        # a tree-wide pool that a ModifiedRates would not see (its shared_event_weights would be the
+        # empty default), silently switching the shared clock off — so reject the combination.
+        if getattr(base, "per", None) == "shared":
+            raise ValueError("modifiers (LineageRates / ModifiedRates / FamilyModifier) do not yet "
+                             "compose with a per='shared' base; the shared clock has no per-branch "
+                             "weights for a modifier to scale")
         self.base = base
         self.modifiers = list(modifiers)
         # A per-family modifier needs per-family weights, so expand aggregate family=None weights.

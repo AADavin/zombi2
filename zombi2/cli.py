@@ -2010,6 +2010,9 @@ def _run_genomes(tree: Tree, args: argparse.Namespace,
         if args.trans:
             parser.error("--rate-per shared does not yet support transfer; use --dup/--loss "
                          "(and --orig, which stays per lineage)")
+        if args.lineage_rates:
+            parser.error("--rate-per shared does not support --lineage-rates (per-lineage transfer "
+                         "emission/receptivity); the shared clock has no transfer channel")
         rates = Rates(args.dup, 0.0, args.loss, args.orig, per="shared")
     elif ordered:  # per-copy rates + rearrangements on an ordered chromosome
         if args.conversion:
