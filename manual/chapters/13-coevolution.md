@@ -320,12 +320,12 @@ into the profiles. The driver takes the tree, a **pre-simulated trait**, and the
 ```python
 import numpy as np
 from zombi2 import simulate_traits, BrownianMotion
-from zombi2.coevolve import simulate_trait_linked_genomes, TraitGeneCoupling
+from zombi2.coevolve import simulate_trait_conditioned_genomes, TraitGeneCoupling
 
 trait = simulate_traits(tree, BrownianMotion(sigma2=1.0), seed=1)
 weights = np.zeros(40)
 weights[::3] = 1.0             # every third family responds to the trait
-res = simulate_trait_linked_genomes(
+res = simulate_trait_conditioned_genomes(
     tree, trait,
     TraitGeneCoupling(n_families=40, weights=weights,
                       effect_loss=2.0, base_loss=1.0, transfer=0.5),
