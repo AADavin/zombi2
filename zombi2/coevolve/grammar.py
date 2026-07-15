@@ -42,7 +42,7 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # The diamond: levels, tiers, and the implicit downstream (substrate) edges
@@ -189,10 +189,14 @@ def null_response() -> Scalar:
 @dataclass(frozen=True)
 class Driver:
     """Whose state pushes. ``kind`` is ``"state"`` (a value along the tree — a trait value, a gene
-    count) or ``"event"`` (a set of instants — speciation)."""
+    count) or ``"event"`` (a set of instants — speciation).
+
+    ``hidden`` marks a *latent* (unobserved) driver — the matched hidden variable the
+    character-independent (``cid``) null swaps in for the observed one (see :func:`make_null`)."""
 
     level: str
     kind: str = "state"
+    hidden: bool = False
 
     def __post_init__(self) -> None:
         if self.level not in LEVELS:
@@ -361,3 +365,74 @@ class CouplingGraph:
     def mode(self) -> str:
         """``"bidirectional"`` if any coupling fuses, else ``"directional"``."""
         return "bidirectional" if any(self.is_fused(c) for c in self.couplings) else "directional"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The null layer: matched decoupled twins
+# ═══════════════════════════════════════════════════════════════════════════════
+# Every edge's null is one of three things, and legality is a property of the DRIVER archetype —
+# not a per-edge if/error ladder. Encoding the matrix is what keeps the grammar from resurrecting
+# the old "cid null is a workflow, not a transform" guards. See docs/design/coevolve-grammar.md §4.4.
+#
+#   driver archetype       neutral   cid                          timing
+#   state (trait / gene)     ✔       ✔ (matched hidden driver)    ✘
+#   event (speciation)       ✔       ✘                            ✔ (at-split → matched rate)
+#
+# Refinement (pending a richer driver model): a *continuous* state driver (QuaSSE) cannot take the
+# discrete-hidden-class `cid` — that is a lower-layer distinction the archetype `"state"` does not
+# yet carry, so `cid` is offered for every state driver here.
+_NULL_KINDS = ("neutral", "cid", "timing")
+
+
+@dataclass(frozen=True)
+class Null:
+    """A matched decoupled twin of a :class:`Coupling`, for calibrating a coevolution detector's
+    false-positive rate. The driver and target still share the tree, so shared-ancestry structure
+    is preserved — only the causal arrow is removed.
+
+    ``kind`` is one of:
+
+    * ``"neutral"`` — the response is set to zero (:func:`null_response`); the target evolves at its
+      base rates, ignoring the driver.
+    * ``"cid"`` — character-independent: the observed driver is swapped for a *matched hidden* driver
+      of the same kind (:attr:`Driver.hidden`), so the target keeps the same rate heterogeneity but
+      it is provably independent of the observed driver. A genuine **transform** — not the
+      ground-truth-withholding benchmark, which is a separate named surface.
+    * ``"timing"`` — an at-split (cladogenetic) response re-expressed as a matched anagenetic rate;
+      the branch-spread arithmetic is applied by the engine at simulation time (this declarative
+      object only records the choice).
+
+    :attr:`coupling` is what you actually simulate; :attr:`original` is the edge it nulls.
+    """
+
+    original: Coupling
+    kind: str
+    coupling: Coupling
+
+
+def legal_null_kinds(coupling: Coupling) -> frozenset[str]:
+    """The null kinds legal for ``coupling``, by its driver archetype: ``"neutral"`` always;
+    ``"cid"`` only for a *state* driver; ``"timing"`` only for an *event* driver."""
+    kinds = {"neutral", "cid"} if coupling.driver.kind == "state" else {"neutral", "timing"}
+    return frozenset(kinds)
+
+
+def make_null(coupling: Coupling, kind: str = "neutral") -> Null:
+    """Build the matched null of ``coupling``. Raises if ``kind`` is not legal for the edge's driver
+    archetype (see :func:`legal_null_kinds`) — the encoded legality matrix, not a silent no-op."""
+    kind = kind.lower()
+    if kind not in _NULL_KINDS:
+        raise ValueError(f"unknown null kind {kind!r}; expected one of {_NULL_KINDS}")
+    legal = legal_null_kinds(coupling)
+    if kind not in legal:
+        raise ValueError(
+            f"the {kind!r} null is not legal for a {coupling.driver.kind}-driver edge "
+            f"({coupling.driver.level}→{coupling.target.level}); legal kinds here: "
+            f"{sorted(legal)}")
+    if kind == "neutral":
+        run = replace(coupling, response=null_response())
+    elif kind == "cid":
+        run = replace(coupling, driver=replace(coupling.driver, hidden=True))
+    else:  # timing — the engine spreads the at-split response into a matched anagenetic rate
+        run = coupling
+    return Null(original=coupling, kind=kind, coupling=run)

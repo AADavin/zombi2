@@ -16,7 +16,7 @@ import pytest
 
 from zombi2.coevolve.grammar import (
     LEVELS, TARGET_VARIABLES, Coupling, CouplingGraph, Curve, Driver, Scalar, Table,
-    TargetVariable, couple, null_response,
+    TargetVariable, couple, legal_null_kinds, make_null, null_response,
 )
 
 
@@ -169,3 +169,55 @@ def test_menu_and_levels_are_the_diamond():
     assert set(TARGET_VARIABLES) == set(LEVELS)
     # species exposes only its two diversification rates; no state jump target.
     assert set(TARGET_VARIABLES["species"]) == {"speciation", "extinction"}
+
+
+# ── 4. The null layer ─────────────────────────────────────────────────────────
+def _state_edge():
+    return couple("traits", "genomes", "loss", -0.8)                 # state driver
+
+
+def _event_edge():
+    return couple("species", "traits", "value", 1.0, driver_kind="event")   # event driver (clado)
+
+
+def test_null_legality_matrix_by_driver_archetype():
+    assert legal_null_kinds(_state_edge()) == frozenset({"neutral", "cid"})
+    assert legal_null_kinds(_event_edge()) == frozenset({"neutral", "timing"})
+
+
+def test_neutral_null_zeroes_the_response():
+    n = make_null(_state_edge(), "neutral")
+    assert n.kind == "neutral"
+    assert n.coupling.is_null and isinstance(n.coupling.response, Scalar)
+    assert n.coupling.response.strength == 0.0
+    # neutral is legal for an event driver too
+    assert make_null(_event_edge(), "neutral").coupling.is_null
+
+
+def test_cid_is_a_hidden_driver_transform_not_a_decoupling():
+    c = _state_edge()
+    n = make_null(c, "cid")
+    assert n.kind == "cid"
+    assert n.coupling.driver.hidden is True           # observed driver swapped for a hidden twin
+    assert n.coupling.driver.level == c.driver.level and n.coupling.driver.kind == "state"
+    # the response (the signal) is UNCHANGED — cid keeps the heterogeneity, just hides its cause
+    assert n.coupling.response.strength == c.response.strength
+    assert not n.coupling.is_null
+
+
+def test_cid_is_illegal_for_an_event_driver():
+    with pytest.raises(ValueError, match="cid.*not legal"):
+        make_null(_event_edge(), "cid")
+
+
+def test_timing_is_legal_only_for_event_drivers():
+    n = make_null(_event_edge(), "timing")
+    assert n.kind == "timing"
+    assert n.coupling is n.original                    # a marker; engine spreads it at sim time
+    with pytest.raises(ValueError, match="timing.*not legal"):
+        make_null(_state_edge(), "timing")
+
+
+def test_unknown_null_kind_is_rejected():
+    with pytest.raises(ValueError, match="unknown null kind"):
+        make_null(_state_edge(), "shuffle")
