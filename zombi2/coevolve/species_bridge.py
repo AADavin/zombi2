@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from zombi2.coevolve.gene_diversification import GeneDiversification, simulate_gene_diversification
-from zombi2.coevolve.grammar import Response, Scalar
+from zombi2.coevolve.gene_diversification import (
+    GeneDiversification, simulate_co_diversification, simulate_gene_diversification,
+)
+from zombi2.coevolve.grammar import Jump, Response, Scalar
 from zombi2.coevolve.sse import MuSSE, simulate_sse
 
 
@@ -41,19 +43,22 @@ def musse_from_responses(states, transition, speciation: Response, extinction: R
 
 
 def simulate_trait_driven_diversification(states, transition, speciation: Response,
-                                          extinction: Response, *, age=None, n_tips=None,
-                                          root_state=None, seed=None, rng=None):
+                                          extinction: Response, *, cladogenesis: Jump | None = None,
+                                          age=None, n_tips=None, root_state=None, seed=None, rng=None):
     """Grow a tree whose diversification is driven by a discrete trait — the **traits:species** edge,
-    run through the grammar.
+    run through the grammar. With ``cladogenesis`` it becomes the **ClaSSE** joint (``traits:species``
+    *and* ``species:traits``: the trait also jumps at each speciation).
 
     A driver trait over ``states`` (with transition matrix ``transition``) sets each lineage's
     speciation/extinction from the grammar ``speciation`` / ``extinction`` responses; the tree and
-    the trait grow together in the SSE forward Gillespie. Give exactly one stopping condition
-    (``age`` or ``n_tips``). Returns the :class:`~zombi2.traits.TraitResult` (the complete tree plus
-    the realized state history); ``z.prune(result.tree)`` gives the survivors-only tree.
+    the trait grow together in the SSE forward Gillespie. ``cladogenesis`` is an optional grammar
+    :class:`~zombi2.coevolve.grammar.Jump` (``scale`` = Gaussian jump variance for a continuous
+    trait, ``probability`` = discrete move probability). Give exactly one stopping condition
+    (``age`` or ``n_tips``); returns the :class:`~zombi2.traits.TraitResult`.
     """
     model = musse_from_responses(states, transition, speciation, extinction)
-    return simulate_sse(model, age=age, n_tips=n_tips, root_state=root_state, seed=seed, rng=rng)
+    return simulate_sse(model, age=age, n_tips=n_tips, root_state=root_state,
+                        cladogenesis=_cladogenesis_from_jump(cladogenesis), seed=seed, rng=rng)
 
 
 def _scalar_coefficient(response: Response, which: str) -> float:
@@ -68,64 +73,76 @@ def _scalar_coefficient(response: Response, which: str) -> float:
 
 def simulate_gene_driven_diversification(n_drivers, *, speciation: Response,
                                          extinction: Response | None = None,
+                                         cladogenesis: Jump | None = None,
                                          lambda0: float = 1.0, mu0: float = 0.2,
                                          loss: float = 0.1, origination: float = 0.05,
                                          transfer: float = 0.5, root_drivers=0,
                                          age=None, n_tips=None, seed=None, rng=None):
     """Grow a tree whose diversification is driven by gene content — the **genes:species**
-    (key-innovation) edge, run through the grammar.
+    (key-innovation) edge, run through the grammar. With ``cladogenesis`` it becomes the
+    **co-diversification** joint (``genes:species`` *and* ``species:genomes``: a founder burst
+    reshuffles the drivers at each split).
 
     ``K = n_drivers`` binary driver families set each lineage's speciation/extinction through an
-    **exp-link**: ``λ(S) = λ0·exp(Σ_{d∈S} βλ_d)`` (and likewise μ), so ``speciation`` / ``extinction``
-    are grammar :class:`~zombi2.coevolve.grammar.Scalar` responses whose ``strength`` is the
-    per-driver coefficient βλ / βμ. The drivers spread by loss / origination / frequency-dependent
-    ``transfer`` and ride the forward Gillespie *with* the growing tree (the fuse path). Give exactly
-    one stopping condition (``age`` or ``n_tips``); returns a
-    :class:`~zombi2.coevolve.gene_diversification.GeneDiversificationResult`
-    (``.tree``, ``.tip_prevalence()``). The key-innovation engine is reused unchanged.
+    **exp-link** (``λ(S) = λ0·exp(Σ_{d∈S} βλ_d)``), so ``speciation`` / ``extinction`` are grammar
+    :class:`~zombi2.coevolve.grammar.Scalar` responses whose ``strength`` is the per-driver
+    coefficient βλ / βμ. ``cladogenesis`` is an optional grammar
+    :class:`~zombi2.coevolve.grammar.Jump` giving the at-split burst (``probability`` = per-driver
+    drop probability, ``gain`` = mean drivers gained). Give exactly one stopping condition; returns a
+    :class:`~zombi2.coevolve.gene_diversification.GeneDiversificationResult`. The engines are reused
+    unchanged.
     """
+    burst = cladogenesis if (cladogenesis is not None and not cladogenesis.is_null) else None
     model = GeneDiversification(
         n_drivers, lambda0=lambda0, mu0=mu0,
         driver_speciation=_scalar_coefficient(speciation, "speciation"),
         driver_extinction=(_scalar_coefficient(extinction, "extinction") if extinction is not None
                            else 0.0),
-        loss=loss, origination=origination, transfer=transfer, root_drivers=root_drivers)
-    return simulate_gene_diversification(model, age=age, n_tips=n_tips, seed=seed, rng=rng)
+        loss=loss, origination=origination, transfer=transfer, root_drivers=root_drivers,
+        cladogenetic_loss=(burst.probability if burst else 0.0),
+        cladogenetic_gain=(burst.gain if burst else 0.0))
+    engine = simulate_co_diversification if burst is not None else simulate_gene_diversification
+    return engine(model, age=age, n_tips=n_tips, seed=seed, rng=rng)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # species:X (cladogenetic) — speciation reshapes a character on a GIVEN tree
 # ═══════════════════════════════════════════════════════════════════════════════
 # The reverse direction: species drives a character. The driver is the speciation EVENT (not a
-# state), and the effect is a JUMP at each split — an overlay on a given tree (a *layer* edge, unlike
-# the into-species edges above). These reuse the existing cladogenetic engines unchanged. (A formal
-# grammar JUMP `Response` for event drivers is a future refinement — docs §2.1; here the jump
-# magnitudes are passed directly.)
-def simulate_cladogenetic_trait(tree, model, *, jump_sigma2: float = 0.0, shift: float = 0.0,
-                                root_state=None, seed=None, rng=None):
-    """The **species:traits** edge: speciation reshapes the trait. At each branching, a daughter's
-    trait jumps — a mean-zero Gaussian of variance ``jump_sigma2`` (continuous trait) or a move to a
-    random state with probability ``shift`` (discrete trait) — layered on the anagenetic ``model``.
-    An overlay on a given ``tree``. Reuses :func:`~zombi2.simulate_traits` with a ``Cladogenesis``.
+# state) and the effect is a grammar JUMP (:class:`~zombi2.coevolve.grammar.Jump`) at each split — an
+# overlay on a given tree (a *layer* edge, unlike the into-species edges above). These reuse the
+# existing cladogenetic engines unchanged.
+def _cladogenesis_from_jump(jump: Jump | None):
+    """A traits ``Cladogenesis`` kernel from a grammar :class:`~zombi2.coevolve.grammar.Jump`
+    (``scale`` → Gaussian jump variance, ``probability`` → discrete shift), or ``None`` for no jump."""
+    if jump is None or jump.is_null:
+        return None
+    from zombi2.traits.models import Cladogenesis
+    return Cladogenesis(jump_sigma2=jump.scale, shift=jump.probability)
+
+
+def simulate_cladogenetic_trait(tree, model, jump: Jump, *, root_state=None, seed=None, rng=None):
+    """The **species:traits** edge: speciation reshapes the trait. At each branching a daughter's
+    trait jumps per the grammar ``jump`` (``scale`` = Gaussian variance for a continuous trait,
+    ``probability`` = move probability for a discrete one), layered on the anagenetic ``model``. An
+    overlay on a given ``tree``. Reuses :func:`~zombi2.simulate_traits` with a ``Cladogenesis``.
     """
-    from zombi2.traits.models import Cladogenesis, simulate_traits
-    return simulate_traits(tree, model,
-                           cladogenesis=Cladogenesis(jump_sigma2=jump_sigma2, shift=shift),
+    from zombi2.traits.models import simulate_traits
+    return simulate_traits(tree, model, cladogenesis=_cladogenesis_from_jump(jump),
                            root_state=root_state, seed=seed, rng=rng)
 
 
-def simulate_cladogenetic_genomes(tree, *, initial_families: int, loss: float = 0.0,
-                                  origination: float = 0.0, cladogenetic_loss: float = 0.0,
-                                  cladogenetic_gain: float = 0.0, seed=None, rng=None):
+def simulate_cladogenetic_genomes(tree, jump: Jump, *, initial_families: int, loss: float = 0.0,
+                                  origination: float = 0.0, seed=None, rng=None):
     """The **species:genomes** edge: speciation reshuffles the genome. At each split every daughter
-    independently drops each family it carries with probability ``cladogenetic_loss`` and gains
-    ``Poisson(cladogenetic_gain)`` new families (a founder burst), plus anagenetic ``loss`` /
-    ``origination`` along branches. An overlay on a given ``tree``. Reuses the
+    independently drops each family it carries with probability ``jump.probability`` and gains
+    ``Poisson(jump.gain)`` new families (a founder burst), plus anagenetic ``loss`` / ``origination``
+    along branches. An overlay on a given ``tree``. Reuses the
     :class:`~zombi2.coevolve.cladogenetic_genome.CladogeneticGenome` engine.
     """
     from zombi2.coevolve.cladogenetic_genome import (
         CladogeneticGenome, simulate_cladogenetic_genome,
     )
     model = CladogeneticGenome(initial_families=initial_families, loss=loss, origination=origination,
-                               cladogenetic_loss=cladogenetic_loss, cladogenetic_gain=cladogenetic_gain)
+                               cladogenetic_loss=jump.probability, cladogenetic_gain=jump.gain)
     return simulate_cladogenetic_genome(tree, model, seed=seed, rng=rng)

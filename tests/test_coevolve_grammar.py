@@ -15,7 +15,7 @@ import math
 import pytest
 
 from zombi2.coevolve.grammar import (
-    LEVELS, TARGET_VARIABLES, Coupling, CouplingGraph, Curve, Driver, DriverSignal, Scalar, Table,
+    LEVELS, TARGET_VARIABLES, Coupling, CouplingGraph, Curve, Driver, DriverSignal, Jump, Scalar, Table,
     TargetVariable, couple, legal_null_kinds, make_null, null_response,
 )
 
@@ -283,3 +283,22 @@ def test_trait_trajectory_satisfies_the_driver_signal_protocol():
     assert isinstance(traj, DriverSignal)
     assert traj.value("any_lineage", 1.0) == 0.0              # falls back to the default value
     assert traj.refresh_times(0.0, 1.0) == []
+
+
+# ── 7. The Jump response (event-driver state change) ──────────────────────────
+def test_jump_response_null_and_validation():
+    assert Jump().is_null                                     # no jump
+    assert not Jump(scale=1.0).is_null
+    assert not Jump(probability=0.5).is_null
+    assert not Jump(gain=2.0).is_null
+    with pytest.raises(ValueError, match="scale"):
+        Jump(scale=-1.0)
+    with pytest.raises(ValueError, match="probability"):
+        Jump(probability=1.5)
+    with pytest.raises(ValueError, match="gain"):
+        Jump(gain=-1.0)
+
+
+def test_jump_is_not_a_rate_multiplier():
+    with pytest.raises(NotImplementedError):
+        Jump(scale=1.0).rate_multiplier(0.5)                  # a jump is a state change, not a rate
