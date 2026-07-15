@@ -79,7 +79,7 @@ Ordered by clarity-per-effort. Each is an independently shippable PR.
 **Confusion.** The public API exports both halves of five renames co-equally, with no runtime
 signal: `PerCopyRates`+`SharedRates`, `PerLineageRates`+`PerGenomeRates`, `LineageRates`+`BranchRates`,
 `LineageModifier`+`BranchModifier`, `read_lineage_rates`+`read_branch_rates` — all in `__all__`
-([`zombi2/__init__.py:111`](../../zombi2/__init__.py)). On the CLI, `--rate-model`, the `--rate-per genome`
+(`zombi2/__init__.py:111`). On the CLI, `--rate-model`, the `--rate-per genome`
 token, `--branch-rates`, and `--initial-chromosomes` are all still shown in `-h`; worse,
 `--initial-chromosomes` *overrides* its own replacement `--n-chromosomes` when both are given.
 
@@ -109,7 +109,7 @@ The `conventions.md` rows are the tell: even the canonical doc still teaches the
 
 **Decision.** Sweep *branch* out of every rate/lineage context. The four `--branch-*` **clock**
 flags are legacy shorthands for `--clock autocorrelated-lognormal --clock-sigma …`
-(see [`cli.py:2977`](../../zombi2/cli.py)); rather than rename them to `--lineage-*` we **deprecate
+(see `cli.py:2977`); rather than rename them to `--lineage-*` we **deprecate
 them toward the explicit `--clock` interface**, which is already `choices`-validated and modern —
 killing the *branch* residue and a redundant parallel interface in one move. Reserve *branch* for
 exactly one thing, unrelated to rates: `--branch-order` in `tools treedist` (the L_p order of the
@@ -293,7 +293,7 @@ guessable from it.
   `TraitLinkedRates` / `simulate_trait_linked_genomes` / `TraitLinkedResult` — both public.
 - **`species:traits` is orphaned** as `Cladogenesis`, living in `zombi2.traits`, run via
   `simulate_traits`, with no `*Result`.
-- **`species:genes`** (`CladogeneticGenome`) is muddied by the joint: [`__init__.py:149`](../../zombi2/__init__.py)
+- **`species:genes`** (`CladogeneticGenome`) is muddied by the joint: `__init__.py:149`
   says "species:genes = the co-diversification joint model", conflating the edge with
   `simulate_co_diversification`.
 - SSE (`BiSSE`/`MuSSE`/…) doesn't map to the grammar — **but this one is left alone**: they are
@@ -315,9 +315,9 @@ guessable from it.
 ## C9 — "Selection" disambiguated by *removing* the experimental tier
 
 **Confusion.** The core codon models *are* selection — ω / dN/dS, "purifying/positive selection"
-throughout [`sequences/codon_models.py`](../../zombi2/sequences/codon_models.py). The *experimental*
+throughout `sequences/codon_models.py`. The *experimental*
 `selection` command is a different mechanism (ESM2 / a protein language model). They collide hard
-enough that [`sequences/__init__.py:41`](../../zombi2/sequences/__init__.py) carries a comment
+enough that `sequences/__init__.py:41` carries a comment
 written only to dodge a `codon_selection.translate` name clash.
 
 **Decision** *(ratified D3)*. **Remove the experimental protein-language-model selection family from
