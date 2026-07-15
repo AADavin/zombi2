@@ -115,6 +115,36 @@ This is the flexibility dial. Want family-specific *and* lineage-specific sequen
 modifiers. Want to boost HGT between two clades? One modifier on transfer, keyed on the lineage
 pair. You do not reach for a new model — you attach a modifier.
 
+## Per-family rates: the base or a modifier (never an opportunity)
+
+A common question: *how do I give each gene family its own rate?* Two ways — and the choice is exactly
+the rate-vs-modifier distinction:
+
+- **the base** — `FamilySampledRates` gives each family its own `(dup, transfer, loss)` **rate**, either
+  drawn from distributions or fixed by name (`rates={"A": (0.8, 0.1, 0.2)}`, CLI `--family-rates FILE`).
+  The rate *itself* varies per family.
+- **a modifier** — `FamilyModifier` keeps one shared base rate and multiplies it by a per-family
+  **factor** (`factors={"A": 1.6}`, or drawn `per_family=…`). A dimensionless multiplier varies.
+
+They are interchangeable — `rate_f = base × factor_f`. Read the duplication rate off one genome where
+family **A** holds 3 copies and family **B** holds 1:
+
+| model | family A | family B | what varies |
+|---|---|---|---|
+| `PerCopyRates(dup=0.5)` | 0.5 × 3 = 1.5 | 0.5 × 1 = 0.5 | nothing per-family — one base, × copies |
+| `FamilySampledRates` (A→0.8, B→0.2) | **0.8** × 3 = 2.4 | **0.2** × 1 = 0.2 | the **base rate** |
+| `PerCopyRates(0.5)` + `FamilyModifier` (A→1.6, B→0.4) | 0.5 × **1.6** × 3 = 2.4 | 0.5 × **0.4** × 1 = 0.2 | a **modifier** |
+
+The last two rows are identical (2.4, 0.2): same effective rate, two spellings. Pick by intent — you
+have actual per-family rate *values* → the **base** (`FamilySampledRates`); you want to rescale a
+baseline, or **stack** heterogeneities (family × branch, adding a `LineageModifier`) → a **modifier**
+(`FamilyModifier`), because modifiers compose and a base model does not.
+
+**The clarity guard:** *per-family is not an opportunity.* The opportunity (`per="copy" | "lineage" |
+"shared"`) is *how the rate scales with counts* — the middle term of `base × opportunity × modifiers`.
+Per-family heterogeneity is *which families get which values* — it lives in the base or the modifiers.
+A family can be `per="copy"` **and** carry its own rate; they are orthogonal slots.
+
 ## Extent: how big, not how often
 
 Some events touch a single thing (one copy lost, one nucleotide changed). Others cover a stretch —

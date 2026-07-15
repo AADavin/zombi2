@@ -54,6 +54,27 @@ regardless of copies), `shared` → **linear and pooled** (one clock for the who
 The finest rung, `site`, is the substitution/indel world Adrián flagged: a per-nucleotide clock, the
 same axis one level down.
 
+## Opportunity is not heterogeneity
+
+Opportunity is easy to confuse with *per-family rates*, but they are different slots of
+`base × opportunity × modifiers`:
+
+- **opportunity** (`per=`) — *how the rate scales with counts* (per site / copy / lineage / shared).
+  The middle term.
+- **heterogeneity** — *which families (or branches, or pairs) get which values*. It lives in the
+  **base** (`FamilySampledRates` — each family its own rate) or a **modifier** (`FamilyModifier` — a
+  shared base times a per-family factor), never in the opportunity.
+
+A family can be `per="copy"` **and** carry its own rate; the slots are orthogonal. "Per family" is
+therefore never an opportunity value — there is no `per="family"`. (Worked table in
+[the rates primer](../guide/rates.md).)
+
+One wrinkle this design should close: `FamilySampledRates` currently hard-codes opportunity = `copy`,
+so *per-family rates with a per-lineage opportunity* is reachable only through the modifier route
+(`FamilyModifier` on a per-lineage base). Giving the base models a `per=` of their own — part of
+phase B — makes all three slots independently selectable, so the orthogonality the docs teach is the
+orthogonality the code offers.
+
 ## Where ZOMBI2 is today
 
 The knob is **half-born**, and asymmetrically:
@@ -163,10 +184,12 @@ Not all rungs cost the same. In rough order of effort:
 
 ## Phasing (each independently shippable)
 
-- **A — Species knob.** `BirthDeath(per="lineage"|"shared")`; `--per` on `zombi2 species`;
-  `SharedBirthDeath` → preset. Pure surface; byte-identical.
+- **A — Species knob.** ✅ `BirthDeath(per="lineage"|"shared")`; `--per` on `zombi2 species`;
+  `SharedBirthDeath` → deprecated preset. Pure surface; byte-identical. *(shipped)*
 - **B — Genome knob (existing rungs).** `Rates(per="copy"|"lineage")` unifying `PerCopyRates` /
-  `PerLineageRates` under one model + `--rate-per`. Surface + the declarative interface (step 4).
+  `PerLineageRates` under one model + `--rate-per`; give the *base* models (incl. `FamilySampledRates`)
+  a `per=` so per-family heterogeneity and opportunity are independently selectable (closes the
+  hard-coded-`copy` wrinkle above). Surface + the declarative interface (step 4).
 - **C — Genome `shared`.** The global-pool engine work (step 3). New capability; the three-panel
   duplication figure becomes its validation.
 - **D — Per-event mixing.** `Per(unit, rate)` overrides → self-limiting and mixed models.
