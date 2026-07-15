@@ -9,9 +9,10 @@ classifies the edge as fuse / tree-growing.
 import numpy as np
 import pytest
 
-from zombi2.coevolve.grammar import CouplingGraph, Table, couple
+from zombi2.coevolve.grammar import CouplingGraph, Scalar, Table, couple
 from zombi2.coevolve.species_bridge import (
-    musse_from_responses, simulate_trait_driven_diversification,
+    musse_from_responses, simulate_gene_driven_diversification,
+    simulate_trait_driven_diversification,
 )
 from zombi2.coevolve.sse import MuSSE
 
@@ -63,3 +64,32 @@ def test_grammar_classifies_traits_species_as_fuse_and_tree_growing():
     assert g.grows_tree
     assert g.is_fused(edge)
     assert g.mode == "bidirectional"
+
+
+# ── genes:species (key innovation) ────────────────────────────────────────────
+def test_gene_driven_diversification_requires_a_scalar_response():
+    # genes:species is an exp-link — a free per-state Table is not a valid response here
+    with pytest.raises(TypeError, match="exp-link"):
+        simulate_gene_driven_diversification(2, speciation=Table({0: 1.0, 1: 3.0}), n_tips=20)
+
+
+def test_key_innovation_driver_is_enriched_at_the_tips():
+    # driver 0 starts present (root_drivers=1) and boosts speciation (β=1.6) → it radiates and
+    # dominates the tips (the key-innovation signal).
+    res = simulate_gene_driven_diversification(
+        2, speciation=Scalar(1.6), root_drivers=1, transfer=0.6, loss=0.1, n_tips=200, seed=1)
+    prev = res.tip_prevalence()
+    assert prev[0] > 0.8                                   # the boosted key-innovation driver
+
+
+def test_gene_driven_diversification_reproducible():
+    kw = dict(speciation=Scalar(1.2), root_drivers=1, n_tips=60)
+    a = simulate_gene_driven_diversification(2, seed=3, **kw)
+    b = simulate_gene_driven_diversification(2, seed=3, **kw)
+    assert a.tip_prevalence() == b.tip_prevalence()       # deterministic given the seed
+
+
+def test_grammar_classifies_genes_species_as_fuse_and_tree_growing():
+    edge = couple("genomes", "species", "speciation", 1.0)   # genomes → species (into-species)
+    g = CouplingGraph([edge])
+    assert g.grows_tree and g.is_fused(edge)
