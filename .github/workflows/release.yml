@@ -194,11 +194,12 @@ jobs:
         with:
           packages-dir: dist-zombi2
 
-  # Build the Concepts & Tutorial manual (Pandoc -> XeLaTeX) and attach it to
-  # the GitHub Release, so releases/latest/download/zombi2-manual.pdf always
-  # tracks the newest release. Independent of the wheel/PyPI jobs; runs on
-  # workflow_dispatch too (build-only) so the build can be validated without a
-  # release.
+  # Build the two PDF manuals (Pandoc -> XeLaTeX) and attach them to the GitHub
+  # Release, so releases/latest/download/zombi2-manual.pdf (Concepts & Tutorial)
+  # and releases/latest/download/zombi2-tools-manual.pdf (the zombi2.tools
+  # reference, generated from docs/tools/) always track the newest release.
+  # Independent of the wheel/PyPI jobs; runs on workflow_dispatch too (build-only)
+  # so the builds can be validated without a release.
   manual:
     name: manual PDF
     runs-on: ubuntu-latest
@@ -219,14 +220,19 @@ jobs:
           curl -fsSL "https://github.com/jgm/pandoc/releases/download/${ver}/pandoc-${ver}-1-amd64.deb" -o /tmp/pandoc.deb
           sudo dpkg -i /tmp/pandoc.deb
           pandoc --version | head -1
-      - name: Build the manual
-        run: make -C manual manual
+      - name: Build the manuals
+        run: make -C manual manual tools-manual
       - uses: actions/upload-artifact@v4
         with:
           name: zombi2-manual
-          path: manual/build/zombi2-manual.pdf
-      - name: Attach the manual to the release
+          path: |
+            manual/build/zombi2-manual.pdf
+            manual/build/zombi2-tools-manual.pdf
+      - name: Attach the manuals to the release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" manual/build/zombi2-manual.pdf --clobber
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            manual/build/zombi2-manual.pdf \
+            manual/build/zombi2-tools-manual.pdf --clobber
