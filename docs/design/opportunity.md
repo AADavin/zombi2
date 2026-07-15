@@ -59,6 +59,8 @@ view divides by `n`). Make **opportunity a named, per-event knob** (`per-lineage
 / death / D / T / L …), so the code reads the way the docs teach and the whole matrix — including
 *shared birth + per-lineage death* (a self-limiting tree: births capped, deaths grow with N) — is
 expressible on purpose, not by a `/n` trick. A real interface refactor; deferred until Parts 1–2 land.
+Its full design is written up in **[opportunity-knob](opportunity-knob.md)** — the unit ladder
+`site ⊂ copy ⊂ lineage` plus `shared`, one `per=` knob at every level, scoped by representation.
 
 ## Naming (one decision)
 
