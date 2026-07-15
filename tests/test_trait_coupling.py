@@ -157,7 +157,10 @@ def test_loss_modulation_formula():
                for ew in rates.event_weights(_genome(["F0", "F1"]), "b", 0.0)}
     assert weights[(EventType.LOSS, "F0")] == pytest.approx(1.5 * math.exp(-2.0 * 1.0 * s))
     assert weights[(EventType.LOSS, "F1")] == pytest.approx(1.5)                    # inert = base
-    assert weights[(EventType.TRANSFER, None)] == pytest.approx(0.4 * 2)            # field-blind
+    # gain is field-blind; the grammar reframe (ModifiedRates over PerCopyRates) emits it per-family
+    # — distributionally identical to the old aggregate 0.4·n, total preserved (0.4 + 0.4 = 0.8).
+    assert weights[(EventType.TRANSFER, "F0")] == pytest.approx(0.4)
+    assert weights[(EventType.TRANSFER, "F1")] == pytest.approx(0.4)
 
 
 def test_effect_gain_scales_transfer():
