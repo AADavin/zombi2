@@ -52,10 +52,14 @@ unit time; the choice is whether it is *also* per some object, and which. The op
 
 | The base fires… | opportunities (the count) = | total propensity |
 |---|---|---|
-| **globally** (per the whole process) | 1 | just the base — constant |
+| **shared** (per the whole process) | 1 | just the base — constant |
 | per **lineage** | number of living lineages | base × N |
-| per **gene copy** | number of copies in the genome | base × copies |
-| per **nucleotide** | sequence length | base × length |
+| per **copy** (gene) | number of copies in the genome | base × copies |
+| per **site** (nucleotide) | sequence length | base × length |
+
+The finer-grained rungs nest — **`site ⊂ copy ⊂ lineage`** (a gene has many sites, a genome many genes,
+a clade many lineages) — with **`shared`** apart as "one clock for everything." It is one axis, named
+the same way at every level.
 
 **The count decides the dynamics** — specifically, whether it *tracks the quantity that is growing*:
 
@@ -192,7 +196,7 @@ the usual "is this rate a base, a modifier, or a sum?" confusion disappears.
 | **Genomes** | inversion | i | per copy | family, lineage | spans a run of genes / nt |
 | **Trait** | discrete change (Mk) | qᵢⱼ | per lineage | lineage, hidden state | point |
 | **Trait** | continuous drift (BM) | σ² | per lineage · time | lineage (relaxed), state | — (see note) |
-| **Sequence** | substitution | μ × exchangeabilities | per nucleotide | lineage (clock), site (Γ), family, selection (dN/dS) | point |
+| **Sequence** | substitution | μ × exchangeabilities | per site (nucleotide) | lineage (clock), site (Γ), family, selection (dN/dS) | point |
 
 !!! note "Continuous traits"
     A drifting continuous trait has no countable events and no extent — it is the limit of infinitely
