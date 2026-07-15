@@ -368,6 +368,46 @@ class DiversityDependent:
         _validate_mass_extinctions(self.mass_extinctions)
 
 
+class SharedBirthDeath:
+    """Shared-clock birth–death: one tree-wide diversification *budget*, not one clock per lineage.
+
+    Where :class:`BirthDeath` gives every lineage its own speciation clock — total speciation rate
+    ``birth·n``, so diversity grows **exponentially** — here the lineages **share** it: the *total*
+    speciation rate is a constant ``birth`` and the *total* extinction rate a constant ``death``, no
+    matter how many lineages stand. One event every ``1/(birth+death)`` on average, landing on a
+    uniformly chosen lineage. Diversity therefore grows **linearly** (``E[n(t)] ≈ n₀ + (birth −
+    death)·t``). Equivalently it is a per-lineage rate ``λ(n) = birth/n`` — a diversity-dependent
+    process in disguise (see the "how many clocks?" section of ``docs/guide/rates.md``). It is the
+    species-tree counterpart of the genome's :class:`~zombi2.PerLineageRates` (a fixed per-genome
+    budget rather than per-copy).
+
+    A **forward-only** model (the per-lineage rate depends on the running lineage count ``n``).
+    ``age`` or ``n_tips`` mode both work; ``sampling_fraction`` (ρ) and ``mass_extinctions`` overlay
+    as for :class:`BirthDeath` (mass extinctions still require ``age`` mode).
+    """
+
+    _caps = SpeciesCaps(GrowthEngine.GILLESPIE, supports_n_tips=True)
+
+    def __init__(self, birth: float, death: float = 0.0, *,
+                 sampling_fraction: float = 1.0, mass_extinctions=None):
+        self.birth = float(birth)
+        self.death = float(death)
+        self.sampling_fraction = float(sampling_fraction)
+        self.mass_extinctions = _normalize_mass_extinctions(mass_extinctions)
+
+    def validate(self) -> None:
+        _finite("birth (total speciation rate)", self.birth)
+        _finite("death rate", self.death)
+        _finite("sampling_fraction", self.sampling_fraction)
+        if self.birth <= 0:
+            raise ValueError(f"birth (total speciation rate) must be > 0, got {self.birth}")
+        if self.death < 0:
+            raise ValueError(f"death rate must be >= 0, got {self.death}")
+        if not (0.0 < self.sampling_fraction <= 1.0):
+            raise ValueError(f"sampling_fraction must be in (0, 1], got {self.sampling_fraction}")
+        _validate_mass_extinctions(self.mass_extinctions)
+
+
 class CladeShiftBirthDeath:
     """Constant-rate birth–death with a finite set of **clade-specific rate shifts**.
 

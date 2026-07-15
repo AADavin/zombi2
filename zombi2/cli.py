@@ -30,6 +30,7 @@ from zombi2.sequences.evolution import SequenceEvolution
 from zombi2.genomes.simulation import Genomes, simulate_genomes
 from zombi2.species.model import (
     BirthDeath, CladeShiftBirthDeath, ClaDS, DiversityDependent, EpisodicBirthDeath,
+    SharedBirthDeath,
 )
 from zombi2.species.sim import simulate_species_tree
 from zombi2.coevolve.sse import BiSSE, MuSSE, QuaSSE, HiSSE, simulate_sse
@@ -157,11 +158,13 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("diversification model",
                              "the rate process, chosen by --diversification (forward only)")
-    g.add_argument("--diversification", choices=("constant", "clads", "diversity-dependent"),
+    g.add_argument("--diversification",
+                   choices=("constant", "clads", "diversity-dependent", "shared"),
                    default="constant", metavar="PROCESS",
                    help="constant-rate birth-death (default); clads = per-lineage rates that "
                         "shift at each speciation (ClaDS); diversity-dependent = rates decline "
-                        "toward a carrying capacity")
+                        "toward a carrying capacity; shared = one tree-wide diversification budget "
+                        "(fixed TOTAL rate, not per lineage) -> linear rather than exponential growth")
     g.add_argument("--birth", type=float, nargs="+", default=[1.0], metavar="RATE",
                    help="speciation rate (default 1.0); several values with --shifts give an "
                         "episodic (skyline) model. For clads/diversity-dependent it is the "
@@ -518,6 +521,10 @@ def _build_heterogeneous_model(args: argparse.Namespace, parser: argparse.Argume
         return ClaDS(args.birth[0], alpha=args.clads_alpha, sigma=args.clads_sigma,
                      turnover=args.turnover, sampling_fraction=args.sampling_fraction,
                      mass_extinctions=mass_ext)
+    if args.diversification == "shared":
+        return SharedBirthDeath(args.birth[0], args.death[0],
+                                sampling_fraction=args.sampling_fraction,
+                                mass_extinctions=mass_ext)
     # diversity-dependent
     if args.carrying_capacity is None:
         parser.error("--diversification diversity-dependent needs --carrying-capacity/-K")
