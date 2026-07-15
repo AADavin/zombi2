@@ -1,0 +1,171 @@
+"""Tests for the declarative coevolution grammar (:mod:`zombi2.coevolve.grammar`).
+
+Three layers:
+
+1. **Response** — the one-knob :class:`Scalar` exp-link (and its ``strength=0`` null), the
+   per-state :class:`Table`, and the nonlinear :class:`Curve`.
+2. **The sentence** — building and validating ``driver → target-variable : response``: the closed
+   target-variable menu and the topology rule (the forbidden ``species↔sequences`` diagonal).
+3. **The graph** — the solve rule: directional (layer) vs bidirectional (fuse), including the
+   "into a substrate is a cycle" case that makes into-species coupling grow the tree.
+"""
+
+import math
+
+import pytest
+
+from zombi2.coevolve.grammar import (
+    LEVELS, TARGET_VARIABLES, Coupling, CouplingGraph, Curve, Driver, Scalar, Table,
+    TargetVariable, couple, null_response,
+)
+
+
+# ── 1. Response ───────────────────────────────────────────────────────────────
+def test_scalar_is_exp_link():
+    assert Scalar(0.8).rate_multiplier(1.0) == pytest.approx(math.exp(0.8))
+    assert Scalar(-0.5).rate_multiplier(2.0) == pytest.approx(math.exp(-1.0))
+
+
+def test_scalar_zero_is_the_null():
+    r = Scalar(0.0)
+    assert r.is_null
+    for x in (-3.0, 0.0, 5.0, 1e6):
+        assert r.rate_multiplier(x) == 1.0          # no dependence on the driver
+    assert null_response().is_null
+    assert null_response().rate_multiplier(42.0) == 1.0
+
+
+def test_scalar_clamps_the_exponent():
+    # An extreme strength·driver must not overflow exp().
+    huge = Scalar(1e3).rate_multiplier(1e3)
+    assert math.isfinite(huge)
+    assert huge == pytest.approx(math.exp(40.0))     # clamped at _MAX_EXPONENT
+    assert Scalar(-1e3).rate_multiplier(1e3) == pytest.approx(math.exp(-40.0))
+
+
+def test_scalar_optimum_offset_is_linear():
+    assert Scalar(2.0).state_offset(3.0) == pytest.approx(6.0)
+
+
+def test_table_lookup_default_and_null():
+    t = Table({"marine": 1.0, "fresh": 2.5, "soil": 0.6})
+    assert t.rate_multiplier("fresh") == 2.5
+    assert t.rate_multiplier("desert") == 1.0        # falls back to default
+    assert not t.is_null
+    assert Table({0: 3.0, 1: 3.0}, default=3.0).is_null   # uniform → no signal
+    assert not Table({0: 1.0, 1: 3.0}).is_null
+
+
+def test_curve_evaluates_and_caps_at_bound():
+    hump = Curve(lambda x: 4.0 - (x - 2.0) ** 2, bound=5.0)
+    assert hump.rate_multiplier(2.0) == pytest.approx(4.0)     # peak
+    assert hump.rate_multiplier(0.0) == pytest.approx(0.0)     # 4 - 4
+    capped = Curve(lambda x: 100.0, bound=5.0)
+    assert capped.rate_multiplier(1.0) == 5.0
+
+
+# ── 2. The sentence: validation ───────────────────────────────────────────────
+def test_target_variable_kind_is_looked_up():
+    assert TargetVariable("genomes", "loss").kind == "rate"
+    assert TargetVariable("traits", "optimum").kind == "state"
+    assert TargetVariable("species", "speciation").kind == "rate"
+
+
+def test_unknown_target_variable_is_rejected():
+    with pytest.raises(ValueError, match="no target-variable"):
+        TargetVariable("genomes", "speciation")      # speciation is a species variable, not genomes
+    with pytest.raises(ValueError, match="unknown target level"):
+        TargetVariable("populations", "loss")
+
+
+def test_unknown_driver_level_or_kind_is_rejected():
+    with pytest.raises(ValueError, match="unknown driver level"):
+        Driver("populations")
+    with pytest.raises(ValueError, match="driver kind"):
+        Driver("traits", kind="continuous")
+
+
+def test_topology_rule_forbids_species_sequence_diagonal():
+    with pytest.raises(ValueError, match="forbidden"):
+        couple("species", "sequences", "residues", 1.0, driver_kind="event")
+    with pytest.raises(ValueError, match="forbidden"):
+        couple("sequences", "species", "speciation", 1.0)
+
+
+@pytest.mark.parametrize("driver,target,variable", [
+    ("traits", "species", "speciation"),      # SSE
+    ("genomes", "species", "extinction"),     # key innovation
+    ("species", "traits", "value"),           # cladogenetic
+    ("traits", "genomes", "loss"),            # trait-linked
+    ("genomes", "traits", "optimum"),         # gene-conditioned
+    ("traits", "sequences", "selection"),     # T→Σ
+    ("genomes", "sequences", "substitution_speed"),  # G→Σ
+    ("sequences", "genomes", "loss"),         # Σ→G (concerted)
+])
+def test_all_diamond_edges_are_constructible(driver, target, variable):
+    c = couple(driver, target, variable, 0.7)
+    assert isinstance(c, Coupling)
+    assert c.target.level == target
+
+
+def test_couple_sugar_wraps_a_bare_number_as_scalar():
+    c = couple("traits", "genomes", "loss", -0.8)
+    assert isinstance(c.response, Scalar)
+    assert c.response.strength == -0.8
+
+
+def test_coupling_is_null_when_response_is_null():
+    assert couple("traits", "genomes", "loss", 0.0).is_null
+    assert not couple("traits", "genomes", "loss", 0.8).is_null
+
+
+# ── 3. The graph: layer vs fuse ───────────────────────────────────────────────
+def test_directional_edge_layers():
+    g = CouplingGraph([couple("traits", "genomes", "loss", -0.8)])
+    assert g.mode == "directional"
+    assert not g.grows_tree
+    assert len(g.layered()) == 1
+    assert g.fused_groups() == []
+
+
+def test_trait_gene_feedback_fuses():
+    a = couple("traits", "genomes", "loss", -0.8)
+    b = couple("genomes", "traits", "optimum", 0.8)
+    g = CouplingGraph([a, b])
+    assert g.mode == "bidirectional"
+    assert g.is_fused(a) and g.is_fused(b)
+    groups = g.fused_groups()
+    assert len(groups) == 1 and len(groups[0]) == 2    # the T↔G pair co-integrates together
+
+
+def test_into_species_edge_fuses_via_the_substrate_cycle():
+    # A single arrow into species is bidirectional in disguise: it closes a cycle with the
+    # implicit substrate edge species→traits, so the tree is GROWN.
+    sse = couple("traits", "species", "speciation", 1.2)
+    g = CouplingGraph([sse])
+    assert g.is_fused(sse)
+    assert g.grows_tree
+    assert g.mode == "bidirectional"
+
+
+def test_gene_to_sequence_layers_but_sequence_to_gene_fuses():
+    # G→Σ rides the substrate downstream → directional; Σ→G closes the genomes↔sequences cycle
+    # (concerted evolution) → fuse.
+    down = CouplingGraph([couple("genomes", "sequences", "selection", 0.5)])
+    assert not down.is_fused(down.couplings[0])
+
+    up = couple("sequences", "genomes", "loss", 0.5)
+    assert CouplingGraph([up]).is_fused(up)
+
+
+def test_trait_to_sequence_is_directional():
+    t2s = couple("traits", "sequences", "selection", 0.6)
+    g = CouplingGraph([t2s])
+    assert not g.is_fused(t2s)
+    assert g.mode == "directional"
+
+
+def test_menu_and_levels_are_the_diamond():
+    assert set(TARGET_VARIABLES) == set(LEVELS)
+    # species exposes only its two diversification rates; no state jump target.
+    assert set(TARGET_VARIABLES["species"]) == {"speciation", "extinction"}
