@@ -538,6 +538,20 @@ def test_sequence_two_clocks_rejected(tmp_path):
     assert rc == 1
 
 
+def test_sequence_clock_canonical_flags_match_deprecated(tmp_path):
+    """The --clock-* flags are the canonical discrete-bin knobs; the old --branch-* spellings are
+    deprecated aliases with byte-identical output."""
+    run = _genomes_run_with_trace(tmp_path)
+    new, old = tmp_path / "new", tmp_path / "old"
+    rc = main(["sequences", "--genomes", str(run), "--clock", "discrete-bin",
+               "--clock-bins", "0.5,1,2", "--clock-switch-rate", "1.5", "--clock-up-bias", "0.6",
+               "--seed", "7", "-o", str(new)])
+    assert rc == 0
+    main(["sequences", "--genomes", str(run), "--branch-bins", "0.5,1,2",
+          "--branch-switch-rate", "1.5", "--branch-up-bias", "0.6", "--seed", "7", "-o", str(old)])
+    assert (new / "branch_rates.tsv").read_text() == (old / "branch_rates.tsv").read_text()
+
+
 def test_sequence_missing_trace_is_clean_error(tmp_path):
     """A genomes run without a written trace gives a clear error, not a traceback."""
     sp = tmp_path / "sp"
