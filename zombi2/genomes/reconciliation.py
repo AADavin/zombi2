@@ -17,10 +17,29 @@ extant leaf).
 
 from __future__ import annotations
 
+import contextlib
 import sys
 from collections import namedtuple
 
 from zombi2.genomes.events import EventRecord, EventType, GeneOp
+
+
+@contextlib.contextmanager
+def _deep_recursion():
+    """Temporarily lift the interpreter's recursion limit for the gene-tree walks.
+
+    Every walk here (building the node tree, pruning it, serialising it to Newick) recurses on
+    *gene-tree depth*, which is unbounded: a long duplication ladder is a routine outcome of a
+    high-duplication run, and the default ~1000-frame limit turns it into a ``RecursionError``
+    from an ordinary ``gene_trees()`` / ``reconciliations()`` call. Same treatment, and the same
+    reason, as :func:`expand_trace`. Restores the previous limit on the way out, and nests safely.
+    """
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(old_limit, 1_000_000))
+    try:
+        yield
+    finally:
+        sys.setrecursionlimit(old_limit)
 
 
 class _Node:
@@ -106,7 +125,8 @@ def _node_tree(records, gid2species, total_age) -> _Node | None:
             node.is_extant = node.species is not None
         return node
 
-    return build(root)
+    with _deep_recursion():          # gene-tree depth is unbounded (duplication ladders)
+        return build(root)
 
 
 def build_gene_trees(records, gid2species, total_age, annotate_species=False):
@@ -118,9 +138,10 @@ def build_gene_trees(records, gid2species, total_age, annotate_species=False):
     root_node = _node_tree(records, gid2species, total_age)
     if root_node is None:
         return None, None
-    complete = _to_newick(root_node, annotate_species) + ";"
-    pruned = _prune(root_node)
-    extant = (_to_newick(pruned, annotate_species) + ";") if pruned is not None else None
+    with _deep_recursion():          # _to_newick / _prune recurse on the same unbounded depth
+        complete = _to_newick(root_node, annotate_species) + ";"
+        pruned = _prune(root_node)
+        extant = (_to_newick(pruned, annotate_species) + ";") if pruned is not None else None
     return complete, extant
 
 
@@ -439,7 +460,6 @@ def reconcile(records, gid2species, total_age) -> "Reconciliation":
             node.is_extant = node.species is not None
         return node
 
-    full = build(root)
     events: list[ReconEvent] = []
 
     def collect(n: "_Node") -> None:
@@ -449,11 +469,14 @@ def reconcile(records, gid2species, total_age) -> "Reconciliation":
             events.append(ReconEvent(_EV_CHAR.get(n.kind, "?"), n.branch, n.recipient, n.end, n.gid))
         for c in n.children:
             collect(c)
-    collect(full)
 
-    pruned = _prune_recon(full)
-    return Reconciliation(
-        complete=_recon_newick(full) + ";",
-        extant=(_recon_newick(pruned) + ";") if pruned is not None else None,
-        events=events,
-    )
+    # build / collect / _prune_recon / _recon_newick all recurse on gene-tree depth
+    with _deep_recursion():
+        full = build(root)
+        collect(full)
+        pruned = _prune_recon(full)
+        return Reconciliation(
+            complete=_recon_newick(full) + ";",
+            extant=(_recon_newick(pruned) + ";") if pruned is not None else None,
+            events=events,
+        )

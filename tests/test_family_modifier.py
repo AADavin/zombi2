@@ -32,6 +32,34 @@ def _family_copies(g, fam):
     return int(g.profiles.matrix[fams.index(fam)].sum()) if fam in fams else 0
 
 
+class _ScheduledModifier(FamilyModifier):
+    """A modifier with its own refresh seams, to exercise the composer's breakpoint merge."""
+
+    def __init__(self, times):
+        super().__init__(factors={})
+        self._times = list(times)
+
+    def refresh_times(self, t0, t1):
+        return [(t, "n1") for t in self._times if t0 < t < t1]
+
+
+def test_modified_rates_refresh_times_are_sorted():
+    """``ModifiedRates`` must return its merged breakpoints in ascending time.
+
+    Regression test (2026-07-16 audit). The composer *concatenated* the base's seams with each
+    modifier's instead of merging them, so a stack whose modifiers refresh at times interleaving the
+    base's produced an out-of-order list. The forward loop consumes breakpoints with a monotonic
+    cursor — it takes ``breaks[bi]`` as *the next* one — so unsorted seams let time step backwards
+    or skip a seam, corrupting the piecewise-constant integration. ``RateModel.refresh_times``
+    documents the list as sorted; this pins it.
+    """
+    rates = ModifiedRates(Rates(duplication=0.2, loss=0.2),
+                          [_ScheduledModifier([2.5, 0.5]), _ScheduledModifier([1.5, 0.1])])
+    times = rates.refresh_times(0.0, 3.0)
+    assert [t for t, _ in times] == sorted(t for t, _ in times)
+    assert [t for t, _ in times] == [0.1, 0.5, 1.5, 2.5]      # interleaved across both modifiers
+
+
 def test_explicit_family_factor_boosts_that_family():
     tree = _tree()
 

@@ -549,7 +549,10 @@ class GenomeSimulator:
 
         # duplication / loss / inversion / transposition (one log record per group)
         selection = genome.draw_target(event, rng, params, family=family)
-        if (event is EventType.DUPLICATION and self._cap is not None
+        # ``selection.genes`` is empty for genomes that draw their own target by coordinate (the
+        # nucleotide model returns a bare Region), so guard before indexing — the cap only applies
+        # where a gene-level acting family exists.
+        if (event is EventType.DUPLICATION and self._cap is not None and selection.genes
                 and genome.copy_number(selection.genes[0].family) >= self._cap):
             return ()  # family already at the cap — skip this duplication
         groups = genome.apply(event, selection, rng, params)
