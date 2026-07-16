@@ -181,3 +181,79 @@ def test_gene_trees_survive_chromosome_loss():
     trees = g.gene_trees()          # must not raise despite whole-chromosome losses
     recs = g.reconciliations()      # must not raise
     assert len(trees) == len(recs) > 0
+
+
+# --- the tier is shared, not duplicated (2026-07-16 audit) -------------------------------------
+
+def test_both_models_share_one_chromosome_tier_implementation():
+    """The tier events live on :class:`ChromosomeTierMixin` — one implementation, both models.
+
+    Regression test. ``OrderedGenome`` and ``NucleotideGenome`` each carried their own near-verbatim
+    copy of these (``fusion`` was byte-identical bar ``.genes``/``.elements``, which alias the same
+    list), and the copies had already begun to drift. Assert they are *inherited*, so a future edit
+    to one model cannot silently re-fork the tier.
+    """
+    from zombi2.genomes.genome import ChromosomeTierMixin
+    from zombi2.genomes.nucleotide_genome import NucleotideGenome
+
+    shared = ["originate_chromosome", "lose_chromosome", "fusion",
+              "_choose_chromosome_weighted", "_choose_chromosome_uniform",
+              "_choose_other_chromosome"]
+    for model in (OrderedGenome, NucleotideGenome):
+        assert issubclass(model, ChromosomeTierMixin)
+        for name in shared:
+            assert getattr(model, name) is getattr(ChromosomeTierMixin, name), (
+                f"{model.__name__}.{name} overrides the shared tier — if that is deliberate, say why")
+
+
+def test_fission_stays_per_model():
+    """``fission`` is the one tier op that legitimately differs (index vs base-pair arithmetic)."""
+    from zombi2.genomes.genome import ChromosomeTierMixin
+    from zombi2.genomes.nucleotide_genome import NucleotideGenome
+
+    assert not hasattr(ChromosomeTierMixin, "fission")
+    assert OrderedGenome.fission is not NucleotideGenome.fission
+
+
+def test_both_models_implement_every_tier_hook():
+    """Each model supplies the three hooks the shared tier calls — none left abstract."""
+    from zombi2.genomes.genome import ChromosomeTierMixin
+    from zombi2.genomes.nucleotide_genome import NucleotideGenome
+
+    for model in (OrderedGenome, NucleotideGenome):
+        for hook in ("_chrom_size", "_new_chromosome_circular", "_element_loss_op"):
+            assert getattr(model, hook) is not getattr(ChromosomeTierMixin, hook), (
+                f"{model.__name__} does not implement the {hook} hook")
+
+
+def test_pickers_agree_on_their_return_type_across_models():
+    """All three pickers return a :class:`Chromosome` in both models.
+
+    Regression test: they used to disagree — ``OrderedGenome`` returned a ``chrom_id`` while
+    ``NucleotideGenome`` returned the ``Chromosome`` object from the *same-named* helper. That is
+    what blocked sharing them, and it was a live footgun: a helper copied between the classes
+    silently changed meaning (id vs object).
+    """
+    from zombi2.genomes.genome import Chromosome
+
+    genome, _ = _seeded(n_chromosomes=3, circular=True)
+    rng = np.random.default_rng(0)
+    picked = genome._choose_chromosome_weighted(rng)
+    assert isinstance(picked, Chromosome)
+    assert isinstance(genome._choose_chromosome_uniform(rng), Chromosome)
+    other = genome._choose_other_chromosome(rng, picked)
+    assert isinstance(other, Chromosome) and other is not picked
+
+
+def test_single_chromosome_pickers_draw_nothing():
+    """The byte-identity contract: with one chromosome the pickers consume no rng.
+
+    This is what keeps a single-chromosome genome consuming exactly the draws of the
+    pre-multichromosome engine, so the frozen fingerprints stay valid.
+    """
+    genome, _ = _seeded(n_chromosomes=1, circular=True)
+    for pick in (genome._choose_chromosome_weighted, genome._choose_chromosome_uniform):
+        before = np.random.default_rng(7)
+        after = np.random.default_rng(7)
+        pick(before)
+        assert before.random() == after.random()      # the picker consumed nothing
