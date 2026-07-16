@@ -38,14 +38,15 @@ from zombi2._rust import available as rust_available
 from zombi2.species import (
     Tree, TreeNode, read_newick, prune,
     BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent,
-    SharedBirthDeath, CladeShiftBirthDeath, simulate_species_tree, add_ghost_lineages,
+    SharedBirthDeath,  # noqa: F401 (deprecated preset for BirthDeath(per="shared"); not in __all__)
+    CladeShiftBirthDeath, simulate_species_tree, add_ghost_lineages,
 )
 from zombi2.genomes import (
     Gene, Genome, UnorderedGenome, OrderedGene, OrderedGenome,
     NucleotideGenome, Segment, simulate_nucleotide_genomes, NucleotideResult, Block,
     read_gff, read_gff_all, GffGenome,
     RateModel, Rates, Per,
-    PerCopyRates, PerLineageRates,  # deprecated presets for Rates(per=…); importable, not in __all__
+    PerCopyRates, PerLineageRates,  # noqa: F401 (deprecated presets for Rates(per=…); not in __all__)
     FamilySampledRates,
     LineageRates, Modifier, ModifiedRates, LineageModifier,
     FamilyModifier,

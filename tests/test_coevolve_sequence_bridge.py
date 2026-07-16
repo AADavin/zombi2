@@ -123,7 +123,6 @@ def test_base_rate_must_be_positive():
 # ── selection (ω): OmegaSelector (T→Σ) and GeneEventOmega (G→Σ) ────────────────
 import numpy as np
 
-from zombi2.coevolve.grammar import Scalar
 from zombi2.coevolve.sequence_bridge import GeneEventOmega, OmegaSelector
 from zombi2.genomes.events import EventType
 from zombi2.sequences.models import GammaRates, evolve_on_tree
