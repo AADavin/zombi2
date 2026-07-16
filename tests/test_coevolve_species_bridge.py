@@ -11,7 +11,7 @@ import pytest
 
 from zombi2.coevolve.grammar import CouplingGraph, Jump, Scalar, Table, couple
 from zombi2.coevolve.species_bridge import (
-    musse_from_responses, simulate_gene_driven_diversification,
+    _jump_gain_to_probability, musse_from_responses, simulate_gene_driven_diversification,
     simulate_trait_driven_diversification,
 )
 from zombi2.coevolve.sse import MuSSE
@@ -143,6 +143,34 @@ def test_classe_joint_jumps_the_trait_at_speciation():
     # ClaSSE also shifts the state at each split → the seeded runs diverge
     assert ({n.name: s for n, s in plain.values.items()}
             != {n.name: s for n, s in classe.values.items()})
+
+
+@pytest.mark.parametrize("gain, k, expected", [
+    (2.0, 10, 0.2),        # E[gained] = 2 for a lineage carrying none of the 10-driver panel
+    (0.5, 10, 0.05),
+    (20.0, 10, 1.0),       # a gain above the panel size saturates rather than raising
+    (0.0, 10, 0.0),
+    (1.0, 0, 0.0),         # empty panel: nothing to gain, and no division by zero
+])
+def test_jump_gain_converts_to_a_per_driver_probability(gain, k, expected):
+    """``gain`` is an expected *count*; the engine wants a per-driver probability over its panel."""
+    assert _jump_gain_to_probability(gain, k) == expected
+
+
+def test_jump_gain_above_one_is_legal_on_the_genes_species_edge():
+    """``Jump.gain`` is a mean count here too, so a value > 1 must run, not raise.
+
+    Regression test (2026-07-16 audit). ``species_bridge`` passed ``Jump.gain`` straight into
+    ``GeneDiversification.cladogenetic_gain``, which validates a *probability* in [0, 1] and uses it
+    as ``rng.random() < p``. So the documented Poisson mean — the same field that
+    :func:`simulate_cladogenetic_genomes` correctly reads as a mean count — raised ``ValueError``
+    above 1, and below 1 silently ran a per-driver Bernoulli instead of a count.
+    """
+    res = simulate_gene_driven_diversification(
+        4, speciation=Scalar(1.0), root_drivers=0,
+        cladogenesis=Jump(probability=0.0, gain=2.0),      # would ValueError before the fix
+        n_tips=30, seed=7)
+    assert len(res.tree.extant_leaves()) == 30
 
 
 def test_co_diversification_joint_runs_with_a_founder_burst():

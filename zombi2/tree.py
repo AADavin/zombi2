@@ -216,11 +216,23 @@ def read_newick(newick: str) -> Tree:
             while True:
                 children.append(parse())
                 skip_ws()
+                # After a clade the only legal characters are ',' (another child) or ')' (close).
+                # Both cases used to index blindly: a truncated tree ran off the end with a raw
+                # IndexError, and anything else fell through *both* branches, silently mis-parsing
+                # (e.g. "(a,b(c,d))" read `b` and `(c,d)` as siblings). Report instead.
+                if i >= len(s):
+                    raise ValueError(
+                        "malformed Newick: unbalanced parentheses — the string ended while a "
+                        "clade was still open (is the tree file truncated?)")
                 if s[i] == ",":
                     i += 1
                 elif s[i] == ")":
                     i += 1
                     break
+                else:
+                    raise ValueError(
+                        f"malformed Newick: expected ',' or ')' after a clade at position {i}, "
+                        f"got {s[i]!r}")
         skip_ws()
         name = read_name()
         length = 0.0
@@ -231,7 +243,11 @@ def read_newick(newick: str) -> Tree:
             start = i
             while i < len(s) and s[i] not in ",():;" and not s[i].isspace():
                 i += 1
-            length = float(s[start:i])
+            try:
+                length = float(s[start:i])
+            except ValueError:
+                raise ValueError(f"malformed Newick: branch length {s[start:i]!r} at position "
+                                 f"{start} is not a number") from None
         node = TreeNode(name=name, time=0.0)
         node._parsed_length = length  # scratch, consumed below
         for c in children:

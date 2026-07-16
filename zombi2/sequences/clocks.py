@@ -227,14 +227,20 @@ class WhiteNoiseClock(Clock):
 
 
 class AutocorrelatedLogNormalClock(Clock):
-    """Autocorrelated lognormal relaxed clock (Thorne–Kishino–Painter 1998).
+    """Autocorrelated lognormal relaxed clock (Thorne–Kishino–Painter 1998; Kishino et al. 2001).
 
     The rate evolves down the tree as a geometric random walk anchored to the parent,
-    ``R_child = R_parent · exp(𝒩(0, σ·√ℓ))``, where ``ℓ`` is the branch length in time. A
+    ``R_child = R_parent · exp(𝒩(−σ²ℓ/2, σ·√ℓ))``, where ``ℓ`` is the branch length in time. A
     child's rate is centred on its parent's, so nearby lineages have similar rates — the clock
     is *autocorrelated*. ``sigma = 0`` freezes the walk into a strict clock at ``root_rate``.
     This is the shared-lineage clock that :class:`~zombi2.SequenceEvolution`'s ``branch_sigma``
     selects.
+
+    The ``−σ²ℓ/2`` term is the lognormal mean correction (Kishino–Thorne–Painter 2001): a raw
+    ``exp(𝒩(0, σ√ℓ))`` multiplier has mean ``exp(σ²ℓ/2) > 1``, so rates would inflate with depth
+    and ``root_rate`` would be the *median*, not the mean. With the correction the walk is a
+    martingale — ``E[R_child | R_parent] = R_parent``, hence ``E[rate] = root_rate`` at every
+    depth, for any ``sigma`` — matching :class:`UncorrelatedLogNormalClock`'s convention.
     """
 
     def __init__(self, sigma: float, root_rate: float = 1.0):
@@ -247,7 +253,8 @@ class AutocorrelatedLogNormalClock(Clock):
 
     def _branch_rate(self, node: TreeNode, parent_rate: float, rng) -> float:
         scale = self.sigma * math.sqrt(max(node.branch_length(), 0.0))
-        drift = math.exp(rng.normal(0.0, scale)) if scale > 0 else 1.0
+        # mean-corrected: E[exp(N(-scale²/2, scale))] = 1, so the rate does not drift with depth
+        drift = math.exp(rng.normal(-0.5 * scale ** 2, scale)) if scale > 0 else 1.0
         return parent_rate * drift
 
 

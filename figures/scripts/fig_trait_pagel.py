@@ -156,7 +156,7 @@ def panel_model(d, cx0, cy0):
 
 # --------------------------------------------------------------------------- panel B: a realization
 def _layout(tree):
-    tfo, order = {}, []
+    tfo = {}
     for n in tree.traverse("preorder"):
         tfo[n.name] = 0.0 if n.is_root() else tfo[n.up.name] + n.dist
     present = max(tfo.values())

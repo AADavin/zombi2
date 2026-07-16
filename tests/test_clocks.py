@@ -57,7 +57,12 @@ ALL_CLOCKS = {
     "cir": CIRClock(theta=1.0, sigma=0.4, mean=1.0),
     "rate_variation": RateVariation(bins=[0.5, 1.0, 2.0], switch_rate=1.0),
 }
-# the clocks built to have mean rate 1 (autocorrelated-lognormal drifts; strict is exactly 1)
+# The clocks whose *single-realisation* tree-wide mean rate concentrates on 1 (strict is exactly 1).
+# autocorrelated-lognormal is mean-1 as a process (E[rate] = root_rate at every depth, since the
+# −σ²ℓ/2 correction makes the walk a martingale) but is deliberately NOT listed here: its branch
+# rates all descend from one shared walk, so a single tree does not average out (across 400 seeds:
+# mean 1.01 but sd 0.38, vs sd 0.09 for the i.i.d. ucln). Its mean is pinned across many seeds by
+# test_autocorrelated_lognormal_does_not_drift_with_depth instead.
 UNIT_MEAN_CLOCKS = ["ucln", "ugam", "white_noise", "cir"]
 
 
@@ -99,6 +104,27 @@ def test_unit_mean_clocks_average_to_one(name):
     """A mean-1 relaxed clock leaves the tree's total length ≈ unchanged (∑ rate·time ≈ ∑ time)."""
     tree = _tree()
     assert _mean_rate(ALL_CLOCKS[name].scale(tree, seed=3), tree) == pytest.approx(1.0, abs=0.2)
+
+
+def test_autocorrelated_lognormal_does_not_drift_with_depth():
+    """The autocorrelated walk is a martingale: E[rate] = root_rate at *every* depth.
+
+    Regression test. The step is ``exp(𝒩(−σ²ℓ/2, σ√ℓ))``; drop the −σ²ℓ/2 mean correction and the
+    multiplier has mean ``exp(σ²ℓ/2) > 1``, so the expected rate compounds away from ``root_rate``
+    the deeper you go (at σ=0.8 on a depth-4 caterpillar it reached ~3.6×). The tree-wide average
+    in ``test_unit_mean_clocks_average_to_one`` dilutes that, so pin the *depth trend* directly.
+    """
+    # caterpillar: 'e' hangs one branch off the root, 'a'/'b' sit four branches down
+    nwk = "((((a:1,b:1)i3:1,c:1)i2:1,d:1)i1:1,e:1);"
+    clock = AutocorrelatedLogNormalClock(sigma=0.8, root_rate=1.0)
+    shallow, deep = [], []
+    for seed in range(3000):
+        tree = z.read_newick(nwk)
+        _, avg = clock.lineage_segments(tree, np.random.default_rng(seed))
+        shallow.append(avg["e"])
+        deep += [avg["a"], avg["b"]]
+    assert np.mean(shallow) == pytest.approx(1.0, abs=0.1)
+    assert np.mean(deep) == pytest.approx(1.0, abs=0.1)     # would be ≈3.6 without the correction
 
 
 def test_clock_base_class_is_abstract():

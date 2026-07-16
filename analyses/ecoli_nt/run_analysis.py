@@ -189,7 +189,6 @@ def main():
             ev["inversion"] += 1
         elif e is EventType.TRANSPOSITION:
             ev["transposition"] += 1
-    pseudos = res.pseudogenizations()
 
     # ============================================================ FIGURES
     # Fig 1 — species tree
@@ -312,7 +311,6 @@ def main():
     plt.close(fig)
 
     # ============================================================ STATS -> LaTeX
-    tot_len = tree.total_length if hasattr(tree, "total_length") else None
     mean_genes = np.mean([comp[nm]["distinct_genes"] for nm in names])
     mean_pseud = np.mean([comp[nm]["pseudogenes"] for nm in names])
     mean_size = np.mean([comp[nm]["size"] for nm in names])

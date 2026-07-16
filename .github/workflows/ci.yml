@@ -55,6 +55,33 @@ jobs:
       - name: Run the test suite
         run: pytest -q
 
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Install the linter from the [dev] extra so it stays the single source of truth for its
+      # pinned version — a contributor running `pip install -e ".[dev]"` lints with exactly what CI
+      # does. zombi2_core resolves from PyPI as a prebuilt abi3 wheel (no Rust toolchain needed);
+      # ruff never imports the package, but installing the extra keeps this job's setup identical
+      # to the docs job's.
+      - name: Install ZOMBI2 (dev extra)
+        run: pip install -e ".[dev]"
+
+      # The whole repo, not just zombi2/: the package, the tests, the figure scripts and the
+      # analyses. Deliberate exemptions (vendored parsers, the figure style vocabulary, the tests'
+      # section imports) live in [tool.ruff.lint.per-file-ignores] with their rationale.
+      - name: Lint
+        run: ruff check .
+
   docs:
     name: docs (mkdocs --strict)
     runs-on: ubuntu-latest

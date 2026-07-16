@@ -8,7 +8,6 @@ verified in ``tests/test_gene_conditioned_trait.py``, which now runs through thi
 """
 
 import numpy as np
-import pytest
 
 import zombi2 as z
 from zombi2.coevolve.grammar import Table
