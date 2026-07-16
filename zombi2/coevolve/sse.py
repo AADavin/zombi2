@@ -530,6 +530,16 @@ def _simulate_sse(model, age, n_tips, root_state, rng, max_lineages, clado=None)
                 f"SSE tree exceeded max_lineages={max_lineages}; explosive parameters — "
                 "lower the age/rates or raise max_lineages"
             )
+        # A reducible Q can funnel every live lineage into an absorbing state with λ=μ=out_rate=0.
+        # Nothing can happen from there, but the thinning loop keeps advancing t and rejecting
+        # (total=0 always thins), so n_tips mode — which has no age cap to stop it — spins forever.
+        # Reject the trial, as the sibling gene_diversification._simulate_once does. Only guarded
+        # for n_tips: with an age the loop already terminates, and short-circuiting there would
+        # change how many draws the rng consumes. ``any`` short-circuits on the first live lineage
+        # that can still act, so this costs O(1) in the normal case.
+        if age is None and not any(lambdas[s.state] + mus[s.state] + out_rate[s.state] > 0.0
+                                   for s in live):
+            return None                          # n_tips can never be reached
         dt = rng.exponential(1.0 / (n * bound))
         if age is not None and t + dt >= age:
             end = age
@@ -610,8 +620,12 @@ def _simulate_quasse(model, age, n_tips, x0, rng, max_lineages, clado=None):
             return None
         if n_tips is not None and n == n_tips:
             # present strictly after the N-th birth: last event + Exp(total rate); see _simulate_sse
-            R = sum(spec(L[1]) + ext(L[1]) for L in live)
+            R = sum(spec(L[1]) + ext(L[1]) for L in live)   # rates as of the last event time t
             end = t + rng.exponential(1.0 / (R if R > 0.0 else n * bound))
+            # The trait keeps diffusing over the trailing [t, end] interval, exactly as the age
+            # branch below diffuses over [t, age]. Without this the survivors' values are frozen at
+            # the last *event*, systematically under-diffusing tip variance in n_tips mode.
+            diffuse(end - t)
             break
         if n > max_lineages:
             raise RuntimeError(
