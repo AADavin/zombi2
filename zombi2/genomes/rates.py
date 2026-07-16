@@ -587,7 +587,10 @@ class ModifiedRates(RateModel):
         times = list(self.base.refresh_times(t0, t1))
         for m in self.modifiers:
             times.extend(m.refresh_times(t0, t1))
-        return times
+        # Re-sort: the forward loop consumes breakpoints with a monotonic cursor (it takes
+        # ``breaks[bi]`` as *the next* one), so merging base and modifier seams unsorted would let
+        # time step backwards or skip a seam. The RateModel.refresh_times contract says "sorted".
+        return sorted(times)
 
 
 class LineageModifier(Modifier):

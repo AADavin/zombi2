@@ -222,6 +222,47 @@ def test_quasse_constant_rates_reduce_to_yule():
     assert abs(np.mean(counts) - 2 * np.exp(age)) < 1.0
 
 
+def test_quasse_ntips_tips_diffuse_all_the_way_to_the_present():
+    """``n_tips`` tips are diffused to the present, not frozen at the last event.
+
+    Regression test (2026-07-16 audit). Statistical oracle: with x-independent rates the trait is
+    pure Brownian motion, so a tip's marginal variance about ``x0`` is ``sigma2 · (root-to-tip
+    time)``; standardising by that must give variance 1. ``n_tips`` mode drew the present as
+    ``end = t + Exp(...)`` and broke out **without** diffusing over the trailing ``[t, end]``
+    interval, so survivors kept their value from the last *event* — under-dispersed tips
+    (measured var 0.856 vs 1.032 fixed, at this seed). The ``age`` branch always diffused, so only
+    ``n_tips`` was affected.
+    """
+    sigma2 = 1.5
+    m = z.QuaSSE(speciation=lambda x: 1.0, extinction=lambda x: 0.0, sigma2=sigma2, rate_bound=1.0)
+    rng = np.random.default_rng(11)
+    standardised = []
+    for _ in range(600):
+        res = z.simulate_sse(m, n_tips=6, rng=rng)
+        if res is None:
+            continue
+        for leaf in res.tree.extant_leaves():           # ultrametric: every tip sits at `end`
+            standardised.append(res.values[leaf] / np.sqrt(sigma2 * res.tree.total_age))
+    assert len(standardised) > 2000
+    assert np.var(standardised, ddof=1) == pytest.approx(1.0, abs=0.10)
+
+
+def test_musse_absorbing_zero_rate_state_terminates_under_ntips():
+    """A reducible Q with an absorbing zero-rate state must not spin forever in ``n_tips`` mode.
+
+    Regression test (2026-07-16 audit). State 1 here has speciation = extinction = 0 and no way
+    out, so once every lineage lands there nothing can happen — but the thinning loop kept drawing
+    ``dt`` and rejecting (``total = 0`` always thins) while ``t`` advanced and ``n`` never changed.
+    With an ``age`` the loop stops at the present; ``n_tips`` has no such cap, so it hung. The
+    trial is now rejected, exactly as ``gene_diversification._simulate_once`` already did, and the
+    retry loop surfaces a clean error instead of hanging.
+    """
+    Q = np.array([[-0.5, 0.5], [0.0, 0.0]])
+    m = z.MuSSE(birth=[1.0, 0.0], death=[0.1, 0.0], Q=Q)
+    with pytest.raises(RuntimeError, match="no surviving tree"):
+        z.simulate_sse(m, n_tips=8, seed=1)
+
+
 def test_quasse_trait_is_continuous_and_wellformed():
     m = z.QuaSSE(z.QuaSSE.sigmoid(0.5, 2.0), lambda x: 0.2, sigma2=0.4, rate_bound=2.2)
     res = z.simulate_sse(m, age=2.0, seed=3)
