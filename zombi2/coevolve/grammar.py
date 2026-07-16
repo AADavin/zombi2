@@ -393,6 +393,17 @@ class _SCC:
 class CouplingGraph:
     """A set of couplings plus the two rules that read them.
 
+    .. note::
+
+       **Not on the execution path yet — this solver is exercised only by its tests.** Nothing in
+       ``zombi2/cli/`` or the bridges consults it: the ``coevolve`` command still hand-dispatches
+       each edge through ``_run_coevolve_mode``'s ``if eset == ...`` waterfall and its own
+       ``parser.error`` guards. Wiring it up is **P3** in ``docs/design/coevolve-grammar.md`` (which
+       also lists an open P0 prerequisite: ``_COEVOLVE_EDGES`` still holds the ``genes:*`` tokens
+       internally and normalises ``genomes``→``genes``, the inverse of D1/C6). Until then, treat
+       what this class says as the *intended* rule, not as a description of what the CLI does — and
+       do not assume a change here reaches a user.
+
     Topology is validated per-coupling on construction (:class:`Coupling`). This class classifies
     each coupling — and the whole run — as **directional** (layer, run in order) or **bidirectional**
     (fuse, run together). A coupling *fuses* when its two levels sit in one strongly-connected
@@ -482,6 +493,13 @@ class CouplingGraph:
 # ═══════════════════════════════════════════════════════════════════════════════
 # The null layer: matched decoupled twins
 # ═══════════════════════════════════════════════════════════════════════════════
+# NOT ON THE EXECUTION PATH YET — `make_null` / `legal_null_kinds` below are exercised only by their
+# tests. Production nulls still go through each model's own `.null()` method (MuSSE, QuaSSE,
+# TraitGeneCoupling, GeneDiversification, CladogeneticGenome, GeneConditionedTrait, ...), each of
+# which carries exactly the per-edge if/error ladder this matrix was written to replace, and the CLI
+# calls those. So the two encodings of null legality must currently be kept in step BY HAND; adopting
+# this one is P3 in docs/design/coevolve-grammar.md §4.4.
+#
 # Every edge's null is one of three things, and legality is a property of the DRIVER archetype —
 # not a per-edge if/error ladder. Encoding the matrix is what keeps the grammar from resurrecting
 # the old "cid null is a workflow, not a transform" guards. See docs/design/coevolve-grammar.md §4.4.
