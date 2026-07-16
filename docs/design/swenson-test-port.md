@@ -30,7 +30,7 @@ nucleotide layer, under different names.
 | `make_inversion_intergenic(ch, bp1, bp2, dir)` | `NucleotideGenome._apply_inversion(start, length)` |
 | `cut_and_paste` / `obtain_segment` | `NucleotideGenome._apply_transposition(start, length, dest)` |
 | `init_divisions` / `natural_cuts` | segment / block boundaries (the ancestral source‑intervals) |
-| `Geneorder_events_per_branch/` files | in‑memory `EventLog` (`event_log`); no per‑branch gene‑order file is written |
+| `Geneorder_events_per_branch/` files | `geneorder_events.tsv` (`--write geneorder`) — one file, one row per structural event, keyed by `branch` (plus the in‑memory `EventLog`) |
 
 ## Disposition of each fork test file
 
@@ -42,7 +42,7 @@ nucleotide layer, under different names.
 | `test_pieces.py` | divisions/pieces after events | **Not ported** — the live assertions are a subset of the above; the file was ~80% commented‑out stubs in the fork. |
 | `test_commandline.py` | modes run + `All_genomes` vs `Genomes` crosscheck | **Already covered** by `test_cli.py` (file existence) + block/reconciliation invariants; not re‑ported. |
 | `test_randomization.py` | same seed → identical output directory (T/G/S) | **Ported** → `test_pipeline_determinism.py` (CLI, `species → genomes → sequence`). |
-| `test_geneorder_events.py` | replay per‑branch gene‑order events → reconstruct each genome | **Already covered in memory** by `test_nucleotide_genome.py::test_mosaic_reassembles_each_leaf` / `test_full_event_set_fires_and_reconstructs`. The *file‑based* replay is not ported (see "Not ported"). |
+| `test_geneorder_events.py` | replay per‑branch gene‑order events → reconstruct each genome | **Ported** → `test_geneorder_file_replay.py` (the file‑based replay). The in‑memory analogue also exists (`test_nucleotide_genome.py::test_mosaic_reassembles_each_leaf`), but it is *not* a substitute — see below. |
 
 ## What was added
 
@@ -71,11 +71,30 @@ exactly what the new golden examples fill.
   they assert per‑nucleotide coordinate mapping, which the random‑vs‑oracle tests already prove
   for arbitrary inputs. Porting them verbatim adds bulk, not coverage. The *distinct scenarios*
   they encode (wrapping arcs, enclosed genes, gene reordering) are preserved as golden cases.
-- **File‑based `Geneorder_events_per_branch` replay** (`test_geneorder_events.py`): zombi2 does
-  not emit a per‑branch gene‑order event file, so there is nothing to replay from disk; the
-  in‑memory equivalent (reconstruct each leaf from the event log / block mosaic) is already
-  tested. If zombi2 later adopts that output surface, this becomes a natural addition.
 - **`test_pieces.py`**: mostly commented‑out stubs in the fork.
+
+## Correction: the file‑based replay *is* ported
+
+An earlier revision of this note declined the file‑based `Geneorder_events_per_branch` replay
+(`test_geneorder_events.py`) on the grounds that "zombi2 does not emit a per‑branch gene‑order event
+file, so there is nothing to replay from disk", and that the in‑memory reconstruction already
+covered it. **Both halves of that were wrong, and Krister was right to push back.**
+
+- zombi2 *does* now emit the event log — `--write geneorder` → `geneorder_events.tsv`, one row per
+  structural event with its breakpoints, keyed by `branch`. The stated blocker is gone.
+- More importantly, the in‑memory test is **not a substitute**. zombi2's output is a set of *files*,
+  and the files are what a user inferring rearrangements actually consumes. Verifying the in‑memory
+  structures says nothing about whether the *written* breakpoints mean what they claim: a
+  coordinate‑convention slip would yield a plausible file that replays to the wrong genome, and every
+  in‑memory test would still pass.
+
+`tests/test_geneorder_file_replay.py` closes this: it reads the written `geneorder_events.tsv`,
+replays each branch's events onto the root genome with the simulator's own primitives, and asserts
+the result reproduces the written genomes (`bed/<node>.bed`). A negative control (perturbing the
+replay by a single base) confirms the test fails when the correspondence breaks, so it is not
+vacuous. Scope today is a content‑conserving run (inversion + transposition) — the
+rearrangement‑inference case; duplication / loss / transfer are the natural extension once their
+file‑level semantics are pinned down.
 
 ## Notes for the merge
 
@@ -88,5 +107,6 @@ exactly what the new golden examples fill.
 ## Running
 
 ```
-pytest tests/test_geneorder_examples.py tests/test_pipeline_determinism.py
+pytest tests/test_geneorder_examples.py tests/test_pipeline_determinism.py \
+       tests/test_geneorder_file_replay.py
 ```
