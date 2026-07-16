@@ -32,7 +32,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from zombi2.genomes.events import EventType, GeneOp, Region, Selection, TransferSegment
-from zombi2.genomes.genome import Chromosome, Gene, Genome, IdManager
+from zombi2.genomes.genome import Chromosome, ChromosomeTierMixin, Gene, Genome, IdManager
 
 #: Smallest a chromosome may shrink to under deletion — the min-genome floor. A deletion is
 #: clamped so the genome never drops below this many nucleotides (guards against emptying the
@@ -161,7 +161,7 @@ class Segment:
         return self.source
 
 
-class NucleotideGenome(Genome):
+class NucleotideGenome(ChromosomeTierMixin, Genome):
     """Circular nucleotide genome supporting variable-length **inversions** (M1).
 
     Construct via a factory so the driver can clone it, e.g.
@@ -414,30 +414,17 @@ class NucleotideGenome(Genome):
         """Total nucleotide length of ``chrom`` (sum of its segment lengths)."""
         return sum(seg.length for seg in chrom.elements)
 
-    def _choose_chromosome_weighted(self, rng) -> Chromosome:
-        """Pick a chromosome, weighted by its nucleotide length (where an event lands).
+    # --- ChromosomeTierMixin hooks -----------------------------------------
+    def _chrom_size(self, chrom: Chromosome) -> int:
+        """Nucleotide length: a length-scaled event lands on a chromosome in proportion to its bp."""
+        return self._chrom_length(chrom)
 
-        Short-circuits without drawing when there is only one chromosome, so a single-chromosome
-        genome consumes exactly the RNG draws of the pre-multichromosome engine (byte-identity)."""
-        if len(self.chromosomes) == 1:
-            return next(iter(self.chromosomes.values()))
-        chroms = list(self.chromosomes.values())
-        sizes = [self._chrom_length(c) for c in chroms]
-        r = int(rng.integers(sum(sizes)))
-        for c, s in zip(chroms, sizes):
-            if r < s:
-                return c
-            r -= s
-        return chroms[-1]  # pragma: no cover -- unreachable while total > 0
+    def _new_chromosome_circular(self) -> bool:
+        """A de-novo replicon is a plasmid — always circular, whatever the genome's own topology."""
+        return True
 
-    def _choose_chromosome_uniform(self, rng) -> int:
-        """Pick a chromosome uniformly (return its ``chrom_id``), for transfer insertion — every
-        chromosome is an equally likely recipient regardless of length (the Q4 behaviour, matching
-        ``OrderedGenome``). Draws nothing when there is a single chromosome (byte-identity)."""
-        if len(self.chromosomes) == 1:
-            return next(iter(self.chromosomes))
-        cids = list(self.chromosomes)
-        return cids[int(rng.integers(len(cids)))]
+    def _element_loss_op(self, element: "Segment") -> GeneOp:
+        return GeneOp(element.seg_id, element.source, "lost")
 
     def _split_at(self, c: int, chrom: Chromosome | None = None) -> None:
         """Ensure a segment boundary at physical coordinate ``c`` on ``chrom`` (``0`` is always one).
@@ -692,13 +679,6 @@ class NucleotideGenome(Genome):
             idx = self._index_at(dest, chrom)
             els[idx:idx] = arc
         return arc
-
-    def _choose_other_chromosome(self, rng, chrom: Chromosome) -> Chromosome | None:
-        """A chromosome uniformly chosen among those that are *not* ``chrom`` (``None`` if none)."""
-        others = [c for c in self.chromosomes.values() if c is not chrom]
-        if not others:
-            return None
-        return others[int(rng.integers(len(others)))]
 
     def _apply_translocation(self, s: int, ell: int, chrom: Chromosome,
                              dest_chrom: Chromosome, dest: int) -> list[Segment]:
@@ -1019,8 +999,8 @@ class NucleotideGenome(Genome):
                     span = self._find_homologous_span(segment, chrom)
                     if span is not None:
                         return (chrom.chrom_id, ("homolog", span))
-        cid = self._choose_chromosome_uniform(rng)            # uniform recipient chromosome
-        chrom = self.chromosomes[cid]
+        chrom = self._choose_chromosome_uniform(rng)          # uniform recipient chromosome
+        cid = chrom.chrom_id
         at = int(rng.integers(self._chrom_length(chrom) + 1))  # any physical position, 0..length
         return (cid, self._snap(at, chrom=chrom) if self._registry.has_genes() else at)
 
@@ -1096,23 +1076,6 @@ class NucleotideGenome(Genome):
     # One tier above the segment events: they act on whole chromosomes. Fission / fusion only move
     # segments between chromosomes (segment ids untouched), so gene-tree reconstruction is unaffected;
     # only chromosome LOSS ends the lineages it carries. All nucleotide chromosomes are circular.
-    def originate_chromosome(self, rng, params) -> int:
-        """Originate a new, empty circular chromosome — a de-novo replicon (a plasmid). Returns the
-        new chrom_id. Draws no rng."""
-        cid = self.ids.new_chromosome()
-        self.chromosomes[cid] = Chromosome(cid, True)
-        return cid
-
-    def lose_chromosome(self, rng) -> tuple[int, list[list[GeneOp]]]:
-        """Lose a whole chromosome (chosen uniformly) and every segment on it, returning its chrom_id
-        and one LOSS group per segment (so the caller can log the deaths). The caller guarantees
-        >= 2 chromosomes (a genome keeps at least one)."""
-        cids = list(self.chromosomes)
-        cid = cids[int(rng.integers(len(cids)))]
-        chrom = self.chromosomes.pop(cid)
-        groups = [[GeneOp(seg.seg_id, seg.source, "lost")] for seg in chrom.elements]
-        return cid, groups
-
     def fission(self, rng, params) -> tuple[int, int]:
         """Split a chromosome into two, respecting its topology (segments keep their ids; genes stay
         whole via snapping). A **circular** chromosome is cut at TWO breakpoints, excising the arc
@@ -1151,18 +1114,3 @@ class NucleotideGenome(Genome):
             self.chromosomes[new_cid] = Chromosome(new_cid, False, suffix)
         return chrom.chrom_id, new_cid
 
-    def fusion(self, rng, params) -> tuple[int, int] | None:
-        """Fuse two **same-topology** chromosomes into one (append the second's segments onto the
-        first, drop the second; segment ids untouched): two circular chromosomes fuse into a circular
-        one, two linear into a linear one. A mixed circular/linear pair cannot fuse — if the chosen
-        chromosome has no same-topology partner, returns ``None`` and the sampler skips the event.
-        The caller guarantees >= 2 chromosomes. Returns (kept_cid, absorbed_cid) or None."""
-        cids = list(self.chromosomes)
-        keep_cid = cids[int(rng.integers(len(cids)))]
-        topo = self.chromosomes[keep_cid].circular
-        partners = [c for c in cids if c != keep_cid and self.chromosomes[c].circular == topo]
-        if not partners:                      # no same-topology chromosome to fuse with
-            return None
-        absorb_cid = partners[int(rng.integers(len(partners)))]
-        self.chromosomes[keep_cid].elements.extend(self.chromosomes.pop(absorb_cid).elements)
-        return keep_cid, absorb_cid
