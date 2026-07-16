@@ -179,6 +179,44 @@ class Curve(Response):
         return float(self.fn(float(driver_value)))
 
 
+@dataclass
+class Jump(Response):
+    """An at-event **state change** — the JUMP effect for an *event*-driver edge (a speciation),
+    as opposed to the continuous MODULATION of a rate. The driver fires at an instant and the
+    target's state jumps; which parameter applies depends on the target level:
+
+    * a **continuous trait** jumps by a mean-zero Gaussian of variance ``scale`` (a cladogenetic
+      trait shift);
+    * a **discrete trait** moves to a uniformly-chosen other state with probability ``probability``;
+    * a **gene panel** drops each family it carries with probability ``probability`` and gains
+      ``Poisson(gain)`` new families (a founder burst).
+
+    :meth:`rate_multiplier` is undefined — a jump is not a rate. The null is no jump at all.
+    """
+
+    scale: float = 0.0          #: continuous-trait Gaussian jump variance
+    probability: float = 0.0    #: discrete-trait move / per-family drop probability
+    gain: float = 0.0           #: mean number of families gained (Poisson)
+
+    def __post_init__(self) -> None:
+        if self.scale < 0:
+            raise ValueError(f"scale (jump variance) must be >= 0, got {self.scale}")
+        if not (0.0 <= self.probability <= 1.0):
+            raise ValueError(f"probability must be in [0, 1], got {self.probability}")
+        if self.gain < 0:
+            raise ValueError(f"gain must be >= 0, got {self.gain}")
+        self.scale = float(self.scale)
+        self.probability = float(self.probability)
+        self.gain = float(self.gain)
+
+    def rate_multiplier(self, driver_value) -> float:
+        raise NotImplementedError("a Jump is an at-event state change, not a rate multiplier")
+
+    @property
+    def is_null(self) -> bool:
+        return self.scale == 0.0 and self.probability == 0.0 and self.gain == 0.0
+
+
 def null_response() -> Scalar:
     """The matched null: ``Scalar(0.0)`` — every driver value maps to a multiplier of ``1``."""
     return Scalar(0.0)
