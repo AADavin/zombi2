@@ -3034,6 +3034,23 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--omega-classes", default=None, metavar="W0:P0,W1:P1,...", dest="omega_classes",
                    help="[m3] discrete ω classes as omega:proportion pairs (proportions renormalised)")
 
+    g = p.add_argument_group("sequence coupling (grammar)",
+                             "drive the sequence with a coupling — the sequences tier of the "
+                             "coevolution diamond (docs/design/coevolve-grammar.md §5)")
+    g.add_argument("--couple", default=None, dest="seq_couple", metavar="EDGE",
+                   choices=("traits:selection", "genomes:selection", "traits:speed"),
+                   help="couple the sequence to a driver: 'traits:selection' (a trait sets per-lineage "
+                        "dN/dS ω), 'genomes:selection' (a gene event, e.g. duplication, relaxes "
+                        "selection), 'traits:speed' (a trait scales the substitution rate). The "
+                        "selection edges build their own codon (gy94) model; drop --subst-model there")
+    g.add_argument("--couple-strength", type=float, default=1.0, dest="seq_couple_strength",
+                   metavar="S", help="coupling strength — the exp-link coefficient (default 1.0)")
+    g.add_argument("--couple-base-omega", type=float, default=0.2, dest="seq_couple_base_omega",
+                   metavar="W", help="base dN/dS ω for a selection coupling (default 0.2)")
+    g.add_argument("--couple-trait-sigma", type=float, default=0.5, dest="seq_couple_trait_sigma",
+                   metavar="V", help="Brownian variance of the driving trait for 'traits:*' couplings "
+                        "(default 0.5)")
+
 
 def _build_lineage_clock(args: argparse.Namespace):
     """Resolve the sequence command's lineage-clock flags to a (Clock, description) pair.
@@ -3102,6 +3119,46 @@ def _build_codon_site_model(args: argparse.Namespace):
         omegas=omegas, proportions=proportions)
 
 
+def _build_sequence_coupling(args: argparse.Namespace, tree):
+    """Resolve ``--couple`` (the sequences-tier grammar edge) to the pieces ``_run_sequence`` plugs
+    in: ``(clock, model, model_for)``.
+
+    * ``traits:speed`` → a :class:`~zombi2.coevolve.sequence_bridge.DriverClock` replacing the lineage
+      clock (a trait scales R_b); ``model``/``model_for`` unchanged.
+    * ``traits:selection`` / ``genomes:selection`` → a codon ``base_model`` and a per-branch
+      ``model_for`` selector (:class:`~zombi2.coevolve.sequence_bridge.OmegaSelector` /
+      :class:`~zombi2.coevolve.sequence_bridge.GeneEventOmega`) for :func:`evolve_on_tree` — a
+      per-lineage / post-event ω.
+
+    Returns ``(None, None, None)`` when ``--couple`` is not set. A ``traits:*`` edge simulates a
+    Brownian driver trait on the species ``tree`` (variance ``--couple-trait-sigma``).
+    """
+    edge = getattr(args, "seq_couple", None)
+    if not edge:
+        return None, None, None
+    from zombi2.coevolve.grammar import Scalar
+    from zombi2.coevolve.sequence_bridge import DriverClock, GeneEventOmega, OmegaSelector
+
+    strength = Scalar(args.seq_couple_strength)
+    driver = None
+    if edge.startswith("traits:"):
+        from zombi2.coevolve.trait_coupling import TraitTrajectory
+        from zombi2.traits.models import BrownianMotion, simulate_traits
+        trait = simulate_traits(tree, BrownianMotion(sigma2=args.seq_couple_trait_sigma), seed=args.seed)
+        driver = TraitTrajectory.from_result(trait)
+
+    if edge == "traits:speed":
+        return DriverClock(driver, strength, base_rate=args.clock_mean), None, None
+    # selection edges build their own codon model
+    if args.subst_model:
+        raise ValueError(f"--couple {edge} builds its own codon (gy94) model; drop --subst-model and "
+                         "tune it via --couple-base-omega / --couple-strength")
+    sel = (OmegaSelector(driver, strength, base_omega=args.seq_couple_base_omega)
+           if edge == "traits:selection"
+           else GeneEventOmega(strength, base_omega=args.seq_couple_base_omega))
+    return None, sel.base_model, sel.model_for
+
+
 def _run_sequence(args: argparse.Namespace) -> str:
     """Overlay the gene x lineage substitution clock on a prior genomes run's gene trees, and —
     with ``--subst-model`` — simulate a DNA or protein alignment down each rescaled tree.
@@ -3153,6 +3210,14 @@ def _run_sequence(args: argparse.Namespace) -> str:
         families = read_events_trace(f.read(), tree)
     gid2species = extant_species_from_records(families, tree)
 
+    couple_clock, couple_model, couple_model_for = _build_sequence_coupling(args, tree)
+    if couple_clock is not None:                    # traits:speed → a trait-driven lineage clock
+        lineage_clock = couple_clock
+        clock_desc += f" + {args.seq_couple} coupling"
+    if couple_model is not None:                    # *:selection → the coupling supplies the codon model
+        model = couple_model
+        gamma = None                                # model_for is mutually exclusive with gamma
+
     family_speed = LogNormal(0.0, args.family_speed) if args.family_speed > 0 else 1.0
     family_factors = read_family_speeds(args.family_speeds) if args.family_speeds else None
     se = SequenceEvolution(lineage=lineage_clock, family_speed=family_speed,
@@ -3194,8 +3259,9 @@ def _run_sequence(args: argparse.Namespace) -> str:
     if args.root_fasta:
         root_seqs = read_fasta(args.root_fasta)
     rng = np.random.default_rng(args.seed)
-    kind = ("codon DNA" if is_codon_model(args.subst_model)
-            else "protein" if is_protein_model(args.subst_model) else "DNA")
+    # derive the alignment kind from the model itself (a --couple selection edge supplies its own
+    # codon model, so args.subst_model may be None): codon = 3 chars/state, protein = 20 states.
+    kind = "codon DNA" if model.unit == 3 else "protein" if model.k == 20 else "DNA"
     aln_dir = os.path.join(args.out, "alignments")
     os.makedirs(aln_dir, exist_ok=True)
 
@@ -3210,7 +3276,8 @@ def _run_sequence(args: argparse.Namespace) -> str:
             kw["root_seq"] = root_seqs[fam]
         else:
             kw["length"] = args.seq_length
-        seqs = evolve_on_tree(root_node, subst, model, rng, gamma=gamma, **kw)
+        seqs = evolve_on_tree(root_node, subst, model, rng, gamma=gamma,
+                              model_for=couple_model_for, **kw)
         records = {f"{leaf.species}_{leaf.gid}": seqs[leaf.gid]
                    for leaf in _iter_leaves(root_node)}
         if records:
