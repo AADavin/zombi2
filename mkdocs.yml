@@ -77,10 +77,10 @@ nav:
   - Get started:
       - Installation: installation.md
       - Quickstart: quickstart.md
+      - Parameters files: parameters-file.md
   - Guide:
       - Species trees: guide/species-trees.md
       - Genomes: guide/genomes.md
-      - Parameters files: guide/parameters-file.md
       - Traits: guide/traits.md
       - Sequences: guide/sequences.md
       - Coevolution: guide/coevolution.md
