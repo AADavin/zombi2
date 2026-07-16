@@ -1,3 +1,7 @@
+```{=latex}
+\part{Getting started}
+```
+
 # Introduction
 
 Evolutionary studies rely on statistical analyses of data observed in the present to make
@@ -26,34 +30,11 @@ can:
 - couple these processes into models of *coevolution* — gene content that shapes traits, traits
   that shape gene content, or gene families that evolve non-independently.
 
-## The levels of evolution
-
-Evolution is a single process, but it leaves its trace at several levels at once: a lineage
-diversifies into a species tree; along that tree, genomes gain and lose gene families; the
-organisms carry traits that drift and adapt; and inside every gene, molecular sequences
-accumulate substitutions. Reality draws no line between these levels. We do — because a
-tractable model usually captures only one of them at a time.
-
-ZOMBI2 is organised around that separation. It simulates four levels: **species** (the dated
-tree), **genomes** (the gene families along it), **traits** (phenotypes on the tree), and
-**sequences** (the nucleotides or amino acids in each gene). There are two ways to put them
-together.
-
-![The four levels of evolution and the two ways ZOMBI2 composes them. In the hierarchical pipeline (left), each level is simulated conditioned on the one above; in a joint `coevolve` run (right), species, genomes and traits are mutually coupled. Sequences are a downstream layer in both. You always choose which levels to simulate — you need not run them all.](figures/levels.pdf){width=100%}
-
-The usual way is **hierarchical**: simulate one level, then the next *conditioned on* it — a
-species tree, then gene families along its branches, then sequences along the resulting gene
-trees. Each level treats the one above as a fixed backbone. This keeps the levels independent
-and easy to reason about, and lets a single species tree seed many genome, trait, or sequence
-runs, so one backbone underlies a whole benchmark. It is the design ZOMBI has always had:
-species, then genomes, then sequences, in that order.
-
-Sometimes the levels are *not* independent — a trait may change the rate at which genes are
-gained or lost; gene content may decide which lineages survive and diversify. When influence
-runs *between* levels, a one-directional pipeline is no longer enough and the levels must be
-simulated **jointly**. ZOMBI2's `coevolve` mode does this, coupling species, genomes, and
-traits along directed links you choose. Sequences remain a downstream layer for now, though one
-can imagine them feeding back on the tree too.
+ZOMBI2 simulates four **levels** — species, genomes, traits and sequences — and composes them
+either as a hierarchical pipeline or as a jointly-coupled `coevolve` run. The next chapter,
+[A tour of ZOMBI2](#a-tour-of-zombi2), lays out those levels, the two ways to compose them, how
+every rate works, and the vocabulary the rest of the book uses. What follows is the shortest
+possible taste.
 
 ## For the impatient
 

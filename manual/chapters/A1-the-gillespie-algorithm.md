@@ -167,15 +167,15 @@ histories are *exact*: no time-step to tune, and no discretisation error.
 ::: note
 The `rng` is a seeded `numpy` random generator. Because the waiting times and event choices
 are its only source of randomness, the same seed reproduces the same history exactly — the
-reproducibility you saw in Chapter 3. ZOMBI2's built-in models may run this loop
+reproducibility you saw in [Getting started](#getting-started). ZOMBI2's built-in models may run this loop
 in a fast Rust engine rather than in Python, but the algorithm, and the results, are
 identical.
 :::
 
 ## A worked example: birth and death
 
-Make it concrete with the simplest possible menu of events — the birth–death process of
-Chapter 4, which grows a species tree. Each lineage alive at the moment
+Make it concrete with the simplest possible menu of events — the birth–death process of the
+[species-trees chapter](#species-trees-basic-models), which grows a species tree. Each lineage alive at the moment
 speciates at rate $\lambda$ and goes extinct at rate $\mu$. Suppose the tree currently has
 $n$ lineages. Every lineage contributes one possible birth and one possible death, so the
 menu has $2n$ events and the total rate is
@@ -259,8 +259,8 @@ Swapping levels means swapping the list of events and how their rates are comput
 timing machinery — total rate, exponential wait, proportional choice — never changes. That
 is why ZOMBI2 factors it into one shared component that every simulator reuses, and why
 understanding this one appendix carries you through all the chapters that use it. This engine
-is everywhere in the manual: it grows the species trees of Chapter 4, races the duplications,
-transfers and losses of the genome chapters, and flips the discrete traits of Chapter 12 —
+is everywhere in the manual: it grows the species trees, races the duplications,
+transfers and losses of the genome chapters, and flips the discrete traits —
 the same loop throughout, differing only in the events on its menu.
 
 ## …except when it isn't
@@ -274,7 +274,7 @@ The first is **sequence substitution along a fixed branch**. Once a gene tree an
 lengths are settled, evolving a DNA sequence down a branch does not require the individual
 substitution events — only the base at each end. The probability of ending in each state
 after a branch of length $t$ is given exactly by the matrix exponential $P(t) = e^{Qt}$, so
-ZOMBI2 draws each site's final base straight from $P(t)$ in a single step (Chapter 14).
+ZOMBI2 draws each site's final base straight from $P(t)$ in a single step (the [sequences chapter](#sequence-evolution)).
 Running Gillespie here would generate — and then discard — thousands of intermediate
 substitutions.
 
@@ -284,7 +284,7 @@ nodes in closed form: they are independent draws from a known distribution. ZOMB
 them directly, producing a tree with a prescribed number of tips exactly and cheaply, however
 small the chance of survival — no growing-and-pruning required. (The *complete* forward tree,
 which keeps extinct lineages, has no such shortcut: it is grown with the Gillespie loop, just
-as in the worked example above — Chapter 4.)
+as in the worked example above — see [Species trees](#species-trees-basic-models).)
 
 The rule of thumb is the same each time. Reach for Gillespie when you need the *whole
 history* — every branching, gain and loss at its exact time; reach for a shortcut when the

@@ -1,6 +1,6 @@
 # Unordered genomes
 
-The **unordered** level is the simplest and fastest of the three genome models (Chapter 7): a genome
+The **unordered** level is the simplest and fastest of the three genome models ([Genome evolution](#genome-evolution)): a genome
 is an unordered *set* of gene families, each present in some copy number, with no position, no
 neighbours and no length. It is the right model whenever what you care about is gene *content* —
 presence/absence profiles, copy number, reconciliations, family sizes.
@@ -14,7 +14,7 @@ history, threaded through the species tree.
 
 The genome of a lineage is a collection of gene copies. As simulated time advances, four kinds of
 event can fire on any living branch — the four events of the unordered level (the ordered and
-nucleotide levels add more; see Chapter 7 and their own chapters):
+nucleotide levels add more; see [Genome evolution](#genome-evolution) and their own chapters):
 
 | Event | Effect |
 |---|---|
@@ -40,8 +40,9 @@ over time independently of what is already present.
 ## Rates
 
 Within the unordered level, `--rate-per` — or a `RateModel` object in Python — chooses **the
-opportunity each rate is counted per**: per gene copy (the default) or per lineage. Chapter 7
-summarises the rate models in a table; this section works through them. On top of either, per-family
+opportunity each rate is counted per**: per gene copy (the default) or per lineage. The
+[tour](#how-rates-work-how-many-clocks-how-fast) introduces the opportunity axis; this section works
+through the genome rate models in detail. On top of either, per-family
 or per-lineage **multipliers** make rates differ by context. Explicit per-family and per-lineage rate
 tables are supplied from files with `--family-rates` / `--lineage-rates` (below).
 
@@ -52,7 +53,7 @@ rate:
 
 ```python
 from zombi2.genomes import (
-    Rates, Rates(per="lineage"), FamilySampledRates, TransferModel, simulate_genomes,
+    Rates, FamilySampledRates, TransferModel, simulate_genomes,
 )
 from zombi2.distributions import Gamma, Exponential, LogNormal, Uniform, Fixed
 
@@ -75,9 +76,9 @@ genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
 independent of genome size; a target copy is then chosen uniformly among the copies present:
 
 ```python
-genomes = simulate_genomes(tree, Rates(duplication=1.0, transfer=0.3,
-                                                     loss=0.5, origination=0.4, per="lineage"),
-                             initial_families=20, seed=1)
+genomes = simulate_genomes(tree, Rates(duplication=1.0, transfer=0.3, loss=0.5,
+                                       origination=0.4, per="lineage"),
+                           initial_families=20, seed=1)
 ```
 
 Because the rate no longer scales with copy number, family sizes grow *linearly* rather than

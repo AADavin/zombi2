@@ -1,13 +1,28 @@
 # Coevolution
 
-By default ZOMBI2 simulates in a **pipeline**: grow a species tree, then evolve a trait along it,
-then evolve gene families along it. That works because the joint distribution *factorises* —
-`P(tree)·P(trait | tree)·P(genes | tree, trait)` — so each stage runs on the frozen output of the
-previous one. **Coevolution breaks that factorisation.** A coupling is a directed edge
-`driver → target`: the driver's state modulates the target's rates, and the two levels must be grown
-**together** — one process, one Gillespie. All of them live under a single command,
-`zombi2 coevolve --couple driver:target`, over three of the four levels — {species, genomes, traits}
-(a coupling needs a driver and a target with rates, so sequences, which are downstream, do not drive).
+By default ZOMBI2 simulates in a **pipeline**: grow a species tree, then a trait along it, then gene
+families, then sequences along the gene trees. That works because the joint distribution *factorises*
+— `P(tree)·P(trait | tree)·P(genes | tree, trait)` — so each stage runs on the frozen output of the
+previous one. **Coevolution breaks that factorisation:** one level feeds back into what produced
+another, and the levels must be grown **together** — one process, one Gillespie.
+
+Every coupling is one sentence — **`driver → target-variable : response`**: a *driver* (a trait value,
+a gene's presence, or a speciation event) bends one *target-variable* of another level (a rate, which
+it **modulates**, or a state, which it **jumps**), and the *response* says how the driver's value maps
+to the effect (an exponential scalar link by default; a per-state table recovers MuSSE; a bounded
+curve recovers QuaSSE). The named literature models — SSE, ClaSSE, key innovation — are instances of
+that sentence; the structural name `driver:target` is primary.
+
+The couplings live on a **diamond** of four levels — species (S), traits (T), genomes (G) and sequences
+(Σ) — in three tiers: **S** is the substrate (the timeline), **T** and **G** are characters that ride
+the species tree, and **Σ** rides the *gene* trees below them. Sequences are a **target only** —
+nothing is driven by a sequence — and there is no species–sequence edge (that diagonal skips a tier).
+
+![The coevolution diamond: species, traits, genes and sequences. Arrows into S grow the tree as an output; the others overlay a tree you supply; a double-headed arrow is a pair's joint model. Sequences (Σ) are a target only.](../img/coevolve_modes4.svg)
+
+The species/trait/gene edges run under `zombi2 coevolve --couple driver:target`; the three sequence
+edges run under `zombi2 sequences --couple` (a sequence rides its gene tree, downstream of the genome
+layer).
 
 The direction of the arrow decides how the run behaves. When the arrow points *into* the tree — a
 trait or a gene panel sets speciation/extinction — the tree can no longer be drawn first; it is an
@@ -16,8 +31,9 @@ no `-t`). When it points elsewhere, the coupling is an **overlay** on a tree you
 State-dependent diversification (SSE) is simply the family of couplings whose arrow points into the
 species tree.
 
-**Nine models in all: 6 directed edges + 3 bidirectional joint models.** Each ordered pair of the
-three coupled levels {species, genomes, traits} gives a directed edge `driver → target` — six of them. For
+**Nine models among species, traits and genes: 6 directed edges + 3 bidirectional joint models**
+(three further edges point into sequences, in *The sequence tier* below). Each ordered pair of the
+three levels {species, genomes, traits} gives a directed edge `driver → target` — six of them. For
 each *undirected* pair, switching **both** arrows on together gives a bidirectional **joint** model
 in which one coupled object drives both directions at once — three of them (traits↔species =
 **ClaSSE**, genomes↔species = **co-diversification**, traits↔genomes = **trait–gene feedback**). Every
@@ -40,6 +56,16 @@ The **directed** rows into species (`traits:species`, `genomes:species`) grow th
 `--age`/`--tips` and no `-t`; the other directed rows overlay a tree you pass with `-t`. A **joint**
 model inherits its tree behaviour from its into-S arrow: ClaSSE and co-diversification grow the tree
 (one arrow points into S), while trait–gene feedback is an overlay.
+
+Three more edges point into **sequences** (Σ), on the `zombi2 sequences --couple` command — a sequence
+rides its gene tree, downstream of the genome layer. Sequences are a target only, so these edges have
+no reverse and no joint:
+
+| Model | Edge (driver:target) | What it does | `--couple` selector |
+| --- | --- | --- | --- |
+| **Trait-driven selection** | traits→selection | a trait sets each lineage's dN/dS (ω) | `sequences --couple traits:selection` |
+| **Post-duplication relaxation** | genomes→selection | a gene event (e.g. duplication) relaxes selection | `sequences --couple genomes:selection` |
+| **Trait-driven clock** | traits→speed | a trait scales the substitution rate | `sequences --couple traits:speed` |
 
 ## The models
 
@@ -305,6 +331,40 @@ sets each responsive family's retention exactly as in `traits:genomes` (`effect_
 `gain`). No single edge is imposed, yet the tips end up correlated. It is an overlay on a given tree
 and contains its two single edges as limits. `root_fraction` seeds the panel at the root.
 
+### The sequence tier (traits:selection, genomes:selection, traits:speed)
+
+The fourth level, sequences (Σ), rides the *gene* trees, so its couplings run on the
+[`zombi2 sequences`](sequences.md) command rather than `coevolve`, replaying a genome run's event
+trace. Two things about a sequence can be driven — its **selection** (`dN/dS`, ω) and its
+**substitution speed** (the molecular clock) — giving three edges. Sequences are a target only, so none
+has a reverse or a joint. Three flags shape any of them: `--couple-strength` (the exp-link
+coefficient), `--couple-base-omega` (the baseline ω a selection edge modulates) and
+`--couple-trait-sigma` (the Brownian variance of the driving trait for the `traits:*` edges).
+
+- **`traits:selection`** — a continuous trait diffuses along each lineage and sets its `dN/dS` via the
+  exp-link `ω = base_omega · exp(strength · trait)`, so lineage-heterogeneous selection tracks a latent
+  phenotype. Builds its own `GY94` codon model (drop `--subst-model`).
+- **`genomes:selection`** — a gene event relaxes selection: after a duplication the redundant copy's ω
+  rises for a while (the post-duplication relaxation / neofunctionalisation signature), read from the
+  genome event trace. Also `GY94`.
+- **`traits:speed`** — a trait scales the substitution **rate** rather than selection: a trait-driven
+  relaxed clock, on an ordinary substitution model (`--subst-model`), replacing the usual lineage clock.
+
+```bash
+# a genome run with the event trace the sequence sim replays
+zombi2 species --tips 30 --age 5 --seed 1 -o run/
+zombi2 genomes -t run/species_tree.nwk --dup 0.2 --trans 0.1 --loss 0.2 --orig 0.5 \
+    --write trace -o run/
+
+# trait-driven dN/dS on the gene trees
+zombi2 sequences --genomes run/ --couple traits:selection \
+    --couple-strength 1.5 --couple-base-omega 0.2 --couple-trait-sigma 0.5 \
+    --seq-length 300 --seed 2 -o run/
+```
+
+Each run writes the codon (or DNA) alignments, the substitution-unit gene trees, and `branch_rates.tsv`.
+A Python entry point and matched `--null` runs for these edges are on the near-term roadmap.
+
 ## Command line
 
 `--couple driver:target` selects the edge(s); the order reads as the arrow. Edges into species grow
@@ -565,8 +625,9 @@ and a worked treatment.
 
 ## Not yet implemented
 
-The nine models above are the six directed edges and the three pairwise bidirectional joint models.
-The one coevolution model still on the roadmap is the fully **joint `--all`** run: every edge active
+The species/trait/gene edges above are the six directed edges plus the three pairwise joint models,
+and the sequence tier adds three more into Σ. The one coevolution model still on the roadmap is the
+fully **joint `--all`** run: every edge active
 at once, so all three pairs are bidirectional and the trait, the genome and the tree feed back on one
 another with no single imposed direction (forward time resolves the mutual dependence). It composes
 the existing edges — think of it as `--couple` for all six arrows — rather than adding new science,
