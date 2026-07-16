@@ -12,7 +12,10 @@ plotted against *how long ago they split*, carries the inversion rate. The one i
 this a **rate** rather than a bare count is a **dated tree**: it turns "how much gene order has been
 scrambled" into "inversions per gene per Myr". We summarise gene order with a few **observables**,
 simulate genome evolution with ZOMBI2 under a proposed inversion rate down the real dated tree, and
-accept the rate whose observables match the data (Approximate Bayesian Computation).
+accept the rate whose observables match the data (Approximate Bayesian Computation). In the vocabulary
+of genome rearrangement: the exercise is ABC with the **breakpoint distance** (equivalently, the
+gene-order conservation below) and the **conserved segment length** as summary statistics, used to
+infer the inversion rate.
 
 ## Data and the timescale window
 
@@ -31,6 +34,13 @@ time-calibrated phylogeny of Shen et al. (2018) and rescaled to Myr — which is
 come from. The *Kluyveromyces*+*Eremothecium* clade is the classic pre-WGD synteny group: its deepest
 pair, *K. lactis* vs *Ashbya* (*Eremothecium*) *gossypii*, is exactly the one Keogh et al. (2000)
 measured.
+
+!!! note "A note on the names"
+    *Lachancea* and *Kluyveromyces* are today **separate genera**, but both were once lumped in a
+    broad *Kluyveromyces* — *Lachancea thermotolerans*, for example, was formerly *Kluyveromyces
+    thermotolerans* — until Kurtzman (2003) split the genus. So the two clades here are **disjoint**:
+    no species is shared between them, and *Lachancea* is not a subtree of *Kluyveromyces*. The
+    historical synonymy is only a naming artefact, not an overlap in the data.
 
 <figure markdown="span">
   ![](../img/synteny/lachancea_tree.png){ width="80%" }
@@ -71,6 +81,17 @@ the inversion rate. Conserved block size is the *same* signal seen the other way
 runs *between* those breaks. It corroborates conservation rather than adding independent information —
 a fact that turns out to matter when we ask what the data can and cannot pin down (Results).
 
+These two observables are standard objects: gene-order conservation is the **complement of the
+breakpoint distance** — the breakpoint distance counts the adjacencies broken between two genomes, and
+conservation is the fraction left intact — and conserved block size is the **conserved segment
+length** (Caprara & Lancia 2000). We summarise with the breakpoint distance rather than the **inversion
+(reversal) distance** for three reasons. Its expectation under a rate is analytically clean — it is
+what gives the exp(−2·r·t) moment estimate below — so it varies smoothly and monotonically with the
+rate across the whole window, where the reversal distance saturates. It is cheap, O(genes). And,
+looking ahead to richer models, it is *event-agnostic*: a translocation or transposition breaks
+adjacencies too, so the breakpoint distance stays the right currency once more event types are added,
+whereas the reversal distance bakes in the inversions-only assumption.
+
 <figure markdown="span">
   ![](../img/genome_inversion.svg){ width="72%" }
   <figcaption markdown="span">Figure 4. An inversion reverses a chromosomal segment and flips the strand of every gene inside it — the elementary event whose rate we measure.</figcaption>
@@ -86,20 +107,31 @@ a fact that turns out to matter when we ask what the data can and cannot pin dow
 The goal is to find the inversion rate (and length) under which ZOMBI2 produces genomes whose synteny
 observables match the real ones. There are two general strategies for this.
 
-**1. Maximum likelihood.** Write the probability of the observed gene orders as a function of the
-rate and maximise it. This is the gold standard when it is available — but for inversions the
-likelihood is intractable. The probability of turning one gene order into another is a sum over
-*every* inversion history that could connect them, and the number of such histories grows
-combinatorially with genome size, so it cannot be evaluated. What *is* computable is the **minimum**
-number of inversions between two signed gene orders — the inversion distance, solved in polynomial
-time by Hannenhalli–Pevzner theory (Hannenhalli & Pevzner 1999) — but the minimum is not the
-likelihood: it ignores the many longer histories real evolution also takes, and it saturates once
-genomes are well diverged. So a full ML treatment of inversions is not practical here.
+**1. Likelihood-based inference.** Write the probability of the observed gene orders as a function of
+the rate and maximise it — or put a prior on the rate and integrate. This is the gold standard when
+it is available, and for inversions it is genuinely hard: the probability of turning one gene order
+into another is a sum over *every* inversion history that could connect them, and the number of such
+histories grows combinatorially with genome size, so the likelihood has no closed form and has thus
+far been difficult to evaluate directly. It is not, however, out of reach. The sum can be
+approximated — for a pair of chromosomes, York, Durrett & Nielsen (2002) estimate the number of
+inversions by MCMC over histories, and later relate the rate to inversion tract length (York et al.
+2007); breakpoint- and reversal-based estimators go back further still (Caprara & Lancia 2000). And
+what is *cheap* to compute exactly is the **minimum** number of inversions between two signed gene
+orders — the inversion (reversal) distance, solved in polynomial time by Hannenhalli–Pevzner theory
+(Hannenhalli & Pevzner 1999) — though the minimum is not the likelihood: it ignores the many longer
+histories real evolution also takes, and it saturates once genomes are well diverged. So for a single
+event type on a pair of genomes, tailored likelihood methods already exist, and ABC is not
+necessarily more efficient than they are. Where the balance tips is **multiple event types acting at
+once**: extending an exact likelihood to inversions *and* translocations *and* transpositions
+together is hard, whereas a simulator absorbs each new event type as just one more parameter — which
+is the case ABC is really built for.
 
-**2. Approximate Bayesian Computation (ABC).** When the likelihood is out of reach but *simulating*
-the process is easy, ABC replaces the likelihood with the simulator: propose parameter values,
-simulate a genome down the dated tree, reduce it to the same observables as the data, and keep the
-proposals whose observables land closest to the real ones. Because ZOMBI2 simulates inversions on an
+**2. Approximate Bayesian Computation (ABC).** When the likelihood is expensive (or the model outgrows
+the tailored methods above) but *simulating* the process is easy, ABC replaces the likelihood with the
+simulator: propose parameter values,
+simulate the genome's evolution down the dated tree — which yields a genome at *every* tip, exactly as
+in the data — reduce those genomes to the same pairwise observables, and keep the proposals whose
+observables land closest to the real ones. Because ZOMBI2 simulates inversions on an
 ordered genome directly and cheaply, and the model we need to capture this behaviour has only one or
 two parameters to tune, we can simply **sweep a grid** over (inversion rate × inversion length)
 instead of sampling a prior: every cell is one simulation, and its distance to the real observables
@@ -154,11 +186,20 @@ genomically stable pre-WGD yeasts. The simulations are chromosome-faithful — r
 
 ## Assumptions and limitations
 
-- **Dated tree and gene order are both real** — the tree from Shen et al. (2018), the annotations
-  from GRYC/Génolevures and NCBI.
-- **Inversions-only model.** We treat *all* local rearrangement as inversions. Small inversions
-  dominate yeast micro-synteny (Fischer et al. 2006; Keogh et al. 2000), so ignoring the occasional
-  translocation makes the rate at most a slight upper bound.
+- **Empirical inputs, simulated process.** The two inputs are real data — the dated tree (Shen et al.
+  2018) and the observed gene orders (GRYC/Génolevures, NCBI) — and *only* the rearrangement process
+  is simulated; the inferred rate is the one that makes the simulated genomes consistent with those
+  real inputs. (This is not a study where the tree is simulated too.)
+- **Inversions-only model.** Yeast gene orders are not reshaped by inversions alone — the same
+  sources report occasional translocations (Fischer et al. 2006; Keogh et al. 2000) — but small
+  inversions dominate the micro-synteny signal, so treating *all* local rearrangement as inversions
+  makes the rate at most a slight upper bound. Because our summary statistic is the breakpoint distance
+  (event-agnostic; see "The observables"), the natural extension is to add a translocation rate as a
+  second parameter and let the grid become a plane — precisely the multi-event regime where ABC earns
+  its keep over tailored likelihood methods. ZOMBI2's multichromosome model supports cross-chromosome
+  translocations directly, so this is a matter of one more axis in the sweep; we expect the inversion
+  rate to be largely unchanged but the demonstration to be more complete. This extension is the
+  recommended next step for this recipe.
 - **Inversion length is fixed, not fitted.** Gene order constrains the rate, not event size (a
   reversal breaks two adjacencies whatever its length; Figure 6), so we set the inversion length from
   the literature (Keogh et al. 2000) rather than infer it. The rate barely moves with the assumed
@@ -180,9 +221,9 @@ The pipeline is four steps:
    rescale to Myr.
 2. **Real gene order** — take the annotations, keep the single-copy core (1:1 orthologs via mmseqs2),
    and record each gene's chromosome, family, and strand.
-3. **Grid sweep** — for each (inversion rate × inversion length) cell, simulate a chromosome-faithful
-   genome down the dated tree with ZOMBI2's multichromosome ordered genome, reduce it to the two
-   observables, and score its distance to the real data.
+3. **Grid sweep** — for each (inversion rate × inversion length) cell, simulate chromosome-faithful
+   genomes down the dated tree (one at every tip) with ZOMBI2's multichromosome ordered genome, reduce
+   them to the two pairwise observables, and score their distance to the real data.
 4. **Read the rate** — fix the inversion length from the literature and read the best-fitting rate
    off the ridge.
 
@@ -192,11 +233,20 @@ The pipeline is four steps:
 
 ## References
 
+- Caprara A, Lancia G (2000). *Experimental and statistical analysis of sorting by reversals.* In:
+  Sankoff D, Nadeau JH (eds), *Comparative Genomics.* Springer, Dordrecht, 171–183.
 - Fischer G, Rocha EPC, Brunet F, Vergassola M, Dujon B (2006). *Highly variable rates of genome
   rearrangements between hemiascomycetous yeast lineages.* PLoS Genetics 2:e32.
 - Hannenhalli S, Pevzner PA (1999). *Transforming cabbage into turnip: polynomial algorithm for
   sorting signed permutations by reversals.* Journal of the ACM 46(1):1–27.
 - Keogh RS, Seoighe C, Wolfe KH (2000). *Prevalence of small inversions in yeast gene order
   evolution.* Yeast 16:1009–1020.
+- Kurtzman CP (2003). *Phylogenetic circumscription of Saccharomyces, Kluyveromyces and other members
+  of the Saccharomycetaceae, and the proposal of the new genera Lachancea, Nakaseomyces, Naumovia,
+  Vanderwaltozyma and Zygotorulaspora.* FEMS Yeast Research 4(3):233–245.
 - Shen X-X, Opulente DA, Kominek J, et al. (2018). *Tempo and mode of genome evolution in the budding
   yeast subphylum.* Cell 175:1533–1545.
+- York TL, Durrett R, Nielsen R (2002). *Bayesian estimation of the number of inversions in the
+  history of two chromosomes.* Journal of Computational Biology 9(6):805–818.
+- York TL, Durrett R, Nielsen R (2007). *Dependence of paracentric inversion rate on tract length.*
+  BMC Bioinformatics 8:115.
