@@ -120,7 +120,7 @@ def node(d, cx, cy, letter, name, dashed=False):
 def render():
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    d.append(draw.Text("The coevolution diamond: species, traits, genes, sequences", FS_TITLE, W / 2, 46,
+    d.append(draw.Text("The coevolution diamond: species, traits, genomes, sequences", FS_TITLE, W / 2, 46,
                        font_family=FONT, text_anchor="middle", font_weight="bold", fill=INK))
     d.append(draw.Text("sequences ride gene trees, so there is no species-sequence edge", FS_TICK,
                        W / 2, 80, font_family=FONT, text_anchor="middle", font_style="italic",
@@ -154,7 +154,7 @@ def render():
 
     node(d, *S, "S", "species")
     node(d, *T, "T", "traits")
-    node(d, *G, "G", "genes")
+    node(d, *G, "G", "genomes")
     node(d, *Q, "Σ", "sequences", dashed=True)
 
     # legend, top-left

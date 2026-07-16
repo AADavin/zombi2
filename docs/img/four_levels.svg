@@ -5,32 +5,32 @@
     </marker>
   </defs>
 
-  <!-- connectors (drawn first, under the boxes) -->
+  <!-- connectors (drawn first, under the boxes) — a diamond: species / genomes / traits / sequences -->
   <!-- species -> genomes / traits : conditioned-on (dashed) -->
   <line x1="318" y1="104" x2="236" y2="206" stroke="#9a9a9a" stroke-width="2" stroke-dasharray="6 5"/>
   <line x1="402" y1="104" x2="504" y2="206" stroke="#9a9a9a" stroke-width="2" stroke-dasharray="6 5"/>
   <!-- genomes <-> traits : composable on the same tree (dashed) -->
   <line x1="307" y1="250" x2="443" y2="250" stroke="#9a9a9a" stroke-width="2" stroke-dasharray="6 5"/>
   <!-- genomes -> sequences : sequences evolve along the gene trees (solid, directed) -->
-  <line x1="200" y1="294" x2="200" y2="386" stroke="#1a1a1a" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <line x1="244" y1="294" x2="330" y2="382" stroke="#1a1a1a" stroke-width="2.4" marker-end="url(#arrow)"/>
 
-  <!-- species -->
+  <!-- species (top) -->
   <rect x="263" y="28" width="194" height="76" rx="12" fill="#f4f4f5" stroke="#1a1a1a" stroke-width="2.2"/>
   <text x="360" y="63" text-anchor="middle" font-size="23" font-weight="bold" fill="#1a1a1a">species</text>
   <text x="360" y="86" text-anchor="middle" font-size="15" fill="#8a8a8a">dated tree</text>
 
-  <!-- genomes -->
+  <!-- genomes (left) -->
   <rect x="95" y="208" width="210" height="84" rx="12" fill="#f4f4f5" stroke="#1a1a1a" stroke-width="2.2"/>
   <text x="200" y="247" text-anchor="middle" font-size="23" font-weight="bold" fill="#1a1a1a">genomes</text>
   <text x="200" y="270" text-anchor="middle" font-size="15" fill="#8a8a8a">gene families</text>
 
-  <!-- traits -->
+  <!-- traits (right) -->
   <rect x="445" y="208" width="190" height="84" rx="12" fill="#f4f4f5" stroke="#1a1a1a" stroke-width="2.2"/>
   <text x="540" y="247" text-anchor="middle" font-size="23" font-weight="bold" fill="#1a1a1a">traits</text>
   <text x="540" y="270" text-anchor="middle" font-size="15" fill="#8a8a8a">phenotypes</text>
 
-  <!-- sequences (leaf level: dashed border) -->
-  <rect x="95" y="388" width="210" height="80" rx="12" fill="#fafafa" stroke="#1a1a1a" stroke-width="2.2" stroke-dasharray="7 5"/>
-  <text x="200" y="425" text-anchor="middle" font-size="23" font-weight="bold" fill="#1a1a1a">sequences</text>
-  <text x="200" y="448" text-anchor="middle" font-size="15" fill="#8a8a8a">DNA / protein</text>
+  <!-- sequences (bottom, leaf level: dashed border) -->
+  <rect x="263" y="386" width="194" height="80" rx="12" fill="#fafafa" stroke="#1a1a1a" stroke-width="2.2" stroke-dasharray="7 5"/>
+  <text x="360" y="423" text-anchor="middle" font-size="23" font-weight="bold" fill="#1a1a1a">sequences</text>
+  <text x="360" y="446" text-anchor="middle" font-size="15" fill="#8a8a8a">DNA / protein</text>
 </svg>

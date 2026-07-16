@@ -5,11 +5,11 @@
 # Coevolution: the framework
 
 ZOMBI2 normally simulates in a **pipeline** — a species tree, then a trait along it, then gene
-families along it — because the couplings run one way and the joint distribution factorises. This
-part is about what to do when they do *not*: when a trait or a genome feeds **back** into the
-process that produced the tree, and the levels must be grown **together**. This chapter sets up the
-one abstraction that covers every such case — a directed graph over the **four levels** — and the
-chapters that follow work through the models.
+families along it, then sequences along the gene trees — because the couplings run one way and the
+joint distribution factorises. This part is about what to do when they do *not*: when one level feeds
+**back** into what produced another, and the levels must be grown **together**. A single idea covers
+every such case; this chapter is that idea, and the chapters that follow work through the models,
+grouped by *what each coupling shapes*.
 
 ## The pipeline, and when it breaks
 
@@ -18,45 +18,52 @@ The hierarchical pipeline works because the joint distribution factorises,
 $$P(\text{tree}) \cdot P(\text{trait} \mid \text{tree}) \cdot P(\text{genes} \mid \text{tree}, \text{trait}),$$
 
 so each stage can be drawn on the frozen output of the previous one. The moment a trait or a genome
-feeds **back** into the process that generated the tree, this factorisation breaks: the tree, the
-trait and the gene content must be grown *together*. The **`coevolve`** mode is for these coupled
-scenarios.
+feeds **back** into the process that generated the tree, this factorisation breaks: the levels must be
+grown *together*. Coevolution is for these coupled scenarios.
 
-## Four processes, directed edges
+## One grammar: driver, target, response
 
-Coupling runs over four processes — the **diamond** of ZOMBI2's four levels:
+Every coupling in ZOMBI2 is one sentence:
+
+> **driver → target-variable : response**
+
+- **The driver** is whose state pushes — a *value along the tree* (a trait's value, a gene's presence
+  or copy number) or an *event* (a speciation).
+- **The target-variable** is the one quantity of the target that gets bent. Each level exposes a short,
+  fixed menu, read straight off its process: for **species** it is `speciation` ($\lambda$) or
+  `extinction` ($\mu$); for a **trait**, its OU `optimum` or its `value` at a split; for **gene
+  content**, the `loss` / `gain` / `duplication` / `transfer` rates or `presence` at a split; for
+  **sequences**, the `selection` ($\omega$ = dN/dS) or the substitution `speed`. Bending a *rate* is a
+  **modulation** (a
+  multiplier on it); bending a *state* is a **jump** (a shift at a node, or a moved optimum).
+- **The response** is how the driver's value maps to the size of the effect: an exponential **scalar**
+  link (`rate = base · exp(strength · driver)`, the default), a **table** of one value per discrete
+  state (which recovers MuSSE), or a bounded **curve** (which recovers QuaSSE).
+
+That one sentence spans everything from state-dependent diversification to trait-driven selection on
+sequences. The named literature models — SSE, ClaSSE, key innovation, cladogenetic change — are
+*instances* of it; the manual keeps them as searchable aliases, but the **structural** name
+`driver:target` is primary, because it says exactly what is coupled to what.
+
+## The diamond: four levels in three tiers
+
+The couplings live on a diamond of four processes:
 
 - **S** — species diversification (the birth–death process that grows the tree),
 - **T** — a phenotypic trait (BM/OU/EB/Mk/threshold),
-- **G** — gene-family content (the DTL process),
-- **Σ** — molecular sequences (substitution and selection, dN/dS).
+- **G** — genomes: the gene-family content (the DTL process),
+- **Σ** — molecular sequences (substitution and selection).
 
 They sit in three tiers: **S** is the substrate — the timeline; **T** and **G** are characters that
-ride the species tree; and **Σ** rides the *gene* trees below them. A **coupling is a directed edge**
-`driver -> target`: the driver's state modulates the target's rates. A coevolution scenario is a
-**set of directed edges** on these nodes, and it makes the one thing that matters — *direction* —
-explicit. Sequences are a **target only**: a trait or gene content can shape how a sequence evolves,
-but a sequence drives nothing, so Σ has arrows coming in and none going out.
+ride the species tree; and **Σ** rides the *gene* trees below them.
 
-On the command line the coupling is one repeatable flag, `--couple driver:target`, where the order
-reads as the arrow (driver first):
+![The coevolution diamond. Each **directed** arrow driver $\to$ target is one model, selected with `--couple driver:target`; the two that point *into* S are drawn heavy, because an arrow into S makes the tree an output (grown jointly), while the others overlay a tree you supply. A straight **double-headed** arrow is a pair's *joint* model (both edges at once): ClaSSE, co-diversification, trait–gene feedback. Sequences (Σ) are a **target only** — a trait or gene content bends how they evolve (selection, dN/dS), but Σ drives nothing and rides the gene trees, so there is no species–sequence edge.](figures/coevolve_modes4.pdf){width=100%}
 
-```bash
-zombi2 coevolve --couple traits:species ...   # T->S: trait sets speciation (SSE)
-zombi2 coevolve --couple species:traits ...   # S->T: speciation drives the trait
-# both arrows at once = ClaSSE:
-zombi2 coevolve --couple traits:species --couple species:traits ...
-```
+## The edges
 
-So `--couple species:traits` and `--couple traits:species` are deliberately **different models**, and
-a bidirectional coupling is simply *both* edges. The `:` (rather than `->`) keeps the flag shell-safe.
+Six edges couple species, traits and genomes, run from the `zombi2 coevolve` command:
 
-## The edges and the joint models
-
-The four processes give eight directed edges (Table \ref{tbl:edges}), each a distinct model — six
-among species, traits and genes, and two more that point into sequences:
-
-| Edge (`--couple`) | Direction | Model |
+| Edge (`coevolve --couple`) | Direction | Model |
 |:------------------|:----------|:-----------------------------------------------|
 | `traits:species` | T $\to$ S | state-dependent diversification (SSE / ClaSSE) |
 | `species:traits` | S $\to$ T | cladogenetic trait jumps at speciation |
@@ -64,52 +71,70 @@ among species, traits and genes, and two more that point into sequences:
 | `species:genomes` | S $\to$ G | punctuational (cladogenetic) genome |
 | `traits:genomes` | T $\to$ G | trait-linked gene families |
 | `genomes:traits` | G $\to$ T | gene-conditioned trait |
-| `traits:sequences` | T $\to$ Σ | trait-driven selection (dN/dS) and substitution speed |
-| `genomes:sequences` | G $\to$ Σ | post-duplication relaxed selection |
 
-: The directed coupling edges — the `--couple driver:target` flag, the direction of the arrow, and the model each one selects. \label{tbl:edges}
+: The six species/trait/gene coupling edges, each a `coevolve --couple driver:target` invocation. \label{tbl:edges}
 
-The six S/T/G edges each have a reverse, so each node-pair's two edges can be switched on **together**,
-giving a **joint (bidirectional) model** — three more: **ClaSSE** (traits $\leftrightarrow$ species),
-**co-diversification** (species $\leftrightarrow$ genes) and **trait–gene feedback**
-(traits $\leftrightarrow$ genes). The sequence edges have no reverse (Σ is a target only), so they
-have no joint. (The named literature models are choices *within* an edge: BiSSE, MuSSE and QuaSSE are
-three flavours of the single `traits:species` edge, picked with `--sse-model`.) One diagonal is
-**forbidden**: there is no species–sequence edge, because a sequence rides its *gene* tree, not the
-species tree.
+Each of these six has a reverse, so switching **both** edges of a pair on together gives a **joint
+(bidirectional) model** — three more: **ClaSSE** (traits $\leftrightarrow$ species), **co-diversification**
+(species $\leftrightarrow$ genomes) and **trait–gene feedback** (traits $\leftrightarrow$ genomes). (The named
+literature variants are choices *within* an edge: BiSSE, MuSSE and QuaSSE are three responses of the
+single `traits:species` edge, picked with `--sse-model`.)
 
-![The coevolution diamond. Each **directed** arrow driver $\to$ target is one model, selected with `--couple driver:target`; the two that point *into* S are drawn heavy, because an arrow into S makes the tree an output (grown jointly), while the others overlay a tree you supply. A straight **double-headed** arrow is a pair's *joint* model (both edges at once): ClaSSE, co-diversification, trait–gene feedback. Sequences (Σ) are a **target only** — a trait or gene content bends how they evolve (selection, dN/dS), but Σ drives nothing and rides the gene trees, so there is no species–sequence edge.](figures/coevolve_modes4.pdf){width=100%}
+Three more edges point into **sequences**. Because a sequence rides its *gene* tree — downstream of the
+genome layer — these live on the `zombi2 sequence` command rather than `coevolve`:
 
-## The one rule: does an edge point into S?
+| Edge (`sequence --couple`) | Target-variable | Model |
+|:------------------|:----------|:-----------------------------------------------|
+| `traits:selection` | $\omega$ (dN/dS) | a trait sets each lineage's selection strength |
+| `genomes:selection` | $\omega$ (dN/dS) | a gene event (e.g. duplication) relaxes selection |
+| `traits:speed` | substitution rate | a trait scales the molecular clock |
 
-The one rule that governs their difficulty is: **does any active edge point into S?** If no edge
-points into S, the tree is fixed — it is read from `-t/--tree` and every coupling is an *overlay* on a
-frozen tree. If an edge does point into S (`traits:species` or `genomes:species`), the tree topology
-depends on the coupled state and cannot be drawn first: the tree becomes an **output**, and those runs
-are forward-only and take no `-t`.
+Sequences are a **target only** — nothing is driven *by* a sequence — so these edges have no reverse
+and no joint.
 
-Note the asymmetry: an arrow pointing *out* of S (`species:traits`, `species:genomes`) does **not**
-trigger joint simulation. S drives the target but listens to nothing, so S can be drawn (or supplied
-via `-t`) first and the target overlaid on it — the tree stays an input. It is only an arrow *into* S
-that puts S downstream of its driver, breaks the pipeline factorisation, and forces the tree to be
-grown jointly as an output. So "touches S" is not the trigger; "points into S" is.
+## Two rules
 
-## The map, and where to next
+Two rules read any set of edges.
 
-The chapters that follow take the couplings in turn.
-[State-dependent diversification](#state-dependent-diversification) covers the species tree coupled
-to a **trait** — the SSE family (the arrows that shape the tree), the reverse cladogenetic edge, and
-their joint model ClaSSE. [Coupling gene content](#coupling-gene-content) then covers everything
-involving **gene content** — genes driving diversification and being reshuffled at speciation, genes
-and traits conditioning one another — and closes with the null models that let you tell a real
-coupling from the tree's own heterogeneity. The two **sequence** edges (`traits:sequences`,
-`genomes:sequences`) — trait- and gene-driven selection on molecular sequences — are the newest
-additions to the diamond, and join the manual as the sequence-coupling code lands.
+### Directional or bidirectional — does the tree grow?
 
-::: note
-The one coevolution model still on the roadmap is the fully joint **`--all`** run: every edge active
-at once, so all three pairs are bidirectional and the trait, the genome and the tree feed back on one
-another with no single imposed direction (forward time resolves the mutual dependence). It *composes*
-the existing edges rather than adding new science — think of it as `--couple` for all six arrows —
-and is best treated as a stress-test showcase rather than a routine analysis mode.
-:::
+The first: **does any active edge point into S?** If none does, the tree is fixed — read from
+`-t/--tree`, with every coupling an *overlay* on it. If one does (`traits:species` or
+`genomes:species`), the tree's shape depends on the coupled state and cannot be drawn first: the tree
+becomes an **output**, grown jointly, and the run is forward-only (`--age`/`--tips`, no `-t`).
+
+The asymmetry matters: an arrow pointing *out* of S (`species:traits`, `species:genomes`) does **not**
+force a joint run — S drives the target but listens to nothing, so it can still be drawn first and the
+target overlaid. "Touches S" is not the trigger; "points into S" is. (A bidirectional pair whose two
+edges form a cycle is grown together — *fused* — for the same reason: neither side can be frozen first.)
+
+### Adjacent tiers only
+
+The second: **a coupling connects levels within one tier of each other.** Characters (T, G) couple to
+their substrate (S) above and to sequences (Σ) below, and to each other; but there is **no
+species–sequence edge** — a sequence rides a *gene* tree, not the species tree, so S and Σ are two
+tiers apart. That diagonal is not a missing feature; it is ruled out by construction.
+
+## Nulls: cut the arrow
+
+Every coupling is a *claim* — this driver shapes that target — and the hard part is telling a real
+coupling from the tree's own heterogeneity. So every edge ships a matched **decoupled null**: the same
+process with the `driver → target` arrow **cut** but the target's variance kept, which is exactly the
+grammar's *response set to zero*. Add `--null` to any run to generate it — `neutral` (the driver stops
+setting the rates), `cid` (the variance comes from a *hidden*, uncorrelated driver — the honest
+opponent), or `timing` (an at-speciation burst spread evenly along the branches). The
+[null models](#coupling-that-shapes-traits-and-gene-content) section returns to these once the edges
+are on the table.
+
+## Where to next
+
+The chapters that follow are organised by **what each coupling shapes**:
+
+- [**Coupling that shapes the tree**](#coupling-that-shapes-the-tree) — the arrows into S that make the
+  tree an output: state-dependent diversification (a trait), key innovations (gene content), and their
+  joint models ClaSSE and co-diversification.
+- [**Coupling that shapes traits and gene content**](#coupling-that-shapes-traits-and-gene-content) —
+  the overlays on a given tree: cladogenetic and gene-conditioned traits, punctuational and trait-linked
+  gene content, their feedback, and the null models in full.
+- [**Coupling that shapes sequences**](#coupling-that-shapes-sequences) — the newest tier: a trait or a
+  gene event bending selection (dN/dS) and the substitution rate on the gene trees.

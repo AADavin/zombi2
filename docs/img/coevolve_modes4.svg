@@ -4,7 +4,7 @@
 <defs>
 </defs>
 <rect x="0" y="0" width="1240" height="1055" fill="white" />
-<text x="620.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The coevolution diamond: species, traits, genes, sequences</text>
+<text x="620.0" y="46" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The coevolution diamond: species, traits, genomes, sequences</text>
 <text x="620.0" y="80" font-size="22" font-family="Helvetica" text-anchor="middle" font-style="italic" fill="#777">sequences ride gene trees, so there is no species-sequence edge</text>
 <path d="M328.9559067635208,550.6022195377251 Q417.3866583435057,403.7758193116414,567.4641488388304,320.9824833782655" fill="none" stroke="#446b28" stroke-width="5.2" stroke-linecap="round" />
 <path d="M567.4641488388304,320.9824833782655 L550.5932182532097,343.32910954811865 L539.5631684036375,323.3352032415266 Z" fill="#446b28" />
@@ -56,7 +56,7 @@
 <circle cx="942.0" cy="602" r="60" fill="#b5654a" stroke="white" stroke-width="3.2" />
 <circle cx="942.0" cy="602" r="66" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="942.0" y="595" font-size="38" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">G</text>
-<text x="942.0" y="629" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">genes</text>
+<text x="942.0" y="629" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">genomes</text>
 <circle cx="620.0" cy="934" r="60" fill="#5a4e86" stroke="white" stroke-width="3.2" />
 <circle cx="620.0" cy="934" r="66" fill="none" stroke="#1a1a1a" stroke-width="1.6" stroke-dasharray="5 5" />
 <text x="620.0" y="927" font-size="38" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">Σ</text>

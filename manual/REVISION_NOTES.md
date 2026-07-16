@@ -109,8 +109,84 @@ tour's "How rates work" `::: note` STALE** (it calls `per=` a *planned* refineme
 new snippets run); (2) rewrite the tour note to teach `per=` as real; (3) migrate snippets
 `SharedBirthDeath(…)` → `BirthDeath(…, per="shared")` (incl. the `fig_rate_clocks.py` figure) and
 `--rate-per`/`PerCopyRates` → `per=` in the genome chapters; optionally show `Per(unit, rate)` mixing.
-Also on main: standalone **Tools PDF** (PR #148, `manual/tools_to_chapters.py`). PENDING Adrián's OK to
-sync.
+Also on main: standalone **Tools PDF** (PR #148, `manual/tools_to_chapters.py`).
+
+**DONE 2026-07-15 (synced + per= migrated):** committed the manual WIP on the branch, **merged
+`origin/main` → branch is now even with main (0 behind)**. One hard conflict (`06-genome-evolution-
+overview.md`, renamed vs main's per= edit) + auto-merges in 07/09 resolved: kept the restructure +
+heading-links, adopted `per=` naming, **fixed main's broken `Rates(per="lineage")`-in-import bug** in
+the unordered chapter. Tour §2.3 rewritten to teach `per=` as the shipped knob (`BirthDeath(per=…)`,
+`Rates(per="copy"|"lineage"|"shared")`, `Per(unit,rate)` mixing, `site` rung; presets kept as
+"friendly shorthands"); `fig_rate_clocks.py` now uses `BirthDeath(per="shared")`. All per= snippets
+run. `make manual` clean, **129 pp**. NB **the grammar-migration branch also merged to main (PR #150)**
+— so the coevolution by-target/grammar rewrite can now be drafted against `main`, not just a branch.
+
+**DONE 2026-07-15 (coevolution by-target/grammar REWRITE):** re-synced to `origin/main` (PR #152 = the
+sequence-tier CLI `zombi2 sequences --couple {traits:selection, genomes:selection, traits:speed}`;
+branch even with main). Rewrote the whole coevolution part onto the grammar, organised **by what each
+coupling targets**:
+- **Ch14 framework** finalised onto the sentence **`driver → target-variable : response`** (driver
+  state/event; target menu per level; response scalar/table/curve), the diamond {S,T,G,Σ}, two rules
+  (directional/bidirectional = does the tree grow; adjacent-tiers = S–Σ forbidden), nulls = response 0,
+  structural names primary. Edges table corrected: S/T/G edges on `coevolve --couple`, Σ edges on
+  `sequences --couple`.
+- **Ch15 "Coupling that shapes the tree"** (into-S): traits:species SSE, genomes:species key-innovation,
+  joints ClaSSE + co-diversification.
+- **Ch16 "Coupling that shapes traits and gene content"** (overlays): species:traits, genomes:traits,
+  species:genomes, traits:genomes, feedback, + the full null-models section.
+- **Ch17 "Coupling that shapes sequences"** (NEW): traits:selection (trait→dN/dS ω), genomes:selection
+  (post-duplication relaxation), traits:speed (trait-driven clock) — all CLI-verified end-to-end
+  (`sequences --genomes DIR --couple … --couple-strength/--couple-base-omega/--couple-trait-sigma`).
+Old `15-state-dependent-diversification.md` + `16-coupling-gene-content.md` removed; all cross-refs are
+heading-id links; every Python snippet re-smoke-tested + the 3 sequence edges run. `make manual`
+clean, **132 pp**. Glyph fix: literal lowercase Greek (λ/μ/ω) + `↔` don't render in lmroman text →
+moved to math; capital Σ is fine. Docs served locally at http://127.0.0.1:8000/zombi2/docs/. **Held
+for Adrián's feedback.**
+
+**DONE 2026-07-15 (docs website → diamond):** updated `docs/guide/coevolution.md` from the old
+3-node/triangle framing to the **diamond**: reframed the intro onto the grammar sentence
+`driver → target-variable : response`, added the **diamond figure** (`../img/coevolve_modes4.svg`),
+described the four levels in three tiers with Σ target-only + the forbidden S–Σ diagonal, added the
+**sequence-tier table** and a **"The sequence tier"** section (traits:selection / genomes:selection /
+traits:speed with a CLI example), and updated the roadmap. `mkdocs build --strict` clean; the live
+served page (http://127.0.0.1:8000/zombi2/docs/guide/coevolution/) now shows the diamond and the old
+"three of the four levels / sequences do not drive" framing is gone. (This is on the manual branch; it
+reaches the public site once merged.) `docs/guide/sequences.md` could still gain a cross-link to the
+coupling — minor follow-up.
+- **The HOME-PAGE figure was the "triangle" Adrián meant** (site root, aadavin.github.io/zombi2):
+  `docs/index.md` embeds `docs/img/four_levels.svg`, which drew species/genomes/traits as a **triangle**
+  with sequences hanging off genomes (bottom-left). **Reshaped in place to a diamond** — sequences moved
+  to bottom-**centre** (`rect x=263 y=386`), the genomes→sequences arrow re-routed as a diagonal — so
+  the four boxes now sit at diamond points (S top · genomes left · traits right · Σ bottom), keeping the
+  home page's clean rounded-box style (the coloured-circle diamonds stay in the manual/guide). Accurate:
+  only genomes→sequences is drawn, since sequences ride the *gene* trees.
+  ⚠️ **The PUBLIC site builds from `main`** — it keeps showing the triangle until this branch is merged.
+- **THE triangle Adrián actually meant = the LANDING PAGE** (`web/index.html`, published at the site
+  ROOT `aadavin.github.io/zombi2/`; the mkdocs site lives under `/zombi2/docs/`). Its "Coevolution"
+  section had an **inline SVG triangle** (S top, T bottom-left, G bottom-right, double-headed teal
+  arrows). **Reshaped to the diamond:** S top · T left · G right · **Σ bottom**, viewBox 300×220→300×300
+  (CSS is `height:auto; max-width:320px`, so it rescales); double-headed arrows kept among S/T/G, and
+  **single-headed arrows into Σ only** (a sequence is a target, never a driver). Caption → "S species ·
+  T traits · G genes · Σ sequences"; section text → the four-level diamond + trait-driven selection;
+  aria-label updated. Verified by rendering the extracted SVG with the dark-theme colours.
+  **Three surfaces are now diamond: `web/index.html` (landing), `docs/img/four_levels.svg` (docs home),
+  `docs/guide/coevolution.md` (guide) — all live only after this branch merges to `main`.**
+
+**RATIFIED 2026-07-15 — the diamond's node names:**
+- **G = genomes, NOT genes** (Adrián; enforces D1/C6 — the *node token* is `genomes`, `genes` is the
+  deprecated alias; the *unit* stays "gene family", so model names like **trait–gene feedback** and the
+  `Gene*` class stems are correctly left alone). Fixed everywhere: both diamond figure scripts
+  (`fig_coevolve_modes4.py` node label **and** its title; `fig_levels_diamond.py`), regenerated +
+  republished to `docs/img/`; `web/index.html` (blurb, aria-label, caption → "G genomes");
+  `docs/guide/coevolution.md` gloss; manual Ch14 (`**G** — genomes: the gene-family content`) and the
+  node-pair prose (`species ↔ genomes`, not `↔ genes`) in Ch14/Ch15.
+- **Σ stays for sequences — do NOT switch to Q.** Decisive: **`Q` is already the rate matrix** and is
+  used that way in this very manual (`MuSSE(..., Q=np.array(...))`, "a `k × k` anagenetic `Q` matrix",
+  CLI `--q-matrix`), so "Q = sequences" would collide with the transition/substitution matrix. Σ also
+  matches the code + `coevolve-grammar.md` (`T→Σ`, `G→Σ`), reads as **S**equence without colliding with
+  S (species), and renders everywhere (LaTeX text, SVG/Helvetica, HTML) — only *lowercase* Greek
+  (λ/μ/ω) fails in lmroman text and must go in math mode. Cost: a Greek letter among Latin ones —
+  judged smaller than the Q collision.
 
 ## ⭐ Outstanding questions for Adrián (when you're back)
 

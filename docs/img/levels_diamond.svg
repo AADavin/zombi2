@@ -26,7 +26,7 @@
 <circle cx="860.0" cy="512" r="66" fill="#b5654a" stroke="white" stroke-width="3.2" />
 <circle cx="860.0" cy="512" r="72" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="860.0" y="504" font-size="40" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">G</text>
-<text x="860.0" y="540" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">genes</text>
+<text x="860.0" y="540" font-size="20" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="white">genomes</text>
 <circle cx="560.0" cy="800" r="66" fill="#5a4e86" stroke="white" stroke-width="3.2" />
 <circle cx="560.0" cy="800" r="72" fill="none" stroke="#1a1a1a" stroke-width="1.6" />
 <text x="560.0" y="792" font-size="40" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="bold" fill="white">Σ</text>
