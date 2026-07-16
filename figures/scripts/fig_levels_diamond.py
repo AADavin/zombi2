@@ -89,7 +89,7 @@ def render():
 
     node(d, *S, "S", "species")
     node(d, *T, "T", "traits")
-    node(d, *G, "G", "genes")
+    node(d, *G, "G", "genomes")
     node(d, *Q, "Σ", "sequences")
 
     OUT.mkdir(parents=True, exist_ok=True)

@@ -412,29 +412,37 @@
         <div>
           <p class="eyebrow">Couple the levels</p>
           <h2>Coevolution</h2>
-          <p class="section-intro">The levels don't have to evolve independently. Let <b>species</b>, <b>traits</b> and <b>genes</b> drive one another along any of six directed edges — <code>coevolve --couple driver:target</code> — for key innovations, trait-linked genes, cladogenetic change and more.</p>
+          <p class="section-intro">The levels don't have to evolve independently. Let <b>species</b>, <b>traits</b>, <b>genomes</b> and <b>sequences</b> drive one another across the four-level diamond — <code>--couple driver:target</code> — for key innovations, trait-linked gene families, cladogenetic change and trait-driven selection.</p>
           <a class="btn btn-ghost" href="docs/guide/coevolution/">Explore coevolution models →</a>
         </div>
-        <a class="coevolve-fig" href="docs/guide/coevolution/" aria-label="Coevolution: species (S), traits (T) and genes (G) coupled by directed edges">
-          <svg class="coevolve-svg" viewBox="0 0 300 220" fill="none" role="img" aria-hidden="true">
+        <a class="coevolve-fig" href="docs/guide/coevolution/" aria-label="The coevolution diamond: species (S), traits (T), genomes (G) and sequences (Sigma) coupled by directed edges">
+          <svg class="coevolve-svg" viewBox="0 0 300 300" fill="none" role="img" aria-hidden="true">
             <defs>
               <marker id="coev-arrow" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
               </marker>
             </defs>
+            <!-- species / traits / genes: both directions of every pair -->
             <g stroke="currentColor" stroke-width="2" marker-start="url(#coev-arrow)" marker-end="url(#coev-arrow)">
-              <line x1="132" y1="74" x2="90" y2="143"/>
-              <line x1="168" y1="74" x2="210" y2="143"/>
-              <line x1="106" y1="172" x2="194" y2="172"/>
+              <line x1="127" y1="73" x2="79" y2="125"/>
+              <line x1="173" y1="73" x2="221" y2="125"/>
+              <line x1="90" y1="150" x2="210" y2="150"/>
             </g>
-            <circle cx="150" cy="45" r="30" stroke="currentColor" stroke-width="2.5"/>
-            <circle cx="72" cy="172" r="30" stroke="currentColor" stroke-width="2.5"/>
-            <circle cx="228" cy="172" r="30" stroke="currentColor" stroke-width="2.5"/>
-            <text x="150" y="54" text-anchor="middle">S</text>
-            <text x="72" y="181" text-anchor="middle">T</text>
-            <text x="228" y="181" text-anchor="middle">G</text>
+            <!-- into sequences only: a sequence is a target, never a driver -->
+            <g stroke="currentColor" stroke-width="2" marker-end="url(#coev-arrow)">
+              <line x1="79" y1="175" x2="127" y2="227"/>
+              <line x1="221" y1="175" x2="173" y2="227"/>
+            </g>
+            <circle cx="150" cy="48" r="29" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="56" cy="150" r="29" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="244" cy="150" r="29" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="150" cy="252" r="29" stroke="currentColor" stroke-width="2.5"/>
+            <text x="150" y="57" text-anchor="middle">S</text>
+            <text x="56" y="159" text-anchor="middle">T</text>
+            <text x="244" y="159" text-anchor="middle">G</text>
+            <text x="150" y="261" text-anchor="middle">Σ</text>
           </svg>
-          <span class="coevolve-key">S species · T traits · G genes</span>
+          <span class="coevolve-key">S species · T traits · G genomes · Σ sequences</span>
         </a>
       </div>
     </section>
