@@ -25,7 +25,7 @@ from zombi2.genomes.nucleotide_sim import simulate_nucleotide_genomes, Nucleotid
 from zombi2.genomes.gff import read_gff, read_gff_all, GffGenome
 from zombi2.genomes.rates import (
     RateModel, Rates, Per,
-    PerCopyRates, PerLineageRates,  # deprecated presets for Rates(per=…); importable, not in __all__
+    PerCopyRates, PerLineageRates,  # noqa: F401 (deprecated presets for Rates(per=…); not in __all__)
     FamilySampledRates,
     LineageRates, Modifier, ModifiedRates, LineageModifier,
     FamilyModifier, EventWeight,

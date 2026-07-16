@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 from perfkit import FIGURES_DIR, load_all, one_line, style
-from perfkit.style import INK, DARK, MUTED
+from perfkit.style import INK, DARK
 
 style.apply()
 

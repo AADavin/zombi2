@@ -42,7 +42,10 @@ Repository = "https://github.com/AADavin/zombi2"
 Issues = "https://github.com/AADavin/zombi2/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "pytest-cov", "scipy>=1.10"]
+# ruff is pinned to a minor series: its rule set (and its autofixes) evolve between releases, and
+# [tool.ruff.lint] below deliberately pins *which* rules we run — an unpinned linter would let a
+# ruff release turn CI red without a change on our side. Bump it deliberately.
+dev = ["pytest>=7", "pytest-cov", "scipy>=1.10", "ruff>=0.12,<0.13"]
 docs = ["mkdocs-material", "mkdocstrings[python]"]
 # Parsers for external reconciliation-tool output (zombi2.tools.reconparser: ALE, AleRax).
 # Trees are parsed with ZOMBI2's own zombi2.tree.read_newick (no ete3), so the only extra
@@ -85,3 +88,13 @@ ignore = [
     "F401",  # typing.Tuple imported but unused
     "F841",  # a bookkeeping local (num_trees) assigned but unused
 ]
+# The figure scripts share one house-style vocabulary import (`from zombi_style import FONT, INK,
+# MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK` — 44 scripts, 19 of them the identical line). Every
+# script imports the whole vocabulary whether or not it uses every name, so the set stays uniform
+# and a figure can start using one without touching its imports. Pruning per-script would make the
+# family inconsistent for no gain.
+"figures/scripts/*.py" = ["F401"]
+# The test suite organises long files into sections under banner comments, with each section's
+# imports at its head rather than hoisted to the top of the file. That keeps a section readable as
+# a unit; imports-at-top is the only thing E402 is about, and nothing here depends on import order.
+"tests/*.py" = ["E402"]
