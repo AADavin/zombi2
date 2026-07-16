@@ -6,7 +6,6 @@ and must leave every existing ordered run byte-identical (it never even draws an
 value — the same guard as biased gene conversion).
 """
 
-import numpy as np
 
 from zombi2 import (
     BirthDeath,
