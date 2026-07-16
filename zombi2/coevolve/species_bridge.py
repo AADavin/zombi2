@@ -71,6 +71,23 @@ def _scalar_coefficient(response: Response, which: str) -> float:
     return response.strength
 
 
+def _jump_gain_to_probability(gain: float, k: int) -> float:
+    """Realise a :class:`~zombi2.coevolve.grammar.Jump`'s ``gain`` (an *expected count* of families
+    gained at a split) as the per-driver probability ``GeneDiversification`` wants.
+
+    ``GeneDiversification`` bursts over a **finite** panel of ``k`` binary drivers: each *absent*
+    driver is gained with probability ``p`` (see ``_burst_drivers``), so ``E[gained] = n_absent·p``.
+    Setting ``p = gain/k`` makes ``E[gained] = gain`` for a lineage carrying none of the panel, and
+    scales it down in proportion to what the lineage already carries — you cannot gain a driver you
+    already have. This is the finite-panel analogue of the unbounded Poisson mean the same ``gain``
+    field denotes for :func:`simulate_cladogenetic_genomes`; it is clamped to 1.0, so a ``gain``
+    above ``k`` saturates at "gain every absent driver" rather than raising.
+    """
+    if k <= 0 or gain <= 0.0:
+        return 0.0
+    return min(1.0, gain / k)
+
+
 def simulate_gene_driven_diversification(n_drivers, *, speciation: Response,
                                          extinction: Response | None = None,
                                          cladogenesis: Jump | None = None,
@@ -88,7 +105,8 @@ def simulate_gene_driven_diversification(n_drivers, *, speciation: Response,
     :class:`~zombi2.coevolve.grammar.Scalar` responses whose ``strength`` is the per-driver
     coefficient βλ / βμ. ``cladogenesis`` is an optional grammar
     :class:`~zombi2.coevolve.grammar.Jump` giving the at-split burst (``probability`` = per-driver
-    drop probability, ``gain`` = mean drivers gained). Give exactly one stopping condition; returns a
+    drop probability, ``gain`` = **mean drivers gained**, realised over the finite ``K``-driver panel
+    by :func:`_jump_gain_to_probability`). Give exactly one stopping condition; returns a
     :class:`~zombi2.coevolve.gene_diversification.GeneDiversificationResult`. The engines are reused
     unchanged.
     """
@@ -100,7 +118,9 @@ def simulate_gene_driven_diversification(n_drivers, *, speciation: Response,
                            else 0.0),
         loss=loss, origination=origination, transfer=transfer, root_drivers=root_drivers,
         cladogenetic_loss=(burst.probability if burst else 0.0),
-        cladogenetic_gain=(burst.gain if burst else 0.0))
+        # `gain` is an expected COUNT everywhere in the grammar; the engine wants a per-driver
+        # probability over its finite panel, so convert rather than pass it through raw.
+        cladogenetic_gain=(_jump_gain_to_probability(burst.gain, n_drivers) if burst else 0.0))
     engine = simulate_co_diversification if burst is not None else simulate_gene_diversification
     return engine(model, age=age, n_tips=n_tips, seed=seed, rng=rng)
 
