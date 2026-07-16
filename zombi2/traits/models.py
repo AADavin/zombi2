@@ -252,12 +252,17 @@ class Mk:
     def transition_matrix(self, t: float) -> np.ndarray:
         """``P(t) = exp(Q·t)`` — the probability of state ``j`` after time ``t`` from state ``i``.
 
-        Computed by eigendecomposition (valid for the diagonalizable ``Q`` of these models);
-        provided for users and for checking simulations.
+        Computed with :func:`_expm` (scaling-and-squaring), which is correct for **any** generator.
+        It used to eigendecompose, on the assumption that ``Q`` is diagonalizable — but ``Q`` here is
+        arbitrary: it is user-supplied on this class (and on the CLI via ``--q-matrix``), and the
+        subclasses build it structurally (:class:`CorrelatedBinaryK`, :class:`HiddenStateMk`,
+        :class:`~zombi2.traits.biogeography.DEC`), so it can be *defective* — repeated eigenvalues
+        with deficient eigenvectors. There ``eig``+``inv`` silently returns a wrong, non-stochastic
+        matrix rather than failing: for the equal-rate chain ``0→1→2`` it gave ``P[0,1] = 0`` (true
+        value ``0.368``) on a row summing to ``1.118``. Provided for users and for checking
+        simulations (the simulation itself is Gillespie, so it never depended on this).
         """
-        vals, vecs = np.linalg.eig(self.Q * t)
-        P = (vecs @ np.diag(np.exp(vals)) @ np.linalg.inv(vecs)).real
-        return np.clip(P, 0.0, 1.0)
+        return np.clip(_expm(self.Q * t), 0.0, 1.0)
 
     def root_value(self, rng):
         r = self._root

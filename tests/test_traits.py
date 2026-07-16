@@ -157,6 +157,33 @@ def test_mk_transition_semigroup():
     assert np.allclose(m.transition_matrix(0.0), np.eye(3), atol=1e-12)
 
 
+def test_mk_transition_matrix_is_correct_for_a_defective_q():
+    """``P(t)`` must be right even when ``Q`` is defective (repeated eigenvalues, deficient
+    eigenvectors) — ``Q`` is user-supplied here, and structural in the subclasses.
+
+    Regression test (2026-07-16 audit). This used to eigendecompose, which for a defective ``Q``
+    silently returns a wrong, *non-stochastic* matrix rather than failing. The module ships
+    ``_expm`` precisely because of this, and said so in its docstring, but ``transition_matrix``
+    did not use it. The equal-rate chain 0→1→2 is the minimal reproduction: its eigenvector matrix
+    has condition ~1e16, and ``eig``+``inv`` gave ``P[0,1] = 0`` (true value ``e⁻¹ ≈ 0.3679``) on a
+    row summing to 1.118.
+    """
+    t = 1.0
+    m = z.Mk([[-1.0, 1.0, 0.0], [0.0, -1.0, 1.0], [0.0, 0.0, 0.0]])
+    P = m.transition_matrix(t)
+
+    assert np.allclose(P.sum(axis=1), 1.0), "P(t) must be stochastic — every row is a distribution"
+    # closed form for this chain: a Poisson(t) walk that absorbs at state 2
+    e = np.exp(-t)
+    assert P[0, 0] == pytest.approx(e, abs=1e-9)          # no jump
+    assert P[0, 1] == pytest.approx(t * e, abs=1e-9)      # exactly one jump  (was 0.0)
+    assert P[0, 2] == pytest.approx(1 - e - t * e, abs=1e-9)
+    assert np.allclose(m.transition_matrix(0.0), np.eye(3), atol=1e-12)
+    # and it still composes
+    assert np.allclose(m.transition_matrix(1.3),
+                       m.transition_matrix(0.4) @ m.transition_matrix(0.9), atol=1e-9)
+
+
 def test_mk_symmetric_stationary_is_uniform():
     m = z.Mk.symmetric([[0, 2, 1], [2, 0, 3], [1, 3, 0]])
     assert np.allclose(m.stationary_distribution(), 1.0 / 3, atol=1e-9)
