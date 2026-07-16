@@ -302,3 +302,54 @@ def test_jump_response_null_and_validation():
 def test_jump_is_not_a_rate_multiplier():
     with pytest.raises(NotImplementedError):
         Jump(scale=1.0).rate_multiplier(0.5)                  # a jump is a state change, not a rate
+
+
+# --- the two null encodings must be kept in step BY HAND (2026-07-16 audit) ---------------------
+
+def test_grammar_null_matrix_agrees_with_the_models_that_actually_run():
+    """``legal_null_kinds`` and the production models' ``.null()`` ladders must not drift apart.
+
+    The grammar's null layer is **not wired up** (see the module note): every model still carries the
+    per-edge if/error ladder ``make_null``/``legal_null_kinds`` was written to replace, and the CLI
+    calls *those*. So the same rule is encoded twice and kept in step by hand — which is precisely
+    what this test guards until P3 adopts the matrix (docs/design/coevolve-grammar.md §4.4).
+    """
+    import zombi2 as z
+    from zombi2.coevolve.grammar import couple, legal_null_kinds
+
+    def accepted(model, kinds):
+        out = set()
+        for k in kinds:
+            try:
+                model.null(k)
+            except (ValueError, TypeError):
+                continue
+            out.add(k)
+        return out
+
+    edge = couple("traits", "species", "speciation", 1.0)          # a *state* driver
+    assert legal_null_kinds(edge) == frozenset({"neutral", "cid"})
+
+    musse = z.MuSSE(birth=[1.0, 2.0], death=[0.2, 0.2], Q=[[0.0, 0.1], [0.1, 0.0]])
+    assert accepted(musse, ("neutral", "cid", "timing")) == legal_null_kinds(edge)
+
+
+def test_grammar_null_matrix_knowingly_over_permits_a_continuous_driver():
+    """The one place the matrix and the models *do* disagree, pinned so it stays deliberate.
+
+    ``legal_null_kinds`` keys on the driver **archetype** (``"state"``), which does not yet carry the
+    discrete-vs-continuous distinction — so it offers ``cid`` for QuaSSE, whose ``.null()`` correctly
+    refuses it (CID is a discrete-character null). The grammar's own comment admits this. If P3 wires
+    the matrix in without refining the archetype, QuaSSE + ``--null cid`` would be offered and then
+    fail; this test is the reminder.
+    """
+    import zombi2 as z
+    from zombi2.coevolve.grammar import couple, legal_null_kinds
+
+    edge = couple("traits", "species", "speciation", 1.0)
+    assert "cid" in legal_null_kinds(edge)                          # the matrix offers it ...
+
+    quasse = z.QuaSSE(z.QuaSSE.sigmoid(0.5, 2.0), lambda x: 0.2, sigma2=0.4, rate_bound=2.2)
+    quasse.null("neutral")                                          # ... neutral is fine ...
+    with pytest.raises(TypeError, match="discrete-character null"):
+        quasse.null("cid")                                          # ... but the model refuses it
