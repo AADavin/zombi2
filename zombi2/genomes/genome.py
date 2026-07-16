@@ -424,7 +424,124 @@ class Chromosome:
         return list(reversed(items))
 
 
-class OrderedGenome(Genome):
+class ChromosomeTierMixin:
+    """The model-independent half of the chromosome tier, shared by both genome models.
+
+    :class:`Chromosome` is the shared *container*; this is the shared *behaviour* over a
+    ``self.chromosomes: dict[int, Chromosome]`` — picking a chromosome, and the tier events that
+    only rearrange which chromosome holds what. None of it needs to know whether an element is an
+    :class:`OrderedGene` or a nucleotide ``Segment``, so both models inherit one copy.
+
+    Each model supplies three hooks — the only places the tier genuinely differs:
+
+    ``_chrom_size``
+        how "big" a chromosome is for size-weighting: a gene count (ordered) vs a nucleotide
+        length (nucleotide).
+    ``_new_chromosome_circular``
+        the topology an originated replicon takes: the genome's own (ordered) vs always circular,
+        a plasmid (nucleotide).
+    ``_element_loss_op``
+        an element's LOSS :class:`GeneOp`: a gene's ``gid``/``family`` vs a segment's
+        ``seg_id``/``source``.
+
+    **`fission` is deliberately not here.** It is the one tier operation whose logic genuinely
+    differs — index arithmetic on a gene list vs base-pair arithmetic with gene-boundary snapping —
+    so each model keeps its own. Everything else was duplicated near-verbatim between the two.
+
+    **RNG contract.** The draw *order* and *count* here are load-bearing: the samplers pass a shared
+    ``rng``, so an extra or reordered draw silently changes every seeded run. The pickers short-
+    circuit without drawing when there is a single chromosome, which is what keeps a one-chromosome
+    genome byte-identical to the pre-multichromosome engine.
+    """
+
+    # --- hooks: the only parts that differ between the models ---------------
+    def _chrom_size(self, chrom: Chromosome) -> int:
+        """``chrom``'s size for size-weighted picks (gene count / nucleotide length)."""
+        raise NotImplementedError
+
+    def _new_chromosome_circular(self) -> bool:
+        """Topology for a newly originated chromosome."""
+        raise NotImplementedError
+
+    def _element_loss_op(self, element) -> GeneOp:
+        """The LOSS :class:`GeneOp` recording ``element``'s death."""
+        raise NotImplementedError
+
+    # --- pickers (all return the Chromosome; its id is ``.chrom_id``) -------
+    def _choose_chromosome_weighted(self, rng) -> Chromosome:
+        """Pick a chromosome weighted by :meth:`_chrom_size` — where a size-proportional event
+        lands. Draws nothing when there is a single chromosome (byte-identity)."""
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes.values()))
+        chroms = list(self.chromosomes.values())
+        sizes = [self._chrom_size(c) for c in chroms]
+        r = int(rng.integers(sum(sizes)))
+        for c, s in zip(chroms, sizes):
+            if r < s:
+                return c
+            r -= s
+        return chroms[-1]  # pragma: no cover -- unreachable while total > 0
+
+    def _choose_chromosome_uniform(self, rng) -> Chromosome:
+        """Pick a chromosome uniformly — for origination / transfer insertion / whole-chromosome
+        loss, where every chromosome is an equally likely target regardless of size (and an empty
+        one is still valid). Draws nothing when there is a single chromosome."""
+        if len(self.chromosomes) == 1:
+            return next(iter(self.chromosomes.values()))
+        chroms = list(self.chromosomes.values())
+        return chroms[int(rng.integers(len(chroms)))]
+
+    def _choose_other_chromosome(self, rng, chrom: Chromosome) -> Chromosome | None:
+        """Pick a chromosome uniformly from those *other* than ``chrom`` (the translocation
+        destination). ``None`` when there is nowhere else to go (a single chromosome)."""
+        others = [c for c in self.chromosomes.values() if c is not chrom]
+        if not others:
+            return None
+        return others[int(rng.integers(len(others)))]
+
+    # --- tier events -------------------------------------------------------
+    def originate_chromosome(self, rng, params) -> int:
+        """Originate a new, empty chromosome — a de-novo replicon (a *plasmid* in the bacterial
+        case). Genes reach it later via origination or transfer (both can target any chromosome).
+        Returns the new chrom_id. Draws no rng."""
+        cid = self.ids.new_chromosome()
+        self.chromosomes[cid] = Chromosome(cid, self._new_chromosome_circular())
+        return cid
+
+    def lose_chromosome(self, rng) -> tuple[int, list[list[GeneOp]]]:
+        """Lose an entire chromosome (chosen uniformly) and everything on it, returning its
+        chrom_id and one LOSS group per element so the caller can log the deaths for gene-tree
+        reconstruction. The caller guarantees >= 2 chromosomes — a genome keeps at least one
+        (``Rates.chromosome_event_weights`` only offers the event at ``n_chrom >= 2``)."""
+        chrom = self._choose_chromosome_uniform(rng)
+        self.chromosomes.pop(chrom.chrom_id)
+        groups = [[self._element_loss_op(e)] for e in chrom.elements]
+        return chrom.chrom_id, groups
+
+    def fusion(self, rng, params) -> tuple[int, int] | None:
+        """Fuse two chromosomes of the **same topology** into one: append the second's elements onto
+        the first and drop the second (element ids untouched). Fusing a linear and a circular
+        replicon is topologically ill-defined (which topology would the product take?), so a
+        chromosome fuses only with a same-topology partner. Returns ``(kept_cid, absorbed_cid)``, or
+        ``None`` when the chosen chromosome has no same-topology partner (a no-op the caller skips).
+        The caller guarantees >= 2 chromosomes.
+
+        For a topology-homogeneous genome every other chromosome is a valid partner, so the two
+        draws and their mapping match the pre-mixed-topology engine exactly (byte-identity):
+        ``keep`` is the first draw, and ``partners`` is ``cids`` with ``keep``'s slot removed in
+        order, so the second draw indexes the same partner the old ``j``/``j+1`` remap did."""
+        cids = list(self.chromosomes)
+        keep_cid = cids[int(rng.integers(len(cids)))]
+        topo = self.chromosomes[keep_cid].circular
+        partners = [c for c in cids if c != keep_cid and self.chromosomes[c].circular == topo]
+        if not partners:  # only a different-topology replicon to fuse with — skip (mixed genome only)
+            return None
+        absorb_cid = partners[int(rng.integers(len(partners)))]
+        self.chromosomes[keep_cid].elements.extend(self.chromosomes.pop(absorb_cid).elements)
+        return keep_cid, absorb_cid
+
+
+class OrderedGenome(ChromosomeTierMixin, Genome):
     """ZOMBI-1-style ordered chromosome(s), genes carrying orientation, no intergenes.
 
     State is a **dict of chromosomes** keyed by identity, ``self.chromosomes: dict[int,
@@ -541,37 +658,18 @@ class OrderedGenome(Genome):
             length += 1
         return length
 
-    def _choose_chromosome_weighted(self, rng) -> int:
-        """Pick a chromosome (return its ``chrom_id``), weighted by its gene count.
+    # --- ChromosomeTierMixin hooks -----------------------------------------
+    def _chrom_size(self, chrom: Chromosome) -> int:
+        """Gene count: an ordered event lands on a chromosome in proportion to how many genes it
+        carries."""
+        return len(chrom.genes)
 
-        Short-circuits without drawing when there is only one chromosome, so a single-chromosome
-        genome consumes exactly the RNG draws of the pre-multichromosome engine (byte-identity)."""
-        if len(self.chromosomes) == 1:
-            return next(iter(self.chromosomes))
-        chroms = list(self.chromosomes.values())
-        sizes = [len(c.genes) for c in chroms]
-        r = int(rng.integers(sum(sizes)))
-        for c, s in zip(chroms, sizes):
-            if r < s:
-                return c.chrom_id
-            r -= s
-        return chroms[-1].chrom_id  # pragma: no cover -- unreachable while total > 0
+    def _new_chromosome_circular(self) -> bool:
+        """A new replicon takes the genome's own topology (this stage is topology-homogeneous)."""
+        return self.circular
 
-    def _choose_chromosome_uniform(self, rng) -> int:
-        """Pick a chromosome uniformly (return its ``chrom_id``), for origination / transfer
-        insertion where empty chromosomes are valid targets. Draws nothing when there is one."""
-        if len(self.chromosomes) == 1:
-            return next(iter(self.chromosomes))
-        cids = list(self.chromosomes)
-        return cids[int(rng.integers(len(cids)))]
-
-    def _choose_other_chromosome(self, rng, cid: int) -> int | None:
-        """Pick a chromosome uniformly from those *other* than ``cid`` (the translocation
-        destination). Returns ``None`` when there is nowhere else to move to (one chromosome)."""
-        others = [c for c in self.chromosomes if c != cid]
-        if not others:
-            return None
-        return others[int(rng.integers(len(others)))]
+    def _element_loss_op(self, element: OrderedGene) -> GeneOp:
+        return GeneOp(element.gid, element.family, "lost")
 
     def _remove_gene(self, gene: OrderedGene) -> None:
         """Remove ``gene`` (by identity) from whichever chromosome holds it."""
@@ -583,8 +681,8 @@ class OrderedGenome(Genome):
     # --- mutation ----------------------------------------------------------
     def draw_target(self, event, rng, params, family=None) -> Selection:
         if family is None:
-            cid = self._choose_chromosome_weighted(rng)  # size-weighted; no draw if 1 chromosome
-            chrom = self.chromosomes[cid]
+            chrom = self._choose_chromosome_weighted(rng)  # size-weighted; no draw if 1 chromosome
+            cid = chrom.chrom_id
             start = int(rng.integers(len(chrom.genes)))
         else:
             # a uniform occurrence of the family across all chromosomes (implicitly weights a
@@ -649,14 +747,13 @@ class OrderedGenome(Genome):
             # same genome (n_chrom >= 2 is enforced by the sampler, but a race with a concurrent
             # fusion/loss could leave one chromosome, so guard). gids are untouched -> lineage-neutral,
             # exactly like transposition; the gene trees never see it.
-            dest_cid = self._choose_other_chromosome(rng, region.chromosome)
-            if dest_cid is None:
+            dest = self._choose_other_chromosome(rng, self.chromosomes[region.chromosome])
+            if dest is None:
                 return []
             block = list(segment)
             if not block:  # pragma: no cover -- draw_target always yields >= 1 gene
                 return []
             del chrom.genes[start:end]
-            dest = self.chromosomes[dest_cid]
             dest.insert(int(rng.integers(len(dest.genes) + 1)), block)  # anywhere on the destination
             return [[GeneOp(g.gid, g.family, "translocated") for g in block]]
 
@@ -664,7 +761,7 @@ class OrderedGenome(Genome):
 
     def originate(self, rng, params) -> list[GeneOp]:
         family = self.ids.new_family()
-        chrom = self.chromosomes[self._choose_chromosome_uniform(rng)]  # no draw if 1 chromosome
+        chrom = self._choose_chromosome_uniform(rng)  # no draw if 1 chromosome
         gene = OrderedGene(self.ids.new_gene(), family, 1 if rng.random() < 0.5 else -1)
         chrom.insert(int(rng.integers(len(chrom.genes) + 1)), [gene])
         return [GeneOp(gene.gid, family, "origin")]
@@ -687,15 +784,16 @@ class OrderedGenome(Genome):
                                donor_old_gids=old_gids, donor_cont_gids=cont_gids)
 
     def choose_insertion_point(self, segment, rng) -> tuple[int, int]:
-        cid = self._choose_chromosome_uniform(rng)  # recipient chromosome; no draw if 1 chromosome
-        return (cid, int(rng.integers(len(self.chromosomes[cid].genes) + 1)))
+        chrom = self._choose_chromosome_uniform(rng)  # recipient chromosome; no draw if 1 chromosome
+        return (chrom.chrom_id, int(rng.integers(len(chrom.genes) + 1)))
 
     def insert_segment(self, segment, at, rng) -> list[GeneOp]:
         if isinstance(at, tuple):
             cid, j = at
         else:  # fallback: no precomputed point -> choose one now
-            cid = self._choose_chromosome_uniform(rng)
-            j = int(rng.integers(len(self.chromosomes[cid].genes) + 1))
+            chrom = self._choose_chromosome_uniform(rng)
+            cid = chrom.chrom_id
+            j = int(rng.integers(len(chrom.genes) + 1))
         self.chromosomes[cid].insert(j, segment.genes)
         return [GeneOp(g.gid, g.family, "transfer_copy") for g in segment.genes]
 
@@ -723,31 +821,14 @@ class OrderedGenome(Genome):
     # These act on whole chromosomes, one tier above the gene events. Fission / fusion only move
     # genes between chromosomes, so gene lineages (gids) are untouched and gene-tree reconstruction
     # is unaffected; only chromosome LOSS ends gene lineages, so it reports them for the log.
-    def originate_chromosome(self, rng, params) -> int:
-        """Originate a new, empty chromosome — a de-novo replicon (a *plasmid* in the bacterial
-        case), with a fresh id and the genome's topology. Genes reach it later via origination or
-        transfer (both can target any chromosome). Returns the new chrom_id. Draws no rng."""
-        cid = self.ids.new_chromosome()
-        self.chromosomes[cid] = Chromosome(cid, self.circular)
-        return cid
-
-    def lose_chromosome(self, rng) -> tuple[int, list[list[GeneOp]]]:
-        """Lose an entire chromosome (chosen uniformly) and everything on it, returning its chrom_id
-        and one LOSS group per gene so the caller can log the gene deaths for gene-tree
-        reconstruction. The caller guarantees >= 2 chromosomes (a genome keeps at least one)."""
-        cid = self._choose_chromosome_uniform(rng)
-        chrom = self.chromosomes.pop(cid)
-        groups = [[GeneOp(g.gid, g.family, "lost")] for g in chrom.genes]
-        return cid, groups
-
     def fission(self, rng, params) -> tuple[int, int]:
         """Split one chromosome into two (genes keep their ids — fission only reorganises which
         chromosome holds them). A **linear** chromosome is cut at ONE breakpoint (the prefix stays,
         the suffix becomes a new chromosome); a **circular** one at TWO breakpoints, excising the arc
         between them into a new circular replicon (the remainder stays circular). The source is
         size-weighted, so bigger chromosomes fission more. Returns (source_cid, new_cid)."""
-        cid = self._choose_chromosome_weighted(rng)
-        chrom = self.chromosomes[cid]
+        chrom = self._choose_chromosome_weighted(rng)
+        cid = chrom.chrom_id
         n = len(chrom.genes)
         new_cid = self.ids.new_chromosome()
         if chrom.circular:
@@ -763,24 +844,3 @@ class OrderedGenome(Genome):
             chrom.genes = chrom.genes[:k]
         return cid, new_cid
 
-    def fusion(self, rng, params) -> tuple[int, int] | None:
-        """Fuse two chromosomes of the **same topology** into one: append the second's genes onto the
-        first and drop the second (genes keep their ids). Fusing a linear and a circular replicon is
-        topologically ill-defined (which topology would the product take?), so a chromosome fuses only
-        with a same-topology partner. Returns ``(kept_cid, absorbed_cid)``, or ``None`` when the chosen
-        chromosome has no same-topology partner (a no-op the caller skips). The caller guarantees
-        >= 2 chromosomes.
-
-        For a topology-homogeneous genome every other chromosome is a valid partner, so the two draws
-        and their mapping match the pre-mixed-topology engine exactly (byte-identity): ``keep`` is the
-        first draw, and ``partners`` is ``cids`` with ``keep``'s slot removed in order, so the second
-        draw indexes the same partner the old ``j``/``j+1`` remap did."""
-        cids = list(self.chromosomes)
-        keep_cid = cids[int(rng.integers(len(cids)))]
-        topo = self.chromosomes[keep_cid].circular
-        partners = [c for c in cids if c != keep_cid and self.chromosomes[c].circular == topo]
-        if not partners:  # only a different-topology replicon to fuse with — skip (mixed genome only)
-            return None
-        absorb_cid = partners[int(rng.integers(len(partners)))]
-        self.chromosomes[keep_cid].genes.extend(self.chromosomes.pop(absorb_cid).genes)
-        return keep_cid, absorb_cid
