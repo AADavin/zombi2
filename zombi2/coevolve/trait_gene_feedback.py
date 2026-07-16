@@ -34,6 +34,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from zombi2.coevolve.trait_bridge import _ou_step
 from zombi2.genomes.profiles import ProfileMatrix, _natkey
 from zombi2.tree import Tree
 
@@ -102,14 +103,14 @@ class TraitGeneFeedback:
         return self.theta_low + (self.theta_high - self.theta_low) * (m / self.n_families)
 
     def _ou_step(self, x: float, theta: float, dt: float, rng) -> float:
-        """Exact OU transition over ``dt`` toward ``theta`` (Brownian if ``alpha == 0``)."""
-        if self.alpha <= 0.0:
-            std = (self.sigma2 * dt) ** 0.5
-            return x + (rng.normal(0.0, std) if std > 0.0 else 0.0)
-        e = math.exp(-self.alpha * dt)
-        mean = theta + (x - theta) * e
-        var = (self.sigma2 / (2.0 * self.alpha)) * (1.0 - e * e)
-        return float(rng.normal(mean, var ** 0.5)) if var > 0.0 else float(mean)
+        """Exact OU transition over ``dt`` toward ``theta`` (Brownian if ``alpha == 0``).
+
+        Delegates to the shared stepper in :mod:`~zombi2.coevolve.trait_bridge`: this class was
+        written before the grammar's trait bridge and kept a byte-for-byte copy of the same
+        transition, which is exactly how the two drift apart. Same single normal draw per
+        non-degenerate step, so the walk is unchanged.
+        """
+        return _ou_step(x, theta, dt, self.alpha, self.sigma2, rng)
 
     def __repr__(self):
         return (f"TraitGeneFeedback(n_families={self.n_families}, effect_loss={self.effect_loss:g}, "
