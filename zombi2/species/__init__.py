@@ -16,7 +16,7 @@ from __future__ import annotations
 from zombi2.tree import Tree, TreeNode, read_newick, prune
 from zombi2.species.model import (
     BirthDeath, Yule, EpisodicBirthDeath, ClaDS, DiversityDependent,
-    SharedBirthDeath,  # deprecated preset for BirthDeath(per="shared"); importable, absent from __all__
+    SharedBirthDeath,  # noqa: F401 (deprecated preset for BirthDeath(per="shared"); not in __all__)
     CladeShiftBirthDeath,
 )
 from zombi2.species.sim import simulate_species_tree

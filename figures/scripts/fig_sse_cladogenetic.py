@@ -81,7 +81,6 @@ def _anagenetic(tree, seed):
         res = simulate_traits(tree, Mk(Q_ANA), seed=s)
         nv = _nv(res)
         nc = len(list(res.changes()))
-        leaves = [nv[a] for a, _ in sib] + [nv[b] for _, b in sib]
         frac1 = sum(1 for n, i in res.node_values.items() if n.is_leaf() and i == 1) / N_TIPS
         agree = sum(1 for a, b in sib if nv[a] == nv[b]) / max(1, len(sib))
         if not (3 <= nc <= 6 and 0.3 <= frac1 <= 0.7):

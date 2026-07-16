@@ -4,7 +4,6 @@ Each of these was a crash, silent data corruption, or an internal inconsistency 
 untested edge input. Grouped by subsystem.
 """
 
-import warnings
 
 import numpy as np
 import pytest
