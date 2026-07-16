@@ -3,14 +3,14 @@
 Ported from ``thekswenson/Zombi``'s ``tests/test_geneorder_events.py``
 (``checkEventsAgainstGenomes``). Krister Swenson's point, and it is the right one: zombi2's
 *output is a set of files*, and that output — not just the in-memory structures — is what a user
-consumes. Someone inferring rearrangements reads ``Geneorder_events.tsv`` and replays it; this test
+consumes. Someone inferring rearrangements reads ``geneorder_events.tsv`` and replays it; this test
 asserts that doing so actually reproduces the genomes zombi2 wrote.
 
 The existing ``test_geneorder_events_output`` checks the file's *shape* (rows exist, breakpoints are
 populated, the file is deterministic). It does **not** check that the logged breakpoints mean what
 they claim — a coordinate-convention slip would produce a plausible file that replays wrong. This
 test closes that gap end-to-end: read the events off disk, replay them onto the root genome with the
-same primitives the simulator uses, and compare against the genomes on disk (``BED/<node>.bed``).
+same primitives the simulator uses, and compare against the genomes on disk (``bed/<node>.bed``).
 
 Scope: a content-conserving run (inversion + transposition), which is the gene-order /
 rearrangement-inference case. Duplication / loss / transfer change gene content and are a natural
@@ -35,7 +35,7 @@ _GENES_TSV = "".join(f"{a}\t{b}\t{n}\n" for n, a, b in GENES)
 # Reading the written files
 # --------------------------------------------------------------------------- #
 def _read_events(path):
-    """``Geneorder_events.tsv`` -> list of row dicts."""
+    """``geneorder_events.tsv`` -> list of row dicts."""
     rows = []
     with open(path) as f:
         header = f.readline().rstrip("\n").split("\t")
@@ -120,8 +120,8 @@ def _run(tmp_path, seed):
 
 def test_written_events_replay_to_the_written_genomes(tmp_path):
     out = _run(tmp_path, seed=11)
-    by_branch = _events_by_branch(_read_events(out / "Geneorder_events.tsv"))
-    written = read_node_orders(str(out))            # the genomes zombi2 wrote (BED/<node>.bed)
+    by_branch = _events_by_branch(_read_events(out / "geneorder_events.tsv"))
+    written = read_node_orders(str(out))            # the genomes zombi2 wrote (bed/<node>.bed)
     tree = read_newick((out / "species_tree.nwk").read_text())
 
     checked = 0
@@ -130,7 +130,7 @@ def test_written_events_replay_to_the_written_genomes(tmp_path):
             continue
         replayed = _gene_order(_replay_to(node, by_branch))
         assert replayed == written[node.name], (
-            f"replaying Geneorder_events.tsv does not reproduce BED/{node.name}.bed\n"
+            f"replaying geneorder_events.tsv does not reproduce bed/{node.name}.bed\n"
             f"  replayed: {replayed}\n  written:  {written[node.name]}")
         checked += 1
     assert checked >= 2, "expected to check the root and at least one descendant"
@@ -139,5 +139,5 @@ def test_written_events_replay_to_the_written_genomes(tmp_path):
 def test_replay_is_exercised_by_real_rearrangements(tmp_path):
     # guard: the run must actually contain the events whose replay we claim to verify
     out = _run(tmp_path, seed=11)
-    kinds = {r["event"] for r in _read_events(out / "Geneorder_events.tsv")}
+    kinds = {r["event"] for r in _read_events(out / "geneorder_events.tsv")}
     assert "I" in kinds and "P" in kinds
