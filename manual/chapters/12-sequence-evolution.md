@@ -1,3 +1,7 @@
+```{=latex}
+\part{Sequence evolution}
+```
+
 # Sequence evolution
 
 Species trees and gene trees in ZOMBI2 are **timetrees**: every branch length is an amount of *time*.
@@ -56,7 +60,7 @@ pieces it crosses.
 
 The lineage clock can be **any** of ZOMBI2's relaxed molecular clocks — the full family (strict,
 uncorrelated lognormal, gamma and white noise, autocorrelated lognormal, and Cox–Ingersoll–Ross) is
-the subject of Chapter 15. Two are shown here; they are selected differently, and mutually exclusive:
+the subject of the [molecular clocks](#molecular-clocks) chapter. Two are shown here; they are selected differently, and mutually exclusive:
 the autocorrelated lognormal via `branch_sigma`, and any other clock (including the discrete-bin model
 below) via `lineage=`.
 
@@ -75,7 +79,7 @@ only to an **adjacent bin**. Because the rate can change gradually within a bran
 may be split into several **segments** in neighbouring bins; the substitution length of that branch is
 the sum of `segment_duration` $\times$ `bin_rate` over its segments. Unlike the lognormal clock it can
 vary the rate *within* a branch, not only at nodes. You pass a configured `RateVariation` — or any
-other clock from the family (Chapter 15) — as the `lineage` argument.
+other clock from the family (the [molecular clocks](#molecular-clocks) chapter) — as the `lineage` argument.
 
 ## Usage from Python
 
@@ -101,7 +105,7 @@ phylo.branch_rate["i5"]  # the shared R_b for species branch i5
 
 To use the discrete-bin clock for the lineage part instead of the lognormal one, pass a
 `RateVariation` as `lineage=` (mutually exclusive with `branch_sigma`); any other clock from the
-family (Chapter 15) is passed the same way:
+family (the [molecular clocks](#molecular-clocks) chapter) is passed the same way:
 
 ```python
 rv = z.RateVariation(bins=[0.25, 0.5, 1.0, 2.0, 4.0], switch_rate=1.0)  # slow -> fast

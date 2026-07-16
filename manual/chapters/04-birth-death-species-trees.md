@@ -1,3 +1,7 @@
+```{=latex}
+\part{Species trees}
+```
+
 # Species trees (basic models)
 
 Every ZOMBI2 simulation has a species tree: the branching history of the species onto

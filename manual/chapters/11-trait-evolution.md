@@ -1,3 +1,7 @@
+```{=latex}
+\part{Traits}
+```
+
 # Trait evolution
 
 Once you have a tree, you can evolve *traits* on it: a body size, an expression level, a discrete
@@ -300,9 +304,9 @@ pagel_kappa(tree, 0.0)     # branch lengths ^kappa (0 = speciational)
 ![Pagel's 1999 tree transforms, each shown on one small tree at three parameter values. **lambda** scales the internal (shared) depths while pinning the tips, interpolating from the original tree to a star; **delta** bends node depths toward the root (early change) or the present (late change); **kappa** raises branch lengths to a power, collapsing toward equal, speciational branches at `0`. The transform is applied to the tree; the trait model is then run on the result.](figures/pagel_transforms.pdf){width=100%}
 
 ::: note
-These are **not** the molecular clocks of Chapter 15. Pagel's transforms reshape the timetree that a
+These are **not** the [molecular clocks](#molecular-clocks). Pagel's transforms reshape the timetree that a
 *continuous- or discrete-trait* model (BM/OU/Mk) evolves over — a deterministic warp of *trait
-tempo*. The relaxed clocks of Chapter 15 instead turn a timetree into a *substitution* phylogram
+tempo*. The relaxed [molecular clocks](#molecular-clocks) instead turn a timetree into a *substitution* phylogram
 (expected substitutions per site) to drive *sequence* simulation, drawing random per-branch rates.
 Different object transformed, different model consuming it, different units — neither can express the
 other.

@@ -1,4 +1,4 @@
-# Relaxed molecular clocks
+# Relaxed molecular clocks {#molecular-clocks}
 
 Every tree ZOMBI2 produces is a **timetree**: branch lengths are amounts of *time*. Sequence
 evolution, though, does not accumulate time — it accumulates *substitutions*, and the number of
@@ -9,7 +9,7 @@ molecular clock** is the model of that variation. Applying one rescales every br
 expected substitutions per site and turns a **chronogram** (branch lengths in time) into a
 **phylogram** (branch lengths in substitutions).
 
-Chapter 14 met one relaxed clock already — the shared lineage clock inside `SequenceEvolution`. This
+The [sequences chapter](#sequence-evolution) met one relaxed clock already — the shared lineage clock inside `SequenceEvolution`. This
 chapter steps back and presents the whole **family** of clocks as first-class models with one common
 interface, so you can rescale *any* tree (a species tree, a gene tree, anything read from Newick),
 compare models, and plug whichever you like into a sequence-evolution run.
@@ -117,8 +117,8 @@ Here a branch inherits its rate from its parent, so the rate is smooth along the
 $R_{\text{child}} = R_{\text{parent}} \cdot \exp\!\big(\mathcal{N}(0,\ \sigma\sqrt{\ell})\big)$, where
 $\ell$ is the branch length in time [@thorne1998autocorrelated]. A child's rate is centred on its
 parent's, and the variance grows with elapsed time. `sigma = 0` freezes the walk into a strict clock
-at `root_rate`. This is exactly the clock `SequenceEvolution`'s `branch_sigma` selects (see
-Chapter 14), now available as a model in its own right.
+at `root_rate`. This is exactly the clock `SequenceEvolution`'s `branch_sigma` selects (see the
+[sequences chapter](#sequence-evolution)), now available as a model in its own right.
 
 ```python
 z.AutocorrelatedLogNormalClock(sigma=0.3).scale(tree, seed=2)
@@ -141,7 +141,7 @@ z.CIRClock(theta=1.0, sigma=0.4, mean=1.0).scale(tree, seed=2)
 
 ![Random walk versus mean reversion — the difference between the two autocorrelated clocks. Each panel plots many sample paths of the instantaneous rate against elapsed time. **Left** (autocorrelated lognormal): a geometric random walk with no restoring force, so the paths fan out without bound and the tree's total length wanders with them. **Right** (Cox–Ingersoll–Ross): a mean-reverting diffusion — the drift pulls every path back toward the long-run mean, so the spread stabilises and the total length stays close to the mean times the elapsed time. CIR also varies the rate *within* a branch, which the lognormal walk, jumping only at nodes, does not.](figures/clock_cir.pdf){width=100%}
 
-**Discrete-bin (GTDB)** — the model of Chapter 14's `RateVariation`, also an autocorrelated clock: an
+**Discrete-bin (GTDB)** — the model of the [sequences chapter](#sequence-evolution)'s `RateVariation`, also an autocorrelated clock: an
 ordered set of rate bins with a nearest-neighbour Markov walk between them along the tree. It is
 included here for completeness and shares the same interface.
 
@@ -168,7 +168,7 @@ sharing the `Clock` interface: `scale(tree, seed=...)` returns a `RateScaledTree
 
 ## Feeding a sequence-evolution run
 
-The clocks are the **shared lineage clock** of Chapter 14's gene × lineage model. `SequenceEvolution`
+The clocks are the **shared lineage clock** of the [sequences chapter](#sequence-evolution)'s gene × lineage model. `SequenceEvolution`
 took `branch_sigma` (the autocorrelated lognormal) or a `RateVariation`; it now takes *any* clock via
 `lineage=`, so you can drive a genome simulation's gene trees with any model in the family:
 
@@ -181,13 +181,13 @@ se = z.SequenceEvolution(lineage=z.UncorrelatedGammaClock(shape=3.0),  # shared 
 phylo = se.scale(genomes, seed=2)
 ```
 
-Everything Chapter 14 says about the lineage clock still holds: it is drawn once and shared by every
+Everything the [sequences chapter](#sequence-evolution) says about the lineage clock still holds: it is drawn once and shared by every
 family, then multiplied by each family's own speed. Passing `branch_sigma` remains a shorthand for
 `lineage=AutocorrelatedLogNormalClock` at the same drift $\sigma$.
 
 ## Usage from the CLI
 
-The `zombi2 sequences` command grows a `--clock` selector for the family. As in Chapter 14 it runs on
+The `zombi2 sequences` command grows a `--clock` selector for the family. As in the [sequences chapter](#sequence-evolution) it runs on
 a prior `genomes` result whose event trace was written (`--write trace`):
 
 ```bash
@@ -207,7 +207,7 @@ zombi2 sequences --genomes run/ --clock cir --clock-theta 1.0 --clock-sigma 0.4 
 `--clock-sigma` (the spread of the lognormal, white-noise and CIR clocks), `--clock-shape` (the gamma
 shape), `--clock-theta` (the CIR mean-reversion speed), and `--clock-mean` (the target/strict/root
 rate, default 1); the discrete-bin clock reads its bins from `--clock-bins`. The output is exactly as
-in Chapter 14 — one phylogram per family under `run/gene_trees/`, plus `gene_family_speeds.tsv` and
+in the [sequences chapter](#sequence-evolution) — one phylogram per family under `run/gene_trees/`, plus `gene_family_speeds.tsv` and
 `branch_rates.tsv` recording the drawn rates.
 
 The old `--branch-*` spellings still work as deprecated aliases — `--branch-speed SIGMA` is
@@ -221,7 +221,7 @@ models, then CIR — reusing the same gene content, and compare the phylograms.
 :::
 
 ::: note
-The rescaled branch lengths already carry the clock, so adding `--subst-model` (Chapter 14) to
+The rescaled branch lengths already carry the clock, so adding `--subst-model` (the [sequences chapter](#sequence-evolution)) to
 simulate an alignment needs no extra rate: one unit of the rescaled branch length is one expected
 substitution per site by construction.
 :::
