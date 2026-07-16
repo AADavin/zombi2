@@ -36,7 +36,7 @@ Shared kernel at the top level:
 | `_sampling.py` | the Gillespie event sampler (`EventSampler`) |
 | `_rust.py` | native Rust engine bindings; the built-in model runs here automatically |
 | `parallel.py` | `run_replicates` (replicate-level parallelism) |
-| `cli.py` | the `zombi2` command-line wrapper |
+| `cli/` | the `zombi2` command-line wrapper — one module per subcommand over a shared `framework.py`; `main.py` assembles the parser and dispatches |
 | `rust/` | the Rust `zombi2_core` extension (built with maturin) |
 
 ## Adding a model
