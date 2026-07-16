@@ -41,7 +41,6 @@ coupled run reuses the whole pipeline (profiles, gene trees, reconciliations) vi
 from __future__ import annotations
 
 import copy
-import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
