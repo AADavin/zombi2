@@ -30,7 +30,7 @@ nucleotide layer, under different names.
 | `make_inversion_intergenic(ch, bp1, bp2, dir)` | `NucleotideGenome._apply_inversion(start, length)` |
 | `cut_and_paste` / `obtain_segment` | `NucleotideGenome._apply_transposition(start, length, dest)` |
 | `init_divisions` / `natural_cuts` | segment / block boundaries (the ancestral source‑intervals) |
-| `Geneorder_events_per_branch/` files | in‑memory `EventLog` (`event_log`); no per‑branch gene‑order file is written |
+| `Geneorder_events_per_branch/` files | `geneorder_events.tsv` (`--write geneorder`) — one file, one row per structural event, keyed by `branch` (plus the in‑memory `EventLog`) |
 
 ## Disposition of each fork test file
 
@@ -80,7 +80,7 @@ An earlier revision of this note declined the file‑based `Geneorder_events_per
 file, so there is nothing to replay from disk", and that the in‑memory reconstruction already
 covered it. **Both halves of that were wrong, and Krister was right to push back.**
 
-- zombi2 *does* now emit the event log — `--write geneorder` → `Geneorder_events.tsv`, one row per
+- zombi2 *does* now emit the event log — `--write geneorder` → `geneorder_events.tsv`, one row per
   structural event with its breakpoints, keyed by `branch`. The stated blocker is gone.
 - More importantly, the in‑memory test is **not a substitute**. zombi2's output is a set of *files*,
   and the files are what a user inferring rearrangements actually consumes. Verifying the in‑memory
@@ -88,9 +88,9 @@ covered it. **Both halves of that were wrong, and Krister was right to push back
   coordinate‑convention slip would yield a plausible file that replays to the wrong genome, and every
   in‑memory test would still pass.
 
-`tests/test_geneorder_file_replay.py` closes this: it reads the written `Geneorder_events.tsv`,
+`tests/test_geneorder_file_replay.py` closes this: it reads the written `geneorder_events.tsv`,
 replays each branch's events onto the root genome with the simulator's own primitives, and asserts
-the result reproduces the written genomes (`BED/<node>.bed`). A negative control (perturbing the
+the result reproduces the written genomes (`bed/<node>.bed`). A negative control (perturbing the
 replay by a single base) confirms the test fails when the correspondence breaks, so it is not
 vacuous. Scope today is a content‑conserving run (inversion + transposition) — the
 rearrangement‑inference case; duplication / loss / transfer are the natural extension once their
@@ -107,5 +107,6 @@ file‑level semantics are pinned down.
 ## Running
 
 ```
-pytest tests/test_geneorder_examples.py tests/test_pipeline_determinism.py
+pytest tests/test_geneorder_examples.py tests/test_pipeline_determinism.py \
+       tests/test_geneorder_file_replay.py
 ```
