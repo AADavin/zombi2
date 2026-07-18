@@ -37,6 +37,30 @@ class Modifier:
     def factor(self, **context: float) -> float:
         raise NotImplementedError
 
+    def __rmul__(self, other: object):
+        # `number * mod`, `scope * mod`, `mod * mod`, `Rate * mod` all build a Rate (see zombi2.rate)
+        from .rate import Rate
+        from .scope import Scope
+
+        if isinstance(other, bool):
+            return NotImplemented
+        if isinstance(other, (int, float)):
+            return Rate(float(other), None, (self,))
+        if isinstance(other, Scope):
+            return Rate(other.base, other, (self,))
+        if isinstance(other, Modifier):
+            return Rate(1.0, None, (other, self))
+        if isinstance(other, Rate):
+            return Rate(other.base, other.scope, other.modifiers + (self,))
+        return NotImplemented
+
+    def __mul__(self, other: object):
+        from .rate import Rate
+
+        if isinstance(other, Modifier):
+            return Rate(1.0, None, (self, other))
+        return self.__rmul__(other)
+
 
 class Time(Modifier):
     """The rate changes in time — a skyline / episodic schedule.
