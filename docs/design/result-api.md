@@ -20,7 +20,7 @@ four levels symmetric.
 
 - `.events` — the event log (the **compact source of truth**; see memory model)
 - `.tree` / `.complete` / `.reconstructed` — the tree(s) it ran on
-- `.write(dir, include=[...])` — materialise the chosen outputs to disk
+- `.write(dir, [...])` — write the chosen outputs to disk (same **write** vocabulary as the CLI `--write`)
 - `.seed`
 
 ## The bundles — names and payload (the "what each `simulate_*` returns" table)
@@ -39,14 +39,14 @@ collision the coverage audit found (→ `GenomesResult`) and finally names the s
 
 Richness must not explode memory even in-memory. Three dials, cheapest → richest:
 
-1. **What's recorded** — `simulate_genomes(..., outputs=["profiles"])` (spelling TBD, naming pass).
+1. **What's recorded** — `simulate_genomes(..., record=["profiles"])`.
    Declaring intent up front **scopes what the run computes and keeps.** Profiles-only makes the engine a
    *profile accumulator*: it tallies the sparse matrix as lineages evolve and **never builds the event log
    or the gene-tree objects at all.** Footprint = the matrix, streamable.
 2. **What's derived** — if the event log *is* kept (the default), the rich views (`ancestral`,
    `gene_trees`, `profiles`) are **reconstructed lazily from the log on access**, never all-resident. Ask
    for one node's ancestral genome and it is replayed just-in-time; iterate and they stream one at a time.
-3. **What's written** — `.write(dir, include=[...])` picks which of those hit disk, streamed node-by-node
+3. **What's written** — `.write(dir, [...])` picks which of those hit disk, streamed node-by-node
    with bounded memory, however big the tree.
 
 **The honest tradeoff:** narrow intent means the other views genuinely **are not there.** Accessing
@@ -54,7 +54,7 @@ Richness must not explode memory even in-memory. Three dials, cheapest → riche
 would need the event log that was not kept. Generality costs memory; the user decides how much.
 
 **Default** = the friendly middle: keep the event log + trees (small, O(events)/O(tips)), derive the rest
-on demand. **Scale** (millions of tips) = narrow `outputs=` and the footprint collapses to the sparse
+on demand. **Scale** (millions of tips) = narrow `record=` and the footprint collapses to the sparse
 matrix; the event log itself can be disk-backed so the in-memory bundle stays tiny.
 
 Not new machinery: this is the sparse `ProfileMatrix` (COO) and the "event-trace + lazy replay" work
@@ -62,15 +62,17 @@ already in the codebase, promoted to *the* output model.
 
 ## Outputs catalogue
 
-The full list of every file — which `include=` / `--write` token writes what, in what format — is
+The full list of every file — which `--write` token writes what, in what format — is
 **Appendix B** of the manual, the single cross-level reference (unblocked by this design).
 
 ## Still to design (naming only)
 
-- **Decided (2026-07-18): the record dial is `record=[...]`** (Python) — it scopes what the run computes
-  and keeps. `.write(include=[...])` selects disk; CLI `--write X` implies `record=[X]` + write. (The
-  concept was settled with the three dials; this was only the label.)
-- Whether the write-selector and the record-selector share a vocabulary of output names (naming detail).
+- **Decided: the record dial is `record=[...]`** (Python) — it scopes what the run computes and keeps.
+  Asking to `write` an output implies recording it. (The concept was settled with the three dials.)
+- **Decided (2026-07-19): disk output is `write` at every level** — the result method `.write(...)`, the
+  CLI `--write`, and the existing code all use the one word; `include` is retired (it was a reactive dodge
+  around a name collision — the collision should have unified on `write`, not invented a new word). The
+  exact `.write()` argument form (positional list vs keyword) is a build detail.
 
 ## What to delete / change
 
