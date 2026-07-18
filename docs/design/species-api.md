@@ -23,10 +23,9 @@ everything else is that process with the rate depending on something.
 
 ```python
 simulate_species_tree(
-    birth,                 # a Rate: a number, or number × modifiers
+    birth,                 # a Rate: an optional count-wrapper around a base, optionally × modifiers
     death=0.0,             # a Rate; default 0.0 = pure birth (Yule)
     *,
-    per="lineage",         # "lineage" (default) or "global"
     n_tips=None,           # stop at a number of tips ...
     age=None,              # ... or at an age
     age_type="crown",      # "crown" (default) or "stem"
@@ -46,11 +45,21 @@ re-exports** (`z.simulate_species_tree` goes away): one canonical path per name,
 Open sub-question: whether the function is `simulate_species_tree` (explicit) or just
 `species.simulate(...)` (the module already names the level).
 
-## Rates: `base × modifiers`
+## Rates: `count(base) × modifiers`
 
-`birth` and `death` each hold a **Rate**: a base number, optionally multiplied by dimensionless
-**modifiers** that bend it. `*` is the only composition operator (a rate is `time⁻¹`, modifiers are
-dimensionless, so multiplying two rates is meaningless and thus impossible by construction).
+`birth` and `death` each hold a **Rate**, built the cross-level way (`SPEC §5`): an optional **count
+wrapper** around a base number, optionally times dimensionless **modifiers**.
+
+- **Count** — *per what?* Species has one unit, the lineage, so the bare number is per lineage (the
+  default) and there is **no `per=` argument**. To make a rate a single shared clock, wrap it:
+  `birth = Global(1.0)` (constant total; `Global` capitalised — `global` is a Python keyword). This
+  replaces the earlier `per="global"` argument, and it is better: `Global` tags exactly *which* rate is
+  global, so `birth=Global(1.0), death=0.3` is unambiguous.
+- **Modifiers** multiply the base (`*`) and are dimensionless: `1.0 * Diversity(cap=100)`. `*` is the
+  only composition operator (a rate is `time⁻¹`, a modifier is dimensionless, so multiplying two rates is
+  impossible by construction).
+- **Naming rule:** "per" is reserved for counts. A count is `PerCopy` / `PerLineage` / `PerSite`; a
+  modifier never starts with "per".
 
 Modifiers live in **`zombi2.modifiers`** (never top-level `z`). Named by *what the rate depends on*:
 
