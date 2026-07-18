@@ -11,28 +11,28 @@ The two rates set the tempo. Their difference fixes how fast diversity builds up
 You also say when to stop: grow the tree to a fixed **age**, or until it reaches a fixed **number of tips**. Both work.
 
 ```python
-import zombi2 as z
+from zombi2 import species
 # a birth–death tree of 20 surviving lineages, crown age 5
-tree = z.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
 ```
 
-By default each rate is **per lineage**: every branch alive is an independent chance for the event to fire. You can instead make a rate **global**, one budget shared by the whole tree, with `per="global"`.
+By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared clock for the whole tree instead, wrap it: `birth = ct.Global(1.0)`. (The wrapper is `Global`, capitalised, because `global` is a reserved word in Python.)
 
 ## What the rate depends on
 
 So far the rates have been constant, but a birth or death rate need not be. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. You express each the same way: multiply the base rate by a **modifier** that names what it depends on.
 
-- **Time** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * Time({0: 1.0, 3: 0.3})` runs at full rate until age 3, then a third of it.
-- **Diversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * Diversity(cap=100)`.
-- **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * Inherited(spread=0.2)`.
+- **Time** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.Time({0: 1.0, 3: 0.3})` runs at full rate until age 3, then a third of it.
+- **Diversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.Diversity(cap=100)`.
+- **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(spread=0.2)`.
 
-The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently.
+The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the count (`ct.Global`), and you *multiply* it to bend it (`* mod.Diversity`).
 
 | From the literature | What it does | Here |
 |---|---|---|
-| skyline / episodic birth–death | rates change at set times | `1.0 * Time({…})` |
-| diversity-dependent diversification | rate slows as the tree fills | `1.0 * Diversity(cap=…)` |
-| ClaDS | rates drift, inherited at each split | `1.0 * Inherited(spread=…)` |
+| skyline / episodic birth–death | rates change at set times | `1.0 * mod.Time({…})` |
+| diversity-dependent diversification | rate slows as the tree fills | `1.0 * mod.Diversity(cap=…)` |
+| ClaDS | rates drift, inherited at each split | `1.0 * mod.Inherited(spread=…)` |
 | mass extinction | a fraction culled at an instant | `mass_extinctions=[(t, f)]` |
 
 A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time. Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at age 3.
@@ -49,10 +49,10 @@ By default you see every surviving species, but real datasets are incomplete. **
 
 ```python
 # see only half the survivors
-tree = z.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, sampling=0.5, seed=1)
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, sampling=0.5, seed=1)
 
 # recover fossils of extinct lineages along the branches
-tree = z.simulate_species_tree(birth=1.0, death=0.3, age=6.0, fossils=0.1, seed=1)
+tree = species.simulate_species_tree(birth=1.0, death=0.3, age=6.0, fossils=0.1, seed=1)
 ```
 
 ## Extinct lineages
@@ -76,22 +76,22 @@ Sometimes you want them there anyway. Keeping the complete tree hands you the ex
 The whole range is one function call:
 
 ```python
-import zombi2 as z
-from zombi2 import modifiers as mod
+from zombi2 import species, modifiers as mod
+from zombi2 import counts as ct        # count wrappers (namespace TBD): Global, PerLineage, …
 
-# constant-rate birth–death
-tree = z.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
+# constant-rate birth–death (per lineage, the default)
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
 
-# Yule (pure birth)
-tree = z.simulate_species_tree(birth=1.0, n_tips=50, seed=1)
+# Yule (pure birth) — death defaults to 0
+tree = species.simulate_species_tree(birth=1.0, n_tips=50, seed=1)
 
-# skyline birth that also slows with diversity, global rates
-tree = z.simulate_species_tree(
+# skyline birth that also slows with diversity, with a global death rate
+tree = species.simulate_species_tree(
     birth = 1.0 * mod.Time({0: 1.0, 3: 0.5}) * mod.Diversity(cap=100),
-    death = 0.3, per="global", age=8.0, seed=1)
+    death = ct.Global(0.3), age=8.0, seed=1)
 
 # a mass extinction and incomplete sampling
-tree = z.simulate_species_tree(
+tree = species.simulate_species_tree(
     birth=1.0, death=0.3, mass_extinctions=[(3.0, 0.75)],
     sampling=0.5, age=5.0, seed=1)
 ```
@@ -107,6 +107,4 @@ zombi2 species --birth 1.0 --death 0.3 --tips 20 --seed 1 -o my_tree
 
 ## Outputs
 
-*[Draft — to finalise once the outputs are settled.]*
-
-A run writes the tree in Newick, alongside the record of events (the speciations and extinctions) behind it. When the tree distinguishes survivors from the dead, both the complete and the reconstructed tree are written, so downstream levels can run on whichever you need. The full list of files lives in Appendix B.
+A run writes two Newick trees by default: the **extant** tree of survivors and the **complete** tree carrying the extinct lineages too, under the `_extant` and `_complete` names, with tips labelled *extant*, *extinct*, or *unsampled* so the three are told apart. The **event log** — every speciation and extinction with its time — is always written; it is the ground truth the simulator exists to record. And if you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.
