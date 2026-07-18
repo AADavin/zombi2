@@ -93,16 +93,15 @@ Notes that need to be exact:
 - **Fission is a bifurcation, but the source id is reused.** Today the source chromosome keeps its
   `chrom_id` and only the excised arc gets a new one (`children=(src, new_cid)`, `genome.py:838`). For a
   clean genealogy the *surviving* segment is a **new lineage** too — the pre-fission chromosome ended.
-  **Decision to lock:** at fission, re-mint **both** children (`parents=(src,), children=(a, b)` with
-  two fresh ids), so a fission node looks like a speciation node and no id spans an event. This is a
-  behaviour change (byte-identity break on multi-chromosome seeds) but it is the only way "a lineage
-  ends at each event" holds uniformly. *(Alternative: keep the reuse and special-case it in the reader.
-  Rejected — it makes the source lineage's "birth" ambiguous.)*
+  **Decided (Adrián, 2026-07-18): at fission, re-mint both children** (`parents=(src,), children=(a, b)`
+  with two fresh ids), so a fission node looks like a speciation node and no id spans an event. The
+  byte-identity break on multi-chromosome seeds is **accepted** — the redesign does not preserve old
+  seeds. *(Alternative reuse-and-special-case rejected — it makes the source lineage's "birth" ambiguous.)*
 
 - **Fusion is the reticulation and the whole reason this is a network.** Two parent lineages
   (`keep`, `absorbed`) end; one child lineage begins. Today the child reuses `keep`'s id
-  (`children=(keep,)`, `genome.py:547`) — same objection as fission. **Lock the same rule:** re-mint the
-  child (`parents=(keep, absorbed), children=(fused,)`). A reticulation node has **in-degree 2** — this
+  (`children=(keep,)`, `genome.py:547`) — same objection as fission. **Decided: the same rule** — re-mint
+  the child (`parents=(keep, absorbed), children=(fused,)`). A reticulation node has **in-degree 2** — this
   is the node that breaks tree tooling (§6).
 
 - **Translocation does not touch chromosome identity.** Genes move from chromosome A to chromosome B;
@@ -210,7 +209,7 @@ genomes.simulate_ordered(
     # --- chromosome tier: count(base) × modifiers ---
     fission=0.02,                  # per chromosome (a chromosome splits in two)
     fusion=0.02,                   # per chromosome (two chromosomes merge — the reticulation)
-    translocation=0.05,            # per chromosome (an arc moves to another chromosome; identity-neutral)
+    translocation=0.05,            # per gene copy (a gene moves to another chromosome; a rearrangement, like transposition)
     chromosome_origination=0.01,   # per genome (a de-novo replicon / plasmid appears)
     chromosome_loss=0.01,          # per chromosome (a whole chromosome and its genes die)
     seed=1,
@@ -222,7 +221,8 @@ genomes.simulate_ordered(
   (`["circular", "linear"]`) for a mixed karyotype, which the engine already supports via
   `circular: bool | Sequence[bool]` (`genome.py:583`).
 - **The tier rates follow the same grammar as every other rate.** Defaults answer *per what*: fission /
-  fusion / translocation / loss are **per chromosome**; origination is **per genome** (matching the
+  fusion / loss are **per chromosome**; **translocation is per gene copy** (a rearrangement, like
+  transposition — a per-chromosome translocation rate is a possible future addition, deferred); origination is **per genome** (matching the
   code's own weighting — `_choose_chromosome_weighted` vs `_choose_chromosome_uniform`, `genome.py:471`;
   and today's help text, `cli/genomes.py:188`). Override with a count wrapper, e.g.
   `fission = PerGenome(0.02)` for one fission budget per genome regardless of chromosome count, or bend
@@ -247,35 +247,27 @@ byte-identity for the common case.
 
 ---
 
-## 6. Hard parts / open questions
+## 6. Decisions locked (2026-07-18) — was: open questions
 
-- **The fusion reticulation is the crux — and it breaks "reconciliation".** A network is not a tree, so
-  three things that are trivial for gene trees become genuinely open here:
-  - *What does reconciling a reticulation into the species tree mean?* Gene reconciliation stamps each
-    node with one species branch (`reconciliation.py:402`). A fusion node has **two** parent chromosome
-    lineages — if they sit on the same species branch (fusion is intra-genome, so they always do), the
-    node still reconciles to one branch, which is fine. But the *network topology* (the `#H` back-edge)
-    has no species-tree counterpart, so "the chromosome network reconciled against the species tree" is
-    a network **whose nodes are branch-stamped but whose reticulations live below the species level**.
-    Is that the artefact Adrián wants, or does he want the reticulations *projected onto* species
-    branches? **Needs Adrián.**
-  - *Tree tooling does not apply.* No Newick, no `_prune` degree-2 suppression (`reconciliation.py:318`),
-    no LCA. eNewick + a network-aware reader are required; the existing gene-tree machinery cannot be
-    reused as-is. Confirm eNewick (vs a bespoke edge-list-only output) is worth the reader.
-  - *An "extant" (pruned) network.* Gene trees ship a complete tree and an extant-pruned tree
-    (`build_gene_trees`, `reconciliation.py:132`). Pruning a network to lineages ancestral to a surviving
-    chromosome is well-defined but fiddlier (a reticulation is kept iff *either* parent path survives).
-    Worth building, or is the complete network enough?
+All three questions that needed Adrián are decided:
 
-- **Fission/fusion id reuse (§2).** Locking "re-mint both children" is a **byte-identity break** on
-  multi-chromosome seeded runs (the memory notes byte-identity is a guarded invariant of the chromosome
-  tier — `genome.py:454`). Confirm the break is acceptable for the payoff of a uniform genealogy, or
-  keep the reuse and special-case the reader. **Needs Adrián.**
+- **Fusion reticulation → recover it descriptively (Option A).** The chromosome network is output as
+  eNewick `#H` + an event table, every node **branch-stamped** to its species branch; the reticulations
+  live *below* the species level and are **not** projected onto species branches. There is **no formal
+  reconciliation engine** for the reticulation in v1 — the network is *recovered, not reconciled*.
+  (Adrián: recover the network; chromosome realism is not the point.)
+- **Fission/fusion id → re-mint both (§2); the byte-identity break is accepted.** The redesign does not
+  preserve old seeds, so the previously-guarded byte-identity invariant does not apply here.
+- **Translocation → per gene copy (§5)** — a rearrangement, like transposition. It is surfaced in the
+  gene layer with a chromosome cross-reference (§4), not as a horizontal edge in the network. A
+  *per-chromosome* translocation rate is a possible future addition — **deferred, not now**.
 
-- **Translocation and identity.** Settled here as identity-neutral (§2), but it is the tier's *transfer*
-  analogue and the only way a gene changes chromosome lineage without duplicating. Is a translocation
-  worth surfacing in the chromosome network at all (as a horizontal annotation), or only in the gene
-  layer? Leaning gene-layer-only, with a chromosome cross-reference (§4).
+Still deferred (not v1):
+
+- **eNewick reader.** eNewick `#H` is the chosen output (not a bespoke edge-list); a network-aware reader
+  is needed because tree tooling (Newick, degree-2 suppression, LCA) does not apply.
+- **Extant-pruned network.** Ships the *complete* network only for v1; the extant-pruned network (keep a
+  reticulation iff either parent path survives) is deferred.
 
 - **One network per genome, or one global network?** A chromosome lineage lives inside a single evolving
   genome that itself splits at speciation, so the natural object is **one network per gene-family
