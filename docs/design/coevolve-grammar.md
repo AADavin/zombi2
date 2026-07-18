@@ -369,7 +369,7 @@ A gene event (duplication/transfer) bumps a family's sequence rate/selection: po
 The single genuinely-new model. Dosage relaxes selection ↔ sequence decay drives gene loss. Ties to the ADH1 / gene-conversion work. **Core substrate (D3-compatible):** the core codon ω models (`codon_models.py` `gy94`/`mg94`, `.expected_dnds()`) evolving coding DNA down gene trees, plus core `ConversionModel` (whole-copy homogenisation, a G event in `Events_trace`). The G-loss half rides the existing gene-content layer; the Σ half reads out as shifted/emergent ω.
 
 - **Constraint from the sequence-coupling lab:** identity is NOT a sufficient statistic under homology-biased conversion — the showcase must **simulate** the homogenised sequences, not infer them from event counts.
-- It ships as a notebook/example (rather than a default-shipped edge) because it is the one genuinely-new model — it *composes* existing CORE pieces (core codon ω from `codon_models.py` + core `ConversionModel`) into a new coupled behaviour — not because of any experimental dependency.
+- It ships as a **default-shipped core edge** (notebooks are not shipped — author decision 2026-07-18) because it is the one genuinely-new model — it *composes* existing CORE pieces (core codon ω from `codon_models.py` + core `ConversionModel`) into a new coupled behaviour — not because of any experimental dependency.
 
 ### 5.4 Deferred edges — with principled reasons
 
@@ -552,7 +552,7 @@ Dependencies: P1 blocks all; P3 depends on P1+P2; P4 depends on P2; P5 depends o
 - **Benchmark surface name (minor).** The cid-transform-vs-benchmark split is DECIDED (§4.4): `cid` is the uniform hidden-driver transform, and the ground-truth-withholding benchmark moves to its own named surface. The only thing left open is the final name for that surface (provisional: `--benchmark neutral-channel`) — a naming detail, not a design question.
 - **`--all` joint run** (currently "Not yet implemented"): **STAYS DEFERRED (author decision)** — out of scope for this migration. The graph engine may make it fall out later, but it is not a deliverable here.
 - **ω-class discretisation** granularity for per-lineage codon models — a tunable, or a fixed default? **Non-blocking implementation detail** (does not gate any PR).
-- **G↔Σ showcase placement** — default-shipped core edge, or notebook/example? Both options are pure-core; there is no longer any opt-in selection extra to gate the showcase behind.
+- **G↔Σ showcase placement** — **default-shipped core edge** (notebooks are not shipped — author decision 2026-07-18). It is pure-core; there is no opt-in selection extra to gate the showcase behind.
 
 ### 10.3 Consistency with ratified decisions (honor exactly)
 
