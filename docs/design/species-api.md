@@ -39,6 +39,13 @@ simulate_species_tree(
 
 No model object. `Yule` is `death=0`. The seven classes are gone.
 
+**Module structure.** Each level is its own module — `zombi2.species`, `zombi2.genomes`,
+`zombi2.sequences`, `zombi2.traits` — plus `zombi2.modifiers` for the rate modifiers. The package
+mirrors the four-level spine. Call it as `zombi2.species.simulate_species_tree(...)`. **No top-level
+re-exports** (`z.simulate_species_tree` goes away): one canonical path per name, so nothing drifts.
+Open sub-question: whether the function is `simulate_species_tree` (explicit) or just
+`species.simulate(...)` (the module already names the level).
+
 ## Rates: `base × modifiers`
 
 `birth` and `death` each hold a **Rate**: a base number, optionally multiplied by dimensionless
@@ -93,6 +100,17 @@ The single place the acronyms appear (SPEC §4). Section headings say what each 
 | mass extinction | a cull at a time | `mass_extinctions=[(t, f)]` |
 | incomplete sampling | see a fraction | `sampling=ρ` |
 | fossilised birth–death | fossils of the dead | `fossils=ψ` |
+
+## Outputs
+
+- **Both trees, by default:** the `_extant` tree (survivors) **and** the `_complete` tree (with the
+  dead), in Newick, using the `_complete` / `_extant` naming (SPEC §D6). Tips are labelled
+  **extant / extinct / unsampled** so the three are told apart.
+- **The event log, always written:** every speciation and extinction with its time and lineages. This
+  is the ground truth the simulator exists to record, so it is not opt-in.
+- **Fossils, optional:** written only when `fossils` is set — the sampled fossil lineages and their ages.
+
+The full cross-level list of output files lives in Appendix B of the manual.
 
 ## Still to design
 
