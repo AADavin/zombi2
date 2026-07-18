@@ -64,6 +64,15 @@ class Scope:
                 f"{type(self).__name__} needs a {self.unit!r} count; got {sorted(counts)}"
             ) from None
 
+    def __mul__(self, other: object):
+        # composing a scope with a modifier builds a Rate (internal plumbing, see zombi2.rate)
+        from .modifiers import Modifier
+        from .rate import Rate
+
+        if isinstance(other, Modifier):
+            return Rate(self.base, self, (other,))
+        return NotImplemented
+
 
 class Global(Scope):
     """One shared budget for the whole system: the total does not scale with anything.
