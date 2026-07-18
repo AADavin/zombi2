@@ -128,8 +128,10 @@ The full cross-level list of output files lives in Appendix B of the manual.
   `birth=` value. Adrián's observation: it is the same *point-in-time intervention* shape as a mass
   extinction, so the two may share one form. **Decided 2026-07-18: set aside for v1** — not in the first
   release; when it returns it uses the `(time, rule)` shape, likely sharing the mass-extinction form.
-- **Extinct lineages (§4 of the chapter)** — complete vs reconstructed tree, backward sampling, ghost
-  lineages. Not yet designed.
+- **Ghost lineages — set aside for v1 (Adrián, 2026-07-18).** They run on a different paradigm; we will
+  do them, just not now.
+- **Sampling / reconstructed tree / fossils (§4 of the chapter)** — complete vs reconstructed tree and
+  incomplete extant sampling (ρ) are straightforward; the open question is the **fossil model** (below).
 - **Fossil removal** — whether a fossilised lineage is removed from the process. Advanced; likely folds
   into `tools`, not the core call.
 
