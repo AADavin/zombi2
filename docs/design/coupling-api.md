@@ -18,6 +18,13 @@ loss = 0.25 * mod.Driven(source, mapping)
 `Driven` reads the driver's value on each lineage and multiplies the base rate by the mapped factor. That
 is the whole of Part III. Everything below is where the driver comes from.
 
+**`Driven` targets a rate (a "how often") and multiplies — value-driving is deferred (v1).** Driving a
+*value* (a "what") — the one case being an OU optimum, SPEC §4's "gene content drives a trait's optimum" —
+is **deferred to experimental for v1.** A destination lives on a real line and is *set or shifted*, not
+scaled by a positive factor, so it does not fit `Driven`'s multiply. When it lands it gets its **own verb**
+(a value-reader, e.g. `mod.Reads(source, mapping)` — "Option B"), never an overload of `Driven`. For v1,
+`Driven` is rate-only: one clean mechanism, no exception.
+
 ## Conditioned vs joint is one distinction: can the driver be grown first?
 
 **This is the spine of the chapter — not "does it change the tree".** The organizing question is whether
