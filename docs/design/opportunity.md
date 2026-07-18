@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED by [SPEC.md](SPEC.md).** This document encodes the old lexicon (e.g. coevolve / diamond / opportunity / propensity) and is kept only for history. Do NOT treat it as current — SPEC.md is authoritative.
+
 # Design: the opportunity axis ("how many clocks?")
 
 **Status:** proposed (2026-07-15). A clarity upgrade: make the *opportunity* of a rate — the "per

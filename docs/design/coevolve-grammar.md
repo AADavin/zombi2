@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED by [SPEC.md](SPEC.md).** This document encodes the old lexicon (e.g. coevolve / diamond / opportunity / propensity) and is kept only for history. Do NOT treat it as current — SPEC.md is authoritative.
+
 # Coevolution → 4-Level Diamond Migration Guidelines
 
 *Design/engineering guideline for re-packaging the `zombi2.coevolve` subsystem onto one unified coupling grammar over the S/T/G/Σ diamond. Target home for this document: `docs/design/coevolve-grammar.md` (lowercase-kebab, per D2).*
