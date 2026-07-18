@@ -1,0 +1,24 @@
+<svg viewBox="0 0 520 430" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>The four levels of ZOMBI2</title>
+<desc>Species, Genomes and Sequences form a vertical chain; Traits branches to the side from Species, at the same height as Genomes.</desc>
+<style>
+  :root { --ink:#1a1a1a; --paper:#ffffff; }
+  @media (prefers-color-scheme: dark) { :root { --ink:#e7ebe9; --paper:#191d20; } }
+  .node{fill:var(--paper);stroke:var(--ink);stroke-width:1.6}
+  .lbl{fill:var(--ink);font-size:16px;font-weight:600}
+  .edge{stroke:var(--ink);stroke-width:1.7;fill:none}
+</style>
+<defs>
+  <marker id="a" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--ink)"/></marker>
+</defs>
+<!-- spine: Species -> Genomes -> Sequences -->
+<line class="edge" x1="150" y1="115" x2="150" y2="197" marker-end="url(#a)"/>
+<line class="edge" x1="150" y1="243" x2="150" y2="325" marker-end="url(#a)"/>
+<!-- curved branch: Species -> Traits -->
+<path class="edge" d="M 204 100 Q 322 120 322 197" marker-end="url(#a)"/>
+<!-- nodes -->
+<rect class="node" x="94"  y="71"  width="112" height="42" rx="21"/><text x="150" y="92"  text-anchor="middle" dominant-baseline="central" class="lbl">Species</text>
+<rect class="node" x="94"  y="199" width="112" height="42" rx="21"/><text x="150" y="220" text-anchor="middle" dominant-baseline="central" class="lbl">Genomes</text>
+<rect class="node" x="94"  y="327" width="112" height="42" rx="21"/><text x="150" y="348" text-anchor="middle" dominant-baseline="central" class="lbl">Sequences</text>
+<rect class="node" x="272" y="199" width="100" height="42" rx="21"/><text x="322" y="220" text-anchor="middle" dominant-baseline="central" class="lbl">Traits</text>
+</svg>
