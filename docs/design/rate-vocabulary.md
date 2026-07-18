@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED by [SPEC.md](SPEC.md).** This document encodes the old lexicon (e.g. coevolve / diamond / opportunity / propensity) and is kept only for history. Do NOT treat it as current — SPEC.md is authoritative.
+
 # Design: rate vocabulary — opportunity granularity and the word "lineage"
 
 **Status:** accepted (2026-07-14). Finishes the rate-clarity line of work: the primer

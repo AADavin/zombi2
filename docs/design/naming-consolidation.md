@@ -1,3 +1,5 @@
+> ⚠️ **Largely superseded by [SPEC.md](SPEC.md).** Parts of this document are stale; SPEC.md is authoritative for all conventions, vocabulary, and the coupling model. Read SPEC.md first.
+
 # Design: naming consolidation — one word, one concept
 
 **Status:** proposed (2026-07-14); the four open forks were **ratified the same day** — see

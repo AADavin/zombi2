@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED by [SPEC.md](SPEC.md).** This document encodes the old lexicon (e.g. coevolve / diamond / opportunity / propensity) and is kept only for history. Do NOT treat it as current — SPEC.md is authoritative.
+
 # Design: opportunity as a first-class knob (opportunity, Part 3)
 
 **Status:** shipped (2026-07-15) — phases **A–E complete** (PR #147 = A–C, PR #149 = D–E). The third
