@@ -85,9 +85,10 @@ so it is a weight in the `transfer_to` rule (the mechanic). "Receptivity" → **
 
 ## Decided (2026-07-18)
 
-- **Length distributions are configurable, per event type.** Indel and rearrangement/segment lengths can
-  choose their **distribution** (not geometric-only) and set it **per event type**, as ZOMBI1 allowed —
-  replacing the single global geometric knob.
+- **Length distributions are configurable, per event type.** Indel and rearrangement/segment lengths
+  choose a **distribution**, per event type — `inversion_length=Geometric(mean=5)` (a `<event>_length=`
+  argument taking a distribution constructor: `Geometric`, `Poisson`, …), replacing the single global
+  geometric knob.
 
 ## Still to design
 

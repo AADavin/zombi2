@@ -143,8 +143,9 @@ per-trait + `correlation=` form is the surface.
   cladogenetic change), which is Part III.
 - **`HiddenStateMk`** — hidden rate categories under an Mk trait (the trait twin of the `Markov` clock's
   hidden classes). Likely a hidden-state option on `simulate_discrete`; deferred.
-- Names: `pull` (OU strength), `reverts_to` (optimum θ); whether `switch=` accepts the `"a->b"` string-key
-  matrix form as written.
+- **Decided:** `switch=` accepts **both** a string-keyed `{"a->b": rate}` dict (readable, few states) and
+  a numeric matrix with `states=[...]` (many states); `switch=0.1` stays the symmetric shortcut.
+  (`pull`/`reverts_to` names stand.)
 
 ## What to delete / change in `zombi2/traits`
 

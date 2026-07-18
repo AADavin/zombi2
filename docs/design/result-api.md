@@ -67,9 +67,10 @@ The full list of every file — which `include=` / `--write` token writes what, 
 
 ## Still to design (naming only)
 
-- The record-intent spelling (`outputs=` vs `record=` vs `keep=`) and how it lines up with the CLI
-  `--write` selector (whether one token scopes compute+write together, or they are separate).
-- Whether the write-selector and the record-selector share a vocabulary of output names.
+- **Decided (2026-07-18): the record dial is `record=[...]`** (Python) — it scopes what the run computes
+  and keeps. `.write(include=[...])` selects disk; CLI `--write X` implies `record=[X]` + write. (The
+  concept was settled with the three dials; this was only the label.)
+- Whether the write-selector and the record-selector share a vocabulary of output names (naming detail).
 
 ## What to delete / change
 

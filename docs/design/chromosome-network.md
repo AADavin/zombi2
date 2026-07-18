@@ -210,7 +210,7 @@ genomes.simulate_ordered(
     fission=0.02,                  # per chromosome (a chromosome splits in two)
     fusion=0.02,                   # per chromosome (two chromosomes merge — the reticulation)
     translocation=0.05,            # per gene copy (a gene moves to another chromosome; a rearrangement, like transposition)
-    chromosome_origination=0.01,   # per genome (a de-novo replicon / plasmid appears)
+    chromosome_origination=0.01,   # per lineage (one genome per lineage; a de-novo replicon appears)
     chromosome_loss=0.01,          # per chromosome (a whole chromosome and its genes die)
     seed=1,
 )
@@ -222,10 +222,10 @@ genomes.simulate_ordered(
   `circular: bool | Sequence[bool]` (`genome.py:583`).
 - **The tier rates follow the same grammar as every other rate.** Defaults answer *per what*: fission /
   fusion / loss are **per chromosome**; **translocation is per gene copy** (a rearrangement, like
-  transposition — a per-chromosome translocation rate is a possible future addition, deferred); origination is **per genome** (matching the
+  transposition — a per-chromosome translocation rate is a possible future addition, deferred); origination is **per lineage** (one genome per lineage; matching the
   code's own weighting — `_choose_chromosome_weighted` vs `_choose_chromosome_uniform`, `genome.py:471`;
   and today's help text, `cli/genomes.py:188`). Override with a count wrapper, e.g.
-  `fission = PerGenome(0.02)` for one fission budget per genome regardless of chromosome count, or bend
+  `fission = PerLineage(0.02)` for one fission budget per lineage (= per genome) regardless of chromosome count, or bend
   with a modifier: `loss = 0.01 * mod.ByChromosomeSize(...)` (bigger replicons die faster — the code
   already size-weights the *pick*; a modifier would make the *rate* depend on size).
 
@@ -317,6 +317,6 @@ Still deferred (not v1):
 - **Translocation's place** — chromosome-network horizontal annotation vs gene-layer-only (§6).
 - **Network-aware tooling** — reader/validator for the eNewick (existing gene-tree code cannot be
   reused); whether to lean on PhyloNetworks/Dendroscope conventions or ship a minimal own reader.
-- **Names** — the count wrappers for the tier (`PerChromosome` / `PerGenome`), and the modifier for
-  size-dependent rates (`ByChromosomeSize`, not "PerChromosomeSize" — "per" is reserved for counts,
-  `SPEC §5`).
+- **Names — decided.** The tier's count wrapper is `scope.PerChromosome`; **`PerGenome` is dropped**
+  (redundant with `PerLineage` — one genome per lineage). The size-dependent modifier is
+  `mod.ByChromosomeSize` (not "PerChromosomeSize" — "per" is reserved for counts, `SPEC §5`).
