@@ -45,7 +45,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - **Scheduled shocks** — mass extinctions: part of the process, compose with any rate ⟨D5⟩
 - **Sampling — what you observe** — the extant fraction, and fossils (FBD); the true tree is unchanged ⟨D5, C5.6⟩
 - Ghost lineages — a tree transform, not a diversification model
-- *(trait- and gene-driven diversification live in ch10 Joint models — one forward pointer)*
+- *(trait- and gene-driven diversification live in ch9 Coupling levels — one forward pointer)*
 - **Tail:** the `Tree` object → Python → CLI → Outputs *(complete & reconstructed Newick)* ⟨D6, D7⟩
 
 ### 5. Genomes I — Unordered  *(old 7 + the genealogy half of 8)*
@@ -96,31 +96,15 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 
 ## Part III — Coupling the levels
 
-### 9. Conditioning
-- The idea: one level reads another — a parameter that stops being a number you type and becomes a value read from another level
-- Independent vs conditioned, side by side (the habitat → gene-loss example)
-- The mechanism: `--couple` on the target's command; the driver arrives as a file ⟨D15⟩
-- A trait drives gene loss  (Trait → Genome)
-- A gene drives a trait's optimum  (Genome → Trait)
-- A trait drives selection and substitution speed  (Trait → Sequence)
-- Outputs — the driver is written alongside the target
+### 9. Coupling levels  *(merges old 9 Conditioning + 10 Joint + 11 Nulls into one chapter)*
+- The one idea: a rate driven by another level — `mod.Driven(source, mapping)`, a parameter that stops being a number you type
+- Conditioned vs joint is **one** distinction: *can the driver be grown first?* — a file source (two commands, ordered) vs a live-level source (one command). NOT "does it change the tree" ⟨D14, D15⟩
+- **Conditioned** — the driver is a file, grown first and handed over: a trait drives gene loss (Trait → Genome); a gene drives a trait's optimum (Genome → Trait); a trait drives selection / clock speed (Trait → Sequence)
+- **Joint** — the driver is a live level, grown alongside (`zombi2 joint`): state-dependent diversification, a trait drives speciation (BiSSE / MuSSE / QuaSSE / HiSSE as footnotes) ⟨D11⟩; key-innovation, gene content drives speciation
+- *(v1 ships only tree-changing joint models — a scope note, **not** the framing; tree-fixed trait–gene feedback is deferred to experimental)*
 - *(model-flag couplings that only re-read the tree — cladogenetic traits, punctuational genomes — stay in their level chapter; pointers here)*
-
-### 10. Joint models
-- The idea: levels that cannot be frozen first → one command (`zombi2 joint`); the factorisation has no order ⟨D14⟩
-- When the tree becomes an output: an arrow pointing back up its own substrate
-- State-dependent diversification — a trait drives speciation (BiSSE / MuSSE / QuaSSE / HiSSE as footnotes) ⟨D11⟩
-- Key-innovation diversification — gene content drives speciation
-- ClaSSE — trait change at the split
-- Co-diversification — a gene burst at the split
-- Trait–gene feedback — the one reciprocal model, on a fixed tree
-- Usage; Outputs — every joint run writes both levels
-
-### 11. Null models
-- The question: is the coupling real, or the tree's own heterogeneity? — why any of this matters
-- The three nulls: neutral (cut the arrow), CID (a hidden driver), timing (a burst spread out)
-- Which null answers which coupling
-- Usage: `--null`; reading the result
+- Outputs — conditioned writes the driver alongside the target; a joint run writes both levels
+- **Closing section — Nulls, a recipe not a feature:** the tree manufactures patterns, so a baseline must be simulated on the same tree; three one-line recipes (drop the coupling → independent; swap for `ByBranch` → CID; shuffle the driver file → permutation). ZOMBI2 generates the baseline; the user owns the statistic. *(No `--null` flag, no null subsystem.)*
 
 ---
 
