@@ -122,9 +122,16 @@ We describe each model by **what it does**, not by a jargon name.
 - a trait and gene content drive each other (the tree stays fixed)
 
 The literature calls these models by acronyms (BiSSE, MuSSE, QuaSSE, HiSSE, ClaSSE, key innovation,
-co-diversification, trait–gene feedback). **Those names are deprecated in our writing:** describe each
-model by what it does. The class names remain in the code as the field's search terms, and the acronyms
-may appear once, as a footnote.
+co-diversification, trait–gene feedback). **Those names are deprecated as structure, not hidden:**
+section headings and prose describe each model by what it does; the acronyms never organise a chapter.
+The class names remain in the code as the field's search terms.
+
+**Every level chapter carries one bridge table** — "literature model → what it does → how to get it in
+ZOMBI2" — as the single place the acronyms are collected, for readers who arrive already thinking in the
+literature's vocabulary. The names live in that table, never in the section headings or the organising
+structure. (Example, for species trees: Yule → pure birth → birth–death with extinction = 0; ClaDS →
+rates drift as lineages split → rate depends on ancestry; BiSSE → a trait drives speciation → a joint
+model. This is the reconciliation of "deprecate the zoo" with "help the literature-literate reader".)
 
 **Not everything that looks like a connection is one.** A trait that jumps at speciation, or a genome
 that changes only at splits, is just reading the tree it already lives on. That is an option of the
