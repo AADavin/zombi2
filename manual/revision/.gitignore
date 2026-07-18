@@ -1,0 +1,9 @@
+# Generated / preview artifacts — rebuild with render.py or pandoc; do not commit.
+*.pdf
+*.html
+_preview*.html
+_readingview.css
+figures/*_print.svg
+figures/*_print.pdf
+figures/*_print.png
+draft-ch2-pdf.md
