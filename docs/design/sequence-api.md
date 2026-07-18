@@ -139,8 +139,8 @@ this is the sequence chapter's.
 
 ## Still to design
 
-- Whether `ByBranch` exposes the distribution as `dist=` (lognormal / gamma / white-noise) or as separate
-  helpers; the default is lognormal.
+- **Decided:** `ByBranch(spread=, dist=)` exposes the distribution — `dist="lognormal"` (default) or
+  `"gamma"`. No separate "white-noise" label (per-branch i.i.d. *is* white-noise).
 - **Decided:** CIR is `Inherited(spread=, reverts_to=, pull=)` — mean-reversion is `reverts_to` (target) +
   `pull` (strength) on `Inherited`, the *same two knobs* as the OU trait. Plain `Inherited(spread=)` = pure
   drift (autocorrelated clock); add `reverts_to`+`pull` = CIR. One modifier across species/sequences/traits.
