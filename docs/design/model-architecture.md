@@ -1,3 +1,5 @@
+> ⚠️ **Largely superseded by [SPEC.md](SPEC.md).** Parts of this document are stale; SPEC.md is authoritative for all conventions, vocabulary, and the coupling model. Read SPEC.md first.
+
 # ZOMBI2 model architecture: a shared model-plugin pattern
 
 **Status:** Draft / proposal — for review
