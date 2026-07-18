@@ -62,8 +62,8 @@ This is a **modifier**, cleanly separate from the count. Two layers, which compo
   families = [dict(duplication=0.5, transfer=0.8, loss=0.3), …]   # explicit specific families
   ```
 - **A per-family speed (correlated), with its own name.** One factor per family scaling *all* its rates
-  together — a "fast" family is fast at everything. `family_speed=Speed(spread=0.5)` (name TBD, but NOT
-  "PerFamily"). Effective loss = (base loss) × (family speed).
+  together — a "fast" family is fast at everything. **`family_speed=Speed(spread=0.5)`** (decided
+  2026-07-18: `Speed`; NOT "PerFamily"). Effective loss = (base loss) × (family speed).
 
 ## Transfers: rate + mechanics (resolves C7.6, C7.8)
 
@@ -85,16 +85,19 @@ so it is a weight in the `transfer_to` rule (the mechanic). "Receptivity" → **
 
 ## Decided (2026-07-18)
 
-- **Length distributions are configurable, per event type.** Indel and rearrangement/segment lengths can
-  choose their **distribution** (not geometric-only) and set it **per event type**, as ZOMBI1 allowed —
-  replacing the single global geometric knob.
+- **Length distributions are configurable, per event type.** Indel and rearrangement/segment lengths
+  choose a **distribution**, per event type — `inversion_length=Geometric(mean=5)` (a `<event>_length=`
+  argument taking a distribution constructor: `Geometric`, `Poisson`, …), replacing the single global
+  geometric knob.
 
 ## Still to design
 
 - **Conversion** mechanics (which copy overwrites which; directionality).
 - The **resolution-specific arguments**: rearrangements and chromosomes (ordered — number, topology,
   fission/fusion/translocation, C6.10/C6.11); genes/intergenes and indels (nucleotide, C10.x).
-- Names: the count-wrapper namespace, the correlated `family_speed` / `Speed` name.
+- **Decided (2026-07-18): the count-wrapper namespace is `scope`** — `scope.Global`, `scope.PerCopy`,
+  `scope.PerLineage`, `scope.PerSite` (reads "global scope", "per-copy scope"). NOT `mod` (wrappers wrap;
+  they do not multiply). (`Speed` also decided.)
 - Per-event count **override** exact syntax (rides on the rate via the wrapper).
 
 ## What to delete / change in `zombi2/genomes`

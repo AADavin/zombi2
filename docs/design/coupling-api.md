@@ -12,18 +12,18 @@ A **coupling** is Ch2's definition made literal: *a parameter that reads its val
 instead of a number you type.* There is exactly one mechanism, a modifier:
 
 ```python
-loss = 0.25 * mod.Driven(source, mapping)
+loss = 0.25 * mod.DrivenBy(source, mapping)
 ```
 
-`Driven` reads the driver's value on each lineage and multiplies the base rate by the mapped factor. That
+`DrivenBy` reads the driver's value on each lineage and multiplies the base rate by the mapped factor. That
 is the whole of Part III. Everything below is where the driver comes from.
 
-**`Driven` targets a rate (a "how often") and multiplies — value-driving is deferred (v1).** Driving a
+**`DrivenBy` targets a rate (a "how often") and multiplies — value-driving is deferred (v1).** Driving a
 *value* (a "what") — the one case being an OU optimum, SPEC §4's "gene content drives a trait's optimum" —
 is **deferred to experimental for v1.** A destination lives on a real line and is *set or shifted*, not
-scaled by a positive factor, so it does not fit `Driven`'s multiply. When it lands it gets its **own verb**
-(a value-reader, e.g. `mod.Reads(source, mapping)` — "Option B"), never an overload of `Driven`. For v1,
-`Driven` is rate-only: one clean mechanism, no exception.
+scaled by a positive factor, so it does not fit `DrivenBy`'s multiply. When it lands it gets its **own verb**
+(a value-reader, e.g. `mod.Reads(source, mapping)` — "Option B"), never an overload of `DrivenBy`. For v1,
+`DrivenBy` is rate-only: one clean mechanism, no exception.
 
 ## Conditioned vs joint is one distinction: can the driver be grown first?
 
@@ -35,19 +35,19 @@ the driver can be simulated on its own and handed over:
   habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.1, seed=1)
   habitat.write("habitat.tsv")
   genomes.simulate_unordered(tree,
-      loss = 0.25 * mod.Driven("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0}), seed=2)
+      loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0}), seed=2)
   ```
 - **Joint** — the driver **cannot** be grown first, because it is entangled with what it drives, so
   `source` is a **live level name** and both are grown in one call.
   ```python
   joint.simulate(
-      birth = 1.0 * mod.Driven("trait", {"small": 1.0, "large": 2.0}),  # trait drives speciation
-      death = 0.2,                                                       # death can be Driven too → BiSSE
+      birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),  # trait drives speciation
+      death = 0.2,                                                       # death can be DrivenBy too → BiSSE
       trait = traits.discrete(states=["small", "large"], switch=0.1),    # grown WITH the tree
       n_tips = 100, seed = 1)
   ```
 
-Same modifier, `mod.Driven`; the only difference is `source` = filename (conditioned) vs level-name
+Same modifier, `mod.DrivenBy`; the only difference is `source` = filename (conditioned) vs level-name
 (joint). So **conditioning and joint models are one chapter, not two** — one mechanism split by
 file-vs-live driver. (Manual: **all of Part III — 9 *Conditioning* + 10 *Joint* + 11 *Nulls* — collapses
 to a single "Coupling levels" chapter**, with nulls as its closing section. See below.)
@@ -95,11 +95,11 @@ timing, so the baseline must be simulated on the same tree. Three recipes, each 
 rate:
 
 ```python
-loss = 0.25 * mod.Driven("habitat.tsv", {"cave": 4.0, "surface": 1.0})   # the coupling under test
+loss = 0.25 * mod.DrivenBy("habitat.tsv", {"cave": 4.0, "surface": 1.0})   # the coupling under test
 
 loss = 0.25                                    # independent null — drop the coupling
 loss = 0.25 * mod.ByBranch(spread=0.5)         # CID null — background heterogeneity, NOT the trait
-loss = 0.25 * mod.Driven(shuffle("habitat.tsv"), {...})   # shuffle null — permute the pairing
+loss = 0.25 * mod.DrivenBy(shuffle("habitat.tsv"), {...})   # shuffle null — permute the pairing
 ```
 
 Then a plain `for seed in range(100)` gives the distribution. CID is *literally* `ByBranch` (rate varies
@@ -111,11 +111,11 @@ simulator only generates the baseline. The only thing that might warrant a `tool
 ## Decided (2026-07-18)
 
 - **Gene-content driver source.** When gene content drives speciation, `source` names a summary of gene
-  content: **presence of a named family** — `Driven("genes:toxin", {"present": 2.0, "absent": 1.0})`, a
-  Table — or **total gene count** — `Driven("genes:count", curve)`, a Curve. Richer multi-family profiles
+  content: **presence of a named family** — `DrivenBy("genes:toxin", {"present": 2.0, "absent": 1.0})`, a
+  Table — or **total gene count** — `DrivenBy("genes:count", curve)`, a Curve. Richer multi-family profiles
   are deferred.
-- **Driving both birth *and* death.** Trivially supported: both are rates, so `birth = 1.0 * Driven(...)`
-  and `death = 0.2 * Driven(...)` each work independently — full state-dependent diversification (BiSSE's
+- **Driving both birth *and* death.** Trivially supported: both are rates, so `birth = 1.0 * DrivenBy(...)`
+  and `death = 0.2 * DrivenBy(...)` each work independently — full state-dependent diversification (BiSSE's
   λ *and* μ).
 - **Process spec vs runner.** `traits.discrete(...)` / `traits.continuous(...)` are thin **process specs**
   (parameters bundled, unexecuted); `traits.simulate_discrete(tree, ...)` is the runner. `joint` takes the
@@ -123,11 +123,13 @@ simulator only generates the baseline. The only thing that might warrant a `tool
 
 ## Still to design (naming only)
 
-- `Driven` vs `DependsOn`; the level-name referencing convention for live drivers.
+- **Decided (2026-07-18): the modifier is `DrivenBy`** — `loss = 0.25 * mod.DrivenBy("habitat", {…})`
+  reads "loss, driven by habitat" (the *source* is the driver; the *rate* is what's driven).
+- Open: the level-name referencing convention for live drivers (`"trait"`, `"genes:toxin"`, `"genes:count"`).
 
 ## What to delete / change
 
-- The `coevolve` command and its `--couple driver:target` grammar → the `Driven` modifier + `joint`
+- The `coevolve` command and its `--couple driver:target` grammar → the `DrivenBy` modifier + `joint`
   command. Conditioned couplings fold into the **target level's** command (`--loss-driven-by file`);
   only genuinely-joint (live-driver) models keep the dedicated `joint` command.
 - **No null layer.** Nulls are recipes built from existing modifiers (drop / swap for `ByBranch` /
