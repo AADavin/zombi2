@@ -378,7 +378,9 @@ def build(d: dict) -> str:
     for c in d["contradictions"]:
         first = c["between"][0]
         A('<details class="call contra">')
-        A(f'<summary><span class="ct">{md(first[:150])}{"…" if len(first) > 150 else ""}</span>{pill(f"{len(c['between'])}-way")}</summary>')
+        ellipsis = "…" if len(first) > 150 else ""
+        nway = pill(f"{len(c['between'])}-way")
+        A(f'<summary><span class="ct">{md(first[:150])}{ellipsis}</span>{nway}</summary>')
         A('<div class="cb"><span class="lab">The conflict</span><ul class="between">')
         for b in c["between"]:
             A(f"<li>{md(b)}</li>")
