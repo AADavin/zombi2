@@ -135,9 +135,12 @@ per-trait + `correlation=` form is the surface.
   special case. Decide for cross-level parity.
 - **`MultiOptimumOU`** — the optimum shifts on certain branches (regime painting). An advanced case;
   probably a `regimes=` argument on `simulate_continuous`. Deferred, named honestly.
-- **`Cladogenesis`** — a trait that jumps *at speciation nodes* rather than along branches. This is a
-  branching-time mechanic; decide whether it is a `at_speciation=` jump rule on the trait level or belongs
-  to Part III (a species↔trait interaction).
+- **`Cladogenesis` — spelling only; placement is decided.** A trait that jumps *at speciation nodes*
+  rather than along branches. **Within-level, not Part III (SPEC §4):** a jump at speciation *reads* the
+  tree it already lives on — it does not change *which* tree exists — so it is an option of the trait's own
+  model (an `at_speciation=` jump rule on `simulate_discrete`/`simulate_continuous`), not a coupling. Only
+  the argument name is open. It becomes *joint* only when the same trait *also drives* speciation (SSE with
+  cladogenetic change), which is Part III.
 - **`HiddenStateMk`** — hidden rate categories under an Mk trait (the trait twin of the `Markov` clock's
   hidden classes). Likely a hidden-state option on `simulate_discrete`; deferred.
 - Names: `pull` (OU strength), `reverts_to` (optimum θ); whether `switch=` accepts the `"a->b"` string-key
