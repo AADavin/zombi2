@@ -99,6 +99,27 @@ Two of the three are **shared across levels**, which is the whole point of the g
 - `Markov` is new to sequences, but even it echoes species: a clade shift is one discrete rate jump;
   `Markov` is that, happening repeatedly at a rate.
 
+## Which tree the clock rides — two axes, two modifiers (decided)
+
+A substitution rate can vary two ways across branches, and they are **different modifiers we already
+have** (decided with Adrián, 2026-07-18):
+
+- **The lineage clock rides the *species* tree.** A clock is a property of a *lineage* — a whole species
+  runs hot or cold, and every gene passing through that branch feels it. So `ByBranch` / `Inherited` give
+  **one clock value per species branch**, shared by all its genes. Each gene-tree branch reads the clock
+  of the species branch it is reconciled to — ZOMBI2 knows that reconciliation exactly, so it is automatic.
+- **Per-family variation is `ByFamily`** — the *same modifier as the genome level*: some families evolve
+  faster than others whatever the lineage, each a constant speed.
+
+They **compose**, reproducing today's lineage-clock × per-family-speed (`R_b · s_g`):
+
+```python
+substitution = 1.0 * mod.ByBranch(spread=0.3) * mod.ByFamily(spread=0.5)
+```
+
+**Deferred:** a fully *per-gene-tree-branch* clock (a single family fluctuating independently branch by
+branch *within* a lineage) — exotic, rarely what "a clock" means. `ByBranch` is the species-branch clock.
+
 ## The literature → command bridge (goes in the chapter)
 
 The deprecated model names survive **only** in this table — a reader who knows "I want a CIR clock" finds
