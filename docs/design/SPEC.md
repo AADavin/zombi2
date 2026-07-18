@@ -165,6 +165,15 @@ effective rate  =  base (how fast)  ×  count (how many, "per what")  ×  modifi
 
 Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
 
+**How a rate is written (same at every level):** a rate is an optional **count wrapper** around a base
+number, optionally times **modifiers**. The count wraps (`PerCopy(0.2)`, `PerLineage(0.5)`, `Global(1.0)`
+— `Global` capitalised, since `global` is a Python keyword); modifiers multiply (`0.2 * ByFamily(...)`,
+`1.0 * Diversity(cap=100)`). The bare number uses the rate's natural count, so the common case is just
+`birth=1.0`. There is **no `per=` argument** — the count lives on the rate, so it can be set per rate.
+Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
+`time⁻²`, impossible by construction); (b) **"per" is reserved for counts** — a modifier never starts
+with "per".
+
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **count**, or ask **"per
 what?"**); "clock" for the count (reserve **clock** strictly for the per-branch substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
