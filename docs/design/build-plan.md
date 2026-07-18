@@ -27,9 +27,9 @@ Everything downstream imports these, so they come first:
 - **`zombi2.modifiers` (`mod`)** — the shared modifier vocabulary: `Time`, `Diversity`, `Inherited`
   (`spread`, `reverts_to`, `pull`), `ByFamily`, `ByBranch(dist=)`, `Markov`, `Speed`, `ByChromosomeSize`,
   and `DrivenBy` (Part III). Dimensionless, `*`-composable.
-- **`zombi2.scope`** — the count wrappers: `Global`, `PerCopy`, `PerLineage`, `PerSite`, `PerChromosome`.
+- **`zombi2.scope`** — the scope wrappers: `Global`, `PerCopy`, `PerLineage`, `PerSite`, `PerChromosome`.
   (`PerGenome` dropped — one genome per lineage.) These *wrap* a base; they do not multiply.
-- **The `Rate`** — `count(base) × modifiers` (`SPEC §5`); users never build one by hand.
+- **The `Rate`** — `scope(base) × modifiers` (`SPEC §5`); users never build one by hand.
 - **The Result spine + event log** — `<Level>Result` base with `.events`, `.tree`, `.write(include=)`,
   `.seed`, and the **record / derive / write** memory model (`result-api.md`): the event log is the compact
   source of truth; rich views are derived lazily and streamed. Reuse the sparse `ProfileMatrix` (COO) and
@@ -55,7 +55,7 @@ length distributions) is the heaviest single piece. Coupling is last — it reac
 ### Per-level definition of done
 
 - The entry point returns the `<Level>Result` bundle; the old classes are gone.
-- Rates use `count(base) × modifiers`; the level's modifiers work and compose.
+- Rates use `scope(base) × modifiers`; the level's modifiers work and compose.
 - The record dial scopes memory (`record=[...]`); rich views are lazy/streamed.
 - The level's tests are rewritten to the new API and green; the chapter's worked examples run.
 - The CLI command mirrors the Python API (`--write`/`record` selector included).

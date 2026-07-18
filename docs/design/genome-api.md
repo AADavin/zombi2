@@ -12,7 +12,7 @@ ships the `RateModel` zoo (§ *What to delete*). Parallels `species-api.md`; rea
 `FamilySampledRates`, `ModifiedRates`, `LineageRates`, plus a `Modifier` family — and `simulate_genomes`
 takes *both* a rate object *and* keyword rates, and picks the resolution by passing a **class**
 (`genome_factory=UnorderedGenome`). Two axes are tangled in that hierarchy (C7.5): per-copy-vs-per-lineage
-(the count) and shared-vs-per-family (heterogeneity).
+(the scope) and shared-vs-per-family (heterogeneity).
 
 ## Three functions, layered over one core
 
@@ -30,7 +30,7 @@ genomes.simulate_nucleotide(tree, …)    # + DNA: genes, intergenes, indels (Ch
 therefore cannot drift — only the shared arguments repeat across the three signatures, pinned by a test
 that the shared params match. Each returns the matching object (unordered / ordered / nucleotide result).
 
-## Rates: keyword arguments, `count(base) × modifiers`
+## Rates: keyword arguments, `scope(base) × modifiers`
 
 The events are keyword rates — no `RateModel` object:
 
@@ -39,20 +39,20 @@ genomes.simulate_unordered(tree, duplication=0.2, transfer=0.1, loss=0.25, origi
                            initial_families=20, seed=1)
 ```
 
-Rates follow the **same cross-level grammar** as species (`SPEC §5`): a rate is an optional **count
+Rates follow the **same cross-level grammar** as species (`SPEC §5`): a rate is an optional **scope
 wrapper** around a base, optionally times **modifiers**.
 
-- **Count** answers *per what*, and the default is right per event: D/T/L are **per copy**, origination is
+- **Scope** answers *per what*, and the default is right per event: D/T/L are **per copy**, origination is
   **per lineage**. Override with a wrapper: `origination = PerLineage(0.5)` is the default;
   `origination = Global(0.5)` makes it constant over time. `loss = PerLineage(0.25)` counts loss per
   lineage instead of per copy. (`Global`, capitalised — `global` is a Python keyword.)
 - **Modifiers** multiply the base (`*`) and are dimensionless: `loss = 0.25 * Time({…})` etc.
-- **Naming rule:** *"per" is reserved for counts.* A count is `PerCopy` / `PerLineage` / `PerSite`; a
+- **Naming rule:** *"per" is reserved for scopes.* A scope is `PerCopy` / `PerLineage` / `PerSite`; a
   modifier never starts with "per" (so the per-family modifier below is `ByFamily`, not `PerFamily`).
 
 ## Per-family heterogeneity (the genome-specific piece; resolves C7.5)
 
-This is a **modifier**, cleanly separate from the count. Two layers, which compose:
+This is a **modifier**, cleanly separate from the scope. Two layers, which compose:
 
 - **Base rates, per event, independently (default).** A bare number is shared by every family; a
   `ByFamily` modifier makes each family draw its own, independently per event (a family that loses fast is
@@ -95,14 +95,14 @@ so it is a weight in the `transfer_to` rule (the mechanic). "Receptivity" → **
 - **Conversion** mechanics (which copy overwrites which; directionality).
 - The **resolution-specific arguments**: rearrangements and chromosomes (ordered — number, topology,
   fission/fusion/translocation, C6.10/C6.11); genes/intergenes and indels (nucleotide, C10.x).
-- **Decided (2026-07-18): the count-wrapper namespace is `scope`** — `scope.Global`, `scope.PerCopy`,
+- **Decided (2026-07-18): the scope-wrapper namespace is `scope`** — `scope.Global`, `scope.PerCopy`,
   `scope.PerLineage`, `scope.PerSite` (reads "global scope", "per-copy scope"). NOT `mod` (wrappers wrap;
   they do not multiply). (`Speed` also decided.)
-- Per-event count **override** exact syntax (rides on the rate via the wrapper).
+- Per-event scope **override** exact syntax (rides on the rate via the wrapper).
 
 ## What to delete / change in `zombi2/genomes`
 
 - Delete the `RateModel` hierarchy and `genome_factory`; there is no rate object and no class-passing.
 - Three entry points (`simulate_unordered` / `simulate_ordered` / `simulate_nucleotide`) over one core.
 - `TransferModel` → arguments. Per-family heterogeneity → the `ByFamily` modifier + a named speed.
-- Rates use the cross-level `count(base) × modifiers` grammar; "per" reserved for counts.
+- Rates use the cross-level `scope(base) × modifiers` grammar; "per" reserved for scopes.

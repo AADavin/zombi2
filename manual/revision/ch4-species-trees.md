@@ -13,10 +13,10 @@ You also say when to stop: grow the tree to a fixed **age**, or until it reaches
 ```python
 from zombi2 import species
 # a birth–death tree of 20 surviving lineages, crown age 5
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
 ```
 
-By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared clock for the whole tree instead, wrap it: `birth = ct.Global(1.0)`. (The wrapper is `Global`, capitalised, because `global` is a reserved word in Python.)
+By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared clock for the whole tree instead, wrap it: `birth = scope.Global(1.0)`. The scope wrappers live in `zombi2.scope` (`scope.Global`, `scope.PerLineage`, …), and `Global` is capitalised because `global` is a reserved word in Python.
 
 ## What the rate depends on
 
@@ -26,7 +26,7 @@ So far the rates have been constant, but a birth or death rate need not be. It c
 - **Diversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.Diversity(cap=100)`.
 - **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(spread=0.2)`.
 
-The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the count (`ct.Global`), and you *multiply* it to bend it (`* mod.Diversity`).
+The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.Diversity`).
 
 | From the literature | What it does | Here |
 |---|---|---|
@@ -45,31 +45,40 @@ Two more choices decide not how the tree grows but how much of it you get to see
 
 By default you see every surviving species, but real datasets are incomplete. **`sampling`** keeps only a fraction of the extant tips, chosen at random, so `sampling=0.5` gives you half. This is the standard incomplete-sampling correction, and because it only thins a tree that already grew, it costs nothing.
 
-**`fossils`** does the opposite: it recovers some of the lineages that died. Fossils are picked up along the branches of the complete tree at a rate you set, so `fossils=0.1` scatters fossil observations through the tree's history. This is the fossilised birth–death process, and unlike extant sampling it needs the extinct lineages to exist, so it grows the tree forward.
+**`fossils`** does the opposite: it recovers some of the lineages that died. Fossils are picked up along the branches of the complete tree at a rate you set, so `fossils=0.1` scatters fossil observations through the tree's history. Because it needs the extinct lineages to exist, it grows the tree forward. In v1 the fossils are a **side output**: the sampled lineages and their ages, reported alongside the trees. The fossil does not remove its lineage and does not appear in the reconstructed tree. The full fossilised birth–death process — fossils placed as dated sampled-ancestors *inside* the tree — is deferred to a future `tools` command.
 
 ```python
 # see only half the survivors
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, sampling=0.5, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, sampling=0.5, seed=1)
 
 # recover fossils of extinct lineages along the branches
-tree = species.simulate_species_tree(birth=1.0, death=0.3, age=6.0, fossils=0.1, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, age=6.0, fossils=0.1, seed=1)
 ```
 
 ## Extinct lineages
 
-*[Draft — the concepts here are settled, but the extinct-lineages API is still to be designed with you; the syntax below is a placeholder.]*
+*[Draft — the complete-vs-reconstructed behaviour and backward sampling are settled for v1; ghost lineages are deferred to a later release.]*
 
 Every birth–death tree is really two trees. The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **reconstructed** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want.
 
 When the rates are simple enough, ZOMBI2 never grows the extinct lineages at all: it samples the reconstructed tree directly from the distribution the process implies, working backward from the present. This is fast and exact, and it is why you never chose "forward" or "backward" anywhere above — the engine takes that shortcut whenever the rates allow, and grows the tree forward only when something (diversity, ancestry, a mass extinction, fossils) needs the extinct lineages to be there.
 
-Sometimes you want them there anyway. Keeping the complete tree hands you the extinct lineages in full. And sometimes you want a reconstructed tree with the dead grafted back on *approximately*, without simulating each one in detail: **ghost lineages** add extinct tips to a reconstructed tree after the fact. Ghosts are the natural tool for stress-testing a method that has to cope with extinction, without paying to grow the whole complete tree.
+Sometimes you want them there anyway, and keeping the complete tree hands you the extinct lineages in full. A third option — a reconstructed tree with the dead grafted back on *approximately*, without simulating each one in detail — is **ghost lineages**: extinct tips added to a reconstructed tree after the fact. Ghosts are the natural tool for stress-testing a method that has to cope with extinction, without paying to grow the whole complete tree. They run on a different paradigm and are **set aside for v1** — planned, but not in the first release.
 
-## The `Tree` object
+## The `SpeciesResult` object
 
-*[Draft — depends on the final `Tree` API.]*
+*[Draft — depends on the final result API.]*
 
-`simulate_species_tree` returns a `Tree`. It carries the topology and the dated branch lengths, and lets you ask for its tips, its internal nodes, and which tips are extant versus extinct. You can write it to Newick, walk it, or hand it straight to the next level as the tree that genomes, sequences, or traits will evolve along.
+`simulate_species_tree` returns a **`SpeciesResult`**, not a bare tree — a birth–death run produces *two* trees plus the event log, and no single tree object can hold all three. Every level returns a bundle of this shape (`GenomesResult`, `SequencesResult`, `TraitsResult`), so the four levels stay symmetric.
+
+A `SpeciesResult` carries:
+
+- `.reconstructed` — the survivors' tree, dated and bifurcating; this is what you get by default and hand to the next level.
+- `.complete` — the whole tree that grew, with the extinct lineages still on it.
+- `.fossils` — the sampled fossil lineages and their ages, present only when you asked for `fossils`.
+- `.events` — the event log, every speciation and extinction with its time: the compact source of truth the run exists to record.
+
+The bundle also shares the common spine of every result — `.events`, `.seed`, and `.write(dir, include=[...])` to materialise the chosen outputs to disk. Each tree carries its topology and dated branch lengths and lets you ask for its tips, its internal nodes, and which tips are extant versus extinct. Hand `.reconstructed` straight to the next level as the tree that genomes, sequences, or traits will evolve along.
 
 ## Usage from Python
 
@@ -77,21 +86,21 @@ The whole range is one function call:
 
 ```python
 from zombi2 import species, modifiers as mod
-from zombi2 import counts as ct        # count wrappers (namespace TBD): Global, PerLineage, …
+from zombi2 import scope              # scope wrappers: Global, PerLineage, …
 
 # constant-rate birth–death (per lineage, the default)
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
 
 # Yule (pure birth) — death defaults to 0
-tree = species.simulate_species_tree(birth=1.0, n_tips=50, seed=1)
+result = species.simulate_species_tree(birth=1.0, n_tips=50, seed=1)
 
 # skyline birth that also slows with diversity, with a global death rate
-tree = species.simulate_species_tree(
+result = species.simulate_species_tree(
     birth = 1.0 * mod.Time({0: 1.0, 3: 0.5}) * mod.Diversity(cap=100),
-    death = ct.Global(0.3), age=8.0, seed=1)
+    death = scope.Global(0.3), age=8.0, seed=1)
 
 # a mass extinction and incomplete sampling
-tree = species.simulate_species_tree(
+result = species.simulate_species_tree(
     birth=1.0, death=0.3, mass_extinctions=[(3.0, 0.75)],
     sampling=0.5, age=5.0, seed=1)
 ```
