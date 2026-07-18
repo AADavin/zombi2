@@ -42,8 +42,8 @@ the driver can be simulated on its own and handed over:
 
 Same modifier, `mod.Driven`; the only difference is `source` = filename (conditioned) vs level-name
 (joint). So **conditioning and joint models are one chapter, not two** — one mechanism split by
-file-vs-live driver. (Manual: Part III 9 *Conditioning* + 10 *Joint* collapse to a single **Coupling
-levels** chapter; **11 Nulls** stays separate — see below.)
+file-vs-live driver. (Manual: **all of Part III — 9 *Conditioning* + 10 *Joint* + 11 *Nulls* — collapses
+to a single "Coupling levels" chapter**, with nulls as its closing section. See below.)
 
 ### Why "changes the tree" is NOT the framing
 
@@ -76,34 +76,33 @@ trait-dependent `birth`/`death`, and trait-change events evolve the trait on the
 
 (Sequence-driven diversification and tree-fixed mutual driving are deferred to experimental, SPEC §10.)
 
-## Nulls (in design this session — provisional)
+## Nulls — a recipe, not an API (the Coupling chapter's closing section)
 
-**The different question 11 asks:** a pattern on a tree is not evidence of a coupling until you know what
-*no* coupling looks like *on that same tree* — the tree manufactures apparent associations through shared
-ancestry and shared timing. A null generates the "no coupling" world to compare against. Three kinds:
+**Decided:** there is **no null function and no null subsystem.** A null is just the simulator run under a
+model where the coupling isn't real, built from primitives that already exist. This **retires the separate
+Nulls chapter** — it becomes the closing section of the Coupling chapter.
 
-- **`independent`** (neutral) — cut the link entirely; both levels evolve unlinked on the same tree. The
-  plain baseline: is there *any* coupling?
-- **`cid`** (character-independent) — the SSE null: let diversification vary across the tree, but *not*
-  tied to the focal trait. Does *this* trait explain more than a nameless background rate shift? (Guards
-  the BiSSE false-positive: neutral traits look significant when rate heterogeneity is unmodeled.)
-- **`shuffle`** (timing / marginal) — keep each level exactly as observed (same values, same counts, same
-  tree) but scramble the pairing. Is the *association* real, or just marginals + tree?
-
-Proposed surface — the result of a coupled run can produce its own matching null distribution:
+The one idea worth teaching: *a pattern on a tree is not evidence of a coupling until you know what no
+coupling produces on that same tree* — the tree manufactures associations through shared ancestry and
+timing, so the baseline must be simulated on the same tree. Three recipes, each a one-line change to the
+rate:
 
 ```python
-real = joint.simulate(birth=1.0*mod.Driven("trait", {"small":1, "large":2}),
-                      trait=traits.discrete(states=["small","large"], switch=0.1), n_tips=100, seed=1)
-null = real.null("cid", replicates=100)   # same processes, coupling replaced by the null → a distribution
+loss = 0.25 * mod.Driven("habitat.tsv", {"cave": 4.0, "surface": 1.0})   # the coupling under test
+
+loss = 0.25                                    # independent null — drop the coupling
+loss = 0.25 * mod.ByBranch(spread=0.5)         # CID null — background heterogeneity, NOT the trait
+loss = 0.25 * mod.Driven(shuffle("habitat.tsv"), {...})   # shuffle null — permute the pairing
 ```
 
-CLI: `--null {independent,cid,shuffle} --replicates N`.
+Then a plain `for seed in range(100)` gives the distribution. CID is *literally* `ByBranch` (rate varies
+across the tree, not by the trait), reusing the clock-collapse modifier. **ZOMBI2 does not own the test
+statistic or p-value** — choosing the association measure and the test is inference, the user's job; the
+simulator only generates the baseline. The only thing that might warrant a `tools` utility is a tiny
+`shuffle()` helper for permuting a tip-value file.
 
 ## Still to design
 
-- Nulls surface (`real.null(...)` vs a top-level `joint.null(...)`); which statistic is reported; whether
-  the conditioned (fixed-tree) case uses the same `.null()` path.
 - `Driven` naming (`Driven` vs `DependsOn`); the level-name referencing convention for live drivers.
 - The `traits.discrete(...)` **process spec** (a description passed to `joint`) vs `simulate_discrete(...)`
   (a runner) — confirm the spec/run split.
@@ -114,4 +113,5 @@ CLI: `--null {independent,cid,shuffle} --replicates N`.
 - The `coevolve` command and its `--couple driver:target` grammar → the `Driven` modifier + `joint`
   command. Conditioned couplings fold into the **target level's** command (`--loss-driven-by file`);
   only genuinely-joint (live-driver) models keep the dedicated `joint` command.
-- The null layer (`.null(kind=)` / `--null`) attaches to coupled runs, not a separate subsystem.
+- **No null layer.** Nulls are recipes built from existing modifiers (drop / swap for `ByBranch` /
+  shuffle the driver file), not a `.null()` API. ZOMBI2 never computes the test statistic.
