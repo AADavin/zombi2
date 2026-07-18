@@ -94,8 +94,9 @@ so it is a weight in the `transfer_to` rule (the mechanic). "Receptivity" → **
 - **Conversion** mechanics (which copy overwrites which; directionality).
 - The **resolution-specific arguments**: rearrangements and chromosomes (ordered — number, topology,
   fission/fusion/translocation, C6.10/C6.11); genes/intergenes and indels (nucleotide, C10.x).
-- Names: the count-wrapper namespace (`Global`/`PerCopy`/`PerLineage`/`PerSite`) — under discussion.
-  (`Speed` is decided.)
+- **Decided (2026-07-18): the count-wrapper namespace is `scope`** — `scope.Global`, `scope.PerCopy`,
+  `scope.PerLineage`, `scope.PerSite` (reads "global scope", "per-copy scope"). NOT `mod` (wrappers wrap;
+  they do not multiply). (`Speed` also decided.)
 - Per-event count **override** exact syntax (rides on the rate via the wrapper).
 
 ## What to delete / change in `zombi2/genomes`
