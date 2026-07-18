@@ -130,9 +130,9 @@ per-trait + `correlation=` form is the surface.
 
 ## Still to design
 
-- **OU's two knobs vs the clock's one.** OU needs an optimum *and* a pull strength (`reverts_to` + `pull`);
-  the CIR clock so far exposes only `reverts_to`. Either the clock grows a `pull`, or CIR is the one-knob
-  special case. Decide for cross-level parity.
+- **Decided: unify.** `Inherited(spread=, reverts_to=, pull=)` everywhere — plain `spread` = pure drift
+  (BM / ClaDS / autocorrelated clock); add `reverts_to` (target) + `pull` (strength) = mean-reverting (OU
+  trait / CIR clock). The CIR clock grows a `pull`; OU and CIR share the same two knobs.
 - **`MultiOptimumOU`** — the optimum shifts on certain branches (regime painting). An advanced case;
   probably a `regimes=` argument on `simulate_continuous`. Deferred, named honestly.
 - **`Cladogenesis` — spelling only; placement is decided.** A trait that jumps *at speciation nodes*

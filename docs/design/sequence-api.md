@@ -141,8 +141,9 @@ this is the sequence chapter's.
 
 - Whether `ByBranch` exposes the distribution as `dist=` (lognormal / gamma / white-noise) or as separate
   helpers; the default is lognormal.
-- Whether CIR's mean-reversion is `reverts_to=` on `Inherited` or its own modifier (leaning: a parameter
-  on `Inherited`, since it is the same continuous-drift process with a pull term).
+- **Decided:** CIR is `Inherited(spread=, reverts_to=, pull=)` — mean-reversion is `reverts_to` (target) +
+  `pull` (strength) on `Inherited`, the *same two knobs* as the OU trait. Plain `Inherited(spread=)` = pure
+  drift (autocorrelated clock); add `reverts_to`+`pull` = CIR. One modifier across species/sequences/traits.
 - `Markov`'s exact signature (`rates=` as multipliers vs absolute; `switch=` one global rate vs a matrix).
 - Where a **trait- or driver-conditioned** clock lives — that is `DriverClock` today, and it belongs to
   Part III (a `traits → sequences` conditioning), not to this menu.

@@ -108,12 +108,22 @@ statistic or p-value** — choosing the association measure and the test is infe
 simulator only generates the baseline. The only thing that might warrant a `tools` utility is a tiny
 `shuffle()` helper for permuting a tip-value file.
 
-## Still to design
+## Decided (2026-07-18)
 
-- `Driven` naming (`Driven` vs `DependsOn`); the level-name referencing convention for live drivers.
-- The `traits.discrete(...)` **process spec** (a description passed to `joint`) vs `simulate_discrete(...)`
-  (a runner) — confirm the spec/run split.
-- Driving *both* birth and death cleanly (state-dependent extinction).
+- **Gene-content driver source.** When gene content drives speciation, `source` names a summary of gene
+  content: **presence of a named family** — `Driven("genes:toxin", {"present": 2.0, "absent": 1.0})`, a
+  Table — or **total gene count** — `Driven("genes:count", curve)`, a Curve. Richer multi-family profiles
+  are deferred.
+- **Driving both birth *and* death.** Trivially supported: both are rates, so `birth = 1.0 * Driven(...)`
+  and `death = 0.2 * Driven(...)` each work independently — full state-dependent diversification (BiSSE's
+  λ *and* μ).
+- **Process spec vs runner.** `traits.discrete(...)` / `traits.continuous(...)` are thin **process specs**
+  (parameters bundled, unexecuted); `traits.simulate_discrete(tree, ...)` is the runner. `joint` takes the
+  spec and runs it as the tree grows.
+
+## Still to design (naming only)
+
+- `Driven` vs `DependsOn`; the level-name referencing convention for live drivers.
 
 ## What to delete / change
 
