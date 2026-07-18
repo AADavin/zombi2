@@ -21,7 +21,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - The four levels of ZOMBI2: Species, Genome, Sequence, Trait — with the layout figure (Genome **left**, Trait **right**; the layout is named nothing) ⟨D9, D10⟩
 - The genome **resolution** dial: unordered → ordered → nucleotide (framing only; detail in Part II)
 - How levels relate: **independent, conditioned, joint** — the composition figure + probability notation
-- How rates work: how many clocks, how fast — base × per-what × modifiers ⟨D3: section here, or its own chapter?⟩
+- How rates work: how many clocks, how fast — scope(base) × modifiers ⟨D3: section here, or its own chapter?⟩
 - The ZOMBI2 vocabulary — a short glossary (level, rate, resolution, complete/reconstructed) ⟨C2.11, D6⟩
 
 ### 3. Getting started
@@ -51,7 +51,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 ### 5. Genomes I — Unordered  *(old 7 + the genealogy half of 8)*
 - What an unordered genome is: a multiset of gene families — the base resolution
 - The four events: origination, duplication, transfer, loss
-- Rates: **per copy vs per lineage** (the opportunity), and **shared vs per-family** (heterogeneity) — kept distinct ⟨C7.5, D3⟩
+- Rates: **per copy vs per lineage** (the scope), and **shared vs per-family** (heterogeneity) — kept distinct ⟨C7.5, D3⟩
 - Transfers — recipient choice is the **mechanics** (how the event resolves): emission and receptivity ⟨C7.6, D5⟩, additive vs replacement, self-transfer
 - Gene conversion — its own section, off by default ⟨C7.2⟩
 - Bounding growth: hard cap and carrying capacity
@@ -90,14 +90,14 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - Pagel's tree transforms
 - Historical biogeography (DEC) — a discrete model with cladogenetic transitions ⟨C11.5⟩
 - The change history — the within-branch stochastic map, exposed ⟨C11.6⟩
-- **Tail:** the `TraitResult` object → Python → CLI → Outputs *(trait values, change history, trait tree)* ⟨D7, C11.10⟩
+- **Tail:** the `TraitsResult` object → Python → CLI → Outputs *(trait values, change history, trait tree)* ⟨D7, C11.10⟩
 
 ---
 
 ## Part III — Coupling the levels
 
 ### 9. Coupling levels  *(merges old 9 Conditioning + 10 Joint + 11 Nulls into one chapter)*
-- The one idea: a rate driven by another level — `mod.Driven(source, mapping)`, a parameter that stops being a number you type
+- The one idea: a rate driven by another level — `mod.DrivenBy(source, mapping)`, a parameter that stops being a number you type
 - Conditioned vs joint is **one** distinction: *can the driver be grown first?* — a file source (two commands, ordered) vs a live-level source (one command). NOT "does it change the tree" ⟨D14, D15⟩
 - **Conditioned** — the driver is a file, grown first and handed over: a trait drives gene loss (Trait → Genome); a gene drives a trait's optimum (Genome → Trait); a trait drives selection / clock speed (Trait → Sequence)
 - **Joint** — the driver is a live level, grown alongside (`zombi2 joint`): state-dependent diversification, a trait drives speciation (BiSSE / MuSSE / QuaSSE / HiSSE as footnotes) ⟨D11⟩; key-innovation, gene content drives speciation

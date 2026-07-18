@@ -28,7 +28,7 @@ Two events reorder genes on a chromosome and leave its content untouched:
 - **Inversion** picks a contiguous segment, reverses it, and flips the strand of every gene in it — the segment is now read back-to-front, as if the DNA had been cut out, turned over, and pasted back. This is the workhorse of bacterial gene-order evolution.
 - **Transposition** cuts a segment out and pastes it somewhere else on the *same* chromosome. By default it keeps its orientation; a `transposition_flip` probability lets it reinsert reverse-complemented.
 
-Both are counted the same way as duplication, transfer and loss, **per copy** (so a larger genome rearranges proportionally more often), and both take the same `count(base) × modifiers` grammar as every other rate in the book:
+Both are counted the same way as duplication, transfer and loss, **per copy** (so a larger genome rearranges proportionally more often), and both take the same `scope(base) × modifiers` grammar as every other rate in the book:
 
 ```python
 genomes.simulate_ordered(tree,
@@ -37,9 +37,9 @@ genomes.simulate_ordered(tree,
     seed=1)
 ```
 
-An event does not have to touch a single gene. A **mean segment length** sets how many neighbouring genes a rearrangement carries at once, drawn from a geometric distribution, so `inversion` with a mean length of five flips runs of about five genes at a time. A length of one recovers single-gene events, which is the default.
+An event does not have to touch a single gene. A **per-event length distribution** sets how many neighbouring genes a rearrangement carries at once — `inversion_length=Geometric(mean=5)` flips runs of about five genes at a time — and any distribution constructor works (`Geometric`, `Poisson`, …), chosen separately per event type. A mean length of one recovers single-gene events, which is the default.
 
-> *[Draft — the argument names here (`inversion`, `transposition`, and the mean-segment-length knob) are not yet fixed in `genome-api.md`; today's CLI spells them `--inversion`, `--transposition`, `--mean-length` (in genes) and `--transposition-flip`, and requires the per-copy count. The `count(base) × modifiers` spelling is the intended target.]*
+> *[Draft — the event-rate names (`inversion`, `transposition`) are the intended shape but not yet pinned in `genome-api.md` (the resolution-specific arguments are still to design); today's CLI spells them `--inversion`, `--transposition` and `--transposition-flip`, as bare floats requiring the per-copy count. The per-event length distribution `inversion_length=Geometric(mean=5)` **is** decided (`genome-api.md`, 2026-07-18); today's CLI still has only a single global `--mean-length` (in genes). The `scope(base) × modifiers` spelling is the intended target.]*
 
 ## Chromosomes
 
@@ -54,11 +54,11 @@ genomes.simulate_ordered(tree,
 
 Topology is either shared by every chromosome or given per chromosome as a list (`["circular", "linear"]` for a mixed karyotype). It is just a label that decides which operations are legal: a **circular** chromosome is a ring with no privileged origin, so a segment may wrap past the origin; a **linear** one has two ends and its segments are clamped to them. ZOMBI2 makes no claim about origins, centromeres or telomeres — the topology is the whole of the biology it models here.
 
-Four events act at the chromosome layer (the code calls it the *chromosome tier*), each with a natural count:
+Four events act at the chromosome layer (the code calls it the *chromosome tier*), each with a natural scope:
 
 - **Fission** splits one chromosome into two. A linear chromosome is cut at one breakpoint; a circular one at two, excising the arc between them into a new ring. Counted **per chromosome**, size-weighted, so a bigger chromosome splits more often.
 - **Fusion** merges two chromosomes into one, appending the genes of the second onto the first. Only two chromosomes of the *same* topology may fuse — joining a ring to a line is ill-defined — and it too is counted **per chromosome**.
-- **Chromosome origination** adds a new, empty replicon: a de-novo plasmid that genes reach later by origination or transfer. Counted **per genome**, since it is the genome as a whole that acquires one.
+- **Chromosome origination** adds a new, empty replicon: a de-novo plasmid that genes reach later by origination or transfer. Counted **per lineage** (one genome per lineage), since it is the genome as a whole that acquires one.
 - **Chromosome loss** deletes an entire chromosome and every gene on it; the genes die as ordinary losses in the gene log. Counted **per chromosome**.
 
 ```python
@@ -67,11 +67,11 @@ genomes.simulate_ordered(tree, chromosomes=8, topology="linear",
     chromosome_origination=0.01, chromosome_loss=0.01, seed=1)
 ```
 
-A fifth event, **translocation**, moves a segment of genes from one chromosome to another within the same genome — the cross-chromosome cousin of transposition. It needs at least two chromosomes, and it is deliberately *identity-neutral*: both chromosomes persist, only the genes change address. It matters because it is the one way a gene can jump from one chromosome to another without being duplicated or transferred, which is exactly what makes the chromosome layer connect to the gene layer (below).
+A fifth event, **translocation**, moves a segment of genes from one chromosome to another within the same genome — the cross-chromosome cousin of transposition, and, like transposition, counted **per gene copy**. It needs at least two chromosomes, and it is deliberately *identity-neutral*: both chromosomes persist, only the genes change address. It matters because it is the one way a gene can jump from one chromosome to another without being duplicated or transferred, which is exactly what makes the chromosome layer connect to the gene layer (below).
 
-Each rate takes the same grammar as everything else; the defaults answer "per what?" so you rarely write a wrapper. To override, wrap the base (`fission = ct.PerGenome(0.02)` gives one fission budget per genome regardless of how many chromosomes it has), or bend it with a modifier (`loss = 0.01 * mod.ByChromosomeSize(...)` makes bigger replicons die faster).
+Each rate takes the same grammar as everything else; the defaults answer "per what?" so you rarely write a wrapper. To override, wrap the base (`fission = scope.PerLineage(0.02)` gives one fission budget per lineage — one genome per lineage — regardless of how many chromosomes it has), or bend it with a modifier (`loss = 0.01 * mod.ByChromosomeSize(...)` makes bigger replicons die faster).
 
-> *[Draft — `chromosomes=` and `topology=` replace today's `--n-chromosomes` and `--linear-chromosomes`; the four tier rates are already real flags (`--fission`, `--fusion`, `--chromosome-origination`, `--chromosome-loss`) but as bare floats, not the wrapped grammar. The count wrappers `ct.PerChromosome` / `ct.PerGenome` and the modifier `mod.ByChromosomeSize` are named but not built (`chromosome-network.md`, "Still to design"). Translocation's count is unsettled: `chromosome-network.md` lists it per chromosome, today's code counts it per gene copy.]*
+> *[Draft — `chromosomes=` and `topology=` replace today's `--n-chromosomes` and `--linear-chromosomes`; the four tier rates are already real flags (`--fission`, `--fusion`, `--chromosome-origination`, `--chromosome-loss`) but as bare floats, not the wrapped grammar. The scope wrapper `scope.PerChromosome` and the modifier `mod.ByChromosomeSize` are decided but not yet built (`PerGenome` was dropped in favour of `PerLineage` — one genome per lineage). Translocation's scope is now decided: **per gene copy** (a rearrangement, like transposition; matching today's code).]*
 
 ## The chromosome network
 
@@ -87,9 +87,9 @@ A gene lives on a chromosome; a chromosome lives in a species. The gene trees sa
 
 A network cannot be written as one Newick string, so ZOMBI2 records it two ways. The ground truth is an **event table**, one row per chromosome event with its time, its species branch, and the parent and child chromosome ids — the audited edge list the whole genealogy is assembled from. From it a topology is serialised as **extended Newick** (eNewick), the standard format for networks: a reticulation node is written once and then referred to by a shared label `#H1` wherever else it appears, so a fusion's two-parent child hangs under both its parents, tagged the same. eNewick is what phylogenetic-network tools read, which is the reason for choosing it over a bespoke format.
 
-Every chromosome event already carries the species branch it fired on, and that branch *is* the reconciliation of the chromosome network into the species tree — an exact annotation, never inferred, because the simulator knows the truth. So the reconciled network is just the same topology with each node stamped with its species branch, exactly as a reconciled gene tree stamps each node with the event that made it.
+Every chromosome event already carries the species branch it fired on, so every node in the network can be **stamped** with the branch it happened on — an exact annotation, never inferred, because the simulator knows the truth. That branch-stamp is how the network is placed against the species tree: the same topology with each node labelled by its species branch, exactly as a reconciled gene tree stamps each node with the event that made it. What v1 does *not* do is formally **reconcile** the reticulation — a fusion node has two parent branches, and projecting that two-parent join onto the species tree is left open. So the chromosome network is **recovered, not reconciled**: branch-stamped and readable, with no reconciliation engine behind the fusion nodes.
 
-> *[Draft — the chromosome network is a design target (`docs/design/chromosome-network.md`), **not yet built**. Today the events are logged as `ChromosomeEvent` records (`events.py`) and written to a flat `karyotype_trace.tsv`, but they are not assembled into a connected genealogy, and one edge is missing entirely: at speciation each daughter chromosome is re-minted with a fresh id and the parent→daughter correspondence is discarded, so a chromosome cannot yet be traced back past its own species branch. Recording that speciation edge is the one change that gives chromosomes a genealogy across the whole run. Three real questions remain open for Adrián: what "reconciling a reticulation into the species tree" should *produce* when a fusion node has two parents; whether an extant-pruned network ships alongside the complete one; and whether fission and fusion should re-mint both children (a clean, uniform genealogy, at the cost of breaking byte-identity on multi-chromosome runs) or keep today's id reuse and special-case the reader.]*
+> *[Draft — the chromosome network is a design target (`docs/design/chromosome-network.md`), **not yet built**. Today the events are logged as `ChromosomeEvent` records (`events.py`) and written to a flat `karyotype_trace.tsv`, but they are not assembled into a connected genealogy, and one edge is missing entirely: at speciation each daughter chromosome is re-minted with a fresh id and the parent→daughter correspondence is discarded, so a chromosome cannot yet be traced back past its own species branch. Recording that speciation edge is the one change that gives chromosomes a genealogy across the whole run. The three questions that were open are now **decided (2026-07-18)**: the reticulation is **recovered, not reconciled** (branch-stamped eNewick, no formal reconciliation engine for a two-parent fusion node); v1 ships the **complete** network only (the extant-pruned network is deferred); and fission and fusion **re-mint both children** for a clean, uniform genealogy, accepting the byte-identity break on multi-chromosome runs.]*
 
 ## The nucleotide resolution
 
@@ -107,7 +107,7 @@ Two events are new at this resolution, both confined to intergenes:
 - **Insertion** lays down a run of fresh, random nucleotides — a new block from a new source.
 - **Deletion** removes a run from within a single intergene (never spanning or touching a gene).
 
-Both are off by default and counted **per nucleotide**, with their own mean length, separate from the segment length that rearrangements use. One further event lives here too: **pseudogenization**, a sub-outcome of loss in which a gene loses its function but keeps its sequence and carries on as intergene, its history unbroken — the natural way to model a gene decaying rather than vanishing.
+Both are off by default and counted **per nucleotide**, each with its own per-event length distribution (`insertion_length=` / `deletion_length=`), separate from the segment length that rearrangements use. One further event lives here too: **pseudogenization**, a sub-outcome of loss in which a gene loses its function but keeps its sequence and carries on as intergene, its history unbroken — the natural way to model a gene decaying rather than vanishing.
 
 The rearrangements and chromosome events of the ordered resolution are all here as well, now measured in base pairs rather than gene counts: inversions and transpositions act on nucleotide arcs, and the same fission, fusion, translocation, origination and loss reshape the chromosomes, so a nucleotide run produces the very same chromosome network as an ordered one.
 
@@ -133,9 +133,9 @@ Readers arriving from the rearrangement and comparative-genomics literature alre
 
 ## The objects
 
-*[Draft — depends on the final result API; the network fields are design targets.]*
+*[Draft — the result API is decided (the `GenomesResult` bundle, `docs/design/result-api.md`); the network accessors below are design targets, not yet built.]*
 
-`simulate_ordered` and `simulate_nucleotide` return the matching result object, a superset of the unordered one: the per-lineage genomes (now with their gene order and chromosomes), the gene trees and reconciliations, and the profile matrix, plus the structured extras. From an ordered or nucleotide result you can read a leaf's gene order, ask for the **chromosome network** as eNewick, pull the **chromosome event table**, and trace a single gene's path across chromosome lineages:
+`simulate_ordered` and `simulate_nucleotide` return a **`GenomesResult`**, a superset of the unordered one's payload: the per-lineage genomes (now with their gene order and chromosomes), the gene trees and reconciliations, and the profile matrix, plus the structured extras. Like every result bundle it shares the common spine (`.events`, `.tree`, `.write(include=[...])`, `.seed`). From an ordered or nucleotide result you can read a leaf's gene order, ask for the **chromosome network** as eNewick, pull the **chromosome event table**, and trace a single gene's path across chromosome lineages:
 
 ```python
 result = genomes.simulate_ordered(tree, chromosomes=8, fission=0.02, fusion=0.02, seed=1)
@@ -148,7 +148,7 @@ result.gene_chromosome_path("g42")   # which chromosome lineage carried gene g42
 
 ```python
 from zombi2 import genomes, modifiers as mod
-from zombi2 import counts as ct        # count wrappers (namespace TBD): Global, PerGenome, …
+from zombi2 import scope        # scope wrappers: Global, PerCopy, PerLineage, PerChromosome, …
 
 # an ordered bacterial genome: the Chapter 5 events, plus inversions
 genomes.simulate_ordered(tree,
@@ -185,7 +185,7 @@ result = genomes.simulate_ordered(tree,
 print(result.chromosome_network)          # eNewick, with #H1 at each fusion
 for e in result.karyotype_events:         # time, event, branch, parents → children
     print(e)
-result.write("out/", write=["karyotype", "layout"])
+result.write("out/", include=["karyotype", "layout"])
 ```
 
 The fusions are the reticulations: each one shows up in the event table as two parent chromosome ids collapsing to one child, and in the eNewick as a `#H` node hanging under both its parents. A run with a single chromosome and no fission or fusion has a trivial genealogy and writes nothing new — the network output is opt-in, exactly when the karyotype is non-trivial.

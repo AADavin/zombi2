@@ -2,7 +2,7 @@
 
 **Status: the design to build.** This is the agreed target for rewriting `zombi2/species`. It is the
 detailed, level-specific consequence of `SPEC.md` (one process per level; collapse the model zoo;
-`base × count × modifiers`). Designed with Adrián on 2026-07-18 while writing the Species Trees
+`scope(base) × modifiers`). Designed with Adrián on 2026-07-18 while writing the Species Trees
 chapter. It is **not built yet** — today's code still ships the seven-class zoo (§ *What to delete*).
 
 Principle: **concepts → code → chapter.** Build this, then the chapter documents it.
@@ -23,7 +23,7 @@ everything else is that process with the rate depending on something.
 
 ```python
 simulate_species_tree(
-    birth,                 # a Rate: an optional count-wrapper around a base, optionally × modifiers
+    birth,                 # a Rate: an optional scope wrapper around a base, optionally × modifiers
     death=0.0,             # a Rate; default 0.0 = pure birth (Yule)
     *,
     n_tips=None,           # stop at a number of tips ...
@@ -45,12 +45,12 @@ re-exports** (`z.simulate_species_tree` goes away): one canonical path per name,
 Open sub-question: whether the function is `simulate_species_tree` (explicit) or just
 `species.simulate(...)` (the module already names the level).
 
-## Rates: `count(base) × modifiers`
+## Rates: `scope(base) × modifiers`
 
-`birth` and `death` each hold a **Rate**, built the cross-level way (`SPEC §5`): an optional **count
+`birth` and `death` each hold a **Rate**, built the cross-level way (`SPEC §5`): an optional **scope
 wrapper** around a base number, optionally times dimensionless **modifiers**.
 
-- **Count** — *per what?* Species has one unit, the lineage, so the bare number is per lineage (the
+- **Scope** — *per what?* Species has one unit, the lineage, so the bare number is per lineage (the
   default) and there is **no `per=` argument**. To make a rate a single shared clock, wrap it:
   `birth = Global(1.0)` (constant total; `Global` capitalised — `global` is a Python keyword). This
   replaces the earlier `per="global"` argument, and it is better: `Global` tags exactly *which* rate is
@@ -58,7 +58,7 @@ wrapper** around a base number, optionally times dimensionless **modifiers**.
 - **Modifiers** multiply the base (`*`) and are dimensionless: `1.0 * Diversity(cap=100)`. `*` is the
   only composition operator (a rate is `time⁻¹`, a modifier is dimensionless, so multiplying two rates is
   impossible by construction).
-- **Naming rule:** "per" is reserved for counts. A count is `PerCopy` / `PerLineage` / `PerSite`; a
+- **Naming rule:** "per" is reserved for scopes. A scope is `PerCopy` / `PerLineage` / `PerSite`; a
   modifier never starts with "per".
 
 Modifiers live in **`zombi2.modifiers`** (never top-level `z`). Named by *what the rate depends on*:
@@ -71,8 +71,8 @@ Modifiers live in **`zombi2.modifiers`** (never top-level `z`). Named by *what t
 
 Modifiers are **relative factors**, so `Time({0: 1.0, 3: 0.5})` on base `1.0` reads as absolute
 (`1.0`, then `0.5`) and on base `2.0` scales (`2.0`, then `1.0`). Stack with `*`; `birth` and `death`
-are bent independently. `per="global"` gives one budget for the whole tree instead of per lineage
-(Ch2's count).
+are bent independently. `Global` gives one budget for the whole tree instead of per lineage
+(Ch2's scope).
 
 ## Interventions vs observation (not rates)
 
@@ -143,5 +143,5 @@ The full cross-level list of output files lives in Appendix B of the manual.
 - `simulate_species_tree` takes `birth`/`death` (numbers or `number × modifier`) plus the arguments
   above; it infers the direction.
 - Add `zombi2.modifiers` with `Time`, `Diversity`, `Inherited` (dimensionless, `*`-composable).
-- `per=` accepts `"lineage"` / `"global"` (retire `"shared"` and the `--rate-model` selection mess,
-  SPEC §12).
+- Replace the `--rate-model` selection mess with the scope wrappers `Global` / `PerLineage` (retire
+  `"shared"`, SPEC §12); there is no `per=` argument.
