@@ -126,7 +126,8 @@ The full cross-level list of output files lives in Appendix B of the manual.
 - **Clade shift** — a lineage and its descendants switch rates partway through. It must name a clade
   that does not exist yet, so it is referenced by `(time, a rule for picking the lineage)`, not by a
   `birth=` value. Adrián's observation: it is the same *point-in-time intervention* shape as a mass
-  extinction, so the two may share one form. Parked.
+  extinction, so the two may share one form. **Decided 2026-07-18: set aside for v1** — not in the first
+  release; when it returns it uses the `(time, rule)` shape, likely sharing the mass-extinction form.
 - **Extinct lineages (§4 of the chapter)** — complete vs reconstructed tree, backward sampling, ghost
   lineages. Not yet designed.
 - **Fossil removal** — whether a fossilised lineage is removed from the process. Advanced; likely folds
