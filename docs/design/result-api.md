@@ -1,7 +1,7 @@
 # Result objects — design target
 
 **Status: the design to build.** What every `simulate_*` returns. Designed with Adrián on 2026-07-18.
-The output half of the input grammar: as the inputs collapse to one `count(base) × modifiers` grammar,
+The output half of the input grammar: as the inputs collapse to one `scope(base) × modifiers` grammar,
 the outputs collapse to **one Result shape per level**. Parallels the level design docs; read `SPEC.md`
 and them first.
 

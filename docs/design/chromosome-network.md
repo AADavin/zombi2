@@ -193,7 +193,7 @@ say *which genes are related*; the species tree says *which organisms*; the chro
 
 ## 5. API surface
 
-Following `genome-api.md`: no rate/model objects, keyword rates in the `count(base) × modifiers`
+Following `genome-api.md`: no rate/model objects, keyword rates in the `scope(base) × modifiers`
 grammar, chromosomes are ordered/nucleotide-only so they live on `simulate_ordered` /
 `simulate_nucleotide` (never `simulate_unordered` — a multiset has no chromosomes).
 
@@ -206,7 +206,7 @@ genomes.simulate_ordered(
     # --- initial karyotype ---
     chromosomes=8,                 # number of chromosomes seeded at the root
     topology="linear",             # "circular" (default, bacteria) | "linear" | a list per chromosome
-    # --- chromosome tier: count(base) × modifiers ---
+    # --- chromosome tier: scope(base) × modifiers ---
     fission=0.02,                  # per chromosome (a chromosome splits in two)
     fusion=0.02,                   # per chromosome (two chromosomes merge — the reticulation)
     translocation=0.05,            # per gene copy (a gene moves to another chromosome; a rearrangement, like transposition)
@@ -224,8 +224,8 @@ genomes.simulate_ordered(
   fusion / loss are **per chromosome**; **translocation is per gene copy** (a rearrangement, like
   transposition — a per-chromosome translocation rate is a possible future addition, deferred); origination is **per lineage** (one genome per lineage; matching the
   code's own weighting — `_choose_chromosome_weighted` vs `_choose_chromosome_uniform`, `genome.py:471`;
-  and today's help text, `cli/genomes.py:188`). Override with a count wrapper, e.g.
-  `fission = PerLineage(0.02)` for one fission budget per lineage (= per genome) regardless of chromosome count, or bend
+  and today's help text, `cli/genomes.py:188`). Override with a scope wrapper, e.g.
+  `fission = scope.PerLineage(0.02)` for one fission budget per lineage (= per genome) regardless of chromosome count, or bend
   with a modifier: `loss = 0.01 * mod.ByChromosomeSize(...)` (bigger replicons die faster — the code
   already size-weights the *pick*; a modifier would make the *rate* depend on size).
 
@@ -304,7 +304,7 @@ Still deferred (not v1):
 4. **Gene-→-chromosome path.** Use `Region.chromosome` / `Region.dest` (already logged) with stable
    lineage ids to expose `gene_chromosome_path(gid)` and colour `gene_order.tsv` by chromosome lineage.
 5. **API surface.** On `simulate_ordered` / `simulate_nucleotide`: `chromosomes=`, `topology=`, and the
-   four tier rates in the `count(base) × modifiers` grammar (retire `n_chromosomes`,
+   four tier rates in the `scope(base) × modifiers` grammar (retire `n_chromosomes`,
    `--linear-chromosomes`, and the bare-float tier flags into the keyword-rate grammar).
 
 ## Still to design
@@ -317,6 +317,6 @@ Still deferred (not v1):
 - **Translocation's place** — chromosome-network horizontal annotation vs gene-layer-only (§6).
 - **Network-aware tooling** — reader/validator for the eNewick (existing gene-tree code cannot be
   reused); whether to lean on PhyloNetworks/Dendroscope conventions or ship a minimal own reader.
-- **Names — decided.** The tier's count wrapper is `scope.PerChromosome`; **`PerGenome` is dropped**
+- **Names — decided.** The tier's scope wrapper is `scope.PerChromosome`; **`PerGenome` is dropped**
   (redundant with `PerLineage` — one genome per lineage). The size-dependent modifier is
   `mod.ByChromosomeSize` (not "PerChromosomeSize" — "per" is reserved for counts, `SPEC §5`).

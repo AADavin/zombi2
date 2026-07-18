@@ -155,5 +155,5 @@ per-trait + `correlation=` form is the surface.
 - Move `DEC` / `biogeography.py` to `zombi2.experimental` — purged from the trait level for now,
   recoverable later.
 - SSE (BiSSE/MuSSE/QuaSSE) leaves the trait level entirely — it is trait↔species *joint*, Part III.
-- Rates follow the cross-level `count(base) × modifiers` grammar; the trait's `rate` is the BM variance-rate.
-- Keep the `TraitResult` output object.
+- Rates follow the cross-level `scope(base) × modifiers` grammar; the trait's `rate` is the BM variance-rate.
+- Keep the `TraitsResult` output object.

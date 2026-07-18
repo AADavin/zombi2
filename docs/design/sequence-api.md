@@ -13,7 +13,7 @@ ships an eight-class `Clock` hierarchy (§ *What to delete*). Parallels `species
 `UncorrelatedLogNormalClock`, `UncorrelatedGammaClock`, `WhiteNoiseClock`,
 `AutocorrelatedLogNormalClock`, `CIRClock`, `RateVariation` — a zoo exactly like the seven species
 processes and the `RateModel` hierarchy. But a clock is not a special kind of object: it is a **modifier
-on the substitution rate**, the same `count(base) × modifiers` grammar as every other level (`SPEC §5`).
+on the substitution rate**, the same `scope(base) × modifiers` grammar as every other level (`SPEC §5`).
 "That is the one place the word *clock* belongs" (Ch2). Once clocks are modifiers, the zoo collapses to
 the same small shared vocabulary the rest of ZOMBI2 uses.
 

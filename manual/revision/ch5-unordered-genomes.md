@@ -24,11 +24,11 @@ result = genomes.simulate_unordered(
 
 Each event has a rate, and there are two different things you can tune about it. Keeping them apart is the whole point.
 
-**The count: per what.** Duplication, transfer and loss are counted **per copy**: a family with ten copies loses genes ten times as fast as a family with one, so families grow and shrink multiplicatively. Origination is different, counted **per lineage**: a lineage seeds new families regardless of how many it already has. These are the sensible defaults, so you usually write nothing. To change one, wrap it:
+**The scope: per what.** Duplication, transfer and loss are counted **per copy**: a family with ten copies loses genes ten times as fast as a family with one, so families grow and shrink multiplicatively. Origination is different, counted **per lineage**: a lineage seeds new families regardless of how many it already has. These are the sensible defaults, so you usually write nothing. To change one, wrap it:
 
 ```python
-loss = ct.PerLineage(0.25)     # count loss per lineage, not per copy
-origination = ct.Global(0.5)   # one constant total origination rate over the whole tree
+loss = scope.PerLineage(0.25)     # count loss per lineage, not per copy
+origination = scope.Global(0.5)   # one constant total origination rate over the whole tree
 ```
 
 **Per-family variation: shared or its own.** A bare number is a rate shared by every family. A `ByFamily` modifier makes each family draw its own, independently for each event, so a family that loses fast is not automatically duplicating fast:
@@ -37,13 +37,19 @@ origination = ct.Global(0.5)   # one constant total origination rate over the wh
 loss = 0.25 * mod.ByFamily(spread=0.5)   # each family gets its own loss rate around 0.25
 ```
 
-If instead you want a family uniformly fast or slow at everything, that is a single per-family **speed** that scales all of its rates together. And when you need exact control, you can hand specific families their own rates:
+If instead you want a family uniformly fast or slow at everything, that is a single per-family **speed** that scales all of its rates together — one factor per family, given as its own argument:
+
+```python
+family_speed = mod.Speed(spread=0.5)   # each family one speed, scaling all of its rates at once
+```
+
+And when you need exact control, you can hand specific families their own rates:
 
 ```python
 families = [dict(duplication=0.5, transfer=0.8, loss=0.3), …]   # this family, exactly
 ```
 
-The two never collide: the count is a *wrapper* (per what), the variation is a *modifier* (how much each family differs).
+The two never collide: the scope is a *wrapper* (per what), the variation is a *modifier* (how much each family differs).
 
 ## Transfers
 
@@ -79,15 +85,15 @@ Everything above is recorded as an **event log**: for each family, the full sequ
 
 ## The genome and profile objects
 
-*[Draft — depends on the final object API.]*
+`simulate_unordered` returns a **`GenomesResult`** bundle. Every level returns the same shape of object — a `<Level>Result` sharing a common spine — so what you learn here carries over to sequences and traits. The spine is `.events` (the event log), `.tree` (the species tree it ran on), `.seed`, and `.write(dir, include=[...])` to materialise the outputs you choose to disk. The genome payload adds `.genomes` (per-node gene content), `.gene_trees` (each family's gene tree with its reconciliation), `.profiles` (the sparse families × species matrix), and `.transfers`. From it you can read a lineage's gene content, pull a single family's gene tree, or hand the whole thing to the sequence level.
 
-`simulate_unordered` returns a result carrying the per-lineage genomes, the gene trees with their reconciliations, and the profile matrix. From it you can read a lineage's gene content, pull a single family's gene tree, or hand the whole thing to the sequence level.
+The event log is the compact source of truth, and the rich views are read off it: `.gene_trees`, `.profiles` and the ancestral genomes are reconstructed lazily on access rather than all held in memory at once. When you only need one view at scale, declare it up front with `record=[...]` — for example `record=["profiles"]` makes the run a pure profile accumulator that never builds the gene-tree objects at all, and its footprint collapses to the sparse matrix.
 
 ## Usage from Python
 
 ```python
 from zombi2 import genomes, modifiers as mod
-from zombi2 import counts as ct     # count wrappers (namespace TBD)
+from zombi2 import scope             # scope wrappers: Global, PerCopy, PerLineage, …
 
 # the common case
 genomes.simulate_unordered(tree, duplication=0.2, transfer=0.1, loss=0.25,
@@ -96,7 +102,7 @@ genomes.simulate_unordered(tree, duplication=0.2, transfer=0.1, loss=0.25,
 # per-family variation in loss, distance-weighted transfer, global origination
 genomes.simulate_unordered(tree, duplication=0.2, loss=0.25 * mod.ByFamily(spread=0.5),
                            transfer=0.1, transfer_to="distance",
-                           origination=ct.Global(0.5), seed=1)
+                           origination=scope.Global(0.5), seed=1)
 ```
 
 ## Usage from the CLI

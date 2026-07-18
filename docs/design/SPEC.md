@@ -142,15 +142,17 @@ couplings.
 
 ## 5. Rates
 
-Every event fires at a **rate**, and every rate has the same three factors:
+Every event fires at a **rate**, and every rate is written the same way: a **scope** wrapped around a
+**base**, times **modifiers**.
 
 ```
-effective rate  =  base (how fast)  ×  count (how many, "per what")  ×  modifiers (context)
+effective rate  =  scope(base)  ×  modifiers
 ```
 
-- **base** — the speed of one event, in units of inverse time (`time⁻¹`).
-- **count** — how many independent opportunities the event has right now; answering **"per what?"** is
-  the crux. It is a dimensionless count.
+- **base** — the speed of one event (how fast), in units of inverse time (`time⁻¹`).
+- **scope** — how many independent copies, lineages, or sites the event applies to right now (per
+  what); answering **"per what?"** is the crux. It wraps the base and contributes a dimensionless
+  factor.
 - **modifiers** — dimensionless context multipliers (per branch, per family). They change *how fast*,
   never *how many*.
 
@@ -165,17 +167,17 @@ effective rate  =  base (how fast)  ×  count (how many, "per what")  ×  modifi
 
 Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
 
-**How a rate is written (same at every level):** a rate is an optional **count wrapper** around a base
-number, optionally times **modifiers**. The count wraps (`PerCopy(0.2)`, `PerLineage(0.5)`, `Global(1.0)`
+**How a rate is written (same at every level):** a rate is an optional **scope wrapper** around a base
+number, optionally times **modifiers**. The scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`, `Global(1.0)`
 — `Global` capitalised, since `global` is a Python keyword); modifiers multiply (`0.2 * ByFamily(...)`,
-`1.0 * Diversity(cap=100)`). The bare number uses the rate's natural count, so the common case is just
-`birth=1.0`. There is **no `per=` argument** — the count lives on the rate, so it can be set per rate.
+`1.0 * Diversity(cap=100)`). The bare number uses the rate's natural scope, so the common case is just
+`birth=1.0`. There is **no `per=` argument** — the scope lives on the rate, so it can be set per rate.
 Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
-`time⁻²`, impossible by construction); (b) **"per" is reserved for counts** — a modifier never starts
+`time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
 with "per".
 
-**Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **count**, or ask **"per
-what?"**); "clock" for the count (reserve **clock** strictly for the per-branch substitution-rate
+**Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
+what?"**); "clock" for the scope (reserve **clock** strictly for the per-branch substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
 ---
@@ -191,8 +193,8 @@ Left column is correct; right column is a fossil to purge.
 | resolution — unordered / ordered / nucleotide | "level" for the genome sub-axis; `--genome-model` |
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
-| rate; effective rate = base × count × modifiers | propensity |
-| count; "per what?" | opportunity |
+| rate; effective rate = scope(base) × modifiers | propensity |
+| scope; "per what?" | opportunity |
 | clock (the sequences per-branch rate modifier only) | clock (for the count) |
 | the four levels of ZOMBI2 (the layout) | the diamond |
 | complete tree / extant | "reconstructed" (only once, as Nee's synonym); "pruned" as a noun |
