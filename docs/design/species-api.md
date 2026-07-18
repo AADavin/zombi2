@@ -79,8 +79,10 @@ are bent independently. `per="global"` gives one budget for the whole tree inste
 - **`mass_extinctions=[(3.0, 0.75)]`** — at time 3.0, 75% of living lineages die. A point-in-time
   intervention on the *process*, not a rate. (Clade shift, deferred below, is the same shape.)
 - **`sampling=0.5`** — observe only half the surviving species (classic incomplete sampling).
-- **`fossils=0.1`** — recover fossils of extinct lineages along the branches (fossilised birth–death),
-  kept simple as a bare rate.
+- **`fossils=0.1`** — recover fossils along the branches, a bare rate. **v1: fossils are a side output**
+  (the sampled lineages + their ages); the lineage is *not* removed, and fossils do *not* appear in the
+  reconstructed tree. Full fossilised birth–death (fossils as dated sampled-ancestors in the tree) is a
+  future `tools` command.
 
 ## The direction is inferred, never chosen
 
@@ -130,10 +132,10 @@ The full cross-level list of output files lives in Appendix B of the manual.
   release; when it returns it uses the `(time, rule)` shape, likely sharing the mass-extinction form.
 - **Ghost lineages — set aside for v1 (Adrián, 2026-07-18).** They run on a different paradigm; we will
   do them, just not now.
-- **Sampling / reconstructed tree / fossils (§4 of the chapter)** — complete vs reconstructed tree and
-  incomplete extant sampling (ρ) are straightforward; the open question is the **fossil model** (below).
-- **Fossil removal** — whether a fossilised lineage is removed from the process. Advanced; likely folds
-  into `tools`, not the core call.
+- **Sampling / reconstructed tree / fossils — decided (2026-07-18, v1).** Incomplete extant sampling (ρ)
+  prunes the reconstructed tree; **fossils are a side output** (sampled lineages + ages), the lineage is
+  **not** removed, and fossils do **not** appear in the reconstructed tree. Full fossilised birth–death
+  (fossils as dated sampled-ancestors *in* the tree) is deferred to a future `tools` command.
 
 ## What to delete / change in `zombi2/species`
 
