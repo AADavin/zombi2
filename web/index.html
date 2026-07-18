@@ -206,17 +206,6 @@
   .card a::after { content: ""; position: absolute; inset: 0; z-index: 1; }
   .card:hover a { text-decoration: underline; }
 
-  /* ---------- coevolution ---------- */
-  .coevolve-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
-  .coevolve-fig { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 30px 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); cursor: pointer; text-align: center; transition: border-color .15s ease, transform .15s ease; }
-  .coevolve-fig:hover { border-color: var(--accent); text-decoration: none; }
-  @media (prefers-reduced-motion: no-preference) { .coevolve-fig:hover { transform: translateY(-2px); } }
-  .coevolve-svg { width: 100%; max-width: 320px; height: auto; color: var(--accent); }
-  .coevolve-svg circle { fill: var(--card-bg); }
-  .coevolve-svg text { fill: var(--ink); font-family: var(--sans); font-weight: 700; font-size: 26px; }
-  .coevolve-key { font-size: 0.82rem; color: var(--muted); letter-spacing: 0.02em; }
-  @media (max-width: 860px) { .coevolve-inner { grid-template-columns: 1fr; gap: 30px; } }
-
   /* ---------- workflow / code ---------- */
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
   .bullets { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 14px; }
@@ -234,18 +223,6 @@
   .term .p { color: var(--accent); }
   .term .k { color: #6fbfa9; }
   .term .s { color: #d8b26a; }
-
-  /* ---------- models ---------- */
-  .cols3 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px; margin-top: 40px; }
-  .cols3 h3 { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; padding-bottom: 12px; border-bottom: 2px solid var(--accent-soft); }
-  .cols3 ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
-  .cols3 li { font-size: 0.94rem; padding-left: 18px; position: relative; }
-  .cols3 li::before { content: "›"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
-  .cols3 li a { color: inherit; text-decoration: none; }
-  .cols3 li a:hover { color: var(--accent); text-decoration: underline; }
-  .model-ico { width: 20px; height: 20px; color: var(--accent); flex: none; }
-  @media (max-width: 900px) { .cols3 { grid-template-columns: repeat(2, 1fr); gap: 30px; } }
-  @media (max-width: 520px) { .cols3 { grid-template-columns: 1fr; } }
 
   /* ---------- perf stats ---------- */
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 24px; margin-top: 38px; }
@@ -308,7 +285,6 @@
       <div class="nav-controls">
         <nav class="nav-links" id="navlinks">
           <a href="#install">Install</a>
-          <a href="#models">Models</a>
           <a href="#performance">Performance</a>
           <a href="#cite">Cite</a>
           <a class="ext" href="https://github.com/AADavin/zombi2">GitHub</a>
@@ -340,7 +316,7 @@
       <div class="wrap hero-inner">
         <h1>ZOMBI<span class="n">2</span><svg class="hero-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 25.5V18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18L7.5 9.5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18V7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18L21 10" stroke="var(--ghost)" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 3"/><circle cx="14" cy="18" r="1.9" fill="var(--accent)"/><circle cx="7.5" cy="9.5" r="1.9" fill="var(--accent)"/><circle cx="14" cy="7" r="1.9" fill="var(--accent)"/><circle cx="21" cy="10" r="1.7" fill="var(--bg)" stroke="var(--ghost)" stroke-width="1.5"/></svg></h1>
         <p class="lede">Simulating genome and phylogenetic evolution.</p>
-        <p class="sub">Evolve life end to end — <b>species trees</b>, then <b>genomes</b>, <b>traits</b> and molecular <b>sequences</b> along them, plus <b>coupled</b> processes. A ground-up redesign of ZOMBI, with a fast Rust engine, a composable Python library and a command-line interface.</p>
+        <p class="sub">Evolve life end to end — <b>species trees</b>, then <b>genomes</b>, molecular <b>sequences</b> and <b>traits</b> along them. A ground-up redesign of ZOMBI, with a fast Rust engine, a composable Python library and a command-line interface.</p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="https://github.com/AADavin/zombi2">View on GitHub</a>
           <a class="btn btn-ghost" href="https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf">Read the PDF manual</a>
@@ -389,61 +365,20 @@
           </div>
 
           <div class="card">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="8" cy="12" r="4.2" fill="var(--bg)"/><circle cx="16" cy="12" r="4.2" fill="currentColor" stroke="none"/></svg>
-            <h3><span class="step">03</span>Traits</h3>
-            <p>Brownian motion, Ornstein–Uhlenbeck and early burst for continuous traits; Mk and threshold for discrete; plus DEC biogeography, evolved along the phylogeny.</p>
-            <a href="docs/guide/traits/">Trait guide →</a>
-          </div>
-
-          <div class="card">
             <svg class="ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="9" font-weight="700" letter-spacing="0.5" fill="currentColor">ATC</text></svg>
-            <h3><span class="step">04</span>Sequences</h3>
+            <h3><span class="step">03</span>Sequences</h3>
             <p>A gene × lineage relaxed clock that rescales gene trees from time into substitutions per site, with JC / K80 / HKY / GTR + Γ nucleotide models.</p>
             <a href="docs/guide/sequences/">Sequence guide →</a>
           </div>
 
-        </div>
-      </div>
-    </section>
+          <div class="card">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="8" cy="12" r="4.2" fill="var(--bg)"/><circle cx="16" cy="12" r="4.2" fill="currentColor" stroke="none"/></svg>
+            <h3><span class="step">04</span>Traits</h3>
+            <p>Brownian motion, Ornstein–Uhlenbeck and early burst for continuous traits; Mk and threshold for discrete; plus DEC biogeography, evolved along the phylogeny.</p>
+            <a href="docs/guide/traits/">Trait guide →</a>
+          </div>
 
-    <!-- ===================== COEVOLUTION ===================== -->
-    <section class="section section-band" id="coevolution">
-      <div class="wrap coevolve-inner">
-        <div>
-          <p class="eyebrow">Couple the levels</p>
-          <h2>Coevolution</h2>
-          <p class="section-intro">The levels don't have to evolve independently. Let <b>species</b>, <b>traits</b>, <b>genomes</b> and <b>sequences</b> drive one another across the four-level diamond — <code>--couple driver:target</code> — for key innovations, trait-linked gene families, cladogenetic change and trait-driven selection.</p>
-          <a class="btn btn-ghost" href="docs/guide/coevolution/">Explore coevolution models →</a>
         </div>
-        <a class="coevolve-fig" href="docs/guide/coevolution/" aria-label="The coevolution diamond: species (S), traits (T), genomes (G) and sequences (Sigma) coupled by directed edges">
-          <svg class="coevolve-svg" viewBox="0 0 300 300" fill="none" role="img" aria-hidden="true">
-            <defs>
-              <marker id="coev-arrow" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
-              </marker>
-            </defs>
-            <!-- species / traits / genes: both directions of every pair -->
-            <g stroke="currentColor" stroke-width="2" marker-start="url(#coev-arrow)" marker-end="url(#coev-arrow)">
-              <line x1="127" y1="73" x2="79" y2="125"/>
-              <line x1="173" y1="73" x2="221" y2="125"/>
-              <line x1="90" y1="150" x2="210" y2="150"/>
-            </g>
-            <!-- into sequences only: a sequence is a target, never a driver -->
-            <g stroke="currentColor" stroke-width="2" marker-end="url(#coev-arrow)">
-              <line x1="79" y1="175" x2="127" y2="227"/>
-              <line x1="221" y1="175" x2="173" y2="227"/>
-            </g>
-            <circle cx="150" cy="48" r="29" stroke="currentColor" stroke-width="2.5"/>
-            <circle cx="56" cy="150" r="29" stroke="currentColor" stroke-width="2.5"/>
-            <circle cx="244" cy="150" r="29" stroke="currentColor" stroke-width="2.5"/>
-            <circle cx="150" cy="252" r="29" stroke="currentColor" stroke-width="2.5"/>
-            <text x="150" y="57" text-anchor="middle">S</text>
-            <text x="56" y="159" text-anchor="middle">T</text>
-            <text x="244" y="159" text-anchor="middle">G</text>
-            <text x="150" y="261" text-anchor="middle">Σ</text>
-          </svg>
-          <span class="coevolve-key">S species · T traits · G genomes · Σ sequences</span>
-        </a>
       </div>
     </section>
 
@@ -496,77 +431,8 @@ genomes.write(<span class="s">"out/"</span>)
       </div>
     </section>
 
-    <!-- ===================== MODELS ===================== -->
-    <section class="section" id="models">
-      <div class="wrap">
-        <p class="eyebrow">Model catalog</p>
-        <h2>A broad range of models, all scriptable</h2>
-        <p class="section-intro">Every model is reachable from the command line and as a first-class object in the Python API, so you can compose and extend them.</p>
-        <div class="cols3">
-          <div>
-            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20v-6M12 14H6V8M12 14h6V6"/><circle cx="6" cy="8" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="1.6" fill="currentColor" stroke="none"/></svg>Species trees</h3>
-            <ul>
-              <li><a href="docs/guide/species-trees/#basic-models-birthdeath-yule">Backward &amp; forward birth–death</a></li>
-              <li><a href="docs/guide/species-trees/#basic-models-birthdeath-yule">Yule (pure birth)</a></li>
-              <li><a href="docs/guide/species-trees/#episodic-skyline-birthdeath">Episodic / skyline shifts</a></li>
-              <li><a href="docs/guide/species-trees/#advanced-diversification">Fossilized birth–death</a></li>
-              <li><a href="docs/guide/species-trees/#clads-per-lineage-rates">ClaDS · diversity-dependent</a></li>
-              <li><a href="docs/guide/species-trees/#clade-specific-rate-shifts">Clade shifts · mass extinctions</a></li>
-              <li><a href="docs/guide/species-trees/#ghost-lineages">Ghost lineages</a></li>
-            </ul>
-          </div>
-          <div>
-            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><g><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(72 12 12)"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(144 12 12)"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(216 12 12)"/><path d="M9.4 4.7H14.2M14.2 4.7L12.5 3.3M14.2 4.7L12.5 6.1" transform="rotate(288 12 12)"/></g></svg>Genomes</h3>
-            <ul>
-              <li><a href="docs/guide/genomes/#sharedrates-every-family-the-same">Uniform DTL rates (Rust)</a></li>
-              <li><a href="docs/guide/genomes/#familysampledrates-zombi1-style">Family-sampled rates (ZOMBI-1 style)</a></li>
-              <li><a href="docs/guide/genomes/#pergenomerates-genome-wise-rates">Genome-wise rates</a></li>
-              <li><a href="docs/guide/genomes/#ordered-chromosomes">Ordered chromosomes · inversions</a></li>
-              <li><a href="docs/guide/genomes/#nucleotide-genomes">Nucleotide-resolution genomes</a></li>
-            </ul>
-          </div>
-          <div>
-            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="8" cy="12" r="4.2" fill="var(--bg)"/><circle cx="16" cy="12" r="4.2" fill="currentColor" stroke="none"/></svg>Traits</h3>
-            <ul>
-              <li><a href="docs/guide/traits/#continuous-trait-models">Brownian motion · OU · early burst</a></li>
-              <li><a href="docs/guide/traits/#discrete-trait-models">Mk · threshold (discrete)</a></li>
-              <li><a href="docs/guide/traits/#biogeography-dec">DEC biogeography</a></li>
-            </ul>
-          </div>
-          <div>
-            <h3><svg class="model-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="9" font-weight="700" letter-spacing="0.5" fill="currentColor">ATC</text></svg>Sequences</h3>
-            <ul>
-              <li><a href="docs/guide/sequences/#relaxed-molecular-clocks-time-into-substitutions">Relaxed molecular clocks</a></li>
-              <li><a href="docs/guide/sequences/#dna-substitution-models">JC · K80 · HKY · GTR + Γ</a></li>
-              <li><a href="docs/guide/sequences/#protein-substitution-models">LG · WAG · JTT (protein)</a></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== COOKBOOK ===================== -->
-    <section class="section" id="cookbook">
-      <div class="wrap">
-        <p class="eyebrow">Data-anchored recipes</p>
-        <h2>Cookbook</h2>
-        <p class="section-intro">A simulator is only as trustworthy as its parameters. Each recipe takes a <b>pattern in real data</b>, finds the ZOMBI2 knob that controls it, and tunes it until simulations reproduce the pattern — pinning a defensible value and showing what the data can and cannot constrain. So far: a genome <b>inversion rate</b> from synteny decay (≈&nbsp;3–4&nbsp;×&nbsp;10⁻⁴ per gene·Myr in budding yeast), balanced <b>core-gene turnover</b> for bacteria and archaea (gain&nbsp;≈&nbsp;loss&nbsp;≈&nbsp;2&nbsp;×&nbsp;10⁻⁴ per gene copy), and a stress-test of whether <b>RED</b> faithfully recovers node ages under realistic clock heterogeneity.</p>
-        <a class="btn btn-ghost" href="docs/cookbook/">Browse the cookbook →</a>
-      </div>
-    </section>
-
-    <!-- ===================== TOOLS ===================== -->
-    <section class="section section-band" id="tools">
-      <div class="wrap">
-        <p class="eyebrow">Ecosystem</p>
-        <h2>Tools</h2>
-        <p class="section-intro">A validated <code>zombi2.tools</code> layer for analysing simulator output — <b>reconciliation likelihood</b> (ALE-style scoring), <b>relative evolutionary divergence</b> (RED node depths), <b>tree distances</b> (Robinson–Foulds, branch-score, quartet), <b>reconciliation accuracy</b> against the true history, and a <b>parser</b> that reads ALE / AleRax output into native trees and tables.</p>
-        <a class="btn btn-ghost" href="docs/tools/">Explore the tools →</a>
-      </div>
-    </section>
-
     <!-- ===================== PERFORMANCE ===================== -->
-    <section class="section section-band" id="performance">
+    <section class="section" id="performance">
       <div class="wrap">
         <p class="eyebrow">Performance</p>
         <h2>Built on a native Rust engine</h2>
