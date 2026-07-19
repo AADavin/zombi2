@@ -227,7 +227,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 - Version 1 is **ZOMBI1** (no space). "Zombi" survives only in citations and URLs. Reject "ZOMBI(1)".
 - Book subtitle: **"Simulating the Evolution of Species, Genomes, Sequences and Traits."**
 - Trees: **complete** (keeps extinct lineages) vs **extant** (the sampled survivors); output filenames
-  are frozen (`_extant.nwk` is the reconstructed tree, kept from ZOMBI1).
+  are frozen (`_extant.nwk` is the extant tree, kept from ZOMBI1).
 - Prose target: **≤ 4 em dashes per 1,000 words** (the `- term — gloss` bullet form and captions are
   exempt).
 

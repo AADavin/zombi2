@@ -81,20 +81,20 @@ are bent independently. `Global` gives one budget for the whole tree instead of 
 - **`sampling=0.5`** — observe only half the surviving species (classic incomplete sampling).
 - **`fossils=0.1`** — recover fossils along the branches, a bare rate. **v1: fossils are a side output**
   (the sampled lineages + their ages); the lineage is *not* removed, and fossils do *not* appear in the
-  reconstructed tree. Full fossilised birth–death (fossils as dated sampled-ancestors in the tree) is a
+  extant tree. Full fossilised birth–death (fossils as dated sampled-ancestors in the tree) is a
   future `tools` command.
 
 ## The direction is inferred, never chosen
 
 The user does not pick forward vs backward. It follows from what was asked:
 
-- constant or `Time` rates, with at most extant `sampling` → the reconstructed tree can be **sampled
+- constant or `Time` rates, with at most extant `sampling` → the extant tree can be **sampled
   backward** (fast);
 - `Diversity`, `Inherited`, `mass_extinctions`, or `fossils` need the process to actually play out →
   **forward**.
 
 This is why the chapter does not open on forward-vs-backward: it is a consequence, not a knob. The
-complete-vs-reconstructed tree, backward sampling, and ghost lineages are a later section (§4 of the
+complete-vs-extant tree, backward sampling, and ghost lineages are a later section (§4 of the
 chapter), still to be designed.
 
 ## The bridge table (literature → this API)
@@ -132,9 +132,9 @@ The full cross-level list of output files lives in Appendix B of the manual.
   release; when it returns it uses the `(time, rule)` shape, likely sharing the mass-extinction form.
 - **Ghost lineages — set aside for v1 (Adrián, 2026-07-18).** They run on a different paradigm; we will
   do them, just not now.
-- **Sampling / reconstructed tree / fossils — decided (2026-07-18, v1).** Incomplete extant sampling (ρ)
-  prunes the reconstructed tree; **fossils are a side output** (sampled lineages + ages), the lineage is
-  **not** removed, and fossils do **not** appear in the reconstructed tree. Full fossilised birth–death
+- **Sampling / extant tree / fossils — decided (2026-07-18, v1).** Incomplete extant sampling (ρ)
+  prunes the extant tree; **fossils are a side output** (sampled lineages + ages), the lineage is
+  **not** removed, and fossils do **not** appear in the extant tree. Full fossilised birth–death
   (fossils as dated sampled-ancestors *in* the tree) is deferred to a future `tools` command.
 
 ## What to delete / change in `zombi2/species`
