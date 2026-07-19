@@ -35,7 +35,7 @@ The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the 
 | ClaDS | rates drift, inherited at each split | `1.0 * mod.Inherited(spread=…)` |
 | mass extinction | a fraction culled at an instant | `mass_extinctions=[(t, f)]` |
 
-A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time. Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at age 3.
+A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time (measured forward from the crown, like every time in ZOMBI2). Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3.
 
 Whether a rate depends only on time, or on the tree as it grows, quietly decides how the tree gets simulated — which we return to once we look at what you actually observe.
 

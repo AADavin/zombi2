@@ -183,7 +183,8 @@ def _weighted_index(rng, weights: list[float], total: float) -> int:
     return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
-def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) -> tuple[Tree, list[Event]]:
+def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None,
+          pulses: list[tuple[float, float]]) -> tuple[Tree, list[Event]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``age``, or dies out. Returns the complete tree and the event log.
 
@@ -191,7 +192,12 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
     is *per-lineage*: every lineage threads its own Inherited factor (its parent's, nudged at the
     split), so the lineage that speciates or dies is drawn **weighted** by its effective rate rather
     than uniformly. Birth and death drift independently. A rate with no ``Inherited`` keeps a factor
-    of 1 and picks uniformly, exactly as before."""
+    of 1 and picks uniformly, exactly as before.
+
+    ``pulses`` are scheduled mass extinctions as ``(time, survival)`` pairs sorted by time (time runs
+    forward from the crown): at each instant every standing lineage is kept with probability
+    ``survival`` and otherwise becomes an extinct leaf. They sit at a point on the timeline, so the
+    caller passes them in age mode only."""
     nodes: dict[int, Node] = {}
     counter = 0
 
@@ -213,6 +219,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
     inh_d = [death_drift.initial() if death_drift else 1.0]
     t = 0.0
     events: list[Event] = []
+    pulse_idx = 0  # the next unfired mass extinction in `pulses`
 
     while alive:
         n = len(alive)
@@ -232,9 +239,13 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
         else:
             total_death = death_rate.effective(lineages=n, **ctx)
         total = total_birth + total_death
-        # the total rate is constant until the next skyline breakpoint (or the age limit)
+        # the total rate is constant until the next skyline breakpoint, mass extinction, or the age
+        # limit — advance no further than the earliest of them before re-evaluating
         next_change = min(birth_rate.next_change(t), death_rate.next_change(t))
-        horizon = next_change if age is None else min(age, next_change)
+        next_pulse = pulses[pulse_idx][0] if pulse_idx < len(pulses) else math.inf
+        horizon = min(next_change, next_pulse)
+        if age is not None:
+            horizon = min(horizon, age)
 
         if total > 0.0:
             t_event = t + float(rng.exponential(1.0 / total))
@@ -276,12 +287,34 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
                     events.append(Event(t, "extinction", node))
                 continue
 
-        # no event fired before the horizon
+        # no stochastic event fired before the horizon
         if math.isinf(horizon):
-            break  # no age limit and the rate never changes again → nothing more can happen
+            break  # nothing scheduled and the rate never changes again → nothing more can happen
         if age is not None and horizon == age:
             t = age
             break
+        if pulse_idx < len(pulses) and horizon == next_pulse:
+            # a mass extinction: each standing lineage is kept with probability `survival`, the rest
+            # become extinct leaves at this instant (their Inherited factors leave with them)
+            t = next_pulse
+            survival = pulses[pulse_idx][1]
+            pulse_idx += 1
+            kept_a: list[int] = []
+            kept_b: list[float] = []
+            kept_d: list[float] = []
+            for k, node_id in enumerate(alive):
+                if survival >= 1.0 or rng.random() < survival:
+                    kept_a.append(node_id)
+                    kept_b.append(inh_b[k])
+                    kept_d.append(inh_d[k])
+                else:
+                    nodes[node_id].end_time = t
+                    nodes[node_id].fate = "extinct"
+                    events.append(Event(t, "extinction", node_id))
+            alive[:] = kept_a
+            inh_b[:] = kept_b
+            inh_d[:] = kept_d
+            continue
         t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     for i in alive:  # whoever is still alive reached the present
@@ -291,7 +324,37 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
     return Tree(nodes, root), events
 
 
-def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None, seed=None) -> SpeciesResult:
+def _mass_extinction_pulses(mass_extinctions, age: float | None) -> list[tuple[float, float]]:
+    """Turn user ``(time, fraction_lost)`` pulses into the engine's ``(time, survival)`` pairs,
+    sorted by time. Time runs **forward from the crown**, so ``(3.0, 0.75)`` = at time 3.0, 75% of
+    the standing lineages die (survival 0.25). Empty when none are given. A pulse sits at a point on
+    the timeline, so it needs a run with a fixed end — age mode — and must fall inside ``(0, age)``."""
+    if not mass_extinctions:
+        return []
+    if age is None:
+        raise ValueError(
+            "mass_extinctions need a run with a fixed end — give age=..., not n_extant= "
+            "(under n_extant the run can stop before a pulse's time is reached)"
+        )
+    pulses: list[tuple[float, float]] = []
+    for pulse in mass_extinctions:
+        time, fraction = pulse
+        if (isinstance(time, bool) or not isinstance(time, (int, float))
+                or not math.isfinite(time) or not 0.0 < time < age):
+            raise ValueError(
+                f"each mass extinction time must be a number strictly between 0 and age ({age}), "
+                f"got {time!r}"
+            )
+        if (isinstance(fraction, bool) or not isinstance(fraction, (int, float))
+                or not 0.0 <= fraction <= 1.0):
+            raise ValueError(f"each mass extinction fraction lost must be in [0, 1], got {fraction!r}")
+        pulses.append((time, 1.0 - fraction))
+    pulses.sort()
+    return pulses
+
+
+def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None,
+                          mass_extinctions=None, seed=None) -> SpeciesResult:
     """Grow a forward birth-death tree.
 
     ``birth`` and ``death`` are rate specs (a number, a ``scope`` wrapper, or a product
@@ -302,6 +365,11 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None, seed=Non
     one. ``n_extant`` is **conditioned on survival**: a birth-death tree can die out, so we
     restart (advancing the same generator) until one reaches ``n_extant``. ``age`` is not
     conditioned. Deterministic given ``seed``.
+
+    ``mass_extinctions`` is a list of ``(time, fraction_lost)`` pulses — e.g. ``[(3.0, 0.75)]`` culls
+    75% of the lineages alive at time 3.0 (time runs forward from the crown). It is a point-in-time
+    intervention on the process (not a rate) placed on the timeline, so it needs a run with a fixed
+    end: **age mode only**, with each time strictly inside ``(0, age)``.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
@@ -318,15 +386,16 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None, seed=Non
         raise ValueError(f"n_extant must be a positive integer, got {n_extant!r}")
     if age is not None and (not isinstance(age, (int, float)) or not math.isfinite(age) or age <= 0):
         raise ValueError(f"age must be a positive finite number, got {age!r}")
+    pulses = _mass_extinction_pulses(mass_extinctions, age)  # [] unless mass_extinctions given (age mode)
 
     rng = np.random.default_rng(seed)
 
     if age is not None:
-        tree, events = _grow(rng, birth_rate, death_rate, None, age)
+        tree, events = _grow(rng, birth_rate, death_rate, None, age, pulses)
         return SpeciesResult(tree, events, seed)
 
     for _ in range(_MAX_ATTEMPTS):
-        tree, events = _grow(rng, birth_rate, death_rate, n_extant, None)
+        tree, events = _grow(rng, birth_rate, death_rate, n_extant, None, [])
         if sum(1 for nd in tree.nodes.values() if nd.fate == "extant") == n_extant:
             return SpeciesResult(tree, events, seed)
     raise RuntimeError(

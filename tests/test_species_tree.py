@@ -257,3 +257,66 @@ def test_clads_is_more_imbalanced_than_yule():
     clads = [_colless(simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.9), death=0.0, n_extant=64, seed=s))
              for s in seeds]
     assert statistics.mean(clads) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)
+
+
+# --- mass extinctions: (time, fraction_lost) survival pulses, time forward from the crown, age mode ---
+
+def test_mass_extinction_culls_diversity():
+    import statistics
+    seeds = range(30)
+    no_pulse = [simulate_species_tree(birth=1.0, death=0.2, age=5.0, seed=s).n_extant for s in seeds]
+    culled = [simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(3.0, 0.9)], seed=s).n_extant
+              for s in seeds]
+    # a 90% cull at time 3.0 leaves far fewer survivors even after some regrowth to the present
+    assert statistics.mean(culled) < 0.5 * statistics.mean(no_pulse)
+
+
+def test_total_mass_extinction_wipes_the_tree():
+    r = simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(2.5, 1.0)], seed=1)
+    assert r.n_extant == 0            # fraction lost = 1.0 kills every standing lineage
+    assert r.extant_tree is None
+
+
+def test_mass_extinction_deaths_land_at_the_pulse_instant():
+    # a pulse at time 2.0 (forward from the crown) puts its deaths exactly there
+    r = simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(2.0, 0.75)], seed=3)
+    culled = [e for e in r.events if e.kind == "extinction" and e.time == pytest.approx(2.0)]
+    assert len(culled) > 0
+    assert all(r.complete_tree.nodes[e.node].fate == "extinct" for e in culled)
+
+
+def test_multiple_mass_extinctions_each_fire():
+    r = simulate_species_tree(birth=1.2, death=0.1, age=6.0,
+                              mass_extinctions=[(4.0, 0.5), (2.0, 0.5)], seed=2)
+    times = {e.time for e in r.events if e.kind == "extinction"}
+    assert any(t == pytest.approx(2.0) for t in times)   # each pulse fires at its own time
+    assert any(t == pytest.approx(4.0) for t in times)
+
+
+def test_zero_fraction_pulse_kills_nobody():
+    r = simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(2.0, 0.0)], seed=3)
+    at_instant = [e for e in r.events if e.kind == "extinction" and e.time == pytest.approx(2.0)]
+    assert at_instant == []          # survival 1.0 → the pulse removes no one
+
+
+def test_mass_extinction_is_deterministic():
+    kw = dict(birth=1.0, death=0.3, age=5.0, mass_extinctions=[(2.0, 0.6)], seed=7)
+    a = simulate_species_tree(**kw)
+    b = simulate_species_tree(**kw)
+    assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
+
+
+def test_mass_extinction_requires_age_mode():
+    with pytest.raises(ValueError, match="age"):
+        simulate_species_tree(birth=1.0, n_extant=10, mass_extinctions=[(1.0, 0.5)], seed=1)
+
+
+def test_mass_extinction_validation():
+    with pytest.raises(ValueError):
+        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(5.0, 0.5)], seed=1)   # time not < age
+    with pytest.raises(ValueError):
+        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(0.0, 0.5)], seed=1)   # time not > 0
+    with pytest.raises(ValueError):
+        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(2.0, 1.5)], seed=1)   # fraction > 1
+    with pytest.raises(ValueError):
+        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(2.0, -0.1)], seed=1)  # fraction < 0
