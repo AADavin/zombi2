@@ -59,14 +59,20 @@ traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.Time({0: 1.0, 5: 0.2}
 # variable-rates BM — σ² drifts branch-to-branch ("ClaDS for traits")
 #   ...the SAME Inherited modifier that drifts the species rate / the autocorrelated clock
 traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.Inherited(spread=0.3), seed=1)
+
+# diversity-dependent — σ² slows as the clade fills up (ecological limits)
+#   ...the SAME Diversity modifier that slows species diversification, read off the fixed tree
+traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.Diversity(cap=100), seed=1)
 ```
 
-`rate` is the BM variance-rate σ², and it takes modifiers like any other rate — `Time` (early burst) and
-`Inherited` (variable-rates BM) are wired; `Diversity` (diversity-dependent σ²) is a natural future one.
-The unification is at the level of *knobs*: `Time` (→ species skyline) and `Inherited` (→ species clade
-drift / the autocorrelated clock) are literally the same modifiers, one level over. `reverts_to`/`pull`
-are the exception — they are OU **function arguments** (they revert the trait *value*), sharing only their
-*names* with the CIR clock's rate-reversion, not a shared wrapper (see *Still to design*).
+`rate` is the BM variance-rate σ², and it takes modifiers like any other rate — `Time` (early burst),
+`Inherited` (variable-rates BM), and `Diversity` (diversity-dependent σ², slowing as the tree's
+lineages-through-time fills up) are all wired, and they compose. The unification is at the level of
+*knobs*: `Time` (→ species skyline), `Inherited` (→ species clade drift / the autocorrelated clock),
+and `Diversity` (→ species diversity-dependence) are literally the same modifiers, one level over.
+`reverts_to`/`pull` are the exception — they are OU **function arguments** (they revert the trait
+*value*), sharing only their *names* with the CIR clock's rate-reversion, not a shared wrapper (see
+*Still to design*).
 
 ## Discrete traits: a state switching along the tree (Mk)
 
