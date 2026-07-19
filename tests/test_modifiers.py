@@ -101,7 +101,7 @@ def test_base_modifier_is_abstract():
 
 def test_stochastic_status_inherited_here_others_deferred():
     assert hasattr(mod, "Inherited")  # the first stochastic modifier is built
-    for later in ("ByBranch", "ByFamily", "Speed", "Markov", "DrivenBy"):
+    for later in ("ByLineage", "ByFamily", "Markov", "DrivenBy"):
         assert not hasattr(mod, later), f"{later} is not built yet"
 
 

@@ -98,11 +98,11 @@ rate:
 loss = 0.25 * mod.DrivenBy("habitat.tsv", {"cave": 4.0, "surface": 1.0})   # the coupling under test
 
 loss = 0.25                                    # independent null — drop the coupling
-loss = 0.25 * mod.ByBranch(spread=0.5)         # CID null — background heterogeneity, NOT the trait
+loss = 0.25 * mod.ByLineage(spread=0.5)        # CID null — background heterogeneity, NOT the trait
 loss = 0.25 * mod.DrivenBy(shuffle("habitat.tsv"), {...})   # shuffle null — permute the pairing
 ```
 
-Then a plain `for seed in range(100)` gives the distribution. CID is *literally* `ByBranch` (rate varies
+Then a plain `for seed in range(100)` gives the distribution. CID is *literally* `ByLineage` (rate varies
 across the tree, not by the trait), reusing the clock-collapse modifier. **ZOMBI2 does not own the test
 statistic or p-value** — choosing the association measure and the test is inference, the user's job; the
 simulator only generates the baseline. The only thing that might warrant a `tools` utility is a tiny
@@ -132,5 +132,5 @@ simulator only generates the baseline. The only thing that might warrant a `tool
 - The `coevolve` command and its `--couple driver:target` grammar → the `DrivenBy` modifier + `joint`
   command. Conditioned couplings fold into the **target level's** command (`--loss-driven-by file`);
   only genuinely-joint (live-driver) models keep the dedicated `joint` command.
-- **No null layer.** Nulls are recipes built from existing modifiers (drop / swap for `ByBranch` /
+- **No null layer.** Nulls are recipes built from existing modifiers (drop / swap for `ByLineage` /
   shuffle the driver file), not a `.null()` API. ZOMBI2 never computes the test statistic.
