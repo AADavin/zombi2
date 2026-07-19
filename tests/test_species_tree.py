@@ -21,8 +21,8 @@ def test_birth_death_has_extinctions_and_survivors():
     assert len(r.complete_tree.extinct()) > 0
 
 
-def test_age_stopping_makes_extant_lineages_end_at_age():
-    r = simulate_species_tree(birth=1.0, death=0.2, age=4.0, seed=3)
+def test_total_time_stop_ends_extant_lineages_at_the_present():
+    r = simulate_species_tree(birth=1.0, death=0.2, total_time=4.0, seed=3)
     for n in r.complete_tree.extant():
         assert n.end_time == pytest.approx(4.0)
 
@@ -75,14 +75,14 @@ def test_raises_when_n_extant_unreachable():
 
 def test_global_grows_slower_than_per_lineage():
     # per-lineage birth compounds (exponential); Global is a constant tree-wide budget (linear)
-    per = simulate_species_tree(birth=1.0, death=0.0, age=4.0, seed=1)
-    glob = simulate_species_tree(birth=scope.Global(2.0), death=0.0, age=4.0, seed=1)
+    per = simulate_species_tree(birth=1.0, death=0.0, total_time=4.0, seed=1)
+    glob = simulate_species_tree(birth=scope.Global(2.0), death=0.0, total_time=4.0, seed=1)
     assert per.n_extant > glob.n_extant
 
 
 def test_diversity_caps_growth():
     # Diversity(cap=20): the birth factor falls to 0 at 20 lineages, so the tree saturates
-    r = simulate_species_tree(birth=1.0 * mod.Diversity(cap=20), death=0.0, age=100.0, seed=1)
+    r = simulate_species_tree(birth=1.0 * mod.Diversity(cap=20), death=0.0, total_time=100.0, seed=1)
     assert r.n_extant <= 20   # never exceeds the cap
     assert r.n_extant >= 15   # but it grew toward it
 
@@ -98,9 +98,9 @@ def test_no_scope_default_is_per_lineage():
 
 def test_validation():
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0)                          # neither n_extant nor age
+        simulate_species_tree(birth=1.0)                          # neither n_extant nor total_time
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0, n_extant=10, age=5.0)    # both
+        simulate_species_tree(birth=1.0, n_extant=10, total_time=5.0)    # both
     with pytest.raises(ValueError):
         simulate_species_tree(birth=-1.0, n_extant=10)            # negative rate (via scope)
     with pytest.raises(TypeError):
@@ -108,7 +108,7 @@ def test_validation():
     with pytest.raises(ValueError):
         simulate_species_tree(birth=1.0, n_extant=0)              # non-positive n_extant
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0, age=-2.0)               # non-positive age
+        simulate_species_tree(birth=1.0, total_time=-2.0)               # non-positive total_time
 
 
 def test_event_is_frozen_record():
@@ -119,14 +119,14 @@ def test_event_is_frozen_record():
 
 def test_skyline_stops_births_after_a_zero_breakpoint():
     # birth 1.0 on [0, 2), then 0 → the interval-aware sampler must forbid births at/after t=2
-    r = simulate_species_tree(birth=1.0 * mod.Time({0: 1.0, 2.0: 0.0}), death=0.0, age=10.0, seed=1)
+    r = simulate_species_tree(birth=1.0 * mod.Time({0: 1.0, 2.0: 0.0}), death=0.0, total_time=10.0, seed=1)
     spec_times = [e.time for e in r.events if e.kind == "speciation"]
     assert spec_times                 # growth happened before the breakpoint
     assert max(spec_times) < 2.0      # and nothing after the rate dropped to 0
 
 
 def test_skyline_is_deterministic():
-    kw = dict(birth=1.0 * mod.Time({0: 2.0, 3: 0.2}), death=0.1, age=6.0, seed=4)
+    kw = dict(birth=1.0 * mod.Time({0: 2.0, 3: 0.2}), death=0.1, total_time=6.0, seed=4)
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind) for e in a.events] == [(e.time, e.kind) for e in b.events]
@@ -174,7 +174,7 @@ def test_extant_tree_is_deterministic():
 
 
 def test_dead_tree_has_no_extant_tree():
-    r = simulate_species_tree(birth=0.1, death=10.0, age=5.0, seed=1)
+    r = simulate_species_tree(birth=0.1, death=10.0, total_time=5.0, seed=1)
     assert r.n_extant == 0
     assert r.extant_tree is None
 
@@ -217,7 +217,7 @@ def test_death_can_drift_independently():
 def test_clads_composes_with_diversity_cap():
     # ClaDS drift × diversity-dependence: the cap still bounds the tree
     r = simulate_species_tree(
-        birth=1.0 * mod.Inherited(spread=0.4) * mod.Diversity(cap=25), death=0.0, age=100.0, seed=1)
+        birth=1.0 * mod.Inherited(spread=0.4) * mod.Diversity(cap=25), death=0.0, total_time=100.0, seed=1)
     assert r.n_extant <= 25          # the cap is a hard ceiling even with drift
     assert r.n_extant >= 12          # and the tree grew toward it
 
@@ -259,34 +259,34 @@ def test_clads_is_more_imbalanced_than_yule():
     assert statistics.mean(clads) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)
 
 
-# --- mass extinctions: (time, fraction_lost) survival pulses, time forward from the crown, age mode ---
+# --- mass extinctions: (time, fraction_lost) survival pulses, time forward from the crown, total_time mode ---
 
 def test_mass_extinction_culls_diversity():
     import statistics
     seeds = range(30)
-    no_pulse = [simulate_species_tree(birth=1.0, death=0.2, age=5.0, seed=s).n_extant for s in seeds]
-    culled = [simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(3.0, 0.9)], seed=s).n_extant
+    no_pulse = [simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, seed=s).n_extant for s in seeds]
+    culled = [simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(3.0, 0.9)], seed=s).n_extant
               for s in seeds]
     # a 90% cull at time 3.0 leaves far fewer survivors even after some regrowth to the present
     assert statistics.mean(culled) < 0.5 * statistics.mean(no_pulse)
 
 
 def test_total_mass_extinction_wipes_the_tree():
-    r = simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(2.5, 1.0)], seed=1)
+    r = simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(2.5, 1.0)], seed=1)
     assert r.n_extant == 0            # fraction lost = 1.0 kills every standing lineage
     assert r.extant_tree is None
 
 
 def test_mass_extinction_deaths_land_at_the_pulse_instant():
     # a pulse at time 2.0 (forward from the crown) puts its deaths exactly there
-    r = simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(2.0, 0.75)], seed=3)
+    r = simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(2.0, 0.75)], seed=3)
     culled = [e for e in r.events if e.kind == "extinction" and e.time == pytest.approx(2.0)]
     assert len(culled) > 0
     assert all(r.complete_tree.nodes[e.node].fate == "extinct" for e in culled)
 
 
 def test_multiple_mass_extinctions_each_fire():
-    r = simulate_species_tree(birth=1.2, death=0.1, age=6.0,
+    r = simulate_species_tree(birth=1.2, death=0.1, total_time=6.0,
                               mass_extinctions=[(4.0, 0.5), (2.0, 0.5)], seed=2)
     times = {e.time for e in r.events if e.kind == "extinction"}
     assert any(t == pytest.approx(2.0) for t in times)   # each pulse fires at its own time
@@ -294,29 +294,29 @@ def test_multiple_mass_extinctions_each_fire():
 
 
 def test_zero_fraction_pulse_kills_nobody():
-    r = simulate_species_tree(birth=1.0, death=0.2, age=5.0, mass_extinctions=[(2.0, 0.0)], seed=3)
+    r = simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(2.0, 0.0)], seed=3)
     at_instant = [e for e in r.events if e.kind == "extinction" and e.time == pytest.approx(2.0)]
     assert at_instant == []          # survival 1.0 → the pulse removes no one
 
 
 def test_mass_extinction_is_deterministic():
-    kw = dict(birth=1.0, death=0.3, age=5.0, mass_extinctions=[(2.0, 0.6)], seed=7)
+    kw = dict(birth=1.0, death=0.3, total_time=5.0, mass_extinctions=[(2.0, 0.6)], seed=7)
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
 
 
-def test_mass_extinction_requires_age_mode():
-    with pytest.raises(ValueError, match="age"):
+def test_mass_extinction_requires_total_time():
+    with pytest.raises(ValueError, match="total_time"):
         simulate_species_tree(birth=1.0, n_extant=10, mass_extinctions=[(1.0, 0.5)], seed=1)
 
 
 def test_mass_extinction_validation():
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(5.0, 0.5)], seed=1)   # time not < age
+        simulate_species_tree(birth=1.0, total_time=5.0, mass_extinctions=[(5.0, 0.5)], seed=1)   # time not < total_time
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(0.0, 0.5)], seed=1)   # time not > 0
+        simulate_species_tree(birth=1.0, total_time=5.0, mass_extinctions=[(0.0, 0.5)], seed=1)   # time not > 0
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(2.0, 1.5)], seed=1)   # fraction > 1
+        simulate_species_tree(birth=1.0, total_time=5.0, mass_extinctions=[(2.0, 1.5)], seed=1)   # fraction > 1
     with pytest.raises(ValueError):
-        simulate_species_tree(birth=1.0, age=5.0, mass_extinctions=[(2.0, -0.1)], seed=1)  # fraction < 0
+        simulate_species_tree(birth=1.0, total_time=5.0, mass_extinctions=[(2.0, -0.1)], seed=1)  # fraction < 0

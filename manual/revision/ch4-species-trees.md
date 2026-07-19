@@ -8,11 +8,11 @@ A species tree grows by two kinds of event: a lineage **speciates**, splitting i
 
 The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process, which in ZOMBI2 is just birth–death with the death rate at zero, not a separate model. As extinction rises, the tree of survivors becomes a thinner and thinner trace of the one that actually grew; what became of the lineages that died is taken up later, under *Extinct lineages*.
 
-You also say when to stop: grow the tree to a fixed **age**, or until it reaches a fixed **number of tips**. Both work.
+You also say when to stop: grow the tree to a fixed **total time**, or until it reaches a fixed **number of tips**. Both work.
 
 ```python
 from zombi2 import species
-# a birth–death tree of 20 surviving lineages, crown age 5
+# a birth–death tree of 20 surviving lineages
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
 ```
 
@@ -22,7 +22,7 @@ By default each rate is counted **per lineage**: every branch alive is an indepe
 
 So far the rates have been constant, but a birth or death rate need not be. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. You express each the same way: multiply the base rate by a **modifier** that names what it depends on.
 
-- **Time** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.Time({0: 1.0, 3: 0.3})` runs at full rate until age 3, then a third of it.
+- **Time** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.Time({0: 1.0, 3: 0.3})` runs at full rate until time 3, then a third of it.
 - **Diversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.Diversity(cap=100)`.
 - **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(spread=0.2)`.
 
@@ -52,7 +52,7 @@ By default you see every surviving species, but real datasets are incomplete. **
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, sampling=0.5, seed=1)
 
 # recover fossils of extinct lineages along the branches
-result = species.simulate_species_tree(birth=1.0, death=0.3, age=6.0, fossils=0.1, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=1)
 ```
 
 ## Extinct lineages
@@ -97,12 +97,12 @@ result = species.simulate_species_tree(birth=1.0, n_tips=50, seed=1)
 # skyline birth that also slows with diversity, with a global death rate
 result = species.simulate_species_tree(
     birth = 1.0 * mod.Time({0: 1.0, 3: 0.5}) * mod.Diversity(cap=100),
-    death = scope.Global(0.3), age=8.0, seed=1)
+    death = scope.Global(0.3), total_time=8.0, seed=1)
 
 # a mass extinction and incomplete sampling
 result = species.simulate_species_tree(
     birth=1.0, death=0.3, mass_extinctions=[(3.0, 0.75)],
-    sampling=0.5, age=5.0, seed=1)
+    sampling=0.5, total_time=5.0, seed=1)
 ```
 
 ## Usage from the CLI
