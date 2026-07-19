@@ -163,14 +163,14 @@ def test_newick_is_wellformed():
 def test_write_produces_newick_files(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=5)
     r.write(tmp_path)
-    assert (tmp_path / "complete.nwk").read_text().strip().endswith(";")
-    assert (tmp_path / "extant.nwk").read_text().strip().endswith(";")
+    assert (tmp_path / "species_complete.nwk").read_text().strip().endswith(";")
+    assert (tmp_path / "species_extant.nwk").read_text().strip().endswith(";")
 
 
 def test_write_records_the_event_log(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=5)
     r.write(tmp_path)                                            # events are always written
-    lines = (tmp_path / "events.tsv").read_text().splitlines()
+    lines = (tmp_path / "species_events.tsv").read_text().splitlines()
     assert lines[0] == "time\tkind\tlineage\tchildren"
     assert len(lines) == 1 + len(r.events)                      # one row per recorded event
     speciation = next(ln for ln in lines[1:] if "\tspeciation\t" in ln)
@@ -181,7 +181,7 @@ def test_write_records_the_event_log(tmp_path):
 def test_write_is_selective(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, fossils=0.5, seed=3)
     r.write(tmp_path, outputs=["extant", "events"])
-    assert {p.name for p in tmp_path.iterdir()} == {"extant.nwk", "events.tsv"}   # only what was asked
+    assert {p.name for p in tmp_path.iterdir()} == {"species_extant.nwk", "species_events.tsv"}  # only what was asked
 
 
 def test_write_rejects_unknown_output(tmp_path):
@@ -399,12 +399,12 @@ def test_fossils_validation():
 def test_fossils_write_tsv(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.4, n_extant=30, fossils=0.5, seed=3)
     r.write(tmp_path)
-    lines = (tmp_path / "fossils.tsv").read_text().splitlines()
+    lines = (tmp_path / "species_fossils.tsv").read_text().splitlines()
     assert lines[0] == "lineage\ttime"
     assert len(lines) == 1 + len(r.fossils)
     # no fossils file when none were recovered
     simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=3).write(tmp_path / "nof")
-    assert not (tmp_path / "nof" / "fossils.tsv").exists()
+    assert not (tmp_path / "nof" / "species_fossils.tsv").exists()
 
 
 # --- incomplete sampling (rho): observe a fraction of the survivors ---
