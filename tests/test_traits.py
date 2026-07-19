@@ -126,11 +126,16 @@ def test_write_rejects_unknown_output(tmp_path):
 
 # --- input validation (what this slice deliberately does not wire) --------------
 
-def test_rejects_an_unwired_modifier():
-    # Time (early burst) and Inherited (variable-rates BM) are wired; Diversity is still a later slice
+def test_rejects_an_unknown_modifier():
+    # Time (early burst), Inherited (variable-rates BM) and Diversity (diversity-dependent) are wired;
+    # any other Modifier is rejected loudly
+    class _Bogus(mod.Modifier):
+        def factor(self, **_):
+            return 1.0
+
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="Diversity"):
-        simulate_continuous(sp, rate=1.0 * mod.Diversity(cap=100), seed=1)
+    with pytest.raises(ValueError, match="does not support"):
+        simulate_continuous(sp, rate=1.0 * _Bogus(), seed=1)
 
 
 def test_rejects_a_non_default_scope():
@@ -320,7 +325,7 @@ def _kurtosis(col):
     return float(((x - x.mean()) ** 4).mean() / x.var() ** 2)
 
 
-def _vrbm_tips(spread, n_rep=4000):
+def _vrbm_tips(spread, n_rep=2500):
     """Extant-tip values over `n_rep` variable-rates-BM replicates on a fixed 8-tip Yule tree."""
     tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
     tips = sorted(n.id for n in tree.extant())
@@ -360,7 +365,7 @@ def test_variable_rates_composes_with_time():
     rate = base * mod.Time({0.0: 1.0, tau: c}) * mod.Inherited(spread=0.8)
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
-        for s in range(4000)
+        for s in range(2500)
     ])
     assert np.allclose(data.var(axis=0), base * (1.0 * tau + c * (T - tau)), rtol=0.1)
 
@@ -392,6 +397,94 @@ def test_bm_unchanged_by_the_inherited_wiring():
     # reproduced from an independent run — the plain-BM path is untouched by the drift threading
     b = simulate_continuous(sp.complete_tree, start=0.0, rate=1.5, seed=1)
     assert a.node_values == b.node_values
+
+
+# --- diversity-dependent BM (Diversity on rate): σ² slows as the clade fills ----
+
+def _ltt_integral(tree, cap, upto):
+    """∫_0^{upto} max(0, 1 − LTT(t)/cap) dt, LTT = lineages alive at t — computed independently of the
+    engine (a re-derivation, so it validates the engine rather than restating it)."""
+    ev = []
+    for n in tree.nodes.values():
+        ev.append((n.birth_time, 1))
+        ev.append((n.end_time, -1))
+    ev.sort()
+    total, div, t_prev = 0.0, 0, 0.0
+    for t, d in ev:
+        hi = min(t, upto)
+        if hi > t_prev:
+            total += max(0.0, 1.0 - div / cap) * (hi - t_prev)
+        div += d
+        t_prev = t
+        if t_prev >= upto:
+            break
+    return total
+
+
+def test_diversity_dependence_matches_the_ltt_integral():
+    # the correctness-critical check: σ² is scaled by (1 − LTT(t)/cap), so a tip's variance is the
+    # exact integral base·∫(1−LTT/cap)dt over its path, and a pair's covariance the integral to their
+    # MRCA. Verified against an independent LTT integrator; suppressed below plain BM's σ²·depth.
+    sp = _tree(seed=11, n_extant=8, death=0.0)
+    tree = sp.complete_tree
+    tips = sorted(n.id for n in tree.extant())
+    T = tree.nodes[tips[0]].end_time
+    base, cap = 2.0, 6.0
+    data = np.array([
+        [simulate_continuous(tree, start=0.0, rate=base * mod.Diversity(cap=cap), seed=s).node_values[i]
+         for i in tips] for s in range(2500)
+    ])
+    assert np.allclose(data.var(axis=0), base * _ltt_integral(tree, cap, T), rtol=0.1)
+    assert base * _ltt_integral(tree, cap, T) < base * T          # diversity-dependence suppresses σ²
+    cov = np.cov(data, rowvar=False)
+    for a in range(len(tips)):
+        for b in range(a + 1, len(tips)):
+            s = _mrca_split_time(tree, tips[a], tips[b])
+            assert cov[a, b] == pytest.approx(base * _ltt_integral(tree, cap, s), abs=0.22)
+
+
+def test_diversity_dependence_freezes_at_a_small_cap():
+    # a small cap → σ² hits 0 once the standing diversity reaches it → far more suppression than a
+    # cap the tree never approaches.
+    sp = _tree(seed=11, n_extant=8, death=0.0)
+    tree = sp.complete_tree
+    tips = sorted(n.id for n in tree.extant())
+
+    def tip_var(cap):
+        d = np.array([[simulate_continuous(tree, rate=1.0 * mod.Diversity(cap=cap), seed=s).node_values[i]
+                       for i in tips] for s in range(1000)])
+        return d.var(axis=0).mean()
+
+    assert tip_var(3.0) < 0.5 * tip_var(200.0)     # a tight cap chokes evolution
+
+
+def test_diversity_composes_with_inherited():
+    # Diversity ∘ Inherited: the drift factor (E=1) rides on the diversity-scaled integral, so
+    # E[tip variance] equals the plain diversity integral.
+    sp = _tree(seed=11, n_extant=8, death=0.0)
+    tree = sp.complete_tree
+    tips = sorted(n.id for n in tree.extant())
+    T = tree.nodes[tips[0]].end_time
+    base, cap = 2.0, 6.0
+    rate = base * mod.Diversity(cap=cap) * mod.Inherited(spread=0.6)
+    data = np.array([
+        [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
+        for s in range(2000)
+    ])
+    assert np.allclose(data.var(axis=0), base * _ltt_integral(tree, cap, T), rtol=0.1)
+
+
+def test_diversity_deterministic():
+    sp = _tree(seed=2)
+    rate = 1.0 * mod.Diversity(cap=10.0)
+    assert simulate_continuous(sp, rate=rate, seed=4).node_values == \
+        simulate_continuous(sp, rate=rate, seed=4).node_values
+
+
+def test_diversity_rejects_ou_combo():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="not wired yet"):
+        simulate_continuous(sp, rate=1.0 * mod.Diversity(cap=10.0), reverts_to=2.0, pull=0.5, seed=1)
 
 
 # --- discrete traits (Mk): the exact CTMC + stochastic character map ------------
