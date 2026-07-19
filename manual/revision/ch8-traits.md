@@ -152,7 +152,7 @@ For discrete traits the stored values are integer state indices; `.labeled_value
 from zombi2 import species, traits, modifiers as mod
 
 # a species tree from the previous chapters, then a trait riding along it
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=30, seed=1).reconstructed
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=30, seed=1).extant_tree
 
 # continuous: body size under Brownian motion
 size = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)

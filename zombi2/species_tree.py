@@ -8,7 +8,7 @@ tree as it fills up. The rate is re-evaluated after every event, which is exact 
 ``scope`` and ``Diversity`` (they only change at events); ``Time`` needs the
 interval-aware sampler and is the next slice, so the engine does not pass ``time`` yet.
 
-Still to come: the reconstructed tree, Newick, sampling, fossils, and the move to
+Still to come: the extant tree, Newick, sampling, fossils, and the move to
 ``zombi2.species``. This lives here for now so the old package is untouched.
 """
 
@@ -68,16 +68,16 @@ class Tree:
 
 @dataclass
 class SpeciesResult:
-    """Minimal result: the complete tree, the event log, the seed. (The reconstructed tree,
+    """Minimal result: the complete tree, the event log, the seed. (The extant tree,
     Newick, sampling and the full <Level>Result spine are later slices.)"""
 
-    complete: Tree
+    complete_tree: Tree
     events: list[Event]
     seed: int | None
 
     @property
     def n_extant(self) -> int:
-        return len(self.complete.extant())
+        return len(self.complete_tree.extant())
 
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant

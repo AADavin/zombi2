@@ -45,7 +45,7 @@ Two more choices decide not how the tree grows but how much of it you get to see
 
 By default you see every surviving species, but real datasets are incomplete. **`sampling`** keeps only a fraction of the extant tips, chosen at random, so `sampling=0.5` gives you half. This is the standard incomplete-sampling correction, and because it only thins a tree that already grew, it costs nothing.
 
-**`fossils`** does the opposite: it recovers some of the lineages that died. Fossils are picked up along the branches of the complete tree at a rate you set, so `fossils=0.1` scatters fossil observations through the tree's history. Because it needs the extinct lineages to exist, it grows the tree forward. In v1 the fossils are a **side output**: the sampled lineages and their ages, reported alongside the trees. The fossil does not remove its lineage and does not appear in the reconstructed tree. The full fossilised birth–death process — fossils placed as dated sampled-ancestors *inside* the tree — is deferred to a future `tools` command.
+**`fossils`** does the opposite: it recovers some of the lineages that died. Fossils are picked up along the branches of the complete tree at a rate you set, so `fossils=0.1` scatters fossil observations through the tree's history. Because it needs the extinct lineages to exist, it grows the tree forward. In v1 the fossils are a **side output**: the sampled lineages and their ages, reported alongside the trees. The fossil does not remove its lineage and does not appear in the extant tree. The full fossilised birth–death process — fossils placed as dated sampled-ancestors *inside* the tree — is deferred to a future `tools` command.
 
 ```python
 # see only half the survivors
@@ -57,13 +57,13 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, age=6.0, fossils=0.
 
 ## Extinct lineages
 
-*[Draft — the complete-vs-reconstructed behaviour and backward sampling are settled for v1; ghost lineages are deferred to a later release.]*
+*[Draft — the complete-vs-extant behaviour and backward sampling are settled for v1; ghost lineages are deferred to a later release.]*
 
-Every birth–death tree is really two trees. The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **reconstructed** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want.
+Every birth–death tree is really two trees. The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **extant** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want.
 
-When the rates are simple enough, ZOMBI2 never grows the extinct lineages at all: it samples the reconstructed tree directly from the distribution the process implies, working backward from the present. This is fast and exact, and it is why you never chose "forward" or "backward" anywhere above — the engine takes that shortcut whenever the rates allow, and grows the tree forward only when something (diversity, ancestry, a mass extinction, fossils) needs the extinct lineages to be there.
+When the rates are simple enough, ZOMBI2 never grows the extinct lineages at all: it samples the extant tree directly from the distribution the process implies, working backward from the present. This is fast and exact, and it is why you never chose "forward" or "backward" anywhere above — the engine takes that shortcut whenever the rates allow, and grows the tree forward only when something (diversity, ancestry, a mass extinction, fossils) needs the extinct lineages to be there.
 
-Sometimes you want them there anyway, and keeping the complete tree hands you the extinct lineages in full. A third option — a reconstructed tree with the dead grafted back on *approximately*, without simulating each one in detail — is **ghost lineages**: extinct tips added to a reconstructed tree after the fact. Ghosts are the natural tool for stress-testing a method that has to cope with extinction, without paying to grow the whole complete tree. They run on a different paradigm and are **set aside for v1** — planned, but not in the first release.
+Sometimes you want them there anyway, and keeping the complete tree hands you the extinct lineages in full. A third option — a extant tree with the dead grafted back on *approximately*, without simulating each one in detail — is **ghost lineages**: extinct tips added to a extant tree after the fact. Ghosts are the natural tool for stress-testing a method that has to cope with extinction, without paying to grow the whole complete tree. They run on a different paradigm and are **set aside for v1** — planned, but not in the first release.
 
 ## The `SpeciesResult` object
 
@@ -73,12 +73,12 @@ Sometimes you want them there anyway, and keeping the complete tree hands you th
 
 A `SpeciesResult` carries:
 
-- `.reconstructed` — the survivors' tree, dated and bifurcating; this is what you get by default and hand to the next level.
-- `.complete` — the whole tree that grew, with the extinct lineages still on it.
+- `.extant_tree` — the survivors' tree, dated and bifurcating; this is what you get by default and hand to the next level.
+- `.complete_tree` — the whole tree that grew, with the extinct lineages still on it.
 - `.fossils` — the sampled fossil lineages and their ages, present only when you asked for `fossils`.
 - `.events` — the event log, every speciation and extinction with its time: the compact source of truth the run exists to record.
 
-The bundle also shares the common spine of every result — `.events`, `.seed`, and `.write(dir, include=[...])` to materialise the chosen outputs to disk. Each tree carries its topology and dated branch lengths and lets you ask for its tips, its internal nodes, and which tips are extant versus extinct. Hand `.reconstructed` straight to the next level as the tree that genomes, sequences, or traits will evolve along.
+The bundle also shares the common spine of every result — `.events`, `.seed`, and `.write(dir, include=[...])` to materialise the chosen outputs to disk. Each tree carries its topology and dated branch lengths and lets you ask for its tips, its internal nodes, and which tips are extant versus extinct. Hand `.extant_tree` straight to the next level as the tree that genomes, sequences, or traits will evolve along.
 
 ## Usage from Python
 

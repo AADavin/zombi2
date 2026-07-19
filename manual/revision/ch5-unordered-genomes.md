@@ -87,7 +87,7 @@ Everything above is recorded as an **event log**: for each family, the full sequ
 
 `simulate_unordered` returns a **`GenomesResult`** bundle. Every level returns the same shape of object — a `<Level>Result` sharing a common spine — so what you learn here carries over to sequences and traits. The spine is `.events` (the event log), `.tree` (the species tree it ran on), `.seed`, and `.write(dir, include=[...])` to materialise the outputs you choose to disk. The genome payload adds `.genomes` (per-node gene content), `.gene_trees` (each family's gene tree with its reconciliation), `.profiles` (the sparse families × species matrix), and `.transfers`. From it you can read a lineage's gene content, pull a single family's gene tree, or hand the whole thing to the sequence level.
 
-The event log is the compact source of truth, and the rich views are read off it: `.gene_trees`, `.profiles` and the ancestral genomes are reconstructed lazily on access rather than all held in memory at once. When you only need one view at scale, declare it up front with `record=[...]` — for example `record=["profiles"]` makes the run a pure profile accumulator that never builds the gene-tree objects at all, and its footprint collapses to the sparse matrix.
+The event log is the compact source of truth, and the rich views are read off it: `.gene_trees`, `.profiles` and the ancestral genomes are replayed lazily on access rather than all held in memory at once. When you only need one view at scale, declare it up front with `record=[...]` — for example `record=["profiles"]` makes the run a pure profile accumulator that never builds the gene-tree objects at all, and its footprint collapses to the sparse matrix.
 
 ## Usage from Python
 
