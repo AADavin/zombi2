@@ -36,6 +36,7 @@ from ..rates.modifiers import Time
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree, _weighted_index
+from .gene_trees import GeneNode, GeneTree, gene_trees_from_events
 from .profiles import Profiles, profiles_from_genomes
 
 
@@ -111,6 +112,13 @@ class GenomesResult:
         from the observed genomes (the classic comparative-genomics matrix). See :mod:`.profiles`."""
         extant = [n.id for n in self.complete_tree.extant()]
         return profiles_from_genomes(self.genomes, extant)
+
+    @cached_property
+    def gene_trees(self) -> dict[int, GeneTree]:
+        """``{family id: GeneTree}`` — each family's true genealogy inside the complete tree,
+        derived from the event log. Each ``GeneTree`` exposes ``.complete`` and ``.extant``. See
+        :mod:`.gene_trees`."""
+        return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory, outputs=("events", "profiles")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
@@ -394,4 +402,5 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     return GenomesResult(tree, genomes, events, seed)
 
 
-__all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance", "Profiles"]
+__all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
+           "Profiles", "GeneTree", "GeneNode"]
