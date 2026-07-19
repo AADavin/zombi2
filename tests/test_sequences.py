@@ -227,14 +227,14 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
 
 def test_bylineage_rejects_other_and_multiple_modifiers():
     gts = {0: _pair_tree(1.0, 2.0)}
-    with pytest.raises(ValueError):                 # Inherited clock — a later slice
-        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.Inherited(spread=0.3))
+    with pytest.raises(ValueError):                 # FromParent clock — a later slice
+        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.FromParent(spread=0.3))
     with pytest.raises(ValueError):                 # two ByLineage — only a single clock is wired
         simulate_sequences(gts, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError):                 # ByLineage × Time — mixed modifiers
+    with pytest.raises(ValueError):                 # ByLineage × OnTime — mixed modifiers
         simulate_sequences(gts, model=jc69(), length=10,
-                           substitution=1.0 * mod.ByLineage(spread=0.3) * mod.Time({0: 1.0}))
+                           substitution=1.0 * mod.ByLineage(spread=0.3) * mod.OnTime({0: 1.0}))
 
 
 # --- validation ------------------------------------------------------------------------------------
@@ -247,7 +247,7 @@ def test_rejects_bad_arguments_and_unwired_rate_specs():
     with pytest.raises(ValueError):
         simulate_sequences(gts, model=jc69(), length=0)                   # non-positive length
     with pytest.raises(ValueError):
-        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.Time({0: 1.0}))
+        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.OnTime({0: 1.0}))
     with pytest.raises(ValueError):
         simulate_sequences(gts, model=jc69(), length=10, substitution=PerLineage(1.0))
 

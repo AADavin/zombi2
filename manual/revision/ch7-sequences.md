@@ -43,7 +43,7 @@ A substitution rate can vary along the tree in two ways that are constantly conf
 ```python
 sequences.simulate_sequences(gene_trees,
     model=gtr(rates=..., freqs=...),
-    substitution=1.0 * mod.ByBranch(spread=0.3),   # the clock: across-branch variation
+    substitution=1.0 * mod.ByLineage(spread=0.3),   # the clock: across-branch variation
     gamma=0.5,                                      # +Γ: across-site variation (the shape α)
     length=1000, seed=1)
 ```
@@ -61,24 +61,24 @@ Today `zombi2/sequences/clocks.py` ships eight clock classes (`StrictClock`, `Un
 substitution = 1.0
 
 # uncorrelated / relaxed — each branch draws its own rate, independently (no memory)
-substitution = 1.0 * mod.ByBranch(spread=0.3)                  # lognormal (the default)
-substitution = 1.0 * mod.ByBranch(spread=0.3, dist="gamma")   # or gamma
+substitution = 1.0 * mod.ByLineage(spread=0.3)                  # lognormal (the default)
+substitution = 1.0 * mod.ByLineage(spread=0.3, dist="gamma")   # or gamma
 
 # autocorrelated — the rate drifts continuously down the tree (continuous memory)
-substitution = 1.0 * mod.Inherited(spread=0.3)
+substitution = 1.0 * mod.FromParent(spread=0.3)
 
 # CIR — the same continuous drift, but pulled back toward a mean (mean-reversion)
-substitution = 1.0 * mod.Inherited(spread=0.3, reverts_to=1.0, pull=0.5)
+substitution = 1.0 * mod.FromParent(spread=0.3, reverts_to=1.0, pull=0.5)
 
 # the Markov clock — the rate hops between a few discrete categories (discrete memory)
 substitution = 1.0 * mod.Markov(rates=[0.5, 1.0, 2.0], switch=0.1)
 ```
 
-- **`ByBranch`** — *no memory*: each branch is an independent draw, so a branch's rate tells you nothing about its neighbours'. This is the uncorrelated or relaxed family; the distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter, not a new modifier. An i.i.d. per-branch draw is itself the "white-noise" clock — it needs no label of its own.
-- **`Inherited`** — *continuous memory*: a branch starts from its parent's rate and drifts, so close relatives resemble each other. This is the autocorrelated clock; adding `reverts_to` (a mean) and `pull` (how hard it is drawn back) gives the CIR clock — the same two knobs as the OU trait, one level down.
+- **`ByLineage`** — *no memory*: each branch is an independent draw, so a branch's rate tells you nothing about its neighbours'. This is the uncorrelated or relaxed family; the distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter, not a new modifier. An i.i.d. per-branch draw is itself the "white-noise" clock — it needs no label of its own.
+- **`FromParent`** — *continuous memory*: a branch starts from its parent's rate and drifts, so close relatives resemble each other. This is the autocorrelated clock; adding `reverts_to` (a mean) and `pull` (how hard it is drawn back) gives the CIR clock — the same two knobs as the OU trait, one level down.
 - **`Markov`** — *discrete memory*: the rate is one of a few fixed categories and hops between them along the tree at a switching rate.
 
-The payoff is that two of these three are not new. **`mod.ByBranch` is the per-branch twin of the genome level's `mod.ByFamily`**: the same idea of independent, this-unit-gets-its-own-rate heterogeneity, applied to branches instead of families. And **`mod.Inherited` is literally the same modifier you met on the species tree**, where it was ClaDS: a rate that drifts as lineages split. The autocorrelated molecular clock and ClaDS diversification are one modifier, spelled the same way, at two different levels. That is the whole reason for a shared vocabulary, and this is where it pays off most visibly.
+The payoff is that two of these three are not new. **`mod.ByLineage` is the per-branch twin of the genome level's `mod.ByFamily`**: the same idea of independent, this-unit-gets-its-own-rate heterogeneity, applied to branches instead of families. And **`mod.FromParent` is literally the same modifier you met on the species tree**, where it was ClaDS: a rate that drifts as lineages split. The autocorrelated molecular clock and ClaDS diversification are one modifier, spelled the same way, at two different levels. That is the whole reason for a shared vocabulary, and this is where it pays off most visibly.
 
 ## The literature → command bridge
 
@@ -87,11 +87,11 @@ The old model names are useful (a reader arrives knowing they want "a CIR clock"
 | Literature name | What it does | ZOMBI2 |
 |---|---|---|
 | Strict / global clock | one rate everywhere | `substitution = 1.0` (default) |
-| Uncorrelated lognormal (UCLN) | each branch i.i.d. lognormal | `1.0 * mod.ByBranch(spread=…)` |
-| Uncorrelated gamma (UGAM) | each branch i.i.d. gamma | `1.0 * mod.ByBranch(spread=…, dist="gamma")` |
-| White-noise clock | each branch i.i.d. — that *is* white-noise | `1.0 * mod.ByBranch(spread=…)` |
-| Autocorrelated lognormal (Thorne–Kishino) | rate drifts along the tree | `1.0 * mod.Inherited(spread=…)` |
-| CIR clock | drift with mean-reversion | `1.0 * mod.Inherited(spread=…, reverts_to=…, pull=…)` |
+| Uncorrelated lognormal (UCLN) | each branch i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` |
+| Uncorrelated gamma (UGAM) | each branch i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` |
+| White-noise clock | each branch i.i.d. — that *is* white-noise | `1.0 * mod.ByLineage(spread=…)` |
+| Autocorrelated lognormal (Thorne–Kishino) | rate drifts along the tree | `1.0 * mod.FromParent(spread=…)` |
+| CIR clock | drift with mean-reversion | `1.0 * mod.FromParent(spread=…, reverts_to=…, pull=…)` |
 | Discrete-category / random local clock | rate hops between categories | `1.0 * mod.Markov(rates=[…], switch=…)` |
 | +Γ rate heterogeneity | variation across sites | `gamma=α` (not a clock) |
 | GY94 / MG94 | codon model, one dN/dS | `model=gy94(omega=…)` |
@@ -103,10 +103,10 @@ There is one more kind of rate variation the code already has and the two-axis p
 
 ```python
 substitution = 1.0 * mod.ByFamily(spread=0.4)          # each gene family its own speed
-substitution = 1.0 * mod.ByBranch(spread=0.3) * mod.ByFamily(spread=0.4)  # branches and families
+substitution = 1.0 * mod.ByLineage(spread=0.3) * mod.ByFamily(spread=0.4)  # branches and families
 ```
 
-The composition is settled, and it turns on a point about *which tree the clock rides*. A clock is a property of a **lineage**: a whole species runs hot or cold, and every gene passing through that branch feels it. So the across-branch modifiers — `ByBranch`, `Inherited` — ride the **species** tree and give one clock value per species branch, shared by all its genes; each gene-tree branch simply reads the clock of the species branch it is reconciled to, which ZOMBI2 knows exactly, so nothing has to be wired up. The per-family speed, by contrast, is `mod.ByFamily`, the same modifier as the genome level: some families are fast whatever the lineage. The two axes are orthogonal and **compose**, reproducing the lineage-clock × per-family-speed the code already has. (A fully per-gene-tree-branch clock — a single family fluctuating branch by branch *within* one lineage — is deferred as an exotic case; `ByBranch` is the species-branch clock.)
+The composition is settled, and it turns on a point about *which tree the clock rides*. A clock is a property of a **lineage**: a whole species runs hot or cold, and every gene passing through that branch feels it. So the across-branch modifiers — `ByLineage`, `FromParent` — ride the **species** tree and give one clock value per species branch, shared by all its genes; each gene-tree branch simply reads the clock of the species branch it is reconciled to, which ZOMBI2 knows exactly, so nothing has to be wired up. The per-family speed, by contrast, is `mod.ByFamily`, the same modifier as the genome level: some families are fast whatever the lineage. The two axes are orthogonal and **compose**, reproducing the lineage-clock × per-family-speed the code already has. (A fully per-gene-tree-branch clock — a single family fluctuating branch by branch *within* one lineage — is deferred as an exotic case; `ByLineage` is the species-branch clock.)
 
 ## The objects
 
@@ -132,14 +132,14 @@ result = sequences.simulate_sequences(gene_trees, model=hky85(kappa=2.0),
 # proteins under LG, a relaxed (uncorrelated) clock, and +Γ across sites
 result = sequences.simulate_sequences(gene_trees,
     model=lg(),
-    substitution=1.0 * mod.ByBranch(spread=0.3),   # the relaxed clock
+    substitution=1.0 * mod.ByLineage(spread=0.3),   # the relaxed clock
     gamma=0.5,                                      # across-site heterogeneity
     length=500, seed=1)
 
 # codons under GY94 with purifying selection and an autocorrelated clock
 result = sequences.simulate_sequences(gene_trees,
     model=gy94(omega=0.2),
-    substitution=1.0 * mod.Inherited(spread=0.3),  # ClaDS's modifier, one level down
+    substitution=1.0 * mod.FromParent(spread=0.3),  # ClaDS's modifier, one level down
     length=300, seed=1)
 ```
 

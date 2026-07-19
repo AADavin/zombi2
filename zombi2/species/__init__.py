@@ -3,10 +3,10 @@
 Per-lineage birth and death grow a tree forward in time and record every
 speciation and extinction. ``birth`` and ``death`` are full **rate specs** — a number,
 a scope wrapper, or a product — so ``birth = scope.Global(1.0)`` gives one shared
-tree-wide budget (linear growth), ``birth = 1.0 * mod.Diversity(cap=100)`` slows the
-tree as it fills up, ``birth = 1.0 * mod.Time({...})`` runs a skyline (the interval-aware
-sampler steps to each breakpoint), and ``birth = 1.0 * mod.Inherited(spread=0.2)`` lets
-the rate drift down the tree (clade drift): each lineage threads its own Inherited factor and
+tree-wide budget (linear growth), ``birth = 1.0 * mod.OnTotalDiversity(cap=100)`` slows the
+tree as it fills up, ``birth = 1.0 * mod.OnTime({...})`` runs a skyline (the interval-aware
+sampler steps to each breakpoint), and ``birth = 1.0 * mod.FromParent(spread=0.2)`` lets
+the rate drift down the tree (clade drift): each lineage threads its own inherited factor and
 the lineage that speciates or dies is drawn **weighted** by its effective rate.
 
 Still to come: the full result spine, the CLI, and the move to ``zombi2.species``. This
@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..rates.modifiers import Inherited
+from ..rates.modifiers import FromParent
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 
@@ -195,11 +195,11 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 
 
-def _drift(rate) -> Inherited | None:
-    """The :class:`~zombi2.modifiers.Inherited` modifier a rate carries, or ``None``. When present
-    the rate is *per-lineage*: the engine threads each lineage's own Inherited factor (clade drift)."""
+def _drift(rate) -> FromParent | None:
+    """The :class:`~zombi2.modifiers.FromParent` modifier a rate carries, or ``None``. When present
+    the rate is *per-lineage*: the engine threads each lineage's own inherited factor (clade drift)."""
     for m in rate.modifiers:
-        if isinstance(m, Inherited):
+        if isinstance(m, FromParent):
             return m
     return None
 
@@ -220,10 +220,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
-    When ``birth`` or ``death`` carries an :class:`~zombi2.modifiers.Inherited` modifier the rate
-    is *per-lineage*: every lineage threads its own Inherited factor (its parent's, nudged at the
+    When ``birth`` or ``death`` carries an :class:`~zombi2.modifiers.FromParent` modifier the rate
+    is *per-lineage*: every lineage threads its own inherited factor (its parent's, nudged at the
     split), so the lineage that speciates or dies is drawn **weighted** by its effective rate rather
-    than uniformly. Birth and death drift independently. A rate with no ``Inherited`` keeps a factor
+    than uniformly. Birth and death drift independently. A rate with no ``FromParent`` keeps a factor
     of 1 and picks uniformly, exactly as before.
 
     ``pulses`` are scheduled mass extinctions as ``(time, survival)`` pairs sorted by time (time runs
@@ -240,13 +240,13 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         nodes[i] = Node(i, parent, t)
         return i
 
-    birth_drift = _drift(birth_rate)  # the Inherited modifier on each rate, or None
+    birth_drift = _drift(birth_rate)  # the FromParent modifier on each rate, or None
     death_drift = _drift(death_rate)
 
     root = new_node(None, 0.0)
     alive = [root]  # a list so picks are reproducible given the seed
-    # each lineage's Inherited factor, kept in lock-step with `alive` under swap-remove; a rate with
-    # no Inherited stays at 1.0, so its total is just scope(base) × modifiers over n, picked uniform
+    # each lineage's inherited factor, kept in lock-step with `alive` under swap-remove; a rate with
+    # no FromParent stays at 1.0, so its total is just scope(base) × modifiers over n, picked uniform
     inh_b = [birth_drift.initial() if birth_drift else 1.0]
     inh_d = [death_drift.initial() if death_drift else 1.0]
     t = 0.0
@@ -255,10 +255,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
 
     while alive:
         n = len(alive)
-        # standing diversity = the living lineages; Diversity/Time read `diversity`/`time`
+        # standing diversity = the living lineages; OnTotalDiversity/OnTime read `diversity`/`time`
         ctx = {"diversity": n, "time": t}
         # a drifting rate's total is the sum over lineages of each lineage's effective rate —
-        # scope(base) × modifiers evaluated per lineage through its Inherited factor (lineages=1
+        # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
         # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
         if birth_drift:
             w_b = [birth_rate.effective(lineages=1, inherited=x, **ctx) for x in inh_b]
@@ -297,7 +297,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     i = _weighted_index(rng, w_d, total_death) if death_drift else int(rng.integers(n))
                 node = alive[i]
                 parent_b, parent_d = inh_b[i], inh_d[i]
-                alive[i] = alive[-1]  # swap-remove keeps picks O(1); the Inherited factors move in step
+                alive[i] = alive[-1]  # swap-remove keeps picks O(1); the inherited factors move in step
                 alive.pop()
                 inh_b[i] = inh_b[-1]; inh_b.pop()
                 inh_d[i] = inh_d[-1]; inh_d.pop()
@@ -307,7 +307,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     c1, c2 = new_node(node, t), new_node(node, t)
                     nodes[node].children = (c1, c2)
                     alive.extend((c1, c2))
-                    # each daughter inherits the parent's Inherited factor, nudged (1.0 if no drift)
+                    # each daughter inherits the parent's inherited factor, nudged (1.0 if no drift)
                     inh_b.extend((birth_drift.descend(parent_b, rng), birth_drift.descend(parent_b, rng))
                                  if birth_drift else (1.0, 1.0))
                     inh_d.extend((death_drift.descend(parent_d, rng), death_drift.descend(parent_d, rng))
@@ -327,7 +327,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
             break
         if pulse_idx < len(pulses) and horizon == next_pulse:
             # a mass extinction: each standing lineage is kept with probability `survival`, the rest
-            # become extinct leaves at this instant (their Inherited factors leave with them)
+            # become extinct leaves at this instant (their inherited factors leave with them)
             t = next_pulse
             survival = pulses[pulse_idx][1]
             pulse_idx += 1
@@ -447,7 +447,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         if _drift(rate) is not None and not isinstance(rate.scope, PerLineage):
             raise ValueError(
-                f"{label} carries Inherited (per-lineage drift) but its scope is "
+                f"{label} carries FromParent (per-lineage drift) but its scope is "
                 f"{type(rate.scope).__name__}; a drifting rate must be per lineage — drop the "
                 f"scope wrapper (per lineage is the default) or use PerLineage(...)"
             )

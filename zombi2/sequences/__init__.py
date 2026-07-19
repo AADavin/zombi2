@@ -11,7 +11,7 @@ v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
 gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it
-(``SPEC §5``, the by-lineage rate modifier). The other clocks (``Inherited`` drift, ``Markov`` hops),
+(``SPEC §5``, the by-lineage rate modifier). The other clocks (``FromParent`` drift, ``Markov`` hops),
 the per-family ``ByFamily`` speed, across-site ``+Γ``, protein/codon models, real-genome-at-root, the
 ``record=`` memory dial, and the CLI are named later slices; each is a pure addition.
 
@@ -143,7 +143,7 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
     ``substitution`` may carry a **lineage clock**: ``1.0 * mod.ByLineage(spread=)`` draws one i.i.d.
     rate multiplier per species lineage (**shared across families**, drawn once before evolving) and
     rescales each gene-tree branch by the clock of the species branch it sits on. Any other modifier
-    (the ``Inherited`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
+    (the ``FromParent`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
     non-``PerSite`` scope is a later slice and raises.
     """
     if isinstance(gene_trees, GenomesResult):
@@ -167,7 +167,7 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
                                           if not isinstance(m, ByLineage)}) or ["a second ByLineage"])
             raise ValueError(
                 f"substitution carries {offenders}, but this slice wires only a single ByLineage clock "
-                "(the uncorrelated lineage clock) — the Inherited / Markov clocks, the ByFamily "
+                "(the uncorrelated lineage clock) — the FromParent / Markov clocks, the ByFamily "
                 "per-family speed, and +Γ across-site heterogeneity are later slices."
             )
     rate_base = rate.base

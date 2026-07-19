@@ -159,13 +159,13 @@ def test_validation():
         simulate_genomes_unordered(sp, origination=-1.0, initial_families=1, seed=1)   # negative rate (via scope)
 
 
-# --- modifiers: Time (skyline) is wired; the rest are rejected, not silently dropped ---
+# --- modifiers: OnTime (skyline) is wired; the rest are rejected, not silently dropped ---
 
 def test_time_skyline_modifier_is_supported():
-    # Time reads only `time`, which the walk supplies, so a skyline origination works: the rate
+    # OnTime reads only `time`, which the walk supplies, so a skyline origination works: the rate
     # drops to 0 at t=1.5, so no family originates after it
     sp = simulate_species_tree(birth=1.0, death=0.2, total_time=4.0, seed=3)
-    r = simulate_genomes_unordered(sp, origination=1.0 * mod.Time({0: 1.0, 1.5: 0.0}), seed=1)
+    r = simulate_genomes_unordered(sp, origination=1.0 * mod.OnTime({0: 1.0, 1.5: 0.0}), seed=1)
     orig_times = [e.time for e in r.events if e.kind == "origination"]
     assert orig_times and max(orig_times) < 1.5
 
@@ -174,10 +174,10 @@ def test_unsupported_modifiers_are_rejected_not_silently_dropped():
     sp = _tree(seed=1)
     # clade drift would need per-lineage threading the walk doesn't do → reject, don't no-op
     with pytest.raises(ValueError, match="does not support"):
-        simulate_genomes_unordered(sp, duplication=0.5 * mod.Inherited(spread=0.8), initial_families=3, seed=1)
-    # Diversity reads a `diversity` context the genome walk doesn't supply → reject, don't crash raw
+        simulate_genomes_unordered(sp, duplication=0.5 * mod.FromParent(spread=0.8), initial_families=3, seed=1)
+    # OnTotalDiversity reads a `diversity` context the genome walk doesn't supply → reject, don't crash raw
     with pytest.raises(ValueError, match="does not support"):
-        simulate_genomes_unordered(sp, loss=0.25 * mod.Diversity(cap=100), initial_families=3, seed=1)
+        simulate_genomes_unordered(sp, loss=0.25 * mod.OnTotalDiversity(cap=100), initial_families=3, seed=1)
 
 
 def test_non_default_scope_is_rejected_not_silently_mismatched():
