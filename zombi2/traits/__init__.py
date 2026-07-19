@@ -23,6 +23,12 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
 - **Early burst / ACDC**: give ``rate`` a ``Time`` skyline (``rate = σ² * mod.Time({0: 1, 5: 0.2})``)
   and σ² changes through time — the *same* ``Time`` modifier that gives the species tree its skyline.
   The per-branch variance is then the exact integral ``∫ σ²(t) dt`` over the branch.
+- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an ``Inherited`` modifier
+  (``rate = σ² * mod.Inherited(spread=0.3)``) and σ² drifts branch-to-branch — each lineage inherits
+  its parent's σ² times a lognormal kick at the split — the *same* ``Inherited`` modifier that drifts
+  the species rate (ClaDS) and the autocorrelated clock, one level over. (``reverts_to`` / ``pull`` are
+  OU function arguments that revert the trait *value*, **not** a modifier — a rate modifier reverts a
+  *rate*, which is the sequences level's CIR clock, a different mechanism.)
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree. That non-pooling is the trait seam in the rate grammar — the engine evaluates the rate one
@@ -49,7 +55,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..rates.modifiers import Time
+from ..rates.modifiers import Inherited, Time
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult, Tree
@@ -159,26 +165,31 @@ def _preorder(tree: Tree) -> list[int]:
     return sorted(tree.nodes)
 
 
-def _accrued_variance(rate, t0: float, t1: float) -> float:
+def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0) -> float:
     """The variance a diffusing trait accrues over a branch spanning ``[t0, t1]`` — the integral
     ``∫ σ²(t) dt`` of the variance-rate. For a bare σ² this is ``σ²·(t1−t0)`` (Brownian motion); for a
     ``Time`` skyline (early burst) it sums σ² over each interval the branch crosses, stepping at the
     schedule's breakpoints. The same breakpoint walk the species/genome engines use — integrated over
-    the branch rather than sampled at a point (σ² is piecewise-constant, so the integral is exact)."""
+    the branch rather than sampled at a point (σ² is piecewise-constant, so the integral is exact).
+
+    ``inherited`` is the lineage's :class:`~zombi2.rates.modifiers.Inherited` factor (variable-rates
+    BM), constant along the branch, threaded in by the caller and passed through to the rate; it
+    factors straight out of the integral. A rate with no ``Inherited`` modifier ignores it."""
     total = 0.0
     t = t0
     while t < t1:
         nxt = min(rate.next_change(t), t1)  # constant rate → inf → one step of length (t1−t0)
-        total += rate.effective(lineages=1, time=t) * (nxt - t)
+        total += rate.effective(lineages=1, time=t, inherited=inherited) * (nxt - t)
         t = nxt
     return total
 
 
 def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None,
                         seed=None) -> TraitsResult:
-    """Evolve a continuous trait down a tree and return a :class:`TraitsResult`. One process, three
+    """Evolve a continuous trait down a tree and return a :class:`TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
-    (add ``reverts_to`` + ``pull``), **early burst** (give ``rate`` a ``Time`` skyline).
+    (add ``reverts_to`` + ``pull``), **early burst** (a ``Time`` skyline on ``rate``), and
+    **variable-rates BM** (an ``Inherited`` modifier on ``rate``).
 
     ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree`, or a
     :class:`~zombi2.species.SpeciesResult` whose ``complete_tree`` is used). The trait evolves on
@@ -193,13 +204,15 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     ``rate`` is the variance-rate σ² (a ``scope(base) × modifiers`` rate spec), *per lineage*: each
     lineage diffuses independently at σ², never pooled across the tree. A bare number is Brownian
     motion (``Normal(0, σ²·dt)`` over a branch); a ``Time`` modifier makes σ² change through time —
-    early burst / ACDC — with the per-branch variance the exact integral ``∫ σ²(t) dt``.
+    early burst / ACDC — with the per-branch variance the exact integral ``∫ σ²(t) dt``; an
+    ``Inherited(spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
+    for traits") — each lineage inheriting its parent's σ² times a lognormal kick drawn at the split.
 
     ``reverts_to`` (the optimum θ) and ``pull`` (the strength α > 0) turn the diffusion into
     Ornstein–Uhlenbeck — the value is pulled toward θ while it diffuses, the exact per-branch
     transition being ``Normal(θ + (x−θ)·e^{−α·dt}, σ²/(2α)·(1−e^{−2α·dt}))``. Give **both** or
-    neither. OU with a time-varying σ² (both knob-sets at once) is not wired yet — use one or the
-    other. Deterministic given ``seed``.
+    neither. OU with a *modified* σ² (early burst or variable rates on ``rate``) is not wired yet —
+    use one or the other. Deterministic given ``seed``.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start):
@@ -210,15 +223,20 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"rate has a {type(r.scope).__name__} scope, but a continuous trait's variance-rate is "
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
-    # Time (early burst) is wired; every other modifier (Diversity, Inherited / clade drift) is a
-    # later slice, so reject it loudly rather than silently ignore it — the genome engine's discipline.
+    # Time (early burst) and Inherited (variable-rates BM) are wired; other modifiers (Diversity) are
+    # a later slice, so reject them loudly rather than silently ignore them — the genome engine's
+    # discipline.
     for m in r.modifiers:
-        if not isinstance(m, Time):
+        if not isinstance(m, (Time, Inherited)):
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not support "
-                f"yet — only Time (early burst) is wired (Diversity / Inherited are later slices)."
+                f"yet — Time (early burst) and Inherited (variable-rates BM) are wired; Diversity is a "
+                f"later slice."
             )
-    has_time = bool(r.modifiers)  # all remaining modifiers are Time skylines
+    drifts = [m for m in r.modifiers if isinstance(m, Inherited)]
+    if len(drifts) > 1:
+        raise ValueError("rate carries more than one Inherited modifier; a variance-rate drifts one way")
+    drift = drifts[0] if drifts else None  # the per-lineage σ² drift (variable-rates BM), or None
 
     # OU: reverts_to (θ) + pull (α) turn the diffusion into mean-reversion — both or neither.
     is_ou = reverts_to is not None or pull is not None
@@ -236,29 +254,36 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             raise ValueError(
                 f"pull must be a finite positive number (omit it for Brownian motion), got {pull!r}"
             )
-        if has_time:
+        if r.modifiers:
             raise ValueError(
-                "a time-varying variance-rate (early burst, via Time) combined with OU "
-                "(reverts_to / pull) is not wired yet — use one or the other this slice."
+                "a modified variance-rate (early burst via Time, or variable rates via Inherited) "
+                "combined with OU (reverts_to / pull) is not wired yet — use one or the other."
             )
         theta, alpha = float(reverts_to), float(pull)
-        sigma2 = r.effective(lineages=1)  # σ² is constant under OU (Time is rejected above)
+        sigma2 = r.effective(lineages=1)  # σ² is constant under OU (modifiers are rejected above)
 
     rng = np.random.default_rng(seed)
     node_values: dict[int, float] = {}
+    inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
     for i in _preorder(tree):
         node = tree.nodes[i]
         # the root starts from `start` at t=0; every other node from its parent's end value (parent
         # < i, already set). One uniform rule: node_values[i] is the trait at node i's end_time.
         x = float(start) if node.parent is None else node_values[node.parent]
+        # thread the Inherited factor: the root's is 1.0, each daughter's is its parent's times a
+        # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
+        if node.parent is None:
+            inh[i] = drift.initial() if drift else 1.0
+        else:
+            inh[i] = drift.descend(inh[node.parent], rng) if drift else 1.0
         t0, t1 = node.birth_time, node.end_time
         if is_ou:
             e = math.exp(-alpha * (t1 - t0))       # mean-reversion toward θ over the branch
             mean = theta + (x - theta) * e
             var = sigma2 / (2.0 * alpha) * (1.0 - e * e)
         else:
-            mean = x                                # pure diffusion (BM / early burst)
-            var = _accrued_variance(r, t0, t1)
+            mean = x                                # pure diffusion (BM / early burst / variable-rates)
+            var = _accrued_variance(r, t0, t1, inherited=inh[i])
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 
