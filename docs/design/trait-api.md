@@ -55,11 +55,24 @@ traits.simulate_continuous(tree, start=0.0, rate=1.0, reverts_to=2.0, pull=0.5, 
 # EB (early burst) — the diffusion rate decays through time
 #   ...the SAME Time modifier that gives species its skyline
 traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.Time({0: 1.0, 5: 0.2}), seed=1)
+
+# variable-rates BM — σ² drifts branch-to-branch ("ClaDS for traits")
+#   ...the SAME Inherited modifier that drifts the species rate / the autocorrelated clock
+traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.Inherited(spread=0.3), seed=1)
+
+# diversity-dependent — σ² slows as the clade fills up (ecological limits)
+#   ...the SAME Diversity modifier that slows species diversification, read off the fixed tree
+traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.Diversity(cap=100), seed=1)
 ```
 
-The unification is at the level of *knobs*, not a shared wrapper: `reverts_to`/`pull` (→ CIR clock) and
-`Time` (→ species skyline) are literally the same knobs. `rate` is the BM variance-rate σ², and it takes
-modifiers like any other rate.
+`rate` is the BM variance-rate σ², and it takes modifiers like any other rate — `Time` (early burst),
+`Inherited` (variable-rates BM), and `Diversity` (diversity-dependent σ², slowing as the tree's
+lineages-through-time fills up) are all wired, and they compose. The unification is at the level of
+*knobs*: `Time` (→ species skyline), `Inherited` (→ species clade drift / the autocorrelated clock),
+and `Diversity` (→ species diversity-dependence) are literally the same modifiers, one level over.
+`reverts_to`/`pull` are the exception — they are OU **function arguments** (they revert the trait
+*value*), sharing only their *names* with the CIR clock's rate-reversion, not a shared wrapper (see
+*Still to design*).
 
 ## Discrete traits: a state switching along the tree (Mk)
 
@@ -130,9 +143,19 @@ per-trait + `correlation=` form is the surface.
 
 ## Still to design
 
-- **Decided: unify.** `Inherited(spread=, reverts_to=, pull=)` everywhere — plain `spread` = pure drift
-  (BM / ClaDS / autocorrelated clock); add `reverts_to` (target) + `pull` (strength) = mean-reverting (OU
-  trait / CIR clock). The CIR clock grows a `pull`; OU and CIR share the same two knobs.
+- **Resolved (2026-07-19): the OU trait is *not* an `Inherited` modifier — the mechanisms differ.**
+  `Inherited` is a per-lineage **rate** that is constant along a branch and gets a fresh multiplicative
+  kick at each **split** (resample-at-split, geometric — how `species._grow` does ClaDS). OU bends the
+  **value** toward θ *continuously along a branch* (`θ + (x−θ)·e^{−α·dt}`, depending on branch length).
+  You cannot write value-reversion as a multiplier on the variance-rate σ². So:
+  - **OU trait** — `reverts_to` / `pull` stay **function arguments** on `simulate_continuous` (they revert
+    the value). *Built.*
+  - **`Inherited(spread=)` on `rate`** — the variance-rate σ² drifts branch-to-branch = **variable-rates
+    BM** ("ClaDS for traits"), the trait twin of ClaDS / the autocorrelated clock. *Built.*
+  - **`Inherited(spread=, reverts_to=, pull=)`** — a mean-reverting **rate** = the **CIR clock** (a rate
+    pulled to a baseline), which lives on the **sequences** level, not here.
+  - The `reverts_to` / `pull` **names** are shared across the OU trait and the CIR clock; the *mechanism*
+    is not (value vs rate).
 - **`MultiOptimumOU`** — the optimum shifts on certain branches (regime painting). An advanced case;
   probably a `regimes=` argument on `simulate_continuous`. Deferred, named honestly.
 - **`Cladogenesis` — spelling only; placement is decided.** A trait that jumps *at speciation nodes*
