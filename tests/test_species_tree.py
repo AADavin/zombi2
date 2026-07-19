@@ -320,3 +320,65 @@ def test_mass_extinction_validation():
         simulate_species_tree(birth=1.0, total_time=5.0, mass_extinctions=[(2.0, 1.5)], seed=1)   # fraction > 1
     with pytest.raises(ValueError):
         simulate_species_tree(birth=1.0, total_time=5.0, mass_extinctions=[(2.0, -0.1)], seed=1)  # fraction < 0
+
+
+# --- fossils: Poisson(rate × branch length) side-output along the complete tree ---
+
+def test_fossils_scale_with_rate():
+    low = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=0.3, seed=3)
+    high = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=1.0, seed=3)
+    assert len(high.fossils) > len(low.fossils) > 0
+
+
+def test_no_fossils_at_zero_rate():
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=0.0, seed=3)
+    assert r.fossils == []
+
+
+def test_fossil_times_lie_within_their_branch():
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=0.5, seed=3)
+    assert r.fossils
+    for lineage, t in r.fossils:
+        node = r.complete_tree.nodes[lineage]
+        assert node.birth_time <= t <= node.end_time
+
+
+def test_fossils_are_sorted_by_time():
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=0.5, seed=3)
+    assert [t for _, t in r.fossils] == sorted(t for _, t in r.fossils)
+
+
+def test_fossils_do_not_change_the_tree():
+    # a pure side output: the tree is grown before fossils are drawn, so it is bit-identical
+    plain = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, seed=3)
+    withf = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=0.7, seed=3)
+    assert withf.n_extant == plain.n_extant
+    assert withf.extant_tree.to_newick() == plain.extant_tree.to_newick()
+
+
+def test_fossils_are_deterministic():
+    kw = dict(birth=1.0, death=0.4, n_extant=40, fossils=0.5, seed=9)
+    assert simulate_species_tree(**kw).fossils == simulate_species_tree(**kw).fossils
+
+
+def test_fossils_recovered_along_extinct_branches_too():
+    # fossils fall along ALL branches of the complete tree, so extinct lineages get fossils
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, fossils=1.0, seed=3)
+    fates = {r.complete_tree.nodes[i].fate for i, _ in r.fossils}
+    assert "extinct" in fates
+
+
+def test_fossils_validation():
+    with pytest.raises(ValueError):
+        simulate_species_tree(birth=1.0, n_extant=10, fossils=-0.1, seed=1)
+
+
+def test_fossils_write_tsv(tmp_path):
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=30, fossils=0.5, seed=3)
+    r.write(tmp_path)
+    lines = (tmp_path / "fossils.tsv").read_text().splitlines()
+    assert lines[0] == "lineage\ttime"
+    assert len(lines) == 1 + len(r.fossils)
+    # no fossils file when none were recovered
+    simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=3).write(tmp_path / "nof")
+    assert not (tmp_path / "nof" / "fossils.tsv").exists()

@@ -18,7 +18,7 @@ from __future__ import annotations
 import functools
 import math
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -90,12 +90,15 @@ class Tree:
 
 @dataclass
 class SpeciesResult:
-    """Minimal result: the complete tree, the event log, the seed. (The extant tree,
-    Newick, sampling and the full <Level>Result spine are later slices.)"""
+    """Minimal result: the complete tree, the event log, the seed, and any fossils. (The full
+    <Level>Result spine is a later slice.)"""
 
     complete_tree: Tree
     events: list[Event]
     seed: int | None
+    #: recovered fossils as ``(lineage_id, time)`` pairs, sorted by time — a side output, present
+    #: only when ``fossils`` was set; the fossil's lineage is not removed and is not in the extant tree
+    fossils: list[tuple[int, float]] = field(default_factory=list)
 
     @property
     def n_extant(self) -> int:
@@ -108,12 +111,16 @@ class SpeciesResult:
         return prune(self.complete_tree, keep="extant")
 
     def write(self, directory) -> None:
-        """Write the trees as Newick: ``complete.nwk`` and (if any survived) ``extant.nwk``."""
+        """Write the trees as Newick (``complete.nwk``, and ``extant.nwk`` if any survived) and,
+        when fossils were recovered, ``fossils.tsv`` (one ``lineage<TAB>time`` row per fossil)."""
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         (d / "complete.nwk").write_text(self.complete_tree.to_newick() + "\n")
         if self.extant_tree is not None:
             (d / "extant.nwk").write_text(self.extant_tree.to_newick() + "\n")
+        if self.fossils:
+            rows = ["lineage\ttime"] + [f"n{i}\t{t:.6g}" for i, t in self.fossils]
+            (d / "fossils.tsv").write_text("\n".join(rows) + "\n")
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -353,8 +360,26 @@ def _mass_extinction_pulses(mass_extinctions, total_time: float | None) -> list[
     return pulses
 
 
+def _recover_fossils(tree: Tree, rate: float, rng) -> list[tuple[int, float]]:
+    """Recover fossils along every branch of the complete tree: a branch of length ``L`` yields
+    ``Poisson(rate × L)`` fossils, each at a uniform time on the branch. Returns ``(lineage_id,
+    time)`` pairs sorted by time. A pure side output — no lineage is removed."""
+    if rate <= 0.0:
+        return []
+    fossils: list[tuple[int, float]] = []
+    for i in sorted(tree.nodes):  # id order, then Poisson + uniforms → reproducible given the seed
+        node = tree.nodes[i]
+        length = node.end_time - node.birth_time
+        if length <= 0.0:
+            continue
+        for _ in range(int(rng.poisson(rate * length))):
+            fossils.append((i, node.birth_time + float(rng.random()) * length))
+    fossils.sort(key=lambda ft: ft[1])
+    return fossils
+
+
 def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
-                          mass_extinctions=None, seed=None) -> SpeciesResult:
+                          mass_extinctions=None, fossils=0.0, seed=None) -> SpeciesResult:
     """Grow a forward birth-death tree.
 
     ``birth`` and ``death`` are rate specs (a number, a ``scope`` wrapper, or a product
@@ -370,6 +395,10 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     75% of the lineages alive at time 3.0 (time runs forward from the crown). It is a point-in-time
     intervention on the process (not a rate) placed on the timeline, so it needs a fixed end:
     give ``total_time`` (not ``n_extant``), with each time strictly inside ``(0, total_time)``.
+
+    ``fossils`` is a recovery rate along the branches: each branch of length ``L`` yields
+    ``Poisson(fossils × L)`` fossils, returned as ``result.fossils`` = ``(lineage, time)`` pairs. A
+    **side output** — the fossil's lineage is not removed and does not enter the extant tree.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
@@ -386,18 +415,20 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         raise ValueError(f"n_extant must be a positive integer, got {n_extant!r}")
     if total_time is not None and (not isinstance(total_time, (int, float)) or not math.isfinite(total_time) or total_time <= 0):
         raise ValueError(f"total_time must be a positive finite number, got {total_time!r}")
+    if isinstance(fossils, bool) or not isinstance(fossils, (int, float)) or not math.isfinite(fossils) or fossils < 0:
+        raise ValueError(f"fossils must be a non-negative finite rate, got {fossils!r}")
     pulses = _mass_extinction_pulses(mass_extinctions, total_time)  # [] unless mass_extinctions given (needs total_time)
 
     rng = np.random.default_rng(seed)
 
     if total_time is not None:
         tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses)
-        return SpeciesResult(tree, events, seed)
+        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
 
     for _ in range(_MAX_ATTEMPTS):
         tree, events = _grow(rng, birth_rate, death_rate, n_extant, None, [])
         if sum(1 for nd in tree.nodes.values() if nd.fate == "extant") == n_extant:
-            return SpeciesResult(tree, events, seed)
+            return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
     raise RuntimeError(
         f"could not grow a tree to {n_extant} extant lineages in {_MAX_ATTEMPTS} attempts; "
         "birth must comfortably exceed death for large n_extant"
