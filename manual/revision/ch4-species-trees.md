@@ -77,8 +77,8 @@ The bundle also shares the common spine of every result — `.events`, `.seed`, 
 The whole range is one function call:
 
 ```python
-from zombi2 import species, modifiers as mod
-from zombi2 import scope              # scope wrappers: Global, PerLineage, …
+from zombi2 import species
+from zombi2.rates import scope, modifiers as mod   # the rate grammar: scopes + modifiers
 
 # constant-rate birth–death (per lineage, the default)
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)

@@ -1,10 +1,10 @@
-"""Tests for zombi2.rate — the internal * composition and effective-rate evaluation (SPEC §5)."""
+"""Tests for zombi2.rates.rate — the internal * composition and effective-rate evaluation (SPEC §5)."""
 
 import pytest
 
-from zombi2 import modifiers as mod
-from zombi2 import scope
-from zombi2.rate import Rate, as_rate
+from zombi2.rates import modifiers as mod
+from zombi2.rates import scope
+from zombi2.rates.rate import Rate, as_rate
 
 
 # --- composition with * ---------------------------------------------------
