@@ -67,7 +67,7 @@ Modifiers live in **`zombi2.modifiers`** (never top-level `z`). Named by *what t
 |---|---|---|
 | `Time({t: factor, …})` | time (skyline / episodic) | `1.0 * Time({0: 1.0, 3: 0.3})` |
 | `Diversity(cap=K)` | standing diversity (slows toward `K`) | `1.0 * Diversity(cap=100)` |
-| `Inherited(spread=σ)` | ancestry (drifts at each split, descendants inherit; = ClaDS) | `1.0 * Inherited(spread=0.2)` |
+| `Inherited(spread=σ)` | ancestry (drifts at each split, descendants inherit; = clade drift) | `1.0 * Inherited(spread=0.2)` |
 
 Modifiers are **relative factors**, so `Time({0: 1.0, 3: 0.5})` on base `1.0` reads as absolute
 (`1.0`, then `0.5`) and on base `2.0` scales (`2.0`, then `1.0`). Stack with `*`; `birth` and `death`
