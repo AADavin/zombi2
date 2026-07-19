@@ -56,8 +56,8 @@ reconparser = ["pandas>=2.0.0"]
 # executor plugin is only needed to run on a cluster.
 bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 
-[project.scripts]
-zombi2 = "zombi2.cli:main"
+# The `zombi2` CLI is being rebuilt on the clean core (see docs/design/MAP.md); the old
+# entry point (zombi2.cli:main) is quarantined in legacy/, so no console script until then.
 
 [tool.hatch.version]
 path = "zombi2/__init__.py"

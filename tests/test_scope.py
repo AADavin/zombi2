@@ -1,8 +1,8 @@
-"""Tests for zombi2.scope — the count wrappers (SPEC §5)."""
+"""Tests for zombi2.rates.scope — the count wrappers (SPEC §5)."""
 
 import pytest
 
-from zombi2 import scope
+from zombi2.rates import scope
 
 
 def test_per_lineage_scales_with_lineages():

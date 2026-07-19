@@ -2,18 +2,20 @@
 
 ## Read this first
 
-**Before changing any code, docs, CLI, or manual chapter, read [`docs/design/SPEC.md`](docs/design/SPEC.md).**
+**Before changing any code, docs, CLI, or manual chapter, read both:**
+- **[`docs/design/SPEC.md`](docs/design/SPEC.md)** — the **model and the words** (the four levels, the
+  independent / conditioned / joint framework, the rate grammar, the canonical vocabulary, figure conventions).
+- **[`docs/design/MAP.md`](docs/design/MAP.md)** — the **files and the names** (every module, every public
+  name, its one canonical home; the clean core vs the `legacy/` quarantine; the rebuild order).
 
-It is the authoritative specification for how ZOMBI2 is organised: the four levels and their exact
-words, the independent / conditioned / joint framework, which couplings are allowed, how rates are
-defined, the level ontology (process / sampling / mechanics), the canonical vocabulary, and the figure
-conventions. The codebase still contains **fossils** from an earlier lexicon (a `coevolve` command,
-"diamond", "propensity", "opportunity", single-letter levels, dead code in `grammar.py`). When code
-disagrees with the SPEC, the code is wrong and must be aligned to it — see SPEC.md §13 for the known
-gaps. Principle: **concepts → code → chapter** (fix the code before documenting new behaviour).
+ZOMBI2 is being rebuilt as a **clean core grown from SPEC**, not a migration. The old codebase is being
+**quarantined** in `legacy/` at the repo root (read-only, not importable); features are ported out of it
+deliberately, one level at a time, renamed to MAP. The active tree is just the clean core. When code
+disagrees with SPEC or MAP, the code is the **fossil** and must be aligned. Principle: **concepts → code →
+chapter** (fix the code before documenting new behaviour).
 
-Do not reintroduce the old lexicon. If a convention genuinely needs to change, change SPEC.md **first**,
-then propagate.
+Do not reintroduce the old lexicon. If a convention genuinely needs to change, change SPEC.md (words) or
+MAP.md (shape) **first**, then propagate.
 
 ## Project
 
