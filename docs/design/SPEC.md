@@ -153,7 +153,7 @@ effective rate  =  scope(base)  ×  modifiers
 - **scope** — how many independent copies, lineages, or sites the event applies to right now (per
   what); answering **"per what?"** is the crux. It wraps the base and contributes a dimensionless
   factor.
-- **modifiers** — dimensionless context multipliers (per branch, per family). They change *how fast*,
+- **modifiers** — dimensionless context multipliers (per lineage, per family). They change *how fast*,
   never *how many*.
 
 "Per what" by level:
@@ -177,7 +177,7 @@ Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiply
 with "per".
 
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
-what?"**); "clock" for the scope (reserve **clock** strictly for the per-branch substitution-rate
+what?"**); "clock" for the scope (reserve **clock** strictly for the per-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
 ---
@@ -195,7 +195,7 @@ Left column is correct; right column is a fossil to purge.
 | conditioning; joining; a joint model | coevolution (as a category) |
 | rate; effective rate = scope(base) × modifiers | propensity |
 | scope; "per what?" | opportunity |
-| clock (the sequences per-branch rate modifier only) | clock (for the count) |
+| clock (the sequences per-lineage rate modifier only) | clock (for the count) |
 | the four levels of ZOMBI2 (the layout) | the diamond |
 | complete tree / extant | "reconstructed" (only once, as Nee's synonym); "pruned" as a noun |
 | ZOMBI2 | Zombi2 |

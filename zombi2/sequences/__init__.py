@@ -9,7 +9,7 @@ v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
 
 This slice wires the **strict clock** only: ``substitution`` is a single per-site rate (a bare number,
 default ``1.0``), so a gene-tree branch of ``Δt`` time gets ``substitution · Δt`` substitutions/site.
-The relaxed-clock family (the per-branch ``clock`` modifier — ``ByBranch`` / ``Inherited`` / ``Markov``
+The relaxed-clock family (the per-lineage ``clock`` modifier — ``ByLineage`` / ``Inherited`` / ``Markov``
 — riding the species tree), across-site ``+Γ``, protein/codon models, real-genome-at-root, the
 ``record=`` memory dial, and the CLI are named later slices; each is a pure addition.
 
@@ -141,7 +141,7 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
     if rate.modifiers:
         raise ValueError(
             f"substitution carries {type(rate.modifiers[0]).__name__}, but only the strict clock "
-            "(substitution=<number>) is wired this slice — the relaxed-clock family (ByBranch, "
+            "(substitution=<number>) is wired this slice — the relaxed-clock family (ByLineage, "
             "Inherited, Markov) and +Γ across-site heterogeneity are later slices."
         )
     rate_base = rate.base

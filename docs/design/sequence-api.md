@@ -40,7 +40,7 @@ They are orthogonal and must not be conflated:
 ```python
 sequences.simulate_sequences(gene_trees,
     model=gtr(...),                       # the substitution model (a menu, see below)
-    substitution=1.0 * mod.ByBranch(spread=0.3),   # the clock: across-branch variation
+    substitution=1.0 * mod.ByLineage(spread=0.3),   # the clock: across-lineage variation
     gamma=0.5,                            # +Γ: across-site variation (shape α)
     length=1000, seed=1)
 ```
@@ -70,9 +70,9 @@ the **same modifiers the other levels use**:
 # strict clock — no across-branch variation (the default; write nothing)
 substitution = 1.0
 
-# uncorrelated / relaxed — each branch draws its rate independently (i.i.d.)
-substitution = 1.0 * mod.ByBranch(spread=0.3)                 # lognormal (default)
-substitution = 1.0 * mod.ByBranch(spread=0.3, dist="gamma")   # gamma; white-noise is another dist
+# uncorrelated / relaxed — each lineage draws its rate independently (i.i.d.)
+substitution = 1.0 * mod.ByLineage(spread=0.3)                 # lognormal (default)
+substitution = 1.0 * mod.ByLineage(spread=0.3, dist="gamma")   # gamma; white-noise is another dist
 
 # autocorrelated — the rate drifts continuously along the tree (geometric Brownian)
 substitution = 1.0 * mod.Inherited(spread=0.3)
@@ -86,14 +86,15 @@ substitution = 1.0 * mod.Markov(rates=[0.5, 1.0, 2.0], switch=0.1)
 
 Three modifiers, grouped by what memory the rate has:
 
-- **`ByBranch`** — *no memory*: each branch independent. (The uncorrelated / relaxed family.)
+- **`ByLineage`** — *no memory*: each lineage independent. (The uncorrelated / relaxed family.)
 - **`Inherited`** — *continuous memory*: the rate drifts, parent to child. (Autocorrelated; CIR is this
   with `reverts_to`.)
 - **`Markov`** — *discrete memory*: the rate switches between a few states via a CTMC on rate categories.
 
 Two of the three are **shared across levels**, which is the whole point of the grammar:
 
-- `ByBranch` is the branch-twin of the genome level's `ByFamily` — the same i.i.d.-heterogeneity idea.
+- `ByLineage` is the lineage-twin of the genome level's `ByFamily` — the same i.i.d.-heterogeneity idea,
+  per lineage instead of per family.
 - `Inherited` is **literally the species `Inherited`** (ClaDS): a rate that drifts along the tree. The
   autocorrelated molecular clock and ClaDS diversification are the same modifier at two levels.
 - `Markov` is new to sequences, but even it echoes species: a clade shift is one discrete rate jump;
@@ -105,8 +106,8 @@ A substitution rate can vary two ways across branches, and they are **different 
 have** (decided with Adrián, 2026-07-18):
 
 - **The lineage clock rides the *species* tree.** A clock is a property of a *lineage* — a whole species
-  runs hot or cold, and every gene passing through that branch feels it. So `ByBranch` / `Inherited` give
-  **one clock value per species branch**, shared by all its genes. Each gene-tree branch reads the clock
+  runs hot or cold, and every gene passing through that branch feels it. So `ByLineage` / `Inherited` give
+  **one clock value per species lineage**, shared by all its genes. Each gene-tree branch reads the clock
   of the species branch it is reconciled to — ZOMBI2 knows that reconciliation exactly, so it is automatic.
 - **Per-family variation is `ByFamily`** — the *same modifier as the genome level*: some families evolve
   faster than others whatever the lineage, each a constant speed.
@@ -114,11 +115,13 @@ have** (decided with Adrián, 2026-07-18):
 They **compose**, reproducing today's lineage-clock × per-family-speed (`R_b · s_g`):
 
 ```python
-substitution = 1.0 * mod.ByBranch(spread=0.3) * mod.ByFamily(spread=0.5)
+substitution = 1.0 * mod.ByLineage(spread=0.3) * mod.ByFamily(spread=0.5)
 ```
 
 **Deferred:** a fully *per-gene-tree-branch* clock (a single family fluctuating independently branch by
-branch *within* a lineage) — exotic, rarely what "a clock" means. `ByBranch` is the species-branch clock.
+branch *within* a lineage) — exotic, rarely what "a clock" means; that one would be **`ByBranch`** (per
+gene-tree branch), a name reserved for it. `ByLineage` is the species-lineage clock: one value per
+species lineage, shared by every gene passing through it.
 
 ## The literature → command bridge (goes in the chapter)
 
@@ -129,9 +132,9 @@ this is the sequence chapter's.
 | Literature name | What it does | ZOMBI2 |
 |---|---|---|
 | Strict / global clock | one rate everywhere | `substitution = 1.0` (default) |
-| Uncorrelated lognormal (UCLN) | each branch i.i.d. lognormal | `1.0 * mod.ByBranch(spread=…)` |
-| Uncorrelated gamma (UGAM) | each branch i.i.d. gamma | `1.0 * mod.ByBranch(spread=…, dist="gamma")` |
-| White-noise clock | each branch i.i.d., short memory | `1.0 * mod.ByBranch(spread=…, dist=…)` |
+| Uncorrelated lognormal (UCLN) | each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` |
+| Uncorrelated gamma (UGAM) | each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` |
+| White-noise clock | each lineage i.i.d., short memory | `1.0 * mod.ByLineage(spread=…, dist=…)` |
 | Autocorrelated lognormal (Thorne–Kishino) | rate drifts along the tree | `1.0 * mod.Inherited(spread=…)` |
 | CIR clock | drift with mean-reversion | `1.0 * mod.Inherited(spread=…, reverts_to=…)` |
 | Discrete-category / random local clock | rate hops between categories | `1.0 * mod.Markov(rates=[…], switch=…)` |
@@ -139,7 +142,7 @@ this is the sequence chapter's.
 
 ## Still to design
 
-- **Decided:** `ByBranch(spread=, dist=)` exposes the distribution — `dist="lognormal"` (default) or
+- **Decided:** `ByLineage(spread=, dist=)` exposes the distribution — `dist="lognormal"` (default) or
   `"gamma"`. No separate "white-noise" label (per-branch i.i.d. *is* white-noise).
 - **Decided:** CIR is `Inherited(spread=, reverts_to=, pull=)` — mean-reversion is `reverts_to` (target) +
   `pull` (strength) on `Inherited`, the *same two knobs* as the OU trait. Plain `Inherited(spread=)` = pure
@@ -154,7 +157,7 @@ this is the sequence chapter's.
 
 - Delete the `Clock` hierarchy (`StrictClock`, `UncorrelatedLogNormalClock`, `UncorrelatedGammaClock`,
   `WhiteNoiseClock`, `AutocorrelatedLogNormalClock`, `CIRClock`, `RateVariation`). Clocks become the
-  shared `mod.ByBranch` / `mod.Inherited` / `mod.Markov` modifiers on the `substitution` rate.
+  shared `mod.ByLineage` / `mod.Inherited` / `mod.Markov` modifiers on the `substitution` rate.
 - Keep the substitution models as a **menu** of constructors (`jc69`, `k80`, `hky85`, `gtr`, `lg`, …);
   they are genuinely different matrices, not a zoo.
 - Keep `+Γ` as its own `gamma=` argument (across-site variation ≠ across-branch clock).

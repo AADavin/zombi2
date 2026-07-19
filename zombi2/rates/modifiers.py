@@ -13,7 +13,7 @@ You reach them through ``mod``::
 
 This module holds the **deterministic** modifiers, whose factor is a pure function of
 the context. The stochastic ones — ``Inherited`` (the rate drifts along the tree),
-``ByBranch`` / ``ByFamily`` / ``Speed`` (i.i.d. draws), ``Markov`` (a Markov chain of
+``ByLineage`` / ``ByFamily`` (i.i.d. draws), ``Markov`` (a Markov chain of
 rate categories) — need a random generator and the tree, so they arrive in the next
 module. Composition (``*``), which turns ``scope(base) × modifiers`` into a Rate, is
 the Rate module; here each modifier only knows how to produce its own factor.
