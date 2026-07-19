@@ -64,19 +64,16 @@ class Event:
 
 @dataclass
 class GenomesResult:
-    """What ``simulate_unordered`` returns: the ``complete_tree`` it ran on, the final ``genomes`` at
-    **every** node (extant and extinct), the ``events`` log (the compact source of truth), and the
-    ``seed``. (Sparse profiles, lazy gene trees, the ``record=`` dial and ``write`` are later slices.)"""
+    """What ``simulate_genomes_unordered`` returns: the ``complete_tree`` it ran on, the final
+    ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
+    truth), and the ``seed``. The observed genomes are the extant tips —
+    ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. (Sparse profiles, lazy gene trees, the
+    ``record=`` dial and ``write`` are later slices.)"""
 
     complete_tree: Tree
     genomes: dict[int, tuple[GeneCopy, ...]]
     events: list[Event]
     seed: int | None
-
-    @property
-    def extant_genomes(self) -> dict[int, tuple[GeneCopy, ...]]:
-        """The observed genomes — the content at the extant tips only."""
-        return {n.id: self.genomes[n.id] for n in self.complete_tree.extant()}
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
@@ -140,14 +137,14 @@ def _evolve_segment(rng, genome, node, dup, los, org, events, new_copy, new_fami
         t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
 
-def simulate_unordered(tree, *, duplication=0.0, loss=0.0, origination=0.0,
-                       initial_families=0, seed=None) -> GenomesResult:
+def simulate_genomes_unordered(tree, *, duplication=0.0, loss=0.0, origination=0.0,
+                               initial_families=0, seed=None) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, loss, and origination.
 
     ``tree`` is the **complete** species tree (a :class:`~zombi2.species_tree.Tree`, or a
     :class:`~zombi2.species_tree.SpeciesResult` whose ``complete_tree`` is used). Genomes evolve on
     **every** lineage, extant and extinct alike, so the true gene-tree history is complete; the
-    observed genomes are the extant tips (``result.extant_genomes``).
+    observed genomes are the extant tips (``result.genomes`` filtered to ``complete_tree.extant()``).
 
     ``duplication`` and ``loss`` default to **per copy**, ``origination`` to **per lineage** (each is a
     ``scope(base) × modifiers`` rate spec — a number, a scope wrapper, or a product). The root starts
@@ -205,4 +202,4 @@ def simulate_unordered(tree, *, duplication=0.0, loss=0.0, origination=0.0,
     return GenomesResult(tree, genomes, events, seed)
 
 
-__all__ = ["simulate_unordered", "GenomesResult", "Event", "GeneCopy"]
+__all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy"]
