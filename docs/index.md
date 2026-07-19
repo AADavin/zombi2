@@ -1,76 +1,60 @@
 # ZOMBI2
 
-**ZOMBI2** simulates phylogenetic evolution end to end — **species trees**, then
-**gene families**, **phenotypic traits** and molecular **sequences** along them. It is a
-ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi), with a fast Rust engine, a
-composable Python library and a command-line interface.
+**ZOMBI2** simulates the evolution of **species trees**, **genomes**, **sequences** and **traits** —
+each on its own, conditioned on another, or jointly — and records the true history behind every
+dataset. It is a ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi).
 
-<figure markdown="span">
-  ![The four levels of evolution ZOMBI2 simulates: species trees, then genomes, traits and sequences along them.](img/four_levels.svg){ width="440" }
-</figure>
+!!! note "Rebuild in progress"
+    ZOMBI2 is being rebuilt as a **clean core, grown level by level from a single specification**.
+    **Species trees** and **unordered genomes** are available now; sequences, traits, and the
+    couplings between levels are being rebuilt and return here as they land. This guide grows a page
+    per level.
 
-The four levels can be **simulated independently** — run whichever you need along a shared
-species tree:
+## The four levels
 
-```python
-from zombi2.species import BirthDeath, simulate_species_tree
-from zombi2.genomes import simulate_genomes
+Three levels form a chain, and traits branch off it:
 
-tree = simulate_species_tree(BirthDeath(birth=1.0, death=0.3), n_tips=20, age=5.0, seed=1)
-genomes = simulate_genomes(tree, duplication=0.2, transfer=0.1, loss=0.25,
-                           origination=0.5, seed=42)
-
-print(genomes.profiles.matrix)          # gene families × extant species (copy numbers)
-complete, extant = genomes.gene_trees()["1"]
-genomes.write("out/")                   # trees, event tables, transfers, profiles
+```
+Species → Genomes → Sequences     a genome lives on the species tree; a sequence lives inside a gene
+Species → Traits                  a trait lives on the species tree
 ```
 
-Or **coupled**, so one level drives another — here a trait drives diversification:
+A genome, sequence, or trait always evolves **along a species tree**. You simulate each level on its
+own, or let one **drive** another.
+
+## Quickstart
+
+Grow a species tree, then evolve gene families along it:
 
 ```python
-from zombi2.coevolve import BiSSE, simulate_sse
+from zombi2 import species
+from zombi2.genomes import simulate_genomes_unordered
 
-# state 1 speciates 3x faster than state 0 (trait-dependent diversification)
-model = BiSSE(lambda0=1.0, lambda1=3.0, mu0=0.3, mu1=0.3, q01=0.4, q10=0.4)
-result = simulate_sse(model, n_tips=40, seed=1)   # tips end up biased toward the fast state
+# a birth–death tree of 20 surviving species
+sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+
+# gene families along that tree — duplication, transfer, loss, origination
+g = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, loss=0.25,
+                               origination=0.5, initial_families=20, seed=42)
+
+# the genomes you observe are the extant tips
+observed = {n.id: g.genomes[n.id] for n in sp.complete_tree.extant()}
 ```
 
-## What's in the box
+Every rate is written the same way — a **scope** around a base, optionally times **modifiers**
+(a rate that changes in time, saturates with diversity, or drifts along the tree):
 
-- **Species trees** — backward (reconstructed) and forward (complete) birth–death and
-  Yule, episodic/skyline rate shifts, fossilized birth–death with incomplete sampling,
-  heterogeneous-rate diversification (ClaDS, diversity-dependent, clade shifts), mass
-  extinctions and ghost lineages. The Rust engine scales to millions of tips.
-- **Gene families** — duplication / transfer / loss / origination along the tree, with
-  per-copy (`Rates`), per-family-sampled (`FamilySampledRates`, ZOMBI1 style) and
-  per-genome rate models; transfers additive or **replacement** with distance-weighted
-  recipients; ordered chromosomes with **inversions** and **transpositions**; and
-  nucleotide-resolution genomes. Output as full event logs, compact event traces, or
-  counts-only sparse **profile matrices**.
-- **Traits** — Brownian motion, Ornstein–Uhlenbeck, early burst, Mk, threshold and
-  related models, plus DEC biogeography, evolved along a phylogeny.
-- **Sequences** — a gene × lineage **relaxed-clock** family that rescales gene trees from
-  time into substitutions/site, plus nucleotide substitution models (JC / K80 / HKY / GTR
-  + Γ).
-- **Coevolution** — couple species, traits and genes along six directed edges with
-  `coevolve --couple driver:target`.
+```python
+from zombi2.rates import scope, modifiers
 
-## Design philosophy
-
-ZOMBI2 is **interface-first**: one Gillespie simulator programs only against `Genome`,
-`RateModel` and `EventSampler` protocols, so new genome representations, rate models and
-event types drop in as subclasses without touching the engine. See
-[Extending ZOMBI2](contributing/adding-a-model.md).
+sp = species.simulate_species_tree(
+    birth = 1.0 * modifiers.Time({0: 1.0, 3: 0.5}),   # skyline: full rate, then half after time 3
+    death = scope.Global(0.3),                        # one tree-wide death rate, not per lineage
+    total_time = 8.0, seed = 1)
+```
 
 ## Where next
 
-- New to ZOMBI2? Start with [Installation](installation.md) and the
-  [Quickstart](quickstart.md).
-- Then work through the **User guide** in the navigation, or browse the
-  [**model catalog**](guide/species-trees.md).
-- Prefer a narrative? The
-  [**Concepts & Tutorial manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf)
-  walks through every model with worked examples and figures.
-- Working with the analysis layer? The
-  [**Tools reference manual (PDF)**](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-tools-manual.pdf)
-  collects the whole [`zombi2.tools`](tools/index.md) surface in one place.
+- The [**Species trees**](guide/species-trees.md) guide — the birth–death process, the rate modifiers,
+  sampling and fossils, and the objects a run returns.
+- More level guides appear here as each level is rebuilt.
