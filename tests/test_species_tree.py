@@ -177,3 +177,83 @@ def test_dead_tree_has_no_extant_tree():
     r = simulate_species_tree(birth=0.1, death=10.0, age=5.0, seed=1)
     assert r.n_extant == 0
     assert r.extant_tree is None
+
+
+# --- Inherited (ClaDS): rates drift down the tree, picking is rate-weighted ---
+
+def test_weighted_index_respects_weights():
+    import numpy as np
+
+    from zombi2.species_tree import _weighted_index
+    rng = np.random.default_rng(0)
+    weights = [1.0, 1.0, 8.0]           # index 2 carries 80% of the total rate
+    counts = [0, 0, 0]
+    for _ in range(20000):
+        counts[_weighted_index(rng, weights, sum(weights))] += 1
+    assert 0.77 < counts[2] / 20000 < 0.83   # ≈ 0.8
+    assert counts[0] > 0 and counts[1] > 0    # the light lineages still get picked sometimes
+
+
+def test_clads_is_deterministic_given_seed():
+    kw = dict(birth=1.0 * mod.Inherited(spread=0.5), death=0.1, n_extant=40, seed=3)
+    a = simulate_species_tree(**kw)
+    b = simulate_species_tree(**kw)
+    assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
+
+
+def test_inherited_zero_spread_reaches_target():
+    # spread 0 → every step is ×1, so no drift; still a valid birth-death tree
+    r = simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.0), death=0.2, n_extant=40, seed=5)
+    assert r.n_extant == 40
+
+
+def test_death_can_drift_independently():
+    # drift lives on death, not birth; birth and death are bent independently
+    r = simulate_species_tree(birth=1.0, death=0.4 * mod.Inherited(spread=0.5), n_extant=50, seed=4)
+    assert r.n_extant == 50
+    assert len(r.complete_tree.extinct()) > 0
+
+
+def test_clads_composes_with_diversity_cap():
+    # ClaDS drift × diversity-dependence: the cap still bounds the tree
+    r = simulate_species_tree(
+        birth=1.0 * mod.Inherited(spread=0.4) * mod.Diversity(cap=25), death=0.0, age=100.0, seed=1)
+    assert r.n_extant <= 25          # the cap is a hard ceiling even with drift
+    assert r.n_extant >= 12          # and the tree grew toward it
+
+
+def test_inherited_requires_per_lineage_scope():
+    # per-lineage drift on a Global (tree-wide) budget is contradictory — reject it clearly
+    with pytest.raises(ValueError, match="per lineage"):
+        simulate_species_tree(birth=scope.Global(1.0) * mod.Inherited(spread=0.2), n_extant=10, seed=1)
+
+
+def test_drifting_birth_with_non_drifting_global_death_is_allowed():
+    # only the drifting rate must be per lineage; a Global death budget alongside it is fine
+    r = simulate_species_tree(
+        birth=1.0 * mod.Inherited(spread=0.3), death=scope.Global(0.2), n_extant=30, seed=2)
+    assert r.n_extant == 30
+
+
+def _colless(result):
+    """Colless imbalance of the extant tree: Σ over internal nodes of |left tips − right tips|.
+    Higher = more lopsided. A pure Yule tree is comparatively balanced; heritable rate drift
+    concentrates tips in the fast clades, so it climbs."""
+    tree = result.extant_tree
+    size = {}
+    for i in sorted(tree.nodes, reverse=True):        # children (higher ids) before parents
+        nd = tree.nodes[i]
+        size[i] = 1 if nd.children is None else sum(size[c] for c in nd.children)
+    return sum(abs(size[nd.children[0]] - size[nd.children[1]])
+               for nd in tree.nodes.values() if nd.children is not None)
+
+
+def test_clads_is_more_imbalanced_than_yule():
+    # the signature of heritable rate drift, at a fixed tip count so it is shape not size: fast
+    # clades are inherited, so they hoard the tips and the tree is far more lopsided than Yule
+    import statistics
+    seeds = range(40)
+    yule = [_colless(simulate_species_tree(birth=1.0, death=0.0, n_extant=64, seed=s)) for s in seeds]
+    clads = [_colless(simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.9), death=0.0, n_extant=64, seed=s))
+             for s in seeds]
+    assert statistics.mean(clads) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)

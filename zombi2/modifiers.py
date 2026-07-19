@@ -147,7 +147,7 @@ class Inherited(Modifier):
     The per-split factor is lognormal, **mean-corrected** so ``E[factor] = 1``. Without the
     correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}`` instead of 1) — a real
     historical bug. The draw logic (:meth:`initial` / :meth:`descend`) is driven by the engine,
-    which threads each lineage's current multiplier and passes it back to :meth:`factor` as
+    which threads each lineage's current factor and passes it back to :meth:`factor` as
     ``inherited``.
     """
 
@@ -160,16 +160,16 @@ class Inherited(Modifier):
             raise ValueError(f"Inherited spread must be finite and non-negative, got {self.spread!r}")
 
     def initial(self) -> float:
-        """The root's multiplier: 1.0 — the rate starts at its base."""
+        """The root's factor: 1.0 — the rate starts at its base."""
         return 1.0
 
     def descend(self, parent_value: float, rng) -> float:
-        """A daughter's multiplier: the parent's, times one mean-corrected lognormal step."""
+        """A daughter's factor: the parent's, times one mean-corrected lognormal step."""
         sigma = self.spread
         return parent_value * math.exp(rng.normal(-0.5 * sigma * sigma, sigma))
 
     def factor(self, *, inherited: float = 1.0, **_: float) -> float:
-        """The lineage's current drift multiplier — the engine passes it as ``inherited``."""
+        """The lineage's current factor — the engine threads it and passes it back as ``inherited``."""
         return inherited
 
 

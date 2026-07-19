@@ -1,14 +1,15 @@
 """Species trees — the forward birth-death engine.
 
-Constant-per-lineage birth and death grow a tree forward in time and record every
+Per-lineage birth and death grow a tree forward in time and record every
 speciation and extinction. ``birth`` and ``death`` are full **rate specs** — a number,
 a scope wrapper, or a product — so ``birth = scope.Global(1.0)`` gives one shared
-tree-wide budget (linear growth) and ``birth = 1.0 * mod.Diversity(cap=100)`` slows the
-tree as it fills up. The rate is re-evaluated after every event, which is exact for
-``scope`` and ``Diversity`` (they only change at events); ``Time`` needs the
-interval-aware sampler and is the next slice, so the engine does not pass ``time`` yet.
+tree-wide budget (linear growth), ``birth = 1.0 * mod.Diversity(cap=100)`` slows the
+tree as it fills up, ``birth = 1.0 * mod.Time({...})`` runs a skyline (the interval-aware
+sampler steps to each breakpoint), and ``birth = 1.0 * mod.Inherited(spread=0.2)`` lets
+the rate drift down the tree (ClaDS): each lineage threads its own Inherited factor and
+the lineage that speciates or dies is drawn **weighted** by its effective rate.
 
-Still to come: the extant tree, Newick, sampling, fossils, and the move to
+Still to come: sampling, fossils, the full result spine, the CLI, and the move to
 ``zombi2.species``. This lives here for now so the old package is untouched.
 """
 
@@ -21,6 +22,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .modifiers import Inherited
 from .rate import as_rate
 from .scope import PerLineage
 
@@ -156,9 +158,35 @@ def build_extant_tree(complete: Tree) -> Tree | None:
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 
 
+def _drift(rate) -> Inherited | None:
+    """The :class:`~zombi2.modifiers.Inherited` modifier a rate carries, or ``None``. When present
+    the rate is *per-lineage*: the engine threads each lineage's own Inherited factor (ClaDS)."""
+    for m in rate.modifiers:
+        if isinstance(m, Inherited):
+            return m
+    return None
+
+
+def _weighted_index(rng, weights: list[float], total: float) -> int:
+    """Pick an index in proportion to ``weights`` (which must sum to ``total``)."""
+    r = rng.random() * total
+    acc = 0.0
+    for i, w in enumerate(weights):
+        acc += w
+        if r < acc:
+            return i
+    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
+
+
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) -> tuple[Tree, list[Event]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
-    reaches ``age``, or dies out. Returns the complete tree and the event log."""
+    reaches ``age``, or dies out. Returns the complete tree and the event log.
+
+    When ``birth`` or ``death`` carries an :class:`~zombi2.modifiers.Inherited` modifier the rate
+    is *per-lineage*: every lineage threads its own Inherited factor (its parent's, nudged at the
+    split), so the lineage that speciates or dies is drawn **weighted** by its effective rate rather
+    than uniformly. Birth and death drift independently. A rate with no ``Inherited`` keeps a factor
+    of 1 and picks uniformly, exactly as before."""
     nodes: dict[int, Node] = {}
     counter = 0
 
@@ -169,17 +197,35 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
         nodes[i] = Node(i, parent, t)
         return i
 
+    birth_drift = _drift(birth_rate)  # the Inherited modifier on each rate, or None
+    death_drift = _drift(death_rate)
+
     root = new_node(None, 0.0)
     alive = [root]  # a list so picks are reproducible given the seed
+    # each lineage's Inherited factor, kept in lock-step with `alive` under swap-remove; a rate with
+    # no Inherited stays at 1.0, so its total is just scope(base) × modifiers over n, picked uniform
+    inh_b = [birth_drift.initial() if birth_drift else 1.0]
+    inh_d = [death_drift.initial() if death_drift else 1.0]
     t = 0.0
     events: list[Event] = []
 
     while alive:
         n = len(alive)
-        # standing diversity = the living lineages; the scope reads `lineages`, Diversity `diversity`
-        ctx = {"lineages": n, "diversity": n, "time": t}
-        total_birth = birth_rate.effective(**ctx)
-        total_death = death_rate.effective(**ctx)
+        # standing diversity = the living lineages; Diversity/Time read `diversity`/`time`
+        ctx = {"diversity": n, "time": t}
+        # a drifting rate's total is the sum over lineages of each lineage's effective rate —
+        # scope(base) × modifiers evaluated per lineage through its Inherited factor (lineages=1
+        # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
+        if birth_drift:
+            w_b = [birth_rate.effective(lineages=1, inherited=x, **ctx) for x in inh_b]
+            total_birth = sum(w_b)
+        else:
+            total_birth = birth_rate.effective(lineages=n, **ctx)
+        if death_drift:
+            w_d = [death_rate.effective(lineages=1, inherited=x, **ctx) for x in inh_d]
+            total_death = sum(w_d)
+        else:
+            total_death = death_rate.effective(lineages=n, **ctx)
         total = total_birth + total_death
         # the total rate is constant until the next skyline breakpoint (or the age limit)
         next_change = min(birth_rate.next_change(t), death_rate.next_change(t))
@@ -194,16 +240,30 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
                     # apply it), so the present sits *after* the last split and the two newest tips
                     # get a real, non-zero branch length.
                     break
-                i = int(rng.integers(n))
+                # birth vs death by their totals; then WHICH lineage — weighted by its effective
+                # rate if that rate drifts (so faster lineages are likelier), else uniform
+                speciates = rng.random() < total_birth / total
+                if speciates:
+                    i = _weighted_index(rng, w_b, total_birth) if birth_drift else int(rng.integers(n))
+                else:
+                    i = _weighted_index(rng, w_d, total_death) if death_drift else int(rng.integers(n))
                 node = alive[i]
-                alive[i] = alive[-1]  # swap-remove keeps picks O(1) and reproducible
+                parent_b, parent_d = inh_b[i], inh_d[i]
+                alive[i] = alive[-1]  # swap-remove keeps picks O(1); the Inherited factors move in step
                 alive.pop()
-                if rng.random() < total_birth / total:
+                inh_b[i] = inh_b[-1]; inh_b.pop()
+                inh_d[i] = inh_d[-1]; inh_d.pop()
+                if speciates:
                     nodes[node].end_time = t
                     nodes[node].fate = "speciation"
                     c1, c2 = new_node(node, t), new_node(node, t)
                     nodes[node].children = (c1, c2)
                     alive.extend((c1, c2))
+                    # each daughter inherits the parent's Inherited factor, nudged (1.0 if no drift)
+                    inh_b.extend((birth_drift.descend(parent_b, rng), birth_drift.descend(parent_b, rng))
+                                 if birth_drift else (1.0, 1.0))
+                    inh_d.extend((death_drift.descend(parent_d, rng), death_drift.descend(parent_d, rng))
+                                 if death_drift else (1.0, 1.0))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t
@@ -240,6 +300,13 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None, seed=Non
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
+    for label, rate in (("birth", birth_rate), ("death", death_rate)):
+        if _drift(rate) is not None and not isinstance(rate.scope, PerLineage):
+            raise ValueError(
+                f"{label} carries Inherited (per-lineage drift) but its scope is "
+                f"{type(rate.scope).__name__}; a drifting rate must be per lineage — drop the "
+                f"scope wrapper (per lineage is the default) or use PerLineage(...)"
+            )
     if (n_extant is None) == (age is None):
         raise ValueError("give exactly one of n_extant or age")
     if n_extant is not None and (isinstance(n_extant, bool) or not isinstance(n_extant, int) or n_extant < 1):
