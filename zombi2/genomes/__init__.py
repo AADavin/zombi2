@@ -39,7 +39,13 @@ from zombi2.genomes.reconciliation import build_gene_trees
 from zombi2.genomes.simulation import simulate_genomes, Genomes, GenomeTrace, read_events_trace
 from zombi2.parallel import run_replicates
 
+# The Genomes-level rewrite (forward, pure-Python) lives in ``zombi2.genomes_unordered``; re-exported
+# here so it is reachable as ``from zombi2.genomes import simulate_genomes_unordered``. It folds into
+# this package properly once the old RateModel engine is retired (the "move").
+from zombi2.genomes_unordered import GeneCopy, GenomesResult, simulate_genomes_unordered
+
 __all__ = [
+    "simulate_genomes_unordered", "GenomesResult", "GeneCopy",
     "Gene", "Genome", "UnorderedGenome", "OrderedGene", "OrderedGenome",
     "NucleotideGenome", "Segment", "simulate_nucleotide_genomes",
     "NucleotideResult", "Block", "read_gff", "read_gff_all", "GffGenome",
