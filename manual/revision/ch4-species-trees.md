@@ -78,7 +78,7 @@ A `SpeciesResult` carries:
 - `.fossils` — the sampled fossil lineages and their ages, present only when you asked for `fossils`.
 - `.events` — the event log, every speciation and extinction with its time: the compact source of truth the run exists to record.
 
-The bundle also shares the common spine of every result — `.events`, `.seed`, and `.write(dir, include=[...])` to materialise the chosen outputs to disk. Each tree carries its topology and dated branch lengths and lets you ask for its tips, its internal nodes, and which tips are extant versus extinct. Hand `.extant_tree` straight to the next level as the tree that genomes, sequences, or traits will evolve along.
+The bundle also shares the common spine of every result — `.events`, `.seed`, and `.write(dir, outputs=[...])` to materialise the chosen outputs to disk. Each tree carries its topology and dated branch lengths and lets you ask for its tips, its internal nodes, and which tips are extant versus extinct. Hand `.extant_tree` straight to the next level as the tree that genomes, sequences, or traits will evolve along.
 
 ## Usage from Python
 
@@ -89,10 +89,10 @@ from zombi2 import species, modifiers as mod
 from zombi2 import scope              # scope wrappers: Global, PerLineage, …
 
 # constant-rate birth–death (per lineage, the default)
-result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 
 # Yule (pure birth) — death defaults to 0
-result = species.simulate_species_tree(birth=1.0, n_tips=50, seed=1)
+result = species.simulate_species_tree(birth=1.0, n_extant=50, seed=1)
 
 # skyline birth that also slows with diversity, with a global death rate
 result = species.simulate_species_tree(
@@ -116,4 +116,4 @@ zombi2 species --birth 1.0 --death 0.3 --tips 20 --seed 1 -o my_tree
 
 ## Outputs
 
-A run writes two Newick trees by default: the **extant** tree of survivors and the **complete** tree carrying the extinct lineages too, under the `_extant` and `_complete` names, with tips labelled *extant*, *extinct*, or *unsampled* so the three are told apart. The **event log** — every speciation and extinction with its time — is always written; it is the ground truth the simulator exists to record. And if you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.
+A run writes two Newick trees by default: the **extant** tree of survivors and the **complete** tree carrying the extinct lineages too, as `species_extant.nwk` and `species_complete.nwk`, with tips labelled *extant*, *extinct*, or *unsampled* so the three are told apart. The **event log** — every speciation and extinction with its time — is always written; it is the ground truth the simulator exists to record. And if you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.

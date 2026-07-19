@@ -93,10 +93,14 @@ class Tree:
         return f"({','.join(emit(c) for c in root.children)})n{self.root};"
 
 
+_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils")  # the write vocabulary the CLI reuses
+
+
 @dataclass
 class SpeciesResult:
-    """Minimal result: the complete tree, the event log, the seed, and any fossils. (The full
-    <Level>Result spine is a later slice.)"""
+    """What ``simulate_species_tree`` returns: the ``complete_tree`` (with the dead) and the derived
+    ``extant_tree`` (the observed survivors), the ``events`` log (the recorded true history), the
+    ``seed``, and any ``fossils``. (The ``record=`` memory dial lands with the data-heavy levels.)"""
 
     complete_tree: Tree
     events: list[Event]
@@ -117,17 +121,31 @@ class SpeciesResult:
         unifurcations suppressed (dated, bifurcating). ``None`` if nothing survived."""
         return prune(self.complete_tree, keep="extant")
 
-    def write(self, directory) -> None:
-        """Write the trees as Newick (``complete.nwk``, and ``extant.nwk`` if any survived) and,
-        when fossils were recovered, ``fossils.tsv`` (one ``lineage<TAB>time`` row per fossil)."""
+    def write(self, directory, outputs=None) -> None:
+        """Write outputs to ``directory``, each file prefixed ``species_``; ``outputs`` selects which
+        (default = all applicable): ``"complete"`` → ``species_complete.nwk``, ``"extant"`` →
+        ``species_extant.nwk`` (if any survived), ``"events"`` → ``species_events.tsv`` (the
+        always-recorded true history), ``"fossils"`` → ``species_fossils.tsv`` (if any recovered)."""
+        if outputs is None:
+            outputs = _WRITE_OUTPUTS
+        unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
+        if unknown:
+            raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
-        (d / "complete.nwk").write_text(self.complete_tree.to_newick() + "\n")
-        if self.extant_tree is not None:
-            (d / "extant.nwk").write_text(self.extant_tree.to_newick() + "\n")
-        if self.fossils:
+        if "complete" in outputs:
+            (d / "species_complete.nwk").write_text(self.complete_tree.to_newick() + "\n")
+        if "extant" in outputs and self.extant_tree is not None:
+            (d / "species_extant.nwk").write_text(self.extant_tree.to_newick() + "\n")
+        if "events" in outputs:
+            rows = ["time\tkind\tlineage\tchildren"]
+            for e in self.events:
+                kids = ";".join(f"n{c}" for c in e.children) if e.children else ""
+                rows.append(f"{e.time:.6g}\t{e.kind}\tn{e.node}\t{kids}")
+            (d / "species_events.tsv").write_text("\n".join(rows) + "\n")
+        if "fossils" in outputs and self.fossils:
             rows = ["lineage\ttime"] + [f"n{i}\t{t:.6g}" for i, t in self.fossils]
-            (d / "fossils.tsv").write_text("\n".join(rows) + "\n")
+            (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n")
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
