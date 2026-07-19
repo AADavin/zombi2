@@ -103,3 +103,15 @@ def test_only_deterministic_modifiers_here():
     # the stochastic ones live in the next module; assert we did not leak them yet
     for stochastic in ("Inherited", "ByBranch", "ByFamily", "Speed", "Markov", "DrivenBy"):
         assert not hasattr(mod, stochastic), f"{stochastic} should not be in this module yet"
+
+
+def test_time_next_change():
+    t = mod.Time({0: 1.0, 3: 0.3, 7: 0.1})
+    assert t.next_change(0.0) == 3
+    assert t.next_change(3.0) == 7        # strictly after the current time
+    assert t.next_change(5.0) == 7
+    assert t.next_change(7.0) == float("inf")  # nothing after the last breakpoint
+
+
+def test_diversity_never_changes_with_time():
+    assert mod.Diversity(cap=100).next_change(3.0) == float("inf")

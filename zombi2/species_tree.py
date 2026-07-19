@@ -105,35 +105,43 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
         n = len(alive)
         if n_extant is not None and n >= n_extant:
             break
-        # standing diversity = the living lineages; the scope reads `lineages`, Diversity reads `diversity`
-        ctx = {"lineages": n, "diversity": n}
+        # standing diversity = the living lineages; the scope reads `lineages`, Diversity `diversity`
+        ctx = {"lineages": n, "diversity": n, "time": t}
         total_birth = birth_rate.effective(**ctx)
         total_death = death_rate.effective(**ctx)
         total = total_birth + total_death
-        if total <= 0.0:  # nothing can happen (e.g. birth=death=0, or a diversity cap reached)
-            break
-        t_next = t + float(rng.exponential(1.0 / total))
-        if age is not None and t_next >= age:
+        # the total rate is constant until the next skyline breakpoint (or the age limit)
+        next_change = min(birth_rate.next_change(t), death_rate.next_change(t))
+        horizon = next_change if age is None else min(age, next_change)
+
+        if total > 0.0:
+            t_event = t + float(rng.exponential(1.0 / total))
+            if t_event < horizon:  # an event fires before the rate changes
+                t = t_event
+                i = int(rng.integers(n))
+                node = alive[i]
+                alive[i] = alive[-1]  # swap-remove keeps picks O(1) and reproducible
+                alive.pop()
+                if rng.random() < total_birth / total:
+                    nodes[node].end_time = t
+                    nodes[node].fate = "speciation"
+                    c1, c2 = new_node(node, t), new_node(node, t)
+                    nodes[node].children = (c1, c2)
+                    alive.extend((c1, c2))
+                    events.append(Event(t, "speciation", node, (c1, c2)))
+                else:
+                    nodes[node].end_time = t
+                    nodes[node].fate = "extinct"
+                    events.append(Event(t, "extinction", node))
+                continue
+
+        # no event fired before the horizon
+        if math.isinf(horizon):
+            break  # no age limit and the rate never changes again → nothing more can happen
+        if age is not None and horizon == age:
             t = age
             break
-        t = t_next
-
-        i = int(rng.integers(n))
-        node = alive[i]
-        alive[i] = alive[-1]  # swap-remove keeps picks O(1) and reproducible
-        alive.pop()
-
-        if rng.random() < total_birth / total:
-            nodes[node].end_time = t
-            nodes[node].fate = "speciation"
-            c1, c2 = new_node(node, t), new_node(node, t)
-            nodes[node].children = (c1, c2)
-            alive.extend((c1, c2))
-            events.append(Event(t, "speciation", node, (c1, c2)))
-        else:
-            nodes[node].end_time = t
-            nodes[node].fate = "extinct"
-            events.append(Event(t, "extinction", node))
+        t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     for i in alive:  # whoever is still alive reached the present
         nodes[i].end_time = t

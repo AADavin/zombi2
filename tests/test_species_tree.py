@@ -115,3 +115,18 @@ def test_event_is_frozen_record():
     e = Event(1.0, "extinction", 3)
     with pytest.raises(Exception):
         e.time = 2.0  # type: ignore[misc]
+
+
+def test_skyline_stops_births_after_a_zero_breakpoint():
+    # birth 1.0 on [0, 2), then 0 → the interval-aware sampler must forbid births at/after t=2
+    r = simulate_species_tree(birth=1.0 * mod.Time({0: 1.0, 2.0: 0.0}), death=0.0, age=10.0, seed=1)
+    spec_times = [e.time for e in r.events if e.kind == "speciation"]
+    assert spec_times                 # growth happened before the breakpoint
+    assert max(spec_times) < 2.0      # and nothing after the rate dropped to 0
+
+
+def test_skyline_is_deterministic():
+    kw = dict(birth=1.0 * mod.Time({0: 2.0, 3: 0.2}), death=0.1, age=6.0, seed=4)
+    a = simulate_species_tree(**kw)
+    b = simulate_species_tree(**kw)
+    assert [(e.time, e.kind) for e in a.events] == [(e.time, e.kind) for e in b.events]

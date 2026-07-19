@@ -9,6 +9,7 @@ it out. There is no user-facing "Rate" concept; it is the thing a rate expressio
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from .modifiers import Modifier
@@ -42,6 +43,14 @@ class Rate:
         for m in self.modifiers:
             value *= m.factor(**context)
         return value
+
+    def next_change(self, time: float) -> float:
+        """The next time a component of this rate changes on its own — the earliest skyline
+        breakpoint across its modifiers. ``inf`` if the rate never changes with time."""
+        nc = math.inf
+        for m in self.modifiers:
+            nc = min(nc, m.next_change(time))
+        return nc
 
     def __mul__(self, other: object):
         if isinstance(other, Modifier):
