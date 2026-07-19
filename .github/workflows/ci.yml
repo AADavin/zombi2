@@ -28,29 +28,10 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
-
-      # Build and install the compiled engine FIRST. zombi2 pins
-      # zombi2_core==<version>, which is not on an index during development,
-      # so installing it from ./rust here satisfies that pin locally and the
-      # editable install below never reaches out for it.
-      - name: Build and install the compiled gene-family engine
-        run: pip install ./rust
-
+      # The clean core is pure Python (numpy only) — the Rust engine returns as a later stage
+      # (docs/design/MAP.md), and this job rebuilds it then.
       - name: Install ZOMBI2 (with dev extras)
         run: pip install -e ".[dev]"
-
-      # The built-in genome model has no pure-Python fallback, and its tests
-      # skip (green) when the extension is absent. Fail loudly instead, so CI
-      # can never pass while silently leaving the compiled path untested.
-      - name: Require the Rust engine (fail, don't skip)
-        run: python -c "import zombi2; assert zombi2.rust_available(), 'zombi2_core (Rust engine) is not built'"
 
       - name: Run the test suite
         run: pytest -q
@@ -70,15 +51,13 @@ jobs:
 
       # Install the linter from the [dev] extra so it stays the single source of truth for its
       # pinned version — a contributor running `pip install -e ".[dev]"` lints with exactly what CI
-      # does. zombi2_core resolves from PyPI as a prebuilt abi3 wheel (no Rust toolchain needed);
-      # ruff never imports the package, but installing the extra keeps this job's setup identical
-      # to the docs job's.
+      # does. The clean core is pure Python, so no toolchain beyond pip is needed.
       - name: Install ZOMBI2 (dev extra)
         run: pip install -e ".[dev]"
 
-      # The whole repo, not just zombi2/: the package, the tests, the figure scripts and the
-      # analyses. Deliberate exemptions (vendored parsers, the figure style vocabulary, the tests'
-      # section imports) live in [tool.ruff.lint.per-file-ignores] with their rationale.
+      # The active repo, not just zombi2/: the package, the tests, the figure scripts and the
+      # analyses. legacy/ (the quarantined old codebase) is excluded in [tool.ruff]; other
+      # exemptions live in [tool.ruff.lint.per-file-ignores] with their rationale.
       - name: Lint
         run: ruff check .
 
@@ -96,36 +75,12 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       # Install the docs toolchain from the [docs] extra so it stays the single
-      # source of truth. zombi2_core resolves from PyPI as a prebuilt abi3 wheel
-      # (no Rust toolchain needed here); the docs build only needs zombi2 importable.
+      # source of truth. The clean core is pure Python; the docs build only needs zombi2 importable.
       - name: Install ZOMBI2 (docs extra)
         run: pip install -e ".[docs]"
 
       - name: Build the documentation (strict)
         run: mkdocs build --strict
 
-  red-benchmark:
-    name: red-benchmark (Snakemake example smoke)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-
-      # The RED example is pure-Python (forward sim, relaxed clocks, zombi2.tools.red), so no Rust
-      # toolchain is needed: zombi2_core resolves from PyPI as a prebuilt abi3 wheel, exactly as the
-      # docs job does.
-      - name: Install ZOMBI2 (dev + bench extras)
-        run: pip install -e ".[dev,bench]"
-
-      - name: Unit tests — RED benchmark core
-        run: pytest examples/red_benchmark/tests -q
-
-      - name: Tiny sweep — Snakemake (config/test.yaml)
-        working-directory: examples/red_benchmark
-        run: snakemake --cores 2 --config cfg=config/test.yaml
+  # The RED benchmark (examples/red_benchmark) exercised zombi2.tools.red and the old CLI, now
+  # quarantined in legacy/. Its CI job returns when the tools layer is rebuilt on the clean core.
