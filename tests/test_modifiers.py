@@ -99,10 +99,61 @@ def test_base_modifier_is_abstract():
         mod.Modifier().factor(time=1.0)
 
 
-def test_only_deterministic_modifiers_here():
-    # the stochastic ones live in the next module; assert we did not leak them yet
-    for stochastic in ("Inherited", "ByBranch", "ByFamily", "Speed", "Markov", "DrivenBy"):
-        assert not hasattr(mod, stochastic), f"{stochastic} should not be in this module yet"
+def test_stochastic_status_inherited_here_others_deferred():
+    assert hasattr(mod, "Inherited")  # the first stochastic modifier is built
+    for later in ("ByBranch", "ByFamily", "Speed", "Markov", "DrivenBy"):
+        assert not hasattr(mod, later), f"{later} is not built yet"
+
+
+# --- Inherited (ClaDS): the mean-corrected drift ---------------------------
+
+def test_inherited_initial_is_one():
+    assert mod.Inherited(spread=0.3).initial() == 1.0
+
+
+def test_inherited_descend_is_mean_corrected():
+    import numpy as np
+    rng = np.random.default_rng(0)
+    inh = mod.Inherited(spread=0.5)
+    vals = [inh.descend(1.0, rng) for _ in range(50000)]
+    # E[factor] = 1 exactly (the -σ²/2 correction); the buggy version gives E ≈ e^{σ²/2} = 1.13
+    assert abs(sum(vals) / len(vals) - 1.0) < 0.02
+
+
+def test_inherited_no_inflation_over_a_chain():
+    import numpy as np
+    rng = np.random.default_rng(1)
+    inh = mod.Inherited(spread=0.4)
+    ends = []
+    for _ in range(20000):
+        v = 1.0
+        for _ in range(10):
+            v = inh.descend(v, rng)
+        ends.append(v)
+    # 10 corrected steps still average ~1; the buggy version drifts to e^{10·σ²/2} ≈ 2.2
+    assert abs(sum(ends) / len(ends) - 1.0) < 0.2
+
+
+def test_inherited_deterministic():
+    import numpy as np
+    a = mod.Inherited(spread=0.3).descend(1.0, np.random.default_rng(7))
+    b = mod.Inherited(spread=0.3).descend(1.0, np.random.default_rng(7))
+    assert a == b
+
+
+def test_inherited_factor_reads_lineage_multiplier():
+    inh = mod.Inherited(spread=0.3)
+    assert inh.factor(inherited=2.5, time=1.0) == 2.5
+    assert inh.factor() == 1.0  # default: no drift
+
+
+def test_inherited_validation():
+    with pytest.raises(ValueError):
+        mod.Inherited(spread=-0.1)
+    with pytest.raises(ValueError):
+        mod.Inherited(spread=float("inf"))
+    with pytest.raises(TypeError):
+        mod.Inherited(spread="wide")  # type: ignore[arg-type]
 
 
 def test_time_next_change():

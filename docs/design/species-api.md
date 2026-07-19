@@ -27,8 +27,8 @@ simulate_species_tree(
     death=0.0,             # a Rate; default 0.0 = pure birth (Yule)
     *,
     n_tips=None,           # stop at a number of tips ...
-    age=None,              # ... or at an age
-    age_type="crown",      # "crown" (default) or "stem"
+    total_time=None,       # ... or at a total time
+    time_from="crown",     # time measured from "crown" (default) or "stem"
     mass_extinctions=None, # [(time, fraction), ...]  — interventions
     sampling=1.0,          # fraction of extant species observed
     fossils=0.0,           # fossil recovery rate along branches
@@ -76,8 +76,9 @@ are bent independently. `Global` gives one budget for the whole tree instead of 
 
 ## Interventions vs observation (not rates)
 
-- **`mass_extinctions=[(3.0, 0.75)]`** — at time 3.0, 75% of living lineages die. A point-in-time
-  intervention on the *process*, not a rate. (Clade shift, deferred below, is the same shape.)
+- **`mass_extinctions=[(3.0, 0.75)]`** — at time 3.0 (forward from the crown), 75% of living lineages
+  die (the pair is `(time, fraction_lost)`). A point-in-time intervention on the *process*, not a
+  rate; placed on the timeline, so it needs ``total_time`` (not ``n_tips``). (Clade shift, deferred below, is the same shape.)
 - **`sampling=0.5`** — observe only half the surviving species (classic incomplete sampling).
 - **`fossils=0.1`** — recover fossils along the branches, a bare rate. **v1: fossils are a side output**
   (the sampled lineages + their ages); the lineage is *not* removed, and fossils do *not* appear in the
