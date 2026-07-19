@@ -3,7 +3,7 @@
 Round-1 restructure, drafted 2026-07-17. 11 chapters + 2 appendices, down from 17+1.
 Provisional section titles; `⟨Dn⟩` marks a spot still gated by an open decision.
 
-Conventions baked in: levels are **words** — Species, Genome, Sequence, Trait — never single
+Conventions baked in: levels are **words** — Species, Genomes, Sequences, Traits — never single
 letters (they flipped meaning since ZOMBI1). Levels relate as **independent / conditioned / joint**.
 Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 
@@ -18,10 +18,10 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - For the impatient — the same short run in CLI **and** Python ⟨C1.11⟩
 
 ### 2. A tour of ZOMBI2  *(essay — the vocabulary chapter)*
-- The four levels of ZOMBI2: Species, Genome, Sequence, Trait — with the layout figure (Genome **left**, Trait **right**; the layout is named nothing) ⟨D9, D10⟩
+- The four levels of ZOMBI2: Species, Genomes, Sequences, Traits — with the layout figure (Genomes **left**, Traits **right**; the layout is named nothing) ⟨D9, D10⟩
 - The genome **resolution** dial: unordered → ordered → nucleotide (framing only; detail in Part II)
 - How levels relate: **independent, conditioned, joint** — the composition figure + probability notation
-- How rates work: how many clocks, how fast — scope(base) × modifiers ⟨D3: section here, or its own chapter?⟩
+- How rates work: how many, how fast — scope(base) × modifiers ⟨D3: section here, or its own chapter?⟩
 - The ZOMBI2 vocabulary — a short glossary (level, rate, resolution, complete/extant) ⟨C2.11, D6⟩
 
 ### 3. Getting started
@@ -99,7 +99,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 ### 9. Coupling levels  *(merges old 9 Conditioning + 10 Joint + 11 Nulls into one chapter)*
 - The one idea: a rate driven by another level — `mod.DrivenBy(source, mapping)`, a parameter that stops being a number you type
 - Conditioned vs joint is **one** distinction: *can the driver be grown first?* — a file source (two commands, ordered) vs a live-level source (one command). NOT "does it change the tree" ⟨D14, D15⟩
-- **Conditioned** — the driver is a file, grown first and handed over: a trait drives gene loss (Trait → Genome); a gene drives a trait's optimum (Genome → Trait); a trait drives selection / clock speed (Trait → Sequence)
+- **Conditioned** — the driver is a file, grown first and handed over: a trait drives gene loss (Traits → Genomes); a gene drives a trait's optimum (Genomes → Traits); a trait drives selection / clock speed (Traits → Sequences)
 - **Joint** — the driver is a live level, grown alongside (`zombi2 joint`): state-dependent diversification, a trait drives speciation (BiSSE / MuSSE / QuaSSE / HiSSE as footnotes) ⟨D11⟩; key-innovation, gene content drives speciation
 - *(v1 ships only tree-changing joint models — a scope note, **not** the framing; tree-fixed trait–gene feedback is deferred to experimental)*
 - *(model-flag couplings that only re-read the tree — cladogenetic traits, punctuational genomes — stay in their level chapter; pointers here)*

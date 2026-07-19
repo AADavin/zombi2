@@ -9,7 +9,7 @@ result = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                                   switch=0.1, seed=1)                     # a discrete state
 ```
 
-*[Draft — `simulate_continuous` and `simulate_discrete` are the design target of `docs/design/trait-api.md`; they are not built yet. Today the same jobs are done by a thirteen-class model zoo (`BrownianMotion`, `OrnsteinUhlenbeck`, `EarlyBurst`, `Mk`, `ThresholdModel`, `CorrelatedBinary`, and the rest) handed to a single `simulate_traits(tree, model, …)`. The chapter documents the target; the divergences are noted as they arise.]*
+*[`simulate_continuous` and `simulate_discrete` are built (`zombi2/traits`), following `docs/design/trait-api.md`; the thirteen-class model zoo they replace (`BrownianMotion`, `OrnsteinUhlenbeck`, `EarlyBurst`, `Mk`, `ThresholdModel`, `CorrelatedBinary`, and the rest) is gone. Brownian motion, Ornstein–Uhlenbeck, early burst, variable-rates BM, diversity-dependent σ², the Mk model, the threshold model, and correlated traits (continuous and discrete) all run today. Not yet wired: per-trait modifiers under `correlation=`, multivariate OU, and the deferred cases (regime shifts, cladogenetic jumps, hidden rate classes, DEC → experimental); each divergence is flagged where it arises.]*
 
 ## A trait is a different kind of object, and that is fine
 
@@ -49,7 +49,7 @@ traits.simulate_continuous(tree, start=0.0,
                            rate=1.0 * mod.OnTime({0: 1.0, 5: 0.2}), seed=1)
 ```
 
-The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. These are the same `reverts_to` and `pull` that turn the autocorrelated clock into a CIR clock in the previous chapter, a value that drifts but is held near a mean. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root: it is written with the very same `mod.OnTime` modifier that gives the species tree its skyline. Adaptive radiations are the usual motivation, and the shape is one modifier deep.
+The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. These are the same-named `reverts_to` and `pull` that turn the autocorrelated clock into a CIR clock in the previous chapter, a rate that drifts but is held near a mean. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root: it is written with the very same `mod.OnTime` modifier that gives the species tree its skyline. Adaptive radiations are the usual motivation, and the shape is one modifier deep.
 
 The point worth pressing is that the unification is at the level of the *knobs*, not a shared wrapper class. `reverts_to`/`pull` and `mod.OnTime` are literally the same knobs used at the species and sequence levels, reused here because a value and a rate answer the same questions about what they remember and how they change. The seam from the opening does show through in the spelling: because a trait *is* a value rather than a rate riding on something else, `reverts_to` and `pull` are direct arguments, while a rate-shaping knob like `OnTime` multiplies the `rate` exactly as it would anywhere. Same knobs, landing in the two natural places.
 
@@ -65,7 +65,7 @@ traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                          switch=0.1, start="marine", seed=1)
 ```
 
-This is the literal twin of the discrete molecular clock: `simulate_discrete(states=…, switch=…)` reads the same as `mod.Markov(rates=…, switch=…)`, a set of states plus a switching rate. When the flips are not symmetric, replace the single rate with a small matrix of directed rates:
+This is the literal twin of the discrete molecular clock: `simulate_discrete(states=…, switch=…)` reads the same as `mod.Markov(states=…, switch=…)`, a set of states plus a switching rate. When the flips are not symmetric, replace the single rate with a small matrix of directed rates:
 
 ```python
 # asymmetric — gains are commoner than losses
@@ -95,6 +95,8 @@ traits.simulate_continuous(tree,
     correlation={("size", "limb"): 0.6},                          # the overlay, ∈ [−1, 1]
     seed=1)
 ```
+
+*[This slice wires correlated **Brownian motion** with bare per-trait rates and the `correlation=` overlay (the runnable form is in *Usage from Python* below). Per-trait modifiers under `correlation=`, and multivariate OU, are later slices — the `mod.OnTime` on `limb` above shows the intended surface, not yet-runnable code.]*
 
 The same `correlation=` overlay handles *discrete* correlation with no extra machinery, through the threshold model: give each discrete trait a liability, correlate the liabilities, and put the thresholds on top. Correlated presence/absence characters, the setting Pagel's method was built for, are then one call:
 
@@ -128,7 +130,7 @@ Two rows point off the chapter and are worth a sentence each. **DEC**, the dispe
 
 A couple of corners of the trait level are now settled; the rest are agreed in concept but not yet nailed down, and the chapter should not pretend otherwise.
 
-- **Decided: OU's two knobs match the clock's.** OU needs both an optimum (`reverts_to`) and a pull strength (`pull`). For cross-level parity the CIR clock grows a `pull` too, so OU and CIR share the same two knobs — one level up they are the `reverts_to`/`pull` of the unified `mod.FromParent(spread=, reverts_to=, pull=)`, where plain `spread` is pure drift (BM, ClaDS, the autocorrelated clock) and adding `reverts_to` + `pull` makes it mean-reverting. The names `reverts_to`/`pull` stand.
+- **Decided: the OU trait is *not* a `FromParent` modifier; the mechanism differs, only the names are shared.** OU still needs both an optimum (`reverts_to`) and a pull strength (`pull`), but these stay **function arguments** that revert the trait's *value* continuously along a branch (`θ + (x−θ)·e^{−α·dt}`), which cannot be written as a multiplier on σ². The same-named `reverts_to`/`pull` reappear one level over as the sequences-side **CIR clock**, `mod.FromParent(spread=, reverts_to=, pull=)`: a mean-reverting *rate*, where plain `spread` is pure drift (variable-rates BM here, ClaDS at the species level, the autocorrelated clock) and adding `reverts_to` + `pull` makes that rate mean-reverting. Shared vocabulary, different mechanism (a value versus a rate); the names `reverts_to`/`pull` stand.
 - **Regime shifts (multi-optimum OU).** An OU optimum that jumps on painted branches, so different clades pull toward different values, is the natural home of adaptive-regime studies. It is an advanced case, probably a `regimes=` argument on `simulate_continuous`; deferred, and named here so it is not mistaken for missing by oversight.
 - **Traits that jump at speciation (cladogenesis).** A trait can change *at a split* rather than along a branch. By the spec's own reasoning this is the trait reading the tree it already lives on, an option of the trait's own model rather than a coupling to the species level, so it belongs in this chapter; the open question is only its spelling (likely `at_speciation=`). It is not built.
 - **Hidden rate classes under an Mk trait.** The discrete twin of the clock's hidden categories, letting the switching rate itself vary invisibly across the tree. Likely a hidden-state option on `simulate_discrete`; deferred.
@@ -136,23 +138,24 @@ A couple of corners of the trait level are now settled; the rest are agreed in c
 
 ## The objects
 
-*[Draft — the target result API is `docs/design/result-api.md`; the `TraitsResult` bundle is designed, not built. Today `simulate_traits` returns a `TraitResult`.]*
+*[`TraitsResult` is built (`zombi2/traits`). It does not yet share a common result spine with the other levels — the accessors below are its own; the cross-level spine of `docs/design/result-api.md` is still to come.]*
 
-A run returns a **`TraitsResult`** bundle. Like every level's result, it shares the common spine — `.events` (the event log), `.tree` (the tree it ran on), `.seed`, and `.write(dir, include=[...])` to materialise the chosen outputs to disk — and adds a payload that follows directly from what a trait is. Because a trait is a value at *every* node, the result records the value at every node, so the ancestral states are not a separate reconstruction step but a byproduct of the simulation: they are exact, drawn from the same process that produced the tips, not inferred after the fact, and they are replayed lazily from the event log rather than held all at once in memory.
+A run returns a **`TraitsResult`** bundle: the tree it ran on (`.complete_tree`), the `.seed`, the `.kind` (`"continuous"` or `"discrete"`), and `.write(directory, outputs=[...])` to materialise the chosen outputs to disk — plus a payload that follows directly from what a trait is. Because a trait is a value at *every* node, the result records the value at every node, so the ancestral states are not a separate reconstruction step but a byproduct of the simulation: they are exact, drawn from the same process that produced the tips, not inferred after the fact. This is the trait seam again: the value at every node (`.node_values`) *is* the source of truth here, held directly rather than replayed from an event log — for a continuous trait there is no event log to replay.
 
 - `.values` — the observable vector: the trait's value at each **extant tip**. This is the comparative-data matrix a method would be handed.
-- `.ancestral_states()` — the value at every internal node, the true ancestors at each split.
-- `.history` — for a **discrete** trait, the per-branch stochastic character map, the ordered list of `(state, duration)` segments each branch passed through; `.changes()` reads off the individual transitions with their times. This is `None` for continuous traits, which have no jumps to record.
+- `.node_values` — the value at **every** node (extant, extinct, and internal alike), the true ancestors at each split, from the same process that produced the tips.
+- `.history` — for a **discrete** trait, the per-branch stochastic character map, the ordered list of `(state, duration)` segments each branch passed through; `.events` reads off the individual transitions with their times. Both are empty/`None` for continuous traits, which have no jumps to record.
 
-For discrete traits the stored values are integer state indices; `.labeled_values()` decodes them back to the state names you gave. The whole result can be written as an annotated tree (a **trait tree**), the tree with each node carrying its trait value.
+For discrete traits the stored values are the state labels you gave (not integer indices), so `.values` and `.node_values` already read back in your own vocabulary. Writing the result as an annotated tree — a **trait tree**, each node carrying its value — is a forthcoming output.
 
 ## Usage from Python
 
 ```python
-from zombi2 import species, traits, modifiers as mod
+from zombi2 import species, traits
+from zombi2.rates import modifiers as mod
 
 # a species tree from the previous chapters, then a trait riding along it
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=30, seed=1).extant_tree
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=1).extant_tree
 
 # continuous: body size under Brownian motion
 size = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)
@@ -165,8 +168,8 @@ temp = traits.simulate_continuous(tree, start=0.0, rate=1.0,
 # discrete: habitat flipping between two states
 habitat = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                                    switch=0.1, start="marine", seed=1)
-habitat.labeled_values()    # {extant tip: "marine" | "terrestrial"}
-habitat.changes()           # the realized flips, in time order
+habitat.values              # {extant tip: "marine" | "terrestrial"}
+habitat.events              # the realized flips, in time order
 
 # two continuous traits that drift together — one joint call
 bodyplan = traits.simulate_continuous(tree,
@@ -177,7 +180,7 @@ bodyplan = traits.simulate_continuous(tree,
 
 ## Usage from the CLI
 
-*[Draft — the CLI re-fit to this API is still to be designed; today's `zombi2 traits` still exposes the model zoo rather than the two functions and the shared knobs.]*
+*[Draft — the trait CLI is not built in the clean core yet; the commands below show the intended surface, not a shipped interface.]*
 
 ```bash
 # a continuous (Brownian) trait along a species tree
@@ -191,4 +194,4 @@ zombi2 traits --discrete --tree species_tree.nwk \
 
 ## Outputs
 
-A run writes the **trait values** at the extant tips (the observable comparative-data vector) and, because every node was recorded, the **ancestral values** at each internal node. For a discrete trait it also writes the **change history**, the stochastic character map giving every state and its duration along each branch, which is the ground truth against which an ancestral-state or stochastic-mapping method would be scored. And it writes the **trait tree**, the input tree annotated with the value at each node. The full list of files lives in Appendix B.
+A run writes the **trait values** at the extant tips (`trait_values.tsv`, the observable comparative-data vector). For a discrete trait it also writes the **change history** (`trait_changes.tsv`, the realized transitions along each branch, read off the stochastic character map), the ground truth against which an ancestral-state or stochastic-mapping method would be scored. The exact ancestral values at every internal node are kept in `.node_values`, and an annotated **trait tree** — the input tree carrying the value at each node — is a forthcoming output. The full list of files lives in Appendix B.
