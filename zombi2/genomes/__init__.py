@@ -53,15 +53,21 @@ class GeneCopy:
 
 @dataclass(frozen=True)
 class Event:
-    """A recorded genome event — the true history every per-family gene tree is later derived from.
-    ``lineage`` is the species-tree node id it fired on; ``time`` is when (crown-forward, the same
-    clock as the species tree). By kind:
+    """A recorded genome event — the true history every per-family gene tree is derived from. Gene
+    ids are **per segment** (the ZOMBI1 model): every event ends a gene and starts fresh ids for its
+    descendants, so an id belongs to exactly one species branch and every node's genome has its own
+    ids. ``lineage`` is the species-tree node the event fired on; ``time`` is when (crown-forward,
+    the species tree's clock). By kind:
 
-    - ``"origination"`` — ``copy`` is the family's founding copy (``parent``/``recipient`` ``None``).
-    - ``"duplication"`` — ``copy`` is the NEW copy; ``parent`` is the copy that duplicated and survives.
-    - ``"loss"`` — ``copy`` is the copy removed (``parent`` ``None``).
-    - ``"transfer"`` — ``lineage`` is the DONOR; ``parent`` is the donor copy (survives); ``copy`` is
-      the new copy, born in ``recipient`` (a different, contemporaneous lineage). A horizontal edge.
+    - ``"origination"`` — ``copy`` is a founding gene of a fresh family (``parent`` ``None``): a root.
+    - ``"duplication"`` — the gene ``parent`` ends; ``copy`` is one of its **two** descendants (the
+      continuation and the new copy — two rows, same ``parent``), both on ``lineage``.
+    - ``"transfer"`` — the donor gene ``parent`` ends; ``copy`` is one of its two descendants: the
+      continuation on the donor ``lineage``, or the transferred copy on the ``recipient`` lineage (a
+      horizontal edge). Two rows, same ``parent``.
+    - ``"speciation"`` — the gene ``parent`` ends at a split; ``copy`` is its descendant in daughter
+      species ``lineage`` (one row per daughter — two, same ``parent``).
+    - ``"loss"`` — the gene ``copy`` ends with no descendant (``parent`` ``None``).
     """
 
     time: float
@@ -181,11 +187,16 @@ def _originate(genome, node, t, events, new_copy, new_family) -> None:
     events.append(Event(t, "origination", node.id, c.family, c.id))
 
 
-def _duplicate(genome, parent, node, t, events, new_copy) -> None:
-    """The chosen copy duplicates: +1 copy in its family; the parent copy survives."""
-    c = new_copy(parent.family)
-    genome.append(c)
-    events.append(Event(t, "duplication", node.id, parent.family, c.id, parent=parent.id))
+def _duplicate(genome, j, node, t, events, new_copy) -> None:
+    """The gene at index ``j`` duplicates. In the ZOMBI1 per-segment model every event re-ids: the
+    gene *ends* and **two** fresh copies descend from it, so both carry new ids (and the id in any
+    node is that node's own)."""
+    old = genome[j]
+    cont, dup = new_copy(old.family), new_copy(old.family)
+    genome[j] = cont                                   # the continuing lineage (a fresh id)
+    genome.append(dup)                                 # the new copy (a fresh id)
+    events.append(Event(t, "duplication", node.id, old.family, cont.id, parent=old.id))
+    events.append(Event(t, "duplication", node.id, old.family, dup.id, parent=old.id))
 
 
 def _lose_at(genome, j, node, t, events) -> None:
@@ -236,11 +247,13 @@ def _transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
     kr = _recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
     recipient = alive[kr]
     rg = gen[kr]
-    new = new_copy(fam)
+    # the donor gene ends; two fresh copies descend from it (ZOMBI1 re-id): the continuation on the
+    # donor branch and the transferred copy on the recipient branch — a horizontal edge in the gene tree.
+    cont, xfer = new_copy(fam), new_copy(fam)
+    gen[kd][jd] = cont
     delta = 1
     if replacement:
-        residents = [p for p, c in enumerate(rg)
-                     if c.family == fam and not (kr == kd and c.id == src.id)]
+        residents = [p for p, c in enumerate(rg) if c.family == fam and c.id != cont.id]
         if residents:  # homologous overwrite; empty ⇒ additive fallback (the gene still arrives)
             p = residents[int(rng.integers(len(residents)))]
             victim = rg[p]
@@ -248,8 +261,9 @@ def _transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
             rg.pop()
             events.append(Event(t, "loss", recipient, fam, victim.id))
             delta = 0
-    rg.append(new)
-    events.append(Event(t, "transfer", donor, fam, new.id, parent=src.id, recipient=recipient))
+    rg.append(xfer)
+    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id))
+    events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient))
     return delta
 
 
@@ -366,7 +380,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 r = float(rng.random()) * total
                 if r < r_dup:
                     k, j = _pick_copy(rng, gen, n)
-                    _duplicate(gen[k], gen[k][j], tree.nodes[alive[k]], t, events, new_copy)
+                    _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
                     total_copies += 1
                 elif r < r_dup + r_los:
                     k, j = _pick_copy(rng, gen, n)
@@ -390,9 +404,13 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 total_copies -= len(g)
                 _swap_remove(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None:  # a speciation: both children inherit independently
+                if node.children is not None:  # a speciation: each gene re-ids into each daughter
                     for c in node.children:
-                        child_genome = list(g)  # frozen copies → shared ids, independent lists
+                        child_genome = []
+                        for old in g:  # ZOMBI1: the gene ends here and continues under a fresh id
+                            nc = new_copy(old.family)
+                            child_genome.append(nc)
+                            events.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
                         _append(alive, gen, pos, c, child_genome)
                         total_copies += len(child_genome)
                 si += 1

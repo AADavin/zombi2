@@ -5,55 +5,32 @@ to inference, recovering an embedding of an *observed* gene tree against the *ex
 and lives in the tools; here we simulated the embedding, so we simply record it.) One gene tree gives
 both:
 
-- the **complete** gene tree — every copy-lineage, the lost ones and those in extinct species included;
-- the **extant** gene tree — pruned to the copies that survive at the extant tips, degree-two nodes
+- the **complete** gene tree — every gene lineage, the lost ones and those in extinct species included;
+- the **extant** gene tree — pruned to the genes that survive at the extant tips, degree-two nodes
   suppressed — mirroring the species result's ``complete_tree`` / ``extant_tree``.
 
-Every node is annotated from the start with the **species branch** it sits on, the **event** that made
-it (``origination`` · ``duplication`` · ``transfer`` · ``speciation`` · ``loss`` · ``extant`` ·
-``extinct`` · ``unsampled``), its **time**, and its gene **copy**.
-
-Derivation, per family, is a recursive descent of the complete species tree: a copy is threaded along
-its species branch — a duplication or transfer bifurcates it (the source continues, a new copy starts,
-on the same branch for a duplication or on the recipient branch for a transfer), a loss caps it — and
-at the end of a branch the copy either bifurcates at the **speciation** into both daughter species (a
-copy id persists across a split) or ends at a tip (extant / extinct / unsampled).
+Gene ids are **per segment** (the ZOMBI1 model): every event ends a gene and starts fresh ids for its
+descendants, so an id belongs to one species branch and every gene-tree tip is unique. That makes each
+gene a single node whose children are recorded directly in the event log, so building the tree is a
+plain parent→children graph read: a gene's node ``kind`` is the event that *ended* it —
+``duplication`` · ``transfer`` · ``speciation`` (two children each) internally, or ``loss`` (dead) /
+``extant`` · ``extinct`` · ``unsampled`` (a tip of that species fate) at a leaf. The founding gene of a
+family (its origination) is simply the root. Each node also knows its species branch, its gene id, and
+its end time (branch lengths are time differences).
 """
 
 from __future__ import annotations
 
 import collections
-import contextlib
-import sys
 from dataclasses import dataclass, field
-from functools import cached_property
-
-# Gene trees are as deep as duplication ladders and the species tree together allow — unbounded in
-# principle, well past Python's default limit. Lift it for the recursive build / walk, then restore.
-_DEPTH = 100_000
-
-
-@contextlib.contextmanager
-def _deep_recursion():
-    old = sys.getrecursionlimit()
-    sys.setrecursionlimit(max(old, _DEPTH))
-    try:
-        yield
-    finally:
-        sys.setrecursionlimit(old)
 
 
 @dataclass
 class GeneNode:
-    """One node in a gene tree — an event in a family's true history.
-
-    ``kind`` — ``origination`` (the founding copy; a unary root) · ``duplication`` · ``transfer``
-    (the two horizontal-edge children sit on different species branches) · ``speciation`` (a species
-    split the gene was present at) · ``loss`` (a copy lost mid-branch) · ``extant`` / ``extinct`` /
-    ``unsampled`` (a copy that reached a species tip of that fate).
-    ``species`` — the species-tree node id it sits on. ``time`` — when (crown-forward).
-    ``copy`` — the gene copy id along this segment.
-    """
+    """One gene in a gene tree. ``kind`` is the event that ended it — ``duplication`` · ``transfer``
+    (the two children sit on different species branches) · ``speciation`` internally, or ``loss`` /
+    ``extant`` · ``extinct`` · ``unsampled`` at a leaf. ``species`` is the species-tree node the gene
+    lived on; ``time`` is when it ended (crown-forward); ``copy`` is the gene id."""
 
     kind: str
     species: int
@@ -69,21 +46,22 @@ class GeneNode:
 @dataclass
 class GeneTree:
     """One gene family's true genealogy. ``complete`` is the whole tree (lost and extinct-species
-    lineages included); ``extant`` is it pruned to the copies surviving at the extant tips (degree-two
-    nodes suppressed), or ``None`` if the family left no extant copy. ``to_newick`` serialises either."""
+    lineages included); ``extant`` is it pruned to the genes surviving at the extant tips (degree-two
+    nodes suppressed), or ``None`` if the family left no extant gene. ``to_newick`` serialises either."""
 
     family: int
     complete: GeneNode
 
-    @cached_property
+    @property
     def extant(self) -> GeneNode | None:
-        with _deep_recursion():
-            return _prune_to_extant(self.complete)
+        if not hasattr(self, "_extant"):
+            self._extant = _prune_to_extant(self.complete)
+        return self._extant
 
     def to_newick(self, which: str = "extant", *, annotate: bool = True) -> str | None:
         """Newick of the ``"extant"`` (default) or ``"complete"`` tree; ``None`` if it is empty.
-        Leaves are ``g<copy>_n<species>``; with ``annotate`` internal nodes carry ``<kind>_n<species>``;
-        branch lengths are time differences."""
+        Leaves are ``g<id>``; with ``annotate`` internal nodes carry ``<kind>_n<species>``; branch
+        lengths are time differences."""
         root = self.extant if which == "extant" else self.complete
         if root is None:
             return None
@@ -91,94 +69,83 @@ class GeneTree:
 
 
 def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:
-    """Derive ``{family id: GeneTree}`` from the event log inside the complete ``tree``."""
-    originations: dict[int, tuple[int, int, float]] = {}          # family -> (copy, lineage, time)
-    child_ev: dict = collections.defaultdict(list)               # (parent, lineage) -> [(time, kind, new, recip)]
-    loss_ev: dict[tuple[int, int], float] = {}                    # (copy, lineage) -> time
+    """Derive ``{family id: GeneTree}`` from the event log inside the complete ``tree``. Each event
+    records a gene ending and its descendants beginning, so this is a direct parent→children read."""
+    birth: dict[int, tuple[int, int]] = {}                # gene -> (family, species it lived on)
+    children: dict[int, list[int]] = collections.defaultdict(list)   # gene -> descendant genes
+    ended_by: dict[int, str] = {}                         # gene -> the event kind that ended it
+    end_time: dict[int, float] = {}                       # gene -> when it ended
+    lost: set[int] = set()
+    roots: list[int] = []
     for e in events:
         if e.kind == "origination":
-            originations[e.family] = (e.copy, e.lineage, e.time)
-        elif e.kind == "duplication":
-            child_ev[(e.parent, e.lineage)].append((e.time, "duplication", e.copy, None))
-        elif e.kind == "transfer":
-            child_ev[(e.parent, e.lineage)].append((e.time, "transfer", e.copy, e.recipient))
+            birth[e.copy] = (e.family, e.lineage)
+            roots.append(e.copy)
+        elif e.kind in ("duplication", "transfer", "speciation"):
+            birth[e.copy] = (e.family, e.lineage)
+            children[e.parent].append(e.copy)
+            ended_by[e.parent] = e.kind
+            end_time[e.parent] = e.time                   # the parent ends here (its children's birth)
         elif e.kind == "loss":
-            loss_ev[(e.copy, e.lineage)] = e.time
-    for key in child_ev:
-        child_ev[key].sort()
-    builder = _Builder(tree.nodes, child_ev, loss_ev)
-    with _deep_recursion():
-        return {fam: GeneTree(fam, builder.origination(copy, lineage, t))
-                for fam, (copy, lineage, t) in originations.items()}
+            lost.add(e.copy)
+            end_time[e.copy] = e.time
+    return {birth[root][0]: GeneTree(birth[root][0],
+                                     _build(root, birth, children, ended_by, end_time, lost, tree.nodes))
+            for root in roots}
 
 
-class _Builder:
-    """Threads one family's copies through the species tree into a gene tree (see module docstring)."""
-
-    def __init__(self, nodes: dict, child_ev: dict, loss_ev: dict):
-        self.nodes = nodes
-        self.child_ev = child_ev
-        self.loss_ev = loss_ev
-
-    def origination(self, copy: int, lineage: int, time: float) -> GeneNode:
-        """The family's founding copy: a unary ``origination`` root over its threaded lineage."""
-        root = GeneNode("origination", lineage, time, copy)
-        root.children = [self._segment(copy, lineage, time)]
-        return root
-
-    def _segment(self, copy: int, lineage: int, t0: float) -> GeneNode:
-        """The gene-subtree for ``copy`` entering species branch ``lineage`` at ``t0``."""
-        timeline = [(t, kind, new, recip)
-                    for (t, kind, new, recip) in self.child_ev.get((copy, lineage), ())
-                    if t >= t0]
-        loss = self.loss_ev.get((copy, lineage))
-        if loss is not None and loss >= t0:
-            timeline.append((loss, "loss", None, None))
-        timeline.sort(key=lambda x: x[0])
-        return self._thread(copy, lineage, timeline, 0)
-
-    def _thread(self, copy: int, lineage: int, timeline: list, i: int) -> GeneNode:
-        """Walk ``copy``'s events on ``lineage`` in time order; then close at the branch end."""
-        if i < len(timeline):
-            t, kind, new, recip = timeline[i]
-            if kind == "loss":
-                return GeneNode("loss", lineage, t, copy)
-            node = GeneNode(kind, lineage, t, copy)
-            cont = self._thread(copy, lineage, timeline, i + 1)              # the source copy continues
-            branch = lineage if kind == "duplication" else recip            # transfer lands on the recipient
-            node.children = [cont, self._segment(new, branch, t)]
-            return node
-        return self._branch_end(copy, lineage)
-
-    def _branch_end(self, copy: int, lineage: int) -> GeneNode:
-        """No more events: bifurcate at the speciation into both daughters, or end at the tip."""
-        s = self.nodes[lineage]
-        if s.children is None:                                              # a species tip
-            return GeneNode(s.fate, lineage, s.end_time, copy)             # extant / extinct / unsampled
-        node = GeneNode("speciation", lineage, s.end_time, copy)
-        node.children = [self._segment(copy, child, s.end_time) for child in s.children]
-        return node
+def _build(root, birth, children, ended_by, end_time, lost, nodes) -> GeneNode:
+    """Assemble one family's tree bottom-up (iterative — gene trees run past the recursion limit)."""
+    order: list[int] = []                                 # a pre-order: every gene before its descendants
+    stack = [root]
+    while stack:
+        g = stack.pop()
+        order.append(g)
+        stack.extend(children.get(g, ()))
+    built: dict[int, GeneNode] = {}
+    for g in reversed(order):                             # descendants first, so a node's children exist
+        _, species = birth[g]
+        kids = children.get(g)
+        if kids:                                          # internal: ended by dup / transfer / speciation
+            node = GeneNode(ended_by[g], species, end_time[g], g)
+            node.children = [built[c] for c in kids]
+        elif g in lost:                                   # a dead leaf
+            node = GeneNode("loss", species, end_time[g], g)
+        else:                                             # alive at its species' tip
+            s = nodes[species]
+            node = GeneNode(s.fate, species, s.end_time, g)
+        built[g] = node
+    return built[root]
 
 
-def _prune_to_extant(node: GeneNode) -> GeneNode | None:
-    """A fresh tree keeping only lineages that reach an ``extant`` tip; degree-two nodes suppressed."""
-    if node.is_leaf:
-        return GeneNode(node.kind, node.species, node.time, node.copy) if node.kind == "extant" else None
-    kept = [k for k in (_prune_to_extant(c) for c in node.children) if k is not None]
-    if not kept:
-        return None
-    if len(kept) == 1:
-        return kept[0]                                                     # suppress the degree-two node
-    out = GeneNode(node.kind, node.species, node.time, node.copy)
-    out.children = kept
-    return out
+def _prune_to_extant(root: GeneNode) -> GeneNode | None:
+    """A fresh tree keeping only lineages reaching an ``extant`` tip; degree-two nodes suppressed."""
+    order: list[GeneNode] = []
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        order.append(n)
+        stack.extend(n.children)
+    pruned: dict[int, GeneNode | None] = {}
+    for n in reversed(order):
+        if n.is_leaf:
+            pruned[id(n)] = GeneNode(n.kind, n.species, n.time, n.copy) if n.kind == "extant" else None
+            continue
+        kept = [k for k in (pruned[id(c)] for c in n.children) if k is not None]
+        if not kept:
+            pruned[id(n)] = None
+        elif len(kept) == 1:
+            pruned[id(n)] = kept[0]                        # suppress the degree-two node
+        else:
+            node = GeneNode(n.kind, n.species, n.time, n.copy)
+            node.children = kept
+            pruned[id(n)] = node
+    return pruned[id(root)]
 
 
 def _to_newick(root: GeneNode, annotate: bool) -> str:
-    """Serialise iteratively — gene trees run deeper than CPython's C-stack recursion guard, which
-    ``setrecursionlimit`` cannot lift, so recursion would crash on deep (high-turnover) trees."""
-    # explicit post-order stack; each frame is [node, parent_time, next_child, collected_child_strings]
-    stack: list[list] = [[root, None, 0, []]]
+    """Serialise iteratively (gene trees run deeper than CPython's C-stack recursion guard)."""
+    stack: list[list] = [[root, None, 0, []]]              # [node, parent_time, next_child, child_strings]
     result = ""
     while stack:
         frame = stack[-1]
@@ -189,7 +156,7 @@ def _to_newick(root: GeneNode, annotate: bool) -> str:
             continue
         bl = "" if parent_time is None else f":{node.time - parent_time:.6g}"
         if node.is_leaf:
-            s = f"g{node.copy}_n{node.species}{bl}"
+            s = f"g{node.copy}{bl}"
         else:
             label = f"{node.kind}_n{node.species}" if annotate else ""
             s = f"({','.join(parts)}){label}{bl}"

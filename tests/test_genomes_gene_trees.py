@@ -4,7 +4,7 @@ from zombi2.species import Node, Tree, simulate_species_tree
 from zombi2.genomes import GeneTree, simulate_genomes_unordered
 
 LEAF_KINDS = {"extant", "extinct", "unsampled", "loss"}
-INTERNAL_KINDS = {"origination", "duplication", "transfer", "speciation"}
+INTERNAL_KINDS = {"duplication", "transfer", "speciation"}   # ZOMBI1: a node's kind is what ended the gene
 
 
 def _leaves(node, kinds=None):
@@ -45,12 +45,12 @@ def test_every_node_is_annotated_with_a_known_kind():
             assert isinstance(n.species, int) and isinstance(n.copy, int)
 
 
-def test_root_is_the_origination():
+def test_root_is_the_founding_gene():
+    # ZOMBI1: no separate origination node — the root IS the founding gene (its kind is what ended it)
     _, g = _run(seed=4)
     for fam, tree in g.gene_trees.items():
-        assert tree.complete.kind == "origination"
-        assert tree.complete.copy == next(e.copy for e in g.events
-                                          if e.kind == "origination" and e.family == fam)
+        origin_copy = next(e.copy for e in g.events if e.kind == "origination" and e.family == fam)
+        assert tree.complete.copy == origin_copy
 
 
 # --- the key cross-check: gene tree agrees with the profiles ---------------
