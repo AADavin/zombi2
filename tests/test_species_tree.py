@@ -4,7 +4,7 @@ import pytest
 
 from zombi2 import modifiers as mod
 from zombi2 import scope
-from zombi2.species_tree import Event, simulate_species_tree, to_newick
+from zombi2.species_tree import Event, simulate_species_tree
 
 
 def test_yule_reaches_n_extant_with_no_extinction():
@@ -154,7 +154,7 @@ def test_yule_extant_equals_complete_leaves():
 
 def test_newick_is_wellformed():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=2)
-    nwk = to_newick(r.extant_tree)
+    nwk = r.extant_tree.to_newick()
     assert nwk.endswith(";")
     assert nwk.count("(") == nwk.count(")")   # balanced parens
     assert nwk.count(",") == 25 - 1           # a bifurcating tree of 25 tips has 24 joins
@@ -170,7 +170,7 @@ def test_write_produces_newick_files(tmp_path):
 def test_extant_tree_is_deterministic():
     a = simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=8)
     b = simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=8)
-    assert to_newick(a.extant_tree) == to_newick(b.extant_tree)
+    assert a.extant_tree.to_newick() == b.extant_tree.to_newick()
 
 
 def test_dead_tree_has_no_extant_tree():

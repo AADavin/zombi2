@@ -69,6 +69,24 @@ class Tree:
         """The lineages that died before the present."""
         return [n for n in self.nodes.values() if n.fate == "extinct"]
 
+    def to_newick(self) -> str:
+        """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
+        branch length is ``end_time - birth_time``; leaves are named ``n<id>``; the root carries no
+        branch length (crown-rooted)."""
+
+        def emit(i: int) -> str:
+            node = self.nodes[i]
+            bl = node.end_time - node.birth_time
+            if node.children is None:
+                return f"n{i}:{bl:.6g}"
+            inner = ",".join(emit(c) for c in node.children)
+            return f"({inner})n{i}:{bl:.6g}"
+
+        root = self.nodes[self.root]
+        if root.children is None:
+            return f"n{self.root};"
+        return f"({','.join(emit(c) for c in root.children)})n{self.root};"
+
 
 @dataclass
 class SpeciesResult:
@@ -87,40 +105,27 @@ class SpeciesResult:
     def extant_tree(self) -> Tree | None:
         """The survivors' tree — the complete tree pruned to extant lineages with the
         unifurcations suppressed (dated, bifurcating). ``None`` if nothing survived."""
-        return build_extant_tree(self.complete_tree)
+        return prune(self.complete_tree, keep="extant")
 
     def write(self, directory) -> None:
         """Write the trees as Newick: ``complete.nwk`` and (if any survived) ``extant.nwk``."""
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
-        (d / "complete.nwk").write_text(to_newick(self.complete_tree) + "\n")
+        (d / "complete.nwk").write_text(self.complete_tree.to_newick() + "\n")
         if self.extant_tree is not None:
-            (d / "extant.nwk").write_text(to_newick(self.extant_tree) + "\n")
+            (d / "extant.nwk").write_text(self.extant_tree.to_newick() + "\n")
 
 
-def to_newick(tree: Tree) -> str:
-    """Serialise a tree to Newick. Each branch length is ``end_time - birth_time``; leaves
-    are named ``n<id>``; the root carries no branch length (crown-rooted)."""
+def prune(tree: Tree, keep: str = "extant") -> Tree | None:
+    """Prune the complete tree to a kept set (matching ``prune(tree, keep=...)`` in the codebase):
+    drop the pruned subtrees and suppress the unifurcations they leave behind, giving a dated,
+    bifurcating tree. Branch lengths merge across suppressed nodes; ``None`` if nothing is kept.
 
-    def emit(i: int) -> str:
-        node = tree.nodes[i]
-        bl = node.end_time - node.birth_time
-        if node.children is None:
-            return f"n{i}:{bl:.6g}"
-        inner = ",".join(emit(c) for c in node.children)
-        return f"({inner})n{i}:{bl:.6g}"
-
-    root = tree.nodes[tree.root]
-    if root.children is None:
-        return f"n{tree.root};"
-    return f"({','.join(emit(c) for c in root.children)})n{tree.root};"
-
-
-def build_extant_tree(complete: Tree) -> Tree | None:
-    """Prune the complete tree to the survivors: drop the extinct subtrees and suppress the
-    unifurcations they leave behind, giving a dated, bifurcating tree of the extant lineages.
-    ``None`` if nothing survived. Branch lengths merge across suppressed nodes."""
-    nodes = complete.nodes
+    ``keep="extant"`` (default) keeps the survivors — the extant tree. (``"sampled"``, the
+    fossil/serially-sampled tree, arrives with the sampling and fossils slices; it raises for now.)"""
+    if keep != "extant":
+        raise ValueError(f"keep must be 'extant' until the sampling/fossils slices land, got {keep!r}")
+    nodes = tree.nodes
     surviving: dict[int, bool] = {}
     for i in sorted(nodes, reverse=True):  # children have higher ids → processed before parents
         nd = nodes[i]
@@ -330,4 +335,4 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None, seed=Non
     )
 
 
-__all__ = ["simulate_species_tree", "SpeciesResult", "Tree", "Node", "Event", "to_newick", "build_extant_tree"]
+__all__ = ["simulate_species_tree", "SpeciesResult", "Tree", "Node", "Event", "prune"]
