@@ -33,7 +33,7 @@ zombi2/
   __init__.py          thin — no top-level re-exports (one canonical path per name)
   rates/               the cross-level rate grammar (SPEC §5): effective rate = scope(base) × modifiers
     scope.py        ✅ PerCopy · PerLineage · PerSite · Global
-    modifiers.py    ✅ Time · Diversity · Inherited          (genome: ByFamily · Speed 🔨)
+    modifiers.py    ✅ Time · Diversity · Inherited          (ByLineage · ByFamily · Markov 🔨)
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
     distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform   (value / length distributions)
   species/           ✅ simulate_species_tree → SpeciesResult ;  Tree · Node  (the shared dated tree)
