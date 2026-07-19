@@ -19,7 +19,7 @@ four levels symmetric.
 ## The common spine (on every result)
 
 - `.events` — the event log (the **compact source of truth**; see memory model)
-- `.tree` / `.complete` / `.reconstructed` — the tree(s) it ran on
+- `.tree` / `.complete_tree` / `.extant_tree` — the tree(s) it ran on
 - `.write(dir, [...])` — write the chosen outputs to disk (same **write** vocabulary as the CLI `--write`)
 - `.seed`
 
@@ -30,7 +30,7 @@ collision the coverage audit found (→ `GenomesResult`) and finally names the s
 
 | Level | Returns | Payload accessors |
 |---|---|---|
-| Species | `SpeciesResult` | `.complete`, `.reconstructed`, `.fossils`, `.events` |
+| Species | `SpeciesResult` | `.complete_tree`, `.extant_tree`, `.fossils`, `.events` |
 | Genomes | `GenomesResult` | `.genomes` (per-node content), `.gene_trees`, `.profiles` (sparse presence/count matrix), `.transfers`, `.events` (D/T/L/O); structured adds `.chromosome_network`, `.gene_order` (GFF/BED) |
 | Sequences | `SequencesResult` | `.alignments`, `.ancestral`, `.events` |
 | Traits | `TraitsResult` | `.values`, `.history`, `.events` |
@@ -44,7 +44,7 @@ Richness must not explode memory even in-memory. Three dials, cheapest → riche
    *profile accumulator*: it tallies the sparse matrix as lineages evolve and **never builds the event log
    or the gene-tree objects at all.** Footprint = the matrix, streamable.
 2. **What's derived** — if the event log *is* kept (the default), the rich views (`ancestral`,
-   `gene_trees`, `profiles`) are **reconstructed lazily from the log on access**, never all-resident. Ask
+   `gene_trees`, `profiles`) are **replayed lazily from the log on access**, never all-resident. Ask
    for one node's ancestral genome and it is replayed just-in-time; iterate and they stream one at a time.
 3. **What's written** — `.write(dir, [...])` picks which of those hit disk, streamed node-by-node
    with bounded memory, however big the tree.

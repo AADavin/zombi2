@@ -22,7 +22,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - The genome **resolution** dial: unordered → ordered → nucleotide (framing only; detail in Part II)
 - How levels relate: **independent, conditioned, joint** — the composition figure + probability notation
 - How rates work: how many clocks, how fast — scope(base) × modifiers ⟨D3: section here, or its own chapter?⟩
-- The ZOMBI2 vocabulary — a short glossary (level, rate, resolution, complete/reconstructed) ⟨C2.11, D6⟩
+- The ZOMBI2 vocabulary — a short glossary (level, rate, resolution, complete/extant) ⟨C2.11, D6⟩
 
 ### 3. Getting started
 - Installation (from source · building the engine · optional extras · verifying)
@@ -46,7 +46,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - **Sampling — what you observe** — the extant fraction, and fossils (FBD); the true tree is unchanged ⟨D5, C5.6⟩
 - Ghost lineages — a tree transform, not a diversification model
 - *(trait- and gene-driven diversification live in ch9 Coupling levels — one forward pointer)*
-- **Tail:** the `Tree` object → Python → CLI → Outputs *(complete & reconstructed Newick)* ⟨D6, D7⟩
+- **Tail:** the `Tree` object → Python → CLI → Outputs *(complete & extant Newick)* ⟨D6, D7⟩
 
 ### 5. Genomes I — Unordered  *(old 7 + the genealogy half of 8)*
 - What an unordered genome is: a multiset of gene families — the base resolution

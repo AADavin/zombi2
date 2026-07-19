@@ -163,7 +163,7 @@ def build_from_args(registry, name, args, *, on_foreign="warn"):
     return entry.build(**entry.read_params(args))
 ```
 
-> **`build_from_args` is an *optional* extension, not part of the lean slice.** The existing per-builder `parser.error` guards produce *better, teachable* messages (e.g. "`--fossilization`/`--removal` require `--mode forward` — the backward reconstructed sampler assumes complete sampling") than the generic "X does not apply to Y", and the foreign-flag check has a limitation the risk table concedes: it treats "set" as `value != default`, so passing the default reads as unset. **Keep the specific guards**; adopt `build_from_args` only where hand-written guards become unmanageable. The `Param` / `add_model_args` half (per-model flag *declaration*) is the more clearly worthwhile part.
+> **`build_from_args` is an *optional* extension, not part of the lean slice.** The existing per-builder `parser.error` guards produce *better, teachable* messages (e.g. "`--fossilization`/`--removal` require `--mode forward` — the backward extant sampler assumes complete sampling") than the generic "X does not apply to Y", and the foreign-flag check has a limitation the risk table concedes: it treats "set" as `value != default`, so passing the default reads as unset. **Keep the specific guards**; adopt `build_from_args` only where hand-written guards become unmanageable. The `Param` / `add_model_args` half (per-model flag *declaration*) is the more clearly worthwhile part.
 
 ### 5.2 The capability matrix (a nice-to-have, per level)
 

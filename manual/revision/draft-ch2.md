@@ -127,7 +127,7 @@ A few terms recur throughout the book, collected here for reference:
 
 - **Level** — one of the four: Species, Genomes, Sequences, Traits.
 - **Rate** — how often an event fires: scope(base) × modifiers, as above.
-- **Complete vs reconstructed tree** — the *complete* tree keeps every lineage, including the ones
-  that went extinct; the *reconstructed* tree is pruned to the sampled survivors.
+- **Complete vs extant tree** — the *complete* tree keeps every lineage, including the ones
+  that went extinct; the *extant* tree is pruned to the sampled survivors.
 - **Extant / extinct / unsampled** — a tip that reached the present and was sampled is *extant*; one
   that died before the present is *extinct*; one alive but not sampled is *unsampled*.
