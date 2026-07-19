@@ -9,6 +9,9 @@ docs_dir: docs
 exclude_docs: |
   *.tex
   *.bib
+  # design/ holds SPEC.md, MAP.md and the api design docs — repo references (see CLAUDE.md),
+  # not published site pages; keep them out of the build.
+  design/
 
 # The header title/logo links back to the main website (these docs are a /docs/ subsite).
 extra:
@@ -72,51 +75,9 @@ markdown_extensions:
       base_path: ["."]
       check_paths: true
 
+# The docs site is being rewritten on the clean core (see docs/design/MAP.md), growing a
+# page as each level lands. The old pages are parked in legacy/docs/, out of the build.
 nav:
   - Home: index.md
-  - Get started:
-      - Installation: installation.md
-      - Quickstart: quickstart.md
-      - Parameters files: parameters-file.md
   - Guide:
       - Species trees: guide/species-trees.md
-      - Genomes: guide/genomes.md
-      - Traits: guide/traits.md
-      - Sequences: guide/sequences.md
-      - Coevolution: guide/coevolution.md
-      - Null models of coevolution: guide/coevolution_nulls.md
-      - Rates: guide/rates.md
-      - Running in parallel: guide/parallel.md
-  - Cookbook:
-      - cookbook/index.md
-      - Inversion rate from synteny: cookbook/synteny.md
-      - Can you trust RED?: cookbook/red-validation.md
-      - Core-gene turnover rates: cookbook/universal-core-rates.md
-  - Examples: examples.md
-  - Experimental:
-      - Incomplete lineage sorting: experimental/incomplete-lineage-sorting.md
-  - Tools:
-      - Overview: tools/index.md
-      - Reconciliation likelihood: tools/reconciliation-likelihood.md
-      - Undated simulation: tools/undated-simulation.md
-      - Relative Evolutionary Divergence: tools/red.md
-      - Tree distances: tools/treedist.md
-      - Reconciliation accuracy: tools/recon-accuracy.md
-      - Parsing reconciliation output: tools/reconciliation-parsing.md
-      - Gene-order export: tools/geneorder-export.md
-  - Reference:
-      - Command line: cli.md
-      - Python API: reference/api.md
-      - The Rust engine: guide/rust-engine.md
-  - About:
-      - FAQ: faq.md
-      - Comparison with ZOMBI 1: comparison.md
-      - Validation: validation.md
-      - References: references.md
-      - Changelog: changelog.md
-  - Contributing:
-      - Overview: contributing.md
-      - Adding a model: contributing/adding-a-model.md
-      - Model lifecycle: contributing/model-lifecycle.md
-      - Conventions: contributing/conventions.md
-      - Publishing a release: publishing.md
