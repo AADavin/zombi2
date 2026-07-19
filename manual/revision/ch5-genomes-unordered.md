@@ -33,7 +33,7 @@ The scope answers *per what*, and the default is the natural one for each event.
 Rates can also depend on **time**. Multiplying a base rate by a `Time` modifier makes it change at set moments — the skyline, or episodic, genome, fast early and slow later, or any schedule you give:
 
 ```python
-from zombi2 import modifiers as mod
+from zombi2.rates import modifiers as mod
 # lots of new families early, then origination shuts off after time 2
 g = simulate_genomes_unordered(tree, origination=1.0 * mod.Time({0: 1.0, 2: 0.0}), seed=1)
 ```
@@ -96,7 +96,8 @@ The derived products a genome run can eventually give you — the **gene trees**
 The whole range is one function call:
 
 ```python
-from zombi2 import species, modifiers as mod
+from zombi2 import species
+from zombi2.rates import modifiers as mod
 from zombi2.genomes import simulate_genomes_unordered
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=1)

@@ -1,8 +1,8 @@
-"""Tests for zombi2.modifiers — the deterministic rate modifiers (SPEC §5)."""
+"""Tests for zombi2.rates.modifiers — the deterministic rate modifiers (SPEC §5)."""
 
 import pytest
 
-from zombi2 import modifiers as mod
+from zombi2.rates import modifiers as mod
 
 
 # --- Time -----------------------------------------------------------------

@@ -2,9 +2,9 @@
 
 import pytest
 
-from zombi2 import modifiers as mod
-from zombi2 import scope
-from zombi2.species_tree import Event, simulate_species_tree
+from zombi2.rates import modifiers as mod
+from zombi2.rates import scope
+from zombi2.species import Event, simulate_species_tree
 
 
 def test_yule_reaches_n_extant_with_no_extinction():
@@ -207,7 +207,7 @@ def test_dead_tree_has_no_extant_tree():
 def test_weighted_index_respects_weights():
     import numpy as np
 
-    from zombi2.species_tree import _weighted_index
+    from zombi2.species import _weighted_index
     rng = np.random.default_rng(0)
     weights = [1.0, 1.0, 8.0]           # index 2 carries 80% of the total rate
     counts = [0, 0, 0]
