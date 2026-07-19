@@ -113,3 +113,10 @@ def test_rate_is_frozen():
     r = 1.0 * mod.Diversity(cap=100)
     with pytest.raises(Exception):
         r.base = 2.0  # type: ignore[misc]
+
+
+def test_rate_next_change_is_earliest_breakpoint():
+    r = 1.0 * mod.Time({0: 1.0, 5: 0.2}) * mod.Diversity(cap=100)
+    assert r.next_change(0.0) == 5
+    assert r.next_change(5.0) == float("inf")
+    assert (1.0 * mod.Diversity(cap=100)).next_change(0.0) == float("inf")  # no time-varying part

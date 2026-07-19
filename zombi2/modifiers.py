@@ -37,6 +37,12 @@ class Modifier:
     def factor(self, **context: float) -> float:
         raise NotImplementedError
 
+    def next_change(self, time: float) -> float:
+        """The next time strictly after ``time`` at which this modifier's factor changes on
+        its own — a skyline breakpoint. ``inf`` if it never changes with time (the default;
+        most modifiers change only at events, not autonomously)."""
+        return math.inf
+
     def __rmul__(self, other: object):
         # `number * mod`, `scope * mod`, `mod * mod`, `Rate * mod` all build a Rate (see zombi2.rate)
         from .rate import Rate
@@ -93,6 +99,12 @@ class Time(Modifier):
             else:
                 break
         return f
+
+    def next_change(self, time: float) -> float:
+        for t, _ in self._steps:  # steps are sorted; the first breakpoint strictly after `time`
+            if t > time:
+                return t
+        return math.inf
 
     def __repr__(self) -> str:
         inner = ", ".join(f"{t:g}: {f:g}" for t, f in self._steps)
