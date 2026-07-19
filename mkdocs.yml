@@ -81,3 +81,4 @@ nav:
   - Home: index.md
   - Guide:
       - Species trees: guide/species-trees.md
+      - "Genomes I: unordered": guide/genomes.md
