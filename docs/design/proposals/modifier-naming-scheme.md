@@ -1,7 +1,8 @@
 # Proposal — the modifier families (`On` / `By` / `From`)
 
 **Status: direction ratified with Adrián (2026-07-19) — adopt `On` / `By` / `From`; drop `Speed`;
-use `OnTotalDiversity`. NOT yet in `SPEC.md`; no shared code renamed.** Propagation is a cross-file
+use `OnTotalDiversity`; `ByBranch → ByLineage` (also discussed on the sequences PR #183). NOT yet in
+`SPEC.md`; no shared code renamed.** Propagation is a cross-file
 rename (`zombi2/rates/modifiers.py` + every importer + `SPEC.md` + the level design docs) that touches
 **shipped species code** and **multiple open PRs** (the sequences build uses `Inherited`), so it must
 be *sequenced*, not landed piecemeal — see **Propagation** at the end.
@@ -27,13 +28,14 @@ conditioning close the exposition.
 > | Preposition | Family | The factor is… | Members |
 > |---|---|---|---|
 > | **`On`** | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
-> | **`By`** | independent | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `ByBranch`, `ByFamily` |
+> | **`By`** | independent | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `ByLineage`, `ByFamily` |
 > | **`From`** | inherited | inherited along a genealogical edge — **continuous memory** (autocorrelated) | `FromParent` |
 >
 > The preposition *is* the mechanism: `On` responds to something measurable, `By` draws fresh per
 > unit, `From` inherits from an ancestor. So the uncorrelated / autocorrelated relaxed-clock split is
-> just `ByBranch` vs `FromParent`; and ClaDS, the autocorrelated clock, and variable-rates BM are one
-> modifier — `FromParent` — at three levels.
+> just `ByLineage` vs `FromParent`; and ClaDS, the autocorrelated clock, and variable-rates BM are one
+> modifier — `FromParent` — at three levels. `ByLineage` names the unit that draws independently (one
+> value per lineage — a whole species runs hot or cold), matching the scope `PerLineage`.
 >
 > Four rules:
 >
@@ -43,7 +45,7 @@ conditioning close the exposition.
 >   unit / source and need no qualifier.
 > - **One memory-structure per axis.** On the tree axis a rate is `By…` (none), `From…` (continuous),
 >   or `Markov` (discrete) — never two at once. Families on *orthogonal* axes compose freely
->   (`OnTime * ByBranch * ByFamily`).
+>   (`OnTime * ByLineage * ByFamily`).
 > - **Named exceptions.** Not every mechanism has a preposition. **Discrete memory** — a rate
 >   switching between categories via a CTMC — is **`Markov`** (a mechanism name), the third memory
 >   structure beside `By` (none) and `From` (continuous). Name any future prepositionless mechanism
@@ -54,9 +56,10 @@ conditioning close the exposition.
 >   *rate*-reversion — the CIR clock — sharing only its knob-*names* with the OU trait, not its
 >   mechanism.)
 >
-> **The rename:** `Time → OnTime`, `Diversity → OnTotalDiversity`, `Inherited → FromParent`;
-> `ByBranch`, `ByFamily`, `Markov` stand. `Speed` is **dropped** — per-family heterogeneity is
-> `ByFamily`.
+> **The rename:** `Time → OnTime`, `Diversity → OnTotalDiversity`, `Inherited → FromParent`,
+> `ByBranch → ByLineage`; `ByFamily`, `Markov` stand. `Speed` is **dropped** — per-family
+> heterogeneity is `ByFamily`. (`ByBranch` is then free for its literal future meaning — a
+> per-*gene-tree*-branch clock, deferred as exotic in `sequence-api.md`.)
 
 ---
 
@@ -71,8 +74,9 @@ conditioning close the exposition.
 | `OnTime` | covariate | episodic diversification | time-varying D/T/L | time-varying substitution | early burst |
 | `OnTotalDiversity` | covariate | diversity-dependent diversification | transfer ∝ contemporaries | (rare) | ecological limits |
 | `OnAge`\* | covariate | age-dependent speciation | — | — | (rare) |
-| `ByBranch` | i.i.d. | uncorrelated rate heterogeneity | per-branch | **uncorrelated clock (UCLN)** | uncorrelated variable rates |
+| `ByLineage` | i.i.d. | uncorrelated rate heterogeneity | per-lineage D/T/L | **uncorrelated clock (UCLN)** | uncorrelated variable rates |
 | `ByFamily` | i.i.d. | — *(no families)* | per-family D/T/L | per-gene rate | — *(no families)* |
+| `ByBranch`\* | i.i.d. | — | — | per-*gene-tree*-branch clock *(exotic, deferred)* | — |
 | `FromParent` | inherited | **ClaDS** | family-rate drift | **autocorrelated clock** | variable-rates BM |
 | `FromDonor`\* | inherited | — *(no HGT)* | transferred gene keeps donor's rate | donor-inherited clock | — |
 | `Markov` | *(exception)* | clade-shift categories | — | discrete-category clock | rate-shift categories |
@@ -80,6 +84,13 @@ conditioning close the exposition.
 The `From` family is not a singleton: **`FromDonor`** (a horizontally-transferred gene inheriting its
 *donor's* rate, not its parent's) is a real second member at the genome / sequence levels — the
 preposition generalises to any genealogical edge, vertical or horizontal.
+
+**`ByBranch → ByLineage`** (raised by Adrián, also under discussion on the sequences PR #183): the
+clock is *"a property of a lineage — one value per species branch, shared by all its genes"*
+(`sequence-api.md`). So the unit is the **lineage**, not an unqualified "branch" (species-tree branch?
+gene-tree branch?), and `ByLineage` both matches the scope `PerLineage` and lets `sequence-api.md`
+drop its disambiguation paragraph. It also *reserves* `ByBranch` for the literal per-gene-tree-branch
+clock that doc defers as exotic — a real future modifier, distinct from `ByLineage`.
 
 ### Limitations the scheme carries (acknowledged, not hidden)
 
@@ -94,7 +105,7 @@ preposition generalises to any genealogical edge, vertical or horizontal.
    cannot express. This was the reason `Speed` sat outside the grammar — but `Speed` is now **dropped**
    (per-family heterogeneity is `ByFamily`), so the design carries no cross-rate construct and the gap
    is only theoretical.
-4. **Composition is not policed.** The grammar happily multiplies `ByBranch * FromParent` — two
+4. **Composition is not policed.** The grammar happily multiplies `ByLineage * FromParent` — two
    mutually-exclusive memory-structures on one axis, conceptually incoherent. The scheme makes
    families legible; an engine rule (or validation) still has to enforce "one memory-structure per
    axis."
@@ -119,12 +130,14 @@ level, respects §5's existing constraints, and even anticipates horizontal inhe
 **What it touches** — one mechanical rename, wide surface:
 
 - `zombi2/rates/modifiers.py` — rename the classes (`Time → OnTime`, `Diversity → OnTotalDiversity`,
-  `Inherited → FromParent`) and their `__all__`.
+  `Inherited → FromParent`, `ByBranch → ByLineage`) and their `__all__`.
 - **Every importer + its tests** — `zombi2/species` (shipped), `zombi2/genomes`, `zombi2/traits`,
-  `zombi2/sequences` (in flight), and `tests/test_modifiers.py` + each level's tests.
+  `zombi2/sequences` (in flight, uses `Inherited` + `ByBranch`), and `tests/test_modifiers.py` + each
+  level's tests.
 - **The words** — `SPEC.md` (§5 addendum + the §6 vocabulary row), `MAP.md` (the `modifiers.py`
-  line), and the level design docs (`trait-api.md`, `sequence-api.md`, `genome-api.md` — the last also
-  drops `Speed`). Any manual chapter that names a modifier.
+  line), and the level design docs: `sequence-api.md` (names `ByBranch` → `ByLineage`, and can drop
+  its disambiguation paragraph), `genome-api.md` (also drops `Speed`), `trait-api.md`. Any manual
+  chapter that names a modifier.
 
 **The conflict problem.** Every open PR that imports these names (this traits PR; the sequences PR,
 which uses `Inherited`; and any other in-flight level work) will collide with a rename to `main`. So
