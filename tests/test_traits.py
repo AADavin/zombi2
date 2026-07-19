@@ -15,7 +15,7 @@ import pytest
 from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.species import simulate_species_tree
-from zombi2.traits import TraitsResult, simulate_continuous
+from zombi2.traits import Change, TraitsResult, simulate_continuous, simulate_discrete
 
 
 def _tree(seed=1, n_extant=12, death=0.3):
@@ -310,3 +310,144 @@ def test_eb_deterministic():
     a = simulate_continuous(sp, rate=sched, seed=4)
     b = simulate_continuous(sp, rate=sched, seed=4)
     assert a.node_values == b.node_values
+
+
+# --- discrete traits (Mk): the exact CTMC + stochastic character map ------------
+
+def _one_branch(total_time, seed=0):
+    """A single lineage of length `total_time` (birth=0 → never splits): a clean single branch on
+    which to check the exact transition law."""
+    return simulate_species_tree(birth=0.0, total_time=total_time, seed=seed)
+
+
+def test_discrete_deterministic():
+    sp = _tree(seed=2)
+    kw = dict(states=["a", "b", "c"], switch=0.4, start="a", seed=5)
+    a, b = simulate_discrete(sp, **kw), simulate_discrete(sp, **kw)
+    assert a.node_values == b.node_values and a.history == b.history
+
+
+def test_discrete_zero_switch_is_constant():
+    sp = _tree(seed=3, death=0.5)
+    r = simulate_discrete(sp, states=["x", "y"], switch=0.0, start="x", seed=1)
+    assert all(v == "x" for v in r.node_values.values())   # no rate → never leaves the start state
+    assert r.events == []                                  # and no transitions
+    assert all(len(segs) == 1 for segs in r.history.values())
+
+
+def test_discrete_result_shape():
+    sp = _tree(seed=8)
+    r = simulate_discrete(sp, states=["marine", "terrestrial"], switch=0.3, start="marine", seed=1)
+    assert r.kind == "discrete"
+    assert set(r.values) == {n.id for n in sp.complete_tree.extant()}
+    assert set(r.values.values()) <= {"marine", "terrestrial"}     # labels, not indices
+    assert set(r.history) == set(sp.complete_tree.nodes)            # a branch history for every node
+
+
+def test_discrete_history_segments_sum_to_branch_length():
+    sp = _tree(seed=4)
+    r = simulate_discrete(sp, states=["a", "b", "c"], switch=0.7, start="a", seed=2)
+    for i, segs in r.history.items():
+        node = sp.complete_tree.nodes[i]
+        assert np.isclose(sum(d for _s, d in segs), node.end_time - node.birth_time)
+        assert r.node_values[i] == segs[-1][0]                     # end value = last segment's state
+
+
+def test_discrete_events_track_the_stochastic_map():
+    sp = _tree(seed=6)
+    r = simulate_discrete(sp, states=["a", "b", "c"], switch=0.8, start="a", seed=3)
+    # one event per jump between consecutive segments, across all branches
+    n_jumps = sum(len(segs) - 1 for segs in r.history.values())
+    assert len(r.events) == n_jumps and n_jumps > 0
+    assert all(isinstance(e, Change) and e.from_state != e.to_state for e in r.events)
+    assert r.events == sorted(r.events, key=lambda e: e.time)      # time-ordered
+    for e in r.events:                                             # each change sits on its branch
+        node = sp.complete_tree.nodes[e.lineage]
+        assert node.birth_time <= e.time <= node.end_time + 1e-9
+
+
+def test_discrete_transition_law_two_state_er():
+    # the correctness-critical check: on a single branch of length T, a symmetric 2-state chain at
+    # rate q ends in the other state with probability (1 − e^{−2qT})/2 (the exact CTMC law). If the
+    # Gillespie is right, the empirical switch frequency matches — fixed seeds, so deterministic.
+    T, q = 1.5, 0.4
+    sp = _one_branch(T, seed=0)
+    root = sp.complete_tree.root
+    n_rep = 8000
+    switched = sum(simulate_discrete(sp, states=["A", "B"], switch=q, start="A",
+                                     seed=s).node_values[root] == "B" for s in range(n_rep))
+    expected = (1.0 - math.exp(-2 * q * T)) / 2.0
+    assert abs(switched / n_rep - expected) < 0.02
+
+
+def test_discrete_asymmetric_reaches_stationary():
+    # asymmetric gain/loss (a dict of rates): on a deep branch the state distribution forgets the
+    # start and reaches the stationary π(present) = gain / (gain + loss).
+    gain, loss, T = 0.3, 0.1, 20.0
+    sp = _one_branch(T, seed=1)
+    root = sp.complete_tree.root
+    n_rep = 6000
+    present = sum(simulate_discrete(sp, states=["absent", "present"],
+                                    switch={"absent->present": gain, "present->absent": loss},
+                                    start="absent", seed=s).node_values[root] == "present"
+                  for s in range(n_rep))
+    assert abs(present / n_rep - gain / (gain + loss)) < 0.02
+
+
+def test_discrete_three_forms_agree():
+    # the symmetric scalar, the dict, and the matrix build the SAME Q, so with one seed they give
+    # byte-identical histories — one chain, three ways to spell it.
+    sp = _tree(seed=7)
+    q = 0.5
+    scalar = simulate_discrete(sp, states=["A", "B"], switch=q, start="A", seed=9)
+    asdict = simulate_discrete(sp, states=["A", "B"],
+                               switch={"A->B": q, "B->A": q}, start="A", seed=9)
+    matrix = simulate_discrete(sp, states=["A", "B"], switch=[[0.0, q], [q, 0.0]], start="A", seed=9)
+    assert scalar.node_values == asdict.node_values == matrix.node_values
+
+
+def test_discrete_start_none_draws_uniformly():
+    # over replicates a None start is uniform over states (checked on a zero-rate chain, so the root
+    # state is exactly the drawn start with nothing overwriting it)
+    sp = _one_branch(1.0, seed=2)
+    root = sp.complete_tree.root
+    n_rep = 4000
+    a = sum(simulate_discrete(sp, states=["A", "B"], switch=0.0, seed=s).node_values[root] == "A"
+            for s in range(n_rep))
+    assert abs(a / n_rep - 0.5) < 0.05
+
+
+def test_discrete_write(tmp_path):
+    sp = _tree(seed=8)
+    r = simulate_discrete(sp, states=["lo", "hi"], switch=0.6, start="lo", seed=1)
+    r.write(tmp_path, outputs=["values", "changes"])
+    vals = (tmp_path / "trait_values.tsv").read_text().splitlines()
+    assert vals[0] == "node\ttrait" and set(line.split("\t")[1] for line in vals[1:]) <= {"lo", "hi"}
+    changes = (tmp_path / "trait_changes.tsv").read_text().splitlines()
+    assert changes[0] == "time\tlineage\tfrom\tto" and len(changes) - 1 == len(r.events)
+
+
+def test_discrete_validation():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="at least 2 states"):
+        simulate_discrete(sp, states=["only"], switch=0.1, seed=1)
+    with pytest.raises(ValueError, match="unique"):
+        simulate_discrete(sp, states=["a", "a"], switch=0.1, seed=1)
+    with pytest.raises(ValueError, match="switch"):
+        simulate_discrete(sp, states=["a", "b"], seed=1)              # switch omitted
+    with pytest.raises(ValueError, match="non-negative"):
+        simulate_discrete(sp, states=["a", "b"], switch=-0.1, seed=1)
+    with pytest.raises(ValueError, match="start"):
+        simulate_discrete(sp, states=["a", "b"], switch=0.1, start="z", seed=1)
+    with pytest.raises(ValueError, match="from->to"):
+        simulate_discrete(sp, states=["a", "b"], switch={"a=>b": 0.1}, seed=1)
+    with pytest.raises(ValueError, match="not in states"):
+        simulate_discrete(sp, states=["a", "b"], switch={"a->z": 0.1}, seed=1)
+    with pytest.raises(ValueError, match="3×3|3x3|shape"):
+        simulate_discrete(sp, states=["a", "b", "c"], switch=[[0.0, 0.1], [0.1, 0.0]], seed=1)
+
+
+def test_threshold_is_deferred():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="later slice"):
+        simulate_discrete(sp, states=["absent", "present"], liability=1.0, threshold=0.0, seed=1)
