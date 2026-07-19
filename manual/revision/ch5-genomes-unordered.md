@@ -77,19 +77,43 @@ A `GenomesResult` carries:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages and all.
 - `.genomes` — a dict from node to that node's genome, a tuple of `GeneCopy` objects. The key is the node's integer id, the one that prints as `n<id>` in the Newick (node `5` is `n5`); each `GeneCopy` knows its own `id` and its `family`.
-- `.events` — the event log: every duplication, loss, origination, and transfer with its time and lineage. This is the compact source of truth the run exists to record; the gene trees are derived from it.
+- `.events` — the event log: every duplication, loss, origination, and transfer with its time and lineage. This is the compact source of truth the run exists to record; the profiles and gene trees are derived from it and the genomes.
+- `.profiles` — the family × extant-species copy-count table (the next section).
+- `.gene_trees` — one `GeneTree` per family (the next section).
 - `.seed` — the seed, so the run reproduces.
 
-and one convenience:
+and two methods:
 
 - `.family_counts(node_id)` — a `Counter` collapsing a node's genome to `family → number of copies`, when you want the multiset rather than the individual copies.
+- `.write(dir)` — materialise the outputs to disk: the event log (`genome_events.tsv`) and the profiles (`profiles.tsv`).
 
 ```python
 n5 = g.genomes[5]                    # the gene copies in node n5
 counts = g.family_counts(5)          # {family: copies} for the same node
+g.write("out/")                      # genome_events.tsv + profiles.tsv
 ```
 
-The derived products a genome run can eventually give you — the **gene trees** reconstructed from the event log, sparse presence/absence **profiles** across the tips, and writing any of it to disk — are a later slice; today the result holds the genomes, the events, and the seed.
+## Profiles and gene trees
+
+Two products are usually what you came for, and ZOMBI2 derives both from the run's recorded history.
+
+**Profiles** are the classic comparative-genomics view: how many copies of each gene family sit in each extant species — families down the rows, species across the columns, zero where a family is absent. They are read straight off the observed genomes, so the run stays lean and you materialise them on access.
+
+```python
+g.profiles.matrix        # families × extant-species copy counts, a NumPy array
+g.profiles.presence      # the same as 0/1 presence/absence
+g.profiles.to_tsv()      # the table as text
+```
+
+**Gene trees** are the deeper output. Every family has its own gene tree — the true genealogy of its copies, growing *inside* the complete species tree: a copy is born (by origination, duplication, or transfer), inherited down the tree, and ends when it is lost, when its species dies, or at an extant tip. `.gene_trees` gives one `GeneTree` per family, and — exactly like the species result — each carries **two trees**: the `.complete` tree with every copy-lineage, and the `.extant` tree pruned to the copies that survive. Every node knows the species branch it sits on and the event that made it.
+
+```python
+gt = g.gene_trees[7]                 # the gene tree of family 7
+gt.to_newick("extant")               # the surviving copies as Newick ...
+gt.to_newick("complete")             # ... or the whole genealogy
+```
+
+This is a recorded *history*, not a reconciliation: reconciliation is the inference problem of fitting an *observed* gene tree back onto a species tree, and it belongs to the analysis tools — here we simulated the embedding, so we simply write it down.
 
 ## Usage from Python
 
@@ -119,6 +143,12 @@ g = simulate_genomes_unordered(
 
 # the genomes you observe are the extant tips
 observed = {n.id: g.genomes[n.id] for n in g.complete_tree.extant()}
+
+# and the outputs, derived from that history
+g.profiles.matrix                                # family × extant-species copy counts
+some_family = next(iter(g.gene_trees))
+g.gene_trees[some_family].to_newick("extant")    # that family's surviving gene tree
+g.write("out/")                                  # the event log + profiles, on disk
 ```
 
-*(A `zombi2 genomes` command mirroring this call, and writing the outputs to disk, arrive with the genome CLI and the result-writing layer; this release is the Python engine.)*
+*(A `zombi2 genomes` command mirroring these calls arrives with the genome CLI; today this is the Python engine, and `.write` already puts the outputs on disk.)*
