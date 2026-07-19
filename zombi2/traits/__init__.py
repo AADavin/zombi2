@@ -20,22 +20,22 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   diffusion is pulled toward θ — stabilizing selection. The exact per-branch transition is normal
   with mean ``θ + (x−θ)·e^{−α·dt}`` and variance ``σ²/(2α)·(1−e^{−2α·dt})``. (These are the same two
   knobs the CIR clock grows one level over — a shared vocabulary, not shared code.)
-- **Early burst / ACDC**: give ``rate`` a ``Time`` skyline (``rate = σ² * mod.Time({0: 1, 5: 0.2})``)
-  and σ² changes through time — the *same* ``Time`` modifier that gives the species tree its skyline.
+- **Early burst / ACDC**: give ``rate`` a ``OnTime`` skyline (``rate = σ² * mod.OnTime({0: 1, 5: 0.2})``)
+  and σ² changes through time — the *same* ``OnTime`` modifier that gives the species tree its skyline.
   The per-branch variance is then the exact integral ``∫ σ²(t) dt`` over the branch.
-- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an ``Inherited`` modifier
-  (``rate = σ² * mod.Inherited(spread=0.3)``) and σ² drifts branch-to-branch — each lineage inherits
-  its parent's σ² times a lognormal kick at the split — the *same* ``Inherited`` modifier that drifts
+- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an ``FromParent`` modifier
+  (``rate = σ² * mod.FromParent(spread=0.3)``) and σ² drifts branch-to-branch — each lineage inherits
+  its parent's σ² times a lognormal kick at the split — the *same* ``FromParent`` modifier that drifts
   the species rate (ClaDS) and the autocorrelated clock, one level over. (``reverts_to`` / ``pull`` are
   OU function arguments that revert the trait *value*, **not** a modifier — a rate modifier reverts a
   *rate*, which is the sequences level's CIR clock, a different mechanism.)
-- **Diversity-dependent** (ecological limits): give ``rate`` a ``Diversity`` modifier
-  (``rate = σ² * mod.Diversity(cap=100)``) and σ² slows as the clade fills — scaled by
-  ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* ``Diversity``
+- **Diversity-dependent** (ecological limits): give ``rate`` a ``OnTotalDiversity`` modifier
+  (``rate = σ² * mod.OnTotalDiversity(cap=100)``) and σ² slows as the clade fills — scaled by
+  ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* ``OnTotalDiversity``
   modifier that slows species diversification, read here off the fixed tree (one-way, tree → trait).
 
-``rate`` thus takes the whole modifier vocabulary — ``Time``, ``Inherited``, ``Diversity`` — like any
-other rate, and they compose (``σ² * Time({…}) * Inherited(spread=…)``).
+``rate`` thus takes the whole modifier vocabulary — ``OnTime``, ``FromParent``, ``OnTotalDiversity`` — like any
+other rate, and they compose (``σ² * OnTime({…}) * FromParent(spread=…)``).
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree. That non-pooling is the trait seam in the rate grammar — the engine evaluates the rate one
@@ -63,7 +63,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..rates.modifiers import Diversity, Inherited, Time
+from ..rates.modifiers import OnTotalDiversity, FromParent, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult, Tree
@@ -175,7 +175,7 @@ def _preorder(tree: Tree) -> list[int]:
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
-    (``birth ≤ t < end``), the *standing diversity* a :class:`~zombi2.rates.modifiers.Diversity`
+    (``birth ≤ t < end``), the *standing diversity* a :class:`~zombi2.rates.modifiers.OnTotalDiversity`
     modifier reads. Built once per run and used to integrate a diversity-dependent σ² over each
     branch, stepping at the tree's own speciation / extinction times (where the diversity changes)."""
 
@@ -205,15 +205,15 @@ class _LTT:
 def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "_LTT | None" = None) -> float:
     """The variance a diffusing trait accrues over a branch spanning ``[t0, t1]`` — the integral
     ``∫ σ²(t) dt`` of the variance-rate. For a bare σ² this is ``σ²·(t1−t0)`` (Brownian motion); for a
-    ``Time`` skyline (early burst) it sums σ² over each interval the branch crosses, stepping at the
+    ``OnTime`` skyline (early burst) it sums σ² over each interval the branch crosses, stepping at the
     schedule's breakpoints. The same breakpoint walk the species/genome engines use — integrated over
     the branch rather than sampled at a point (σ² is piecewise-constant, so the integral is exact).
 
-    ``inherited`` is the lineage's :class:`~zombi2.rates.modifiers.Inherited` factor (variable-rates
+    ``inherited`` is the lineage's :class:`~zombi2.rates.modifiers.FromParent` factor (variable-rates
     BM), constant along the branch, threaded in by the caller and passed through to the rate; it
-    factors straight out of the integral. A rate with no ``Inherited`` modifier ignores it.
+    factors straight out of the integral. A rate with no ``FromParent`` modifier ignores it.
 
-    ``ltt`` is the tree's lineages-through-time function when the rate carries a ``Diversity`` modifier
+    ``ltt`` is the tree's lineages-through-time function when the rate carries a ``OnTotalDiversity`` modifier
     (diversity-dependent σ²): the integral then also steps at the tree's speciation / extinction times,
     reading the standing diversity on each sub-interval. ``None`` when σ² does not depend on diversity.
     (Stepping is O(events the branch crosses); fine for the trait level's one value per branch.)"""
@@ -234,8 +234,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
                         seed=None) -> TraitsResult:
     """Evolve a continuous trait down a tree and return a :class:`TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
-    (add ``reverts_to`` + ``pull``), **early burst** (a ``Time`` skyline on ``rate``), and
-    **variable-rates BM** (an ``Inherited`` modifier on ``rate``).
+    (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
+    **variable-rates BM** (an ``FromParent`` modifier on ``rate``).
 
     ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree`, or a
     :class:`~zombi2.species.SpeciesResult` whose ``complete_tree`` is used). The trait evolves on
@@ -249,11 +249,11 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
 
     ``rate`` is the variance-rate σ² (a ``scope(base) × modifiers`` rate spec), *per lineage*: each
     lineage diffuses independently at σ², never pooled across the tree. A bare number is Brownian
-    motion (``Normal(0, σ²·dt)`` over a branch); a ``Time`` modifier makes σ² change through time —
+    motion (``Normal(0, σ²·dt)`` over a branch); a ``OnTime`` modifier makes σ² change through time —
     early burst / ACDC — with the per-branch variance the exact integral ``∫ σ²(t) dt``; an
-    ``Inherited(spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
+    ``FromParent(spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
     for traits") — each lineage inheriting its parent's σ² times a lognormal kick drawn at the split;
-    a ``Diversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
+    a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
     lineages-through-time grows (the tree is a fixed input the trait reads).
 
@@ -272,20 +272,20 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"rate has a {type(r.scope).__name__} scope, but a continuous trait's variance-rate is "
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
-    # Time (early burst), Inherited (variable-rates BM), and Diversity (diversity-dependent) are the
+    # OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity (diversity-dependent) are the
     # wired σ² modifiers; anything else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
-        if not isinstance(m, (Time, Inherited, Diversity)):
+        if not isinstance(m, (OnTime, FromParent, OnTotalDiversity)):
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not support "
-                f"— Time (early burst), Inherited (variable-rates BM), and Diversity "
+                f"— OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity "
                 f"(diversity-dependent) are wired."
             )
-    drifts = [m for m in r.modifiers if isinstance(m, Inherited)]
+    drifts = [m for m in r.modifiers if isinstance(m, FromParent)]
     if len(drifts) > 1:
-        raise ValueError("rate carries more than one Inherited modifier; a variance-rate drifts one way")
+        raise ValueError("rate carries more than one FromParent modifier; a variance-rate drifts one way")
     drift = drifts[0] if drifts else None  # the per-lineage σ² drift (variable-rates BM), or None
-    has_diversity = any(isinstance(m, Diversity) for m in r.modifiers)  # σ² reads the standing LTT
+    has_diversity = any(isinstance(m, OnTotalDiversity) for m in r.modifiers)  # σ² reads the standing LTT
 
     # OU: reverts_to (θ) + pull (α) turn the diffusion into mean-reversion — both or neither.
     is_ou = reverts_to is not None or pull is not None
@@ -305,8 +305,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             )
         if r.modifiers:
             raise ValueError(
-                "a modified variance-rate (early burst via Time, variable rates via Inherited, or "
-                "diversity-dependence via Diversity) combined with OU (reverts_to / pull) is not "
+                "a modified variance-rate (early burst via OnTime, variable rates via FromParent, or "
+                "diversity-dependence via OnTotalDiversity) combined with OU (reverts_to / pull) is not "
                 "wired yet — use one or the other."
             )
         theta, alpha = float(reverts_to), float(pull)
@@ -321,7 +321,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         # the root starts from `start` at t=0; every other node from its parent's end value (parent
         # < i, already set). One uniform rule: node_values[i] is the trait at node i's end_time.
         x = float(start) if node.parent is None else node_values[node.parent]
-        # thread the Inherited factor: the root's is 1.0, each daughter's is its parent's times a
+        # thread the inherited factor: the root's is 1.0, each daughter's is its parent's times a
         # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
         if node.parent is None:
             inh[i] = drift.initial() if drift else 1.0

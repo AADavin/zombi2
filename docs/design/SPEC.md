@@ -154,8 +154,8 @@ effective rate  =  scope(base)  ×  modifiers
   what); answering **"per what?"** is the crux. It wraps the base and contributes a dimensionless
   factor.
 - **modifiers** — dimensionless context multipliers (by lineage, by family). They change *how fast*,
-  never *how many*. ("per" is the scope word; "by" is the modifier word — `PerLineage` scope,
-  `ByLineage` modifier.)
+  never *how many*. "per" is the scope word; the modifier word is a **preposition** — `On` / `By` /
+  `From` (the families, below) — so `PerLineage` is a scope and `ByLineage` a modifier.
 
 "Per what" by level:
 
@@ -171,7 +171,7 @@ Time is imposed by the species tree, measured from the **crown** by default or t
 **How a rate is written (same at every level):** a rate is an optional **scope wrapper** around a base
 number, optionally times **modifiers**. The scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`, `Global(1.0)`
 — `Global` capitalised, since `global` is a Python keyword); modifiers multiply (`0.2 * ByFamily(...)`,
-`1.0 * Diversity(cap=100)`). The bare number uses the rate's natural scope, so the common case is just
+`1.0 * OnTotalDiversity(cap=100)`). The bare number uses the rate's natural scope, so the common case is just
 `birth=1.0`. There is **no `per=` argument** — the scope lives on the rate, so it can be set per rate.
 Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
 `time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
@@ -180,6 +180,24 @@ with "per".
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
+
+**The modifier families.** A modifier's name begins with the preposition that fixes its family:
+
+| Preposition | Family | The factor is… | Examples |
+|---|---|---|---|
+| `On` | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
+| `By` | independent | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `ByLineage`, `ByFamily` |
+| `From` | inherited | inherited along a genealogical edge — **continuous memory** (autocorrelated) | `FromParent` |
+
+So the uncorrelated / autocorrelated split is `ByLineage` vs `FromParent`, and one modifier —
+`FromParent` — is ClaDS (species), the autocorrelated clock (sequences), and variable-rates BM
+(traits). Four rules: **fully-qualify an `On` covariate** (`OnTotalDiversity`, since the preposition
+does not fix its scope); **one memory-structure per axis** (`By…` none / `From…` continuous / `Markov`
+discrete — never two at once; orthogonal axes compose); **named exceptions** — discrete-memory
+switching is `Markov` (a mechanism name, no preposition), and any future prepositionless mechanism is
+named likewise; **outside the grammar** — a modifier multiplies *one* rate, so a value-level process
+(the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier. Full analysis:
+[`proposals/modifier-naming-scheme.md`](proposals/modifier-naming-scheme.md).
 
 ---
 
