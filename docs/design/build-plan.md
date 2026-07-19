@@ -64,7 +64,7 @@ length distributions) is the heaviest single piece. Coupling is last — it reac
 
 - **Species (#1):** `birth`/`death = number × modifiers`; Yule = `death=0`; ClaDS = `Inherited`; skyline =
   `Time`; diversity-dependent = `Diversity`. `mass_extinctions`/`sampling`(ρ)/`fossils`(v1 = side output,
-  lineage not removed). Both `.complete` + `.reconstructed`. Clade shift & ghost lineages are out (v1).
+  lineage not removed). Both `.complete_tree` + `.extant_tree`. Clade shift & ghost lineages are out (v1).
 - **Genomes-unordered (#2):** D/T/L/O keyword rates; `ByFamily` + `Speed`; `TransferModel` → arguments
   (`transfer_to`/`replacement`/`self_transfer`; donor weight = modifier, recipient weight = mechanic).
   `.profiles` sparse + lazy. **Rust rebuild** (`maturin build --release`) after core changes.
