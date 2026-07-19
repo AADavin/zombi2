@@ -167,6 +167,29 @@ def test_write_produces_newick_files(tmp_path):
     assert (tmp_path / "extant.nwk").read_text().strip().endswith(";")
 
 
+def test_write_records_the_event_log(tmp_path):
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=5)
+    r.write(tmp_path)                                            # events are always written
+    lines = (tmp_path / "events.tsv").read_text().splitlines()
+    assert lines[0] == "time\tkind\tlineage\tchildren"
+    assert len(lines) == 1 + len(r.events)                      # one row per recorded event
+    speciation = next(ln for ln in lines[1:] if "\tspeciation\t" in ln)
+    kids = speciation.split("\t")[-1]
+    assert ";" in kids and kids.count("n") == 2                 # a speciation lists its two children
+
+
+def test_write_is_selective(tmp_path):
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, fossils=0.5, seed=3)
+    r.write(tmp_path, outputs=["extant", "events"])
+    assert {p.name for p in tmp_path.iterdir()} == {"extant.nwk", "events.tsv"}   # only what was asked
+
+
+def test_write_rejects_unknown_output(tmp_path):
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1)
+    with pytest.raises(ValueError, match="unknown write outputs"):
+        r.write(tmp_path, outputs=["complete", "bogus"])
+
+
 def test_extant_tree_is_deterministic():
     a = simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=8)
     b = simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=8)
