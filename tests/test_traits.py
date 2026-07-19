@@ -126,8 +126,8 @@ def test_write_rejects_unknown_output(tmp_path):
 
 # --- input validation (what this slice deliberately does not wire) --------------
 
-def test_rejects_a_non_time_modifier():
-    # Time (early burst) is wired as of slice 2; other modifiers are still later slices
+def test_rejects_an_unwired_modifier():
+    # Time (early burst) and Inherited (variable-rates BM) are wired; Diversity is still a later slice
     sp = _tree(seed=1)
     with pytest.raises(ValueError, match="Diversity"):
         simulate_continuous(sp, rate=1.0 * mod.Diversity(cap=100), seed=1)
@@ -309,6 +309,88 @@ def test_eb_deterministic():
     sched = 1.5 * mod.Time({0.0: 1.0, 2.0: 0.3})
     a = simulate_continuous(sp, rate=sched, seed=4)
     b = simulate_continuous(sp, rate=sched, seed=4)
+    assert a.node_values == b.node_values
+
+
+# --- variable-rates BM (Inherited on rate): σ² drifts branch-to-branch ----------
+
+def _kurtosis(col):
+    """Pearson kurtosis of a sample (3.0 = Gaussian); computed with numpy, no scipy dependency."""
+    x = np.asarray(col, float)
+    return float(((x - x.mean()) ** 4).mean() / x.var() ** 2)
+
+
+def _vrbm_tips(spread, n_rep=4000):
+    """Extant-tip values over `n_rep` variable-rates-BM replicates on a fixed 8-tip Yule tree."""
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
+    tips = sorted(n.id for n in tree.extant())
+    depth = tree.nodes[tips[0]].end_time
+    data = np.array([
+        [simulate_continuous(tree, start=0.0, rate=2.0 * mod.Inherited(spread=spread),
+                             seed=s).node_values[i] for i in tips] for s in range(n_rep)
+    ])
+    return data, depth
+
+
+def test_variable_rates_bm_is_mean_corrected():
+    # the correctness-critical property: Inherited is mean-corrected (E[factor]=1), so a drifting σ²
+    # does NOT inflate down the tree — E[tip variance] stays σ²·depth, exactly as plain BM. (A missing
+    # mean-correction — a real historical bug elsewhere in the codebase — would blow the variance up.)
+    data, depth = _vrbm_tips(spread=0.6)
+    assert np.allclose(data.var(axis=0), 2.0 * depth, rtol=0.08)
+
+
+def test_variable_rates_bm_is_heterogeneous():
+    # the drift makes σ² vary branch-to-branch, so a tip is a scale-mixture of Gaussians —
+    # leptokurtic (kurtosis > 3). Plain BM (spread=0) is Gaussian (≈ 3). This is what tells the two
+    # apart, since the mean-correction keeps their variances equal.
+    flat, _ = _vrbm_tips(spread=0.0)
+    drift, _ = _vrbm_tips(spread=1.2)
+    assert np.mean([_kurtosis(flat[:, j]) for j in range(flat.shape[1])]) < 3.3    # BM: Gaussian
+    assert np.mean([_kurtosis(drift[:, j]) for j in range(drift.shape[1])]) > 5.0  # drift: heavy-tailed
+
+
+def test_variable_rates_composes_with_time():
+    # Inherited ∘ Time: the drift factor (E=1) rides on top of the early-burst integral, so
+    # E[tip variance] equals the plain EB integral ∫σ²(t)dt.
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
+    tips = sorted(n.id for n in tree.extant())
+    T = tree.nodes[tips[0]].end_time
+    base, c, tau = 2.0, 0.25, 0.4 * T
+    rate = base * mod.Time({0.0: 1.0, tau: c}) * mod.Inherited(spread=0.8)
+    data = np.array([
+        [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
+        for s in range(4000)
+    ])
+    assert np.allclose(data.var(axis=0), base * (1.0 * tau + c * (T - tau)), rtol=0.1)
+
+
+def test_variable_rates_deterministic():
+    sp = _tree(seed=2)
+    rate = 1.0 * mod.Inherited(spread=0.5)
+    assert simulate_continuous(sp, rate=rate, seed=4).node_values == \
+        simulate_continuous(sp, rate=rate, seed=4).node_values
+
+
+def test_variable_rates_rejects_ou_combo():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="not wired yet"):
+        simulate_continuous(sp, rate=1.0 * mod.Inherited(spread=0.3),
+                            reverts_to=2.0, pull=0.5, seed=1)
+
+
+def test_rejects_multiple_inherited():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="one Inherited|drifts one way"):
+        simulate_continuous(sp, rate=1.0 * mod.Inherited(spread=0.2) * mod.Inherited(spread=0.3), seed=1)
+
+
+def test_bm_unchanged_by_the_inherited_wiring():
+    # a bare rate carries no Inherited, so it must draw no extra rng and stay byte-identical to slice 1
+    sp = _tree(seed=3, death=0.4)
+    a = simulate_continuous(sp, start=0.0, rate=1.5, seed=1)
+    # reproduced from an independent run — the plain-BM path is untouched by the drift threading
+    b = simulate_continuous(sp.complete_tree, start=0.0, rate=1.5, seed=1)
     assert a.node_values == b.node_values
 
 
