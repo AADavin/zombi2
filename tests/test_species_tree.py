@@ -202,7 +202,7 @@ def test_dead_tree_has_no_extant_tree():
     assert r.extant_tree is None
 
 
-# --- Inherited (ClaDS): rates drift down the tree, picking is rate-weighted ---
+# --- Inherited (clade drift): rates drift down the tree, picking is rate-weighted ---
 
 def test_weighted_index_respects_weights():
     import numpy as np
@@ -217,7 +217,7 @@ def test_weighted_index_respects_weights():
     assert counts[0] > 0 and counts[1] > 0    # the light lineages still get picked sometimes
 
 
-def test_clads_is_deterministic_given_seed():
+def test_clade_drift_is_deterministic_given_seed():
     kw = dict(birth=1.0 * mod.Inherited(spread=0.5), death=0.1, n_extant=40, seed=3)
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
@@ -237,8 +237,8 @@ def test_death_can_drift_independently():
     assert len(r.complete_tree.extinct()) > 0
 
 
-def test_clads_composes_with_diversity_cap():
-    # ClaDS drift × diversity-dependence: the cap still bounds the tree
+def test_clade_drift_composes_with_diversity_cap():
+    # clade drift × diversity-dependence: the cap still bounds the tree
     r = simulate_species_tree(
         birth=1.0 * mod.Inherited(spread=0.4) * mod.Diversity(cap=25), death=0.0, total_time=100.0, seed=1)
     assert r.n_extant <= 25          # the cap is a hard ceiling even with drift
@@ -271,15 +271,15 @@ def _colless(result):
                for nd in tree.nodes.values() if nd.children is not None)
 
 
-def test_clads_is_more_imbalanced_than_yule():
+def test_clade_drift_is_more_imbalanced_than_yule():
     # the signature of heritable rate drift, at a fixed tip count so it is shape not size: fast
     # clades are inherited, so they hoard the tips and the tree is far more lopsided than Yule
     import statistics
     seeds = range(40)
     yule = [_colless(simulate_species_tree(birth=1.0, death=0.0, n_extant=64, seed=s)) for s in seeds]
-    clads = [_colless(simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.9), death=0.0, n_extant=64, seed=s))
+    drift = [_colless(simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.9), death=0.0, n_extant=64, seed=s))
              for s in seeds]
-    assert statistics.mean(clads) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)
+    assert statistics.mean(drift) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)
 
 
 # --- mass extinctions: (time, fraction_lost) survival pulses, time forward from the crown, total_time mode ---

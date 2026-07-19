@@ -6,7 +6,7 @@ a scope wrapper, or a product — so ``birth = scope.Global(1.0)`` gives one sha
 tree-wide budget (linear growth), ``birth = 1.0 * mod.Diversity(cap=100)`` slows the
 tree as it fills up, ``birth = 1.0 * mod.Time({...})`` runs a skyline (the interval-aware
 sampler steps to each breakpoint), and ``birth = 1.0 * mod.Inherited(spread=0.2)`` lets
-the rate drift down the tree (ClaDS): each lineage threads its own Inherited factor and
+the rate drift down the tree (clade drift): each lineage threads its own Inherited factor and
 the lineage that speciates or dies is drawn **weighted** by its effective rate.
 
 Still to come: the full result spine, the CLI, and the move to ``zombi2.species``. This
@@ -197,7 +197,7 @@ _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extan
 
 def _drift(rate) -> Inherited | None:
     """The :class:`~zombi2.modifiers.Inherited` modifier a rate carries, or ``None``. When present
-    the rate is *per-lineage*: the engine threads each lineage's own Inherited factor (ClaDS)."""
+    the rate is *per-lineage*: the engine threads each lineage's own Inherited factor (clade drift)."""
     for m in rate.modifiers:
         if isinstance(m, Inherited):
             return m
