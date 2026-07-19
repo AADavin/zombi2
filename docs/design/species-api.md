@@ -67,7 +67,7 @@ Modifiers live in **`zombi2.modifiers`** (never top-level `z`). Named by *what t
 |---|---|---|
 | `Time({t: factor, …})` | time (skyline / episodic) | `1.0 * Time({0: 1.0, 3: 0.3})` |
 | `Diversity(cap=K)` | standing diversity (slows toward `K`) | `1.0 * Diversity(cap=100)` |
-| `Inherited(spread=σ)` | ancestry (drifts at each split, descendants inherit; = ClaDS) | `1.0 * Inherited(spread=0.2)` |
+| `Inherited(spread=σ)` | ancestry (drifts at each split, descendants inherit; = clade drift) | `1.0 * Inherited(spread=0.2)` |
 
 Modifiers are **relative factors**, so `Time({0: 1.0, 3: 0.5})` on base `1.0` reads as absolute
 (`1.0`, then `0.5`) and on base `2.0` scales (`2.0`, then `1.0`). Stack with `*`; `birth` and `death`
@@ -85,18 +85,16 @@ are bent independently. `Global` gives one budget for the whole tree instead of 
   extant tree. Full fossilised birth–death (fossils as dated sampled-ancestors in the tree) is a
   future `tools` command.
 
-## The direction is inferred, never chosen
+## Direction: forward-only in v1
 
-The user does not pick forward vs backward. It follows from what was asked:
+v1 grows every tree **forward** in time and prunes the extant tree from the complete one. There is
+no user forward/backward knob.
 
-- constant or `Time` rates, with at most extant `sampling` → the extant tree can be **sampled
-  backward** (fast);
-- `Diversity`, `Inherited`, `mass_extinctions`, or `fossils` need the process to actually play out →
-  **forward**.
-
-This is why the chapter does not open on forward-vs-backward: it is a consequence, not a knob. The
-complete-vs-extant tree, backward sampling, and ghost lineages are a later section (§4 of the
-chapter), still to be designed.
+**Parked for a later release (recoverable, not in v1's manual/docs/CLI):** *backward sampling* —
+deriving the extant tree directly from the present without growing the extinct lineages, which is
+faster when the rates allow it (constant/`Time` rates, at most extant `sampling`) — and *ghost
+lineages* (extinct tips grafted back on approximately). Both are planned; leaving them out of v1
+simplifies the model, the manual, and the CLI.
 
 ## The bridge table (literature → this API)
 

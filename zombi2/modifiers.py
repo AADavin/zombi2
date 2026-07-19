@@ -141,8 +141,8 @@ class Diversity(Modifier):
 @dataclass(frozen=True)
 class Inherited(Modifier):
     """The rate drifts along the tree — each lineage inherits its parent's rate times a random
-    factor drawn at the split (geometric Brownian motion on the rate: ClaDS at the species level,
-    the autocorrelated clock at the sequence level). ``spread`` (σ) sets the drift width.
+    factor drawn at the split (geometric Brownian motion on the rate: clade drift at the species
+    level, the autocorrelated clock at the sequence level). ``spread`` (σ) sets the drift width.
 
     The per-split factor is lognormal, **mean-corrected** so ``E[factor] = 1``. Without the
     correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}`` instead of 1) — a real
