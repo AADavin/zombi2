@@ -8,12 +8,12 @@ A species tree grows by two kinds of event: a lineage **speciates**, splitting i
 
 The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process, which in ZOMBI2 is just birth–death with the death rate at zero, not a separate model. As extinction rises, the tree of survivors becomes a thinner and thinner trace of the one that actually grew; what became of the lineages that died is taken up later, under *Extinct lineages*.
 
-You also say when to stop: grow the tree to a fixed **total time**, or until it reaches a fixed **number of tips**. Both work.
+You also say when to stop: grow the tree to a fixed **total time** (`total_time`), or until it reaches a fixed **number of surviving tips** (`n_extant`). Both work.
 
 ```python
 from zombi2 import species
 # a birth–death tree of 20 surviving lineages
-result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 ```
 
 By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared clock for the whole tree instead, wrap it: `birth = scope.Global(1.0)`. The scope wrappers live in `zombi2.scope` (`scope.Global`, `scope.PerLineage`, …), and `Global` is capitalised because `global` is a reserved word in Python.
@@ -37,8 +37,6 @@ The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the 
 
 A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time (measured forward from the crown, like every time in ZOMBI2). Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3.
 
-Whether a rate depends only on time, or on the tree as it grows, quietly decides how the tree gets simulated — which we return to once we look at what you actually observe.
-
 ## Sampling
 
 Two more choices decide not how the tree grows but how much of it you get to see.
@@ -49,7 +47,7 @@ By default you see every surviving species, but real datasets are incomplete. **
 
 ```python
 # see only half the survivors
-result = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=20, sampling=0.5, seed=1)
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, sampling=0.5, seed=1)
 
 # recover fossils of extinct lineages along the branches
 result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=1)
@@ -62,8 +60,6 @@ Every birth–death tree is really two trees. The **complete** tree contains eve
 *(Backward sampling of the extant tree, and ghost lineages, are planned for a later release; v1 is forward-only.)*
 
 ## The `SpeciesResult` object
-
-*[Draft — depends on the final result API.]*
 
 `simulate_species_tree` returns a **`SpeciesResult`**, not a bare tree — a birth–death run produces *two* trees plus the event log, and no single tree object can hold all three. Every level returns a bundle of this shape (`GenomesResult`, `SequencesResult`, `TraitsResult`), so the four levels stay symmetric.
 
@@ -103,13 +99,18 @@ result = species.simulate_species_tree(
 
 ## Usage from the CLI
 
-*[Draft — the CLI needs to be re-fitted to this API; the modifier syntax on the command line is still to be designed.]*
+The command mirrors the Python call, with a flag for each of the common cases — the base rates, the stop, and the frequent modifiers (rich compositions stay in Python):
 
 ```bash
-# constant-rate birth–death, 20 tips
-zombi2 species --birth 1.0 --death 0.3 --tips 20 --seed 1 -o my_tree
+# a birth–death tree of 20 surviving lineages
+zombi2 species --birth 1.0 --death 0.3 --n-extant 20 --seed 1 -o out/
+
+# grow to time 5, with a mass extinction at time 3 and half the survivors sampled
+zombi2 species --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 1 -o out/
 ```
+
+The common modifiers have their own flags — `--skyline`, `--diversity-cap`, `--clade-drift` — as do `--fossils` and `--write` (which outputs to keep).
 
 ## Outputs
 
-A run writes two Newick trees by default: the **extant** tree of survivors and the **complete** tree carrying the extinct lineages too, as `species_extant.nwk` and `species_complete.nwk`, with tips labelled *extant*, *extinct*, or *unsampled* so the three are told apart. The **event log** — every speciation and extinction with its time — is always written; it is the ground truth the simulator exists to record. And if you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.
+A run writes two Newick trees by default: the **extant** tree of survivors (`species_extant.nwk`) and the **complete** tree carrying the extinct and unsampled lineages too (`species_complete.nwk`) — the survivors are the tips of both, the dead and unsampled only of the complete tree. The **event log** — every speciation and extinction with its time — is always written; it is the ground truth the simulator exists to record. And if you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.
