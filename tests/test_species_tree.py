@@ -142,9 +142,9 @@ def test_extant_tree_prunes_to_survivors():
     assert all(n.fate != "extinct" for n in ext.nodes.values())  # no extinct nodes remain
     for n in ext.nodes.values():                                 # bifurcating
         assert n.children is None or len(n.children) == 2
-    # branch lengths are non-negative; the final simultaneous split leaves 2 zero-length tips
+    # every branch is now strictly positive — the present sits after the last split (n_extant fix)
     for n in ext.nodes.values():
-        assert n.end_time - n.birth_time >= 0
+        assert n.end_time - n.birth_time > 0
 
 
 def test_yule_extant_equals_complete_leaves():

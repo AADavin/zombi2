@@ -176,8 +176,6 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
 
     while alive:
         n = len(alive)
-        if n_extant is not None and n >= n_extant:
-            break
         # standing diversity = the living lineages; the scope reads `lineages`, Diversity `diversity`
         ctx = {"lineages": n, "diversity": n, "time": t}
         total_birth = birth_rate.effective(**ctx)
@@ -191,6 +189,11 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None) 
             t_event = t + float(rng.exponential(1.0 / total))
             if t_event < horizon:  # an event fires before the rate changes
                 t = t_event
+                if n == n_extant:
+                    # already at the target: stop at the time this next event WOULD fire (do not
+                    # apply it), so the present sits *after* the last split and the two newest tips
+                    # get a real, non-zero branch length.
+                    break
                 i = int(rng.integers(n))
                 node = alive[i]
                 alive[i] = alive[-1]  # swap-remove keeps picks O(1) and reproducible
