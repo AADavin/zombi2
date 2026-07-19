@@ -9,7 +9,7 @@ species tree — and across-site ``+Γ`` are later slices; they scale this same 
 
 The engine draws the root sequence from the model's stationary frequencies, then walks the tree from
 root to tips: a child's sequence is sampled site-by-site from ``P(bl)[parent_state]``, where
-``P(bl) = exp(Q·bl)`` (the reversible eigendecomposition in :mod:`.models`). Only the branch
+``P(bl) = exp(Q·bl)`` (the reversible eigendecomposition in :mod:`.substitution_models`). Only the branch
 *endpoints* are sampled — this gives the sequence at every node (the observable tip alignment and the
 ancestral reconstructions) but not the individual substitution events, which are a later opt-in
 ``record=`` slice. Everything is vectorised over sites; a zero-length branch copies its parent.
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .models import SubstitutionModel
+from .substitution_models import SubstitutionModel
 
 
 def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: float,

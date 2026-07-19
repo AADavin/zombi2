@@ -31,7 +31,7 @@ from ..genomes import GenomesResult
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
 from .evolution import evolve_gene_tree
-from .models import BASES, SubstitutionModel, decode, gtr, hky85, jc69, k80
+from .substitution_models import BASES, SubstitutionModel, decode, gtr, hky85, jc69, k80
 
 _WRITE_OUTPUTS = ("alignments", "ancestral")  # the write vocabulary
 
