@@ -105,7 +105,7 @@ def test_stochastic_status_inherited_here_others_deferred():
         assert not hasattr(mod, later), f"{later} is not built yet"
 
 
-# --- Inherited (ClaDS): the mean-corrected drift ---------------------------
+# --- Inherited (clade drift): the mean-corrected drift ---------------------
 
 def test_inherited_initial_is_one():
     assert mod.Inherited(spread=0.3).initial() == 1.0
