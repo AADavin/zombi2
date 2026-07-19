@@ -160,3 +160,125 @@ def test_unsupported_modifiers_are_rejected_not_silently_dropped():
     # Diversity reads a `diversity` context the genome walk doesn't supply → reject, don't crash raw
     with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_unordered(sp, loss=0.25 * mod.Diversity(cap=100), initial_families=3, seed=1)
+
+
+def test_non_default_scope_is_rejected_not_silently_mismatched():
+    # a non-default scope sets the total rate one way while the engine still picks the affected
+    # copy/lineage the default way — reject it (a PerCopy origination would be base×0 copies, a no-op)
+    from zombi2 import scope
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="scope overrides are a later slice"):
+        simulate_genomes_unordered(sp, origination=scope.PerCopy(2.0), seed=1)
+    with pytest.raises(ValueError, match="scope overrides are a later slice"):
+        simulate_genomes_unordered(sp, duplication=scope.PerLineage(0.5), initial_families=3, seed=1)
+    with pytest.raises(ValueError, match="scope overrides are a later slice"):
+        simulate_genomes_unordered(sp, loss=scope.Global(0.3), initial_families=3, seed=1)
+    # the defaults — bare number and the explicit default scope — are accepted
+    simulate_genomes_unordered(sp, origination=scope.PerLineage(0.5), duplication=scope.PerCopy(0.5),
+                               initial_families=1, seed=1)
+
+
+# --- transfer: horizontal moves between contemporaneous lineages -----------
+
+def _alive_at(tree, node_id, t):
+    n = tree.nodes[node_id]
+    return n.birth_time <= t <= n.end_time
+
+
+def test_transfer_events_are_contemporaneous_donor_to_recipient():
+    sp = _tree(seed=3, death=0.4)
+    g = simulate_genomes_unordered(sp, transfer=0.4, origination=0.5, initial_families=4, seed=1)
+    transfers = [e for e in g.events if e.kind == "transfer"]
+    assert transfers
+    for e in transfers:
+        assert e.lineage != e.recipient                         # a different lineage (default)
+        assert _alive_at(sp.complete_tree, e.lineage, e.time)   # donor alive at t
+        assert _alive_at(sp.complete_tree, e.recipient, e.time)  # recipient alive at t
+
+
+def test_transfer_copy_descends_from_a_real_donor_copy():
+    sp = _tree(seed=8)
+    g = simulate_genomes_unordered(sp, transfer=0.5, initial_families=5, seed=2)
+    born = {e.copy for e in g.events if e.kind in ("origination", "duplication", "transfer")}
+    for e in g.events:
+        if e.kind == "transfer":
+            assert e.parent in born                             # the donor copy is a real, earlier copy
+            assert e.copy in born and e.recipient is not None
+
+
+def test_only_transfer_events_carry_a_recipient():
+    sp = _tree(seed=2)
+    g = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.3, loss=0.2, origination=0.4,
+                                   initial_families=4, seed=1)
+    for e in g.events:
+        assert (e.recipient is not None) == (e.kind == "transfer")
+
+
+def test_no_transfer_at_zero_rate():
+    sp = _tree(seed=1)
+    g = simulate_genomes_unordered(sp, duplication=0.3, loss=0.2, origination=0.4, initial_families=5, seed=1)
+    assert all(e.kind != "transfer" for e in g.events)
+
+
+def test_transfer_is_deterministic():
+    sp = _tree(seed=2)
+    kw = dict(duplication=0.2, transfer=0.4, loss=0.2, origination=0.4, initial_families=5, seed=9)
+    a, b = simulate_genomes_unordered(sp, **kw), simulate_genomes_unordered(sp, **kw)
+    assert [str(e) for e in a.events] == [str(e) for e in b.events]
+    assert a.genomes == b.genomes
+
+
+def test_replacement_can_displace_a_resident():
+    # with loss=0 the only way a copy is lost is a replacement transfer overwriting a homologous copy;
+    # each such loss sits at the same instant as a transfer
+    sp = _tree(seed=6)
+    g = simulate_genomes_unordered(sp, transfer=1.0, loss=0.0, replacement=True, initial_families=8, seed=1)
+    losses = [e for e in g.events if e.kind == "loss"]
+    xfer_times = {e.time for e in g.events if e.kind == "transfer"}
+    assert losses                                               # replacement did displace some copies
+    assert all(e.time in xfer_times for e in losses)           # every loss co-occurs with a transfer
+
+
+def test_additive_transfer_never_loses():
+    sp = _tree(seed=6)
+    g = simulate_genomes_unordered(sp, transfer=1.0, loss=0.0, replacement=False, initial_families=8, seed=1)
+    assert all(e.kind != "loss" for e in g.events)             # additive transfer only ever adds
+
+
+def test_default_transfer_is_never_self_but_self_transfer_runs():
+    sp = _tree(seed=4)
+    g = simulate_genomes_unordered(sp, transfer=0.6, initial_families=5, seed=1)
+    assert all(e.lineage != e.recipient for e in g.events if e.kind == "transfer")
+    s = simulate_genomes_unordered(sp, transfer=0.6, self_transfer=True, initial_families=5, seed=1)
+    assert any(e.kind == "transfer" for e in s.events)         # runs (self donor==recipient now allowed)
+
+
+def test_distance_mode_runs_and_is_deterministic():
+    sp = _tree(seed=7, death=0.4)
+    from zombi2.genomes_unordered import Distance
+    a = simulate_genomes_unordered(sp, transfer=0.5, transfer_to="distance", initial_families=5, seed=3)
+    b = simulate_genomes_unordered(sp, transfer=0.5, transfer_to=Distance(decay=1.0), initial_families=5, seed=3)
+    assert [str(e) for e in a.events] == [str(e) for e in b.events]  # "distance" == Distance(decay=1.0)
+    assert any(e.kind == "transfer" for e in a.events)
+
+
+def test_transfer_can_come_from_the_dead():
+    # high death + transfer: some transfers are donated by a lineage that later goes extinct
+    sp = _tree(seed=3, death=0.7)
+    g = simulate_genomes_unordered(sp, transfer=0.8, origination=0.6, initial_families=4, seed=2)
+    donor_fates = {sp.complete_tree.nodes[e.lineage].fate for e in g.events if e.kind == "transfer"}
+    assert "extinct" in donor_fates
+
+
+def test_transfer_to_validation():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="transfer_to"):
+        simulate_genomes_unordered(sp, transfer=0.3, transfer_to="bogus", initial_families=3, seed=1)
+
+
+def test_distance_decay_validation():
+    from zombi2.genomes_unordered import Distance
+    Distance(decay=0.0)                       # zero is fine — the uniform limit
+    for bad in (-1.0, float("inf"), float("nan"), True):
+        with pytest.raises(ValueError, match="Distance decay"):
+            Distance(decay=bad)
