@@ -1,8 +1,10 @@
 # Proposal — the modifier families (`On` / `By` / `From`)
 
-**Status: direction ratified with Adrián (2026-07-19) — adopt `On` / `By` / `From`; drop `Speed`;
-use `OnTotalDiversity`; `ByBranch → ByLineage` (also discussed on the sequences PR #183). NOT yet in
-`SPEC.md`; no shared code renamed.** Propagation is a cross-file
+**Status: ADOPTED (2026-07-19).** The scheme is in `SPEC.md` §5 (the *modifier families* block), and
+the rename is applied across the code and docs: `Time → OnTime`, `Diversity → OnTotalDiversity`,
+`Inherited → FromParent`, `ByBranch → ByLineage`; `Speed` retired (per-family = `ByFamily`). This
+document stays the **full analysis** SPEC §5 links to. (`sequence-api.md` already carried `ByLineage`
+from PR #183; `genome-api.md` already retired `Speed`.) Propagation is a cross-file
 rename (`zombi2/rates/modifiers.py` + every importer + `SPEC.md` + the level design docs) that touches
 **shipped species code** and **multiple open PRs** (the sequences build uses `Inherited`), so it must
 be *sequenced*, not landed piecemeal — see **Propagation** at the end.

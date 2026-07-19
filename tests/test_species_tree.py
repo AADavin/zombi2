@@ -81,8 +81,8 @@ def test_global_grows_slower_than_per_lineage():
 
 
 def test_diversity_caps_growth():
-    # Diversity(cap=20): the birth factor falls to 0 at 20 lineages, so the tree saturates
-    r = simulate_species_tree(birth=1.0 * mod.Diversity(cap=20), death=0.0, total_time=100.0, seed=1)
+    # OnTotalDiversity(cap=20): the birth factor falls to 0 at 20 lineages, so the tree saturates
+    r = simulate_species_tree(birth=1.0 * mod.OnTotalDiversity(cap=20), death=0.0, total_time=100.0, seed=1)
     assert r.n_extant <= 20   # never exceeds the cap
     assert r.n_extant >= 15   # but it grew toward it
 
@@ -119,14 +119,14 @@ def test_event_is_frozen_record():
 
 def test_skyline_stops_births_after_a_zero_breakpoint():
     # birth 1.0 on [0, 2), then 0 → the interval-aware sampler must forbid births at/after t=2
-    r = simulate_species_tree(birth=1.0 * mod.Time({0: 1.0, 2.0: 0.0}), death=0.0, total_time=10.0, seed=1)
+    r = simulate_species_tree(birth=1.0 * mod.OnTime({0: 1.0, 2.0: 0.0}), death=0.0, total_time=10.0, seed=1)
     spec_times = [e.time for e in r.events if e.kind == "speciation"]
     assert spec_times                 # growth happened before the breakpoint
     assert max(spec_times) < 2.0      # and nothing after the rate dropped to 0
 
 
 def test_skyline_is_deterministic():
-    kw = dict(birth=1.0 * mod.Time({0: 2.0, 3: 0.2}), death=0.1, total_time=6.0, seed=4)
+    kw = dict(birth=1.0 * mod.OnTime({0: 2.0, 3: 0.2}), death=0.1, total_time=6.0, seed=4)
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind) for e in a.events] == [(e.time, e.kind) for e in b.events]
@@ -202,7 +202,7 @@ def test_dead_tree_has_no_extant_tree():
     assert r.extant_tree is None
 
 
-# --- Inherited (clade drift): rates drift down the tree, picking is rate-weighted ---
+# --- FromParent (clade drift): rates drift down the tree, picking is rate-weighted ---
 
 def test_weighted_index_respects_weights():
     import numpy as np
@@ -218,7 +218,7 @@ def test_weighted_index_respects_weights():
 
 
 def test_clade_drift_is_deterministic_given_seed():
-    kw = dict(birth=1.0 * mod.Inherited(spread=0.5), death=0.1, n_extant=40, seed=3)
+    kw = dict(birth=1.0 * mod.FromParent(spread=0.5), death=0.1, n_extant=40, seed=3)
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
@@ -226,13 +226,13 @@ def test_clade_drift_is_deterministic_given_seed():
 
 def test_inherited_zero_spread_reaches_target():
     # spread 0 → every step is ×1, so no drift; still a valid birth-death tree
-    r = simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.0), death=0.2, n_extant=40, seed=5)
+    r = simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.0), death=0.2, n_extant=40, seed=5)
     assert r.n_extant == 40
 
 
 def test_death_can_drift_independently():
     # drift lives on death, not birth; birth and death are bent independently
-    r = simulate_species_tree(birth=1.0, death=0.4 * mod.Inherited(spread=0.5), n_extant=50, seed=4)
+    r = simulate_species_tree(birth=1.0, death=0.4 * mod.FromParent(spread=0.5), n_extant=50, seed=4)
     assert r.n_extant == 50
     assert len(r.complete_tree.extinct()) > 0
 
@@ -240,7 +240,7 @@ def test_death_can_drift_independently():
 def test_clade_drift_composes_with_diversity_cap():
     # clade drift × diversity-dependence: the cap still bounds the tree
     r = simulate_species_tree(
-        birth=1.0 * mod.Inherited(spread=0.4) * mod.Diversity(cap=25), death=0.0, total_time=100.0, seed=1)
+        birth=1.0 * mod.FromParent(spread=0.4) * mod.OnTotalDiversity(cap=25), death=0.0, total_time=100.0, seed=1)
     assert r.n_extant <= 25          # the cap is a hard ceiling even with drift
     assert r.n_extant >= 12          # and the tree grew toward it
 
@@ -248,13 +248,13 @@ def test_clade_drift_composes_with_diversity_cap():
 def test_inherited_requires_per_lineage_scope():
     # per-lineage drift on a Global (tree-wide) budget is contradictory — reject it clearly
     with pytest.raises(ValueError, match="per lineage"):
-        simulate_species_tree(birth=scope.Global(1.0) * mod.Inherited(spread=0.2), n_extant=10, seed=1)
+        simulate_species_tree(birth=scope.Global(1.0) * mod.FromParent(spread=0.2), n_extant=10, seed=1)
 
 
 def test_drifting_birth_with_non_drifting_global_death_is_allowed():
     # only the drifting rate must be per lineage; a Global death budget alongside it is fine
     r = simulate_species_tree(
-        birth=1.0 * mod.Inherited(spread=0.3), death=scope.Global(0.2), n_extant=30, seed=2)
+        birth=1.0 * mod.FromParent(spread=0.3), death=scope.Global(0.2), n_extant=30, seed=2)
     assert r.n_extant == 30
 
 
@@ -277,7 +277,7 @@ def test_clade_drift_is_more_imbalanced_than_yule():
     import statistics
     seeds = range(40)
     yule = [_colless(simulate_species_tree(birth=1.0, death=0.0, n_extant=64, seed=s)) for s in seeds]
-    drift = [_colless(simulate_species_tree(birth=1.0 * mod.Inherited(spread=0.9), death=0.0, n_extant=64, seed=s))
+    drift = [_colless(simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.9), death=0.0, n_extant=64, seed=s))
              for s in seeds]
     assert statistics.mean(drift) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)
 
