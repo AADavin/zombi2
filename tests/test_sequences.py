@@ -9,7 +9,8 @@ import pytest
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_unordered
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.sequences import SequencesResult, gtr, hky85, jc69, k80, simulate_sequences
+from zombi2.sequences import SequencesResult, simulate_sequences
+from zombi2.sequences.substitution_models import gtr, hky85, jc69, k80
 
 
 # --- hand-built gene trees: origination → speciation → two extant tips -----------------------------
