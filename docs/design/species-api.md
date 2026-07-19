@@ -76,8 +76,9 @@ are bent independently. `Global` gives one budget for the whole tree instead of 
 
 ## Interventions vs observation (not rates)
 
-- **`mass_extinctions=[(3.0, 0.75)]`** — at time 3.0, 75% of living lineages die. A point-in-time
-  intervention on the *process*, not a rate. (Clade shift, deferred below, is the same shape.)
+- **`mass_extinctions=[(3.0, 0.75)]`** — at time 3.0 (forward from the crown), 75% of living lineages
+  die (the pair is `(time, fraction_lost)`). A point-in-time intervention on the *process*, not a
+  rate; placed on the timeline, so **age mode only**. (Clade shift, deferred below, is the same shape.)
 - **`sampling=0.5`** — observe only half the surviving species (classic incomplete sampling).
 - **`fossils=0.1`** — recover fossils along the branches, a bare rate. **v1: fossils are a side output**
   (the sampled lineages + their ages); the lineage is *not* removed, and fossils do *not* appear in the
