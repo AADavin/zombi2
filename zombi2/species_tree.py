@@ -9,8 +9,8 @@ sampler steps to each breakpoint), and ``birth = 1.0 * mod.Inherited(spread=0.2)
 the rate drift down the tree (ClaDS): each lineage threads its own Inherited factor and
 the lineage that speciates or dies is drawn **weighted** by its effective rate.
 
-Still to come: sampling, fossils, the full result spine, the CLI, and the move to
-``zombi2.species``. This lives here for now so the old package is untouched.
+Still to come: the full result spine, the CLI, and the move to ``zombi2.species``. This
+lives here for now so the old package is untouched.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class Node:
     birth_time: float
     end_time: float | None = None
     children: tuple[int, int] | None = None
-    fate: str = "alive"  # alive → "extant" | "extinct"; internal splits are "speciation"
+    fate: str = "alive"  # alive → "extant" | "extinct" | "unsampled"; internal splits are "speciation"
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,11 @@ class Tree:
     def extinct(self) -> list[Node]:
         """The lineages that died before the present."""
         return [n for n in self.nodes.values() if n.fate == "extinct"]
+
+    def unsampled(self) -> list[Node]:
+        """Survivors not observed under incomplete ``sampling`` — kept in the complete tree (told
+        apart by their fate) but pruned from the extant tree."""
+        return [n for n in self.nodes.values() if n.fate == "unsampled"]
 
     def to_newick(self) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
@@ -102,6 +107,8 @@ class SpeciesResult:
 
     @property
     def n_extant(self) -> int:
+        """The number of **observed** survivors — the extant tips. Under ``sampling < 1`` this is
+        the sampled subset (the rest are ``unsampled``), so it matches the extant tree's tip count."""
         return len(self.complete_tree.extant())
 
     @functools.cached_property
@@ -360,6 +367,18 @@ def _mass_extinction_pulses(mass_extinctions, total_time: float | None) -> list[
     return pulses
 
 
+def _apply_sampling(tree: Tree, rho: float, rng) -> None:
+    """Incomplete extant sampling: relabel each surviving lineage ``"unsampled"`` with probability
+    ``1 - rho`` (in place). The extant tree then prunes to the sampled survivors, while the unsampled
+    ones stay in the complete tree, told apart by their fate. ``rho = 1`` observes everyone."""
+    if rho >= 1.0:
+        return
+    for i in sorted(tree.nodes):  # id order + one draw per survivor → reproducible given the seed
+        node = tree.nodes[i]
+        if node.fate == "extant" and float(rng.random()) >= rho:
+            node.fate = "unsampled"
+
+
 def _recover_fossils(tree: Tree, rate: float, rng) -> list[tuple[int, float]]:
     """Recover fossils along every branch of the complete tree: a branch of length ``L`` yields
     ``Poisson(rate × L)`` fossils, each at a uniform time on the branch. Returns ``(lineage_id,
@@ -379,7 +398,7 @@ def _recover_fossils(tree: Tree, rate: float, rng) -> list[tuple[int, float]]:
 
 
 def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
-                          mass_extinctions=None, fossils=0.0, seed=None) -> SpeciesResult:
+                          mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None) -> SpeciesResult:
     """Grow a forward birth-death tree.
 
     ``birth`` and ``death`` are rate specs (a number, a ``scope`` wrapper, or a product
@@ -395,6 +414,11 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     75% of the lineages alive at time 3.0 (time runs forward from the crown). It is a point-in-time
     intervention on the process (not a rate) placed on the timeline, so it needs a fixed end:
     give ``total_time`` (not ``n_extant``), with each time strictly inside ``(0, total_time)``.
+
+    ``sampling`` (ρ, default 1.0) is incomplete extant sampling: each survivor is observed with
+    probability ρ, the rest relabelled ``unsampled``. It prunes the **extant tree** to the sampled
+    survivors (the unsampled ones remain only in the complete tree). ``n_extant`` still stops at that
+    many *survivors*; sampling then thins what you observe, so ``result.n_extant`` can be smaller.
 
     ``fossils`` is a recovery rate along the branches: each branch of length ``L`` yields
     ``Poisson(fossils × L)`` fossils, returned as ``result.fossils`` = ``(lineage, time)`` pairs. A
@@ -417,18 +441,25 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         raise ValueError(f"total_time must be a positive finite number, got {total_time!r}")
     if isinstance(fossils, bool) or not isinstance(fossils, (int, float)) or not math.isfinite(fossils) or fossils < 0:
         raise ValueError(f"fossils must be a non-negative finite rate, got {fossils!r}")
+    if isinstance(sampling, bool) or not isinstance(sampling, (int, float)) or not 0.0 < sampling <= 1.0:
+        raise ValueError(f"sampling must be a fraction in (0, 1], got {sampling!r}")
     pulses = _mass_extinction_pulses(mass_extinctions, total_time)  # [] unless mass_extinctions given (needs total_time)
 
     rng = np.random.default_rng(seed)
 
+    def _finish(tree: Tree, events: list[Event]) -> SpeciesResult:
+        # observe (sampling relabels survivors) then recover fossils along the grown branches
+        _apply_sampling(tree, sampling, rng)
+        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
+
     if total_time is not None:
         tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses)
-        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
+        return _finish(tree, events)
 
     for _ in range(_MAX_ATTEMPTS):
         tree, events = _grow(rng, birth_rate, death_rate, n_extant, None, [])
-        if sum(1 for nd in tree.nodes.values() if nd.fate == "extant") == n_extant:
-            return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
+        if sum(1 for nd in tree.nodes.values() if nd.fate == "extant") == n_extant:  # survivors (pre-sampling)
+            return _finish(tree, events)
     raise RuntimeError(
         f"could not grow a tree to {n_extant} extant lineages in {_MAX_ATTEMPTS} attempts; "
         "birth must comfortably exceed death for large n_extant"

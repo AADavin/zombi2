@@ -382,3 +382,60 @@ def test_fossils_write_tsv(tmp_path):
     # no fossils file when none were recovered
     simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=3).write(tmp_path / "nof")
     assert not (tmp_path / "nof" / "fossils.tsv").exists()
+
+
+# --- incomplete sampling (rho): observe a fraction of the survivors ---
+
+def _survivor_ids(result):
+    return {n.id for n in result.complete_tree.extant()} | {n.id for n in result.complete_tree.unsampled()}
+
+
+def test_sampling_relabels_not_removes():
+    # n_extant stops at 40 SURVIVORS; sampling then splits them into extant + unsampled
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=3)
+    assert len(r.complete_tree.extant()) + len(r.complete_tree.unsampled()) == 40
+    assert 0 < r.n_extant < 40                       # some observed, some not
+
+
+def test_extant_tree_is_the_sampled_survivors():
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=3)
+    assert len(r.extant_tree.leaves()) == r.n_extant                 # the extant tree is the observed one
+    assert all(n.fate == "extant" for n in r.extant_tree.nodes.values() if n.children is None)
+    for n in r.extant_tree.nodes.values():                           # still bifurcating after pruning
+        assert n.children is None or len(n.children) == 2
+
+
+def test_sampling_one_observes_everyone():
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=1.0, seed=3)
+    assert r.complete_tree.unsampled() == []
+    assert r.n_extant == 40
+
+
+def test_sampling_does_not_change_the_grown_tree():
+    # sampling only relabels survivors after growth, so the grown survivor set is identical
+    full = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=1.0, seed=3)
+    half = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=3)
+    assert _survivor_ids(full) == _survivor_ids(half)
+
+
+def test_sampling_fraction_matches_rho():
+    import statistics
+    seeds = range(30)
+    fracs = []
+    for s in seeds:
+        r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=s)
+        fracs.append(r.n_extant / 40)
+    assert 0.45 < statistics.mean(fracs) < 0.55       # observed fraction ≈ ρ = 0.5
+
+
+def test_sampling_is_deterministic():
+    kw = dict(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=9)
+    a = {n.id for n in simulate_species_tree(**kw).complete_tree.extant()}
+    b = {n.id for n in simulate_species_tree(**kw).complete_tree.extant()}
+    assert a == b
+
+
+def test_sampling_validation():
+    for bad in (0.0, 1.5, -0.1):
+        with pytest.raises(ValueError):
+            simulate_species_tree(birth=1.0, n_extant=10, sampling=bad, seed=1)
