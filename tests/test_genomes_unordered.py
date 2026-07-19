@@ -2,8 +2,8 @@
 
 import pytest
 
-from zombi2 import modifiers as mod
-from zombi2.species_tree import simulate_species_tree
+from zombi2.rates import modifiers as mod
+from zombi2.species import simulate_species_tree
 from zombi2.genomes import GeneCopy, simulate_genomes_unordered
 
 
@@ -165,7 +165,7 @@ def test_unsupported_modifiers_are_rejected_not_silently_dropped():
 def test_non_default_scope_is_rejected_not_silently_mismatched():
     # a non-default scope sets the total rate one way while the engine still picks the affected
     # copy/lineage the default way — reject it (a PerCopy origination would be base×0 copies, a no-op)
-    from zombi2 import scope
+    from zombi2.rates import scope
     sp = _tree(seed=1)
     with pytest.raises(ValueError, match="scope overrides are a later slice"):
         simulate_genomes_unordered(sp, origination=scope.PerCopy(2.0), seed=1)
@@ -255,7 +255,7 @@ def test_default_transfer_is_never_self_but_self_transfer_runs():
 
 def test_distance_mode_runs_and_is_deterministic():
     sp = _tree(seed=7, death=0.4)
-    from zombi2.genomes_unordered import Distance
+    from zombi2.genomes import Distance
     a = simulate_genomes_unordered(sp, transfer=0.5, transfer_to="distance", initial_families=5, seed=3)
     b = simulate_genomes_unordered(sp, transfer=0.5, transfer_to=Distance(decay=1.0), initial_families=5, seed=3)
     assert [str(e) for e in a.events] == [str(e) for e in b.events]  # "distance" == Distance(decay=1.0)
@@ -277,7 +277,7 @@ def test_transfer_to_validation():
 
 
 def test_distance_decay_validation():
-    from zombi2.genomes_unordered import Distance
+    from zombi2.genomes import Distance
     Distance(decay=0.0)                       # zero is fine — the uniform limit
     for bad in (-1.0, float("inf"), float("nan"), True):
         with pytest.raises(ValueError, match="Distance decay"):

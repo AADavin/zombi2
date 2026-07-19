@@ -35,7 +35,7 @@ zombi2/
     scope.py        ✅ PerCopy · PerLineage · PerSite · Global
     modifiers.py    ✅ Time · Diversity · Inherited          (genome: ByFamily · Speed 🔨)
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
-    distributions.py✅ Geometric · Poisson · …   (event-length distributions)
+    distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform   (value / length distributions)
   species/           ✅ simulate_species_tree → SpeciesResult ;  Tree · Node  (the shared dated tree)
   genomes/           ✅ simulate_genomes_unordered → GenomesResult   (ordered · nucleotide 🔨)
   sequences/         🔨 simulate_sequences → SequencesResult
