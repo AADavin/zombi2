@@ -1,14 +1,32 @@
 """Tests for the unordered D/L/O gene-family core (zombi2.genomes_unordered)."""
 
+import collections
+
 import pytest
 
 from zombi2.rates import modifiers as mod
 from zombi2.species import simulate_species_tree
-from zombi2.genomes import GeneCopy, simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_unordered
 
 
 def _tree(seed=1, n_extant=12, death=0.3):
     return simulate_species_tree(birth=1.0, death=death, n_extant=n_extant, seed=seed)
+
+
+def _transfers(events):
+    """Reconstruct each transfer as ``(donor_lineage, recipient_lineage, time)`` from its two rows
+    (same time + parent: the continuation on the donor, and the copy on the recipient — the one that
+    names a recipient)."""
+    rows = collections.defaultdict(list)
+    for e in events:
+        if e.kind == "transfer":
+            rows[(e.time, e.parent)].append(e)
+    out = []
+    for pair in rows.values():
+        xfer = next(r for r in pair if r.recipient is not None)     # the transferred copy, on the recipient
+        cont = next(r for r in pair if r.recipient is None)         # the donor's continuation
+        out.append((cont.lineage, xfer.lineage, xfer.time))
+    return out
 
 
 # --- the walk covers the whole complete tree -------------------------------
@@ -60,13 +78,14 @@ def test_initial_families_seed_originations_at_the_crown():
 
 
 def test_no_rates_means_pure_inheritance():
-    # with every rate 0, no event fires after the crown seeding and every node's genome is the
-    # root's, unchanged (the same GeneCopy objects threaded down) — inheritance in isolation
+    # with every rate 0, nothing happens beyond the crown seeding + the speciation re-ids: every node
+    # carries the root's families (per-node ids differ, but the family multiset is unchanged)
     sp = _tree(seed=4)
     g = simulate_genomes_unordered(sp, initial_families=3, seed=1)
-    root_genome = g.genomes[sp.complete_tree.root]
-    assert all(g.genomes[i] == root_genome for i in g.genomes)     # every node equals the root
-    assert all(e.time == 0.0 for e in g.events)                    # only the crown originations
+    root_counts = g.family_counts(sp.complete_tree.root)
+    assert all(g.family_counts(i) == root_counts for i in g.genomes)   # families inherited unchanged
+    assert {e.kind for e in g.events} <= {"origination", "speciation"}  # only crown births + splits
+    assert all(e.time == 0.0 for e in g.events if e.kind == "origination")
 
 
 def test_origination_only_families_never_exceed_one_copy():
@@ -81,8 +100,8 @@ def test_duplication_grows_a_family():
     g = simulate_genomes_unordered(sp, duplication=0.8, initial_families=3, seed=1)  # no loss, no origination
     biggest = max((max(g.family_counts(i).values(), default=0)) for i in g.genomes)
     assert biggest > 1                                            # some family reached >1 copy
-    # duplication never introduces a new family (only origination does)
-    assert {e.kind for e in g.events} <= {"origination", "duplication"}
+    # duplication never introduces a new family (only origination does); speciation re-ids at splits
+    assert {e.kind for e in g.events} <= {"origination", "duplication", "speciation"}
 
 
 def test_loss_can_shrink_and_empty_a_genome():
@@ -94,18 +113,17 @@ def test_loss_can_shrink_and_empty_a_genome():
     assert any(e.kind == "loss" for e in g.events)
 
 
-def test_duplication_parent_survives_and_is_a_real_copy():
+def test_duplication_bifurcates_into_two_same_family_children():
+    # ZOMBI1 model: a duplication ends the gene and starts two fresh ids descending from it
     sp = _tree(seed=8)
     g = simulate_genomes_unordered(sp, duplication=0.6, initial_families=3, seed=1)
-    born = {e.copy for e in g.events if e.kind in ("origination", "duplication")}
+    fam_of = {e.copy: e.family for e in g.events if e.kind != "loss"}   # every gene's birth family
+    kids = collections.defaultdict(list)
     for e in g.events:
         if e.kind == "duplication":
-            assert e.parent in born                               # parent is a real, earlier copy
-            assert e.family == next(x.family for x in _copies_born(g) if x.id == e.parent)  # same family
-
-
-def _copies_born(result):
-    return [GeneCopy(e.copy, e.family) for e in result.events if e.kind in ("origination", "duplication")]
+            assert e.parent in fam_of and e.family == fam_of[e.parent]  # parent is a real, same-family gene
+            kids[e.parent].append(e.copy)
+    assert kids and all(len(cs) == 2 for cs in kids.values())          # each duplication has two descendants
 
 
 def test_every_born_copy_id_is_unique():
@@ -188,22 +206,22 @@ def _alive_at(tree, node_id, t):
 def test_transfer_events_are_contemporaneous_donor_to_recipient():
     sp = _tree(seed=3, death=0.4)
     g = simulate_genomes_unordered(sp, transfer=0.4, origination=0.5, initial_families=4, seed=1)
-    transfers = [e for e in g.events if e.kind == "transfer"]
-    assert transfers
-    for e in transfers:
-        assert e.lineage != e.recipient                         # a different lineage (default)
-        assert _alive_at(sp.complete_tree, e.lineage, e.time)   # donor alive at t
-        assert _alive_at(sp.complete_tree, e.recipient, e.time)  # recipient alive at t
+    xfers = _transfers(g.events)
+    assert xfers
+    for donor, recipient, t in xfers:
+        assert donor != recipient                               # a different lineage (default)
+        assert _alive_at(sp.complete_tree, donor, t)            # donor alive at t
+        assert _alive_at(sp.complete_tree, recipient, t)        # recipient alive at t
 
 
 def test_transfer_copy_descends_from_a_real_donor_copy():
     sp = _tree(seed=8)
     g = simulate_genomes_unordered(sp, transfer=0.5, initial_families=5, seed=2)
-    born = {e.copy for e in g.events if e.kind in ("origination", "duplication", "transfer")}
-    for e in g.events:
-        if e.kind == "transfer":
-            assert e.parent in born                             # the donor copy is a real, earlier copy
-            assert e.copy in born and e.recipient is not None
+    born = {e.copy for e in g.events if e.kind != "loss"}       # every gene id that was born
+    xfer_rows = [e for e in g.events if e.kind == "transfer"]
+    assert xfer_rows
+    for e in xfer_rows:
+        assert e.parent in born and e.copy in born             # the donor gene and the new copy are real
 
 
 def test_only_transfer_events_carry_a_recipient():
@@ -211,7 +229,8 @@ def test_only_transfer_events_carry_a_recipient():
     g = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.3, loss=0.2, origination=0.4,
                                    initial_families=4, seed=1)
     for e in g.events:
-        assert (e.recipient is not None) == (e.kind == "transfer")
+        if e.recipient is not None:
+            assert e.kind == "transfer"                        # only a transfer names a recipient
 
 
 def test_no_transfer_at_zero_rate():
@@ -248,7 +267,8 @@ def test_additive_transfer_never_loses():
 def test_default_transfer_is_never_self_but_self_transfer_runs():
     sp = _tree(seed=4)
     g = simulate_genomes_unordered(sp, transfer=0.6, initial_families=5, seed=1)
-    assert all(e.lineage != e.recipient for e in g.events if e.kind == "transfer")
+    assert _transfers(g.events)
+    assert all(donor != recipient for donor, recipient, _ in _transfers(g.events))
     s = simulate_genomes_unordered(sp, transfer=0.6, self_transfer=True, initial_families=5, seed=1)
     assert any(e.kind == "transfer" for e in s.events)         # runs (self donor==recipient now allowed)
 
