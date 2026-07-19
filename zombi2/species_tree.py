@@ -183,10 +183,10 @@ def _weighted_index(rng, weights: list[float], total: float) -> int:
     return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
-def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None,
+def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,
           pulses: list[tuple[float, float]]) -> tuple[Tree, list[Event]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
-    reaches ``age``, or dies out. Returns the complete tree and the event log.
+    reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
     When ``birth`` or ``death`` carries an :class:`~zombi2.modifiers.Inherited` modifier the rate
     is *per-lineage*: every lineage threads its own Inherited factor (its parent's, nudged at the
@@ -197,7 +197,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None,
     ``pulses`` are scheduled mass extinctions as ``(time, survival)`` pairs sorted by time (time runs
     forward from the crown): at each instant every standing lineage is kept with probability
     ``survival`` and otherwise becomes an extinct leaf. They sit at a point on the timeline, so the
-    caller passes them in age mode only."""
+    caller passes them only when ``total_time`` is set."""
     nodes: dict[int, Node] = {}
     counter = 0
 
@@ -239,13 +239,13 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None,
         else:
             total_death = death_rate.effective(lineages=n, **ctx)
         total = total_birth + total_death
-        # the total rate is constant until the next skyline breakpoint, mass extinction, or the age
+        # the total rate is constant until the next skyline breakpoint, mass extinction, or the total_time
         # limit — advance no further than the earliest of them before re-evaluating
         next_change = min(birth_rate.next_change(t), death_rate.next_change(t))
         next_pulse = pulses[pulse_idx][0] if pulse_idx < len(pulses) else math.inf
         horizon = min(next_change, next_pulse)
-        if age is not None:
-            horizon = min(horizon, age)
+        if total_time is not None:
+            horizon = min(horizon, total_time)
 
         if total > 0.0:
             t_event = t + float(rng.exponential(1.0 / total))
@@ -290,8 +290,8 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None,
         # no stochastic event fired before the horizon
         if math.isinf(horizon):
             break  # nothing scheduled and the rate never changes again → nothing more can happen
-        if age is not None and horizon == age:
-            t = age
+        if total_time is not None and horizon == total_time:
+            t = total_time
             break
         if pulse_idx < len(pulses) and horizon == next_pulse:
             # a mass extinction: each standing lineage is kept with probability `survival`, the rest
@@ -324,25 +324,25 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, age: float | None,
     return Tree(nodes, root), events
 
 
-def _mass_extinction_pulses(mass_extinctions, age: float | None) -> list[tuple[float, float]]:
+def _mass_extinction_pulses(mass_extinctions, total_time: float | None) -> list[tuple[float, float]]:
     """Turn user ``(time, fraction_lost)`` pulses into the engine's ``(time, survival)`` pairs,
     sorted by time. Time runs **forward from the crown**, so ``(3.0, 0.75)`` = at time 3.0, 75% of
     the standing lineages die (survival 0.25). Empty when none are given. A pulse sits at a point on
-    the timeline, so it needs a run with a fixed end — age mode — and must fall inside ``(0, age)``."""
+    the timeline, so it needs a fixed end — ``total_time`` set — and must fall inside ``(0, total_time)``."""
     if not mass_extinctions:
         return []
-    if age is None:
+    if total_time is None:
         raise ValueError(
-            "mass_extinctions need a run with a fixed end — give age=..., not n_extant= "
+            "mass_extinctions need a run with a fixed end — give total_time=..., not n_extant= "
             "(under n_extant the run can stop before a pulse's time is reached)"
         )
     pulses: list[tuple[float, float]] = []
     for pulse in mass_extinctions:
         time, fraction = pulse
         if (isinstance(time, bool) or not isinstance(time, (int, float))
-                or not math.isfinite(time) or not 0.0 < time < age):
+                or not math.isfinite(time) or not 0.0 < time < total_time):
             raise ValueError(
-                f"each mass extinction time must be a number strictly between 0 and age ({age}), "
+                f"each mass extinction time must be a number strictly between 0 and total_time ({total_time}), "
                 f"got {time!r}"
             )
         if (isinstance(fraction, bool) or not isinstance(fraction, (int, float))
@@ -353,7 +353,7 @@ def _mass_extinction_pulses(mass_extinctions, age: float | None) -> list[tuple[f
     return pulses
 
 
-def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None,
+def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                           mass_extinctions=None, seed=None) -> SpeciesResult:
     """Grow a forward birth-death tree.
 
@@ -361,15 +361,15 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None,
     with modifiers); the default scope is **per lineage** (each lineage speciates/dies at
     the base rate, so the tree grows exponentially). Yule = ``death=0``.
 
-    Stop at exactly ``n_extant`` living lineages, **or** at time ``age`` — give exactly
+    Stop at exactly ``n_extant`` living lineages, **or** at ``total_time`` — give exactly
     one. ``n_extant`` is **conditioned on survival**: a birth-death tree can die out, so we
-    restart (advancing the same generator) until one reaches ``n_extant``. ``age`` is not
+    restart (advancing the same generator) until one reaches ``n_extant``. ``total_time`` is not
     conditioned. Deterministic given ``seed``.
 
     ``mass_extinctions`` is a list of ``(time, fraction_lost)`` pulses — e.g. ``[(3.0, 0.75)]`` culls
     75% of the lineages alive at time 3.0 (time runs forward from the crown). It is a point-in-time
-    intervention on the process (not a rate) placed on the timeline, so it needs a run with a fixed
-    end: **age mode only**, with each time strictly inside ``(0, age)``.
+    intervention on the process (not a rate) placed on the timeline, so it needs a fixed end:
+    give ``total_time`` (not ``n_extant``), with each time strictly inside ``(0, total_time)``.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
@@ -380,18 +380,18 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None,
                 f"{type(rate.scope).__name__}; a drifting rate must be per lineage — drop the "
                 f"scope wrapper (per lineage is the default) or use PerLineage(...)"
             )
-    if (n_extant is None) == (age is None):
-        raise ValueError("give exactly one of n_extant or age")
+    if (n_extant is None) == (total_time is None):
+        raise ValueError("give exactly one of n_extant or total_time")
     if n_extant is not None and (isinstance(n_extant, bool) or not isinstance(n_extant, int) or n_extant < 1):
         raise ValueError(f"n_extant must be a positive integer, got {n_extant!r}")
-    if age is not None and (not isinstance(age, (int, float)) or not math.isfinite(age) or age <= 0):
-        raise ValueError(f"age must be a positive finite number, got {age!r}")
-    pulses = _mass_extinction_pulses(mass_extinctions, age)  # [] unless mass_extinctions given (age mode)
+    if total_time is not None and (not isinstance(total_time, (int, float)) or not math.isfinite(total_time) or total_time <= 0):
+        raise ValueError(f"total_time must be a positive finite number, got {total_time!r}")
+    pulses = _mass_extinction_pulses(mass_extinctions, total_time)  # [] unless mass_extinctions given (needs total_time)
 
     rng = np.random.default_rng(seed)
 
-    if age is not None:
-        tree, events = _grow(rng, birth_rate, death_rate, None, age, pulses)
+    if total_time is not None:
+        tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses)
         return SpeciesResult(tree, events, seed)
 
     for _ in range(_MAX_ATTEMPTS):
