@@ -61,9 +61,12 @@ This is a **modifier**, cleanly separate from the scope. Two layers, which compo
   loss = 0.25 * mod.ByFamily(spread=0.5)                 # each family its own loss rate
   families = [dict(duplication=0.5, transfer=0.8, loss=0.3), …]   # explicit specific families
   ```
-- **A per-family speed (correlated), with its own name.** One factor per family scaling *all* its rates
-  together — a "fast" family is fast at everything. **`family_speed=Speed(spread=0.5)`** (decided
-  2026-07-18: `Speed`; NOT "PerFamily"). Effective loss = (base loss) × (family speed).
+- **A per-family speed (correlated) — the *same* `ByFamily`, in a family-wide slot.** One factor per
+  family scaling *all* its rates together (a "fast" family is fast at everything):
+  **`family_speed=ByFamily(spread=0.5)`**. Placement decides correlation: `ByFamily` on a single rate
+  varies *that* rate independently; in the `family_speed=` slot the one draw scales *every* rate.
+  Effective loss = (base loss) × (family speed). (Supersedes the retired `Speed` class — decided
+  2026-07-19: one per-family modifier, `ByFamily`, not two.)
 
 ## Transfers: rate + mechanics (resolves C7.6, C7.8)
 
@@ -97,12 +100,13 @@ so it is a weight in the `transfer_to` rule (the mechanic). "Receptivity" → **
   fission/fusion/translocation, C6.10/C6.11); genes/intergenes and indels (nucleotide, C10.x).
 - **Decided (2026-07-18): the scope-wrapper namespace is `scope`** — `scope.Global`, `scope.PerCopy`,
   `scope.PerLineage`, `scope.PerSite` (reads "global scope", "per-copy scope"). NOT `mod` (wrappers wrap;
-  they do not multiply). (`Speed` also decided.)
+  they do not multiply). (Per-family speed: the retired `Speed` class → `family_speed=ByFamily(...)`, 2026-07-19.)
 - Per-event scope **override** exact syntax (rides on the rate via the wrapper).
 
 ## What to delete / change in `zombi2/genomes`
 
 - Delete the `RateModel` hierarchy and `genome_factory`; there is no rate object and no class-passing.
 - Three entry points (`simulate_unordered` / `simulate_ordered` / `simulate_nucleotide`) over one core.
-- `TransferModel` → arguments. Per-family heterogeneity → the `ByFamily` modifier + a named speed.
+- `TransferModel` → arguments. Per-family heterogeneity → the `ByFamily` modifier (per-rate via `*`, or
+  genome-wide in the `family_speed=` slot).
 - Rates use the cross-level `scope(base) × modifiers` grammar; "per" reserved for scopes.

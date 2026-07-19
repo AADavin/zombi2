@@ -25,7 +25,7 @@ then its chapter documents what was built. Agreed with Adrián on 2026-07-18.
 Everything downstream imports these, so they come first:
 
 - **`zombi2.modifiers` (`mod`)** — the shared modifier vocabulary: `Time`, `Diversity`, `Inherited`
-  (`spread`, `reverts_to`, `pull`), `ByFamily`, `ByBranch(dist=)`, `Markov`, `Speed`, `ByChromosomeSize`,
+  (`spread`, `reverts_to`, `pull`), `ByFamily`, `ByLineage(dist=)`, `Markov`, `ByChromosomeSize`,
   and `DrivenBy` (Part III). Dimensionless, `*`-composable.
 - **`zombi2.scope`** — the scope wrappers: `Global`, `PerCopy`, `PerLineage`, `PerSite`, `PerChromosome`.
   (`PerGenome` dropped — one genome per lineage.) These *wrap* a base; they do not multiply.
@@ -65,10 +65,10 @@ length distributions) is the heaviest single piece. Coupling is last — it reac
 - **Species (#1):** `birth`/`death = number × modifiers`; Yule = `death=0`; ClaDS = `Inherited`; skyline =
   `Time`; diversity-dependent = `Diversity`. `mass_extinctions`/`sampling`(ρ)/`fossils`(v1 = side output,
   lineage not removed). Both `.complete_tree` + `.extant_tree`. Clade shift & ghost lineages are out (v1).
-- **Genomes-unordered (#2):** D/T/L/O keyword rates; `ByFamily` + `Speed`; `TransferModel` → arguments
+- **Genomes-unordered (#2):** D/T/L/O keyword rates; `ByFamily` (per-rate or family-wide slot); `TransferModel` → arguments
   (`transfer_to`/`replacement`/`self_transfer`; donor weight = modifier, recipient weight = mechanic).
   `.profiles` sparse + lazy. **Rust rebuild** (`maturin build --release`) after core changes.
-- **Sequences (#3):** substitution model = a **menu** (`jc69`/`hky85`/`gtr`/`lg`/codon); clock = `ByBranch`/
+- **Sequences (#3):** substitution model = a **menu** (`jc69`/`hky85`/`gtr`/`lg`/codon); clock = `ByLineage`/
   `Inherited`/`Markov` on the **species tree** (lineage clock), `ByFamily` = per-family speed, they
   compose; `+Γ` = `gamma=`. `.ancestral` from the recorded nodes.
 - **Traits (#4):** BM native; OU = `reverts_to`+`pull`; EB = `× Time`; Mk = `switch=` (scalar / `{a->b}` /
@@ -81,7 +81,7 @@ length distributions) is the heaviest single piece. Coupling is last — it reac
 - **Coupling (#6):** `mod.DrivenBy(source, mapping)` — file source = conditioned (folds into the target
   level's command), live-level source = joint (`joint.simulate`, grows both). Gene-content source =
   presence (`"genes:toxin"`) or count (`"genes:count"`). Birth *and* death drivable. Nulls = recipes
-  (drop / swap `ByBranch` / shuffle), no `.null()` API. Value-driving (OU optimum) deferred.
+  (drop / swap `ByLineage` / shuffle), no `.null()` API. Value-driving (OU optimum) deferred.
 
 ## Cross-cutting, alongside the levels
 
