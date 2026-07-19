@@ -94,7 +94,7 @@ Three modifiers, grouped by what memory the rate has:
 Two of the three are **shared across levels**, which is the whole point of the grammar:
 
 - `ByLineage` is the lineage-twin of the genome level's `ByFamily` — the same i.i.d.-heterogeneity idea,
-  per lineage instead of per family.
+  by lineage instead of by family.
 - `Inherited` is **literally the species `Inherited`** (ClaDS): a rate that drifts along the tree. The
   autocorrelated molecular clock and ClaDS diversification are the same modifier at two levels.
 - `Markov` is new to sequences, but even it echoes species: a clade shift is one discrete rate jump;
