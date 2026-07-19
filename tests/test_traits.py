@@ -7,6 +7,8 @@ length). Both are checked against the tree geometry, with fixed seeds so the sta
 deterministic, not flaky.
 """
 
+import math
+
 import numpy as np
 import pytest
 
@@ -124,10 +126,11 @@ def test_write_rejects_unknown_output(tmp_path):
 
 # --- input validation (what this slice deliberately does not wire) --------------
 
-def test_rejects_a_modifier():
+def test_rejects_a_non_time_modifier():
+    # Time (early burst) is wired as of slice 2; other modifiers are still later slices
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="Time"):
-        simulate_continuous(sp, rate=1.0 * mod.Time({0: 1.0, 3: 0.2}), seed=1)
+    with pytest.raises(ValueError, match="Diversity"):
+        simulate_continuous(sp, rate=1.0 * mod.Diversity(cap=100), seed=1)
 
 
 def test_rejects_a_non_default_scope():
@@ -198,3 +201,112 @@ def test_bm_trend_free_mean_is_flat():
 def test_returns_a_traits_result():
     sp = _tree(seed=1)
     assert isinstance(simulate_continuous(sp, rate=1.0, seed=1), TraitsResult)
+
+
+# --- OU (reverts_to / pull): the exact mean-reverting transition law ------------
+
+def test_ou_tip_law():
+    # OU is a Gauss–Markov process whose per-branch transition composes exactly along the path, so
+    # an extant tip at depth T (from t=0, convention B) is Normal(θ + (start−θ)·e^{−αT},
+    # σ²/(2α)·(1−e^{−2αT})). This is the correctness-critical check on the OU transition + composition.
+    sp = _tree(seed=11, n_extant=6, death=0.0)
+    tree = sp.complete_tree
+    tips = sorted(n.id for n in tree.extant())
+    T = tree.nodes[tips[0]].end_time
+    theta, alpha, sigma2, start = 5.0, 1.2, 2.0, 0.0
+
+    n_rep = 6000
+    data = np.array([
+        [simulate_continuous(tree, start=start, rate=sigma2, reverts_to=theta, pull=alpha,
+                             seed=s).node_values[i] for i in tips]
+        for s in range(n_rep)
+    ])
+    e = math.exp(-alpha * T)
+    assert np.allclose(data.mean(axis=0), theta + (start - theta) * e, atol=0.1)
+    assert np.allclose(data.var(axis=0), sigma2 / (2 * alpha) * (1 - e * e), rtol=0.12)
+
+
+def test_ou_reverts_toward_the_optimum():
+    # a strong pull on a deep tree drives the tips near θ, far from `start` — the qualitative OU
+    # signature that a BM walk (no reversion) would not show.
+    sp = _tree(seed=7, n_extant=8, death=0.0)
+    theta = 10.0
+    tips = simulate_continuous(sp, start=0.0, rate=1.0, reverts_to=theta, pull=3.0, seed=1).values
+    m = float(np.mean(list(tips.values())))
+    assert abs(m - theta) < 2.0 and m > 5.0     # clustered near θ, pulled well away from start=0
+
+
+def test_ou_deterministic():
+    sp = _tree(seed=2)
+    kw = dict(rate=1.0, reverts_to=1.5, pull=0.7, seed=3)
+    assert simulate_continuous(sp, **kw).node_values == simulate_continuous(sp, **kw).node_values
+
+
+def test_ou_needs_both_knobs():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="both"):
+        simulate_continuous(sp, rate=1.0, reverts_to=2.0, seed=1)     # pull missing
+    with pytest.raises(ValueError, match="both"):
+        simulate_continuous(sp, rate=1.0, pull=0.5, seed=1)           # reverts_to missing
+
+
+def test_ou_pull_must_be_positive():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="pull"):
+        simulate_continuous(sp, rate=1.0, reverts_to=2.0, pull=0.0, seed=1)
+
+
+def test_ou_with_time_is_deferred():
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="not wired yet"):
+        simulate_continuous(sp, rate=1.0 * mod.Time({0: 1.0, 3: 0.2}),
+                            reverts_to=2.0, pull=0.5, seed=1)
+
+
+# --- early burst (a Time skyline on rate): the exact ∫σ²(t)dt over each branch --
+
+def test_eb_constant_schedule_equals_bm():
+    # a single-step schedule with factor 1.0 everywhere is σ² constant → byte-identical to bare BM
+    # (same one draw per branch), which pins the integral's constant-rate special case.
+    sp = _tree(seed=2)
+    a = simulate_continuous(sp, rate=3.0, seed=5)
+    b = simulate_continuous(sp, rate=3.0 * mod.Time({0.0: 1.0}), seed=5)
+    assert a.node_values == b.node_values
+
+
+def test_eb_tip_variance_and_covariance_match_the_integral():
+    # early burst: σ²(t) drops from `base` to `base·c` at time τ. The per-branch variance is the
+    # exact integral, so a tip at depth T has variance base·(τ + c·(T−τ)) and a pair covariance
+    # base·∫_0^s over the shared path to their MRCA split s. This pins the skyline integral.
+    sp = _tree(seed=11, n_extant=6, death=0.0)
+    tree = sp.complete_tree
+    tips = sorted(n.id for n in tree.extant())
+    T = tree.nodes[tips[0]].end_time
+    base, c = 2.0, 0.25
+    tau = 0.4 * T                                  # guaranteed inside (0, T) so the branch crosses it
+    sched = base * mod.Time({0.0: 1.0, tau: c})
+
+    n_rep = 6000
+    data = np.array([
+        [simulate_continuous(tree, start=0.0, rate=sched, seed=s).node_values[i] for i in tips]
+        for s in range(n_rep)
+    ])
+
+    def integral(upto):                            # ∫_0^upto σ²(t) dt for this two-step skyline
+        return base * (1.0 * min(upto, tau) + c * max(0.0, upto - tau))
+
+    assert np.allclose(data.var(axis=0), integral(T), rtol=0.1)   # < base·T: the burst decayed
+    assert integral(T) < base * T
+    cov = np.cov(data, rowvar=False)
+    for a in range(len(tips)):
+        for b in range(a + 1, len(tips)):
+            expected = integral(_mrca_split_time(tree, tips[a], tips[b]))
+            assert cov[a, b] == pytest.approx(expected, abs=0.22)
+
+
+def test_eb_deterministic():
+    sp = _tree(seed=2)
+    sched = 1.5 * mod.Time({0.0: 1.0, 2.0: 0.3})
+    a = simulate_continuous(sp, rate=sched, seed=4)
+    b = simulate_continuous(sp, rate=sched, seed=4)
+    assert a.node_values == b.node_values
