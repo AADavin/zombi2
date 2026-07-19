@@ -9,6 +9,7 @@ import pytest
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_unordered
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
+from zombi2.rates import modifiers as mod
 from zombi2.sequences import SequencesResult, simulate_sequences
 from zombi2.sequences.substitution_models import gtr, hky85, jc69, k80
 
@@ -23,6 +24,14 @@ def _pair_tree(t_spec: float, t_tip: float) -> GeneTree:
     spec = GeneNode("speciation", 0, t_spec, 0)
     spec.children = [GeneNode("extant", 1, t_tip, 0), GeneNode("extant", 2, t_tip, 0)]
     root.children = [spec]
+    return GeneTree(0, root)
+
+
+def _single_branch_family(species: int = 0, t_tip: float = 1.0) -> GeneTree:
+    """One family = a founding ``origination`` on ``species`` at t=0 → one ``extant`` tip at ``t_tip``,
+    on the same species lineage. Used to test that the lineage clock is shared across families."""
+    root = GeneNode("origination", species, 0.0, 0)
+    root.children = [GeneNode("extant", species, t_tip, 0)]
     return GeneTree(0, root)
 
 
@@ -169,10 +178,68 @@ def test_integration_is_deterministic_given_the_seed():
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
 
 
+# --- the lineage clock (ByLineage): the uncorrelated / relaxed clock --------------------------------
+
+def _pdist(a: str, b: str) -> float:
+    return sum(x != y for x, y in zip(a, b)) / len(a)
+
+
+def test_bylineage_zero_spread_is_bit_identical_to_the_strict_clock():
+    # spread=0 draws 1.0 without touching the rng, so the run matches the strict clock exactly
+    gts = {0: _pair_tree(1.0, 2.0)}
+    strict = simulate_sequences(gts, model=jc69(), length=300, seed=5)
+    clocked = simulate_sequences(gts, model=jc69(), length=300,
+                                 substitution=1.0 * mod.ByLineage(spread=0.0), seed=5)
+    assert clocked.alignments == strict.alignments and clocked.ancestral == strict.ancestral
+
+
+def test_bylineage_perturbs_the_output_and_stays_valid():
+    gts = {0: _pair_tree(1.0, 2.0)}
+    strict = simulate_sequences(gts, model=jc69(), length=300, seed=5)
+    clocked = simulate_sequences(gts, model=jc69(), length=300,
+                                 substitution=1.0 * mod.ByLineage(spread=0.5), seed=5)
+    assert clocked.alignments != strict.alignments          # the clock rescales branch lengths
+    for seq in _seqs(clocked):
+        assert len(seq) == 300 and set(seq) <= set("ACGT")
+
+
+def test_bylineage_is_deterministic():
+    gts = {0: _pair_tree(1.0, 2.0)}
+    spec = 1.0 * mod.ByLineage(spread=0.4)
+    a = simulate_sequences(gts, model=hky85(2.0), length=200, substitution=spec, seed=9)
+    b = simulate_sequences(gts, model=hky85(2.0), length=200, substitution=spec, seed=9)
+    assert a.alignments == b.alignments and a.ancestral == b.ancestral
+
+
+def test_bylineage_clock_is_shared_across_families_on_a_lineage():
+    # 20 identical single-branch families, ALL on species lineage 0 → all feel the SAME clock[0].
+    # A per-family clock would scatter their root→tip divergences by ~spread; a shared clock leaves
+    # only sampling noise, so the across-family spread collapses.
+    gts = {f: _single_branch_family(species=0, t_tip=1.0) for f in range(20)}
+    r = simulate_sequences(gts, model=jc69(), length=5000,
+                           substitution=1.0 * mod.ByLineage(spread=0.8), seed=4)
+    ds = [_pdist(next(v for lab, v in r.ancestral[f].items() if lab.startswith("origination")),
+                 r.alignments[f]["g0_n0"]) for f in range(20)]
+    mean = sum(ds) / len(ds)
+    std = (sum((d - mean) ** 2 for d in ds) / len(ds)) ** 0.5
+    assert std < 0.02      # shared clock ⇒ ~0.006 sampling noise; a per-family clock would be far larger
+
+
+def test_bylineage_rejects_other_and_multiple_modifiers():
+    gts = {0: _pair_tree(1.0, 2.0)}
+    with pytest.raises(ValueError):                 # Inherited clock — a later slice
+        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.Inherited(spread=0.3))
+    with pytest.raises(ValueError):                 # two ByLineage — only a single clock is wired
+        simulate_sequences(gts, model=jc69(), length=10,
+                           substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
+    with pytest.raises(ValueError):                 # ByLineage × Time — mixed modifiers
+        simulate_sequences(gts, model=jc69(), length=10,
+                           substitution=1.0 * mod.ByLineage(spread=0.3) * mod.Time({0: 1.0}))
+
+
 # --- validation ------------------------------------------------------------------------------------
 
 def test_rejects_bad_arguments_and_unwired_rate_specs():
-    from zombi2.rates import modifiers as mod
     from zombi2.rates.scope import PerLineage
     gts = {0: _pair_tree(1.0, 2.0)}
     with pytest.raises(TypeError):

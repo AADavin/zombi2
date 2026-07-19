@@ -11,12 +11,13 @@ You reach them through ``mod``::
     birth = 1.0 * mod.Time({0: 1.0, 3: 0.3})   # a skyline: 1.0, then 0.3 from time 3 on
     birth = 1.0 * mod.Diversity(cap=100)       # slows to 0 as diversity approaches 100
 
-This module holds the **deterministic** modifiers, whose factor is a pure function of
-the context. The stochastic ones — ``Inherited`` (the rate drifts along the tree),
-``ByLineage`` / ``ByFamily`` (i.i.d. draws), ``Markov`` (a Markov chain of
-rate categories) — need a random generator and the tree, so they arrive in the next
-module. Composition (``*``), which turns ``scope(base) × modifiers`` into a Rate, is
-the Rate module; here each modifier only knows how to produce its own factor.
+The **deterministic** modifiers (``Time``, ``Diversity``) have a factor that is a pure function of the
+context. The **stochastic** ones additionally carry a draw method the engine drives with a random
+generator: ``Inherited`` (the rate drifts parent→child along the tree, via ``initial``/``descend``)
+and ``ByLineage`` (one i.i.d. draw per lineage, via ``draw``). Still to come: ``ByFamily`` (i.i.d. per
+family) and ``Markov`` (a chain of rate categories). Composition (``*``), which turns
+``scope(base) × modifiers`` into a Rate, is the Rate module; here each modifier only knows how to
+produce its own factor (or, for the stochastic ones, its own draw).
 """
 
 from __future__ import annotations
@@ -173,4 +174,45 @@ class Inherited(Modifier):
         return inherited
 
 
-__all__ = ["Modifier", "Time", "Diversity", "Inherited"]
+@dataclass(frozen=True)
+class ByLineage(Modifier):
+    """The rate varies independently from lineage to lineage — an *uncorrelated* ("relaxed") clock.
+
+    Each lineage draws **one** i.i.d. multiplier with **no memory** of its parent (contrast
+    :class:`Inherited`, whose rate drifts parent→child). The draw is **mean-corrected** so
+    ``E[factor] = 1`` — without it the mean rate inflates down the tree (the historical lognormal-clock
+    bug). ``spread`` (σ) sets the width; ``dist`` is ``"lognormal"`` (default; σ = the log-scale) or
+    ``"gamma"`` (σ = the coefficient of variation) — the two agree to first order in σ.
+
+    At the sequence level this is the lineage clock: the engine draws one value per **species lineage**
+    (via :meth:`draw`) and shares it across every gene family passing through that lineage
+    (``sequence-api.md``). It is the lineage-twin of the genome level's ``ByFamily`` — the same
+    i.i.d.-heterogeneity idea, by lineage instead of by family. (A fully per-gene-tree-branch clock is
+    the deferred ``ByBranch``.)
+    """
+
+    spread: float
+    dist: str = "lognormal"
+
+    def __post_init__(self) -> None:
+        if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)) \
+                or not math.isfinite(self.spread) or self.spread < 0:
+            raise ValueError(f"ByLineage spread must be a finite non-negative number, got {self.spread!r}")
+        if self.dist not in ("lognormal", "gamma"):
+            raise ValueError(f"ByLineage dist must be 'lognormal' or 'gamma', got {self.dist!r}")
+
+    def draw(self, rng) -> float:
+        """One independent, mean-1 multiplier for a lineage. ``spread = 0`` gives 1.0 (a strict clock)."""
+        s = self.spread
+        if s == 0.0:
+            return 1.0
+        if self.dist == "lognormal":
+            return math.exp(rng.normal(-0.5 * s * s, s))     # mean-corrected lognormal
+        return float(rng.gamma(1.0 / (s * s), s * s))        # mean-1 gamma, coefficient of variation = s
+
+    def factor(self, *, bylineage: float = 1.0, **_: float) -> float:
+        """The lineage's drawn factor — the engine threads it and passes it back as ``bylineage``."""
+        return bylineage
+
+
+__all__ = ["Modifier", "Time", "Diversity", "Inherited", "ByLineage"]

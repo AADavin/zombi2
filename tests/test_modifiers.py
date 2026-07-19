@@ -99,9 +99,10 @@ def test_base_modifier_is_abstract():
         mod.Modifier().factor(time=1.0)
 
 
-def test_stochastic_status_inherited_here_others_deferred():
-    assert hasattr(mod, "Inherited")  # the first stochastic modifier is built
-    for later in ("ByLineage", "ByFamily", "Markov", "DrivenBy"):
+def test_stochastic_status_built_vs_deferred():
+    for built in ("Inherited", "ByLineage"):
+        assert hasattr(mod, built), f"{built} should be built"
+    for later in ("ByFamily", "Markov", "DrivenBy"):
         assert not hasattr(mod, later), f"{later} is not built yet"
 
 
@@ -145,6 +146,65 @@ def test_inherited_factor_reads_lineage_multiplier():
     inh = mod.Inherited(spread=0.3)
     assert inh.factor(inherited=2.5, time=1.0) == 2.5
     assert inh.factor() == 1.0  # default: no drift
+
+
+# --- ByLineage (the uncorrelated / relaxed clock): i.i.d. mean-corrected draws ---
+
+def test_bylineage_zero_spread_is_a_strict_clock():
+    import numpy as np
+    rng = np.random.default_rng(0)
+    byl = mod.ByLineage(spread=0.0)
+    assert all(byl.draw(rng) == 1.0 for _ in range(100))
+
+
+def test_bylineage_draw_is_mean_corrected_lognormal():
+    import numpy as np
+    rng = np.random.default_rng(0)
+    byl = mod.ByLineage(spread=0.5)  # default dist = lognormal
+    vals = [byl.draw(rng) for _ in range(100000)]
+    # E[factor] = 1 (the -σ²/2 correction); the buggy uncorrected draw gives E ≈ e^{σ²/2} = 1.13
+    assert abs(sum(vals) / len(vals) - 1.0) < 0.02
+
+
+def test_bylineage_draw_is_mean_corrected_gamma():
+    import numpy as np
+    rng = np.random.default_rng(1)
+    byl = mod.ByLineage(spread=0.5, dist="gamma")
+    vals = [byl.draw(rng) for _ in range(100000)]
+    assert abs(sum(vals) / len(vals) - 1.0) < 0.02          # mean-1 gamma
+    var = sum((v - 1.0) ** 2 for v in vals) / len(vals)
+    assert abs(var - 0.5 ** 2) < 0.02                        # variance = spread² (CV = spread)
+
+
+def test_bylineage_draws_are_independent_no_memory():
+    import numpy as np
+    rng = np.random.default_rng(2)
+    byl = mod.ByLineage(spread=0.6)
+    a = [byl.draw(rng) for _ in range(2000)]
+    # i.i.d.: successive draws are uncorrelated (unlike Inherited, whose draws depend on the parent)
+    lag1 = sum((a[i] - 1) * (a[i + 1] - 1) for i in range(len(a) - 1)) / (len(a) - 1)
+    assert abs(lag1) < 0.05
+
+
+def test_bylineage_deterministic():
+    import numpy as np
+    a = mod.ByLineage(spread=0.3).draw(np.random.default_rng(7))
+    b = mod.ByLineage(spread=0.3).draw(np.random.default_rng(7))
+    assert a == b
+
+
+def test_bylineage_factor_reads_lineage_multiplier():
+    byl = mod.ByLineage(spread=0.3)
+    assert byl.factor(bylineage=2.5) == 2.5
+    assert byl.factor() == 1.0  # default: no clock
+
+
+def test_bylineage_validates_its_arguments():
+    for bad in (-0.1, float("inf"), float("nan"), True):
+        with pytest.raises((ValueError, TypeError)):
+            mod.ByLineage(spread=bad)
+    with pytest.raises(ValueError):
+        mod.ByLineage(spread=0.3, dist="weibull")
 
 
 def test_inherited_validation():

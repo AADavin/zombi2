@@ -27,14 +27,19 @@ from .substitution_models import SubstitutionModel
 
 
 def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: float,
-                     rng: np.random.Generator) -> dict[int, np.ndarray]:
+                     clock: "dict[int, float] | None", rng: np.random.Generator) -> dict[int, np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
     :class:`~zombi2.genomes.gene_trees.GeneNode`).
 
     Returns ``{id(node): states}`` for **every** node — integer state arrays over the model's
     alphabet, keyed by object identity (gene-tree nodes carry no unique id, and identity is unique and
     stable for the run). The caller decodes and labels only the nodes it keeps. Deterministic given
-    ``rng``; the branch length in substitutions/site is ``rate_base · (child.time - parent.time)``.
+    ``rng``.
+
+    The branch ending at a node lies on that node's species branch, so its length in substitutions/site
+    is ``rate_base · clock[node.species] · (node.time - parent.time)`` — the lineage clock (``clock``,
+    one value per species branch, shared across families) rescales it. ``clock=None`` (the strict
+    clock) uses factor 1 everywhere.
     """
     pi = model.stationary
     k = model.k
@@ -51,7 +56,8 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
         if parent_states is None:
             states = root_states
         else:
-            bl = rate_base * (node.time - parent_time)
+            factor = 1.0 if clock is None else clock.get(node.species, 1.0)
+            bl = rate_base * factor * (node.time - parent_time)
             states = parent_states if bl <= 0.0 else _sample(parent_states, _p_for(pcache, model, bl), rng)
         out[id(node)] = states
         for child in reversed(node.children):

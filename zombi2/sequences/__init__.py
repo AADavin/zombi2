@@ -7,10 +7,12 @@ a substitution **model** (the menu — :func:`jc69` · :func:`k80` · :func:`hky
 substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are **target-only** in
 v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
 
-This slice wires the **strict clock** only: ``substitution`` is a single per-site rate (a bare number,
-default ``1.0``), so a gene-tree branch of ``Δt`` time gets ``substitution · Δt`` substitutions/site.
-The relaxed-clock family (the per-lineage ``clock`` modifier — ``ByLineage`` / ``Inherited`` / ``Markov``
-— riding the species tree), across-site ``+Γ``, protein/codon models, real-genome-at-root, the
+``substitution`` is a per-site rate (a bare number, default ``1.0``: a gene-tree branch of ``Δt`` time
+gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
+clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
+i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it
+(``SPEC §5``, the by-lineage rate modifier). The other clocks (``Inherited`` drift, ``Markov`` hops),
+the per-family ``ByFamily`` speed, across-site ``+Γ``, protein/codon models, real-genome-at-root, the
 ``record=`` memory dial, and the CLI are named later slices; each is a pure addition.
 
 The result is a :class:`SequencesResult` bundle mirroring the other levels (``result-api.md``):
@@ -28,6 +30,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..genomes import GenomesResult
+from ..rates.modifiers import ByLineage
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
 from .evolution import evolve_gene_tree
@@ -108,6 +111,20 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
     return alignment, ancestral
 
 
+def _all_species(gene_trees) -> list[int]:
+    """The sorted set of species-branch ids the gene trees touch — the lineages the clock is drawn
+    over. Collected from the gene trees (so it works with a bare ``{family: GeneTree}`` too); every
+    branch that needs a clock value has its species branch present as some node's ``species``."""
+    ids: set[int] = set()
+    for gt in gene_trees.values():
+        stack = [gt.complete]
+        while stack:
+            n = stack.pop()
+            ids.add(n.species)
+            stack.extend(n.children)
+    return sorted(ids)
+
+
 def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
                        substitution=1.0, seed=None) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
@@ -123,8 +140,11 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
     The root sequence of each family is drawn from the model's stationary frequencies. Deterministic
     given ``seed``.
 
-    This slice wires the **strict clock** only — ``substitution`` must be a plain per-site rate; a
-    scope override or any modifier (the relaxed clock, ``+Γ``) is a later slice and raises.
+    ``substitution`` may carry a **lineage clock**: ``1.0 * mod.ByLineage(spread=)`` draws one i.i.d.
+    rate multiplier per species lineage (**shared across families**, drawn once before evolving) and
+    rescales each gene-tree branch by the clock of the species branch it sits on. Any other modifier
+    (the ``Inherited`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
+    non-``PerSite`` scope is a later slice and raises.
     """
     if isinstance(gene_trees, GenomesResult):
         gene_trees = gene_trees.gene_trees
@@ -138,20 +158,31 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
             f"substitution has a {type(rate.scope).__name__} scope, but the sequence engine wires only "
             f"PerSite (the default) this slice — drop the scope wrapper or use PerSite(...)."
         )
+    clock_mod = None
     if rate.modifiers:
-        raise ValueError(
-            f"substitution carries {type(rate.modifiers[0]).__name__}, but only the strict clock "
-            "(substitution=<number>) is wired this slice — the relaxed-clock family (ByLineage, "
-            "Inherited, Markov) and +Γ across-site heterogeneity are later slices."
-        )
+        if len(rate.modifiers) == 1 and isinstance(rate.modifiers[0], ByLineage):
+            clock_mod = rate.modifiers[0]
+        else:
+            offenders = ", ".join(sorted({type(m).__name__ for m in rate.modifiers
+                                          if not isinstance(m, ByLineage)}) or ["a second ByLineage"])
+            raise ValueError(
+                f"substitution carries {offenders}, but this slice wires only a single ByLineage clock "
+                "(the uncorrelated lineage clock) — the Inherited / Markov clocks, the ByFamily "
+                "per-family speed, and +Γ across-site heterogeneity are later slices."
+            )
     rate_base = rate.base
 
     rng = np.random.default_rng(seed)
+    # the lineage clock: one i.i.d. draw per species branch, drawn once here and shared by every
+    # family (so a hot species runs hot for all its genes). None ⇒ the strict clock (factor 1).
+    clock = None
+    if clock_mod is not None:
+        clock = {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
     for family in sorted(gene_trees):  # sorted for reproducibility given the seed
         gt = gene_trees[family]
-        states = evolve_gene_tree(gt.complete, model, length, rate_base, rng)
+        states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng)
         alignments[family], ancestral[family] = _split(gt, states, model)
     return SequencesResult(alignments, ancestral, seed)
 
