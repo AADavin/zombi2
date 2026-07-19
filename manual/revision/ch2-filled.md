@@ -58,7 +58,7 @@ At the end of the day, the frequency at which an event fires depends on its **ef
 Effective rate = scope(base) × modifiers.
 \end{center}
 
-The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps that base to say how many independent chances the event has: per lineage, per copy, or per site. The **modifiers** are context multipliers, dimensionless, that let one branch or one family run faster than another.
+The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps that base to say how many independent chances the event has: per lineage, per copy, or per site. The **modifiers** are context multipliers, dimensionless, that let one lineage or one family run faster than another.
 
 By default, this is the scope ZOMBI2 uses at each level:
 
