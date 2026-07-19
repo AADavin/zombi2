@@ -57,13 +57,9 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fos
 
 ## Extinct lineages
 
-*[Draft — the complete-vs-extant behaviour and backward sampling are settled for v1; ghost lineages are deferred to a later release.]*
+Every birth–death tree is really two trees. The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **extant** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want. ZOMBI2 grows the tree **forward** in time and records the complete tree; the extant tree is the survivors pruned out of it, with the internal nodes that lose all their descendants suppressed so it stays dated and bifurcating.
 
-Every birth–death tree is really two trees. The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **extant** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want.
-
-When the rates are simple enough, ZOMBI2 never grows the extinct lineages at all: it samples the extant tree directly from the distribution the process implies, working backward from the present. This is fast and exact, and it is why you never chose "forward" or "backward" anywhere above — the engine takes that shortcut whenever the rates allow, and grows the tree forward only when something (diversity, ancestry, a mass extinction, fossils) needs the extinct lineages to be there.
-
-Sometimes you want them there anyway, and keeping the complete tree hands you the extinct lineages in full. A third option — a extant tree with the dead grafted back on *approximately*, without simulating each one in detail — is **ghost lineages**: extinct tips added to a extant tree after the fact. Ghosts are the natural tool for stress-testing a method that has to cope with extinction, without paying to grow the whole complete tree. They run on a different paradigm and are **set aside for v1** — planned, but not in the first release.
+*(Backward sampling of the extant tree, and ghost lineages, are planned for a later release; v1 is forward-only.)*
 
 ## The `SpeciesResult` object
 
