@@ -4,7 +4,7 @@ import pytest
 
 from zombi2 import modifiers as mod
 from zombi2 import scope
-from zombi2.species_tree import Event, simulate_species_tree
+from zombi2.species_tree import Event, simulate_species_tree, to_newick
 
 
 def test_yule_reaches_n_extant_with_no_extinction():
@@ -130,3 +130,50 @@ def test_skyline_is_deterministic():
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind) for e in a.events] == [(e.time, e.kind) for e in b.events]
+
+
+# --- the extant tree + Newick output --------------------------------------
+
+def test_extant_tree_prunes_to_survivors():
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, seed=3)
+    ext = r.extant_tree
+    assert len(ext.leaves()) == r.n_extant                       # exactly the survivors
+    assert all(n.fate == "extant" for n in ext.leaves())         # no extinct tips
+    assert all(n.fate != "extinct" for n in ext.nodes.values())  # no extinct nodes remain
+    for n in ext.nodes.values():                                 # bifurcating
+        assert n.children is None or len(n.children) == 2
+    # branch lengths are non-negative; the final simultaneous split leaves 2 zero-length tips
+    for n in ext.nodes.values():
+        assert n.end_time - n.birth_time >= 0
+
+
+def test_yule_extant_equals_complete_leaves():
+    r = simulate_species_tree(birth=1.0, death=0.0, n_extant=30, seed=1)
+    assert len(r.extant_tree.leaves()) == len(r.complete_tree.leaves()) == 30
+
+
+def test_newick_is_wellformed():
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=2)
+    nwk = to_newick(r.extant_tree)
+    assert nwk.endswith(";")
+    assert nwk.count("(") == nwk.count(")")   # balanced parens
+    assert nwk.count(",") == 25 - 1           # a bifurcating tree of 25 tips has 24 joins
+
+
+def test_write_produces_newick_files(tmp_path):
+    r = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=5)
+    r.write(tmp_path)
+    assert (tmp_path / "complete.nwk").read_text().strip().endswith(";")
+    assert (tmp_path / "extant.nwk").read_text().strip().endswith(";")
+
+
+def test_extant_tree_is_deterministic():
+    a = simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=8)
+    b = simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=8)
+    assert to_newick(a.extant_tree) == to_newick(b.extant_tree)
+
+
+def test_dead_tree_has_no_extant_tree():
+    r = simulate_species_tree(birth=0.1, death=10.0, age=5.0, seed=1)
+    assert r.n_extant == 0
+    assert r.extant_tree is None

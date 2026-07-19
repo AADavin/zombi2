@@ -14,7 +14,9 @@ Still to come: the extant tree, Newick, sampling, fossils, and the move to
 
 from __future__ import annotations
 
+import functools
 import math
+import pathlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -78,6 +80,77 @@ class SpeciesResult:
     @property
     def n_extant(self) -> int:
         return len(self.complete_tree.extant())
+
+    @functools.cached_property
+    def extant_tree(self) -> Tree | None:
+        """The survivors' tree — the complete tree pruned to extant lineages with the
+        unifurcations suppressed (dated, bifurcating). ``None`` if nothing survived."""
+        return build_extant_tree(self.complete_tree)
+
+    def write(self, directory) -> None:
+        """Write the trees as Newick: ``complete.nwk`` and (if any survived) ``extant.nwk``."""
+        d = pathlib.Path(directory)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "complete.nwk").write_text(to_newick(self.complete_tree) + "\n")
+        if self.extant_tree is not None:
+            (d / "extant.nwk").write_text(to_newick(self.extant_tree) + "\n")
+
+
+def to_newick(tree: Tree) -> str:
+    """Serialise a tree to Newick. Each branch length is ``end_time - birth_time``; leaves
+    are named ``n<id>``; the root carries no branch length (crown-rooted)."""
+
+    def emit(i: int) -> str:
+        node = tree.nodes[i]
+        bl = node.end_time - node.birth_time
+        if node.children is None:
+            return f"n{i}:{bl:.6g}"
+        inner = ",".join(emit(c) for c in node.children)
+        return f"({inner})n{i}:{bl:.6g}"
+
+    root = tree.nodes[tree.root]
+    if root.children is None:
+        return f"n{tree.root};"
+    return f"({','.join(emit(c) for c in root.children)})n{tree.root};"
+
+
+def build_extant_tree(complete: Tree) -> Tree | None:
+    """Prune the complete tree to the survivors: drop the extinct subtrees and suppress the
+    unifurcations they leave behind, giving a dated, bifurcating tree of the extant lineages.
+    ``None`` if nothing survived. Branch lengths merge across suppressed nodes."""
+    nodes = complete.nodes
+    surviving: dict[int, bool] = {}
+    for i in sorted(nodes, reverse=True):  # children have higher ids → processed before parents
+        nd = nodes[i]
+        surviving[i] = nd.fate == "extant" if nd.children is None else any(surviving[c] for c in nd.children)
+    if not any(surviving.values()):
+        return None
+
+    def surv_children(i: int) -> list[int]:
+        nd = nodes[i]
+        return [] if nd.children is None else [c for c in nd.children if surviving[c]]
+
+    # keep the extant leaves and the genuine bifurcations (≥2 surviving children)
+    kept = {i for i in nodes
+            if (nodes[i].children is None and nodes[i].fate == "extant") or len(surv_children(i)) >= 2}
+
+    new: dict[int, Node] = {}
+    ext_root: int | None = None
+    for i in kept:
+        p = nodes[i].parent  # walk up to the nearest kept ancestor
+        while p is not None and p not in kept:
+            p = nodes[p].parent
+        branch_start = nodes[p].end_time if p is not None else 0.0  # merge the suppressed edges
+        new[i] = Node(i, p, branch_start, nodes[i].end_time, None, nodes[i].fate)
+        if p is None:
+            ext_root = i
+    for i in sorted(kept):  # rebuild children from parents, in id order for a stable Newick
+        p = new[i].parent
+        if p is not None:
+            existing = new[p].children
+            new[p].children = (i,) if existing is None else existing + (i,)
+
+    return Tree(new, ext_root)
 
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
@@ -187,4 +260,4 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, age=None, seed=Non
     )
 
 
-__all__ = ["simulate_species_tree", "SpeciesResult", "Tree", "Node", "Event"]
+__all__ = ["simulate_species_tree", "SpeciesResult", "Tree", "Node", "Event", "to_newick", "build_extant_tree"]
