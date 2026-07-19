@@ -77,7 +77,7 @@ A `GenomesResult` carries:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages and all.
 - `.genomes` — a dict from node to that node's genome, a tuple of `GeneCopy` objects. The key is the node's integer id, the one that prints as `n<id>` in the Newick (node `5` is `n5`); each `GeneCopy` knows its own `id` and its `family`.
-- `.events` — the event log: every duplication, loss, origination, and transfer with its time and lineage. This is the compact source of truth the run exists to record; the profiles and gene trees are derived from it and the genomes.
+- `.events` — the event log: every gene event with its time and lineage — origination, duplication, transfer, loss, and the *speciations* that re-id each gene at a split. Gene ids are **per branch** (the ZOMBI1 model: every event ends a gene and starts fresh ids for its descendants), so this is the complete source of truth the profiles and gene trees are derived from.
 - `.profiles` — the family × extant-species copy-count table (the next section).
 - `.gene_trees` — one `GeneTree` per family (the next section).
 - `.seed` — the seed, so the run reproduces.
@@ -105,7 +105,7 @@ g.profiles.presence      # the same as 0/1 presence/absence
 g.profiles.to_tsv()      # the table as text
 ```
 
-**Gene trees** are the deeper output. Every family has its own gene tree — the true genealogy of its copies, growing *inside* the complete species tree: a copy is born (by origination, duplication, or transfer), inherited down the tree, and ends when it is lost, when its species dies, or at an extant tip. `.gene_trees` gives one `GeneTree` per family, and — exactly like the species result — each carries **two trees**: the `.complete` tree with every copy-lineage, and the `.extant` tree pruned to the copies that survive. Every node knows the species branch it sits on and the event that made it.
+**Gene trees** are the deeper output. Every family has its own gene tree — the true genealogy of its copies, growing *inside* the complete species tree. As in ZOMBI1, a gene lives on a single species branch and carries that branch's id; every event — a duplication, a transfer, or a speciation — ends it and starts fresh ids for its descendants, until it finally ends by being lost, by its species going extinct, or at an extant tip. So every tip is a distinct gene. `.gene_trees` gives one `GeneTree` per family, and — exactly like the species result — each carries **two trees**: the `.complete` tree with every gene lineage, and the `.extant` tree pruned to the genes that survive. Every node knows the species branch it sits on and the event that ended it.
 
 ```python
 gt = g.gene_trees[7]                 # the gene tree of family 7
