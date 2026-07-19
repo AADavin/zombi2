@@ -104,7 +104,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - *(v1 ships only tree-changing joint models — a scope note, **not** the framing; tree-fixed trait–gene feedback is deferred to experimental)*
 - *(model-flag couplings that only re-read the tree — cladogenetic traits, punctuational genomes — stay in their level chapter; pointers here)*
 - Outputs — conditioned writes the driver alongside the target; a joint run writes both levels
-- **Closing section — Nulls, a recipe not a feature:** the tree manufactures patterns, so a baseline must be simulated on the same tree; three one-line recipes (drop the coupling → independent; swap for `ByBranch` → CID; shuffle the driver file → permutation). ZOMBI2 generates the baseline; the user owns the statistic. *(No `--null` flag, no null subsystem.)*
+- **Closing section — Nulls, a recipe not a feature:** the tree manufactures patterns, so a baseline must be simulated on the same tree; three one-line recipes (drop the coupling → independent; swap for `ByLineage` → CID; shuffle the driver file → permutation). ZOMBI2 generates the baseline; the user owns the statistic. *(No `--null` flag, no null subsystem.)*
 
 ---
 

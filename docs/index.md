@@ -48,7 +48,7 @@ Every rate is written the same way — a **scope** around a base, optionally tim
 from zombi2.rates import scope, modifiers
 
 sp = species.simulate_species_tree(
-    birth = 1.0 * modifiers.Time({0: 1.0, 3: 0.5}),   # skyline: full rate, then half after time 3
+    birth = 1.0 * modifiers.OnTime({0: 1.0, 3: 0.5}),   # skyline: full rate, then half after time 3
     death = scope.Global(0.3),                        # one tree-wide death rate, not per lineage
     total_time = 8.0, seed = 1)
 ```

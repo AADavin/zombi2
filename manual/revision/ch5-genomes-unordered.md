@@ -30,12 +30,12 @@ The rates follow the **same grammar as the species level** (`base` optionally wr
 
 The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want — more genes, more chances. Origination is counted **per lineage**: acquiring a wholly new family is a property of the lineage, not of any gene it already has.
 
-Rates can also depend on **time**. Multiplying a base rate by a `Time` modifier makes it change at set moments — the skyline, or episodic, genome, fast early and slow later, or any schedule you give:
+Rates can also depend on **time**. Multiplying a base rate by a `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome, fast early and slow later, or any schedule you give:
 
 ```python
 from zombi2.rates import modifiers as mod
 # lots of new families early, then origination shuts off after time 2
-g = simulate_genomes_unordered(tree, origination=1.0 * mod.Time({0: 1.0, 2: 0.0}), seed=1)
+g = simulate_genomes_unordered(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
 
 Two richer dials are part of the design but land in a later release, and this version rejects them loudly rather than pretending: **per-family heterogeneity** — letting each family carry its own rate, or a single per-family *speed* that scales all of a family's rates together, so some families churn and others sit still — and **scope overrides** on the genome rates. For now every family shares the given rate, and the defaults (per copy, per lineage) are fixed.
@@ -134,7 +134,7 @@ g = simulate_genomes_unordered(
 g = simulate_genomes_unordered(tree, origination=0.6, seed=1)
 
 # a skyline: new families pour in early, then origination shuts off after time 2
-g = simulate_genomes_unordered(tree, origination=1.0 * mod.Time({0: 1.0, 2: 0.0}), seed=1)
+g = simulate_genomes_unordered(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 
 # horizontal transfer, biased toward close relatives, overwriting resident copies
 g = simulate_genomes_unordered(

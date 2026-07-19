@@ -1,7 +1,7 @@
 """Internal plumbing: a rate is ``scope(base) × modifiers``, evaluated at run time.
 
 **This is not part of the public API.** Users write a number (``1.0``), a scope wrapper
-(``scope.PerLineage(0.25)``), or a product (``1.0 * mod.Time({...}) * mod.Diversity(cap=100)``).
+(``scope.PerLineage(0.25)``), or a product (``1.0 * mod.OnTime({...}) * mod.OnTotalDiversity(cap=100)``).
 The ``*`` produces a :class:`Rate` — the glue that *defers* ``base × scope × modifiers`` until
 the engine knows the current moment (time, diversity, the branch, the counts) and can multiply
 it out. There is no user-facing "Rate" concept; it is the thing a rate expression evaluates to.
