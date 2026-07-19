@@ -138,4 +138,39 @@ class Diversity(Modifier):
         return max(0.0, 1.0 - diversity / self.cap)
 
 
-__all__ = ["Modifier", "Time", "Diversity"]
+@dataclass(frozen=True)
+class Inherited(Modifier):
+    """The rate drifts along the tree — each lineage inherits its parent's rate times a random
+    factor drawn at the split (geometric Brownian motion on the rate: ClaDS at the species level,
+    the autocorrelated clock at the sequence level). ``spread`` (σ) sets the drift width.
+
+    The per-split factor is lognormal, **mean-corrected** so ``E[factor] = 1``. Without the
+    correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}`` instead of 1) — a real
+    historical bug. The draw logic (:meth:`initial` / :meth:`descend`) is driven by the engine,
+    which threads each lineage's current multiplier and passes it back to :meth:`factor` as
+    ``inherited``.
+    """
+
+    spread: float
+
+    def __post_init__(self) -> None:
+        if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)):
+            raise TypeError(f"Inherited spread must be a real number, got {self.spread!r}")
+        if not math.isfinite(self.spread) or self.spread < 0:
+            raise ValueError(f"Inherited spread must be finite and non-negative, got {self.spread!r}")
+
+    def initial(self) -> float:
+        """The root's multiplier: 1.0 — the rate starts at its base."""
+        return 1.0
+
+    def descend(self, parent_value: float, rng) -> float:
+        """A daughter's multiplier: the parent's, times one mean-corrected lognormal step."""
+        sigma = self.spread
+        return parent_value * math.exp(rng.normal(-0.5 * sigma * sigma, sigma))
+
+    def factor(self, *, inherited: float = 1.0, **_: float) -> float:
+        """The lineage's current drift multiplier — the engine passes it as ``inherited``."""
+        return inherited
+
+
+__all__ = ["Modifier", "Time", "Diversity", "Inherited"]
