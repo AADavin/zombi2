@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import collections
 import math
+import pathlib
 from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 
@@ -34,6 +36,7 @@ from ..rates.modifiers import Time
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree, _weighted_index
+from .profiles import Profiles, profiles_from_genomes
 
 
 @dataclass(frozen=True)
@@ -89,8 +92,9 @@ class GenomesResult:
     """What ``simulate_genomes_unordered`` returns: the ``complete_tree`` it ran on, the final
     ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
     truth), and the ``seed``. The observed genomes are the extant tips —
-    ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. (Sparse profiles, lazy gene trees, the
-    ``record=`` dial and ``write`` are later slices.)"""
+    ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. The phyletic ``profiles`` are derived
+    from those tips on access, and ``write`` materialises the chosen outputs to disk. (Lazy gene
+    trees and the ``record=`` scale dial are later slices.)"""
 
     complete_tree: Tree
     genomes: dict[int, tuple[GeneCopy, ...]]
@@ -100,6 +104,33 @@ class GenomesResult:
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
         return collections.Counter(c.family for c in self.genomes[node_id])
+
+    @cached_property
+    def profiles(self) -> Profiles:
+        """The phyletic profiles — each gene family's copy count in each extant species — derived
+        from the observed genomes (the classic comparative-genomics matrix). See :mod:`.profiles`."""
+        extant = [n.id for n in self.complete_tree.extant()]
+        return profiles_from_genomes(self.genomes, extant)
+
+    def write(self, directory, outputs=("events", "profiles")) -> None:
+        """Materialise chosen ``outputs`` to ``directory`` (created if needed):
+
+        - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
+        - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
+        """
+        d = pathlib.Path(directory)
+        d.mkdir(parents=True, exist_ok=True)
+        if "events" in outputs:
+            (d / "genome_events.tsv").write_text(_events_tsv(self.events))
+        if "profiles" in outputs:
+            (d / "profiles.tsv").write_text(self.profiles.to_tsv())
+
+
+def _events_tsv(events: list[Event]) -> str:
+    """The event log as TSV — one row per event; empty cells for the fields a kind does not use."""
+    cols = ("time", "kind", "lineage", "family", "copy", "parent", "recipient")
+    rows = ["\t".join("" if (v := getattr(e, c)) is None else str(v) for c in cols) for e in events]
+    return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
 # --- the live genomes: parallel arrays under swap-remove, the ``species_tree._grow`` shape --------
@@ -363,4 +394,4 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     return GenomesResult(tree, genomes, events, seed)
 
 
-__all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance"]
+__all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance", "Profiles"]
