@@ -31,7 +31,7 @@ from ..genomes import GenomesResult
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
 from .evolution import evolve_gene_tree
-from .substitution_models import BASES, SubstitutionModel, decode, gtr, hky85, jc69, k80
+from .substitution_models import SubstitutionModel, decode
 
 _WRITE_OUTPUTS = ("alignments", "ancestral")  # the write vocabulary
 
@@ -156,5 +156,7 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
     return SequencesResult(alignments, ancestral, seed)
 
 
-__all__ = ["simulate_sequences", "SequencesResult", "SubstitutionModel",
-           "jc69", "k80", "hky85", "gtr", "BASES"]
+# The substitution-model menu is reached through its own module — the one canonical path,
+# like `zombi2.rates.scope` / `zombi2.rates.modifiers` — never re-exported here:
+#     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
+__all__ = ["simulate_sequences", "SequencesResult"]
