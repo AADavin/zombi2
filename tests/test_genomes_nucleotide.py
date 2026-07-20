@@ -15,8 +15,10 @@ from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
     Block,
     Chromosome,
+    Loss,
     NucleotideGenome,
     Translocation,
+    _do_loss,
     _do_translocation,
     _split_block,
 )
@@ -256,6 +258,61 @@ def test_simulate_validation():
         simulate_genomes_nucleotide(sp, translocation_length=0)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, inversion_probability=2.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, loss=-1.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, loss_length=0)
+
+
+# --- loss: the first ancestry-changing event (a death) -------------------------------------------
+
+def test_loss_deletes_an_arc_and_records_the_lost_material():
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 20, 1)])])
+    events = []
+    _do_loss(g, 5, 1.0, 5.0, np.random.default_rng(0), events)
+    assert 1 <= g.length < 20                                # shrank, never emptied
+    assert isinstance(events[0], Loss) and events[0].chromosome == 0
+    survived = {(s, p) for (s, p, _st) in g.chromosomes[0].trace_back()}
+    lost = {(src, p) for (src, a, b) in events[0].lost for p in range(a, b)}
+    assert survived | lost == {(0, p) for p in range(20)}   # a clean partition of the original
+    assert survived.isdisjoint(lost)
+
+
+def test_loss_is_a_noop_on_a_length_one_chromosome():
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 1, 1)])])
+    events = []
+    _do_loss(g, 5, 1.0, 5.0, np.random.default_rng(0), events)
+    assert events == [] and g.length == 1                   # never empties a chromosome
+
+
+def test_loss_weakens_the_invariant_monotonically():
+    # loss only ever removes: each node's ancestry is a subset of the root (no duplicates), and a
+    # child's ancestry is a subset of its parent's — monotone non-increasing down every path
+    full = {(s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length)}
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=3)
+    r = simulate_genomes_nucleotide(sp, loss=0.05, loss_length=10, inversion=0.02,
+                                    chromosomes=_TIER_SPECS, seed=3)
+    assert r.events                                          # losses really happened
+    for node_id in r.genomes:
+        anc_list = r.ancestry(node_id)
+        anc = set(anc_list)
+        assert anc <= full                                  # subset of the root
+        assert len(anc_list) == len(anc)                    # no duplicates
+        node = sp.complete_tree.nodes[node_id]
+        if node.parent is not None:
+            assert anc <= set(r.ancestry(node.parent))      # child ⊆ parent (monotone)
+    assert any(set(r.ancestry(n)) < full for n in r.genomes)   # something really was lost
+
+
+def test_loss_composes_with_everything_and_still_only_subsets():
+    full = {(s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length)}
+    for seed in range(3):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
+        r = simulate_genomes_nucleotide(sp, loss=0.04, inversion=0.02, translocation=0.03,
+                                        fission=0.3, fusion=0.3, chromosomes=_TIER_SPECS, seed=seed)
+        for node_id in r.genomes:
+            anc_list = r.ancestry(node_id)
+            assert set(anc_list) <= full and len(anc_list) == len(set(anc_list))
 
 
 # --- step 2a: the chromosome tier (fission + fusion -> the reticulating network) ------------------
