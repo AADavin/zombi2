@@ -150,8 +150,15 @@ def _fmt(v) -> str:
 
 
 def _values_tsv(values: dict[int, object]) -> str:
-    """The extant-tip values as a two-column ``node<TAB>trait`` table, one row per tip in id order.
-    Tips are named ``n<id>`` to match the tree's Newick leaf labels."""
+    """The extant-tip values as a ``node<TAB>…`` table, one row per tip in id order (tips named
+    ``n<id>`` to match the Newick). A single trait gives a ``node<TAB>trait`` table; correlated traits
+    (per-node ``{trait: value}`` dicts) give one column per trait."""
+    if values and isinstance(next(iter(values.values())), dict):  # correlated / multi-trait
+        cols = list(next(iter(values.values())))
+        rows = ["node\t" + "\t".join(str(c) for c in cols)]
+        for i in sorted(values):
+            rows.append(f"n{i}\t" + "\t".join(_fmt(values[i][c]) for c in cols))
+        return "\n".join(rows) + "\n"
     rows = ["node\ttrait"]
     for i in sorted(values):
         rows.append(f"n{i}\t{_fmt(values[i])}")
@@ -230,12 +237,105 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     return total
 
 
+def _symmetric_sqrt(matrix: np.ndarray) -> np.ndarray:
+    """A symmetric square root ``L`` of a symmetric PSD matrix (``L @ L == matrix``), via its
+    eigendecomposition; tiny negative eigenvalues from round-off are clipped to zero."""
+    w, V = np.linalg.eigh((matrix + matrix.T) / 2.0)
+    return (V * np.sqrt(np.clip(w, 0.0, None))) @ V.T
+
+
+def _correlation_matrix(traits: list, correlation) -> np.ndarray:
+    """The ``k×k`` correlation matrix from pairwise ``{(a, b): ρ}`` — 1 on the diagonal, ρ off it
+    (symmetric), 0 for unspecified pairs. Validates each ρ ∈ [−1, 1] and that the matrix is
+    positive-semidefinite (the ρ values must be jointly consistent)."""
+    idx = {t: i for i, t in enumerate(traits)}
+    R = np.eye(len(traits))
+    for pair, rho in (correlation or {}).items():
+        if not (isinstance(pair, tuple) and len(pair) == 2):
+            raise ValueError(f"correlation keys must be (trait_a, trait_b) pairs, got {pair!r}")
+        a, b = pair
+        if a not in idx or b not in idx:
+            raise ValueError(f"correlation key {pair!r} names a trait not in {traits}")
+        if a == b:
+            raise ValueError(f"correlation key {pair!r} is a self-correlation")
+        if isinstance(rho, bool) or not isinstance(rho, (int, float)) or not -1.0 <= rho <= 1.0:
+            raise ValueError(f"correlation for {pair!r} must be a number in [−1, 1], got {rho!r}")
+        R[idx[a], idx[b]] = R[idx[b], idx[a]] = float(rho)
+    if float(np.linalg.eigvalsh(R).min()) < -1e-9:
+        raise ValueError(
+            "the correlation matrix is not positive-semidefinite — the given ρ values are jointly "
+            "inconsistent (e.g. three traits cannot all be strongly negatively correlated)."
+        )
+    return R
+
+
+def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, seed) -> TraitsResult:
+    """Correlated continuous traits in **one call** (the joint rule inside a level). ``start`` and
+    ``rate`` are dicts over the same trait names; the branch increment is drawn from ``MVN(0, Σ·dt)``
+    with ``Σ = D R D`` (``D = diag(σ_i)``, ``R`` from ``correlation``), so at a tip the correlation
+    between two traits equals their ρ. Correlated Brownian motion this slice — per-trait modifiers and
+    multivariate OU are later slices. Convention B holds: the root diffuses over its own branch."""
+    if not isinstance(start, dict) or not isinstance(rate, dict):
+        raise ValueError(
+            "for correlated traits give both start and rate as dicts keyed by trait name, e.g. "
+            "start={'size': 0.0, 'limb': 0.0}, rate={'size': 1.0, 'limb': 0.8}."
+        )
+    traits = list(start)
+    if set(rate) != set(traits):
+        raise ValueError(
+            f"start and rate must name the same traits; got {sorted(start)} vs {sorted(rate)}"
+        )
+    if len(traits) < 2:
+        raise ValueError("correlated traits need ≥ 2 traits; one trait is a plain simulate_continuous call")
+    if reverts_to is not None or pull is not None:
+        raise ValueError("multivariate OU (reverts_to / pull with correlated traits) is not wired yet.")
+
+    sigma2 = np.empty(len(traits))
+    for i, name in enumerate(traits):
+        if isinstance(start[name], bool) or not isinstance(start[name], (int, float)) \
+                or not math.isfinite(start[name]):
+            raise ValueError(f"start[{name!r}] must be a finite number, got {start[name]!r}")
+        r = as_rate(rate[name], default_scope=PerLineage)
+        if not isinstance(r.scope, PerLineage):
+            raise ValueError(f"rate[{name!r}] must be per lineage — drop the scope wrapper.")
+        if r.modifiers:
+            raise ValueError(
+                f"rate[{name!r}] carries a modifier; per-trait modifiers combined with correlation are "
+                f"a later slice — use bare per-trait rates here."
+            )
+        sigma2[i] = r.effective(lineages=1)
+
+    R = _correlation_matrix(traits, correlation)
+    sd = np.sqrt(sigma2)
+    sigma = _symmetric_sqrt((sd[:, None] * R) * sd[None, :])  # sqrt of Σ = D R D (Σ_ij = σ_i σ_j ρ_ij)
+    start_vec = np.array([float(start[t]) for t in traits])
+    k = len(traits)
+
+    rng = np.random.default_rng(seed)
+    node_values: dict[int, dict] = {}
+    for i in _preorder(tree):
+        node = tree.nodes[i]
+        x = start_vec if node.parent is None else np.array([node_values[node.parent][t] for t in traits])
+        dt = node.end_time - node.birth_time
+        vec = x + (math.sqrt(dt) * (sigma @ rng.standard_normal(k)) if dt > 0.0 else 0.0)
+        node_values[i] = {t: float(vec[j]) for j, t in enumerate(traits)}
+
+    return TraitsResult(tree, node_values, seed)
+
+
 def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None,
-                        seed=None) -> TraitsResult:
+                        correlation=None, seed=None) -> TraitsResult:
     """Evolve a continuous trait down a tree and return a :class:`TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
     (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
     **variable-rates BM** (an ``FromParent`` modifier on ``rate``).
+
+    **Correlated traits** ride together in **one call** (the joint rule inside a level): pass
+    ``start`` and ``rate`` as dicts keyed by trait name and a ``correlation={(a, b): ρ}`` overlay
+    (each ρ ∈ [−1, 1]). The traits then diffuse jointly — the branch increment is drawn from
+    ``MVN(0, Σ·dt)`` with ``Σ = D R D`` (``D = diag(σ_i)``, ``R`` the correlation matrix), so at a tip
+    the correlation between two traits is exactly their ρ. This slice wires correlated **Brownian
+    motion** (bare per-trait rates); per-trait modifiers and multivariate OU are later slices.
 
     ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree`, or a
     :class:`~zombi2.species.SpeciesResult` whose ``complete_tree`` is used). The trait evolves on
@@ -264,6 +364,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     use one or the other. Deterministic given ``seed``.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    if isinstance(start, dict) or isinstance(rate, dict) or correlation is not None:
+        return _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, seed)
     if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start):
         raise ValueError(f"start must be a finite number, got {start!r}")
     r = as_rate(rate, default_scope=PerLineage)
@@ -417,37 +519,131 @@ def _gillespie(state: int, dt: float, Q: np.ndarray, rng) -> tuple[int, list]:
         current = int(rng.choice(k, p=probs))
 
 
+def _finite(x, name: str) -> float:
+    """Coerce ``x`` to a finite float or raise a clear ``ValueError`` naming ``name``."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x):
+        raise ValueError(f"{name} must be a finite number, got {x!r}")
+    return float(x)
+
+
+def _liability_sigma2(spec, name) -> float:
+    """The liability's variance-rate σ² — a bare per-lineage rate this slice (no modifiers)."""
+    r = as_rate(spec, default_scope=PerLineage)
+    where = "liability" if name is None else f"liability[{name!r}]"
+    if not isinstance(r.scope, PerLineage) or r.modifiers:
+        raise ValueError(f"{where} must be a bare variance-rate (per lineage, no modifiers) this slice.")
+    return r.effective(lineages=1)
+
+
+def _threshold_start_vec(start, traits: list) -> np.ndarray:
+    """The starting liability vector: ``None`` → zeros, a scalar → the same for every trait, a dict →
+    per-trait (missing traits default to 0.0)."""
+    if start is None:
+        return np.zeros(len(traits))
+    if isinstance(start, dict):
+        extra = set(start) - set(traits)
+        if extra:
+            raise ValueError(f"start names traits not in the liabilities: {sorted(extra)}")
+        return np.array([_finite(start.get(t, 0.0), f"start[{t!r}]") for t in traits])
+    return np.full(len(traits), _finite(start, "start"))
+
+
+def _threshold_cuts(states: list, threshold) -> np.ndarray:
+    """The ``k−1`` strictly-increasing cut points for ``k`` states (a scalar is allowed for ``k=2``)."""
+    if threshold is None:
+        raise ValueError("a threshold trait needs threshold= — a cut point (k−1 increasing cuts for k states)")
+    thr = np.atleast_1d(np.asarray(threshold, dtype=float))
+    if thr.ndim != 1 or len(thr) != len(states) - 1:
+        raise ValueError(
+            f"threshold must give {len(states) - 1} cut point(s) for {len(states)} states, got {threshold!r}"
+        )
+    if len(thr) > 1 and bool(np.any(np.diff(thr) <= 0)):
+        raise ValueError(f"threshold cut points must be strictly increasing, got {threshold!r}")
+    return thr
+
+
+def _simulate_threshold(tree, states, liability, threshold, start, correlation, seed) -> TraitsResult:
+    """The Wright–Felsenstein **threshold** model — a discrete state read off an underlying continuous
+    Brownian liability: the liability diffuses (convention B), and the observed state is which
+    ``threshold``-cut interval it lands in. With ``liability`` a dict + ``correlation``, several traits'
+    liabilities diffuse **jointly** (correlated discrete traits, one call), each cut by the shared
+    thresholds. There is no Gillespie stochastic map — the discreteness is a cut through a continuous
+    path — so ``.history`` is ``None`` and ``.events`` is empty."""
+    thr = _threshold_cuts(states, threshold)
+
+    def label(x):
+        return states[int(np.searchsorted(thr, x))]
+
+    rng = np.random.default_rng(seed)
+    node_values: dict[int, object] = {}
+
+    if isinstance(liability, dict):  # correlated discrete traits — joint liabilities, shared thresholds
+        traits = list(liability)
+        if len(traits) < 2:
+            raise ValueError("a correlated threshold trait needs ≥ 2 liabilities; one is a plain threshold trait")
+        sigma2 = np.array([_liability_sigma2(liability[t], t) for t in traits])
+        R = _correlation_matrix(traits, correlation)
+        sd = np.sqrt(sigma2)
+        chol = _symmetric_sqrt((sd[:, None] * R) * sd[None, :])
+        start_vec = _threshold_start_vec(start, traits)
+        k = len(traits)
+        liab: dict[int, np.ndarray] = {}
+        for i in _preorder(tree):
+            node = tree.nodes[i]
+            x = start_vec if node.parent is None else liab[node.parent]
+            dt = node.end_time - node.birth_time
+            liab[i] = x + (math.sqrt(dt) * (chol @ rng.standard_normal(k)) if dt > 0.0 else 0.0)
+            node_values[i] = {t: label(liab[i][j]) for j, t in enumerate(traits)}
+    else:  # a single threshold trait
+        if correlation is not None:
+            raise ValueError("correlation= needs a dict liability= (one liability per trait)")
+        sig2 = _liability_sigma2(liability, None)
+        start_liab = 0.0 if start is None else _finite(start, "start")
+        liab_s: dict[int, float] = {}
+        for i in _preorder(tree):
+            node = tree.nodes[i]
+            x = start_liab if node.parent is None else liab_s[node.parent]
+            dt = node.end_time - node.birth_time
+            std = math.sqrt(sig2 * dt) if sig2 > 0.0 and dt > 0.0 else 0.0
+            liab_s[i] = x + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
+            node_values[i] = label(liab_s[i])
+
+    return TraitsResult(tree, node_values, seed, kind="discrete", history=None)
+
+
 def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, threshold=None,
-                      seed=None) -> TraitsResult:
-    """Evolve a discrete-state trait down a tree as a continuous-time Markov chain (the Mk model) and
-    return a :class:`TraitsResult`. The jumps are simulated **exactly** by the Gillespie algorithm
-    along every branch, so each node's ``(state, duration)`` segments *are* the realized history — a
-    stochastic character map — and ``.events`` reads off the transitions.
+                      correlation=None, seed=None) -> TraitsResult:
+    """Evolve a discrete-state trait down a tree and return a :class:`TraitsResult`. Two mechanisms:
 
-    ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree` or a
-    :class:`~zombi2.species.SpeciesResult`); the trait evolves on every lineage, and ``.values`` reads
-    the extant tips. ``states`` is the list of state labels (≥ 2, unique). ``switch`` gives the
-    transition rates — a symmetric rate (``switch=0.1``), a ``{"marine->terrestrial": 0.1}`` dict of
-    asymmetric rates, or a ``k×k`` matrix; see :func:`_q_matrix`. ``start`` is the root state (a label
-    in ``states``); ``None`` draws one uniformly at random. As under convention B for continuous
-    traits, the root evolves over its own branch, so ``node_values[root]`` is the state at the first
-    split. Deterministic given ``seed``.
+    - **Mk** (``switch=``) — a continuous-time Markov chain over the ``states``, simulated **exactly**
+      by Gillespie along every branch, so each node's ``(state, duration)`` segments *are* the realized
+      history (``.history``) and ``.events`` reads off the transitions. ``switch`` is a symmetric rate
+      (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see :func:`_q_matrix`).
+      ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly).
+    - **Threshold** (``liability=`` + ``threshold=``) — the Wright–Felsenstein model: a discrete state
+      read off an underlying continuous Brownian **liability** (variance-rate ``liability``), cut into
+      ``states`` by the ``threshold`` cut point(s) (``k−1`` increasing cuts for ``k`` states). ``start``
+      is the initial *liability* (a number, default 0.0). Give ``liability`` as a dict + a
+      ``correlation={(a, b): ρ}`` overlay to evolve **correlated** discrete traits jointly — their
+      liabilities diffuse together (``Σ = D R D``) and each is cut by the shared thresholds. A threshold
+      trait has no Gillespie map, so ``.history`` is ``None`` and ``.events`` empty.
 
-    ``liability`` / ``threshold`` (a discrete state read off an underlying continuous liability — the
-    Wright–Felsenstein threshold model) are reserved but not wired yet; they arrive with the
-    ``correlation=`` overlay, whose discrete case they underpin.
+    ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree` or
+    :class:`~zombi2.species.SpeciesResult`); the trait evolves on every lineage (convention B: the root
+    diffuses over its own branch), and ``.values`` reads the extant tips. Deterministic given ``seed``.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
-    if liability is not None or threshold is not None:
-        raise ValueError(
-            "threshold traits (liability= / threshold=) are a later slice (they arrive with the "
-            "correlation overlay); give switch= for an Mk discrete-state trait."
-        )
     states = list(states)
     if len(states) < 2:
         raise ValueError(f"a discrete trait needs at least 2 states, got {states!r}")
     if len(set(states)) != len(states):
         raise ValueError(f"states must be unique, got {states!r}")
+    if liability is not None or threshold is not None:
+        if switch is not None:
+            raise ValueError("give switch= (an Mk trait) OR liability=/threshold= (a threshold trait), not both")
+        return _simulate_threshold(tree, states, liability, threshold, start, correlation, seed)
+    if correlation is not None:
+        raise ValueError("correlation= on a discrete trait needs the threshold model — give liability= and threshold=")
     if switch is None:
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
     Q = _q_matrix(states, switch)
