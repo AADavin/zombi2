@@ -99,17 +99,17 @@ result = species.simulate_species_tree(
 
 ## Usage from the CLI
 
-The command mirrors the Python call, with a flag for each of the common cases — the base rates, the stop, and the frequent modifiers (rich compositions stay in Python):
+The command mirrors the Python call. Each rate is a plain number on its natural scope, and the base rates, the stop condition, and the sampling and fossil knobs each have a flag:
 
 ```bash
 # a birth–death tree of 20 surviving lineages
 zombi2 species --birth 1.0 --death 0.3 --n-extant 20 --seed 1 -o out/
 
 # grow to time 5, with a mass extinction at time 3 and half the survivors sampled
-zombi2 species --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 1 -o out/
+zombi2 species --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 2 -o out/
 ```
 
-The common modifiers have their own flags — `--skyline`, `--diversity-cap`, `--clade-drift` — as do `--fossils` and `--write` (which outputs to keep).
+The scope-and-modifier richness (the skyline, the diversity cap, clade drift) has no flags; those compositions live in Python, where a rate is a small expression rather than a number. Every flag name *is* the Python keyword, so a `--params` TOML file can carry the same keys and drive a whole pipeline, and `--write` chooses which outputs to keep.
 
 ## Outputs
 
