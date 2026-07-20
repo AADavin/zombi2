@@ -24,6 +24,7 @@ from zombi2.genomes.nucleotide import (
     Speciation,
     Transfer,
     Translocation,
+    Transposition,
     _do_duplication,
     _do_loss,
     _do_translocation,
@@ -796,3 +797,89 @@ def test_transfer_validation():
         simulate_genomes_nucleotide(sp, transfer=0.1, transfer_length=0)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, transfer=0.1, transfer_to="nearest")
+
+
+# --- transposition: an intra-chromosome move (ancestry-neutral) -----------------------------------
+
+def test_transposition_is_ancestry_neutral_and_conserves_counts():
+    specs = [(80, "circular"), (30, "linear")]
+    full = sorted((s, p) for s, (length, _t) in enumerate(specs) for p in range(length))
+    for seed in range(3):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
+        r = simulate_genomes_nucleotide(sp, transposition=0.08, transposition_length=8,
+                                        inversion_probability=0.5, chromosomes=specs, seed=seed)
+        assert any(isinstance(x, Transposition) for x in r.rearrangements)
+        for node_id in r.genomes:
+            assert r.ancestry(node_id) == full                 # conserves ancestry (permutes only)
+            assert len(r.genomes[node_id].chromosomes) == 2    # ...and the chromosome count
+
+
+def test_transposition_works_within_a_single_chromosome():
+    # Unlike translocation (needs >=2 chromosomes), transposition moves an arc within one chromosome.
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=2)
+    r = simulate_genomes_nucleotide(sp, transposition=0.1, transposition_length=8, chromosomes=1,
+                                    root_length=100, seed=2)
+    assert any(isinstance(x, Transposition) for x in r.rearrangements)
+    full = sorted((0, p) for p in range(100))
+    assert all(r.ancestry(n) == full for n in r.genomes)       # single replicon, ancestry conserved
+
+
+# --- origination: a de-novo birth (a fresh source, a new gene family) -----------------------------
+
+def test_origination_adds_de_novo_sources_beyond_the_root():
+    specs = [(80, "circular"), (30, "linear")]
+    root_full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, chromosomes=specs, seed=3)
+    denovo = [e for e in r.events if isinstance(e, Origination) and e.source >= len(specs)]
+    assert denovo                                              # fresh sources really arose
+    assert all(e.source >= len(specs) for e in denovo)         # ...numbered past the seed sources
+    # the seed material is never removed by origination; some node carries new sources too
+    assert all(root_full <= set(r.ancestry(n)) for n in r.genomes)
+    assert any(any(s >= len(specs) for (s, _p) in r.ancestry(n)) for n in r.genomes)
+
+
+def test_origination_family_roots_at_its_own_branch():
+    # Each de-novo family's gene tree is rooted on the branch the origination fired on (not the tree
+    # root) — it exists only in that lineage's subtree.
+    specs = [(80, "circular"), (30, "linear")]
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=6)
+    r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, inversion=0.02,
+                                    chromosomes=specs, seed=6)
+    origin_branch = {e.source: e.lineage for e in r.events
+                     if isinstance(e, Origination) and e.source >= len(specs)}
+    assert origin_branch
+    seen = 0
+    for fam, (s, _a, _b) in enumerate(r.root_blocks):
+        if s in origin_branch:
+            assert r.gene_trees[fam].complete.species == origin_branch[s]   # rooted at the origination branch
+            seen += 1
+    assert seen                                               # some de-novo family survived to a root-block
+
+
+def test_recovery_cross_check_holds_with_origination():
+    import collections
+    specs = [(80, "circular"), (30, "linear")]
+    for seed in range(4):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
+        r = simulate_genomes_nucleotide(sp, origination=0.4, origination_length=10, loss=0.03,
+                                        duplication=0.03, inversion=0.03, transposition=0.02,
+                                        chromosomes=specs, seed=seed)
+        assert any(isinstance(e, Origination) and e.source >= len(specs) for e in r.events)
+        leaves = [n.id for n in r.complete_tree.extant()]
+        for fam, (s, a, b) in enumerate(r.root_blocks):
+            ex = r.gene_trees[fam].extant
+            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+                                            if t.kind == "extant")
+            for lid in leaves:
+                observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                               if blk.source == s and blk.start <= a and b <= blk.end)
+                assert observed == recovered.get(lid, 0)
+
+
+def test_transposition_and_origination_validation():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    for kw in (dict(transposition=-0.1), dict(transposition=0.1, transposition_length=0),
+               dict(origination=-0.1), dict(origination=0.1, origination_length=0)):
+        with pytest.raises(ValueError):
+            simulate_genomes_nucleotide(sp, **kw)

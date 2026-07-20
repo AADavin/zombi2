@@ -27,9 +27,9 @@ slowly). Built so far:
   ``fusion`` (the reticulation — two same-topology chromosomes into one), both re-minting their
   children into the chromosome network. Every event conserves total length but fission/fusion change
   the chromosome *count*, so a branch is a small Gillespie.
-- **Translocation** — an arc moved from one chromosome to a different one (optionally inverted, with
-  probability ``inversion_probability``). Both chromosomes persist, so it is a *rearrangement*, not a
-  network edge.
+- **Translocation / transposition** — an arc moved to a *different* chromosome (translocation) or
+  *within* its own (transposition), optionally inverted (probability ``inversion_probability``). Both
+  keep source coordinates, so they are *rearrangements*, not network edges.
 
 Those are all **ancestry-neutral** (the strong invariant: every node carries the whole root sequence,
 permuted). The ancestry-**changing** events are here too:
@@ -42,6 +42,8 @@ permuted). The ancestry-**changing** events are here too:
 - **Transfer** — an arc copied into a **contemporaneous recipient** lineage (per nucleotide,
   additive). A *horizontal* birth that couples two lineages — the reason the whole engine runs on a
   **global timeline** (all lineages alive at once, one clock) rather than branch-by-branch.
+- **Origination** — a fresh source of new material laid down de novo (per lineage). A birth of a
+  wholly new gene family, beyond the root sources; each roots its own gene tree at its own branch.
 
 Threaded through all of the above is the **copy lineage** (``Block.copy``): the persistent identity
 that a split preserves, a duplication / transfer mints fresh (parent → child), and a speciation
@@ -55,11 +57,10 @@ re-mints into each daughter. The genealogy ``events`` — ``origination`` / ``lo
   bifurcation), reusing the shared per-segment builder. Validated end to end: the recovered extant tips
   equal the copies actually present in every extant leaf.
 
-Deferred to later slices: homologous *replacement* transfer (only additive for now); transposition,
-origination, and chromosome origination / loss; indels; declared genes / intergenes (pseudogenization,
-replacement); GFF input and BED / FASTA output. (The recovery above builds the *extant* tree exactly;
-the *complete* tree's dead partial-overlap lineages need the finer all-node partition — a later
-refinement.)
+Deferred to later slices: homologous *replacement* transfer (only additive for now); chromosome
+origination / loss; indels; declared genes / intergenes (pseudogenization, replacement); GFF input and
+BED / FASTA output. (The recovery above builds the *extant* tree exactly; the *complete* tree's dead
+partial-overlap lineages need the finer all-node partition — a later refinement.)
 """
 
 from __future__ import annotations
@@ -285,11 +286,29 @@ class Translocation:
 
 
 @dataclass(frozen=True)
+class Transposition:
+    """A recorded nucleotide transposition: on branch ``lineage`` at ``time``, the arc
+    ``[start, start+length)`` of chromosome ``chromosome`` was excised and reinserted **elsewhere on
+    the same chromosome** (at physical position ``dest`` of the remainder), landing ``flipped``
+    (reversed) or not. Ancestry is unchanged — the blocks keep their source coordinates — so it is a
+    rearrangement, not a gene-genealogy event."""
+
+    time: float
+    lineage: int
+    chromosome: int
+    start: int
+    length: int
+    dest: int
+    flipped: bool
+
+
+@dataclass(frozen=True)
 class Origination:
-    """A recorded **birth of a seed copy lineage** — the root of a gene tree. At ``time`` on branch
-    ``lineage`` a seed replicon was laid down on chromosome ``chromosome`` as copy lineage ``copy``,
-    covering the ancestral interval ``[start, end)`` on ``source``. One per seed replicon; the
-    gene-tree recovery reads these as the roots."""
+    """A recorded **birth of a copy lineage** — the root of a gene tree. At ``time`` on branch
+    ``lineage`` new material was laid down on chromosome ``chromosome`` as copy lineage ``copy``,
+    covering the ancestral interval ``[start, end)`` on ``source``. Either a **seed** replicon (one per
+    root replicon, on the root branch) or a **de-novo** origination (a fresh source arising mid-tree);
+    the gene-tree recovery reads each as the root of its family."""
 
     time: float
     lineage: int
@@ -368,7 +387,7 @@ class NucleotideGenomesResult:
     complete_tree: Tree
     genomes: dict[int, NucleotideGenome]
     events: list[Origination | Loss | Duplication | Transfer | Speciation]
-    rearrangements: list[Inversion | Translocation]
+    rearrangements: list[Inversion | Translocation | Transposition]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
 
@@ -431,16 +450,20 @@ def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chrom
 class _Rates:
     inversion: float
     translocation: float
+    transposition: float
     loss: float
     duplication: float
     transfer: float
+    origination: float
     fission: float
     fusion: float
     inversion_length: float
     translocation_length: float
+    transposition_length: float
     loss_length: float
     duplication_length: float
     transfer_length: float
+    origination_length: float
     inversion_probability: float
 
 
@@ -506,6 +529,21 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     return sum(b.length for b in arc)                   # the recipient's length gain
 
 
+def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy) -> int:
+    """New material arises **de novo** — a fresh source (a geometric-length stretch, its own copy
+    lineage) inserted at a random spot on a uniformly-chosen chromosome. Per lineage (a family is born
+    once). The root of a new gene tree. Returns the length added."""
+    chrom = g.chromosomes[int(rng.integers(len(g.chromosomes)))]
+    length = max(1, int(rng.geometric(1.0 / origination_length)))
+    src, cp = new_source(), new_copy()
+    p = int(rng.integers(chrom.length + 1))
+    chrom._split_at(p)
+    k = chrom._index_at(p)
+    chrom.blocks[k:k] = [Block(src, 0, length, 1, cp)]
+    events.append(Origination(t, node_id, chrom.id, cp, src, 0, length))
+    return length
+
+
 def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     """Delete a geometric-length arc from a length-weighted chromosome — an ancestry-changing event (a
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
@@ -563,6 +601,32 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     k = dest._index_at(pos)
     dest.blocks[k:k] = arc
     rearrangements.append(Translocation(t, node_id, source.id, dest.id, start, ell, flipped))
+
+
+def _do_transposition(g, node_id, t, transposition_length, inversion_probability, rng,
+                      rearrangements) -> None:
+    """Excise a geometric-length arc of a length-weighted chromosome and reinsert it **elsewhere on
+    the same chromosome**, landing inverted with probability ``inversion_probability``. Ancestry-neutral
+    (blocks keep their source coordinates). No-op below two nucleotides (an arc leaves at least one, so
+    there is a landing spot)."""
+    chrom, start = g._pick_position(rng)
+    if chrom.length < 2:
+        return
+    ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / transposition_length))))
+    span = chrom._arc_range(start, ell)
+    if span is None:
+        return
+    i, j = span
+    arc = chrom.blocks[i:j]
+    chrom.blocks = chrom.blocks[:i] + chrom.blocks[j:]
+    flipped = bool(rng.random() < inversion_probability)
+    if flipped:
+        arc = [Block(b.source, b.start, b.end, -b.strand, b.copy) for b in reversed(arc)]
+    dest = int(rng.integers(chrom.length + 1))          # a spot on the remainder (may be the origin)
+    chrom._split_at(dest)
+    k = chrom._index_at(dest)
+    chrom.blocks[k:k] = arc
+    rearrangements.append(Transposition(t, node_id, chrom.id, start, ell, dest, flipped))
 
 
 def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
@@ -657,23 +721,25 @@ def _speciate(node, g, new_chrom_id, new_copy, events, chromosome_events):
 
 
 def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, translocation=0.0,
-                                translocation_length=50.0, inversion_probability=0.0, loss=0.0,
-                                loss_length=50.0, duplication=0.0, duplication_length=50.0,
-                                transfer=0.0, transfer_length=50.0, transfer_to="uniform",
-                                self_transfer=False, fission=0.0, fusion=0.0, chromosomes=1,
+                                translocation_length=50.0, transposition=0.0, transposition_length=50.0,
+                                inversion_probability=0.0, loss=0.0, loss_length=50.0, duplication=0.0,
+                                duplication_length=50.0, transfer=0.0, transfer_length=50.0,
+                                transfer_to="uniform", self_transfer=False, origination=0.0,
+                                origination_length=50.0, fission=0.0, fusion=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", seed=None) -> NucleotideGenomesResult:
-    """Evolve a nucleotide genome along a species tree by inversion, translocation, **loss**,
-    **duplication**, **transfer**, and the number-changing chromosome tier. The root is seeded with a
-    **karyotype** — ``chromosomes`` replicons, each its own source: an int ``N`` gives ``N`` equal
-    replicons of ``root_length``/``topology``, or pass a list of ``(length, topology)`` for
-    heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's karyotype at
-    speciation, with **every chromosome re-minted** (the chromosome network), and evolves by:
+    """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
+    **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
+    The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its own source: an int
+    ``N`` gives ``N`` equal replicons of ``root_length``/``topology``, or pass a list of ``(length,
+    topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's
+    karyotype at speciation, with **every chromosome re-minted** (the chromosome network), and evolves:
 
     - ``inversion`` (**per nucleotide**) reverses a geometric-length (mean ``inversion_length``) arc
       of a length-weighted chromosome.
     - ``translocation`` (**per nucleotide**) moves a geometric-length (mean ``translocation_length``)
-      arc to a different chromosome, landing inverted with probability ``inversion_probability``. Both
-      chromosomes persist — it is a rearrangement, not a network edge.
+      arc to a **different** chromosome; ``transposition`` (**per nucleotide**, mean
+      ``transposition_length``) moves one **within** its chromosome. Both land inverted with
+      probability ``inversion_probability``, keep source coordinates, and are rearrangements, not edges.
     - ``loss`` (**per nucleotide**) deletes a geometric-length (mean ``loss_length``) arc — an
       ancestry-**changing** event (a death), recorded in ``events``. Never empties a chromosome.
     - ``duplication`` (**per nucleotide**) copies a geometric-length (mean ``duplication_length``) arc
@@ -682,25 +748,31 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
       **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
       :class:`Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
       (the donor keeps its copy). This is what needs the global timeline.
+    - ``origination`` (**per lineage**) lays down a fresh source of new material (a geometric-length,
+      mean ``origination_length``, de-novo stretch) — a *birth* of a wholly new gene family.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
       (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**). Both
       re-mint their children and record a network edge.
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
-    (each per-nucleotide rate scales with the *total* current length over the alive set, each
-    per-chromosome rate with the total chromosome count), so a transfer couples two contemporaries.
-    With loss, the strong invariant weakens: every node carries a **subset** of the root sequence (each
-    ancestral position at most once, monotonically down every path). Deterministic given ``seed``.
-    (Transfer is additive for now; homologous *replacement* transfer is a later refinement.)"""
+    (each per-nucleotide rate scales with the *total* current length over the alive set, per-chromosome
+    rates with the total chromosome count, per-lineage rates with the lineage count), so a transfer
+    couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
+    of the root sequence (each ancestral position at most once, monotonically down every path);
+    origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
+    additive for now; homologous *replacement* transfer is a later refinement.)"""
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
-    for label, rate in (("inversion", inversion), ("translocation", translocation), ("loss", loss),
-                        ("duplication", duplication), ("transfer", transfer), ("fission", fission),
+    for label, rate in (("inversion", inversion), ("translocation", translocation),
+                        ("transposition", transposition), ("loss", loss), ("duplication", duplication),
+                        ("transfer", transfer), ("origination", origination), ("fission", fission),
                         ("fusion", fusion)):
         if rate < 0:
             raise ValueError(f"{label} must be >= 0, got {rate}")
     for label, mean in (("inversion_length", inversion_length),
-                        ("translocation_length", translocation_length), ("loss_length", loss_length),
-                        ("duplication_length", duplication_length), ("transfer_length", transfer_length)):
+                        ("translocation_length", translocation_length),
+                        ("transposition_length", transposition_length), ("loss_length", loss_length),
+                        ("duplication_length", duplication_length), ("transfer_length", transfer_length),
+                        ("origination_length", origination_length)):
         if mean <= 0:
             raise ValueError(f"{label} must be > 0, got {mean}")
     if not 0.0 <= inversion_probability <= 1.0:
@@ -711,14 +783,16 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), "
                          f"got {transfer_to!r}")
     specs = _replicon_specs(chromosomes, root_length, topology)
-    rates = _Rates(inversion, translocation, loss, duplication, transfer, fission, fusion,
-                   inversion_length, translocation_length, loss_length, duplication_length,
-                   transfer_length, inversion_probability)
+    rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
+                   fission, fusion, inversion_length, translocation_length, transposition_length,
+                   loss_length, duplication_length, transfer_length, origination_length,
+                   inversion_probability)
     depth = mean_root_to_tip(tree)                       # timescale for Distance weighting
 
     rng = np.random.default_rng(seed)
     chrom_counter = 0
     copy_counter = 0
+    source_counter = len(specs)                          # de-novo sources continue past the seed sources
 
     def new_chrom_id() -> int:
         nonlocal chrom_counter
@@ -731,9 +805,15 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         copy_counter += 1
         return copy_counter                             # copy ids start at 1 (0 = the unset sentinel)
 
+    def new_source() -> int:
+        nonlocal source_counter
+        src = source_counter
+        source_counter += 1
+        return src
+
     genomes: dict[int, NucleotideGenome] = {}
-    events: list[Origination | Loss | Duplication | Speciation] = []
-    rearrangements: list[Inversion | Translocation] = []
+    events: list[Origination | Loss | Duplication | Transfer | Speciation] = []
+    rearrangements: list[Inversion | Translocation | Transposition] = []
     chromosome_events: list[ChromosomeEvent] = []
     root = tree.nodes[tree.root]
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)   # (end_time, node) in time order
@@ -756,16 +836,18 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
 
     si = 0
     while si < len(schedule):
-        length, count = total_length, total_chromosomes
-        can_xfer = len(alive) >= 2 or self_transfer
+        length, count, nlin = total_length, total_chromosomes, len(alive)
+        can_xfer = nlin >= 2 or self_transfer
         r_inv = rates.inversion * length
         r_trl = rates.translocation * length
+        r_trp = rates.transposition * length
         r_los = rates.loss * length
         r_dup = rates.duplication * length
         r_tra = rates.transfer * length if can_xfer else 0.0
+        r_org = rates.origination * nlin                # per lineage
         r_fis = rates.fission * count
         r_fus = rates.fusion * count
-        total = r_inv + r_trl + r_los + r_dup + r_tra + r_fis + r_fus
+        total = r_inv + r_trl + r_trp + r_los + r_dup + r_tra + r_org + r_fis + r_fus
         next_species = schedule[si][0]
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
@@ -773,16 +855,22 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 t = t_ev
                 r = float(rng.random()) * total
                 b_trl = r_inv + r_trl
-                b_los = b_trl + r_los
+                b_trp = b_trl + r_trp
+                b_los = b_trp + r_los
                 b_dup = b_los + r_dup
                 b_tra = b_dup + r_tra
-                b_fis = b_tra + r_fis
+                b_org = b_tra + r_org
+                b_fis = b_org + r_fis
                 if r < r_inv:
                     k = _pick_lineage_by_length(rng, gen, length)
                     _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
                 elif r < b_trl:
                     k = _pick_lineage_by_length(rng, gen, length)
                     _do_translocation(gen[k], alive[k], t, rates.translocation_length,
+                                      rates.inversion_probability, rng, rearrangements)
+                elif r < b_trp:
+                    k = _pick_lineage_by_length(rng, gen, length)
+                    _do_transposition(gen[k], alive[k], t, rates.transposition_length,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_los:
                     k = _pick_lineage_by_length(rng, gen, length)
@@ -795,6 +883,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     kd = _pick_lineage_by_length(rng, gen, length)
                     total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_length,
                                                  transfer_to, self_transfer, depth, events, new_copy)
+                elif r < b_org:
+                    k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
+                    total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
+                                                    rng, events, new_source, new_copy)
                 elif r < b_fis:
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
@@ -890,9 +982,8 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
     def overlaps(x, y):
         return x < b and a < y
 
-    root = tree.nodes[tree.root]
-    root_copies = [e.copy for e in origs if e.source == s and covers(e.start, e.end)]
-    if not root_copies:
+    root_origs = [e for e in origs if e.source == s and covers(e.start, e.end)]   # 1 per source
+    if not root_origs:
         return
 
     spawns: dict[int, list[tuple[float, int, str]]] = collections.defaultdict(list)  # parent -> [(t, child, kind)]
@@ -912,12 +1003,12 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         for (cp, src, x, y) in e.lost:
             if src == s and overlaps(x, y) and (cp not in loss_of or e.time < loss_of[cp]):
                 loss_of[cp] = e.time
-    for rc in root_copies:
-        species[rc] = root.id
+    for e in root_origs:
+        species[e.copy] = e.lineage                    # a de-novo origination roots at its own branch
 
     block_copies: set[int] = set()
     order: list[int] = []
-    stack = list(root_copies)
+    stack = [e.copy for e in root_origs]
     while stack:                                            # BFS the block-copy forest (single-parent)
         c = stack.pop()
         if c in block_copies:
@@ -933,8 +1024,8 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
                 stack.append(d)
 
     seg_in = {c: new_seg() for c in order}
-    for rc in root_copies:
-        out.append(_SegEvent("origination", fam, root.id, root.birth_time, seg_in[rc], None))
+    for e in root_origs:
+        out.append(_SegEvent("origination", fam, e.lineage, e.time, seg_in[e.copy], None))
     for c in order:
         prev = seg_in[c]
         for (t, cc, kind) in sorted(spawns.get(c, ())):    # ladder: each rung a bifurcation (dup or transfer)
@@ -977,4 +1068,4 @@ def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, G
 
 __all__ = ["Block", "Chromosome", "NucleotideGenome", "NucleotideGenomesResult",
            "Origination", "Loss", "Duplication", "Transfer", "Speciation", "Inversion",
-           "Translocation", "Distance", "simulate_genomes_nucleotide"]
+           "Translocation", "Transposition", "Distance", "simulate_genomes_nucleotide"]
