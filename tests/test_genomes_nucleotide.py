@@ -22,6 +22,7 @@ from zombi2.genomes.nucleotide import (
     NucleotideGenome,
     Origination,
     Speciation,
+    Transfer,
     Translocation,
     _do_duplication,
     _do_loss,
@@ -705,3 +706,93 @@ def test_duplication_shows_up_as_a_branch_in_a_block_tree():
 
     assert any(has_kind(r.gene_trees[fam].extant, "duplication")
                for fam in r.gene_trees if r.gene_trees[fam].extant is not None)
+
+
+# --- transfer: the global-timeline coupling (a horizontal birth) ----------------------------------
+
+_XFER_SPECS = [(80, "circular"), (30, "linear")]
+_XFER_FULL = {(s, p) for s, (length, _t) in enumerate(_XFER_SPECS) for p in range(length)}
+
+
+def test_transfer_is_additive_keeps_all_ancestry_and_grows_copies():
+    # Additive transfer only adds copies (the donor keeps its own), and every lineage shares the root
+    # sources, so with no loss the ancestry set stays full while copy numbers grow.
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=10, seed=2)
+    r = simulate_genomes_nucleotide(sp, transfer=0.07, transfer_length=10, inversion=0.02,
+                                    chromosomes=_XFER_SPECS, seed=2)
+    assert any(isinstance(e, Transfer) for e in r.events)          # transfers really fired
+    for node_id in r.genomes:
+        assert set(r.ancestry(node_id)) == _XFER_FULL              # nothing lost
+    assert any(len(r.ancestry(n)) > len(_XFER_FULL) for n in r.genomes)   # extra copies exist
+
+
+def test_transfer_recipient_is_a_distinct_contemporaneous_lineage():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=4)
+    r = simulate_genomes_nucleotide(sp, transfer=0.08, transfer_length=8, chromosomes=_XFER_SPECS, seed=4)
+    xfers = [e for e in r.events if isinstance(e, Transfer)]
+    assert xfers
+    tree = r.complete_tree
+    for e in xfers:
+        assert e.recipient != e.lineage                            # no self-transfer by default
+        donor, recip = tree.nodes[e.lineage], tree.nodes[e.recipient]
+        assert donor.birth_time < e.time < donor.end_time          # fired while the donor was alive
+        assert recip.birth_time < e.time < recip.end_time          # ...and the recipient too (contemporaries)
+
+
+def test_recovery_cross_check_holds_with_transfer():
+    # The end-to-end check, now with transfer creating horizontal edges: recovered extant tips still
+    # equal the copies actually present in every extant leaf, for every root-block.
+    import collections
+    for seed in range(4):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
+        r = simulate_genomes_nucleotide(sp, transfer=0.05, transfer_length=8, duplication=0.03,
+                                        loss=0.03, inversion=0.03, translocation=0.02, fission=0.1,
+                                        fusion=0.1, chromosomes=_XFER_SPECS, seed=seed)
+        assert any(isinstance(e, Transfer) for e in r.events)
+        leaves = [n.id for n in r.complete_tree.extant()]
+        for fam, (s, a, b) in enumerate(r.root_blocks):
+            ex = r.gene_trees[fam].extant
+            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+                                            if t.kind == "extant")
+            for lid in leaves:
+                observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                               if blk.source == s and blk.start <= a and b <= blk.end)
+                assert observed == recovered.get(lid, 0)
+
+
+def test_transfer_is_a_horizontal_edge_in_a_block_tree():
+    sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, transfer=0.08, transfer_length=10, chromosomes=_XFER_SPECS, seed=3)
+
+    def has_transfer(node):
+        stack = [node]
+        while stack:
+            n = stack.pop()
+            if n.kind == "transfer":
+                return True
+            stack.extend(n.children)
+        return False
+
+    assert any(has_transfer(r.gene_trees[fam].complete) for fam in r.gene_trees)
+
+
+def test_transfer_to_distance_and_self_transfer_run():
+    from zombi2.genomes.nucleotide import Distance
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=5)
+    for kw in (dict(transfer_to="distance"), dict(transfer_to=Distance(decay=2.0)),
+               dict(self_transfer=True)):
+        r = simulate_genomes_nucleotide(sp, transfer=0.06, transfer_length=8, chromosomes=_XFER_SPECS,
+                                        seed=5, **kw)
+        assert any(isinstance(e, Transfer) for e in r.events)
+        for node_id in r.genomes:                              # additive: full ancestry preserved
+            assert set(r.ancestry(node_id)) == _XFER_FULL
+
+
+def test_transfer_validation():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, transfer=-0.1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, transfer=0.1, transfer_length=0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, transfer=0.1, transfer_to="nearest")
