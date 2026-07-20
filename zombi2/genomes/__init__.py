@@ -45,6 +45,8 @@ from .ordered import (
     Gene,
     Inversion,
     OrderedGenomesResult,
+    Translocation,
+    Transposition,
     simulate_genomes_ordered,
 )
 from .profiles import Profiles, profiles_from_genomes
@@ -328,4 +330,4 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
 __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
            "Profiles", "GeneTree", "GeneNode",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
-           "ChromosomeEvent", "Inversion"]
+           "ChromosomeEvent", "Inversion", "Transposition", "Translocation"]

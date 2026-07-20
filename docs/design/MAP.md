@@ -35,9 +35,9 @@ zombi2/
     scope.py        ✅ PerCopy · PerLineage · PerSite · Global
     modifiers.py    ✅ OnTime · OnTotalDiversity · FromParent · ByLineage   (ByFamily · Markov 🔨)
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
-    distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform   (value / length distributions)
+    distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform · Geometric   (value / length distributions)
   species/           ✅ simulate_species_tree → SpeciesResult ;  Tree · Node  (the shared dated tree)
-  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered   (ordered = chromosomes + inversions + tier ✅; eNewick · nucleotide 🔨)
+  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered   (ordered = chromosomes + segmental D/T/L/O + inversion/transposition/translocation + tier ✅; nucleotide 🔨)
   sequences/         🔨 simulate_sequences → SequencesResult
   traits/            🔨 simulate_traits → TraitsResult
   coupling/          🔨 conditioned · joint       (what the old "coevolve" becomes; SPEC §2–4)
@@ -56,7 +56,7 @@ species level produces it and the other levels read it (`from zombi2.species imp
 | `zombi2.rates` | `from zombi2.rates import scope, modifiers` → `scope.Global`, `modifiers.OnTime({...})`. Scopes: `PerCopy · PerLineage · PerSite · Global`. Modifiers: `OnTime · OnTotalDiversity · FromParent · ByLineage`. |
 | `zombi2.species` | `simulate_species_tree(birth, death=0, *, n_extant=None, total_time=None, mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None)` → `SpeciesResult(.complete_tree, .extant_tree, .fossils, .events, .seed)`. Also `Tree`, `Node`, `prune(tree, keep="extant")`. |
 | `zombi2.genomes` | `simulate_genomes_unordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, transfer_to="uniform", replacement=False, self_transfer=False, initial_families=0, seed=None)` → `GenomesResult(.complete_tree, .genomes, .events, .seed, .family_counts())`. Also `GeneCopy(id, family)`, `Distance(decay=1.0)`. |
-| `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=0, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order())`. Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion`, `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`, one home for both resolutions. |
+| `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, transposition=0, translocation=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, <event>_extension=Geometric(mean=1), inversion_probability=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=0, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order())`. Every gene-level event acts on an **extension** (a run of consecutive genes, length ~ `<event>_extension`; origination is single). Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion` · `Transposition` · `Translocation` (identity-preserving, in `.rearrangements`), `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`. |
 
 Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(s) / `.seed` /
 `.write(dir, [...])`, with the `record=[...]` memory dial (see [`result-api.md`](result-api.md)).
@@ -66,12 +66,12 @@ Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(
 Level by level, each with its chapter written alongside:
 
 1. **Species** ✅ — the forward birth–death engine. Chapter 4 written.
-2. **Genomes** — unordered D/T/L/O ✅ (Ch5 drafted); **ordered** ✅ slices 1–2 — chromosomes as
-   identity-bearing containers, position-aware D/T/L/O, inversions, and the number-changing tier
-   (fission/fusion/origination/loss) forming a reticulating chromosome network, recorded as the
-   `chromosome_events` edge-list ground truth (`chromosome-network.md`); its **eNewick** serialisation,
-   the gene-movement rearrangements (transposition, translocation), and **nucleotide** (genes, indels) 🔨
-   to come (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide).
+2. **Genomes** — unordered D/T/L/O ✅ (Ch5 drafted); **ordered** ✅ slices 1–3 — chromosomes as
+   identity-bearing containers; **segmental** D/T/L/O + inversion/transposition/translocation (every
+   gene-level event acts on an *extension* of consecutive genes, the ZOMBI1 model); and the
+   number-changing tier (fission/fusion/origination/loss) forming a reticulating chromosome network,
+   recorded as the `chromosome_events` edge-list ground truth (`chromosome-network.md`). Only
+   **nucleotide** (genes, indels) 🔨 remains (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide).
 3. **Sequences** 🔨 — substitution + clocks on the gene trees.
 4. **Traits** 🔨 — the overlay models on the species tree.
 5. **Coupling** 🔨 — conditioned and joint (SPEC §2–4).

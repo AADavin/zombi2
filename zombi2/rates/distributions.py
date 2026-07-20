@@ -14,7 +14,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 __all__ = [
-    "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform",
+    "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "Geometric",
     "as_distribution",
 ]
 
@@ -86,6 +86,19 @@ class Uniform(Distribution):
 
     def sample(self, rng) -> float:
         return float(rng.uniform(self.low, self.high))
+
+
+class Geometric(Distribution):
+    """Geometric on ``{1, 2, 3, …}`` with the given ``mean`` (≥ 1) — a positive integer count, e.g. a
+    segment/extension length in genes. ``Geometric(mean=1)`` is degenerate at 1 (single-gene events)."""
+
+    def __init__(self, mean: float):
+        if mean < 1:
+            raise ValueError(f"Geometric mean must be >= 1, got {mean}")
+        self.mean = float(mean)
+
+    def sample(self, rng) -> float:
+        return float(rng.geometric(1.0 / self.mean))
 
 
 class _ScipyDist(Distribution):
