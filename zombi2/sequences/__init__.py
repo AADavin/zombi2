@@ -17,9 +17,11 @@ the per-family ``ByFamily`` speed, across-site ``+Γ``, protein/codon models, re
 
 The result is a :class:`SequencesResult` bundle mirroring the other levels (``result-api.md``):
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
-sequence at every **internal** node), and ``.seed``. Genuine substitution ``.events`` are the deferred
-opt-in ``record=`` slice, not the default spine (a substitution log is not compact the way the
-speciation / D-T-L-O logs are).
+sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
+substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
+tree scaled the same way — the molecular clock made visible), and ``.seed``. Genuine substitution
+``.events`` are the deferred opt-in ``record=`` slice, not the default spine (a substitution log is not
+compact the way the speciation / D-T-L-O logs are).
 """
 
 from __future__ import annotations
@@ -30,37 +32,51 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..genomes import GenomesResult
+from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.modifiers import ByLineage
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
+from ..species import Node, Tree, prune
 from .evolution import evolve_gene_tree
 from .substitution_models import SubstitutionModel, decode
 
-_WRITE_OUTPUTS = ("alignments", "ancestral")  # the write vocabulary
+_WRITE_OUTPUTS = ("alignments", "ancestral", "phylograms", "species_phylogram")  # the write vocabulary
 
 
 @dataclass
 class SequencesResult:
     """What :func:`simulate_sequences` returns.
 
-    - ``alignments`` — ``{family: {tip_label: sequence}}``: the observable gene alignment, one entry
-      per **extant** gene-tree tip (label ``g<copy>_n<species>``, matching the gene tree's Newick
-      leaves). Empty for a family with no surviving copy.
-    - ``ancestral`` — ``{family: {node_label: sequence}}``: the reconstructed sequence at every
-      **internal** gene-tree node (label ``<kind>_n<species>_i<preorder-index>``, unique within the
-      family), including the founding ``origination`` node's root sequence.
+    - ``alignments`` — ``{family: {g<copy>: sequence}}``: the observable gene alignment, one entry per
+      **extant** gene-tree tip, keyed by its (unique, per-segment) gene id — the same labels as the
+      gene tree's / phylogram's Newick leaves. Empty for a family with no surviving copy.
+    - ``ancestral`` — ``{family: {g<copy>: sequence}}``: the reconstructed sequence at every
+      **internal** gene-tree node, keyed by its gene id (which includes the family's root gene).
+    - ``phylograms`` — ``{family: {"complete": newick, "extant": newick | None}}``: each gene tree with
+      branch lengths in **substitutions/site** (``base × lineage-clock × Δt``) — the ground-truth tree
+      behind each alignment. **Every** node is labelled by its gene id ``g<copy>``, so the tips match
+      the ``alignments`` keys and the internal nodes match the ``ancestral`` keys (the phylogram pairs
+      one-to-one with the sequences). ``"extant"`` is ``None`` for a family with no survivor.
+    - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``, or ``None`` when the
+      run was given bare gene trees rather than a ``GenomesResult``: the **species tree** with branch
+      lengths in substitutions/site — the molecular clock made visible (which lineages ran hot / cold).
     - ``seed`` — the run's seed.
     """
 
     alignments: dict[int, dict[str, str]]
     ancestral: dict[int, dict[str, str]]
+    phylograms: dict[int, dict[str, str | None]]
+    species_phylogram: dict[str, str | None] | None
     seed: int | None
 
-    def write(self, directory, outputs=("alignments",)) -> None:
-        """Write chosen ``outputs`` to ``directory`` (created if needed), one FASTA per family:
+    def write(self, directory, outputs=("alignments", "phylograms")) -> None:
+        """Write chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"alignments"`` → ``sequences_alignment_fam<family>.fasta`` (skipped for empty families).
         - ``"ancestral"`` → ``sequences_ancestral_fam<family>.fasta``.
+        - ``"phylograms"`` → ``sequences_phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
+        - ``"species_phylogram"`` → ``sequences_species_phylogram_{complete,extant}.nwk`` (subs/site;
+          nothing written when the run was given bare gene trees).
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -75,6 +91,16 @@ class SequencesResult:
             for fam, anc in self.ancestral.items():
                 if anc:
                     (d / f"sequences_ancestral_fam{fam}.fasta").write_text(_fasta(anc))
+        if "phylograms" in outputs:
+            for fam, ph in self.phylograms.items():
+                (d / f"sequences_phylogram_fam{fam}_complete.nwk").write_text(ph["complete"] + "\n")
+                if ph["extant"] is not None:
+                    (d / f"sequences_phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
+        if "species_phylogram" in outputs and self.species_phylogram is not None:
+            sp = self.species_phylogram
+            (d / "sequences_species_phylogram_complete.nwk").write_text(sp["complete"] + "\n")
+            if sp["extant"] is not None:
+                (d / "sequences_species_phylogram_extant.nwk").write_text(sp["extant"] + "\n")
 
 
 def _fasta(records: dict[str, str], width: int = 70) -> str:
@@ -88,26 +114,22 @@ def _fasta(records: dict[str, str], width: int = 70) -> str:
 
 def _split(gene_tree, states_by_id: dict[int, np.ndarray],
            model: SubstitutionModel) -> tuple[dict[str, str], dict[str, str]]:
-    """Label one family's evolved nodes and split them into the extant-tip alignment and the
-    internal-node ancestral set. Pre-order over the complete tree; the per-node index makes the
-    internal labels unique. Extant-tip labels ``g<copy>_n<species>`` are unique by construction
-    (a copy id sits in one lineage at the present); a duplicate would be a bug, so it is asserted."""
+    """Label one family's evolved nodes by their **gene id** and split them into the extant-tip
+    alignment and the internal-node ancestral set. Gene ids are per-segment (each node has a unique
+    ``copy``), so ``g<copy>`` uniquely names every node and — for the tips — matches the gene tree's
+    and phylogram's Newick leaves, pairing the alignment with its tree."""
     alignment: dict[str, str] = {}
     ancestral: dict[str, str] = {}
-    idx = 0
     stack = [gene_tree.complete]
     while stack:
         node = stack.pop()
+        seq = decode(states_by_id[id(node)], model.alphabet)
         if node.is_leaf:
             if node.kind == "extant":
-                label = f"g{node.copy}_n{node.species}"
-                if label in alignment:
-                    raise AssertionError(f"duplicate extant tip label {label!r} in family {gene_tree.family}")
-                alignment[label] = decode(states_by_id[id(node)], model.alphabet)
+                alignment[f"g{node.copy}"] = seq
         else:
-            ancestral[f"{node.kind}_n{node.species}_i{idx}"] = decode(states_by_id[id(node)], model.alphabet)
-        idx += 1
-        stack.extend(reversed(node.children))
+            ancestral[f"g{node.copy}"] = seq
+        stack.extend(node.children)
     return alignment, ancestral
 
 
@@ -123,6 +145,78 @@ def _all_species(gene_trees) -> list[int]:
             ids.add(n.species)
             stack.extend(n.children)
     return sorted(ids)
+
+
+def _clock_factor(clock, species: int) -> float:
+    """The lineage clock on a species branch — 1.0 under the strict clock (``clock is None``) or for a
+    branch no gene passed through (so none was drawn for it)."""
+    return 1.0 if clock is None else clock.get(species, 1.0)
+
+
+def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
+    """A copy of the gene tree whose node ``time`` holds the cumulative **substitutions/site** from the
+    root (``base × clock[species] × Δt`` summed along the path). Feeding it to ``GeneTree.to_newick``
+    then emits a *phylogram* (branch lengths in subs/site); and because its prune-to-extant merges
+    branches by that same cumulative measure, a suppressed branch spanning several species branches gets
+    the **sum** of its pieces for free — the exact trick the chronogram uses with time."""
+    root = gt.complete
+    scaled_root = GeneNode(root.kind, root.species, 0.0, root.copy)
+    stack = [(root, scaled_root)]
+    while stack:
+        onode, snode = stack.pop()
+        for ochild in onode.children:
+            blen = rate_base * _clock_factor(clock, ochild.species) * (ochild.time - onode.time)
+            schild = GeneNode(ochild.kind, ochild.species, snode.time + blen, ochild.copy)
+            snode.children.append(schild)
+            stack.append((ochild, schild))
+    return GeneTree(gt.family, scaled_root)
+
+
+def _gene_newick(root: GeneNode) -> str:
+    """Newick of a (scaled) gene tree labelling **every** node — leaf and internal — by its gene id
+    ``g<copy>``, so the tips match the ``alignments`` keys and the internal nodes match the
+    ``ancestral`` keys (both keyed ``g<copy>``): the phylogram pairs one-to-one with the sequences.
+    Branch lengths are node-``time`` differences (substitutions/site on a scaled tree). Iterative —
+    gene trees run past CPython's recursion guard, so recursion would crash on deep trees."""
+    stack: list[list] = [[root, None, 0, []]]      # [node, parent_time, next_child, child_strings]
+    result = ""
+    while stack:
+        frame = stack[-1]
+        node, parent_time, ci, parts = frame
+        if ci < len(node.children):
+            frame[2] = ci + 1
+            stack.append([node.children[ci], node.time, 0, []])
+            continue
+        bl = "" if parent_time is None else f":{node.time - parent_time:.6g}"
+        s = f"g{node.copy}{bl}" if node.is_leaf else f"({','.join(parts)})g{node.copy}{bl}"
+        stack.pop()
+        if stack:
+            stack[-1][3].append(s)
+        else:
+            result = s
+    return result + ";"
+
+
+def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
+    """A copy of the species tree whose branch lengths are **substitutions/site** (``base ×
+    clock[branch] × Δt``). Node times become the cumulative subs/site from the root, so
+    ``Tree.to_newick`` / ``prune`` emit and merge the phylogram exactly as they do a dated tree."""
+    scaled: dict[int, Node] = {}
+    scaled_end: dict[int, float] = {}
+    order: list[int] = []
+    stack = [tree.root]
+    while stack:  # pre-order: a parent is visited before its children
+        i = stack.pop()
+        order.append(i)
+        if tree.nodes[i].children is not None:
+            stack.extend(tree.nodes[i].children)
+    for i in order:
+        nd = tree.nodes[i]
+        blen = rate_base * _clock_factor(clock, i) * (nd.end_time - nd.birth_time)
+        start = 0.0 if nd.parent is None else scaled_end[nd.parent]
+        scaled_end[i] = start + blen
+        scaled[i] = Node(i, nd.parent, start, start + blen, nd.children, nd.fate)
+    return Tree(scaled, tree.root)
 
 
 def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
@@ -145,8 +239,14 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
     rescales each gene-tree branch by the clock of the species branch it sits on. Any other modifier
     (the ``FromParent`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
     non-``PerSite`` scope is a later slice and raises.
+
+    The result carries the **phylograms** the sequences were drawn along — each gene tree, and (when a
+    ``GenomesResult`` is passed) the species tree, with branch lengths converted from time to
+    substitutions/site by the same ``base × clock × Δt``.
     """
+    species_tree = None
     if isinstance(gene_trees, GenomesResult):
+        species_tree = gene_trees.complete_tree
         gene_trees = gene_trees.gene_trees
     if not isinstance(model, SubstitutionModel):
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
@@ -180,11 +280,24 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
         clock = {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
+    phylograms: dict[int, dict[str, str | None]] = {}
     for family in sorted(gene_trees):  # sorted for reproducibility given the seed
         gt = gene_trees[family]
         states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng)
         alignments[family], ancestral[family] = _split(gt, states, model)
-    return SequencesResult(alignments, ancestral, seed)
+        scaled = _scaled_gene_tree(gt, rate_base, clock)  # branch lengths in subs/site
+        ext = scaled.extant
+        phylograms[family] = {"complete": _gene_newick(scaled.complete),
+                              "extant": _gene_newick(ext) if ext is not None else None}
+
+    species_phylogram = None
+    if species_tree is not None:
+        sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)
+        sp_extant = prune(sp_scaled, keep="extant")
+        species_phylogram = {"complete": sp_scaled.to_newick(),
+                             "extant": sp_extant.to_newick() if sp_extant is not None else None}
+
+    return SequencesResult(alignments, ancestral, phylograms, species_phylogram, seed)
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,
