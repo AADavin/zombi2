@@ -131,8 +131,7 @@ def test_total_time_mode():
 # --- validation -----------------------------------------------------------------------------------
 
 def test_trait_must_be_a_process_spec():
-    tree_res = traits  # anything that isn't a DiscreteTrait
-    with pytest.raises(TypeError, match="traits.discrete"):
+    with pytest.raises(TypeError, match="traits.discrete"):        # a dict is not a DiscreteTrait spec
         joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"a": 1.0}),
                        trait={"states": ["a", "b"]}, n_extant=10, seed=1)
 
