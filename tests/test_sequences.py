@@ -242,7 +242,7 @@ def test_bylineage_rejects_other_and_multiple_modifiers():
 # --- phylograms: the gene / species trees in substitutions/site -------------------------------------
 
 def _leaves(nwk: str) -> set[str]:
-    return set(re.findall(r"g\d+", nwk))
+    return set(re.findall(r"(?<![)\w])g\d+", nwk))     # g<copy> in leaf position (not after a ')')
 
 
 def _total_bl(nwk: str) -> float:
@@ -264,13 +264,26 @@ def test_result_carries_phylograms_and_species_phylogram():
     assert set(r.species_phylogram) == {"complete", "extant"}
 
 
-def test_strict_clock_phylogram_equals_the_chronogram():
-    # base 1, strict clock -> subs/site == time, so the phylogram is the chronogram byte-for-byte
+def test_strict_clock_phylogram_matches_the_chronogram_lengths():
+    # base 1, strict clock -> subs/site == time, so the phylogram's branch lengths equal the
+    # chronogram's (same topology; the phylogram labels every node by gene id, so internal labels
+    # differ). The species phylogram keeps the species labels, so there it is byte-identical.
+    def bls(nwk):
+        return sorted(re.findall(r":([0-9.eE+-]+)", nwk))
     g, r = _small_run(clock=1.0)
     for fam, gt in g.gene_trees.items():
-        assert r.phylograms[fam]["complete"] == gt.to_newick("complete")
-        assert r.phylograms[fam]["extant"] == gt.to_newick("extant")
+        assert bls(r.phylograms[fam]["complete"]) == bls(gt.to_newick("complete"))
+        if r.phylograms[fam]["extant"] is not None:
+            assert bls(r.phylograms[fam]["extant"]) == bls(gt.to_newick("extant"))
     assert r.species_phylogram["complete"] == g.complete_tree.to_newick()
+
+
+def test_phylogram_internal_nodes_pair_with_ancestral():
+    # every internal node in the complete phylogram is labelled by its gene id, matching an ancestral key
+    g, r = _small_run()
+    for fam in g.gene_trees:
+        internal = set(re.findall(r"\)(g\d+)", r.phylograms[fam]["complete"]))
+        assert internal == set(r.ancestral[fam])
 
 
 def test_phylogram_extant_leaves_match_the_alignment():
