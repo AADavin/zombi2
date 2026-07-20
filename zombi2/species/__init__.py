@@ -18,6 +18,7 @@ from __future__ import annotations
 import functools
 import math
 import pathlib
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -190,6 +191,227 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
             new[p].children = (i,) if existing is None else existing + (i,)
 
     return Tree(new, ext_root)
+
+
+_ZOMBI_LABEL = re.compile(r"^n(\d+)$")  # the id-bearing label to_newick writes on every node
+
+
+def _assign_external_fates(leaves: list[Node], names: dict[int, str],
+                           tip_fates: dict[str, str] | None, gap: float) -> None:
+    """Set extant/extinct on the tips of a **non-ultrametric** external tree from a user-supplied
+    ``tip_fates`` (``{tip label: "extant" | "extinct"}``). ZOMBI will not infer a tip's fate from its
+    depth here (a shallow tip could be extinct *or* an early sample), so a missing or mismatched map
+    raises rather than guesses."""
+    if tip_fates is None:
+        raise ValueError(
+            f"input tree is not ultrametric (tip depths differ by {gap:.3g}); ZOMBI can't tell "
+            "extinct lineages from early samples — declare each tip's fate with --tip-fates FILE "
+            "(a 'tip_name<TAB>extant|extinct' row per tip)")
+    labels = [names.get(n.id) for n in leaves]  # every tip must be uniquely named to map a fate
+    if any(lbl is None for lbl in labels):
+        raise ValueError("every tip must be named to declare its fate with --tip-fates, but the "
+                         "tree has unlabelled tips")
+    if len(set(labels)) != len(labels):
+        dups = sorted({lbl for lbl in labels if labels.count(lbl) > 1})
+        raise ValueError(f"tip labels must be unique to map fates; repeated: {', '.join(dups)}")
+    fates = {k: str(v).lower() for k, v in tip_fates.items()}
+    missing = sorted(set(labels) - set(fates))
+    unknown = sorted(set(fates) - set(labels))
+    if missing:
+        raise ValueError(f"--tip-fates is missing a fate for: {', '.join(missing)}")
+    if unknown:
+        raise ValueError(f"--tip-fates names tips not in the tree: {', '.join(unknown)}")
+    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct")})
+    if bad:
+        raise ValueError(f"tip fates must be 'extant' or 'extinct', got: {', '.join(bad)}")
+    for n in leaves:
+        n.fate = fates[names[n.id]]
+
+
+def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tuple[Tree, dict[int, str]]:
+    """Parse a Newick string into a complete :class:`Tree` and a name-map ``{id: user label}``.
+
+    This is how the CLI loads a species tree back for the downstream levels. Branch lengths are read
+    as **durations**: the root sits at time 0 and each node's ``birth_time`` is its parent's
+    ``end_time``, so ``end_time - birth_time`` is the parsed length. Two kinds of tree are accepted,
+    told apart by the labels:
+
+    - a **ZOMBI complete tree** (every node — internal ones too — is ``n<id>``, as ``to_newick``
+      writes it): the ids come from the labels, and a leaf is ``"extinct"`` if it ends before the
+      tree's greatest depth, else ``"extant"``. The name-map is empty (the labels *are* the ids).
+    - any **external tree** (leaves named freely, internal nodes usually unlabelled): fresh ids are
+      minted in traversal order (root 0, parents before children), the original labels are returned as
+      the **name-map** (``{minted id: user label}``), and fates depend on whether the tree is
+      **ultrametric** (all root-to-tip depths equal, within ``1e-6 × height``):
+
+      - **ultrametric** → the tips are contemporaneous, so **every tip is ``"extant"``** (observed);
+      - **not ultrametric** → the differing tip depths could mean extinct lineages *or* early
+        samples, which ZOMBI cannot tell apart, so it **refuses to guess**: pass ``tip_fates`` — a
+        ``{tip label: "extant" | "extinct"}`` map covering every tip — or a :class:`ValueError` is
+        raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``.)
+
+    Two honest limits of the crown-rooted Newick convention (SPEC §8): the root's own branch length
+    is not encoded, so the reconstructed root has zero duration (the tree starts at the crown); and
+    incomplete-``sampling`` ``"unsampled"`` fate is not recorded in the ``.nwk``, so a survivor read
+    back is ``"extant"``. Both are fine for evolving genomes/traits along the tree.
+
+    Only bifurcating trees are supported (an internal node with other than two children raises).
+    """
+    s = newick.strip().rstrip(";").strip()
+    if not s:
+        raise ValueError("empty Newick string — is the tree file empty?")
+    i = 0
+
+    def skip_ws() -> None:
+        # whitespace (incl. the newlines of a line-wrapped file) is insignificant between tokens
+        nonlocal i
+        while i < len(s) and s[i].isspace():
+            i += 1
+
+    def read_name() -> str:
+        # a quoted label ('...' / "...") is taken verbatim (a doubled quote unwrapped to one); an
+        # unquoted label runs to the next whitespace or structural char, so stray whitespace never leaks
+        nonlocal i
+        if i < len(s) and s[i] in "'\"":
+            quote = s[i]
+            i += 1
+            chars: list[str] = []
+            while i < len(s):
+                if s[i] == quote:
+                    if i + 1 < len(s) and s[i + 1] == quote:
+                        chars.append(quote)
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                chars.append(s[i])
+                i += 1
+            return "".join(chars)
+        start = i
+        while i < len(s) and s[i] not in ",():;" and not s[i].isspace():
+            i += 1
+        return s[start:i]
+
+    # parse into a lightweight tree of (name, length, children) so we can decide ids/fates in a
+    # second pass, once we know whether every node is ``n<id>``-labelled and the tree's depth
+    class _P:
+        __slots__ = ("name", "length", "children")
+
+        def __init__(self, name, length, children):
+            self.name, self.length, self.children = name, length, children
+
+    def parse() -> _P:
+        nonlocal i
+        children: list[_P] = []
+        skip_ws()
+        if i < len(s) and s[i] == "(":
+            i += 1
+            while True:
+                children.append(parse())
+                skip_ws()
+                if i >= len(s):
+                    raise ValueError("malformed Newick: unbalanced parentheses — the string ended "
+                                     "while a clade was still open (is the tree file truncated?)")
+                if s[i] == ",":
+                    i += 1
+                elif s[i] == ")":
+                    i += 1
+                    break
+                else:
+                    raise ValueError(f"malformed Newick: expected ',' or ')' after a clade at "
+                                     f"position {i}, got {s[i]!r}")
+        skip_ws()
+        name = read_name()
+        length = 0.0
+        skip_ws()
+        if i < len(s) and s[i] == ":":
+            i += 1
+            skip_ws()
+            start = i
+            while i < len(s) and s[i] not in ",():;" and not s[i].isspace():
+                i += 1
+            try:
+                length = float(s[start:i])
+            except ValueError:
+                raise ValueError(f"malformed Newick: expected a branch length after ':' at position "
+                                 f"{start}, got {s[start:i]!r}") from None
+        if children and len(children) != 2:
+            raise ValueError(f"only bifurcating trees are supported: node {name or '(unnamed)'!r} has "
+                             f"{len(children)} children (collapse polytomies / unifurcations first)")
+        return _P(name, length, children)
+
+    root_p = parse()
+    skip_ws()
+    if i < len(s):
+        raise ValueError(f"malformed Newick: unexpected trailing text at position {i}: {s[i:]!r}")
+
+    # ZOMBI complete tree ⟺ every node carries an ``n<id>`` label; then ids come from the labels,
+    # otherwise we mint them ourselves and call every tip extant.
+    all_labelled = True
+
+    def _scan(p: _P) -> None:
+        nonlocal all_labelled
+        if not _ZOMBI_LABEL.match(p.name):
+            all_labelled = False
+        for c in p.children:
+            _scan(c)
+
+    _scan(root_p)
+
+    nodes: dict[int, Node] = {}
+    names: dict[int, str] = {}  # {minted id: user label} — for external trees; empty for ZOMBI ones
+    counter = 0
+
+    def _mint(p: _P) -> int:
+        nonlocal counter
+        if all_labelled:
+            return int(_ZOMBI_LABEL.match(p.name).group(1))
+        i_ = counter
+        counter += 1
+        return i_
+
+    # first pass: assign ids (parents before children) and absolute times from durations
+    def _build(p: _P, parent: int | None, birth: float) -> int:
+        nid = _mint(p)
+        if nid in nodes:
+            raise ValueError(f"duplicate node id n{nid} in the Newick (labels must be unique)")
+        end = birth + p.length
+        child_ids = tuple(_build(c, nid, end) for c in p.children) or None
+        nodes[nid] = Node(nid, parent, birth, end, child_ids)  # fate filled in below
+        if not all_labelled and p.name:  # external tree: keep the user's label for the name-map
+            names[nid] = p.name
+        return nid
+
+    root_id = _build(root_p, None, 0.0)
+
+    # second pass: fates. Internal nodes are always speciations; the tips depend on the tree kind.
+    for n in nodes.values():
+        if n.children is not None:
+            n.fate = "speciation"
+    leaves = [n for n in nodes.values() if n.children is None]
+
+    if all_labelled:
+        # a ZOMBI complete tree: a tip is extinct if it ends before the present (the greatest
+        # end_time). The tolerance is depth-relative — ``to_newick`` prints 6 significant figures,
+        # whose rounding accumulates to ~5e-6·height along a root-to-tip path, so a tip at the
+        # present can fall a few ×1e-5·height short of the max, far below any real extinction gap.
+        present = max(n.end_time for n in nodes.values())
+        tol = max(1e-9, 1e-4 * present)
+        for n in leaves:
+            n.fate = "extinct" if n.end_time < present - tol else "extant"
+        return Tree(nodes, root_id), names
+
+    # an external tree: ultrametric ⟺ every tip is contemporaneous (all extant); otherwise the
+    # differing depths could be extinctions or early samples, which we refuse to guess (SPEC decision).
+    depths = [n.end_time for n in leaves]  # root sits at 0, so a tip's depth is its end_time
+    height = max(depths)
+    if max(depths) - min(depths) <= max(1e-12, 1e-6 * height):  # ultrametric
+        for n in leaves:
+            n.fate = "extant"
+        return Tree(nodes, root_id), names
+
+    _assign_external_fates(leaves, names, tip_fates, max(depths) - min(depths))
+    return Tree(nodes, root_id), names
 
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
