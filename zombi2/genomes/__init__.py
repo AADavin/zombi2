@@ -40,9 +40,10 @@ from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .events import Event, events_tsv
 from .gene_trees import GeneNode, GeneTree, gene_trees_from_events
+from .chromosomes import ChromosomeEvent
+from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from .ordered import (
     Chromosome,
-    ChromosomeEvent,
     Gene,
     Inversion,
     OrderedGenomesResult,
@@ -502,4 +503,5 @@ def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=0,
 __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
            "Profiles", "GeneTree", "GeneNode", "UnorderedGenome", "unordered",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
-           "ChromosomeEvent", "Inversion", "Transposition", "Translocation"]
+           "ChromosomeEvent", "Inversion", "Transposition", "Translocation",
+           "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome"]
