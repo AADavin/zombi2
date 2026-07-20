@@ -54,8 +54,9 @@ class SequencesResult:
       **internal** gene-tree node, keyed by its gene id (which includes the family's root gene).
     - ``phylograms`` — ``{family: {"complete": newick, "extant": newick | None}}``: each gene tree with
       branch lengths in **substitutions/site** (``base × lineage-clock × Δt``) — the ground-truth tree
-      behind each alignment. The extant leaves match the ``alignments`` labels; ``"extant"`` is ``None``
-      for a family with no survivor.
+      behind each alignment. **Every** node is labelled by its gene id ``g<copy>``, so the tips match
+      the ``alignments`` keys and the internal nodes match the ``ancestral`` keys (the phylogram pairs
+      one-to-one with the sequences). ``"extant"`` is ``None`` for a family with no survivor.
     - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``, or ``None`` when the
       run was given bare gene trees rather than a ``GenomesResult``: the **species tree** with branch
       lengths in substitutions/site — the molecular clock made visible (which lineages ran hot / cold).
@@ -171,6 +172,31 @@ def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
     return GeneTree(gt.family, scaled_root)
 
 
+def _gene_newick(root: GeneNode) -> str:
+    """Newick of a (scaled) gene tree labelling **every** node — leaf and internal — by its gene id
+    ``g<copy>``, so the tips match the ``alignments`` keys and the internal nodes match the
+    ``ancestral`` keys (both keyed ``g<copy>``): the phylogram pairs one-to-one with the sequences.
+    Branch lengths are node-``time`` differences (substitutions/site on a scaled tree). Iterative —
+    gene trees run past CPython's recursion guard, so recursion would crash on deep trees."""
+    stack: list[list] = [[root, None, 0, []]]      # [node, parent_time, next_child, child_strings]
+    result = ""
+    while stack:
+        frame = stack[-1]
+        node, parent_time, ci, parts = frame
+        if ci < len(node.children):
+            frame[2] = ci + 1
+            stack.append([node.children[ci], node.time, 0, []])
+            continue
+        bl = "" if parent_time is None else f":{node.time - parent_time:.6g}"
+        s = f"g{node.copy}{bl}" if node.is_leaf else f"({','.join(parts)})g{node.copy}{bl}"
+        stack.pop()
+        if stack:
+            stack[-1][3].append(s)
+        else:
+            result = s
+    return result + ";"
+
+
 def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
     """A copy of the species tree whose branch lengths are **substitutions/site** (``base ×
     clock[branch] × Δt``). Node times become the cumulative subs/site from the root, so
@@ -260,8 +286,9 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
         states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng)
         alignments[family], ancestral[family] = _split(gt, states, model)
         scaled = _scaled_gene_tree(gt, rate_base, clock)  # branch lengths in subs/site
-        phylograms[family] = {"complete": scaled.to_newick("complete"),
-                              "extant": scaled.to_newick("extant")}
+        ext = scaled.extant
+        phylograms[family] = {"complete": _gene_newick(scaled.complete),
+                              "extant": _gene_newick(ext) if ext is not None else None}
 
     species_phylogram = None
     if species_tree is not None:
