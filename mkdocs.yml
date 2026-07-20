@@ -82,3 +82,5 @@ nav:
   - Guide:
       - Species trees: guide/species-trees.md
       - "Genomes I: unordered": guide/genomes.md
+  - Reference:
+      - Output files: reference/output-files.md
