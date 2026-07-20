@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import collections
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 
 import numpy as np
@@ -157,10 +157,20 @@ class OrderedGenomesResult:
     rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
+    #: ``{name: family id}`` for families seeded by ``families=[…]`` — the handle to a *named* family.
+    family_names: dict[str, int] = field(default_factory=dict)
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count`` (across all chromosomes)."""
         return collections.Counter(g.family for chrom in self.genomes[node_id] for g in chrom.genes)
+
+    def has_family(self, node_id: int, name: str) -> bool:
+        """Whether the named family ``name`` (seeded via ``families=``) has ≥ 1 copy in the genome at
+        ``node_id`` (across all chromosomes)."""
+        if name not in self.family_names:
+            raise KeyError(f"no named family {name!r}; seeded families are {sorted(self.family_names)}")
+        fid = self.family_names[name]
+        return any(g.family == fid for chrom in self.genomes[node_id] for g in chrom.genes)
 
     def gene_order(self, node_id: int) -> list[tuple[int, int, int, int, int]]:
         """One node's layout as ``(chromosome, position, strand, family, gene id)`` rows, chromosome
@@ -482,7 +492,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extension=None, transposition_extension=None,
                              translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=0, seed=None) -> OrderedGenomesResult:
+                             initial_families=0, families=None, seed=None) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
 
@@ -500,8 +510,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     **per copy**, ``origination``/``chromosome_origination`` **per lineage**, and
     ``inversion``/``transposition``/``fission``/``fusion``/``chromosome_loss`` **per chromosome**. The
     root is seeded with ``chromosomes`` chromosomes of the given ``topology``, across which the
-    ``initial_families`` founding genes are dealt **round-robin**; ``transfer_to`` / ``replacement`` /
-    ``self_transfer`` behave as in the unordered core.
+    ``initial_families`` founding genes are dealt **round-robin**; ``families=["toxin", …]`` additionally
+    seeds **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
+    "toxin")``), as in the unordered core; ``transfer_to`` / ``replacement`` / ``self_transfer`` behave
+    as in the unordered core.
 
     The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge — the
     reticulation), ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
@@ -558,6 +570,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), got {transfer_to!r}")
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
+    families = list(families) if families is not None else []
+    for name in families:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
+    if len(set(families)) != len(families):
+        raise ValueError(f"family names must be unique, got {families}")
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -604,8 +622,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         fam = new_family()
         root_chroms[i % n_chrom_seed].genes.append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, root_chroms[i % n_chrom_seed].genes[-1].id))
+    family_names: dict[str, int] = {}  # named crown families, dealt round-robin after the anonymous ones
+    for j, name in enumerate(families):
+        fam = new_family()
+        family_names[name] = fam
+        chrom = root_chroms[(initial_families + j) % n_chrom_seed]
+        chrom.genes.append(new_gene(fam, +1))
+        events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
     enter(alive, gen, pos, root.id, root_chroms)
-    total_copies = initial_families
+    total_copies = initial_families + len(families)
     total_chromosomes = n_chrom_seed
 
     si = 0
@@ -746,7 +771,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
-    return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed)
+    return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed, family_names)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

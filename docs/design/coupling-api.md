@@ -1,8 +1,13 @@
 # Coupling API — design target (Part III)
 
-**Status: the design to build.** The target for Part III of the manual and for rewriting the `coevolve`
-machinery. Designed with Adrián on 2026-07-18. **Not built yet.** Parallels the four level design docs
-(`species-api.md`, `genome-api.md`, `sequence-api.md`, `trait-api.md`); read those and `SPEC.md` §2–§4 first.
+**Status: building.** The target for Part III of the manual and for rewriting the `coevolve`
+machinery. Designed with Adrián on 2026-07-18. **Built (2026-07-20):** the `DrivenBy` modifier
+(`zombi2/rates/modifiers.py`) + `Table`/`Curve`/`Scalar` mappings (`zombi2/rates/mapping.py`);
+**conditioned** trait→gene loss (`zombi2/rates/driver.py` + the per-lineage genome retrofit); and
+**joint** discrete-trait→speciation (BiSSE/MuSSE) via `zombi2.joint.simulate_joint` (there is no
+`coupling` package — conditioning folds into the target level, so `joint` is the only engine). Next:
+joint gene-content→speciation. Parallels the four level design docs (`species-api.md`,
+`genome-api.md`, `sequence-api.md`, `trait-api.md`); read those and `SPEC.md` §2–§4 first.
 
 ---
 
@@ -33,18 +38,27 @@ the driver can be simulated on its own and handed over:
 - **Conditioned** — the driver **can** be grown first, so `source` is a **file**. Two commands, ordered.
   ```python
   habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.1, seed=1)
-  habitat.write("habitat.tsv")
-  genomes.simulate_unordered(tree,
-      loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0}), seed=2)
+  habitat.write("out", outputs=("driver",))                      # → out/trait_driver.tsv
+  genomes.simulate_genomes_unordered(tree,
+      loss = 0.25 * mod.DrivenBy("out/trait_driver.tsv",
+                                 {"aquatic": 3.0, "terrestrial": 1.0}), seed=2)
   ```
+  (The driver is written through the standard `write(dir, outputs=(...))` spine, like every level's
+  outputs; the file it produces is `trait_driver.tsv`, a per-branch `node · start · end · state` segment
+  table — exact even when a discrete driver switches mid-branch.)
+
+  **In-memory shortcut.** In a single Python session you can skip the file and pass the grown result
+  object straight to `DrivenBy` — `DrivenBy(habitat, {…})` — which is *the same conditioning* (the
+  driver grown first, held fixed), just handed over in memory. The file round-trip is lossless, so the
+  two give an identical run; the file matters for reproducibility, the CLI, and cross-process pipelines.
 - **Joint** — the driver **cannot** be grown first, because it is entangled with what it drives, so
   `source` is a **live level name** and both are grown in one call.
   ```python
-  joint.simulate(
+  joint.simulate_joint(
       birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),  # trait drives speciation
       death = 0.2,                                                       # death can be DrivenBy too → BiSSE
       trait = traits.discrete(states=["small", "large"], switch=0.1),    # grown WITH the tree
-      n_tips = 100, seed = 1)
+      n_extant = 100, seed = 1)
   ```
 
 Same modifier, `mod.DrivenBy`; the only difference is `source` = filename (conditioned) vs level-name
@@ -72,9 +86,9 @@ grammar (`coevolve-grammar.md`):
 - **Scalar** — a single multiplier when the driver is already 0/1 or binary.
 - **Jump** — the response fires *at an event* (a burst of gene change at each split), not continuously.
 
-## What `joint.simulate` grows
+## What `joint.simulate_joint` grows
 
-`joint.simulate(...)` runs a single Gillespie over both levels' events at once: speciation uses the
+`joint.simulate_joint(...)` runs a single Gillespie over both levels' events at once: speciation uses the
 trait-dependent `birth`/`death`, and trait-change events evolve the trait on the growing tree. It produces
 **both** levels (the grown tree + the trait history). The v1 live pairs:
 
@@ -101,6 +115,12 @@ loss = 0.25                                    # independent null — drop the c
 loss = 0.25 * mod.ByLineage(spread=0.5)        # CID null — background heterogeneity, NOT the trait
 loss = 0.25 * mod.DrivenBy(shuffle("habitat.tsv"), {...})   # shuffle null — permute the pairing
 ```
+
+> **Build note (2026-07-20).** Of the three, *independent* and *shuffle* run today; the **CID null does
+> not yet** — `mod.ByLineage` is not wired on genome rates (no clean-core engine threads a per-lineage
+> `bylineage` draw yet). Wiring `ByLineage` on the genome events is a small follow-up (the per-lineage
+> machinery now exists from `DrivenBy`). `shuffle()` stays a recipe (permute the driver file's per-node
+> state assignment), not an API — a tiny `tools.shuffle` helper is the most it might warrant.
 
 Then a plain `for seed in range(100)` gives the distribution. CID is *literally* `ByLineage` (rate varies
 across the tree, not by the trait), reusing the clock-collapse modifier. **ZOMBI2 does not own the test
