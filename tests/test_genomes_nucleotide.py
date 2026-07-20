@@ -12,7 +12,14 @@ import pytest
 
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_nucleotide
-from zombi2.genomes.nucleotide import Block, Chromosome, NucleotideGenome, _split_block
+from zombi2.genomes.nucleotide import (
+    Block,
+    Chromosome,
+    NucleotideGenome,
+    Translocation,
+    _do_translocation,
+    _split_block,
+)
 
 
 def _chrom(length, topology="circular", cid=0, source=0):
@@ -243,6 +250,12 @@ def test_simulate_validation():
         simulate_genomes_nucleotide(sp, fission=-1.0)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, fusion=-1.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, translocation=-1.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, translocation_length=0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, inversion_probability=2.0)
 
 
 # --- step 2a: the chromosome tier (fission + fusion -> the reticulating network) ------------------
@@ -350,3 +363,63 @@ def test_tier_is_deterministic():
     b = simulate_genomes_nucleotide(sp, **kw)
     assert a.chromosome_events == b.chromosome_events
     assert all(a.mosaic(n) == b.mosaic(n) for n in a.genomes)
+
+
+# --- step 2b: translocation (an arc moving between chromosomes) -----------------------------------
+
+def _two_chroms():
+    return NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 20, 1)]),
+                             Chromosome(1, "circular", [Block(1, 0, 10, 1)])])
+
+
+def test_translocation_moves_an_arc_between_chromosomes_conserving_ancestry():
+    g = _two_chroms()
+    rearr = []
+    _do_translocation(g, 5, 1.0, 5.0, 0.0, np.random.default_rng(0), rearr)
+    assert len(g.chromosomes) == 2                            # count unchanged
+    assert sum(c.length for c in g.chromosomes) == 30         # total length conserved
+    anc = sorted((s, p) for c in g.chromosomes for (s, p, _st) in c.trace_back())
+    assert anc == sorted([(0, p) for p in range(20)] + [(1, p) for p in range(10)])   # ancestry-neutral
+    assert isinstance(rearr[0], Translocation) and rearr[0].source != rearr[0].dest
+
+
+def test_translocation_can_flip_with_inversion_probability():
+    g = _two_chroms()
+    rearr = []
+    _do_translocation(g, 5, 1.0, 5.0, 1.0, np.random.default_rng(0), rearr)   # always flip
+    assert rearr[0].flipped is True
+
+
+def test_translocation_is_a_noop_with_a_single_chromosome():
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 20, 1)])])
+    rearr = []
+    _do_translocation(g, 5, 1.0, 5.0, 0.0, np.random.default_rng(0), rearr)
+    assert rearr == [] and len(g.chromosomes) == 1
+
+
+def test_translocation_conserves_the_chromosome_count():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
+    r = simulate_genomes_nucleotide(sp, translocation=0.06, translocation_length=10,
+                                    chromosomes=_TIER_SPECS, seed=5)
+    assert all(len(g.chromosomes) == 3 for g in r.genomes.values())   # material moves, count does not
+    assert any(isinstance(x, Translocation) for x in r.rearrangements)
+
+
+def test_strong_invariant_survives_translocation():
+    full = sorted((s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length))
+    for seed in range(3):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
+        r = simulate_genomes_nucleotide(sp, translocation=0.08, translocation_length=8, inversion=0.02,
+                                        inversion_probability=0.5, chromosomes=_TIER_SPECS, seed=seed)
+        for node_id in r.genomes:
+            assert r.ancestry(node_id) == full
+
+
+def test_all_four_events_compose():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
+    r = simulate_genomes_nucleotide(sp, inversion=0.02, translocation=0.05, fission=0.4, fusion=0.4,
+                                    chromosomes=_TIER_SPECS, seed=5)
+    assert {"Inversion", "Translocation"} <= {type(x).__name__ for x in r.rearrangements}
+    assert {"fission", "fusion"} <= {e.kind for e in r.chromosome_events}
+    full = sorted((s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length))
+    assert all(r.ancestry(node_id) == full for node_id in r.genomes)
