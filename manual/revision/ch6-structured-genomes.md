@@ -207,6 +207,20 @@ g.chromosome_events                   # the chromosome network, as an edge list
 g.gene_trees                          # one gene tree per family, as in Chapter 5
 ```
 
+## Usage from the CLI
+
+The ordered resolution is `--resolution ordered`. It adds the segmental and chromosome flags to the Chapter 5 events, each still a plain number:
+
+```bash
+# segmental duplications, losses and inversions on three chromosomes
+zombi2 genomes -t out/species_complete.nwk --resolution ordered --duplication 0.2 --loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 1 -o out/
+
+# blocks relocate and move between chromosomes (sometimes inverting), and chromosomes split and merge
+zombi2 genomes -t out/species_complete.nwk --resolution ordered --origination 0.5 --transposition 0.2 --translocation 0.1 --inversion-probability 0.5 --fission 0.05 --fusion 0.05 --chromosomes 2 --seed 1 -o out/
+```
+
+The segment-length distributions (how long a duplicated or inverted run is) are structured objects, so like the rate modifiers they stay in Python; the CLI takes the rates as numbers. The same tree-reading rules apply as in Chapter 5, and `--write` selects among the richer ordered outputs below.
+
 ## Outputs
 
 `.write(dir, outputs=[...])` materialises the chosen products to disk:

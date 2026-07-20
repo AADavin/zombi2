@@ -1,0 +1,84 @@
+"""``zombi2`` command-line entry point — assembles the subcommand parser and dispatches.
+
+Each subcommand lives in its own module and mirrors one level's ``simulate_*`` function; this
+module wires them into one argparse parser via the shared framework and routes ``args.command`` to
+the module's ``run``. Adding a command is: write a module with an ``_add_*_args`` argument builder
+and a ``run(args, parser)`` handler, then add one ``_add_subcommand(...)`` call and one ``_RUN``
+entry here.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+
+from zombi2 import __version__
+from zombi2.cli import genomes, species
+from zombi2.cli.framework import (
+    _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
+)
+
+#: command name -> handler; the single source of dispatch
+_RUN = {"species": species.run, "genomes": genomes.run}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,
+        formatter_class=ZombiHelpFormatter,
+        epilog=_examples(
+            "  # 1. a dated species tree (20 extant tips)",
+            "  zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/",
+            "",
+            "  # 2. gene families along it",
+            "  zombi2 genomes -t out/species_complete.nwk --duplication 0.2 --transfer 0.1 "
+            "--loss 0.25 --origination 0.5 --seed 42 -o out/",
+            "",
+            "Run 'zombi2 <command> -h' for a command's options and its own examples.",
+        ),
+    )
+    parser.add_argument("--version", action="version", version=f"ZOMBI2 {__version__}")
+    sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
+
+    _add_subcommand(
+        sub, "species", "simulate a dated species tree",
+        "Simulate a dated species tree by a per-lineage birth–death process (time runs forward "
+        "from the crown).",
+        "zombi2 species -o DIR --birth RATE (--n-extant N | --total-time T) [options]",
+        species._add_species_args,
+        epilog=_examples(
+            "  # 20 extant tips, birth–death",
+            "  zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/",
+            "",
+            "  # grow for a fixed time, with a mass-extinction pulse at t=3",
+            "  zombi2 species --birth 1 --death 0.4 --total-time 5 --mass-extinction 3 0.75 "
+            "--seed 1 -o out/",
+        ))
+
+    _add_subcommand(
+        sub, "genomes", "evolve gene families along a species tree",
+        "Evolve gene families along a species tree, at the unordered (gene-family counts) or "
+        "ordered (genes positioned on chromosomes) resolution.",
+        "zombi2 genomes -t FILE -o DIR [--resolution RESOLUTION] [options]",
+        genomes._add_genomes_args,
+        epilog=_examples(
+            "  # unordered D/T/L/O gene families, with the event log and profiles",
+            "  zombi2 genomes -t out/species_complete.nwk --duplication 0.2 --transfer 0.1 "
+            "--loss 0.25 --origination 0.5 --seed 42 -o out/",
+            "",
+            "  # ordered genomes with inversions on 3 chromosomes",
+            "  zombi2 genomes -t out/species_complete.nwk --resolution ordered --duplication 0.2 "
+            "--loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 42 -o out/",
+        ))
+
+    _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
+    args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
+    try:
+        return _RUN[args.command](args, parser)
+    except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
+        # Report expected failures as a clean one-line error, never a traceback.
+        print(f"zombi2: error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
