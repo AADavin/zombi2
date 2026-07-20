@@ -1,0 +1,251 @@
+"""Tests for the ``zombi2`` command line (species + genomes) and the ``read_newick`` reader it
+loads trees with. The CLI is a thin shell over the level ``simulate_*`` functions, so these tests
+exercise argument wiring, output files, ``--params``, and the clean error paths — not the engines
+(which their own suites cover)."""
+
+import pytest
+
+from zombi2.cli.main import main
+from zombi2.genomes import simulate_genomes_unordered
+from zombi2.species import read_newick, simulate_species_tree
+
+
+# ── read_newick ─────────────────────────────────────────────────────────────────────
+
+def test_read_newick_round_trips_a_complete_tree():
+    # a run with survivors round-trips: ids, node count, and the extant/extinct split are preserved
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, seed=3)
+    t = r.complete_tree
+    back, names = read_newick(t.to_newick())
+    assert names == {}                                           # a ZOMBI tree: labels ARE the ids
+    assert set(back.nodes) == set(t.nodes)
+    assert back.root == t.root
+    assert len(back.extant()) == len(t.extant())
+    assert len(back.extinct()) == len(t.extinct())
+    # every non-root branch length (duration) survives to Newick's 6 significant figures
+    for i, n in t.nodes.items():
+        if i == t.root:
+            continue
+        assert back.nodes[i].end_time - back.nodes[i].birth_time == pytest.approx(
+            n.end_time - n.birth_time, rel=1e-5, abs=1e-9)
+    # the crown-rooted convention drops the root's own branch length (SPEC §8): it reads back as a
+    # zero-duration crown, so the tree starts at the first split
+    assert back.nodes[back.root].end_time - back.nodes[back.root].birth_time == 0.0
+
+
+def test_read_newick_ultrametric_external_tree_is_all_extant_with_a_name_map():
+    # ultrametric (every tip at depth 2) → every tip extant, and the user's labels come back mapped
+    t, names = read_newick("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);")
+    assert len(t.extant()) == 4 and not t.extinct()
+    assert all(n.fate == "speciation" for n in t.nodes.values() if n.children is not None)
+    assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
+    assert t.nodes[t.root].birth_time == 0.0
+
+
+def test_read_newick_nonultrametric_external_tree_refuses_to_guess():
+    with pytest.raises(ValueError, match="not ultrametric"):
+        read_newick("((a:1,b:1):1,c:1.5);")                      # c ends early: extinct or sampled?
+
+
+def test_read_newick_nonultrametric_tree_uses_supplied_fates():
+    t, names = read_newick("((a:1,b:1):1,c:1.5);", tip_fates={"a": "extant", "b": "extant",
+                                                              "c": "extinct"})
+    fate = {names[n.id]: n.fate for n in t.nodes.values() if n.children is None}
+    assert fate == {"a": "extant", "b": "extant", "c": "extinct"}
+
+
+@pytest.mark.parametrize("fates, msg", [
+    ({"a": "extant", "b": "extant"}, "missing a fate"),          # c not covered
+    ({"a": "extant", "b": "extant", "c": "extant", "z": "extinct"}, "not in the tree"),
+    ({"a": "extant", "b": "extant", "c": "dead"}, "extant.*extinct"),
+])
+def test_read_newick_tip_fates_are_validated(fates, msg):
+    with pytest.raises(ValueError, match=msg):
+        read_newick("((a:1,b:1):1,c:1.5);", tip_fates=fates)
+
+
+def test_read_newick_output_feeds_the_genomes_engine():
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=5)
+    back, _ = read_newick(r.complete_tree.to_newick())
+    g = simulate_genomes_unordered(back, duplication=0.2, loss=0.2, origination=0.5, seed=9)
+    assert g.profiles.shape[1] == len(back.extant())            # one column per extant tip
+
+
+@pytest.mark.parametrize("bad, msg", [
+    ("", "empty"),
+    ("((a,b)", "unbalanced"),
+    ("(a,b,c);", "bifurcating"),
+    ("(a:x,b:1);", "branch length"),
+])
+def test_read_newick_rejects_malformed(bad, msg):
+    with pytest.raises(ValueError, match=msg):
+        read_newick(bad)
+
+
+# ── zombi2 species ──────────────────────────────────────────────────────────────────
+
+def test_species_run_writes_the_expected_files(tmp_path, capsys):
+    rc = main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "20",
+               "--seed", "1", "-o", str(tmp_path)])
+    assert rc == 0
+    written = {p.name for p in tmp_path.iterdir()}
+    assert {"species_complete.nwk", "species_extant.nwk", "species_events.tsv",
+            "species.log"} <= written
+    assert "extant" in capsys.readouterr().out
+    # the reproducibility log records the resolved parameters
+    log = (tmp_path / "species.log").read_text()
+    assert "birth\t1.0" in log and "n_extant\t20" in log
+
+
+def test_species_write_is_selective(tmp_path):
+    main(["species", "--birth", "1", "--total-time", "3", "--seed", "1",
+          "--write", "complete", "-o", str(tmp_path)])
+    nwk = {p.name for p in tmp_path.iterdir() if p.suffix == ".nwk"}
+    assert nwk == {"species_complete.nwk"}                       # no extant/events file
+
+
+def test_species_is_deterministic_given_the_seed(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    for out in (a, b):
+        main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "30",
+              "--seed", "13", "-o", str(out)])
+    assert (a / "species_complete.nwk").read_text() == (b / "species_complete.nwk").read_text()
+
+
+@pytest.mark.parametrize("argv", [
+    ["species", "--n-extant", "5"],                              # no --birth
+    ["species", "--birth", "1"],                                 # no stop condition
+    ["species", "--birth", "1", "--n-extant", "5", "--total-time", "4"],  # both stops
+])
+def test_species_argument_errors_exit_2(argv, tmp_path):
+    with pytest.raises(SystemExit) as e:
+        main(argv + ["-o", str(tmp_path)])
+    assert e.value.code == 2
+
+
+def test_species_engine_error_is_reported_cleanly(tmp_path, capsys):
+    # mass extinctions need a fixed end (--total-time); with --n-extant the engine raises, and the
+    # CLI must report it as a one-line error (rc 1), never a traceback
+    rc = main(["species", "--birth", "1", "--n-extant", "10", "--mass-extinction", "3", "0.5",
+               "-o", str(tmp_path)])
+    assert rc == 1
+    assert "zombi2: error:" in capsys.readouterr().err
+
+
+# ── zombi2 genomes ──────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def tree_file(tmp_path):
+    """A species tree written to disk, for the genomes command to read."""
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "25", "--seed", "1",
+          "-o", str(tmp_path)])
+    return tmp_path / "species_complete.nwk"
+
+
+def test_genomes_unordered_writes_events_and_profiles(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--duplication", "0.2", "--transfer", "0.1",
+               "--loss", "0.25", "--origination", "0.5", "--seed", "42", "-o", str(out)])
+    assert rc == 0
+    assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "profiles.tsv", "genomes.log"}
+
+
+def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--resolution", "ordered", "--duplication", "0.2",
+               "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3",
+               "--seed", "42", "-o", str(out), "--write", "gene_order", "rearrangements"])
+    assert rc == 0
+    assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "rearrangements.tsv", "genomes.log"}
+
+
+def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", "-t", str(tree_file), "--inversion", "0.3", "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+
+
+def test_genomes_rejects_write_output_foreign_to_resolution(tmp_path, tree_file):
+    with pytest.raises(SystemExit) as e:                         # gene_order is ordered-only
+        main(["genomes", "-t", str(tree_file), "--write", "gene_order", "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+
+
+def test_genomes_missing_tree_is_reported_cleanly(tmp_path, capsys):
+    rc = main(["genomes", "-t", str(tmp_path / "nope.nwk"), "--duplication", "0.1",
+               "-o", str(tmp_path / "g")])
+    assert rc == 1
+    assert "tree file not found" in capsys.readouterr().err
+
+
+def test_genomes_on_ultrametric_external_tree_writes_a_name_map(tmp_path):
+    (tmp_path / "ext.nwk").write_text("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);\n")
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tmp_path / "ext.nwk"), "--duplication", "0.3",
+               "--origination", "1.0", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    # all four tips are observed, so the profile matrix has four columns
+    assert len((out / "profiles.tsv").read_text().splitlines()[0].split("\t")) == 1 + 4
+    # names.tsv maps ZOMBI's n<id> back to the user's labels
+    mapped = dict(row.split("\t") for row in (out / "names.tsv").read_text().splitlines()[1:])
+    assert sorted(mapped.values()) == ["chimp", "human", "mouse", "rat"]
+
+
+def test_genomes_on_nonultrametric_tree_needs_tip_fates(tmp_path, capsys):
+    (tmp_path / "ext.nwk").write_text("((a:1,b:1):1,c:1.5);\n")     # c ends early
+    rc = main(["genomes", "-t", str(tmp_path / "ext.nwk"), "--duplication", "0.3",
+               "--seed", "1", "-o", str(tmp_path / "g")])
+    assert rc == 1
+    assert "not ultrametric" in capsys.readouterr().err
+
+
+def test_genomes_nonultrametric_tree_runs_with_tip_fates_file(tmp_path):
+    (tmp_path / "ext.nwk").write_text("((a:1,b:1):1,c:1.5);\n")
+    (tmp_path / "fates.tsv").write_text("a\textant\nb\textant\nc\textinct\n")
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tmp_path / "ext.nwk"), "--tip-fates", str(tmp_path / "fates.tsv"),
+               "--duplication", "0.3", "--origination", "1.0", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    # c is extinct, so only a and b are observed → two profile columns
+    assert len((out / "profiles.tsv").read_text().splitlines()[0].split("\t")) == 1 + 2
+
+
+# ── --params ────────────────────────────────────────────────────────────────────────
+
+def test_params_file_supplies_defaults_and_cli_overrides(tmp_path):
+    (tmp_path / "p.toml").write_text("birth = 2.0\ndeath = 0.3\nn-extant = 12\n")
+    out = tmp_path / "o"
+    # birth comes from the file; the command line still overrides it
+    main(["species", "--params", str(tmp_path / "p.toml"), "--birth", "1.0", "--seed", "1",
+          "-o", str(out)])
+    log = (out / "species.log").read_text()
+    assert "birth\t1.0" in log and "n_extant\t12" in log
+
+
+def test_params_file_scopes_by_command_table(tmp_path):
+    (tmp_path / "pipeline.toml").write_text(
+        "[species]\nbirth = 1.0\nn-extant = 15\n\n[genomes]\nduplication = 0.2\nwrite = "
+        '["profiles"]\n')
+    sp, gn = tmp_path / "sp", tmp_path / "gn"
+    main(["species", "--params", str(tmp_path / "pipeline.toml"), "--seed", "1", "-o", str(sp)])
+    main(["genomes", "--params", str(tmp_path / "pipeline.toml"), "-t",
+          str(sp / "species_complete.nwk"), "--seed", "1", "-o", str(gn)])
+    assert {p.name for p in gn.iterdir()} == {"profiles.tsv", "genomes.log"}   # write=["profiles"]
+
+
+def test_params_unknown_key_errors(tmp_path):
+    (tmp_path / "bad.toml").write_text("birth = 1.0\nbogus = 3\n")
+    with pytest.raises(SystemExit) as e:
+        main(["species", "--params", str(tmp_path / "bad.toml"), "--n-extant", "5",
+              "-o", str(tmp_path / "o")])
+    assert e.value.code == 2
+
+
+# ── top-level dispatch ──────────────────────────────────────────────────────────────
+
+def test_version_and_help_do_not_crash(capsys):
+    for flag in ("--version", "--help"):
+        with pytest.raises(SystemExit) as e:
+            main([flag])
+        assert e.value.code == 0
+    assert "ZOMBI2" in capsys.readouterr().out
