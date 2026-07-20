@@ -26,14 +26,17 @@ slowly). Built so far:
 - **The number-changing chromosome tier**: ``fission`` (a bifurcation — one chromosome into two) and
   ``fusion`` (the reticulation — two same-topology chromosomes into one), both re-minting their
   children into the chromosome network. Every event conserves total length but fission/fusion change
-  the chromosome *count*, so a branch is a small Gillespie. All ancestry-neutral, so every node still
-  carries the whole root sequence, merely permuted across a changing number of chromosomes — the
-  strong invariant carried into the scary boundary-crossing code.
+  the chromosome *count*, so a branch is a small Gillespie.
+- **Translocation** — an arc moved from one chromosome to a different one (optionally inverted, with
+  probability ``inversion_probability``). Both chromosomes persist, so it is a *rearrangement*, not a
+  network edge.
 
-Deferred to later slices: **translocation** (an arc moving between chromosomes — a rearrangement,
-next); loss / duplication / transfer / transposition / origination (the events that birth and kill
-ancestry, creating per-block gene trees) and chromosome origination / loss; indels; declared
-genes / intergenes (pseudogenization, replacement); GFF input and BED / FASTA output.
+All of the above are **ancestry-neutral**, so every node still carries the whole root sequence, merely
+permuted across a changing number of chromosomes — the strong invariant carried through the scary
+boundary-crossing code. Deferred to later slices: loss / duplication / transfer / transposition /
+origination (the events that birth and kill ancestry, creating per-block gene trees) and chromosome
+origination / loss; indels; declared genes / intergenes (pseudogenization, replacement); GFF input and
+BED / FASTA output.
 """
 
 from __future__ import annotations
@@ -244,6 +247,23 @@ class Inversion:
     length: int
 
 
+@dataclass(frozen=True)
+class Translocation:
+    """A recorded nucleotide translocation: on branch ``lineage`` at ``time``, the arc
+    ``[start, start+length)`` of chromosome ``source`` was moved to chromosome ``dest`` (a different
+    chromosome of the same genome), landing ``flipped`` (reversed) or not. Ancestry is unchanged — the
+    blocks keep their source coordinates — and both chromosomes persist, so it is a rearrangement, not
+    a chromosome-network edge."""
+
+    time: float
+    lineage: int
+    source: int
+    dest: int
+    start: int
+    length: int
+    flipped: bool
+
+
 @dataclass
 class NucleotideGenomesResult:
     """What :func:`simulate_genomes_nucleotide` returns: the ``complete_tree`` it ran on, the final
@@ -253,7 +273,7 @@ class NucleotideGenomesResult:
 
     complete_tree: Tree
     genomes: dict[int, NucleotideGenome]
-    rearrangements: list[Inversion]
+    rearrangements: list[Inversion | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
 
@@ -296,9 +316,12 @@ def _copy_chromosome(c: Chromosome, cid: int) -> Chromosome:
 @dataclass(frozen=True)
 class _Rates:
     inversion: float
+    translocation: float
     fission: float
     fusion: float
     inversion_length: float
+    translocation_length: float
+    inversion_probability: float
 
 
 def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
@@ -307,6 +330,39 @@ def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
     length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
     chrom.invert(pos, length)
     rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
+
+
+def _do_translocation(g, node_id, t, translocation_length, inversion_probability, rng,
+                      rearrangements) -> None:
+    """Move a geometric-length arc from a length-weighted source chromosome to a uniformly-chosen
+    **different** chromosome, landing inverted with probability ``inversion_probability``.
+    Ancestry-neutral (blocks keep their source coordinates); both chromosomes persist. No-op if the
+    genome has one chromosome or the source is below two nucleotides (an arc never empties a
+    chromosome — it leaves at least one)."""
+    if len(g.chromosomes) < 2:
+        return
+    source, start = g._pick_position(rng)
+    if source.length < 2:
+        return
+    ell = min(source.length - 1, max(1, int(rng.geometric(1.0 / translocation_length))))
+    span = source._arc_range(start, ell)
+    if span is None:
+        return
+    i, j = span
+    arc = source.blocks[i:j]
+    source.blocks = source.blocks[:i] + source.blocks[j:]
+    source._canonicalize()
+    flipped = bool(rng.random() < inversion_probability)
+    if flipped:
+        arc = [Block(b.source, b.start, b.end, -b.strand) for b in reversed(arc)]
+    others = [c for c in g.chromosomes if c is not source]
+    dest = others[int(rng.integers(len(others)))]
+    pos = int(rng.integers(dest.length + 1))
+    dest._split_at(pos)
+    k = dest._index_at(pos)
+    dest.blocks[k:k] = arc
+    dest._canonicalize()
+    rearrangements.append(Translocation(t, node_id, source.id, dest.id, start, ell, flipped))
 
 
 def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> None:
@@ -365,10 +421,12 @@ def _evolve_branch(g, node_id, t0, t1, rates, rng, rearrangements, chromosome_ev
     t = t0
     while True:
         nc = len(g.chromosomes)
-        r_inv = rates.inversion * g.length
+        length = g.length
+        r_inv = rates.inversion * length
+        r_trl = rates.translocation * length if nc >= 2 else 0.0
         r_fis = rates.fission * nc
         r_fus = rates.fusion * nc if nc >= 2 else 0.0
-        total = r_inv + r_fis + r_fus
+        total = r_inv + r_trl + r_fis + r_fus
         if total <= 0:
             return
         t += float(rng.exponential(1.0 / total))
@@ -377,24 +435,32 @@ def _evolve_branch(g, node_id, t0, t1, rates, rng, rearrangements, chromosome_ev
         r = float(rng.random()) * total
         if r < r_inv:
             _do_inversion(g, node_id, t, rates.inversion_length, rng, rearrangements)
-        elif r < r_inv + r_fis:
+        elif r < r_inv + r_trl:
+            _do_translocation(g, node_id, t, rates.translocation_length, rates.inversion_probability,
+                              rng, rearrangements)
+        elif r < r_inv + r_trl + r_fis:
             _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id)
         else:
             _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id)
 
 
-def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, fission=0.0, fusion=0.0,
-                                chromosomes=1, root_length=1000, topology="circular", seed=None
-                                ) -> NucleotideGenomesResult:
-    """Evolve a nucleotide genome along a species tree by inversion and the **number-changing
-    chromosome tier**. The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its
-    own source: an int ``N`` gives ``N`` equal replicons of ``root_length``/``topology``, or pass a
-    list of ``(length, topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a
-    copy of its parent's karyotype at speciation, with **every chromosome re-minted** (recorded in
-    ``chromosome_events``, the chromosome network), then evolves along its branch:
+def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, translocation=0.0,
+                                translocation_length=50.0, inversion_probability=0.0, fission=0.0,
+                                fusion=0.0, chromosomes=1, root_length=1000, topology="circular",
+                                seed=None) -> NucleotideGenomesResult:
+    """Evolve a nucleotide genome along a species tree by inversion, translocation, and the
+    **number-changing chromosome tier**. The root is seeded with a **karyotype** — ``chromosomes``
+    replicons, each its own source: an int ``N`` gives ``N`` equal replicons of
+    ``root_length``/``topology``, or pass a list of ``(length, topology)`` for heterogeneous **sizes
+    and shapes**. Each lineage inherits a copy of its parent's karyotype at speciation, with **every
+    chromosome re-minted** (recorded in ``chromosome_events``, the chromosome network), then evolves
+    along its branch:
 
     - ``inversion`` (**per nucleotide**) reverses a geometric-length (mean ``inversion_length``) arc
       of a length-weighted chromosome.
+    - ``translocation`` (**per nucleotide**) moves a geometric-length (mean ``translocation_length``)
+      arc to a different chromosome, landing inverted with probability ``inversion_probability``. Both
+      chromosomes persist — it is a rearrangement, not a network edge.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
       (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**). Both
       re-mint their children and record a network edge.
@@ -402,16 +468,21 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, f
     Every event conserves total length, but fission/fusion change the chromosome count, so the branch
     is a small Gillespie recomputing its rates as the karyotype changes (still within-lineage — the
     global timeline waits for transfer). No ancestry-changing event yet ⇒ **every** node still carries
-    the whole root sequence, merely permuted across a changing number of chromosomes. Deterministic
-    given ``seed``."""
+    the whole root sequence, merely permuted across its chromosomes. Deterministic given ``seed``."""
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
-    for label, rate in (("inversion", inversion), ("fission", fission), ("fusion", fusion)):
+    for label, rate in (("inversion", inversion), ("translocation", translocation),
+                        ("fission", fission), ("fusion", fusion)):
         if rate < 0:
             raise ValueError(f"{label} must be >= 0, got {rate}")
-    if inversion_length <= 0:
-        raise ValueError(f"inversion_length must be > 0, got {inversion_length}")
+    for label, mean in (("inversion_length", inversion_length),
+                        ("translocation_length", translocation_length)):
+        if mean <= 0:
+            raise ValueError(f"{label} must be > 0, got {mean}")
+    if not 0.0 <= inversion_probability <= 1.0:
+        raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability}")
     specs = _replicon_specs(chromosomes, root_length, topology)
-    rates = _Rates(inversion, fission, fusion, inversion_length)
+    rates = _Rates(inversion, translocation, fission, fusion, inversion_length, translocation_length,
+                   inversion_probability)
 
     rng = np.random.default_rng(seed)
     chrom_counter = 0
