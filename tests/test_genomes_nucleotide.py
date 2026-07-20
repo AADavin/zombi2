@@ -101,26 +101,63 @@ def test_inversion_of_a_reversed_region_uses_the_strand_aware_split():
     assert _ancestry(g) == _ancestry(NucleotideGenome.seed(8))
 
 
-# --- the oracle: random inversions vs a per-nucleotide array -------------------------------------
+# --- topology: circular (default) vs linear ------------------------------------------------------
 
-def _oracle_invert(arr, start, length):
-    start = max(0, min(start, len(arr)))
-    end = min(start + max(0, length), len(arr))
-    if end <= start:
+def test_seed_topology_default_is_circular_and_validates():
+    assert NucleotideGenome.seed(5).topology == "circular"          # canonical bacterial default
+    assert NucleotideGenome.seed(5, "linear").topology == "linear"
+    with pytest.raises(ValueError):
+        NucleotideGenome.seed(5, "loop")
+
+
+def test_circular_inversion_wraps_the_origin():
+    # seed(6): positions 0..5. invert(4, 4) spans 4,5,0,1 — it wraps the origin. The ring rotates so
+    # the arc is contiguous (the physical origin drifts), then the arc reverses & flips.
+    g = NucleotideGenome.seed(6, "circular")
+    g.invert(4, 4)
+    assert g.trace_back() == [(0, 1, -1), (0, 0, -1), (0, 5, -1), (0, 4, -1), (0, 2, 1), (0, 3, 1)]
+    assert g.length == 6
+
+
+def test_linear_inversion_clamps_and_never_wraps():
+    g = NucleotideGenome.seed(6, "linear")
+    g.invert(4, 10)                                          # length overruns the end -> clamp to [4, 6)
+    assert g.trace_back() == [(0, 0, 1), (0, 1, 1), (0, 2, 1), (0, 3, 1), (0, 5, -1), (0, 4, -1)]
+
+
+# --- the oracle: random inversions vs a per-nucleotide array (both topologies) --------------------
+
+def _oracle_invert(arr, start, length, topology):
+    n = len(arr)
+    if n == 0:
         return
-    arr[start:end] = [(src, pos, -strand) for (src, pos, strand) in reversed(arr[start:end])]
+    if topology == "linear":
+        start = max(0, min(start, n))
+        end = min(start + max(0, length), n)
+        if end <= start:
+            return
+        arr[start:end] = [(src, pos, -strand) for (src, pos, strand) in reversed(arr[start:end])]
+        return
+    ell = max(1, min(length, n))
+    s = start % n
+    if s + ell <= n:                                         # non-wrapping: reverse in place
+        arr[s:s + ell] = [(src, pos, -strand) for (src, pos, strand) in reversed(arr[s:s + ell])]
+    else:                                                    # wrapping: rotate arc to front, then reverse
+        arr[:] = arr[s:] + arr[:s]
+        arr[:ell] = [(src, pos, -strand) for (src, pos, strand) in reversed(arr[:ell])]
 
 
-def test_trace_back_matches_the_oracle_under_random_inversions():
+@pytest.mark.parametrize("topology", ["circular", "linear"])
+def test_trace_back_matches_the_oracle_under_random_inversions(topology):
     rng = np.random.default_rng(0)
-    for trial in range(50):
-        L = int(rng.integers(5, 40))
-        g = NucleotideGenome.seed(L)
-        arr = [(0, p, 1) for p in range(L)]
+    for _trial in range(50):
+        length_total = int(rng.integers(5, 40))
+        g = NucleotideGenome.seed(length_total, topology)
+        arr = [(0, p, 1) for p in range(length_total)]
         for _ in range(int(rng.integers(1, 15))):
-            s = int(rng.integers(0, L))
-            ell = int(rng.integers(0, L))
+            s = int(rng.integers(0, length_total))
+            ell = int(rng.integers(0, length_total))
             g.invert(s, ell)
-            _oracle_invert(arr, s, ell)
-            assert g.trace_back() == arr                   # exact agreement, every step
-        assert g.length == L
+            _oracle_invert(arr, s, ell, topology)
+            assert g.trace_back() == arr                     # exact agreement, every step
+        assert g.length == length_total
