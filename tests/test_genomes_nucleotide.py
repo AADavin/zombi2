@@ -1,10 +1,12 @@
-"""Tests for nucleotide genomes — the coordinate representation, inversion, and the multi-chromosome,
-identity-bearing karyotype wired along the species tree.
+"""Tests for nucleotide genomes — the coordinate representation, inversion, the multi-chromosome,
+identity-bearing karyotype wired along the species tree, and the copy-lineage genealogy log.
 
-A chromosome is an ordered list of blocks (maximal runs of one ancestry). The strongest checks are
-the oracle (apply the same inversions to a plain per-nucleotide array and require ``trace_back`` to
-agree) and the strong invariant (inversion conserves ancestry, so every node carries the whole root
-sequence, permuted across its chromosomes).
+A chromosome is an ordered list of blocks (runs of one ancestry — not merged during the run: option
+B, maximality is a recovered property). The strongest checks are the oracle (apply the same
+inversions to a plain per-nucleotide array and require ``trace_back`` to agree), the strong invariant
+(an ancestry-neutral event conserves ancestry, so every node carries the whole root sequence,
+permuted), and — with loss / duplication — that the copy-lineage log accounts for every node's copy
+numbers exactly and every copy traces back to a seed origination.
 """
 
 import numpy as np
@@ -18,6 +20,8 @@ from zombi2.genomes.nucleotide import (
     Duplication,
     Loss,
     NucleotideGenome,
+    Origination,
+    Speciation,
     Translocation,
     _do_duplication,
     _do_loss,
@@ -32,14 +36,6 @@ def _chrom(length, topology="circular", cid=0, source=0):
 
 def _ancestry(chrom):
     return sorted((src, pos) for (src, pos, _s) in chrom.trace_back())
-
-
-def _is_maximal(chrom):
-    for a, b in zip(chrom.blocks, chrom.blocks[1:]):
-        if a.source == b.source and a.strand == b.strand:
-            if (a.strand == 1 and a.end == b.start) or (a.strand == -1 and a.start == b.end):
-                return False
-    return True
 
 
 # --- blocks + split -------------------------------------------------------------------------------
@@ -90,22 +86,25 @@ def test_inversion_flips_strands_in_the_arc_only():
     assert [s for (_x, _p, s) in ch.trace_back()] == [1, 1, 1, -1, -1, -1, -1, 1, 1, 1]
 
 
-# --- blocks stay maximal (canonicalisation) -------------------------------------------------------
+# --- blocks are NOT merged during the run (option B: maximality is a recovered property) ----------
 
-def test_invert_keeps_blocks_maximal():
-    ch = _chrom(20)
-    rng = np.random.default_rng(0)
-    for _ in range(25):
-        ch.invert(int(rng.integers(20)), int(rng.integers(1, 10)))
-        assert _is_maximal(ch)                               # never two adjacent collinear blocks
-        assert ch.length == 20
-
-
-def test_inversion_then_inverse_canonicalises_to_one_block():
+def test_inversion_leaves_breakpoints_but_conserves_trace():
+    # An inversion and its inverse restore the ancestry exactly, but the seam stays split: blocks are
+    # never merged during the run (that would fuse copy lineages) — maximality is recovered later.
     ch = _chrom(12)
+    before = ch.trace_back()
     ch.invert(2, 6)
-    ch.invert(2, 6)                                          # undone -> the seam heals
-    assert ch.mosaic() == [(0, 0, 12, 1)]                    # a single maximal block again
+    ch.invert(2, 6)                                          # undone -> ancestry restored, seam remains
+    assert ch.trace_back() == before                        # ancestry exactly restored
+    assert len(ch.blocks) > 1                               # ...but the breakpoints are not merged away
+
+
+def test_splits_preserve_copy_lineage():
+    # A split is not a birth: both pieces keep the parent copy id.
+    ch = Chromosome(0, "linear", [Block(0, 0, 10, 1, 7)])
+    ch.invert(2, 6)
+    assert len(ch.blocks) > 1
+    assert {b.copy for b in ch.blocks} == {7}               # every piece is still copy 7
 
 
 # --- the oracle: random inversions vs a per-nucleotide array (both topologies) --------------------
@@ -141,7 +140,7 @@ def test_trace_back_matches_the_oracle_under_random_inversions(topology):
             s, ell = int(rng.integers(0, n)), int(rng.integers(0, n))
             ch.invert(s, ell)
             _oracle_invert(arr, s, ell, topology)
-            assert ch.trace_back() == arr                    # exact, every step (canonicalise is trace-neutral)
+            assert ch.trace_back() == arr                    # exact, every step
         assert ch.length == n
 
 
@@ -276,11 +275,11 @@ def test_duplication_copies_an_arc_in_tandem():
     from collections import Counter
     g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 20, 1)])])
     events = []
-    _do_duplication(g, 5, 1.0, 5.0, np.random.default_rng(0), events)
+    _do_duplication(g, 5, 1.0, 5.0, np.random.default_rng(0), events, _minter(100))
     assert g.length > 20                                    # grew
     assert isinstance(events[0], Duplication) and events[0].chromosome == 0
     counts = Counter((s, p) for (s, p, _st) in g.chromosomes[0].trace_back())
-    copied = {(src, p) for (src, a, b) in events[0].copied for p in range(a, b)}
+    copied = {(src, p) for (_pc, _cc, src, a, b) in events[0].copied for p in range(a, b)}
     assert all(counts[pos] == 2 for pos in copied)          # exactly the copied positions are doubled
     assert all(counts[(0, p)] == 1 for p in range(20) if (0, p) not in copied)
 
@@ -318,7 +317,7 @@ def test_loss_deletes_an_arc_and_records_the_lost_material():
     assert 1 <= g.length < 20                                # shrank, never emptied
     assert isinstance(events[0], Loss) and events[0].chromosome == 0
     survived = {(s, p) for (s, p, _st) in g.chromosomes[0].trace_back()}
-    lost = {(src, p) for (src, a, b) in events[0].lost for p in range(a, b)}
+    lost = {(src, p) for (_cp, src, a, b) in events[0].lost for p in range(a, b)}
     assert survived | lost == {(0, p) for p in range(20)}   # a clean partition of the original
     assert survived.isdisjoint(lost)
 
@@ -525,3 +524,102 @@ def test_all_four_events_compose():
     assert {"fission", "fusion"} <= {e.kind for e in r.chromosome_events}
     full = sorted((s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length))
     assert all(r.ancestry(node_id) == full for node_id in r.genomes)
+
+
+# --- the copy-lineage genealogy log (the input the gene-tree recovery will read) ------------------
+
+def _log_copy_number(r, node_id):
+    """The per-(source, position) copy number implied by the genealogy log alone: walk the path from
+    the root to ``node_id``, adding a copy per origination / duplication row that covers the position
+    and removing one per loss row, on the matching branch (rearrangements and speciation are copy-
+    number neutral, so they play no part)."""
+    from collections import Counter
+    tree = r.complete_tree
+    on_path, n = set(), node_id
+    while n is not None:
+        on_path.add(n)
+        n = tree.nodes[n].parent
+    count: Counter = Counter()
+    for e in r.events:
+        if e.lineage not in on_path:
+            continue
+        if isinstance(e, Origination):
+            for p in range(e.start, e.end):
+                count[(e.source, p)] += 1
+        elif isinstance(e, Duplication):
+            for (_pc, _cc, src, a, b) in e.copied:
+                for p in range(a, b):
+                    count[(src, p)] += 1
+        elif isinstance(e, Loss):
+            for (_cp, src, a, b) in e.lost:
+                for p in range(a, b):
+                    count[(src, p)] -= 1
+    return {k: v for k, v in count.items() if v}
+
+
+def test_copy_number_matches_the_genealogy_log():
+    # The genealogy log accounts for the genome exactly: at every node the copy number of each
+    # ancestral position (from trace_back) equals the number implied by the originations,
+    # duplications and losses on the path from the root. End-to-end validation of the log's accounting.
+    from collections import Counter
+    specs = [(80, "circular"), (30, "linear")]
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=7)
+    r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.05, duplication_length=8,
+                                    loss_length=8, inversion=0.03, translocation=0.03, fission=0.15,
+                                    fusion=0.15, chromosomes=specs, seed=7)
+    assert any(isinstance(e, Duplication) for e in r.events)   # duplications really fired
+    assert any(isinstance(e, Loss) for e in r.events)          # ...and losses
+    for node_id in r.genomes:
+        genome = Counter((s, p) for chrom in r.genomes[node_id].chromosomes
+                         for (s, p, _st) in chrom.trace_back())
+        assert {k: v for k, v in genome.items() if v} == _log_copy_number(r, node_id)
+
+
+def test_every_copy_lineage_is_born_and_traces_to_a_root():
+    # Every copy lineage present anywhere is born by a recorded event and its parentage traces back
+    # to a seed origination — no orphans, no cycles, and the unset sentinel (0) never leaks.
+    specs = [(80, "circular"), (30, "linear")]
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=9)
+    r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.03, inversion=0.03,
+                                    translocation=0.03, fission=0.15, fusion=0.15, chromosomes=specs,
+                                    seed=9)
+    roots = {e.copy for e in r.events if isinstance(e, Origination)}
+    parent: dict[int, int] = {}
+    for e in r.events:
+        if isinstance(e, Duplication):
+            for (pc, cc, *_rest) in e.copied:
+                parent[cc] = pc
+        elif isinstance(e, Speciation):
+            for c in e.children:
+                parent[c] = e.parent
+
+    def traces_to_root(cp):
+        seen = set()
+        while cp not in roots:
+            if cp in seen or cp not in parent:
+                return False
+            seen.add(cp)
+            cp = parent[cp]
+        return True
+
+    present = {b.copy for g in r.genomes.values() for chrom in g.chromosomes for b in chrom.blocks}
+    assert present and 0 not in present                        # copies exist; no sentinel leaked
+    assert all(traces_to_root(cp) for cp in present)           # each is born and reaches a seed root
+
+
+def test_speciation_re_mints_every_copy_lineage():
+    # At a speciation each parent copy is re-minted into one fresh copy per daughter (recorded as a
+    # Speciation), so a daughter node shares no copy id with its parent node.
+    specs = [(60, "circular")]
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=2)
+    r = simulate_genomes_nucleotide(sp, inversion=0.03, duplication=0.03, chromosomes=specs, seed=2)
+    assert [e for e in r.events if isinstance(e, Speciation)]   # speciations recorded
+    tree = r.complete_tree
+    for node_id, g in r.genomes.items():
+        node = tree.nodes[node_id]
+        if node.children is None:
+            continue
+        parent_copies = {b.copy for chrom in g.chromosomes for b in chrom.blocks}
+        for c in node.children:
+            child_copies = {b.copy for chrom in r.genomes[c].chromosomes for b in chrom.blocks}
+            assert parent_copies.isdisjoint(child_copies)      # fully re-minted at the speciation
