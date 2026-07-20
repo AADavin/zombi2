@@ -6,7 +6,7 @@ along the branches of a fixed tree (``docs/design/trait-api.md``). The result re
 levels, an **event log** (``events``): a **discrete** trait mirrors the genome level exactly — its
 transitions are timestamped events, the source of truth, and the per-branch stochastic character map
 (``history``) is derived from them; a **continuous** trait diffuses with no along-branch events, so
-its log holds only the *cladogenetic* jumps at speciation nodes (empty without ``at_speciation=``),
+its log holds only the jumps at speciation nodes (empty without ``at_speciation=``),
 and ``node_values`` carries the diffusion. What keeps traits inside the one framework is that the
 *ways* a value evolves reuse the same ``scope(base) × modifiers`` rate grammar (SPEC §5).
 
@@ -51,7 +51,7 @@ map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or
 **threshold** model (``liability=`` / ``threshold=``) reads a discrete state off a continuous Brownian
 liability; the crossings are un-timed, so it carries no event log or map.
 
-Also built: correlated traits (the ``correlation=`` overlay), cladogenetic jumps (``at_speciation=``),
+Also built: correlated traits (the ``correlation=`` overlay), jumps at speciation (``at_speciation=``),
 and multi-optimum OU (``regimes=``). Still deferred: hidden-state Mk. SSE (BiSSE/MuSSE/QuaSSE) is
 **not** a trait model — it is trait↔species *joint*, Part III.
 """
@@ -78,8 +78,8 @@ _WRITE_OUTPUTS = ("values", "changes", "tree")  # write vocabulary; "changes" = 
 class Change:
     """A realized trait change — one entry of the event log, the trait twin of the genome level's
     :class:`~zombi2.genomes.Event`. On lineage ``lineage`` at ``time`` (crown-forward, the species-tree
-    clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"anagenetic"`` — a switch
-    *along* a branch (an Mk transition) — or ``"cladogenetic"`` — a jump *at* a speciation node (from
+    clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"on_branch"`` — a switch
+    *along* a branch (an Mk transition) — or ``"on_speciation"`` — a jump *at* a speciation node (from
     ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
     values)."""
 
@@ -101,7 +101,7 @@ class TraitsResult:
     ``events`` is the timestamped event log — the **same shape as the genome level's** and the source
     of truth for a discrete (Mk) trait, from which ``history`` (the per-branch stochastic character
     map) is derived. A continuous trait has no along-branch events, so its log holds only the
-    *cladogenetic* jumps (empty without ``at_speciation``) while ``node_values`` carries the diffusion;
+    on-speciation jumps (empty without ``at_speciation``) while ``node_values`` carries the diffusion;
     a threshold trait's crossings are un-timed, so its log is empty and it has no map.
     """
 
@@ -199,8 +199,8 @@ def _values_tsv(values: dict[int, object]) -> str:
 
 
 def _changes_tsv(changes: list[Change]) -> str:
-    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = anagenetic /
-    cladogenetic), one row per change in time order — the trait twin of ``genome_events.tsv``."""
+    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = on_branch /
+    on_speciation), one row per change in time order — the trait twin of ``genome_events.tsv``."""
     rows = ["time\tkind\tlineage\tfrom\tto"]
     for c in changes:
         rows.append(f"{c.time:.6g}\t{c.kind}\tn{c.lineage}\t{_fmt(c.from_state)}\t{_fmt(c.to_state)}")
@@ -209,13 +209,13 @@ def _changes_tsv(changes: list[Change]) -> str:
 
 def _history_from_events(tree: "Tree", node_values: dict, events: list) -> dict:
     """Reconstruct the per-branch stochastic character map ``{node: [(state, duration), …]}`` from the
-    event log — the inverse of how the Gillespie writes the log. On each branch the anagenetic events
-    (sorted) cut it into segments; a cladogenetic event sets the branch's *start* state, and
+    event log — the inverse of how the Gillespie writes the log. On each branch the on-branch events
+    (sorted) cut it into segments; an on-speciation event sets the branch's *start* state, and
     ``node_values[node]`` is its *end* state (the constant value when a branch has no events)."""
     ana: dict[int, list] = {i: [] for i in tree.nodes}
     clado_to: dict[int, object] = {}
     for e in events:
-        if e.kind == "cladogenetic":
+        if e.kind == "on_speciation":
             clado_to[e.lineage] = e.to_state
         else:
             ana[e.lineage].append(e)
@@ -305,7 +305,7 @@ def _symmetric_sqrt(matrix: np.ndarray) -> np.ndarray:
 
 
 def _at_speciation_jump_sd(at_speciation) -> float:
-    """The cladogenetic jump width (√variance) from ``at_speciation`` — ``0.0`` if not requested. A
+    """The on-speciation jump width (√variance) from ``at_speciation`` — ``0.0`` if not requested. A
     jump of ``Normal(0, at_speciation)`` is added to each daughter's value at every speciation (the
     punctuational / speciational mode); it *reads* the tree it rides on, so it is a trait-level option,
     not a coupling (SPEC §4)."""
@@ -413,7 +413,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     if reverts_to is not None or pull is not None:
         raise ValueError("multivariate OU (reverts_to / pull with correlated traits) is not wired yet.")
     if at_speciation is not None:
-        raise ValueError("at_speciation (cladogenetic jumps) with correlated traits is not wired yet.")
+        raise ValueError("at_speciation (on-speciation jumps) with correlated traits is not wired yet.")
 
     sigma2 = np.empty(len(traits))
     for i, name in enumerate(traits):
@@ -488,7 +488,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     neither. OU with a *modified* σ² (early burst or variable rates on ``rate``) is not wired yet —
     use one or the other.
 
-    ``at_speciation`` adds a **cladogenetic** jump — ``Normal(0, at_speciation)`` on each daughter at
+    ``at_speciation`` adds an **on-speciation** jump — ``Normal(0, at_speciation)`` on each daughter at
     every speciation (the punctuational mode), layered on top of the along-branch anagenesis.
     ``regimes`` gives **multi-optimum OU**: pass a discrete :class:`TraitsResult` (a stochastic map
     painted by :func:`simulate_discrete` on this same tree) and a per-regime ``reverts_to={regime: θ}``,
@@ -548,12 +548,12 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         theta, alpha = float(reverts_to), float(pull)
         sigma2 = r.effective(lineages=1)  # σ² is constant under OU (modifiers are rejected above)
 
-    jump_sd = _at_speciation_jump_sd(at_speciation)  # cladogenetic jump width (0 if not requested)
+    jump_sd = _at_speciation_jump_sd(at_speciation)  # on-speciation jump width (0 if not requested)
 
     rng = np.random.default_rng(seed)
     ltt = _LTT(tree) if has_diversity else None  # the standing-diversity curve, when σ² reads it
     node_values: dict[int, float] = {}
-    events: list[Change] = []  # cladogenetic jumps only (a diffusion has no along-branch events)
+    events: list[Change] = []  # on-speciation jumps only (a diffusion has no along-branch events)
     inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
     for i in _preorder(tree):
         node = tree.nodes[i]
@@ -561,8 +561,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         # < i, already set). One uniform rule: node_values[i] is the trait at node i's end_time.
         x = float(start) if node.parent is None else node_values[node.parent]
         if node.parent is not None and jump_sd > 0.0:
-            jumped = x + float(rng.normal(0.0, jump_sd))  # cladogenesis: a jump at the split…
-            events.append(Change(node.birth_time, "cladogenetic", i, x, jumped))
+            jumped = x + float(rng.normal(0.0, jump_sd))  # on speciation: a jump at the split…
+            events.append(Change(node.birth_time, "on_speciation", i, x, jumped))
             x = jumped                                    # …then anagenesis along the branch
         # thread the inherited factor: the root's is 1.0, each daughter's is its parent's times a
         # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
@@ -772,7 +772,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree` or
     :class:`~zombi2.species.SpeciesResult`); the trait evolves on every lineage (convention B: the root
     diffuses over its own branch), and ``.values`` reads the extant tips. On an Mk trait,
-    ``at_speciation`` (a probability in ``[0, 1]``) adds a **cladogenetic** shift — each daughter hops
+    ``at_speciation`` (a probability in ``[0, 1]``) adds an **on-speciation** shift — each daughter hops
     to a uniformly-chosen other state with that chance at every speciation. Deterministic given ``seed``.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
@@ -816,15 +816,15 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         # its parent's end state (parent < i, already set) — the same convention-B walk as continuous.
         cur = start_i if node.parent is None else idx[node_values[node.parent]]
         if node.parent is not None and shift > 0.0 and float(rng.random()) < shift:
-            j = int(rng.integers(len(states) - 1))  # cladogenesis: hop to a uniform *other* state
+            j = int(rng.integers(len(states) - 1))  # on speciation: hop to a uniform *other* state
             new = j if j < cur else j + 1
-            events.append(Change(node.birth_time, "cladogenetic", i, states[cur], states[new]))
+            events.append(Change(node.birth_time, "on_speciation", i, states[cur], states[new]))
             cur = new
         end_i, segs = _gillespie(cur, node.end_time - node.birth_time, Q, rng)
-        t = node.birth_time  # the transitions between the Gillespie segments are the anagenetic events
+        t = node.birth_time  # the transitions between the Gillespie segments are the on-branch events
         for (s1, d1), (s2, _d) in zip(segs, segs[1:]):
             t += d1
-            events.append(Change(t, "anagenetic", i, states[s1], states[s2]))
+            events.append(Change(t, "on_branch", i, states[s1], states[s2]))
         node_values[i] = states[end_i]
     events.sort(key=lambda c: c.time)
     return TraitsResult(tree, node_values, events, seed, kind="discrete")

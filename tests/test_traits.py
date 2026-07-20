@@ -783,7 +783,7 @@ def test_threshold_validation():
         simulate_discrete(tree, states=["a", "b"], liability=1.0, seed=1)
 
 
-# --- at_speciation: cladogenetic jumps (continuous) / shifts (discrete) ----------
+# --- at_speciation: on-speciation jumps (continuous) / shifts (discrete) ----------
 
 def _n_splits(tree, i):
     c = 0
@@ -919,16 +919,16 @@ def test_write_trait_tree(tmp_path):
 
 # --- the event log (mirrors genomes) + history derived from it ------------------
 
-def test_events_log_records_cladogenesis():
-    # cladogenetic jumps/shifts now live in the event log (kind="cladogenetic"); a plain run has none
+def test_events_log_records_speciation_changes():
+    # on-speciation jumps/shifts now live in the event log (kind="on_speciation"); a plain run has none
     tree = _corr_tree()
     assert simulate_continuous(tree, rate=1.0, seed=1).events == []            # pure BM: no events
     jumps = simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=1)
-    assert jumps.events and all(e.kind == "cladogenetic" for e in jumps.events)
+    assert jumps.events and all(e.kind == "on_speciation" for e in jumps.events)
     e = jumps.events[0]
     assert isinstance(e.from_state, float) and isinstance(e.to_state, float)    # pre/post values
     d = simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.4, seed=2)
-    assert {e.kind for e in d.events} == {"anagenetic", "cladogenetic"}          # both in the log
+    assert {e.kind for e in d.events} == {"on_branch", "on_speciation"}          # both in the log
     assert all(e.from_state != e.to_state for e in d.events)
 
 
@@ -940,14 +940,14 @@ def test_events_are_time_sorted():
 
 def test_history_is_derived_from_events():
     # history is DERIVED from the event log (discrete only): each branch's segments sum to the branch
-    # length, end at node_values, and their transitions reproduce exactly the log's anagenetic events.
+    # length, end at node_values, and their transitions reproduce exactly the log's on-branch events.
     tree = _corr_tree()
     d = simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.3, seed=2)
     for i, segs in d.history.items():
         node = tree.nodes[i]
         assert abs(sum(dur for _, dur in segs) - (node.end_time - node.birth_time)) < 1e-9
         assert segs[-1][0] == d.node_values[i]
-    ana = sorted((e.lineage, e.from_state, e.to_state) for e in d.events if e.kind == "anagenetic")
+    on_branch = sorted((e.lineage, e.from_state, e.to_state) for e in d.events if e.kind == "on_branch")
     from_hist = sorted((i, segs[k][0], segs[k + 1][0])
                        for i, segs in d.history.items() for k in range(len(segs) - 1))
-    assert ana == from_hist
+    assert on_branch == from_hist
