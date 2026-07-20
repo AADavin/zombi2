@@ -46,7 +46,7 @@ wrapper** around a base, optionally times **modifiers**.
   **per lineage**. Override with a wrapper: `origination = PerLineage(0.5)` is the default;
   `origination = Global(0.5)` makes it constant over time. `loss = PerLineage(0.25)` counts loss per
   lineage instead of per copy. (`Global`, capitalised — `global` is a Python keyword.)
-- **Modifiers** multiply the base (`*`) and are dimensionless: `loss = 0.25 * Time({…})` etc.
+- **Modifiers** multiply the base (`*`) and are dimensionless: `loss = 0.25 * OnTime({…})` etc.
 - **Naming rule:** *"per" is reserved for scopes.* A scope is `PerCopy` / `PerLineage` / `PerSite`; a
   modifier never starts with "per" (so the per-family modifier below is `ByFamily`, not `PerFamily`).
 

@@ -55,7 +55,7 @@ wrapper** around a base number, optionally times dimensionless **modifiers**.
   `birth = Global(1.0)` (constant total; `Global` capitalised — `global` is a Python keyword). This
   replaces the earlier `per="global"` argument, and it is better: `Global` tags exactly *which* rate is
   global, so `birth=Global(1.0), death=0.3` is unambiguous.
-- **Modifiers** multiply the base (`*`) and are dimensionless: `1.0 * Diversity(cap=100)`. `*` is the
+- **Modifiers** multiply the base (`*`) and are dimensionless: `1.0 * OnTotalDiversity(cap=100)`. `*` is the
   only composition operator (a rate is `time⁻¹`, a modifier is dimensionless, so multiplying two rates is
   impossible by construction).
 - **Naming rule:** "per" is reserved for scopes. A scope is `PerCopy` / `PerLineage` / `PerSite`; a
@@ -65,11 +65,11 @@ Modifiers live in **`zombi2.modifiers`** (never top-level `z`). Named by *what t
 
 | Modifier | The rate depends on | Example |
 |---|---|---|
-| `Time({t: factor, …})` | time (skyline / episodic) | `1.0 * Time({0: 1.0, 3: 0.3})` |
-| `Diversity(cap=K)` | standing diversity (slows toward `K`) | `1.0 * Diversity(cap=100)` |
-| `Inherited(spread=σ)` | ancestry (drifts at each split, descendants inherit; = clade drift) | `1.0 * Inherited(spread=0.2)` |
+| `OnTime({t: factor, …})` | time (skyline / episodic) | `1.0 * OnTime({0: 1.0, 3: 0.3})` |
+| `OnTotalDiversity(cap=K)` | standing diversity (slows toward `K`) | `1.0 * OnTotalDiversity(cap=100)` |
+| `FromParent(spread=σ)` | ancestry (drifts at each split, descendants inherit; = clade drift) | `1.0 * FromParent(spread=0.2)` |
 
-Modifiers are **relative factors**, so `Time({0: 1.0, 3: 0.5})` on base `1.0` reads as absolute
+Modifiers are **relative factors**, so `OnTime({0: 1.0, 3: 0.5})` on base `1.0` reads as absolute
 (`1.0`, then `0.5`) and on base `2.0` scales (`2.0`, then `1.0`). Stack with `*`; `birth` and `death`
 are bent independently. `Global` gives one budget for the whole tree instead of per lineage
 (Ch2's scope).
@@ -92,7 +92,7 @@ no user forward/backward knob.
 
 **Parked for a later release (recoverable, not in v1's manual/docs/CLI):** *backward sampling* —
 deriving the extant tree directly from the present without growing the extinct lineages, which is
-faster when the rates allow it (constant/`Time` rates, at most extant `sampling`) — and *ghost
+faster when the rates allow it (constant/`OnTime` rates, at most extant `sampling`) — and *ghost
 lineages* (extinct tips grafted back on approximately). Both are planned; leaving them out of v1
 simplifies the model, the manual, and the CLI.
 
@@ -104,9 +104,9 @@ The single place the acronyms appear (SPEC §4). Section headings say what each 
 |---|---|---|
 | constant-rate birth–death | fixed rates | `birth=1.0, death=0.3` |
 | Yule | pure birth | `death=0.0` |
-| skyline / episodic | rates change in time | `birth=1.0 * Time({…})` |
-| diversity-dependent | slows with diversity | `birth=1.0 * Diversity(cap=…)` |
-| ClaDS | rates drift, inherited | `birth=1.0 * Inherited(spread=…)` |
+| skyline / episodic | rates change in time | `birth=1.0 * OnTime({…})` |
+| diversity-dependent | slows with diversity | `birth=1.0 * OnTotalDiversity(cap=…)` |
+| ClaDS | rates drift, inherited | `birth=1.0 * FromParent(spread=…)` |
 | mass extinction | a cull at a time | `mass_extinctions=[(t, f)]` |
 | incomplete sampling | see a fraction | `sampling=ρ` |
 | fossilised birth–death | fossils of the dead | `fossils=ψ` |
@@ -141,6 +141,6 @@ The full cross-level list of output files lives in Appendix B of the manual.
 - Delete the seven process classes; there is no `model` object.
 - `simulate_species_tree` takes `birth`/`death` (numbers or `number × modifier`) plus the arguments
   above; it infers the direction.
-- Add `zombi2.modifiers` with `Time`, `Diversity`, `Inherited` (dimensionless, `*`-composable).
+- Add `zombi2.modifiers` with `OnTime`, `OnTotalDiversity`, `FromParent` (dimensionless, `*`-composable).
 - Replace the `--rate-model` selection mess with the scope wrappers `Global` / `PerLineage` (retire
   `"shared"`, SPEC §12); there is no `per=` argument.

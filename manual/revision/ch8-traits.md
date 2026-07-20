@@ -46,12 +46,12 @@ traits.simulate_continuous(tree, start=0.0, rate=1.0,
 
 # early burst — the diffusion rate itself decays through time
 traits.simulate_continuous(tree, start=0.0,
-                           rate=1.0 * mod.Time({0: 1.0, 5: 0.2}), seed=1)
+                           rate=1.0 * mod.OnTime({0: 1.0, 5: 0.2}), seed=1)
 ```
 
-The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. These are the same `reverts_to` and `pull` that turn the autocorrelated clock into a CIR clock in the previous chapter, a value that drifts but is held near a mean. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root: it is written with the very same `mod.Time` modifier that gives the species tree its skyline. Adaptive radiations are the usual motivation, and the shape is one modifier deep.
+The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. These are the same `reverts_to` and `pull` that turn the autocorrelated clock into a CIR clock in the previous chapter, a value that drifts but is held near a mean. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root: it is written with the very same `mod.OnTime` modifier that gives the species tree its skyline. Adaptive radiations are the usual motivation, and the shape is one modifier deep.
 
-The point worth pressing is that the unification is at the level of the *knobs*, not a shared wrapper class. `reverts_to`/`pull` and `mod.Time` are literally the same knobs used at the species and sequence levels, reused here because a value and a rate answer the same questions about what they remember and how they change. The seam from the opening does show through in the spelling: because a trait *is* a value rather than a rate riding on something else, `reverts_to` and `pull` are direct arguments, while a rate-shaping knob like `Time` multiplies the `rate` exactly as it would anywhere. Same knobs, landing in the two natural places.
+The point worth pressing is that the unification is at the level of the *knobs*, not a shared wrapper class. `reverts_to`/`pull` and `mod.OnTime` are literally the same knobs used at the species and sequence levels, reused here because a value and a rate answer the same questions about what they remember and how they change. The seam from the opening does show through in the spelling: because a trait *is* a value rather than a rate riding on something else, `reverts_to` and `pull` are direct arguments, while a rate-shaping knob like `OnTime` multiplies the `rate` exactly as it would anywhere. Same knobs, landing in the two natural places.
 
 There is a deeper echo here, and it is exact. The autocorrelated molecular clock of the last chapter was described as a rate doing Brownian motion down the tree. A continuous trait is that same object with the disguise removed: the value doing Brownian motion is now the whole thing you simulate, not a modifier on a substitution rate. The clock was a trait all along.
 
@@ -91,7 +91,7 @@ Correlation is specified as **per-trait rates plus a correlation overlay**, not 
 ```python
 traits.simulate_continuous(tree,
     start={"size": 0.0, "limb": 0.0},
-    rate={"size": 1.0, "limb": 0.8 * mod.Time({0: 1, 5: 0.3})},   # each keeps its modifiers
+    rate={"size": 1.0, "limb": 0.8 * mod.OnTime({0: 1, 5: 0.3})},   # each keeps its modifiers
     correlation={("size", "limb"): 0.6},                          # the overlay, ∈ [−1, 1]
     seed=1)
 ```
@@ -114,7 +114,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 |---|---|---|
 | Brownian motion (BM) | a value diffusing | `simulate_continuous(rate=…)` |
 | Ornstein–Uhlenbeck (OU) | diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` |
-| Early burst (EB / ACDC) | diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.Time({…}))` |
+| Early burst (EB / ACDC) | diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnTime({…}))` |
 | Multivariate BM / OU | traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call |
 | Mk (k-state Markov) | a discrete state switching | `simulate_discrete(states=…, switch=…)` |
 | Threshold / liability (Wright–Felsenstein) | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` |
@@ -128,7 +128,7 @@ Two rows point off the chapter and are worth a sentence each. **DEC**, the dispe
 
 A couple of corners of the trait level are now settled; the rest are agreed in concept but not yet nailed down, and the chapter should not pretend otherwise.
 
-- **Decided: OU's two knobs match the clock's.** OU needs both an optimum (`reverts_to`) and a pull strength (`pull`). For cross-level parity the CIR clock grows a `pull` too, so OU and CIR share the same two knobs — one level up they are the `reverts_to`/`pull` of the unified `mod.Inherited(spread=, reverts_to=, pull=)`, where plain `spread` is pure drift (BM, ClaDS, the autocorrelated clock) and adding `reverts_to` + `pull` makes it mean-reverting. The names `reverts_to`/`pull` stand.
+- **Decided: OU's two knobs match the clock's.** OU needs both an optimum (`reverts_to`) and a pull strength (`pull`). For cross-level parity the CIR clock grows a `pull` too, so OU and CIR share the same two knobs — one level up they are the `reverts_to`/`pull` of the unified `mod.FromParent(spread=, reverts_to=, pull=)`, where plain `spread` is pure drift (BM, ClaDS, the autocorrelated clock) and adding `reverts_to` + `pull` makes it mean-reverting. The names `reverts_to`/`pull` stand.
 - **Regime shifts (multi-optimum OU).** An OU optimum that jumps on painted branches, so different clades pull toward different values, is the natural home of adaptive-regime studies. It is an advanced case, probably a `regimes=` argument on `simulate_continuous`; deferred, and named here so it is not mistaken for missing by oversight.
 - **Traits that jump at speciation (cladogenesis).** A trait can change *at a split* rather than along a branch. By the spec's own reasoning this is the trait reading the tree it already lives on, an option of the trait's own model rather than a coupling to the species level, so it belongs in this chapter; the open question is only its spelling (likely `at_speciation=`). It is not built.
 - **Hidden rate classes under an Mk trait.** The discrete twin of the clock's hidden categories, letting the switching rate itself vary invisibly across the tree. Likely a hidden-state option on `simulate_discrete`; deferred.

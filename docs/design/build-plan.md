@@ -24,7 +24,7 @@ then its chapter documents what was built. Agreed with Adrián on 2026-07-18.
 
 Everything downstream imports these, so they come first:
 
-- **`zombi2.modifiers` (`mod`)** — the shared modifier vocabulary: `Time`, `Diversity`, `Inherited`
+- **`zombi2.modifiers` (`mod`)** — the shared modifier vocabulary: `OnTime`, `OnTotalDiversity`, `FromParent`
   (`spread`, `reverts_to`, `pull`), `ByFamily`, `ByLineage(dist=)`, `Markov`, `ByChromosomeSize`,
   and `DrivenBy` (Part III). Dimensionless, `*`-composable.
 - **`zombi2.scope`** — the scope wrappers: `Global`, `PerCopy`, `PerLineage`, `PerSite`, `PerChromosome`.
@@ -62,16 +62,16 @@ length distributions) is the heaviest single piece. Coupling is last — it reac
 
 ## Level-specific notes
 
-- **Species (#1):** `birth`/`death = number × modifiers`; Yule = `death=0`; ClaDS = `Inherited`; skyline =
-  `Time`; diversity-dependent = `Diversity`. `mass_extinctions`/`sampling`(ρ)/`fossils`(v1 = side output,
+- **Species (#1):** `birth`/`death = number × modifiers`; Yule = `death=0`; ClaDS = `FromParent`; skyline =
+  `OnTime`; diversity-dependent = `OnTotalDiversity`. `mass_extinctions`/`sampling`(ρ)/`fossils`(v1 = side output,
   lineage not removed). Both `.complete_tree` + `.extant_tree`. Clade shift & ghost lineages are out (v1).
 - **Genomes-unordered (#2):** D/T/L/O keyword rates; `ByFamily` (per-rate or family-wide slot); `TransferModel` → arguments
   (`transfer_to`/`replacement`/`self_transfer`; donor weight = modifier, recipient weight = mechanic).
   `.profiles` sparse + lazy. **Rust rebuild** (`maturin build --release`) after core changes.
 - **Sequences (#3):** substitution model = a **menu** (`jc69`/`hky85`/`gtr`/`lg`/codon); clock = `ByLineage`/
-  `Inherited`/`Markov` on the **species tree** (lineage clock), `ByFamily` = per-family speed, they
+  `FromParent`/`Markov` on the **species tree** (lineage clock), `ByFamily` = per-family speed, they
   compose; `+Γ` = `gamma=`. `.ancestral` from the recorded nodes.
-- **Traits (#4):** BM native; OU = `reverts_to`+`pull`; EB = `× Time`; Mk = `switch=` (scalar / `{a->b}` /
+- **Traits (#4):** BM native; OU = `reverts_to`+`pull`; EB = `× OnTime`; Mk = `switch=` (scalar / `{a->b}` /
   matrix); threshold via liability; correlated = one call + `correlation=` overlay. `DEC` → experimental;
   SSE leaves for #6.
 - **Structured genomes (#5):** rearrangements (per gene copy, `inversion_length=Geometric(mean=)`);

@@ -22,17 +22,17 @@ By default each rate is counted **per lineage**: every branch alive is an indepe
 
 So far the rates have been constant, but a birth or death rate need not be. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. You express each the same way: multiply the base rate by a **modifier** that names what it depends on.
 
-- **Time** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.Time({0: 1.0, 3: 0.3})` runs at full rate until time 3, then a third of it.
-- **Diversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.Diversity(cap=100)`.
-- **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(spread=0.2)`.
+- **OnTime** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then a third of it.
+- **OnTotalDiversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
+- **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
 
-The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.Diversity`).
+The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.OnTotalDiversity`).
 
 | From the literature | What it does | Here |
 |---|---|---|
-| skyline / episodic birth–death | rates change at set times | `1.0 * mod.Time({…})` |
-| diversity-dependent diversification | rate slows as the tree fills | `1.0 * mod.Diversity(cap=…)` |
-| ClaDS | rates drift, inherited at each split | `1.0 * mod.Inherited(spread=…)` |
+| skyline / episodic birth–death | rates change at set times | `1.0 * mod.OnTime({…})` |
+| diversity-dependent diversification | rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` |
+| ClaDS | rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` |
 | mass extinction | a fraction culled at an instant | `mass_extinctions=[(t, f)]` |
 
 A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time (measured forward from the crown, like every time in ZOMBI2). Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3.
@@ -88,7 +88,7 @@ result = species.simulate_species_tree(birth=1.0, n_extant=50, seed=1)
 
 # skyline birth that also slows with diversity, with a global death rate
 result = species.simulate_species_tree(
-    birth = 1.0 * mod.Time({0: 1.0, 3: 0.5}) * mod.Diversity(cap=100),
+    birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.5}) * mod.OnTotalDiversity(cap=100),
     death = scope.Global(0.3), total_time=8.0, seed=1)
 
 # a mass extinction and incomplete sampling
