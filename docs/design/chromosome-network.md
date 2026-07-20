@@ -116,49 +116,36 @@ Notes that need to be exact:
 
 ---
 
-## 3. Output format — eNewick + the event table (both)
+## 3. Output format — the network is a graph, so it is an edge list
 
-The species tree is one Newick string; a gene family is one Newick string; the chromosome genealogy is
-**one network**. A network is not a tree, so plain Newick cannot hold it. Two artefacts, because they
-answer different questions:
+The chromosome genealogy is a **directed acyclic graph**: nodes are chromosome lineages, edges point
+parent→child forward in time. Graphs have trivial, lossless representations, and the run already emits
+one — `chromosome_events` (built) *is* the edge list, one row per event.
 
-**`karyotype_network.enewick` — the topology.** Extended Newick (eNewick) is the standard serialisation
-for phylogenetic networks with reticulations: a reticulation node is written once in full and then
-referenced by a shared label `#H<k>` everywhere else it appears, so a two-parent node is expressed in a
-one-parent-per-occurrence string. A **fusion** is exactly this — the fused child hangs under *both*
-parents, tagged `#H1`:
+**`chromosome_events.tsv` — the edge list, the whole network.** One row per `ChromosomeEvent`:
+`time  kind  lineage  parents  children`, with `parents` / `children` as `;`-joined chromosome ids. The
+arity names the event and its network shape: `origination` (`() → c`, a **root** — a seed or de-novo
+replicon), `speciation` and `fission` (`p → a;b`, a **bifurcation**), `fusion` (`a;b → c`, the
+**reticulation**, the only in-degree-2 node), `loss` (`p → ()`, a **leaf**). Multiple roots (one per
+seed chromosome and per de-novo replicon) and reticulations are ordinary in a graph and need no special
+encoding. The edge list is complete and lossless — it *is* the network.
 
-```
-((chrA#H1)chrP1, (chrB, chrA#H1)chrP2) ... ;
-      └ fusion of chrA and chrB: the child #H1 appears under both parents
-```
+**Not eNewick (decided 2026-07-20).** An earlier draft proposed serialising the network as extended
+Newick (`#H` reticulation labels), for parity with the species/gene trees. That was the wrong target:
+eNewick is a Newick-*family* format for *single-rooted* phylogenetic networks, and this graph is
+multi-rooted (seeds + de-novo originations, joined by cross-lineage fusions), so eNewick would force a
+synthetic-root fiction plus the `#H` write-once/reference-elsewhere encoding — friction created by the
+format, not the data. A graph is a graph. If a portable graph *file* is ever wanted for interop or
+drawing, emit a standard graph format (**GraphML**, **DOT**, **JSON node-link**) directly from the edge
+list — all express multiple roots and reticulations natively, no fiction. An eNewick adapter is a later
+convenience only if a specific phylo-network tool (PhyloNetworks, Dendroscope) demands it.
 
-Fission and speciation are ordinary bifurcations; origination is a root; loss is a leaf. eNewick is
-parseable by existing network tools (PhyloNetworks, Dendroscope, ape/evobiR), which is the point of
-choosing it over a bespoke format.
-
-**`karyotype_events.tsv` — the audited edge list.** Keep today's table (`simulation.py:485`), extended:
-
-```
-time    event   branch    parents        children      genome
-3.14    FI      n7        c12            c40;c41        g_root      # fission (both re-minted)
-4.02    FU      n7        c40;c9         c55            g_root      # fusion  → reticulation
-5.00    S       n7        c55            c88;c89        g_root      # speciation (NEW: now recorded)
-```
-
-`event` uses the existing `EventType` chars (`FI` / `FU` / `CO` / `CL`, plus `S`). `parents` /
-`children` are `;`-joined chrom_ids (already the format). The table is the **ground truth**; the
-eNewick is derived from it. Emit the eNewick only when the network is non-trivial (any fission / fusion
-/ origination / loss / >1 seed chromosome), exactly the condition that already triggers the karyotype
-outputs (`cli/genomes.py:114`).
-
-**Reconciling into the species tree.** Every `ChromosomeEvent` already records its `branch` — the
-species-tree node it fired on (`events.py:216`). That *is* the reconciliation: each chromosome node is
-stamped with a species branch, precisely as gene reconciliation stamps each gene node with a species
-branch (`reconcile`, `reconciliation.py:402`; it is exact annotation, never LCA inference, because the
-simulator knows the truth). So the chromosome network reconciled against the species tree is the same
-eNewick with each internal node labelled `#H../branch` — no new machinery, just carry `branch` through.
-What "reconciling a *network*" means when a fusion joins two branches is the open question in §6.
+**Reconciling into the species tree.** Every `ChromosomeEvent` records its `lineage` — the species-tree
+node it fired on. That *is* the reconciliation: each chromosome node is stamped with a species branch,
+exactly as a gene tree stamps each gene node — exact annotation, never LCA inference, because the
+simulator knows the truth. The network reconciled against the species tree is the same edge list with
+each node's species branch carried through; the reticulations live *below* the species level and are
+recovered, not projected onto species branches (§6, Option A).
 
 ---
 
@@ -264,8 +251,9 @@ All three questions that needed Adrián are decided:
 
 Still deferred (not v1):
 
-- **eNewick reader.** eNewick `#H` is the chosen output (not a bespoke edge-list); a network-aware reader
-  is needed because tree tooling (Newick, degree-2 suppression, LCA) does not apply.
+- **A portable graph file.** The output *is* the edge list (§3, decided 2026-07-20 — not eNewick); a
+  standard graph serialisation (GraphML / DOT / JSON node-link) is a later convenience only if a tool
+  needs it, and any eNewick adapter is downstream of that.
 - **Extant-pruned network.** Ships the *complete* network only for v1; the extant-pruned network (keep a
   reticulation iff either parent path survives) is deferred.
 
@@ -292,17 +280,22 @@ Still deferred (not v1):
 
 ## What to build
 
+> **Built in the clean core (ordered slices 1–2, 2026-07-20).** Steps 1, 2, 5 are done; step 3 is the
+> edge-list network (`chromosome_events`), **not** eNewick (§3); step 4 (gene→chromosome path) is
+> deferred with the gene-movement rearrangements. The code line-references below point into `legacy/` —
+> the as-built engine is `zombi2/genomes/ordered.py`; see `MAP.md`.
+
 1. **Record the speciation edge.** In `clone_reminting` (`genome.py:801` + nucleotide twin), emit a
    `ChromosomeEvent(SPECIATION, branch, t, parents=(parent_cid,), children=(d1, d2))` per parent
    chromosome — the lockstep `zip` already has the mapping; stop discarding it. This is the single change
    that gives chromosomes a genealogy across the whole run.
 2. **Re-mint both children at fission and fusion** (§2), so no `chrom_id` spans an event and every node
    has a clean birth. (Gated on Adrián accepting the byte-identity break.)
-3. **Assemble + serialise the network.** A `chromosome_network` builder over
-   `EventLog.chromosome_records` → eNewick (`karyotype_network.enewick`) + the extended
-   `karyotype_events.tsv`. Node labels carry the species `branch` (reconciliation-by-annotation, free).
-4. **Gene-→-chromosome path.** Use `Region.chromosome` / `Region.dest` (already logged) with stable
-   lineage ids to expose `gene_chromosome_path(gid)` and colour `gene_order.tsv` by chromosome lineage.
+3. **Assemble the network.** The `chromosome_events` edge list over the run *is* the network (§3) — one
+   row per event, each stamped with its species `branch` (reconciliation-by-annotation, free). A
+   portable graph *file* (GraphML / DOT / JSON) is a later convenience, not eNewick.
+4. **Gene-→-chromosome path.** Use the per-gene chromosome id (already on each gene in an ordered genome)
+   to expose which chromosome lineage carried a gene, and colour `gene_order.tsv` by chromosome lineage.
 5. **API surface.** On `simulate_ordered` / `simulate_nucleotide`: `chromosomes=`, `topology=`, and the
    four tier rates in the `scope(base) × modifiers` grammar (retire `n_chromosomes`,
    `--linear-chromosomes`, and the bare-float tier flags into the keyword-rate grammar).

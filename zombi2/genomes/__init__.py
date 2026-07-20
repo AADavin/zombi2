@@ -25,7 +25,6 @@ the legacy ``zombi2/genomes`` package is untouched.
 from __future__ import annotations
 
 import collections
-import math
 import pathlib
 from dataclasses import dataclass
 from functools import cached_property
@@ -35,8 +34,19 @@ import numpy as np
 from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage
-from ..species import SpeciesResult, Tree, _weighted_index
+from ..species import SpeciesResult, Tree
+from ._live import enter, retire
+from ._transfer import Distance, mean_root_to_tip, recipient_index
+from .events import Event, events_tsv
 from .gene_trees import GeneNode, GeneTree, gene_trees_from_events
+from .ordered import (
+    Chromosome,
+    ChromosomeEvent,
+    Gene,
+    Inversion,
+    OrderedGenomesResult,
+    simulate_genomes_ordered,
+)
 from .profiles import Profiles, profiles_from_genomes
 
 
@@ -49,49 +59,6 @@ class GeneCopy:
 
     id: int
     family: int
-
-
-@dataclass(frozen=True)
-class Event:
-    """A recorded genome event — the true history every per-family gene tree is derived from. Gene
-    ids are **per segment** (the ZOMBI1 model): every event ends a gene and starts fresh ids for its
-    descendants, so an id belongs to exactly one species branch and every node's genome has its own
-    ids. ``lineage`` is the species-tree node the event fired on; ``time`` is when (crown-forward,
-    the species tree's clock). By kind:
-
-    - ``"origination"`` — ``copy`` is a founding gene of a fresh family (``parent`` ``None``): a root.
-    - ``"duplication"`` — the gene ``parent`` ends; ``copy`` is one of its **two** descendants (the
-      continuation and the new copy — two rows, same ``parent``), both on ``lineage``.
-    - ``"transfer"`` — the donor gene ``parent`` ends; ``copy`` is one of its two descendants: the
-      continuation on the donor ``lineage``, or the transferred copy on the ``recipient`` lineage (a
-      horizontal edge). Two rows, same ``parent``.
-    - ``"speciation"`` — the gene ``parent`` ends at a split; ``copy`` is its descendant in daughter
-      species ``lineage`` (one row per daughter — two, same ``parent``).
-    - ``"loss"`` — the gene ``copy`` ends with no descendant (``parent`` ``None``).
-    """
-
-    time: float
-    kind: str  # "origination" | "duplication" | "loss" | "transfer"
-    lineage: int  # the species-tree node id where it fired (for a transfer: the donor lineage)
-    family: int
-    copy: int  # the copy born (origination / duplication / transfer) or removed (loss)
-    parent: int | None = None  # duplication & transfer: the source copy (which survives)
-    recipient: int | None = None  # transfer only: the species lineage the new copy is born on
-
-
-@dataclass(frozen=True)
-class Distance:
-    """A ``transfer_to`` weighting by relatedness: a recipient at patristic distance ``d`` from the
-    donor gets weight ``exp(-decay × d / depth)``, where ``depth`` is the tree's mean root-to-tip
-    time — so ``decay`` is **scale-free** (in units of tree depth), meaning the same across trees of
-    different absolute timescales. ``transfer_to="distance"`` is ``Distance(decay=1.0)``."""
-
-    decay: float = 1.0
-
-    def __post_init__(self) -> None:
-        if isinstance(self.decay, bool) or not isinstance(self.decay, (int, float)) \
-                or not math.isfinite(self.decay) or self.decay < 0:
-            raise ValueError(f"Distance decay must be a finite non-negative number, got {self.decay!r}")
 
 
 @dataclass
@@ -135,37 +102,12 @@ class GenomesResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(_events_tsv(self.events))
+            (d / "genome_events.tsv").write_text(events_tsv(self.events))
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv())
 
 
-def _events_tsv(events: list[Event]) -> str:
-    """The event log as TSV — one row per event; empty cells for the fields a kind does not use."""
-    cols = ("time", "kind", "lineage", "family", "copy", "parent", "recipient")
-    rows = ["\t".join("" if (v := getattr(e, c)) is None else str(v) for c in cols) for e in events]
-    return "\n".join(["\t".join(cols), *rows]) + "\n"
-
-
 # --- the live genomes: parallel arrays under swap-remove, the ``species_tree._grow`` shape --------
-
-def _append(alive, gen, pos, node_id, genome) -> None:
-    """Enter a lineage into the alive set with its (mutable) working genome."""
-    pos[node_id] = len(alive)
-    alive.append(node_id)
-    gen.append(genome)
-
-
-def _swap_remove(alive, gen, pos, k) -> None:
-    """Retire the lineage at index ``k`` (swap the last into its slot), keeping ``pos`` in sync."""
-    removed = alive[k]
-    alive[k] = alive[-1]
-    gen[k] = gen[-1]
-    pos[alive[k]] = k          # the moved lineage now lives at k (a self-assign if k was last)
-    alive.pop()
-    gen.pop()
-    del pos[removed]
-
 
 def _pick_copy(rng, gen, total_copies) -> tuple[int, int]:
     """A uniform global copy pick → ``(lineage index k, copy index j in gen[k])``. Realises
@@ -207,36 +149,8 @@ def _lose_at(genome, j, node, t, events) -> None:
     events.append(Event(t, "loss", node.id, lost.family, lost.id))
 
 
-def _recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth) -> int:
-    """Pick a recipient lineage index (into ``alive``) from the candidate indices ``cand`` by the
-    ``transfer_to`` rule: ``"uniform"`` gives every contemporaneous lineage equal weight; a
-    ``Distance`` weights by relatedness (closer relatives likelier)."""
-    if transfer_to == "uniform":
-        return cand[int(rng.integers(len(cand)))]
-    # Distance: patristic distance d(donor, x) = 2·(t − t_mrca); scale-free in the tree depth. Mark
-    # the donor's ancestor end-times once, then climb each candidate to its first marked ancestor.
-    anc = {}
-    p = tree.nodes[donor].parent
-    while p is not None:
-        anc[p] = tree.nodes[p].end_time
-        p = tree.nodes[p].parent
-    dists = []
-    for k in cand:
-        x = alive[k]
-        if x == donor:
-            dists.append(0.0)  # self (only reachable under self_transfer): closest
-            continue
-        q = x
-        while q not in anc:
-            q = tree.nodes[q].parent
-        dists.append(2.0 * (t - anc[q]))
-    dmin = min(dists)
-    weights = [math.exp(-transfer_to.decay * (d - dmin) / depth) for d in dists]  # dmin: softmax-stable
-    return cand[_weighted_index(rng, weights, sum(weights))]
-
-
-def _transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
-              transfer_to, replacement, self_transfer, depth) -> int:
+def _do_transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
+                 transfer_to, replacement, self_transfer, depth) -> int:
     """A gene transfers from a donor copy to a contemporaneous recipient lineage. Returns the change
     in total copy count: +1 additive, 0 replacement (the arriving copy displaces a resident)."""
     kd, jd = _pick_copy(rng, gen, total_copies)
@@ -244,7 +158,7 @@ def _transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
     src = gen[kd][jd]
     fam = src.family
     cand = [k for k in range(len(alive)) if self_transfer or k != kd]
-    kr = _recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
+    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
     recipient = alive[kr]
     rg = gen[kr]
     # the donor gene ends; two fresh copies descend from it (ZOMBI1 re-id): the continuation on the
@@ -265,15 +179,6 @@ def _transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
     events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id))
     events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient))
     return delta
-
-
-def _mean_root_to_tip(tree) -> float:
-    """The tree's mean root-to-tip time — the timescale that makes ``Distance`` decay scale-free.
-    Over the extant tips (all leaves if none survive); 1.0 for a degenerate zero-height tree."""
-    root_t = tree.nodes[tree.root].birth_time
-    tips = tree.extant() or tree.leaves()
-    depth = sum(n.end_time - root_t for n in tips) / len(tips)
-    return depth if depth > 0 else 1.0
 
 
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
@@ -342,7 +247,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         family_counter += 1
         return f
 
-    depth = _mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
+    depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)  # (end_time, node_id)
 
     root = tree.nodes[tree.root]
@@ -352,7 +257,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[GeneCopy, ...]] = {}
     events: list[Event] = []
-    _append(alive, gen, pos, root.id, [])
+    enter(alive, gen, pos, root.id, [])
     for _ in range(initial_families):  # seed the crown as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
     total_copies = len(gen[0])
@@ -391,8 +296,8 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
                     total_copies += 1
                 else:
-                    total_copies += _transfer(rng, tree, alive, gen, n, t, events, new_copy,
-                                              transfer_to, replacement, self_transfer, depth)
+                    total_copies += _do_transfer(rng, tree, alive, gen, n, t, events, new_copy,
+                                                 transfer_to, replacement, self_transfer, depth)
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch
@@ -402,7 +307,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 g = gen[pos[i]]
                 genomes[i] = tuple(g)  # finalise this lineage (extant, extinct, or unsampled)
                 total_copies -= len(g)
-                _swap_remove(alive, gen, pos, pos[i])
+                retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
                 if node.children is not None:  # a speciation: each gene re-ids into each daughter
                     for c in node.children:
@@ -411,7 +316,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                             nc = new_copy(old.family)
                             child_genome.append(nc)
                             events.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
-                        _append(alive, gen, pos, c, child_genome)
+                        enter(alive, gen, pos, c, child_genome)
                         total_copies += len(child_genome)
                 si += 1
         else:
@@ -421,4 +326,6 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
 
 
 __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
-           "Profiles", "GeneTree", "GeneNode"]
+           "Profiles", "GeneTree", "GeneNode",
+           "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
+           "ChromosomeEvent", "Inversion"]

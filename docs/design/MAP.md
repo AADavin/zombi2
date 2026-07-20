@@ -37,7 +37,7 @@ zombi2/
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
     distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform   (value / length distributions)
   species/           ✅ simulate_species_tree → SpeciesResult ;  Tree · Node  (the shared dated tree)
-  genomes/           ✅ simulate_genomes_unordered → GenomesResult   (ordered · nucleotide 🔨)
+  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered   (ordered = chromosomes + inversions + tier ✅; eNewick · nucleotide 🔨)
   sequences/         🔨 simulate_sequences → SequencesResult
   traits/            🔨 simulate_traits → TraitsResult
   coupling/          🔨 conditioned · joint       (what the old "coevolve" becomes; SPEC §2–4)
@@ -56,6 +56,7 @@ species level produces it and the other levels read it (`from zombi2.species imp
 | `zombi2.rates` | `from zombi2.rates import scope, modifiers` → `scope.Global`, `modifiers.OnTime({...})`. Scopes: `PerCopy · PerLineage · PerSite · Global`. Modifiers: `OnTime · OnTotalDiversity · FromParent · ByLineage`. |
 | `zombi2.species` | `simulate_species_tree(birth, death=0, *, n_extant=None, total_time=None, mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None)` → `SpeciesResult(.complete_tree, .extant_tree, .fossils, .events, .seed)`. Also `Tree`, `Node`, `prune(tree, keep="extant")`. |
 | `zombi2.genomes` | `simulate_genomes_unordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, transfer_to="uniform", replacement=False, self_transfer=False, initial_families=0, seed=None)` → `GenomesResult(.complete_tree, .genomes, .events, .seed, .family_counts())`. Also `GeneCopy(id, family)`, `Distance(decay=1.0)`. |
+| `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=0, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order())`. Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion`, `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`, one home for both resolutions. |
 
 Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(s) / `.seed` /
 `.write(dir, [...])`, with the `record=[...]` memory dial (see [`result-api.md`](result-api.md)).
@@ -65,8 +66,12 @@ Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(
 Level by level, each with its chapter written alongside:
 
 1. **Species** ✅ — the forward birth–death engine. Chapter 4 written.
-2. **Genomes** — unordered D/T/L/O ✅ (Ch5 drafted); **ordered** (chromosomes, rearrangements) 🔨 and
-   **nucleotide** (genes, indels) 🔨 layer on top (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide).
+2. **Genomes** — unordered D/T/L/O ✅ (Ch5 drafted); **ordered** ✅ slices 1–2 — chromosomes as
+   identity-bearing containers, position-aware D/T/L/O, inversions, and the number-changing tier
+   (fission/fusion/origination/loss) forming a reticulating chromosome network, recorded as the
+   `chromosome_events` edge-list ground truth (`chromosome-network.md`); its **eNewick** serialisation,
+   the gene-movement rearrangements (transposition, translocation), and **nucleotide** (genes, indels) 🔨
+   to come (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide).
 3. **Sequences** 🔨 — substitution + clocks on the gene trees.
 4. **Traits** 🔨 — the overlay models on the species tree.
 5. **Coupling** 🔨 — conditioned and joint (SPEC §2–4).
