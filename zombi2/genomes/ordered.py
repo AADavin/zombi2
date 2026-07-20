@@ -42,6 +42,7 @@ from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
+from .chromosomes import ChromosomeEvent
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .events import Event, events_tsv
@@ -123,23 +124,6 @@ class Translocation:
     length: int
     dest_position: int
     flipped: bool
-
-
-@dataclass(frozen=True)
-class ChromosomeEvent:
-    """One edge of the **chromosome genealogy** — a chromosome lineage's birth, split, merge, or
-    death, fired on species branch ``lineage`` at ``time``. ``parents`` → ``children`` are chromosome
-    ids and the arity names the event: ``"origination"`` (``()`` → one child: a seed or de-novo
-    replicon, a **root**), ``"speciation"`` and ``"fission"`` (one parent → two children, a
-    **bifurcation**), ``"fusion"`` (two parents → one child, the **reticulation** — in-degree 2, what
-    makes this a network and not a tree), ``"loss"`` (one parent → ``()``, a **leaf**). The edge list
-    is the network's ground truth; the eNewick serialisation is derived from it."""
-
-    time: float
-    kind: str  # "origination" | "speciation" | "fission" | "fusion" | "loss"
-    lineage: int
-    parents: tuple[int, ...]
-    children: tuple[int, ...]
 
 
 @dataclass
