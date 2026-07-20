@@ -623,3 +623,85 @@ def test_speciation_re_mints_every_copy_lineage():
         for c in node.children:
             child_copies = {b.copy for chrom in r.genomes[c].chromosomes for b in chrom.blocks}
             assert parent_copies.isdisjoint(child_copies)      # fully re-minted at the speciation
+
+
+# --- the gene-tree recovery: root partition -> one tree per block ---------------------------------
+
+def _tips(node):
+    out, stack = [], [node]
+    while stack:
+        n = stack.pop()
+        if n.children:
+            stack.extend(n.children)
+        else:
+            out.append(n)
+    return out
+
+
+def test_recovery_ancestry_neutral_is_the_species_tree():
+    # With no birth/death of copies (only ancestry-neutral events), every extant leaf carries the
+    # whole root once, so every root-block's extant gene tree is the species tree: one tip per leaf.
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    r = simulate_genomes_nucleotide(sp, inversion=0.05, inversion_length=12, translocation=0.03,
+                                    fission=0.1, fusion=0.1, chromosomes=[(60, "circular")], seed=1)
+    leaves = {n.id for n in r.complete_tree.extant()}
+    assert r.root_blocks                                       # inversions leave surviving breakpoints
+    for fam, _blk in enumerate(r.root_blocks):
+        ex = r.gene_trees[fam].extant
+        tip_species = [t.species for t in _tips(ex) if t.kind == "extant"]
+        assert sorted(tip_species) == sorted(leaves)           # exactly one copy per extant leaf
+
+
+def test_recovered_extant_leaves_match_observed_copies():
+    # The cross-check: for every root-block and every extant leaf, the number of extant tips the
+    # recovered gene tree puts on that leaf equals the number of copies actually in the leaf genome.
+    import collections
+    specs = [(80, "circular"), (30, "linear")]
+    for seed in range(4):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
+        r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.05, duplication_length=8,
+                                        loss_length=8, inversion=0.03, translocation=0.03, fission=0.1,
+                                        fusion=0.1, chromosomes=specs, seed=seed)
+        assert any(isinstance(e, Duplication) for e in r.events)
+        assert any(isinstance(e, Loss) for e in r.events)
+        leaves = [n.id for n in r.complete_tree.extant()]
+        for fam, (s, a, b) in enumerate(r.root_blocks):
+            ex = r.gene_trees[fam].extant
+            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+                                            if t.kind == "extant")
+            for lid in leaves:
+                observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                               if blk.source == s and blk.start <= a and b <= blk.end)
+                assert observed == recovered.get(lid, 0)
+
+
+def test_every_root_block_has_a_parsing_gene_tree():
+    specs = [(60, "circular"), (25, "linear")]
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=8)
+    r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.04, inversion=0.03, chromosomes=specs,
+                                    seed=8)
+    assert set(r.gene_trees) == set(range(len(r.root_blocks)))    # one family per root-block, by index
+    assert {s for (s, _a, _b) in r.root_blocks} <= {0, 1}        # blocks live under their seed sources
+    for fam in r.gene_trees:
+        nwk = r.gene_trees[fam].to_newick("complete")
+        assert nwk and nwk.endswith(";") and nwk.count("(") == nwk.count(")")
+
+
+def test_duplication_shows_up_as_a_branch_in_a_block_tree():
+    # A run with duplication (and nothing that removes copies) must produce at least one block whose
+    # extant tree has a duplication node — a leaf carrying two copies of that block.
+    sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=6, seed=3)
+    r = simulate_genomes_nucleotide(sp, duplication=0.06, duplication_length=10,
+                                    chromosomes=[(80, "circular")], seed=3)
+
+    def has_kind(node, kind):
+        stack = [node]
+        while stack:
+            n = stack.pop()
+            if n.kind == kind:
+                return True
+            stack.extend(n.children)
+        return False
+
+    assert any(has_kind(r.gene_trees[fam].extant, "duplication")
+               for fam in r.gene_trees if r.gene_trees[fam].extant is not None)
