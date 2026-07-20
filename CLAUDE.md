@@ -17,6 +17,16 @@ chapter** (fix the code before documenting new behaviour).
 Do not reintroduce the old lexicon. If a convention genuinely needs to change, change SPEC.md (words) or
 MAP.md (shape) **first**, then propagate.
 
+## Output files — keep the cheatsheet in sync
+
+Every file ZOMBI2 writes is catalogued in one table per level in
+[`manual/revision/appendix-b-output-files.md`](manual/revision/appendix-b-output-files.md) (Appendix B;
+the docs site single-sources it at `docs/reference/output-files.md`, so editing the appendix updates both
+book and site). **Whenever you add or change an output** — a new `.write()` token, a new filename or
+format, a changed default, new columns, or a new Python-only accessor like `.gene_trees` — **update that
+table in the same change.** The table's columns are Output · File · Format · Default (yes / no / Python /
+soon) · Contents.
+
 ## Project
 
 ZOMBI2 is a phylogenetic simulator (Rust engine + Python library + CLI) that simulates four levels of
