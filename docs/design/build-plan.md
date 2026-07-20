@@ -42,7 +42,7 @@ Everything downstream imports these, so they come first:
 | 1 | **Species** | `simulate_species_tree` → `SpeciesResult` | No (pure Python) | the 7 process classes |
 | 2 | **Genomes — unordered** | `simulate_unordered` → `GenomesResult` | **Yes** (`zombi2_core`) | the `RateModel` hierarchy, `genome_factory`, `TransferModel` |
 | 3 | **Sequences** | `simulate_sequences` → `SequencesResult` | reuses `exp(Qt)` | the 8-class `Clock` zoo |
-| 4 | **Traits** | `simulate_continuous` / `simulate_discrete` → `TraitsResult` | No | the 13-class model zoo; `DEC` → experimental |
+| 4 | **Traits** | `simulate_continuous` / `simulate_discrete` → `TraitsResult` | No | the 13-class model zoo; `DEC` not implemented |
 | 5 | **Genomes — structured** | `simulate_ordered` / `simulate_nucleotide` | **Yes** | — (extends #2) |
 | 6 | **Coupling** | `mod.DrivenBy` + `joint.simulate` | via the driven level | the `coevolve` command |
 
@@ -72,7 +72,7 @@ length distributions) is the heaviest single piece. Coupling is last — it reac
   `FromParent`/`Markov` on the **species tree** (lineage clock), `ByFamily` = per-family speed, they
   compose; `+Γ` = `gamma=`. `.ancestral` from the recorded nodes.
 - **Traits (#4):** BM native; OU = `reverts_to`+`pull`; EB = `× OnTime`; Mk = `switch=` (scalar / `{a->b}` /
-  matrix); threshold via liability; correlated = one call + `correlation=` overlay. `DEC` → experimental;
+  matrix); threshold via liability; correlated = one call + `correlation=` overlay. `DEC` not implemented;
   SSE leaves for #6.
 - **Structured genomes (#5):** rearrangements (per gene copy, `inversion_length=Geometric(mean=)`);
   chromosomes (`scope.PerChromosome`; fission/fusion/loss; translocation **per gene copy**); the
