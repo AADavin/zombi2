@@ -71,7 +71,7 @@ from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult, Tree
 
-_WRITE_OUTPUTS = ("values", "changes", "tree")  # write vocabulary; "changes" = discrete transitions
+_WRITE_OUTPUTS = ("values", "changes", "tree", "driver")  # write vocabulary; "changes" = discrete transitions
 
 
 @dataclass(frozen=True)
@@ -135,7 +135,10 @@ class TraitsResult:
         plain continuous trait, whose diffusion has no along-branch events); ``"tree"`` →
         ``trait_tree.nwk``, the complete tree as Newick with **every** node
         annotated ``[&trait=…]`` (a *trait tree*, carrying the exact ancestral values; opens in
-        FigTree / iTOL)."""
+        FigTree / iTOL); ``"driver"`` → ``trait_driver.tsv``, the **driver file** for conditioning
+        (``node · start · end · state``, one row per constant stretch of a lineage's branch) that a
+        genome/sequence run reads through ``mod.DrivenBy("trait_driver.tsv", …)`` — a **discrete**
+        trait only, whose exact stochastic character map cuts each branch into constant segments."""
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
@@ -147,6 +150,14 @@ class TraitsResult:
             (d / "trait_changes.tsv").write_text(_changes_tsv(self.events))
         if "tree" in outputs:
             (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n")
+        if "driver" in outputs:
+            if self.history is None:
+                raise ValueError(
+                    "the 'driver' output is a conditioning file for a DISCRETE trait (its stochastic "
+                    f"character map cuts each branch into segments); this trait is {self.kind!r}, which "
+                    "has no map. Driving a rate with a continuous trait is a later slice."
+                )
+            (d / "trait_driver.tsv").write_text(_driver_tsv(self.complete_tree, self.history))
 
 
 def _fmt(v) -> str:
@@ -204,6 +215,25 @@ def _changes_tsv(changes: list[Change]) -> str:
     rows = ["time\tkind\tlineage\tfrom\tto"]
     for c in changes:
         rows.append(f"{c.time:.6g}\t{c.kind}\tn{c.lineage}\t{_fmt(c.from_state)}\t{_fmt(c.to_state)}")
+    return "\n".join(rows) + "\n"
+
+
+def _driver_tsv(tree: "Tree", history: dict) -> str:
+    """The **driver file** for conditioning — the discrete stochastic character map flattened to a
+    ``node<TAB>start<TAB>end<TAB>state`` segment table, one row per constant stretch of a lineage's
+    branch (a branch with no switch is one row). Times are crown-forward (the species-tree clock);
+    each node's segments run from its ``birth_time``, so a genome/sequence run reading this back
+    (:func:`zombi2.rates.driver.load_driver`) knows the driver on every lineage at every instant. Tips
+    are named ``n<id>`` to match the join key (the shared species node id)."""
+    rows = ["node\tstart\tend\tstate"]
+    for i in sorted(tree.nodes):
+        t = tree.nodes[i].birth_time
+        for state, dur in history[i]:
+            # the state is written as str() to match Table's string-form lookup exactly (so an
+            # int-labelled trait round-trips); times use full precision — they drive the engine's
+            # Gillespie horizon (a switch time), not just display.
+            rows.append(f"n{i}\t{t:.12g}\t{t + dur:.12g}\t{state!s}")
+            t += dur
     return "\n".join(rows) + "\n"
 
 
@@ -830,4 +860,57 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     return TraitsResult(tree, node_values, events, seed, kind="discrete")
 
 
-__all__ = ["simulate_continuous", "simulate_discrete", "TraitsResult", "Change"]
+# --- process specs: a trait bundled but UNEXECUTED, for a joint model to grow with the tree --------
+
+@dataclass(frozen=True)
+class DiscreteTrait:
+    """A discrete (Mk) trait **process** — its parameters bundled but not yet run (SPEC §4,
+    ``coupling-api.md``). ``simulate_discrete(tree, ...)`` is the runner that grows this on a *fixed*
+    tree; a **joint** model instead takes this spec and grows the trait *with* the tree it drives
+    (``joint.simulate_joint(trait=traits.discrete(...))``), so neither can be simulated first. Same
+    parameters as :func:`simulate_discrete` (the Mk half): ``states``, ``switch`` (the rate spec),
+    ``start`` (the root state, ``None`` = uniform), ``at_speciation`` (the on-speciation shift
+    probability)."""
+
+    states: tuple
+    switch: object
+    start: object = None
+    at_speciation: object = None
+
+    def _resolve(self, rng):
+        """Build the concrete CTMC the engine grows: ``(states_list, Q, start_index, shift_prob)`` —
+        the same setup :func:`simulate_discrete` does, so a joint run and a fixed-tree run share one
+        trait model. ``rng`` draws the root state when ``start`` is ``None``."""
+        states = list(self.states)
+        Q = _q_matrix(states, self.switch)
+        idx = {s: i for i, s in enumerate(states)}
+        if self.start is None:
+            start_i = int(rng.integers(len(states)))
+        elif self.start in idx:
+            start_i = idx[self.start]
+        else:
+            raise ValueError(f"start must be one of states={states} (or None for a uniform draw), got {self.start!r}")
+        if self.at_speciation is not None and (isinstance(self.at_speciation, bool)
+                or not isinstance(self.at_speciation, (int, float)) or not 0.0 <= self.at_speciation <= 1.0):
+            raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), got {self.at_speciation!r}")
+        shift = 0.0 if self.at_speciation is None else float(self.at_speciation)
+        return states, Q, start_i, shift
+
+
+def discrete(*, states, switch=None, start=None, at_speciation=None) -> DiscreteTrait:
+    """A discrete-trait **process spec** — :class:`DiscreteTrait`, unexecuted — for a joint model to
+    grow with the tree it drives (``joint.simulate_joint(trait=traits.discrete(states=[...], switch=...))``).
+    A thin bundle of :func:`simulate_discrete`'s Mk parameters; validated when the joint run resolves
+    it. (Threshold traits are not a driving process; there is no ``discrete`` spec for them.)"""
+    states = list(states)
+    if len(states) < 2:
+        raise ValueError(f"a discrete trait needs at least 2 states, got {states!r}")
+    if len(set(states)) != len(states):
+        raise ValueError(f"states must be unique, got {states!r}")
+    if switch is None:
+        raise ValueError("give switch= — the transition rate(s) between the discrete states.")
+    return DiscreteTrait(tuple(states), switch, start, at_speciation)
+
+
+__all__ = ["simulate_continuous", "simulate_discrete", "TraitsResult", "Change",
+           "DiscreteTrait", "discrete"]

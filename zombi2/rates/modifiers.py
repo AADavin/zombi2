@@ -215,4 +215,69 @@ class ByLineage(Modifier):
         return bylineage
 
 
-__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage"]
+class DrivenBy(Modifier):
+    """The rate is **driven by another level** — the one coupling mechanism (SPEC §2, ``coupling-api.md``).
+
+    A coupling is Ch2's definition made literal: *a parameter that reads its value from another
+    level instead of a number you type*. ``DrivenBy`` reads the driver's value on each lineage and
+    multiplies the base rate by the mapped factor::
+
+        loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
+        birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})   # a joint model
+
+    ``source`` says where the driver comes from, and that single choice splits *conditioned* from
+    *joint* — the chapter's spine, *can the driver be grown first?*:
+
+    - a **filename** (``"habitat.tsv"``) — the driver was grown first and written to a file
+      (**conditioned**): two ordinary runs, the driver passed as a file;
+    - a **level name** (``"trait"``, ``"genomes:count"``) — the driver co-evolves in one run
+      (**joint**): neither level can be grown first.
+
+    ``mapping`` says how the driver's value becomes the factor — a :class:`~zombi2.rates.mapping.Table`
+    (a dict, for a discrete driver), a :class:`~zombi2.rates.mapping.Curve` (a callable, continuous),
+    or a :class:`~zombi2.rates.mapping.Scalar` (a log-link coefficient); a raw dict / callable / number
+    is coerced (:func:`~zombi2.rates.mapping.as_mapping`).
+
+    Like :class:`FromParent` (``inherited``) and :class:`ByLineage` (``bylineage``), ``DrivenBy`` reads
+    a value the **engine** threads per lineage — here a ``drivers`` mapping ``{source: value}`` — and
+    is otherwise dumb: it just maps the value to a factor. The engine owns *where* the value comes from
+    (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete
+    driver switches mid-branch, so the engine steps its Gillespie at each switch); a rate reaching an
+    engine that has not threaded its ``source`` gets a factor of 1.0 (inert). ``DrivenBy`` targets a
+    **rate** (a "how often") and **multiplies**; driving a *value* (an OU optimum) is a different verb,
+    deferred to experimental for v1.
+    """
+
+    def __init__(self, source: str, mapping: object) -> None:
+        from .mapping import as_mapping
+
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(f"DrivenBy source must be a non-empty string (a filename or level name), got {source!r}")
+        self.source = source
+        self.mapping = as_mapping(mapping)
+
+    def factor(self, *, drivers: Mapping | None = None, **_: float) -> float:
+        """The mapped multiplier for this lineage's driver value — the engine threads the value under
+        ``drivers[source]``. No ``drivers`` (or this ``source`` absent) ⇒ 1.0, so an unthreaded rate
+        is inert (the engine is responsible for supplying the value where the coupling is supported)."""
+        if drivers is None:
+            return 1.0
+        value = drivers.get(self.source)
+        if value is None:
+            return 1.0
+        return self.mapping.multiplier(value)
+
+    def __repr__(self) -> str:
+        return f"DrivenBy({self.source!r}, {self.mapping!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return (isinstance(other, DrivenBy) and other.source == self.source
+                and other.mapping == self.mapping)
+
+    def __hash__(self) -> int:
+        # by source only (a mapping — a dict or callable — need not be hashable); equal DrivenBy
+        # share a source, so this stays consistent with __eq__ and keeps a Rate carrying it hashable.
+        return hash((DrivenBy, self.source))
+
+
+__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage", "DrivenBy"]
