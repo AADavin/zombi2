@@ -8,6 +8,8 @@ oracle: apply the same inversions to a plain per-nucleotide array (the ground tr
 import numpy as np
 import pytest
 
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import NucleotideGenome, Segment, _split_segment
 
 
@@ -161,3 +163,64 @@ def test_trace_back_matches_the_oracle_under_random_inversions(topology):
             _oracle_invert(arr, s, ell, topology)
             assert g.trace_back() == arr                     # exact agreement, every step
         assert g.length == length_total
+
+
+# --- slice A: the tree wiring (inversions along the species tree) ---------------------------------
+
+def _run(seed=1, inversion=0.02, root_length=200, **kw):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
+    params = dict(inversion=inversion, root_length=root_length, inversion_length=20, seed=seed)
+    params.update(kw)
+    return sp, simulate_genomes_nucleotide(sp, **params)
+
+
+def test_every_node_has_a_genome_of_conserved_length():
+    sp, r = _run(seed=2)
+    assert set(r.genomes) == set(sp.complete_tree.nodes)     # a genome at every node of the complete tree
+    assert all(g.length == 200 for g in r.genomes.values())  # inversion conserves length everywhere
+
+
+def test_every_node_carries_the_whole_root_sequence_permuted():
+    # the strong invariant: inheritance copies the ancestry and an inversion changes none of it, so
+    # EVERY node's trace_back is a signed permutation of the root's nucleotides — all present once
+    sp, r = _run(seed=3)
+    root_positions = sorted((0, p) for p in range(200))
+    for node_id in r.genomes:
+        assert sorted((src, pos) for (src, pos, _s) in r.trace_back(node_id)) == root_positions
+
+
+def test_zero_inversion_leaves_every_genome_as_the_seed():
+    sp, r = _run(seed=4, inversion=0.0)
+    assert r.rearrangements == []
+    assert all(r.mosaic(n) == [(0, 0, 200, 1)] for n in r.genomes)
+
+
+def test_inversions_fire_and_are_recorded_within_their_branch():
+    sp, r = _run(seed=5, inversion=0.05)
+    assert r.rearrangements                                   # inversions really happened
+    for inv in r.rearrangements:
+        node = sp.complete_tree.nodes[inv.lineage]
+        assert node.birth_time <= inv.time <= node.end_time   # each fired within its branch's interval
+        assert 0 <= inv.start < 200 and inv.length >= 1
+
+
+def test_deterministic_given_seed():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=6)
+    kw = dict(inversion=0.03, root_length=200, inversion_length=20, seed=6)
+    a = simulate_genomes_nucleotide(sp, **kw)
+    b = simulate_genomes_nucleotide(sp, **kw)
+    assert all(a.mosaic(n) == b.mosaic(n) for n in a.genomes)
+    assert a.rearrangements == b.rearrangements
+
+
+def test_linear_topology_passes_through():
+    _sp, r = _run(seed=7, topology="linear")
+    assert all(g.topology == "linear" for g in r.genomes.values())
+
+
+def test_simulate_validation():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, inversion=-1.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, inversion_length=0)
