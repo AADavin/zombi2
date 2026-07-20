@@ -2,27 +2,30 @@
 
 The ordered resolution layers **position** over the unordered D/T/L/O core (Chapter 6). A genome is
 no longer a multiset of gene copies but a list of **chromosomes**, each an ordered run of oriented
-:class:`Gene`\\ s. This slice adds one rearrangement — the **inversion** (reverse a span of a
-chromosome, flipping each gene's strand: the classic signed-permutation move) — and gives
-chromosomes a genuine **identity**: a chromosome id is re-minted at every speciation and the
-speciation edge is recorded, so the chromosome genealogy exists from the start (a tree for now; it
-reticulates once fission/fusion arrive — the next slice).
+:class:`Gene`\\ s.
+
+**Every gene-level event acts on an extension** — a run of consecutive genes (the ZOMBI1 model), its
+length drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). Over that
+segment: **duplication** copies it in tandem, **loss** removes it, **transfer** sends it to a
+contemporaneous recipient as a block, **inversion** reverses it (flipping strands), **transposition**
+relocates it elsewhere on the same chromosome, and **translocation** moves it to a different
+chromosome; a moved block lands inverted with probability ``inversion_probability``.  (Origination is
+the exception — a family is born once, a single gene.)  Inversion/transposition/translocation never
+re-mint gene ids: they reshape order and cross genes between chromosome lineages without ending them,
+so they live in the ``rearrangements`` log, not the gene genealogy.
+
+Chromosomes carry a genuine **identity** — a chromosome id re-minted at every event that reshapes it —
+so ``chromosome_events`` is the true reticulating **chromosome network**: fission (a bifurcation),
+fusion (the reticulation), chromosome origination (a de-novo replicon) and chromosome loss, rooted at
+the seed and de-novo originations, recorded as an edge list (its ground truth — a network is a graph,
+not eNewick; see ``chromosome-network.md``).
 
 It is the genome twin of the unordered core and shares its spine: one forward Gillespie over the
 **complete** species tree, the same ``scope(base) × modifiers`` rate grammar, the same gene-genealogy
 :class:`~zombi2.genomes.events.Event` log (position-blind, so ``gene_trees`` and ``profiles`` are
 derived from it unchanged), and the same live-lineage bookkeeping. What differs is the state (a list
-of chromosomes, not a flat multiset) and the mutators (position-aware: duplication is tandem, loss is
-in-place, transfers arrive at a position) plus two extra logs — ``rearrangements`` (inversions) and
-``chromosome_events`` (the chromosome genealogy).
-
-Slice 2 adds the **chromosome tier** — the events that change chromosome *number*: fission (a
-bifurcation), fusion (the reticulation), chromosome origination (a de-novo replicon) and chromosome
-loss. The chromosome genealogy is now a genuine reticulating network, recorded as the
-``chromosome_events`` edge list (its ground truth). Still to come: the **eNewick** serialisation of
-that network and the gene→chromosome path (``chromosome-network.md``); the gene-movement
-rearrangements — transposition and translocation — that shuffle genes between chromosome lineages
-without ending them; then the nucleotide resolution.
+of chromosomes) and the segmental, position-aware mutators, plus the ``rearrangements`` and
+``chromosome_events`` logs. Still to come: the nucleotide resolution (genes/intergenes, indels).
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ from functools import cached_property
 
 import numpy as np
 
+from ..rates.distributions import Geometric, as_distribution
 from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
@@ -90,6 +94,38 @@ class Inversion:
 
 
 @dataclass(frozen=True)
+class Transposition:
+    """A recorded transposition: on branch ``lineage`` at ``time``, the ``length`` genes starting at
+    ``start`` on chromosome ``chromosome`` were excised and reinserted at position ``dest`` on the
+    **same** chromosome, ``flipped`` (reversed + strands) or not. Gene ids are untouched."""
+
+    time: float
+    lineage: int
+    chromosome: int
+    start: int
+    length: int
+    dest: int
+    flipped: bool
+
+
+@dataclass(frozen=True)
+class Translocation:
+    """A recorded translocation: on branch ``lineage`` at ``time``, the ``length`` genes starting at
+    ``start`` on chromosome ``source`` were moved to position ``dest_position`` on chromosome ``dest``
+    (a **different** chromosome of the same genome), ``flipped`` or not. Gene ids are untouched — a
+    gene lineage crosses to another chromosome lineage, which is *not* a chromosome-network edge."""
+
+    time: float
+    lineage: int
+    source: int
+    dest: int
+    start: int
+    length: int
+    dest_position: int
+    flipped: bool
+
+
+@dataclass(frozen=True)
 class ChromosomeEvent:
     """One edge of the **chromosome genealogy** — a chromosome lineage's birth, split, merge, or
     death, fired on species branch ``lineage`` at ``time``. ``parents`` → ``children`` are chromosome
@@ -118,7 +154,7 @@ class OrderedGenomesResult:
     complete_tree: Tree
     genomes: dict[int, tuple[Chromosome, ...]]
     events: list[Event]
-    rearrangements: list[Inversion]
+    rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
 
@@ -158,7 +194,7 @@ class OrderedGenomesResult:
         - ``"events"`` → ``genome_events.tsv``, the gene-genealogy log (the source of truth).
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
         - ``"gene_order"`` → ``gene_order.tsv``, the observed genomes' layout (one row per gene).
-        - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion log.
+        - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges.
         """
         d = pathlib.Path(directory)
@@ -182,10 +218,20 @@ class OrderedGenomesResult:
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
-def _rearrangements_tsv(rearrangements: list[Inversion]) -> str:
-    cols = ("time", "kind", "lineage", "chromosome", "start", "end", "length")
-    rows = [f"{r.time}\tinversion\t{r.lineage}\t{r.chromosome}\t{r.start}\t{r.end}\t{r.length}"
-            for r in rearrangements]
+def _rearrangements_tsv(rearrangements) -> str:
+    # one table for all identity-preserving rearrangements; empty cells for fields a kind does not use
+    cols = ("time", "kind", "lineage", "chromosome", "start", "length",
+            "dest_chromosome", "dest_position", "flipped")
+
+    def row(r):
+        if isinstance(r, Inversion):
+            return (r.time, "inversion", r.lineage, r.chromosome, r.start, r.length, "", "", "")
+        if isinstance(r, Transposition):
+            return (r.time, "transposition", r.lineage, r.chromosome, r.start, r.length,
+                    "", r.dest, int(r.flipped))
+        return (r.time, "translocation", r.lineage, r.source, r.start, r.length,
+                r.dest, r.dest_position, int(r.flipped))
+    rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
     return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
@@ -222,11 +268,25 @@ def _pick_chromosome(rng, gen, total_chromosomes) -> tuple[int, int]:
     raise AssertionError("total_chromosomes out of sync with the genomes")  # unreachable
 
 
-# --- the mutators (position- and chromosome-aware; each records to its log) ------------------------
+# --- extension: every gene-level event acts on a run of consecutive genes (the ZOMBI1 model) -------
+
+def _extent(rng, dist, start, n) -> int:
+    """A segment length in genes: sample the event's extension distribution and clamp so the segment
+    ``[start, start+m)`` fits the chromosome (``1 <= m <= n - start``)."""
+    return min(max(1, int(dist.sample(rng))), n - start)
+
+
+def _oriented(segment, flip):
+    """The segment as inserted: reversed with each strand flipped if ``flip`` (a moved block that
+    landed inverted), else unchanged. Ids are always preserved."""
+    return [Gene(g.id, g.family, -g.strand) for g in reversed(segment)] if flip else list(segment)
+
+
+# --- the mutators (position-, chromosome-, and extension-aware; each records to its log) -----------
 
 def _originate(genome, node, t, events, new_gene, new_family, rng) -> None:
-    """A new gene family arises in this lineage: mint a founding gene on a uniformly-chosen
-    chromosome at a uniformly-chosen position (strand ``+1``), and record it."""
+    """A new gene family arises: mint a single founding gene (a family is born once — no extension) on
+    a uniformly-chosen chromosome at a uniformly-chosen position (strand ``+1``), and record it."""
     chrom = genome[int(rng.integers(len(genome)))]
     fam = new_family()
     g = new_gene(fam, +1)
@@ -234,65 +294,100 @@ def _originate(genome, node, t, events, new_gene, new_family, rng) -> None:
     events.append(Event(t, "origination", node.id, fam, g.id))
 
 
-def _duplicate(chrom, j, node, t, events, new_gene) -> None:
-    """The gene at position ``j`` duplicates **in tandem**: the gene ends and two fresh copies (same
-    strand) descend from it — the continuation in place and the new copy immediately after."""
-    old = chrom.genes[j]
-    cont, dup = new_gene(old.family, old.strand), new_gene(old.family, old.strand)
-    chrom.genes[j] = cont
-    chrom.genes.insert(j + 1, dup)                      # tandem: adjacent, same orientation
-    events.append(Event(t, "duplication", node.id, old.family, cont.id, parent=old.id))
-    events.append(Event(t, "duplication", node.id, old.family, dup.id, parent=old.id))
+def _duplicate(chrom, j, m, node, t, events, new_gene) -> int:
+    """The ``m`` genes at ``[j, j+m)`` duplicate **in tandem**: each ends and two fresh copies (same
+    strand) descend — the continuation in place, the copy block inserted immediately after the
+    segment (order preserved). Returns the ``m`` copies added."""
+    segment = chrom.genes[j:j + m]
+    conts = [new_gene(g.family, g.strand) for g in segment]
+    copies = [new_gene(g.family, g.strand) for g in segment]
+    chrom.genes[j:j + m] = conts + copies              # [.. conts .., .. copies .., ...]
+    for old, cont, cp in zip(segment, conts, copies):
+        events.append(Event(t, "duplication", node.id, old.family, cont.id, parent=old.id))
+        events.append(Event(t, "duplication", node.id, old.family, cp.id, parent=old.id))
+    return m
 
 
-def _lose_at(chrom, j, node, t, events) -> None:
-    """The gene at position ``j`` is lost — removed **in place** (order is preserved, unlike the
-    unordered core's swap-remove)."""
-    lost = chrom.genes[j]
-    del chrom.genes[j]
-    events.append(Event(t, "loss", node.id, lost.family, lost.id))
+def _lose_at(chrom, j, m, node, t, events) -> int:
+    """The ``m`` genes at ``[j, j+m)`` are lost together, removed in place. Returns the ``m`` removed."""
+    for g in chrom.genes[j:j + m]:
+        events.append(Event(t, "loss", node.id, g.family, g.id))
+    del chrom.genes[j:j + m]
+    return m
 
 
-def _invert(chrom, i, j, node, t, rearrangements) -> None:
-    """Invert positions ``i``..``j`` (inclusive): reverse the run and flip each gene's strand. Gene
-    ids are untouched — identity persists through an inversion — so nothing is written to the gene
-    event log, only the rearrangement log."""
-    chrom.genes[i:j + 1] = [Gene(g.id, g.family, -g.strand) for g in reversed(chrom.genes[i:j + 1])]
-    rearrangements.append(Inversion(t, node.id, chrom.id, i, j))
+def _invert(chrom, i, m, node, t, rearrangements) -> None:
+    """Invert the segment ``[i, i+m)``: reverse the run and flip each gene's strand. Ids untouched —
+    identity persists through an inversion — so only the rearrangement log is written."""
+    end = i + m - 1
+    chrom.genes[i:end + 1] = [Gene(g.id, g.family, -g.strand) for g in reversed(chrom.genes[i:end + 1])]
+    rearrangements.append(Inversion(t, node.id, chrom.id, i, end))
 
 
-def _do_transfer(rng, tree, alive, gen, total_copies, t, events, new_gene,
+def _transpose(chrom, i, m, node, t, rearrangements, rng, inversion_probability) -> None:
+    """Excise the segment ``[i, i+m)`` and reinsert it elsewhere on the **same** chromosome, flipped
+    (reversed + strands) with probability ``inversion_probability``. Ids untouched."""
+    segment = chrom.genes[i:i + m]
+    del chrom.genes[i:i + m]
+    flipped = bool(rng.random() < inversion_probability)
+    dest = int(rng.integers(len(chrom.genes) + 1))
+    chrom.genes[dest:dest] = _oriented(segment, flipped)
+    rearrangements.append(Transposition(t, node.id, chrom.id, i, m, dest, flipped))
+
+
+def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_probability) -> None:
+    """Move the segment ``[i, i+m)`` from chromosome ``ci`` to a **different** chromosome of the same
+    genome, flipped with probability ``inversion_probability``. No-op if the genome has one
+    chromosome. Ids untouched — a gene lineage crosses to another chromosome lineage."""
+    if len(genome) < 2:
+        return
+    source = genome[ci]
+    segment = source.genes[i:i + m]
+    del source.genes[i:i + m]
+    flipped = bool(rng.random() < inversion_probability)
+    dj = int(rng.integers(len(genome) - 1))
+    if dj >= ci:
+        dj += 1                                        # a chromosome index distinct from ci
+    dest = genome[dj]
+    pos = int(rng.integers(len(dest.genes) + 1))
+    dest.genes[pos:pos] = _oriented(segment, flipped)
+    rearrangements.append(Translocation(t, node.id, source.id, dest.id, i, m, pos, flipped))
+
+
+def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, new_gene,
                  transfer_to, replacement, self_transfer, depth) -> int:
-    """A gene transfers from a donor gene to a contemporaneous recipient lineage, arriving on a
-    uniformly-chosen chromosome at a uniformly-chosen position (its strand travels with it). Returns
-    the change in total gene count: +1 additive, 0 replacement (the arriving copy displaces a
-    homologous resident)."""
-    kd, cdi, jd = _pick_gene(rng, gen, total_copies)
+    """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
+    recipient: each gene ends → a continuation on the donor branch and a transferred copy on the
+    recipient (a horizontal gene-tree edge). The transferred copies arrive as a block at a random
+    position on a uniformly-chosen recipient chromosome (strands travel with them). Returns the change
+    in total gene count: ``+m`` additive, minus one per homologous copy displaced under ``replacement``."""
     donor = alive[kd]
-    src = gen[kd][cdi].genes[jd]
-    fam = src.family
+    segment = gen[kd][cdi].genes[jd:jd + m]
     cand = [k for k in range(len(alive)) if self_transfer or k != kd]
     kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
     recipient = alive[kr]
     rgenome = gen[kr]
-    # the donor gene ends; two fresh copies descend (ZOMBI1 re-id), same strand: the continuation on
-    # the donor branch and the transferred copy on the recipient branch — a horizontal gene-tree edge.
-    cont, xfer = new_gene(fam, src.strand), new_gene(fam, src.strand)
-    gen[kd][cdi].genes[jd] = cont
-    delta = 1
+    conts = [new_gene(g.family, g.strand) for g in segment]
+    xfers = [new_gene(g.family, g.strand) for g in segment]
+    gen[kd][cdi].genes[jd:jd + m] = conts               # continuations replace the segment on the donor
+    delta = m
     if replacement:
-        residents = [(ci, p) for ci, chrom in enumerate(rgenome)
-                     for p, c in enumerate(chrom.genes) if c.family == fam and c.id != cont.id]
-        if residents:  # homologous overwrite; empty ⇒ additive fallback (the gene still arrives)
-            ci, p = residents[int(rng.integers(len(residents)))]
-            victim = rgenome[ci].genes[p]
-            del rgenome[ci].genes[p]
-            events.append(Event(t, "loss", recipient, fam, victim.id))
-            delta = 0
-    rchrom = rgenome[int(rng.integers(len(rgenome)))]   # arrive on a uniformly-chosen chromosome
-    rchrom.genes.insert(int(rng.integers(len(rchrom.genes) + 1)), xfer)
-    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id))
-    events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient))
+        cont_ids = {c.id for c in conts}                # self-transfer: never overwrite our own conts
+        for x in xfers:                                 # each arriving copy may displace a homolog
+            residents = [(ci, p) for ci, ch in enumerate(rgenome) for p, c in enumerate(ch.genes)
+                         if c.family == x.family and c.id not in cont_ids]
+            if residents:
+                ci, p = residents[int(rng.integers(len(residents)))]
+                victim = rgenome[ci].genes[p]
+                del rgenome[ci].genes[p]
+                events.append(Event(t, "loss", recipient, victim.family, victim.id))
+                delta -= 1
+    rchrom = rgenome[int(rng.integers(len(rgenome)))]   # arrive as a block on a random recipient chromosome
+    pos = int(rng.integers(len(rchrom.genes) + 1))
+    rchrom.genes[pos:pos] = xfers
+    for old, cont, xf in zip(segment, conts, xfers):
+        events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id))
+        events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id, recipient=recipient))
     return delta
 
 
@@ -380,29 +475,39 @@ def _topologies(chromosomes, topology) -> list[str]:
 # --- the engine -----------------------------------------------------------------------------------
 
 def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
-                             inversion=0.0, chromosomes=1, topology="circular",
+                             inversion=0.0, transposition=0.0, translocation=0.0,
+                             chromosomes=1, topology="circular",
                              fission=0.0, fusion=0.0, chromosome_origination=0.0, chromosome_loss=0.0,
+                             duplication_extension=None, loss_extension=None, transfer_extension=None,
+                             inversion_extension=None, transposition_extension=None,
+                             translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=0, seed=None) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
-    species tree by duplication, transfer, loss, origination, and **inversion**.
+    species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
 
-    Everything the unordered core does, it does here (same ``tree`` input — a
-    :class:`~zombi2.species.Tree` or :class:`~zombi2.species.SpeciesResult`; evolution on **every**
-    lineage; the ``duplication``/``transfer``/``loss`` per-copy and ``origination`` per-lineage
-    defaults; the ``transfer_to`` / ``replacement`` / ``self_transfer`` mechanics), with position
-    added: duplication is **tandem**, loss removes in place, transfers and originations arrive at a
-    random position. The root is seeded with ``chromosomes`` chromosomes of the given ``topology``,
-    across which the ``initial_families`` founding genes are dealt **round-robin**.
+    **Every gene-level event acts on an *extension*** — a run of consecutive genes (the ZOMBI1 model):
+    ``duplication`` copies the run in tandem, ``loss`` removes it, ``transfer`` sends it to a
+    contemporaneous recipient as a block, ``inversion`` reverses it (flipping strands), ``transposition``
+    relocates it elsewhere on the same chromosome, and ``translocation`` moves it to a different
+    chromosome. The run's length is drawn per event from ``<event>_extension`` (a distribution,
+    default ``Geometric(mean=1)`` — usually a single gene; dial the mean up for larger blocks).
+    ``origination`` is the exception: a family is born once, a single gene, no extension.
+    ``transposition`` and ``translocation`` land the moved block inverted with probability
+    ``inversion_probability``.
 
-    ``inversion`` (default **per chromosome**) reverses a random span of a chromosome and flips each
-    gene's strand. The **chromosome tier** changes chromosome *number*: ``fission`` (a chromosome
-    splits in two — per chromosome), ``fusion`` (two chromosomes in a genome merge — per chromosome —
-    the reticulation), ``chromosome_origination`` (a de-novo replicon — per lineage), and
-    ``chromosome_loss`` (a whole chromosome and its genes die — per chromosome; never the genome's
-    last). Chromosomes carry identity — re-minted at every event that reshapes them — so
-    ``chromosome_events`` is the true chromosome genealogy: a tree of speciations/fissions with fusion
-    reticulations, rooted at the seed and de-novo originations. Deterministic given ``seed``.
+    Scopes follow the cross-level grammar: ``duplication``/``transfer``/``loss``/``translocation`` are
+    **per copy**, ``origination``/``chromosome_origination`` **per lineage**, and
+    ``inversion``/``transposition``/``fission``/``fusion``/``chromosome_loss`` **per chromosome**. The
+    root is seeded with ``chromosomes`` chromosomes of the given ``topology``, across which the
+    ``initial_families`` founding genes are dealt **round-robin**; ``transfer_to`` / ``replacement`` /
+    ``self_transfer`` behave as in the unordered core.
+
+    The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge — the
+    reticulation), ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
+    chromosome and its genes die; never the genome's last). Chromosomes carry identity — re-minted at
+    every event that reshapes them — so ``chromosome_events`` is the true reticulating chromosome
+    genealogy, rooted at the seed and de-novo originations. Deterministic given ``seed``.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     labels = _topologies(chromosomes, topology)
@@ -412,6 +517,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
     inv = as_rate(inversion, default_scope=PerChromosome)
+    trp = as_rate(transposition, default_scope=PerChromosome)
+    trl = as_rate(translocation, default_scope=PerCopy)
     fis = as_rate(fission, default_scope=PerChromosome)
     fus = as_rate(fusion, default_scope=PerChromosome)
     cor = as_rate(chromosome_origination, default_scope=PerLineage)
@@ -421,7 +528,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # them rather than silently mis-scale (see the unordered engine for the reasoning).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage),
-                              ("inversion", inv, PerChromosome), ("fission", fis, PerChromosome),
+                              ("inversion", inv, PerChromosome), ("transposition", trp, PerChromosome),
+                              ("translocation", trl, PerCopy), ("fission", fis, PerChromosome),
                               ("fusion", fus, PerChromosome), ("chromosome_loss", clo, PerChromosome),
                               ("chromosome_origination", cor, PerLineage)):
         if not isinstance(rate.scope, want):
@@ -436,6 +544,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"support yet — only OnTime (skyline) is wired. Per-family heterogeneity and clade "
                     f"drift are later slices."
                 )
+    # per-event extension distributions (segment length in genes); default to a single gene
+    def _ext(spec):
+        return as_distribution(spec) if spec is not None else Geometric(mean=1)
+    dup_ext, los_ext, tra_ext = _ext(duplication_extension), _ext(loss_extension), _ext(transfer_extension)
+    inv_ext, trp_ext, trl_ext = (_ext(inversion_extension), _ext(transposition_extension),
+                                 _ext(translocation_extension))
+    if not 0.0 <= inversion_probability <= 1.0:
+        raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability!r}")
     if transfer_to == "distance":
         transfer_to = Distance()
     if transfer_to != "uniform" and not isinstance(transfer_to, Distance):
@@ -476,7 +592,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[Chromosome, ...]] = {}
     events: list[Event] = []
-    rearrangements: list[Inversion] = []
+    rearrangements: list[Inversion | Transposition | Translocation] = []
     chromosome_events: list[ChromosomeEvent] = []
 
     root_chroms = []
@@ -504,16 +620,19 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)
         r_tra = tra.effective(**ctx) if can_xfer else 0.0
         r_inv = inv.effective(**ctx) if n else 0.0                      # per chromosome; needs a gene
+        r_trp = trp.effective(**ctx) if n else 0.0                      # per chromosome; needs a gene
+        r_trl = trl.effective(**ctx) if n else 0.0                      # per copy; needs >=2 chromosomes
         r_fis = fis.effective(**ctx) if c else 0.0                      # per chromosome (the tier)
         r_fus = fus.effective(**ctx) if c else 0.0
         r_cor = cor.effective(**ctx)                                    # per lineage (de-novo replicon)
         r_clo = clo.effective(**ctx) if c else 0.0
-        total = r_dup + r_los + r_org + r_tra + r_inv + r_fis + r_fus + r_cor + r_clo
+        total = (r_dup + r_los + r_org + r_tra + r_inv + r_trp + r_trl
+                 + r_fis + r_fus + r_cor + r_clo)
 
         next_species = schedule[si][0]
         horizon = min(next_species, dup.next_change(t), los.next_change(t), org.next_change(t),
-                      tra.next_change(t), inv.next_change(t), fis.next_change(t), fus.next_change(t),
-                      cor.next_change(t), clo.next_change(t))
+                      tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
+                      fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
 
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
@@ -524,31 +643,49 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 b_org = b_los + r_org
                 b_tra = b_org + r_tra
                 b_inv = b_tra + r_inv
-                b_fis = b_inv + r_fis
+                b_trp = b_inv + r_trp
+                b_trl = b_trp + r_trl
+                b_fis = b_trl + r_fis
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor                    # ... and the remainder (to total) is clo
-                if r < r_dup:
+                if r < r_dup:                            # every gene-level event acts on an extension
                     k, ci, j = _pick_gene(rng, gen, n)
-                    _duplicate(gen[k][ci], j, tree.nodes[alive[k]], t, events, new_gene)
-                    total_copies += 1
+                    chrom = gen[k][ci]
+                    m = _extent(rng, dup_ext, j, len(chrom.genes))
+                    total_copies += _duplicate(chrom, j, m, tree.nodes[alive[k]], t, events, new_gene)
                 elif r < b_los:
                     k, ci, j = _pick_gene(rng, gen, n)
-                    _lose_at(gen[k][ci], j, tree.nodes[alive[k]], t, events)
-                    total_copies -= 1
+                    chrom = gen[k][ci]
+                    m = _extent(rng, los_ext, j, len(chrom.genes))
+                    total_copies -= _lose_at(chrom, j, m, tree.nodes[alive[k]], t, events)
                 elif r < b_org:
                     k = int(rng.integers(k_alive))  # origination is per lineage: a uniform lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_gene, new_family, rng)
                     total_copies += 1
                 elif r < b_tra:
-                    total_copies += _do_transfer(rng, tree, alive, gen, n, t, events, new_gene,
-                                                 transfer_to, replacement, self_transfer, depth)
+                    kd, cdi, jd = _pick_gene(rng, gen, n)
+                    m = _extent(rng, tra_ext, jd, len(gen[kd][cdi].genes))
+                    total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
+                                                 new_gene, transfer_to, replacement, self_transfer, depth)
                 elif r < b_inv:
                     k, ci = _pick_chromosome(rng, gen, c)
                     chrom = gen[k][ci]
-                    if chrom.genes:  # an empty chromosome has nothing to invert (a no-op; rare)
-                        i0 = int(rng.integers(len(chrom.genes)))       # two uniform cut points
-                        i1 = int(rng.integers(len(chrom.genes)))
-                        _invert(chrom, min(i0, i1), max(i0, i1), tree.nodes[alive[k]], t, rearrangements)
+                    if chrom.genes:  # an empty chromosome has nothing to rearrange (a no-op; rare)
+                        i0 = int(rng.integers(len(chrom.genes)))
+                        _invert(chrom, i0, _extent(rng, inv_ext, i0, len(chrom.genes)),
+                                tree.nodes[alive[k]], t, rearrangements)
+                elif r < b_trp:
+                    k, ci = _pick_chromosome(rng, gen, c)
+                    chrom = gen[k][ci]
+                    if chrom.genes:
+                        i0 = int(rng.integers(len(chrom.genes)))
+                        _transpose(chrom, i0, _extent(rng, trp_ext, i0, len(chrom.genes)),
+                                   tree.nodes[alive[k]], t, rearrangements, rng, inversion_probability)
+                elif r < b_trl:
+                    k, ci, j = _pick_gene(rng, gen, n)
+                    m = _extent(rng, trl_ext, j, len(gen[k][ci].genes))
+                    _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,
+                                 inversion_probability)
                 elif r < b_fis:
                     k, ci = _pick_chromosome(rng, gen, c)
                     dc, dg = _fission(gen[k], ci, tree.nodes[alive[k]], t, chromosome_events,
@@ -613,4 +750,4 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
-           "ChromosomeEvent", "Inversion"]
+           "ChromosomeEvent", "Inversion", "Transposition", "Translocation"]
