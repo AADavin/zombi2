@@ -9,7 +9,7 @@ result = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                                   switch=0.1, seed=1)                     # a discrete state
 ```
 
-*[`simulate_continuous` and `simulate_discrete` are built (`zombi2/traits`), following `docs/design/trait-api.md`; the thirteen-class model zoo they replace (`BrownianMotion`, `OrnsteinUhlenbeck`, `EarlyBurst`, `Mk`, `ThresholdModel`, `CorrelatedBinary`, and the rest) is gone. Brownian motion, Ornstein–Uhlenbeck, early burst, variable-rates BM, diversity-dependent σ², the Mk model, the threshold model, and correlated traits (continuous and discrete) all run today. Not yet wired: per-trait modifiers under `correlation=`, multivariate OU, and the deferred cases (regime shifts, cladogenetic jumps, hidden rate classes, DEC → experimental); each divergence is flagged where it arises.]*
+*[`simulate_continuous` and `simulate_discrete` are built (`zombi2/traits`), following `docs/design/trait-api.md`; the thirteen-class model zoo they replace (`BrownianMotion`, `OrnsteinUhlenbeck`, `EarlyBurst`, `Mk`, `ThresholdModel`, `CorrelatedBinary`, and the rest) is gone. Brownian motion, Ornstein–Uhlenbeck, early burst, variable-rates BM, diversity-dependent σ², the Mk model, the threshold model, and correlated traits (continuous and discrete) all run today. Not yet wired: per-trait modifiers under `correlation=`, multivariate OU, and the deferred cases (regime shifts, cladogenetic jumps, hidden rate classes, DEC not implemented); each divergence is flagged where it arises.]*
 
 ## A trait is a different kind of object, and that is fine
 
@@ -121,10 +121,10 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | Mk (k-state Markov) | a discrete state switching | `simulate_discrete(states=…, switch=…)` |
 | Threshold / liability (Wright–Felsenstein) | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` |
 | Correlated binary / Pagel | discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` |
-| DEC biogeography | a range = a set of areas | → **experimental** (purged from the trait level for now) |
+| DEC biogeography | a range = a set of areas | **not implemented** (dropped from the clean core; legacy code in `legacy/`) |
 | BiSSE / MuSSE / QuaSSE / HiSSE | a trait drives speciation | **not a trait model** — trait ↔ species *joint*, Part III |
 
-Two rows point off the chapter and are worth a sentence each. **DEC**, the dispersal–extinction–cladogenesis model of geographic ranges, is a genuine discrete model but a heavy and specialised one; it moves to `zombi2.experimental`, recoverable, rather than cluttering the trait level. The **SSE** family (BiSSE and its relatives) is the more important cut: it is *not* a trait model at all. A trait that drives speciation reaches back into the tree it rides on, so the tree becomes an output grown together with the trait. That is the joint case where the coupling crosses into the species level, and it lives in Part III (Chapter 10), not here.
+Two rows point off the chapter and are worth a sentence each. **DEC**, the dispersal–extinction–cladogenesis model of geographic ranges, is a genuine discrete model but a heavy and specialised one; it is **not implemented** in the clean core — the legacy code stays in `legacy/` — rather than cluttering the trait level. The **SSE** family (BiSSE and its relatives) is the more important cut: it is *not* a trait model at all. A trait that drives speciation reaches back into the tree it rides on, so the tree becomes an output grown together with the trait. That is the joint case where the coupling crosses into the species level, and it lives in Part III (Chapter 10), not here.
 
 ## Still to design
 
