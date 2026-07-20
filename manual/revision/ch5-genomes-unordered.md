@@ -151,4 +151,27 @@ g.gene_trees[some_family].to_newick("extant")    # that family's surviving gene 
 g.write("out/")                                  # the event log + profiles, on disk
 ```
 
-*(A `zombi2 genomes` command mirroring these calls arrives with the genome CLI; today this is the Python engine, and `.write` already puts the outputs on disk.)*
+## Usage from the CLI
+
+`zombi2 genomes` evolves gene families along a species tree read from a Newick file. The unordered resolution is the default, and each rate is a plain number:
+
+```bash
+# duplication–loss–origination along a species tree
+zombi2 genomes -t out/species_complete.nwk --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1 -o out/
+
+# horizontal transfer biased toward close relatives, overwriting resident copies
+zombi2 genomes -t out/species_complete.nwk --transfer 0.5 --transfer-to distance --replacement --origination 0.4 --seed 3 -o out/
+```
+
+The tree can be one ZOMBI grew (a `species_complete.nwk`) or your own. An external tree is taken as observed when it is **ultrametric** — every tip contemporaneous — and ZOMBI renumbers the tips to its own `n<id>` convention, writing a `names.tsv` that maps them back to your labels. A non-ultrametric tree is ambiguous, since a short tip could be an extinct lineage or an early sample; rather than guess, ZOMBI asks you to say which with `--tip-fates FILE`, a table of `tip_name  extant|extinct`.
+
+## Outputs
+
+By default a run writes the event log and the profiles:
+
+```
+out/genome_events.tsv    the gene genealogy (the source of truth)
+out/profiles.tsv         family × extant-species copy counts
+```
+
+`--write` picks which of these to keep, and a `names.tsv` joins the `n<id>` columns back to your labels whenever you brought your own tree. The gene trees and ancestral genomes are replayed from the event log on demand rather than written by default. The full list of files lives in Appendix B.
