@@ -15,9 +15,11 @@ from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
     Block,
     Chromosome,
+    Duplication,
     Loss,
     NucleotideGenome,
     Translocation,
+    _do_duplication,
     _do_loss,
     _do_translocation,
     _split_block,
@@ -262,6 +264,49 @@ def test_simulate_validation():
         simulate_genomes_nucleotide(sp, loss=-1.0)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, loss_length=0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, duplication=-1.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, duplication_length=0)
+
+
+# --- duplication: the first birth (the event; the gene-tree recovery comes next) ------------------
+
+def test_duplication_copies_an_arc_in_tandem():
+    from collections import Counter
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 20, 1)])])
+    events = []
+    _do_duplication(g, 5, 1.0, 5.0, np.random.default_rng(0), events)
+    assert g.length > 20                                    # grew
+    assert isinstance(events[0], Duplication) and events[0].chromosome == 0
+    counts = Counter((s, p) for (s, p, _st) in g.chromosomes[0].trace_back())
+    copied = {(src, p) for (src, a, b) in events[0].copied for p in range(a, b)}
+    assert all(counts[pos] == 2 for pos in copied)          # exactly the copied positions are doubled
+    assert all(counts[(0, p)] == 1 for p in range(20) if (0, p) not in copied)
+
+
+def test_duplication_keeps_all_ancestry_with_extra_copies():
+    # duplication only removes nothing, so every root position is still present (set == full), but
+    # the copied stretches now appear more than once
+    specs = [(120, "circular"), (40, "linear")]
+    full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=3)
+    r = simulate_genomes_nucleotide(sp, duplication=0.04, duplication_length=10, inversion=0.02,
+                                    chromosomes=specs, seed=3)
+    assert any(isinstance(e, Duplication) for e in r.events)
+    for node_id in r.genomes:
+        assert set(r.ancestry(node_id)) == full             # nothing lost
+    assert any(len(r.ancestry(n)) > len(full) for n in r.genomes)   # copies really exist
+
+
+def test_duplication_with_loss_stays_a_subset():
+    specs = [(120, "circular"), (40, "linear")]
+    full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=4)
+    r = simulate_genomes_nucleotide(sp, duplication=0.04, loss=0.04, inversion=0.02, translocation=0.03,
+                                    fission=0.2, fusion=0.2, chromosomes=specs, seed=4)
+    for node_id in r.genomes:
+        assert set(r.ancestry(node_id)) <= full             # loss can now remove; dup adds copies
 
 
 # --- loss: the first ancestry-changing event (a death) -------------------------------------------
