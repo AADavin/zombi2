@@ -156,16 +156,20 @@ per-trait + `correlation=` form is the surface.
     pulled to a baseline), which lives on the **sequences** level, not here.
   - The `reverts_to` / `pull` **names** are shared across the OU trait and the CIR clock; the *mechanism*
     is not (value vs rate).
-- **`MultiOptimumOU`** — the optimum shifts on certain branches (regime painting). An advanced case;
-  probably a `regimes=` argument on `simulate_continuous`. Deferred, named honestly.
-- **`Cladogenesis` — spelling only; placement is decided.** A trait that jumps *at speciation nodes*
-  rather than along branches. **Within-level, not Part III (SPEC §4):** a jump at speciation *reads* the
-  tree it already lives on — it does not change *which* tree exists — so it is an option of the trait's own
-  model (an `at_speciation=` jump rule on `simulate_discrete`/`simulate_continuous`), not a coupling. Only
-  the argument name is open. It becomes *joint* only when the same trait *also drives* speciation (SSE with
+- **Multi-optimum OU — `regimes=`. *Built* (slice 5).** The optimum shifts by **regime**, a discrete
+  stochastic map painted on the *same* tree: `regimes=<a discrete TraitsResult>` +
+  `reverts_to={regime: θ}`; OU is integrated exactly across the regime segments. `pull` / `rate` are
+  shared across regimes this slice (per-regime α/σ² — the OUMV/OUMA variants — deferred).
+- **Cladogenesis — `at_speciation=`. *Built* (slice 5).** A jump *at speciation nodes* rather than
+  along branches — within-level, not Part III (SPEC §4): a jump *reads* the tree it already lives on,
+  it does not change *which* tree exists. `at_speciation=σ²_jump` on `simulate_continuous` (a
+  `Normal(0, σ²_jump)` daughter jump), `at_speciation=shift_prob` on `simulate_discrete` (a hop to a
+  uniform other state). It becomes *joint* only when the same trait *also drives* speciation (SSE with
   cladogenetic change), which is Part III.
-- **`HiddenStateMk`** — hidden rate categories under an Mk trait (the trait twin of the `Markov` clock's
-  hidden classes). Likely a hidden-state option on `simulate_discrete`; deferred.
+- **`HiddenStateMk` — deferred (2026-07-20).** Hidden rate categories under an Mk trait (the trait twin
+  of the `Markov` clock's hidden classes), likely a hidden-state option on `simulate_discrete`. The
+  argument *shape* is still to settle — the leading candidate is the Markov-clock twin (`hidden=[rate
+  multipliers]` + a base `switch=` + `hidden_switch=`). Not built.
 - **Decided:** `switch=` accepts **both** a string-keyed `{"a->b": rate}` dict (readable, few states) and
   a numeric matrix with `states=[...]` (many states); `switch=0.1` stays the symmetric shortcut.
   (`pull`/`reverts_to` names stand.)

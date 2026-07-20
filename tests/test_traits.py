@@ -781,3 +781,117 @@ def test_threshold_validation():
         simulate_discrete(tree, states=["a", "b"], switch=0.1, correlation={("a", "b"): 0.5}, seed=1)
     with pytest.raises(ValueError, match="needs threshold"):
         simulate_discrete(tree, states=["a", "b"], liability=1.0, seed=1)
+
+
+# --- at_speciation: cladogenetic jumps (continuous) / shifts (discrete) ----------
+
+def _n_splits(tree, i):
+    c = 0
+    p = tree.nodes[i].parent
+    while p is not None:
+        c += 1
+        p = tree.nodes[p].parent
+    return c
+
+
+def test_at_speciation_continuous_adds_jump_variance():
+    # a Normal(0, at_speciation) jump at each speciation: a tip's variance is σ²·depth (anagenesis)
+    # plus at_speciation·(number of splits on its path) — the punctuational contribution, verified.
+    tree = _corr_tree()
+    tips = sorted(n.id for n in tree.extant())
+    depth = tree.nodes[tips[0]].end_time
+    for jump in (0.0, 1.5):
+        vals = np.array([[simulate_continuous(tree, start=0.0, rate=1.0, at_speciation=jump,
+                                              seed=s).node_values[i] for i in tips] for s in range(5000)])
+        for j, i in enumerate(tips):
+            assert np.isclose(vals[:, j].var(), depth + jump * _n_splits(tree, i), rtol=0.1)
+
+
+def test_at_speciation_off_is_unchanged():
+    tree = _corr_tree()
+    a = simulate_continuous(tree, rate=1.0, seed=5)
+    b = simulate_continuous(tree, rate=1.0, at_speciation=0.0, seed=5)   # jump_sd 0 → no draw
+    assert a.node_values == b.node_values
+
+
+def test_at_speciation_discrete_flips_at_every_split():
+    # 2 states, no anagenesis (switch=0), a certain flip at every speciation (at_speciation=1.0): a
+    # tip is `start` flipped once per split, so it equals start iff its path has an even split count.
+    tree = _corr_tree()
+    r = simulate_discrete(tree, states=["a", "b"], switch=0.0, at_speciation=1.0, start="a", seed=1)
+    for i in sorted(n.id for n in tree.extant()):
+        assert r.values[i] == ("a" if _n_splits(tree, i) % 2 == 0 else "b")
+
+
+def test_at_speciation_deterministic():
+    tree = _corr_tree()
+    assert simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=3).node_values == \
+        simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=3).node_values
+    assert simulate_discrete(tree, states=["x", "y"], switch=0.3, at_speciation=0.4, seed=3).node_values == \
+        simulate_discrete(tree, states=["x", "y"], switch=0.3, at_speciation=0.4, seed=3).node_values
+
+
+def test_at_speciation_validation():
+    tree = _corr_tree()
+    with pytest.raises(ValueError, match="non-negative"):
+        simulate_continuous(tree, rate=1.0, at_speciation=-1.0, seed=1)
+    with pytest.raises(ValueError, match="not wired yet"):
+        simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
+                            correlation={("a", "b"): 0.5}, at_speciation=0.5, seed=1)
+    with pytest.raises(ValueError, match="probability in"):
+        simulate_discrete(tree, states=["a", "b"], switch=0.1, at_speciation=1.5, seed=1)
+    with pytest.raises(ValueError, match="not wired for threshold"):
+        simulate_discrete(tree, states=["a", "b"], liability=1.0, threshold=0.0, at_speciation=0.5, seed=1)
+
+
+# --- regimes: multi-optimum OU (optima painted by a discrete stochastic map) -----
+
+def test_regimes_constant_equals_plain_ou():
+    # a regime map that never switches (switch=0) is one regime everywhere, so multi-optimum OU
+    # collapses to plain OU toward that regime's optimum — byte-identical (one OU draw per branch).
+    tree = _corr_tree()
+    const = simulate_discrete(tree, states=["a", "b"], switch=0.0, start="a", seed=99)
+    got = simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 5.0, "b": 0.0}, regimes=const, seed=7)
+    plain = simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to=5.0, seed=7)
+    assert got.node_values == plain.node_values
+
+
+def test_regimes_track_their_optima():
+    # strong pull → a tip sits near the optimum of the regime it ends in
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=12, seed=5).complete_tree
+    regime = simulate_discrete(tree, states=["lo", "hi"], switch=0.8, seed=1)
+    r = simulate_continuous(tree, rate=0.3, pull=6.0, reverts_to={"lo": 0.0, "hi": 10.0}, regimes=regime, seed=2)
+    tips = sorted(n.id for n in tree.extant())
+    lo = [r.values[i] for i in tips if regime.values[i] == "lo"]
+    hi = [r.values[i] for i in tips if regime.values[i] == "hi"]
+    if lo:
+        assert abs(float(np.mean(lo))) < 3.0
+    if hi:
+        assert abs(float(np.mean(hi)) - 10.0) < 3.5
+    assert (np.mean(hi) if hi else 10) > (np.mean(lo) if lo else 0)
+
+
+def test_regimes_deterministic():
+    tree = _corr_tree()
+    regime = simulate_discrete(tree, states=["a", "b"], switch=0.5, seed=1)
+    kw = dict(rate=1.0, pull=2.0, reverts_to={"a": 0.0, "b": 3.0}, regimes=regime, seed=4)
+    assert simulate_continuous(tree, **kw).node_values == simulate_continuous(tree, **kw).node_values
+
+
+def test_regimes_validation():
+    tree = _corr_tree()
+    regime = simulate_discrete(tree, states=["a", "b"], switch=0.5, seed=1)
+    with pytest.raises(ValueError, match="reverts_to is a dict"):
+        simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to=1.0, regimes=regime, seed=1)
+    with pytest.raises(ValueError, match="needs pull"):
+        simulate_continuous(tree, rate=1.0, reverts_to={"a": 0.0, "b": 1.0}, regimes=regime, seed=1)
+    with pytest.raises(ValueError, match="missing an optimum"):
+        simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 0.0}, regimes=regime, seed=1)
+    with pytest.raises(ValueError, match="discrete TraitsResult"):
+        simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 0.0},
+                            regimes=simulate_continuous(tree, rate=1.0, seed=1), seed=1)
+    with pytest.raises(ValueError, match="SAME tree"):
+        other = simulate_discrete(
+            simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1).complete_tree,
+            states=["a", "b"], switch=0.5, seed=1)
+        simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 0.0, "b": 1.0}, regimes=other, seed=1)
