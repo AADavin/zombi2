@@ -239,3 +239,114 @@ def test_simulate_validation():
         simulate_genomes_nucleotide(sp, chromosomes=0)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, chromosomes=[(0, "circular")])   # a bad replicon length
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, fission=-1.0)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, fusion=-1.0)
+
+
+# --- step 2a: the chromosome tier (fission + fusion -> the reticulating network) ------------------
+
+_TIER_SPECS = [(200, "circular"), (80, "circular"), (40, "linear")]
+
+
+def _minter(start):
+    box = [start]
+
+    def mint():
+        box[0] += 1
+        return box[0]
+    return mint
+
+
+def _tier(seed, **kw):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
+    params = dict(inversion=0.02, inversion_length=12, fission=0.6, fusion=0.6,
+                  chromosomes=_TIER_SPECS, seed=seed)
+    params.update(kw)
+    return sp, simulate_genomes_nucleotide(sp, **params)
+
+
+def test_fission_conserves_length_and_re_mints_both_children():
+    from zombi2.genomes.nucleotide import _do_fission
+    g = NucleotideGenome([Chromosome(0, "linear", [Block(0, 0, 10, 1)])])
+    ce = []
+    _do_fission(g, 5, 1.0, np.random.default_rng(1), ce, _minter(10))
+    assert len(g.chromosomes) == 2 and all(c.topology == "linear" for c in g.chromosomes)
+    assert sum(c.length for c in g.chromosomes) == 10           # length conserved
+    assert ce[0].kind == "fission" and ce[0].parents == (0,) and len(set(ce[0].children)) == 2
+
+
+def test_fission_circular_makes_two_rings():
+    from zombi2.genomes.nucleotide import _do_fission
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 12, 1)])])
+    ce = []
+    _do_fission(g, 5, 1.0, np.random.default_rng(0), ce, _minter(10))
+    assert len(g.chromosomes) == 2 and all(c.topology == "circular" for c in g.chromosomes)
+    assert sum(c.length for c in g.chromosomes) == 12
+
+
+def test_fusion_is_a_noop_on_a_mixed_topology_pair():
+    from zombi2.genomes.nucleotide import _do_fusion
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 10, 1)]),
+                          Chromosome(1, "linear", [Block(1, 0, 10, 1)])])
+    ce = []
+    _do_fusion(g, 0, 1.0, np.random.default_rng(0), ce, _minter(99))
+    assert ce == [] and len(g.chromosomes) == 2                 # nothing to fuse (no same-topology partner)
+
+
+def test_fusion_merges_a_same_topology_pair():
+    from zombi2.genomes.nucleotide import _do_fusion
+    g = NucleotideGenome([Chromosome(0, "circular", [Block(0, 0, 10, 1)]),
+                          Chromosome(1, "circular", [Block(1, 0, 8, 1)])])
+    ce = []
+    _do_fusion(g, 3, 2.0, np.random.default_rng(0), ce, _minter(41))
+    assert len(g.chromosomes) == 1 and g.chromosomes[0].topology == "circular"
+    assert g.chromosomes[0].length == 18                        # blocks concatenated, length conserved
+    assert ce[0].kind == "fusion" and len(ce[0].parents) == 2 and len(ce[0].children) == 1
+
+
+def test_tier_fires_with_the_right_arity():
+    _sp, r = _tier(seed=5)
+    assert {"origination", "speciation", "fission", "fusion"} <= {e.kind for e in r.chromosome_events}
+    shape = {"origination": (0, 1), "speciation": (1, 2), "fission": (1, 2), "fusion": (2, 1)}
+    for e in r.chromosome_events:
+        assert (len(e.parents), len(e.children)) == shape[e.kind]
+
+
+def test_fusion_is_the_only_reticulation():
+    _sp, r = _tier(seed=6)
+    for e in r.chromosome_events:
+        assert (len(e.parents) == 2) == (e.kind == "fusion")
+
+
+def test_chromosome_network_well_formed_with_reticulation():
+    _sp, r = _tier(seed=7)
+    born = {}
+    for e in r.chromosome_events:
+        for ch in e.children:
+            assert ch not in born                               # each chromosome id minted exactly once
+            born[ch] = e
+    assert all(p in born for e in r.chromosome_events for p in e.parents)
+
+
+def test_strong_invariant_survives_the_tier():
+    full = sorted((s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length))
+    for seed in range(4):
+        _sp, r = _tier(seed=seed)
+        for node_id in r.genomes:
+            assert r.ancestry(node_id) == full                  # ancestry-neutral: whole sequence at every node
+
+
+def test_tier_changes_the_chromosome_number():
+    _sp, r = _tier(seed=5)
+    assert len({len(g.chromosomes) for g in r.genomes.values()}) > 1
+
+
+def test_tier_is_deterministic():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=8)
+    kw = dict(inversion=0.02, fission=0.5, fusion=0.5, chromosomes=_TIER_SPECS, seed=8)
+    a = simulate_genomes_nucleotide(sp, **kw)
+    b = simulate_genomes_nucleotide(sp, **kw)
+    assert a.chromosome_events == b.chromosome_events
+    assert all(a.mosaic(n) == b.mosaic(n) for n in a.genomes)
