@@ -23,13 +23,17 @@ slowly). Built so far:
   a karyotype of chromosomes (heterogeneous **sizes and shapes**), each **identity-bearing** (a
   chromosome id re-minted at every speciation, the edge recorded in the shared chromosome network);
   inversions act within a length-weighted chromosome; the whole karyotype is inherited at speciation.
-  Because inversion conserves ancestry, every node still carries the whole root sequence, merely
-  permuted across its chromosomes — the strong invariant.
+- **The number-changing chromosome tier**: ``fission`` (a bifurcation — one chromosome into two) and
+  ``fusion`` (the reticulation — two same-topology chromosomes into one), both re-minting their
+  children into the chromosome network. Every event conserves total length but fission/fusion change
+  the chromosome *count*, so a branch is a small Gillespie. All ancestry-neutral, so every node still
+  carries the whole root sequence, merely permuted across a changing number of chromosomes — the
+  strong invariant carried into the scary boundary-crossing code.
 
-Deferred to later slices: loss / duplication / transfer / transposition / origination (the events that
-birth and kill ancestry, creating per-block gene trees), the chromosome **tier** (fission, fusion,
-translocation — the chromosomes *moving*) and chromosome origination / loss, indels, declared
-genes / intergenes (pseudogenization, replacement), GFF input and BED / FASTA output.
+Deferred to later slices: **translocation** (an arc moving between chromosomes — a rearrangement,
+next); loss / duplication / transfer / transposition / origination (the events that birth and kill
+ancestry, creating per-block gene trees) and chromosome origination / loss; indels; declared
+genes / intergenes (pseudogenization, replacement); GFF input and BED / FASTA output.
 """
 
 from __future__ import annotations
@@ -289,44 +293,125 @@ def _copy_chromosome(c: Chromosome, cid: int) -> Chromosome:
     return Chromosome(cid, c.topology, [Block(b.source, b.start, b.end, b.strand) for b in c.blocks])
 
 
-def _evolve_branch(g, node_id, t0, t1, inversion, inversion_length, rng, rearrangements) -> None:
-    """Fire a homogeneous Poisson process of inversions along the branch ``[t0, t1]``. An inversion
-    conserves length, so the total per-nucleotide rate ``inversion × length`` is constant on the
-    branch; each inversion lands on a length-weighted chromosome, spanning a geometric run of mean
-    ``inversion_length`` nucleotides at a uniform start within that chromosome."""
-    total_rate = inversion * g.length
-    if total_rate <= 0 or t1 <= t0:
+@dataclass(frozen=True)
+class _Rates:
+    inversion: float
+    fission: float
+    fusion: float
+    inversion_length: float
+
+
+def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
+    """Invert a geometric-length arc of a length-weighted chromosome."""
+    chrom, pos = g._pick_position(rng)
+    length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
+    chrom.invert(pos, length)
+    rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
+
+
+def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> None:
+    """Split a uniformly-chosen chromosome into two re-minted children — a **bifurcation**. A linear
+    chromosome cuts at one breakpoint (prefix + suffix); a circular one at two (the arc between them
+    a new ring, the remainder another). Blocks keep their ancestry; no-op below two nucleotides."""
+    ci = int(rng.integers(len(g.chromosomes)))
+    chrom = g.chromosomes[ci]
+    if chrom.length < 2:
         return
-    t = t0 + float(rng.exponential(1.0 / total_rate))
-    while t < t1:
-        chrom, pos = g._pick_position(rng)
-        length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
-        chrom.invert(pos, length)
-        rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
-        t += float(rng.exponential(1.0 / total_rate))
+    if chrom.topology == "linear":
+        c = int(rng.integers(1, chrom.length))
+        chrom._split_at(c)
+        i = chrom._index_at(c)
+        a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i])
+        b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:])
+    else:
+        c1, c2 = sorted(int(x) for x in rng.choice(chrom.length, size=2, replace=False))
+        chrom._split_at(c1)
+        chrom._split_at(c2)
+        i, j = chrom._index_at(c1), chrom._index_at(c2)
+        a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j])
+        b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:])
+    a._canonicalize()
+    b._canonicalize()
+    g.chromosomes[ci:ci + 1] = [a, b]
+    chromosome_events.append(ChromosomeEvent(t, "fission", node_id, (chrom.id,), (a.id, b.id)))
 
 
-def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, chromosomes=1,
-                                root_length=1000, topology="circular", seed=None
+def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> None:
+    """Merge a uniformly-chosen chromosome with another of the **same topology** — a **reticulation**
+    (two parents, one child): concatenate their blocks, re-mint the child. No-op if the genome has no
+    same-topology partner for the chosen chromosome."""
+    ci = int(rng.integers(len(g.chromosomes)))
+    a = g.chromosomes[ci]
+    partners = [k for k in range(len(g.chromosomes))
+                if k != ci and g.chromosomes[k].topology == a.topology]
+    if not partners:
+        return
+    cj = partners[int(rng.integers(len(partners)))]
+    b = g.chromosomes[cj]
+    fused = Chromosome(new_chrom_id(), a.topology, a.blocks + b.blocks)
+    fused._canonicalize()
+    g.chromosomes[:] = [c for k, c in enumerate(g.chromosomes) if k not in (ci, cj)] + [fused]
+    chromosome_events.append(ChromosomeEvent(t, "fusion", node_id, (a.id, b.id), (fused.id,)))
+
+
+def _evolve_branch(g, node_id, t0, t1, rates, rng, rearrangements, chromosome_events,
+                   new_chrom_id) -> None:
+    """A Gillespie over the branch ``[t0, t1]``. Every event conserves total length, so the
+    per-nucleotide inversion rate is constant, but fission and fusion change the chromosome *count*,
+    so the per-chromosome rates vary — the loop recomputes after each. All within-lineage (no
+    coupling yet); the global timeline waits for transfer."""
+    if t1 <= t0:
+        return
+    t = t0
+    while True:
+        nc = len(g.chromosomes)
+        r_inv = rates.inversion * g.length
+        r_fis = rates.fission * nc
+        r_fus = rates.fusion * nc if nc >= 2 else 0.0
+        total = r_inv + r_fis + r_fus
+        if total <= 0:
+            return
+        t += float(rng.exponential(1.0 / total))
+        if t >= t1:
+            return
+        r = float(rng.random()) * total
+        if r < r_inv:
+            _do_inversion(g, node_id, t, rates.inversion_length, rng, rearrangements)
+        elif r < r_inv + r_fis:
+            _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id)
+        else:
+            _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id)
+
+
+def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, fission=0.0, fusion=0.0,
+                                chromosomes=1, root_length=1000, topology="circular", seed=None
                                 ) -> NucleotideGenomesResult:
-    """Evolve a nucleotide genome along a species tree by **inversion only** (the tree-wiring +
-    multi-chromosome step). The root is seeded with a **karyotype** — ``chromosomes`` replicons, each
-    its own source: an int ``N`` gives ``N`` equal replicons of ``root_length``/``topology``, or pass
-    a list of ``(length, topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a
-    copy of its parent's karyotype at speciation, with **every chromosome re-minted** (the edge
-    recorded in ``chromosome_events``, the chromosome network), then accumulates inversions along its
-    branch: ``inversion`` is a **per-nucleotide** rate (total ``inversion × length``, constant since
-    an inversion conserves length), an inversion landing on a length-weighted chromosome and spanning
-    a geometric run of mean ``inversion_length``. Deterministic given ``seed``.
+    """Evolve a nucleotide genome along a species tree by inversion and the **number-changing
+    chromosome tier**. The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its
+    own source: an int ``N`` gives ``N`` equal replicons of ``root_length``/``topology``, or pass a
+    list of ``(length, topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a
+    copy of its parent's karyotype at speciation, with **every chromosome re-minted** (recorded in
+    ``chromosome_events``, the chromosome network), then evolves along its branch:
 
-    No coupling yet ⇒ the tree is walked branch by branch; no ancestry-changing event yet ⇒ **every**
-    node carries the whole root sequence, merely permuted across its chromosomes."""
+    - ``inversion`` (**per nucleotide**) reverses a geometric-length (mean ``inversion_length``) arc
+      of a length-weighted chromosome.
+    - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
+      (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**). Both
+      re-mint their children and record a network edge.
+
+    Every event conserves total length, but fission/fusion change the chromosome count, so the branch
+    is a small Gillespie recomputing its rates as the karyotype changes (still within-lineage — the
+    global timeline waits for transfer). No ancestry-changing event yet ⇒ **every** node still carries
+    the whole root sequence, merely permuted across a changing number of chromosomes. Deterministic
+    given ``seed``."""
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
-    if inversion < 0:
-        raise ValueError(f"inversion must be >= 0, got {inversion}")
+    for label, rate in (("inversion", inversion), ("fission", fission), ("fusion", fusion)):
+        if rate < 0:
+            raise ValueError(f"{label} must be >= 0, got {rate}")
     if inversion_length <= 0:
         raise ValueError(f"inversion_length must be > 0, got {inversion_length}")
     specs = _replicon_specs(chromosomes, root_length, topology)
+    rates = _Rates(inversion, fission, fusion, inversion_length)
 
     rng = np.random.default_rng(seed)
     chrom_counter = 0
@@ -354,8 +439,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, c
         node_id = stack.pop()
         node = tree.nodes[node_id]
         g = start_genome.pop(node_id)
-        _evolve_branch(g, node_id, node.birth_time, node.end_time, inversion, inversion_length,
-                       rng, rearrangements)
+        _evolve_branch(g, node_id, node.birth_time, node.end_time, rates, rng, rearrangements,
+                       chromosome_events, new_chrom_id)
         genomes[node_id] = g
         if node.children is not None:  # speciation: re-mint every chromosome into each daughter
             starts: dict[int, list[Chromosome]] = {c: [] for c in node.children}
