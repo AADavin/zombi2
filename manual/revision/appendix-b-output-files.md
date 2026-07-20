@@ -1,89 +1,72 @@
-# Appendix B — Output files, in full
+# Appendix B — Output files
 
-Every level's simulator returns a **Result** object — `SpeciesResult`, `GenomesResult`,
-`SequencesResult`, `TraitsResult` — and every Result writes to disk the same way:
+Every `simulate_*` returns a result; `result.write("out/", outputs=[...])` writes the files, and
+omitting `outputs` writes the **default** set. Trees are Newick, tables and logs are TSV, sequences are
+FASTA. Tree branch lengths are **time** everywhere except the sequence phylograms, whose lengths are in
+**substitutions per site**. The **Default** column says whether a file is written with no arguments
+(**yes**), only when you name its token (**no**), or is available in Python but has no file yet
+(**Python**).
 
-```python
-result.write("out/")                              # the level's default outputs
-result.write("out/", outputs=["events", "extant"])  # or choose exactly which
-```
+## Species trees — `simulate_species_tree`
 
-The **write vocabulary** — the tokens you pass to `outputs=` — is per level, and each token maps to one
-file (or, at the sequence level, one file *per gene family*). This appendix is the single place every
-file, the token that writes it, and its format are listed. What a run *can* write is gated by what it
-**recorded**: under a narrowed `record=` (Chapter 3) some views are never built, and asking to write one
-of them raises rather than inventing it.
+| Output | File | Format | Default | Contents |
+|---|---|---|---|---|
+| Complete tree | `species_complete.nwk` | Newick | yes | every lineage, including extinct and unsampled |
+| Extant tree | `species_extant.nwk` | Newick | yes | only the sampled survivors |
+| Event log | `species_events.tsv` | TSV | yes | every speciation/extinction — `time · kind · lineage · children` |
+| Fossils | `species_fossils.tsv` | TSV | yes¹ | sampled fossil lineages — `lineage · time` |
 
-Three formats appear throughout:
+¹ written only if fossil sampling recovered any.
 
-- **`.nwk`** — a Newick tree. Branch lengths are **time** (a *chronogram*) everywhere except the sequence
-  phylograms, whose lengths are in **substitutions per site** (a *phylogram*).
-- **`.tsv`** — a tab-separated table with a header row.
-- **`.fasta`** — FASTA sequences.
+## Genomes, unordered — `simulate_genomes_unordered`
 
-And two tree flavours recur (Chapter 4): the **complete** tree carries every lineage, the extinct and
-unsampled included; the **extant** tree is pruned to the observed survivors. Files are named
-`…_complete` / `…_extant` to match.
+| Output | File | Format | Default | Contents |
+|---|---|---|---|---|
+| Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time · kind · lineage · family · copy · parent · recipient` |
+| Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
+| Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | each family's true genealogy (`.complete` and `.extant`) |
 
----
+## Genomes, ordered — `simulate_genomes_ordered`
 
-## Species — `SpeciesResult`
+| Output | File | Format | Default | Contents |
+|---|---|---|---|---|
+| Event log | `genome_events.tsv` | TSV | yes | as unordered |
+| Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
+| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of each leaf — `species · chromosome · position · strand · family · gene` |
+| Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped` |
+| Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time · kind · lineage · parents · children` |
+| Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
 
-Default: every applicable output.
+## Sequences — `simulate_sequences`
 
-| `outputs=` token | File | Format | What it holds |
-|---|---|---|---|
-| `complete` | `species_complete.nwk` | Newick (time) | every lineage that ever lived — extinct and unsampled included |
-| `extant` | `species_extant.nwk` | Newick (time) | the observed survivors (omitted if none survived) |
-| `events` | `species_events.tsv` | TSV | the true history: every speciation and extinction with its time (always recorded) |
-| `fossils` | `species_fossils.tsv` | TSV | recovered fossils as `lineage · time` — present only if a fossil rate was set |
+Gene outputs are written **one file per gene family** (`<f>` = family number); a family with no
+surviving copy writes none. Every node is labelled `g<copy>`, so a phylogram's tips pair with its
+alignment and its internal nodes with the ancestral sequences.
 
-## Genomes — `GenomesResult` (unordered) · `OrderedGenomesResult` (ordered)
+| Output | File | Format | Default | Contents |
+|---|---|---|---|---|
+| Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy |
+| Phylograms | `sequences_phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along |
+| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
+| Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock (only when a genome run supplied a species tree) |
 
-Unordered default: `events`, `profiles`. Ordered adds `gene_order`.
+## Traits — `simulate_continuous` / `simulate_discrete`
 
-| `outputs=` token | File | Format | What it holds |
-|---|---|---|---|
-| `events` | `genome_events.tsv` | TSV | the gene-family event log — origination / duplication / transfer / loss — the source of truth every gene tree is derived from |
-| `profiles` | `profiles.tsv` | TSV | the family × extant-species copy-count matrix (the comparative-genomics table) |
-| `gene_order` | `gene_order.tsv` | TSV | *(ordered)* the observed genomes' layout: one row per gene — `species · chromosome · position · strand · family · gene` |
-| `rearrangements` | `rearrangements.tsv` | TSV | *(ordered)* the inversion / transposition / translocation log |
-| `chromosome_events` | `chromosome_events.tsv` | TSV | *(ordered)* the chromosome genealogy — fission / fusion / loss edges |
-
-## Sequences — `SequencesResult`
-
-Default: `alignments`, `phylograms`. The gene outputs are written **one file per gene family**
-(`_fam<f>`); tips and nodes are keyed by their gene id `g<copy>`.
-
-| `outputs=` token | File | Format | What it holds |
-|---|---|---|---|
-| `alignments` | `sequences_alignment_fam<f>.fasta` | FASTA | the observable gene alignment — the extant gene sequences (skipped for a family with no survivor) |
-| `ancestral` | `sequences_ancestral_fam<f>.fasta` | FASTA | the reconstructed sequence at every internal node — the truth against which to score an ancestral-reconstruction method |
-| `phylograms` | `sequences_phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (**subs/site**) | the gene tree the sequences were drawn along; every node labelled `g<copy>`, so the tips pair with the alignment and the internal nodes with the ancestral sequences |
-| `species_phylogram` | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (**subs/site**) | the species tree scaled by the molecular clock — which lineages ran fast or slow (written only when the run was given a `GenomesResult`, so a species tree exists to scale) |
-
-## Traits — `TraitsResult`
-
-Default: `values`.
-
-| `outputs=` token | File | Format | What it holds |
-|---|---|---|---|
-| `values` | `trait_values.tsv` | TSV | the trait value at each extant tip — the observable comparative-data vector |
-| `changes` | `trait_changes.tsv` | TSV | *(discrete)* the realized transition log — `time · kind · lineage · from · to` — the trait twin of the genome event log |
-| `tree` | `trait_tree.nwk` | Newick (time) | the complete tree with every node's trait value annotated |
-
----
+| Output | File | Format | Default | Contents |
+|---|---|---|---|---|
+| Values | `trait_values.tsv` | TSV | yes | value at each extant tip — `node · trait` |
+| Changes | `trait_changes.tsv` | TSV | no | realized transitions per branch — `time · kind · lineage · from · to` (header-only for a continuous trait) |
+| Trait tree | `trait_tree.nwk` | Newick | no | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL) |
+| Driver | `trait_driver.tsv` | TSV | no | the conditioning driver file a genome/sequence run reads via `mod.DrivenBy(...)` (a discrete trait only) |
 
 ## Coupling — no new files
 
-Coupling adds no file formats; it reuses the level outputs above.
+Coupling adds no formats. A **conditioned** run writes the target level's files plus the **driver file**
+it read (above), keeping the pairing on disk; a **joint** run writes **both** levels, each in its own
+format.
 
-A **conditioned** run writes exactly what the target level's run writes, plus the **driver file** it read,
-so the pairing that produced the pattern is kept on disk. A **joint** run writes **both** levels — the
-grown species tree together with the trait history, or together with the genomes — each in the format it
-would have had from its own command. Because a joint run grows the tree, the tree it writes is a
-*complete* tree (Chapter 4), with the extinct lineages that shaped the distribution still in place.
+## Tools
 
----
-
-*This appendix is the as-built truth: when a level gains an output, its row lands here.*
+The scoring and reconciliation commands (tree-distance, reconciliation-accuracy, the undated simulator,
+the ALE likelihood) are quarantined during the clean-core rebuild; their files are documented here as
+each returns.
