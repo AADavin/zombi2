@@ -34,7 +34,7 @@ from functools import cached_property
 
 import numpy as np
 
-from ..rates.modifiers import Time
+from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
@@ -416,7 +416,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     fus = as_rate(fusion, default_scope=PerChromosome)
     cor = as_rate(chromosome_origination, default_scope=PerLineage)
     clo = as_rate(chromosome_loss, default_scope=PerChromosome)
-    # like the unordered core, this slice wires only the default scope of each event and Time
+    # like the unordered core, this slice wires only the default scope of each event and OnTime
     # (skyline) modifiers; a scope override or per-family/clade modifier is a later slice, so reject
     # them rather than silently mis-scale (see the unordered engine for the reasoning).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
@@ -430,10 +430,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if not isinstance(m, Time):
+            if not isinstance(m, OnTime):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
-                    f"support yet — only Time (skyline) is wired. Per-family heterogeneity and clade "
+                    f"support yet — only OnTime (skyline) is wired. Per-family heterogeneity and clade "
                     f"drift are later slices."
                 )
     if transfer_to == "distance":
