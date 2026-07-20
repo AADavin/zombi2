@@ -1,6 +1,6 @@
 # Genomes I: unordered
 
-The species tree is the backbone; this chapter puts genes on it. At the **unordered** level a lineage carries a *multiset of gene families* — how many copies of each family it has, and nothing more: no position along a chromosome, no DNA sequence. That comes in the next chapter. Here a genome is a bag of families, and it changes as the tree grows: genes are copied, lost, born from nothing, and passed sideways between lineages. This is the first and simplest of the three genome resolutions, and the one the other two are built on.
+The species tree is the backbone; this chapter puts genes on it. At the **unordered** resolution a lineage carries a *multiset of gene families* — how many copies of each family it has, and nothing more: no position along a chromosome, no DNA sequence. That comes in the next chapter. Here a genome is a bag of families, and it changes as the tree grows: genes are copied, lost, born from nothing, and passed sideways between lineages. This is the first and simplest of the three genome resolutions, and the one the other two are built on.
 
 ## The four events
 
@@ -30,7 +30,7 @@ The rates follow the **same grammar as the species level** (`base` optionally wr
 
 The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want — more genes, more chances. Origination is counted **per lineage**: acquiring a wholly new family is a property of the lineage, not of any gene it already has.
 
-Rates can also depend on **time**. Multiplying a base rate by a `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome, fast early and slow later, or any schedule you give:
+Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome, fast early and slow later, or any schedule you give:
 
 ```python
 from zombi2.rates import modifiers as mod
@@ -42,7 +42,7 @@ Two richer dials are part of the design but land in a later release, and this ve
 
 ## Transfer — the sideways event
 
-Transfer is the one event that couples lineages, and it is what makes the unordered level more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**. Because it links contemporaries, the engine cannot walk one branch at a time the way the other three events allow; it runs a single timeline over the whole tree at once, exactly as the species level grows all living lineages together.
+Transfer is the one event that couples lineages, and it is what makes the unordered resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**. Because it links contemporaries, the engine cannot walk one branch at a time the way the other three events allow; it runs a single timeline over the whole tree at once, exactly as the species level grows all living lineages together.
 
 Three arguments shape what a transfer does:
 

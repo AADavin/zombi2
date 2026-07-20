@@ -16,7 +16,7 @@ from zombi2 import species
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 ```
 
-By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared clock for the whole tree instead, wrap it: `birth = scope.Global(1.0)`. The scope wrappers live in `zombi2.scope` (`scope.Global`, `scope.PerLineage`, …), and `Global` is capitalised because `global` is a reserved word in Python.
+By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared budget for the whole tree instead, wrap it: `birth = scope.Global(1.0)`. The scope wrappers live in `zombi2.rates.scope` (`scope.Global`, `scope.PerLineage`, …), and `Global` is capitalised because `global` is a reserved word in Python.
 
 ## What the rate depends on
 
@@ -24,9 +24,9 @@ So far the rates have been constant, but a birth or death rate need not be. It c
 
 - **OnTime** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then a third of it.
 - **OnTotalDiversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
-- **Ancestry** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
+- **FromParent** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
 
-The modifiers live in `zombi2.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.OnTotalDiversity`).
+The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.OnTotalDiversity`).
 
 | From the literature | What it does | Here |
 |---|---|---|

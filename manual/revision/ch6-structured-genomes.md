@@ -69,9 +69,9 @@ genomes.simulate_ordered(tree, chromosomes=8, topology="linear",
 
 A fifth event, **translocation**, moves a segment of genes from one chromosome to another within the same genome — the cross-chromosome cousin of transposition, and, like transposition, counted **per gene copy**. It needs at least two chromosomes, and it is deliberately *identity-neutral*: both chromosomes persist, only the genes change address. It matters because it is the one way a gene can jump from one chromosome to another without being duplicated or transferred, which is exactly what makes the chromosome layer connect to the gene layer (below).
 
-Each rate takes the same grammar as everything else; the defaults answer "per what?" so you rarely write a wrapper. To override, wrap the base (`fission = scope.PerLineage(0.02)` gives one fission budget per lineage — one genome per lineage — regardless of how many chromosomes it has), or bend it with a modifier (`loss = 0.01 * mod.ByChromosomeSize(...)` makes bigger replicons die faster).
+Each rate takes the same grammar as everything else; the defaults answer "per what?" so you rarely write a wrapper. To override, wrap the base (`fission = scope.PerLineage(0.02)` gives one fission budget per lineage — one genome per lineage — regardless of how many chromosomes it has), or bend it with a modifier (`loss = 0.01 * mod.OnChromosomeSize(...)` makes bigger replicons die faster).
 
-> *[Draft — `chromosomes=` and `topology=` replace today's `--n-chromosomes` and `--linear-chromosomes`; the four tier rates are already real flags (`--fission`, `--fusion`, `--chromosome-origination`, `--chromosome-loss`) but as bare floats, not the wrapped grammar. The scope wrapper `scope.PerChromosome` and the modifier `mod.ByChromosomeSize` are decided but not yet built (`PerGenome` was dropped in favour of `PerLineage` — one genome per lineage). Translocation's scope is now decided: **per gene copy** (a rearrangement, like transposition; matching today's code).]*
+> *[Draft — `chromosomes=` and `topology=` replace today's `--n-chromosomes` and `--linear-chromosomes`; the four tier rates are already real flags (`--fission`, `--fusion`, `--chromosome-origination`, `--chromosome-loss`) but as bare floats, not the wrapped grammar. The scope wrapper `scope.PerChromosome` and the modifier `mod.OnChromosomeSize` are decided but not yet built (`PerGenome` was dropped in favour of `PerLineage` — one genome per lineage). Translocation's scope is now decided: **per gene copy** (a rearrangement, like transposition; matching today's code).]*
 
 ## The chromosome network
 
@@ -135,7 +135,7 @@ Readers arriving from the rearrangement and comparative-genomics literature alre
 
 *[Draft — the result API is decided (the `GenomesResult` bundle, `docs/design/result-api.md`); the network accessors below are design targets, not yet built.]*
 
-`simulate_ordered` and `simulate_nucleotide` return a **`GenomesResult`**, a superset of the unordered one's payload: the per-lineage genomes (now with their gene order and chromosomes), the gene trees and reconciliations, and the profile matrix, plus the structured extras. Like every result bundle it shares the common spine (`.events`, `.tree`, `.write(include=[...])`, `.seed`). From an ordered or nucleotide result you can read a leaf's gene order, ask for the **chromosome network** as eNewick, pull the **chromosome event table**, and trace a single gene's path across chromosome lineages:
+`simulate_ordered` and `simulate_nucleotide` return a **`GenomesResult`**, a superset of the unordered one's payload: the per-lineage genomes (now with their gene order and chromosomes), the gene trees and reconciliations, and the profile matrix, plus the structured extras. Like every result bundle it shares the common spine (`.events`, `.tree`, `.write(directory, outputs=[...])`, `.seed`). From an ordered or nucleotide result you can read a leaf's gene order, ask for the **chromosome network** as eNewick, pull the **chromosome event table**, and trace a single gene's path across chromosome lineages:
 
 ```python
 result = genomes.simulate_ordered(tree, chromosomes=8, fission=0.02, fusion=0.02, seed=1)
@@ -147,8 +147,8 @@ result.gene_chromosome_path("g42")   # which chromosome lineage carried gene g42
 ## Usage from Python
 
 ```python
-from zombi2 import genomes, modifiers as mod
-from zombi2 import scope        # scope wrappers: Global, PerCopy, PerLineage, PerChromosome, …
+from zombi2 import genomes
+from zombi2.rates import scope, modifiers as mod   # scope wrappers: Global, PerCopy, PerLineage, PerChromosome, …
 
 # an ordered bacterial genome: the Chapter 5 events, plus inversions
 genomes.simulate_ordered(tree,
@@ -175,7 +175,7 @@ A small end-to-end run: grow a species tree, evolve an ordered genome of two cir
 ```python
 from zombi2 import species, genomes
 
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_tips=12, seed=1)
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1)
 
 result = genomes.simulate_ordered(tree,
     duplication=0.2, transfer=0.1, loss=0.25, origination=0.5,
@@ -185,7 +185,7 @@ result = genomes.simulate_ordered(tree,
 print(result.chromosome_network)          # eNewick, with #H1 at each fusion
 for e in result.karyotype_events:         # time, event, branch, parents → children
     print(e)
-result.write("out/", include=["karyotype", "layout"])
+result.write("out/", outputs=["karyotype", "layout"])
 ```
 
 The fusions are the reticulations: each one shows up in the event table as two parent chromosome ids collapsing to one child, and in the eNewick as a `#H` node hanging under both its parents. A run with a single chromosome and no fission or fusion has a trivial genealogy and writes nothing new — the network output is opt-in, exactly when the karyotype is non-trivial.

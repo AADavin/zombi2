@@ -622,7 +622,162 @@ def test_discrete_validation():
         simulate_discrete(sp, states=["a", "b", "c"], switch=[[0.0, 0.1], [0.1, 0.0]], seed=1)
 
 
-def test_threshold_is_deferred():
-    sp = _tree(seed=1)
+# --- correlated continuous traits (the correlation= overlay) --------------------
+
+def _corr_tree():
+    return simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
+
+
+def test_correlated_tip_correlation_matches_rho():
+    # the correctness-critical invariant: per-trait rates + a correlation overlay ρ give a tip-level
+    # trait correlation of exactly ρ (independent of the rates and the tree), and each trait's
+    # marginal variance is σ²_i·depth (plain BM). ρ=0 recovers independence.
+    tree = _corr_tree()
+    tip = sorted(n.id for n in tree.extant())[0]
+    depth = tree.nodes[tip].end_time
+    for rho in (0.6, -0.5, 0.0):
+        a = np.empty(4000)
+        b = np.empty(4000)
+        for s in range(4000):
+            v = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 2.0, "b": 0.5},
+                                    correlation={("a", "b"): rho}, seed=s).values[tip]
+            a[s], b[s] = v["a"], v["b"]
+        assert abs(float(np.corrcoef(a, b)[0, 1]) - rho) < 0.04
+        assert np.isclose(a.var(), 2.0 * depth, rtol=0.08)
+        assert np.isclose(b.var(), 0.5 * depth, rtol=0.08)
+
+
+def test_correlated_deterministic():
+    tree = _corr_tree()
+    kw = dict(start={"x": 0.0, "y": 1.0}, rate={"x": 1.0, "y": 2.0},
+              correlation={("x", "y"): 0.3}, seed=7)
+    assert simulate_continuous(tree, **kw).node_values == simulate_continuous(tree, **kw).node_values
+
+
+def test_correlated_result_shape():
+    tree = _corr_tree()
+    r = simulate_continuous(tree, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
+                            correlation={("x", "y"): 0.5}, seed=1)
+    assert set(r.node_values) == set(tree.nodes)                       # every node valued
+    assert all(set(v) == {"x", "y"} for v in r.node_values.values())   # each value a per-trait dict
+    assert set(r.values) == {n.id for n in tree.extant()}
+    assert r.kind == "continuous" and r.events == [] and r.history is None
+
+
+def test_correlated_write(tmp_path):
+    tree = _corr_tree()
+    r = simulate_continuous(tree, start={"size": 0.0, "limb": 0.0}, rate={"size": 1.0, "limb": 1.0},
+                            correlation={("size", "limb"): 0.4}, seed=1)
+    r.write(tmp_path, outputs=["values"])
+    lines = (tmp_path / "trait_values.tsv").read_text().splitlines()
+    assert lines[0] == "node\tsize\tlimb"                              # one column per trait
+    assert len(lines) - 1 == len(r.values)
+
+
+def test_correlated_needs_psd():
+    # three traits cannot all be strongly negatively correlated (the matrix is not PSD)
+    tree = _corr_tree()
+    with pytest.raises(ValueError, match="positive-semidefinite"):
+        simulate_continuous(tree, start={"a": 0.0, "b": 0.0, "c": 0.0},
+                            rate={"a": 1.0, "b": 1.0, "c": 1.0},
+                            correlation={("a", "b"): -0.9, ("a", "c"): -0.9, ("b", "c"): -0.9}, seed=1)
+
+
+def test_correlated_validation():
+    tree = _corr_tree()
+    good = dict(start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0})
+    with pytest.raises(ValueError, match="must be a number in"):
+        simulate_continuous(tree, **good, correlation={("a", "b"): 1.5}, seed=1)
+    with pytest.raises(ValueError, match="not in"):
+        simulate_continuous(tree, **good, correlation={("a", "z"): 0.5}, seed=1)
+    with pytest.raises(ValueError, match="self-correlation"):
+        simulate_continuous(tree, **good, correlation={("a", "a"): 0.5}, seed=1)
+    with pytest.raises(ValueError, match="same traits"):
+        simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0}, seed=1)
+    with pytest.raises(ValueError, match="one trait"):
+        simulate_continuous(tree, start={"a": 0.0}, rate={"a": 1.0}, seed=1)
+    with pytest.raises(ValueError, match="dicts keyed by trait"):
+        simulate_continuous(tree, start=0.0, rate=1.0, correlation={("a", "b"): 0.5}, seed=1)
+    with pytest.raises(ValueError, match="not wired yet"):
+        simulate_continuous(tree, **good, correlation={("a", "b"): 0.5}, reverts_to=1.0, pull=0.5, seed=1)
     with pytest.raises(ValueError, match="later slice"):
-        simulate_discrete(sp, states=["absent", "present"], liability=1.0, threshold=0.0, seed=1)
+        simulate_continuous(tree, start={"a": 0.0, "b": 0.0},
+                            rate={"a": 1.0, "b": 1.0 * mod.OnTime({0: 1.0, 3: 0.2})},
+                            correlation={("a", "b"): 0.5}, seed=1)
+
+
+# --- threshold traits (discrete from a continuous liability) + correlated discrete ---
+
+def _phi(z):
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+def test_threshold_state_frequency_law():
+    # a 2-state threshold trait: the liability ~ Normal(start, σ²·depth), so the fraction of tips in
+    # the upper state is Φ((start − cut)/√(σ²·depth)) — the exact Wright–Felsenstein law.
+    tree = _corr_tree()
+    tip = sorted(n.id for n in tree.extant())[0]
+    depth = tree.nodes[tip].end_time
+    for start, cut, s2 in [(0.0, 0.0, 1.0), (0.5, 0.0, 1.0), (0.0, -0.4, 2.0)]:
+        n = 6000
+        p = sum(simulate_discrete(tree, states=["absent", "present"], liability=s2, threshold=cut,
+                                  start=start, seed=z).values[tip] == "present" for z in range(n)) / n
+        assert abs(p - _phi((start - cut) / math.sqrt(s2 * depth))) < 0.03
+
+
+def test_threshold_shape_and_multistate():
+    tree = _corr_tree()
+    r = simulate_discrete(tree, states=["absent", "present"], liability=1.0, threshold=0.0, seed=1)
+    assert r.kind == "discrete" and r.history is None and r.events == []   # no Gillespie map
+    assert set(r.node_values) == set(tree.nodes)
+    assert set(r.values.values()) <= {"absent", "present"}
+    m = simulate_discrete(tree, states=["low", "mid", "high"], liability=1.0, threshold=[-1.0, 1.0], seed=1)
+    assert set(m.values.values()) <= {"low", "mid", "high"}                # 3 states, 2 increasing cuts
+
+
+def test_threshold_deterministic():
+    tree = _corr_tree()
+    kw = dict(states=["a", "b"], liability=1.5, threshold=0.2, start=0.1, seed=4)
+    assert simulate_discrete(tree, **kw).node_values == simulate_discrete(tree, **kw).node_values
+
+
+def test_correlated_discrete_agreement_matches_tetrachoric():
+    # correlated liabilities (symmetric, cut at 0): the fraction of tips where the two states agree is
+    # 1/2 + asin(ρ)/π (the tetrachoric law) — 0.5 when independent, → 1 as ρ → 1, < 0.5 for ρ < 0.
+    tree = _corr_tree()
+    tip = sorted(n.id for n in tree.extant())[0]
+    for rho in (0.0, 0.8, -0.6):
+        n = 5000
+        agree = sum(
+            (lambda v: v["w"] == v["f"])(
+                simulate_discrete(tree, states=["absent", "present"], liability={"w": 1.0, "f": 1.0},
+                                  correlation={("w", "f"): rho}, threshold=0.0, seed=z).values[tip])
+            for z in range(n))
+        assert abs(agree / n - (0.5 + math.asin(rho) / math.pi)) < 0.03
+
+
+def test_correlated_discrete_shape_and_write(tmp_path):
+    tree = _corr_tree()
+    r = simulate_discrete(tree, states=["absent", "present"], liability={"wings": 1.0, "flight": 1.0},
+                          correlation={("wings", "flight"): 0.7}, threshold=0.0, seed=1)
+    assert all(set(v) == {"wings", "flight"} for v in r.node_values.values())
+    assert r.history is None and r.events == []
+    r.write(tmp_path, outputs=["values"])
+    assert (tmp_path / "trait_values.tsv").read_text().splitlines()[0] == "node\twings\tflight"
+
+
+def test_threshold_validation():
+    tree = _corr_tree()
+    with pytest.raises(ValueError, match="not both"):
+        simulate_discrete(tree, states=["a", "b"], switch=0.1, liability=1.0, threshold=0.0, seed=1)
+    with pytest.raises(ValueError, match="cut point"):
+        simulate_discrete(tree, states=["a", "b", "c"], liability=1.0, threshold=0.0, seed=1)
+    with pytest.raises(ValueError, match="strictly increasing"):
+        simulate_discrete(tree, states=["a", "b", "c"], liability=1.0, threshold=[1.0, 0.0], seed=1)
+    with pytest.raises(ValueError, match="needs a dict liability"):
+        simulate_discrete(tree, states=["a", "b"], liability=1.0, threshold=0.0,
+                          correlation={("a", "b"): 0.5}, seed=1)
+    with pytest.raises(ValueError, match="threshold model"):
+        simulate_discrete(tree, states=["a", "b"], switch=0.1, correlation={("a", "b"): 0.5}, seed=1)
+    with pytest.raises(ValueError, match="needs threshold"):
+        simulate_discrete(tree, states=["a", "b"], liability=1.0, seed=1)

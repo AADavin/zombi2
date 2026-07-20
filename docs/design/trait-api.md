@@ -54,7 +54,7 @@ traits.simulate_continuous(tree, start=0.0, rate=1.0, reverts_to=2.0, pull=0.5, 
 
 # EB (early burst) — the diffusion rate decays through time
 #   ...the SAME OnTime modifier that gives species its skyline
-traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.OnOnTime({0: 1.0, 5: 0.2}), seed=1)
+traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.OnTime({0: 1.0, 5: 0.2}), seed=1)
 
 # variable-rates BM — σ² drifts branch-to-branch ("ClaDS for traits")
 #   ...the SAME FromParent modifier that drifts the species rate / the autocorrelated clock
@@ -62,7 +62,7 @@ traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.FromParent(spread=0.3
 
 # diversity-dependent — σ² slows as the clade fills up (ecological limits)
 #   ...the SAME OnTotalDiversity modifier that slows species diversification, read off the fixed tree
-traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.OnTotalOnTotalDiversity(cap=100), seed=1)
+traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.OnTotalDiversity(cap=100), seed=1)
 ```
 
 `rate` is the BM variance-rate σ², and it takes modifiers like any other rate — `OnTime` (early burst),
@@ -108,7 +108,7 @@ covariance matrix, and reads the way people think:
 ```python
 traits.simulate_continuous(tree,
     start={"size": 0.0, "limb": 0.0},
-    rate={"size": 1.0, "limb": 0.8 * mod.OnOnTime({0: 1, 5: 0.3})},   # each keeps its own modifiers
+    rate={"size": 1.0, "limb": 0.8 * mod.OnTime({0: 1, 5: 0.3})},   # each keeps its own modifiers
     correlation={("size", "limb"): 0.6},                           # overlay, ∈ [−1, 1]
     seed=1)
 ```
@@ -133,12 +133,12 @@ per-trait + `correlation=` form is the surface.
 |---|---|---|
 | Brownian motion (BM) | a value diffusing | `simulate_continuous(rate=…)` |
 | Ornstein–Uhlenbeck (OU) | diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` |
-| Early burst (EB / ACDC) | diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnOnTime({…}))` |
+| Early burst (EB / ACDC) | diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnTime({…}))` |
 | Multivariate BM / OU | traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call |
 | Mk (k-state Markov) | a discrete state switching | `simulate_discrete(states=…, switch=…)` |
 | Threshold / liability (Wright–Felsenstein) | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` |
 | Correlated binary / Pagel | discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` |
-| DEC biogeography | range = set of areas | → **experimental** (purged for now) |
+| DEC biogeography | range = set of areas | **not implemented** — the legacy code stays in `legacy/` only |
 | BiSSE / MuSSE / QuaSSE | trait drives speciation | **not a trait model** — trait↔species *joint*, Part III |
 
 ## Still to design
@@ -175,8 +175,8 @@ per-trait + `correlation=` form is the surface.
 - Delete the model-class zoo (`BrownianMotion`, `OrnsteinUhlenbeck`, `EarlyBurst`, `Mk`, `HiddenStateMk`,
   `CorrelatedBinary`, `CorrelatedBinaryK`, `MultivariateBrownian`, `MultivariateOU`, `MultiOptimumOU`,
   `ThresholdModel`, `Cladogenesis`). They become two functions + shared knobs + the `correlation=` overlay.
-- Move `DEC` / `biogeography.py` to `zombi2.experimental` — purged from the trait level for now,
-  recoverable later.
+- `DEC` / `biogeography.py` is **not implemented** in the clean core (dropped, not deferred); the
+  legacy code remains in `legacy/` only.
 - SSE (BiSSE/MuSSE/QuaSSE) leaves the trait level entirely — it is trait↔species *joint*, Part III.
 - Rates follow the cross-level `scope(base) × modifiers` grammar; the trait's `rate` is the BM variance-rate.
 - Keep the `TraitsResult` output object.
