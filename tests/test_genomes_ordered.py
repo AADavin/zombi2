@@ -11,16 +11,19 @@ import inspect
 import pytest
 
 from zombi2.rates import scope
+from zombi2.rates.distributions import Geometric
 from zombi2.rates.modifiers import OnTime
 from zombi2.species import Node, Tree, simulate_species_tree
 from zombi2.genomes import (
     Chromosome,
     Gene,
     Inversion,
+    Transposition,
+    Translocation,
     simulate_genomes_ordered,
     simulate_genomes_unordered,
 )
-from zombi2.genomes.ordered import _fission, _fusion, _invert
+from zombi2.genomes.ordered import _duplicate, _fission, _fusion, _invert, _transpose, _translocate
 
 
 def _tier(seed, death=0.5, n_extant=15, **kw):
@@ -79,8 +82,11 @@ def test_shared_params_are_a_subset_of_the_ordered_signature():
     shared = set(inspect.signature(simulate_genomes_unordered).parameters) - {"tree"}
     ordered = set(inspect.signature(simulate_genomes_ordered).parameters) - {"tree"}
     assert shared <= ordered                                 # unordered ⊂ ordered: nothing dropped
-    assert ordered - shared == {"chromosomes", "topology", "inversion",   # ordered's own additions:
-                                "fission", "fusion", "chromosome_origination", "chromosome_loss"}
+    assert ordered - shared == {                            # ordered's own additions:
+        "chromosomes", "topology", "inversion", "transposition", "translocation",
+        "fission", "fusion", "chromosome_origination", "chromosome_loss", "inversion_probability",
+        "duplication_extension", "loss_extension", "transfer_extension",
+        "inversion_extension", "transposition_extension", "translocation_extension"}
 
 
 # --- the shared gene genealogy still holds -------------------------------------------------------
@@ -387,3 +393,123 @@ def test_tier_rate_scope_override_is_rejected():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     with pytest.raises(ValueError, match="scope"):
         simulate_genomes_ordered(sp, fission=scope.Global(0.1), chromosomes=2, seed=1)
+
+
+# --- slice 3: segmental events (the extension) + transposition + translocation --------------------
+
+def test_geometric_mean_one_is_always_a_single_gene():
+    import numpy as np
+    rng = np.random.default_rng(0)
+    assert all(Geometric(mean=1).sample(rng) == 1.0 for _ in range(100))
+    with pytest.raises(ValueError):
+        Geometric(mean=0.5)
+
+
+def test_duplicate_copies_a_block_in_tandem():
+    ch = Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, 1)])
+    events, counter = [], [10]
+
+    def ng(fam, strand):
+        counter[0] += 1
+        return Gene(counter[0], fam, strand)
+    added = _duplicate(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, ng)
+    assert added == 2 and len(ch.genes) == 5
+    assert [g.family for g in ch.genes] == [0, 1, 0, 1, 2]   # conts in place, then the tandem copy block
+    assert len(events) == 4 and all(e.kind == "duplication" for e in events)
+
+
+def test_transpose_relocates_a_segment_within_the_chromosome_preserving_ids():
+    import numpy as np
+    ch = Chromosome(0, "linear", [Gene(i, i, 1) for i in range(5)])
+    rearr = []
+    _transpose(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+               np.random.default_rng(0), 0.0)
+    assert sorted(g.id for g in ch.genes) == [0, 1, 2, 3, 4]  # same genes, reordered — nothing lost
+    assert len(ch.genes) == 5
+    assert isinstance(rearr[0], Transposition) and rearr[0].length == 2 and rearr[0].flipped is False
+
+
+def test_transpose_flips_the_segment_when_inversion_probability_is_one():
+    import numpy as np
+    ch = Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, 1)])
+    rearr = []
+    _transpose(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+               np.random.default_rng(0), 1.0)
+    strands = {g.id: g.strand for g in ch.genes}
+    assert rearr[0].flipped is True
+    assert strands[0] == -1 and strands[1] == -1 and strands[2] == 1  # only the moved block flipped
+
+
+def test_translocate_moves_a_segment_to_a_different_chromosome():
+    import numpy as np
+    genome = [Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, 1)]),
+              Chromosome(1, "linear", [Gene(3, 3, 1)])]
+    rearr = []
+    _translocate(genome, 0, 0, 2, Node(5, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+                 np.random.default_rng(0), 0.0)
+    assert sorted(g.id for ch in genome for g in ch.genes) == [0, 1, 2, 3]   # nothing gained/lost
+    assert len(genome[0].genes) == 1 and {g.id for g in genome[1].genes} == {0, 1, 3}
+    assert isinstance(rearr[0], Translocation) and rearr[0].source == 0 and rearr[0].dest == 1
+
+
+def test_translocate_is_a_noop_with_a_single_chromosome():
+    import numpy as np
+    genome = [Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1)])]
+    rearr = []
+    _translocate(genome, 0, 0, 1, Node(5, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+                 np.random.default_rng(0), 0.0)
+    assert rearr == [] and len(genome[0].genes) == 2         # nowhere to move to
+
+
+def test_all_three_rearrangements_fire_and_are_typed():
+    _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3,
+                transposition_extension=Geometric(mean=3), translocation_extension=Geometric(mean=2))
+    kinds = {type(x).__name__ for x in r.rearrangements}
+    assert {"Inversion", "Transposition", "Translocation"} <= kinds
+
+
+def test_default_extension_is_a_single_gene_and_scales_up():
+    # default Geometric(mean=1): every inversion spans exactly one gene
+    _, small = _run(seed=4, inversion=2.0, transposition=0.0, translocation=0.0,
+                    duplication=0.0, transfer=0.0, loss=0.0, origination=0.0)
+    assert small.rearrangements and all(x.length == 1 for x in small.rearrangements)
+    # dial the extension up: longer blocks appear
+    _, big = _run(seed=4, inversion=2.0, transposition=0.0, translocation=0.0,
+                  duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
+                  inversion_extension=Geometric(mean=6))
+    assert max(x.length for x in big.rearrangements) > 1
+
+
+def test_inversion_probability_governs_flips():
+    _, always = _run(seed=2, transposition=1.0, translocation=1.0, inversion=0.0, duplication=0.3,
+                     transposition_extension=Geometric(mean=3), translocation_extension=Geometric(mean=3),
+                     inversion_probability=1.0)
+    moves = [x for x in always.rearrangements if isinstance(x, (Transposition, Translocation))]
+    assert moves and all(x.flipped for x in moves)
+    _, never = _run(seed=2, transposition=1.0, translocation=1.0, inversion=0.0, duplication=0.3,
+                    inversion_probability=0.0)
+    moves0 = [x for x in never.rearrangements if isinstance(x, (Transposition, Translocation))]
+    assert moves0 and not any(x.flipped for x in moves0)
+
+
+def test_strong_invariant_holds_under_segmental_everything():
+    # segmental duplication/loss/transfer record correctly, so surviving leaves == profile copies.
+    # loss >= duplication keeps genomes bounded (segmental dup would otherwise blow up fast)
+    for seed in range(3):
+        sp, r = _run(seed=seed, n_extant=8, duplication=0.3, loss=0.4, transfer=0.25, inversion=0.2,
+                     transposition=0.2, translocation=0.2, inversion_probability=0.5,
+                     duplication_extension=Geometric(mean=3), loss_extension=Geometric(mean=3),
+                     transfer_extension=Geometric(mean=2))
+        extant = {n.id for n in sp.complete_tree.extant()}
+        for fam, tree in r.gene_trees.items():
+            assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
+
+
+def test_rearrangements_tsv_has_one_table_for_all_kinds(tmp_path):
+    _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3)
+    r.write(tmp_path, outputs=("rearrangements",))
+    lines = (tmp_path / "rearrangements.tsv").read_text().splitlines()
+    assert lines[0].split("\t") == ["time", "kind", "lineage", "chromosome", "start", "length",
+                                    "dest_chromosome", "dest_position", "flipped"]
+    kinds = {row.split("\t")[1] for row in lines[1:]}
+    assert kinds <= {"inversion", "transposition", "translocation"}
