@@ -11,7 +11,7 @@ import inspect
 import pytest
 
 from zombi2.rates import scope
-from zombi2.rates.modifiers import Time
+from zombi2.rates.modifiers import OnTime
 from zombi2.species import Node, Tree, simulate_species_tree
 from zombi2.genomes import (
     Chromosome,
@@ -220,10 +220,10 @@ def test_deterministic_given_seed():
     assert r.chromosome_events == r2.chromosome_events
 
 
-def test_time_skyline_modifier_is_accepted():
+def test_ontime_skyline_modifier_is_accepted():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
-    r = simulate_genomes_ordered(sp, duplication=0.3 * Time({0: 1.0, 1.0: 0.2}),
-                                 inversion=0.2 * Time({0: 0.5, 1.0: 2.0}),
+    r = simulate_genomes_ordered(sp, duplication=0.3 * OnTime({0: 1.0, 1.0: 0.2}),
+                                 inversion=0.2 * OnTime({0: 0.5, 1.0: 2.0}),
                                  chromosomes=2, initial_families=6, seed=1)
     assert r.genomes                                           # ran without complaint
 
