@@ -43,23 +43,31 @@ permuted). The first ancestry-**changing** event is now here too:
 Threaded through all of the above is the **copy lineage** (``Block.copy``): the persistent identity
 that a split preserves, a duplication mints fresh (parent → child), and a speciation re-mints into
 each daughter. The genealogy ``events`` — ``origination`` / ``loss`` / ``duplication`` / ``speciation``
-— carry these copy ids, which the gene-tree **recovery** (the next slice) will read to resolve each
-block gene tree's *shape*: propagate breakpoints → the root partition → a per-block tree.
+— carry these copy ids, and the last piece here reads them:
 
-Deferred to later slices: the gene-tree **recovery** itself (the root partition + the per-block tree
-from the copy-lineage events); transfer (→ the global timeline), transposition, origination, and
-chromosome origination / loss; indels; declared genes / intergenes (pseudogenization, replacement);
-GFF input and BED / FASTA output.
+- **The gene-tree recovery** (``result.root_blocks`` / ``result.gene_trees``) — the **root partition**
+  (cut each source at the union of extant-leaf breakpoints, keep the intervals that survive in a leaf:
+  each is a maximal never-cut interval = one gene family) and, per block, the copy-lineage log replayed
+  into one gene tree (a duplication is a ladder, a speciation a bifurcation), reusing the shared
+  per-segment builder. Validated end to end: the recovered extant tips equal the copies actually
+  present in every extant leaf.
+
+Deferred to later slices: transfer (→ the global timeline), transposition, origination, and chromosome
+origination / loss; indels; declared genes / intergenes (pseudogenization, replacement); GFF input and
+BED / FASTA output. (The recovery above builds the *extant* tree exactly; the *complete* tree's dead
+partial-overlap lineages need the finer all-node partition — a later refinement.)
 """
 
 from __future__ import annotations
 
+import collections
 from dataclasses import dataclass
 
 import numpy as np
 
 from ..species import SpeciesResult, Tree
 from .chromosomes import ChromosomeEvent
+from .gene_trees import GeneTree, gene_trees_from_events
 
 
 @dataclass
@@ -351,6 +359,23 @@ class NucleotideGenomesResult:
 
     def ancestry(self, node_id: int) -> list[tuple[int, int]]:
         return self.genomes[node_id].ancestry()
+
+    def _recover(self) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
+        if not hasattr(self, "_recovered"):
+            self._recovered = _recover_gene_trees(self)
+        return self._recovered
+
+    @property
+    def root_blocks(self) -> list[tuple[int, int, int]]:
+        """The recovered **root partition**: ``(source, start, end)`` for each maximal never-cut
+        interval that survives in an extant leaf — one per :attr:`gene_trees` family (by index)."""
+        return self._recover()[0]
+
+    @property
+    def gene_trees(self) -> dict[int, GeneTree]:
+        """``{family: GeneTree}`` — one gene tree per root-block (family id = the block's index in
+        :attr:`root_blocks`), recovered from the copy-lineage genealogy."""
+        return self._recover()[1]
 
 
 def _valid_length(length) -> int:
@@ -661,6 +686,150 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 start_genome[c] = NucleotideGenome(starts[c])
                 stack.append(c)
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed)
+
+
+# --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
+#
+# A gene tree per *root-block*: the coarsest interval of a source that is never cut in any extant leaf
+# and survives there. Within such a block every copy is un-cut in every leaf that carries it (a cut
+# would be an observable breakpoint, which would have split the block), so all its copies share one
+# genealogy. The recovery has two moves:
+#
+#   1. the **root partition** — cut each source at the union of extant-leaf breakpoints and keep the
+#      intervals some extant leaf still covers (the surviving material);
+#   2. per block, replay the copy-lineage log restricted to that block into the **per-segment** model
+#      the shared ``gene_trees_from_events`` reads (every event ends a segment and starts fresh ids),
+#      so a duplication is a ladder (parent continues + child) and a speciation a bifurcation.
+#
+# Because the partition is by *surviving* breakpoints, every event that reaches an extant copy is
+# atomic on it (covers the whole block or none) — an event that only partially covers a block made a
+# breakpoint that did not survive, so its child is dead and irrelevant to the extant tree.
+
+
+@dataclass(frozen=True)
+class _SegEvent:
+    """One per-segment event in the model :func:`gene_trees_from_events` reads: ``kind`` is
+    ``origination`` (a root) / ``duplication`` / ``speciation`` (a parent segment ends → a child
+    begins on species branch ``lineage``) / ``loss`` (a dead leaf). ``copy`` is the fresh segment id,
+    ``parent`` the segment it descends from (``None`` for a root or a loss)."""
+
+    kind: str
+    family: int
+    lineage: int
+    time: float
+    copy: int
+    parent: int | None
+
+
+def _root_block_partition(result) -> list[tuple[int, int, int]]:
+    """The root partition: per source, the maximal intervals bounded by extant-leaf breakpoints that
+    survive in some extant leaf. Returns a sorted list of ``(source, start, end)`` root-blocks."""
+    leaves = [n.id for n in result.complete_tree.extant()]
+    bounds: dict[int, set[int]] = collections.defaultdict(set)
+    spans: dict[int, set[tuple[int, int]]] = collections.defaultdict(set)
+    for lid in leaves:
+        for chrom in result.genomes[lid].chromosomes:
+            for b in chrom.blocks:
+                bounds[b.source].update((b.start, b.end))
+                spans[b.source].add((b.start, b.end))
+    blocks: list[tuple[int, int, int]] = []
+    for source in bounds:
+        cuts = sorted(bounds[source])
+        covers = spans[source]
+        for a, c in zip(cuts, cuts[1:]):
+            if any(x <= a and c <= y for (x, y) in covers):   # some leaf still carries [a, c)
+                blocks.append((source, a, c))
+    return sorted(blocks)
+
+
+def _emit_block_events(fam, s, a, b, tree, origs, dups, losses, specs, new_seg, out) -> None:
+    """Replay the copy-lineage log for one root-block ``(s, [a, b))`` into per-segment events on
+    ``out``. A copy lineage is a *block-copy* when it covers ``[a, b)`` in full; a duplication that
+    covers it in full begets a block-copy child (a ladder rung on its parent), a speciation re-mints
+    it, and any loss overlapping it ends it."""
+    def covers(x, y):
+        return x <= a and b <= y
+
+    def overlaps(x, y):
+        return x < b and a < y
+
+    root = tree.nodes[tree.root]
+    root_copies = [e.copy for e in origs if e.source == s and covers(e.start, e.end)]
+    if not root_copies:
+        return
+
+    dup_child: dict[int, list[tuple[float, int]]] = collections.defaultdict(list)   # parent -> [(t, child)]
+    species: dict[int, int] = {}                                                    # copy -> species branch
+    for e in dups:
+        for (pc, cc, src, x, y) in e.copied:
+            if src == s and covers(x, y):
+                dup_child[pc].append((e.time, cc))
+                species[cc] = e.lineage
+    loss_of: dict[int, float] = {}                                                  # copy -> earliest loss time
+    for e in losses:
+        for (cp, src, x, y) in e.lost:
+            if src == s and overlaps(x, y) and (cp not in loss_of or e.time < loss_of[cp]):
+                loss_of[cp] = e.time
+    for rc in root_copies:
+        species[rc] = root.id
+
+    block_copies: set[int] = set()
+    order: list[int] = []
+    stack = list(root_copies)
+    while stack:                                            # BFS the block-copy forest (single-parent)
+        c = stack.pop()
+        if c in block_copies:
+            continue
+        block_copies.add(c)
+        order.append(c)
+        for (_t, cc) in dup_child.get(c, ()):
+            stack.append(cc)
+        if c not in loss_of and c in specs:                # survived to its node's end -> re-minted
+            pnode = tree.nodes[specs[c].lineage]
+            for i, d in enumerate(specs[c].children):
+                species[d] = pnode.children[i]
+                stack.append(d)
+
+    seg_in = {c: new_seg() for c in order}
+    for rc in root_copies:
+        out.append(_SegEvent("origination", fam, root.id, root.birth_time, seg_in[rc], None))
+    for c in order:
+        prev = seg_in[c]
+        for (t, cc) in sorted(dup_child.get(c, ())):       # ladder: each duplication rung is a bifurcation
+            nxt = new_seg()
+            out.append(_SegEvent("duplication", fam, species[c], t, nxt, prev))
+            out.append(_SegEvent("duplication", fam, species[cc], t, seg_in[cc], prev))
+            prev = nxt
+        if c in loss_of:                                   # a death (dead leaf)
+            out.append(_SegEvent("loss", fam, species[c], loss_of[c], prev, None))
+        elif c in specs:                                   # a bifurcation into the daughter species
+            pnode = tree.nodes[specs[c].lineage]
+            for i, d in enumerate(specs[c].children):
+                if d in block_copies:
+                    out.append(_SegEvent("speciation", fam, pnode.children[i], specs[c].time,
+                                         seg_in[d], prev))
+        # else: prev survives to an extant/extinct leaf — gene_trees_from_events tags it by species fate
+
+
+def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
+    """The full recovery: the root partition, and one :class:`GeneTree` per block (its family id is the
+    block's index in the partition). Reuses the shared per-segment tree builder."""
+    tree = result.complete_tree
+    blocks = _root_block_partition(result)
+    origs = [e for e in result.events if isinstance(e, Origination)]
+    dups = [e for e in result.events if isinstance(e, Duplication)]
+    losses = [e for e in result.events if isinstance(e, Loss)]
+    specs = {e.parent: e for e in result.events if isinstance(e, Speciation)}
+    counter = [0]
+
+    def new_seg():
+        counter[0] += 1
+        return counter[0]
+
+    seg_events: list[_SegEvent] = []
+    for fam, (s, a, b) in enumerate(blocks):
+        _emit_block_events(fam, s, a, b, tree, origs, dups, losses, specs, new_seg, seg_events)
+    return blocks, gene_trees_from_events(seg_events, tree)
 
 
 __all__ = ["Block", "Chromosome", "NucleotideGenome", "NucleotideGenomesResult",
