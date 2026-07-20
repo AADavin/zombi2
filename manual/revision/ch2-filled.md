@@ -69,6 +69,19 @@ By default, this is the scope ZOMBI2 uses at each level:
 | Sequences | site | the substitution rate (times a clock) |
 | Traits | lineage | the trait model |
 
+The scope is fixed by the level; the **modifiers** are where a rate gains its flexibility. A modifier reads some piece of context — the current time, the standing diversity, the lineage a branch sits on — and returns a dimensionless factor that multiplies the base. ZOMBI2 ships a small, shared set:
+
+| Modifier | What it does to the rate |
+|---|---|
+| `OnTime` | Follows a **time schedule**: one factor up to a breakpoint, another after it, and so on — a skyline. |
+| `OnTotalDiversity` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
+| `FromParent` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
+| `ByLineage` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
+
+Two of these are **deterministic**: `OnTime` and `OnTotalDiversity` are fixed functions of the state of the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The other two are **random and vary from lineage to lineage**, and they differ in *memory*: `FromParent` is passed down and drifts, so the rate is autocorrelated along the tree — a slowly wandering clock, or a clade that inherits a fast tempo — whereas `ByLineage` is drawn afresh on every branch, so the variation is scattered, an uncorrelated ("relaxed") clock. The random modifiers are **mean-corrected**, meaning their factors average to 1, so switching on heterogeneity spreads a rate around without secretly speeding the whole tree up.
+
+Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) * mod.FromParent(spread=0.3)` is a rate that both follows a schedule and drifts between lineages. And because a modifier attaches to *any* rate, the same handful reappears at every level — `OnTime` is a skyline for speciation and an early burst for a trait, `FromParent` is clade drift for diversification and the autocorrelated clock for sequences, `OnTotalDiversity` is diversity-dependence wherever a rate should ease off as lineages accumulate. Learn them once and you know them everywhere.
+
 A more detailed introduction to rates is given in Appendix A (Gillespie).
 
 ## Going beyond the basic simulation: conditioning and joining levels
