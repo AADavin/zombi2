@@ -57,10 +57,10 @@ re-mints into each daughter. The genealogy ``events`` — ``origination`` / ``lo
   bifurcation), reusing the shared per-segment builder. Validated end to end: the recovered extant tips
   equal the copies actually present in every extant leaf.
 
-Deferred to later slices: homologous *replacement* transfer (only additive for now); chromosome
-origination / loss; indels; declared genes / intergenes (pseudogenization, replacement); GFF input and
-BED / FASTA output. (The recovery above builds the *extant* tree exactly; the *complete* tree's dead
-partial-overlap lineages need the finer all-node partition — a later refinement.)
+Deferred to later slices: homologous *replacement* transfer (only additive for now); indels; declared
+genes / intergenes (pseudogenization, replacement); GFF input and BED / FASTA output. (The recovery
+above builds the *extant* tree exactly; the *complete* tree's dead partial-overlap lineages need the
+finer all-node partition — a later refinement.)
 """
 
 from __future__ import annotations
@@ -457,6 +457,8 @@ class _Rates:
     origination: float
     fission: float
     fusion: float
+    chromosome_origination: float
+    chromosome_loss: float
     inversion_length: float
     translocation_length: float
     transposition_length: float
@@ -675,6 +677,32 @@ def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
     return -1
 
 
+def _do_chromosome_origination(g, node_id, t, chromosome_events, new_chrom_id) -> int:
+    """A de-novo replicon (a plasmid): a fresh **empty** circular chromosome — a **root** of the
+    chromosome network (no parent). It carries no sequence yet (length 0); material arrives later by
+    origination / transfer / translocation. Returns the chromosome-count delta (``+1``)."""
+    cid = new_chrom_id()
+    g.chromosomes.append(Chromosome(cid, "circular", []))
+    chromosome_events.append(ChromosomeEvent(t, "origination", node_id, (), (cid,)))
+    return 1
+
+
+def _do_chromosome_loss(g, node_id, t, rng, events, chromosome_events) -> tuple[int, int]:
+    """A whole chromosome dies — a **leaf** of the chromosome network (no child): its material dies as
+    one :class:`Loss` (each copy lineage on it ends). No-op if it is the genome's last chromosome (a
+    lineage never loses its whole genome this way). Returns ``(chromosome delta, length delta)``."""
+    if len(g.chromosomes) < 2:
+        return (0, 0)
+    ci = int(rng.integers(len(g.chromosomes)))
+    lost = g.chromosomes[ci]
+    if lost.blocks:                                     # an empty de-novo replicon dies with no material
+        rows = tuple((b.copy, b.source, b.start, b.end) for b in lost.blocks)
+        events.append(Loss(t, node_id, lost.id, rows))
+    del g.chromosomes[ci]
+    chromosome_events.append(ChromosomeEvent(t, "loss", node_id, (lost.id,), ()))
+    return (-1, -lost.length)
+
+
 def _pick_lineage_by_length(rng, gen, total_length) -> int:
     """Pick a lineage index proportional to its genome length — together with each mutator's
     within-genome length-weighting this realises one global per-nucleotide pick."""
@@ -725,7 +753,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 inversion_probability=0.0, loss=0.0, loss_length=50.0, duplication=0.0,
                                 duplication_length=50.0, transfer=0.0, transfer_length=50.0,
                                 transfer_to="uniform", self_transfer=False, origination=0.0,
-                                origination_length=50.0, fission=0.0, fusion=0.0, chromosomes=1,
+                                origination_length=50.0, fission=0.0, fusion=0.0,
+                                chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", seed=None) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
@@ -751,8 +780,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     - ``origination`` (**per lineage**) lays down a fresh source of new material (a geometric-length,
       mean ``origination_length``, de-novo stretch) — a *birth* of a wholly new gene family.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
-      (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**). Both
-      re-mint their children and record a network edge.
+      (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**).
+      ``chromosome_origination`` (**per lineage**) adds a de-novo empty circular replicon (a plasmid, a
+      network **root**); ``chromosome_loss`` (**per chromosome**) kills a whole chromosome (its material
+      dies as a loss; never the last one) — a network **leaf**. All record a chromosome-network edge.
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
     (each per-nucleotide rate scales with the *total* current length over the alive set, per-chromosome
@@ -765,7 +796,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     for label, rate in (("inversion", inversion), ("translocation", translocation),
                         ("transposition", transposition), ("loss", loss), ("duplication", duplication),
                         ("transfer", transfer), ("origination", origination), ("fission", fission),
-                        ("fusion", fusion)):
+                        ("fusion", fusion), ("chromosome_origination", chromosome_origination),
+                        ("chromosome_loss", chromosome_loss)):
         if rate < 0:
             raise ValueError(f"{label} must be >= 0, got {rate}")
     for label, mean in (("inversion_length", inversion_length),
@@ -784,9 +816,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                          f"got {transfer_to!r}")
     specs = _replicon_specs(chromosomes, root_length, topology)
     rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
-                   fission, fusion, inversion_length, translocation_length, transposition_length,
-                   loss_length, duplication_length, transfer_length, origination_length,
-                   inversion_probability)
+                   fission, fusion, chromosome_origination, chromosome_loss, inversion_length,
+                   translocation_length, transposition_length, loss_length, duplication_length,
+                   transfer_length, origination_length, inversion_probability)
     depth = mean_root_to_tip(tree)                       # timescale for Distance weighting
 
     rng = np.random.default_rng(seed)
@@ -847,7 +879,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         r_org = rates.origination * nlin                # per lineage
         r_fis = rates.fission * count
         r_fus = rates.fusion * count
-        total = r_inv + r_trl + r_trp + r_los + r_dup + r_tra + r_org + r_fis + r_fus
+        r_cor = rates.chromosome_origination * nlin     # per lineage (de-novo replicon)
+        r_clo = rates.chromosome_loss * count           # per chromosome
+        total = (r_inv + r_trl + r_trp + r_los + r_dup + r_tra + r_org + r_fis + r_fus + r_cor + r_clo)
         next_species = schedule[si][0]
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
@@ -861,6 +895,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 b_tra = b_dup + r_tra
                 b_org = b_tra + r_org
                 b_fis = b_org + r_fis
+                b_fus = b_fis + r_fus
+                b_cor = b_fus + r_cor
                 if r < r_inv:
                     k = _pick_lineage_by_length(rng, gen, length)
                     _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
@@ -891,10 +927,19 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
                                                      new_chrom_id)
-                else:
+                elif r < b_fus:
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     total_chromosomes += _do_fusion(gen[k], alive[k], t, rng, chromosome_events,
                                                     new_chrom_id)
+                elif r < b_cor:
+                    k = int(rng.integers(nlin))         # chromosome origination is per lineage
+                    total_chromosomes += _do_chromosome_origination(gen[k], alive[k], t,
+                                                                    chromosome_events, new_chrom_id)
+                else:
+                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    dc, dl = _do_chromosome_loss(gen[k], alive[k], t, rng, events, chromosome_events)
+                    total_chromosomes += dc
+                    total_length += dl
                 continue
 
         t = next_species                                # advance to the next species event(s)

@@ -883,3 +883,84 @@ def test_transposition_and_origination_validation():
                dict(origination=-0.1), dict(origination=0.1, origination_length=0)):
         with pytest.raises(ValueError):
             simulate_genomes_nucleotide(sp, **kw)
+
+
+# --- the chromosome tier: de-novo replicons (origination) and whole-chromosome death (loss) --------
+
+def test_chromosome_origination_adds_empty_replicons():
+    specs = [(80, "circular"), (30, "linear")]
+    full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, chromosome_origination=0.4, chromosomes=specs, seed=3)
+    orig_edges = [e for e in r.chromosome_events if e.kind == "origination"]
+    assert len(orig_edges) > len(specs)                            # de-novo replicons beyond the seeds
+    assert all(e.parents == () and len(e.children) == 1 for e in orig_edges)   # ...are network roots
+    assert any(c.length == 0 for g in r.genomes.values() for c in g.chromosomes)   # empty plasmids
+    for node_id in r.genomes:
+        assert set(r.ancestry(node_id)) == full                    # an empty replicon adds no material
+    assert any(len(g.chromosomes) > len(specs) for g in r.genomes.values())   # the count grew
+
+
+def test_chromosome_loss_kills_whole_chromosomes_as_a_subset():
+    specs = [(80, "circular"), (30, "linear")]
+    full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=4)
+    r = simulate_genomes_nucleotide(sp, chromosome_loss=0.25, chromosomes=specs, seed=4)
+    assert any(e.kind == "loss" for e in r.chromosome_events)       # whole chromosomes died
+    assert all(len(g.chromosomes) >= 1 for g in r.genomes.values())  # never the last chromosome
+    tree = r.complete_tree
+    for node_id, node in tree.nodes.items():
+        assert set(r.ancestry(node_id)) <= full                    # material is only ever removed
+        if node.parent is not None:                                # ...monotonically down every path
+            assert set(r.ancestry(node_id)) <= set(r.ancestry(node.parent))
+    assert any(len(r.ancestry(n)) < len(full) for n in r.genomes)  # some material really was lost
+
+
+def test_chromosome_tier_network_is_well_formed_with_de_novo_and_death():
+    specs = [(80, "circular"), (40, "circular")]
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
+    r = simulate_genomes_nucleotide(sp, chromosome_origination=0.25, chromosome_loss=0.15,
+                                    fission=0.25, fusion=0.25, chromosomes=specs, seed=5)
+    ev = r.chromosome_events
+    minted = [cid for e in ev for cid in e.children]
+    assert len(minted) == len(set(minted))                         # every chromosome id minted once
+    for e in ev:
+        if e.kind == "origination":
+            assert e.parents == () and len(e.children) == 1        # a root (no parent)
+        elif e.kind == "loss":
+            assert e.children == () and len(e.parents) == 1        # a leaf (no child)
+        elif e.kind == "fusion":
+            assert len(e.parents) == 2 and len(e.children) == 1    # the only reticulation
+        else:                                                       # speciation / fission
+            assert len(e.parents) == 1 and len(e.children) == 2
+    assert {"origination", "loss", "speciation"} <= {e.kind for e in ev}
+
+
+def test_recovery_cross_check_holds_with_chromosome_tier():
+    import collections
+    specs = [(80, "circular"), (30, "linear")]
+    saw_chromosome_loss = False
+    for seed in range(4):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
+        r = simulate_genomes_nucleotide(sp, chromosome_origination=0.25, chromosome_loss=0.12,
+                                        loss=0.03, duplication=0.03, transfer=0.03, inversion=0.03,
+                                        fission=0.1, fusion=0.1, chromosomes=specs, seed=seed)
+        saw_chromosome_loss = saw_chromosome_loss or any(e.kind == "loss" for e in r.chromosome_events)
+        leaves = [n.id for n in r.complete_tree.extant()]
+        for fam, (s, a, b) in enumerate(r.root_blocks):
+            ex = r.gene_trees[fam].extant
+            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+                                            if t.kind == "extant")
+            for lid in leaves:
+                observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                               if blk.source == s and blk.start <= a and b <= blk.end)
+                assert observed == recovered.get(lid, 0)
+    assert saw_chromosome_loss                                     # chromosome deaths really occurred
+
+
+def test_chromosome_tier_validation():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, chromosome_origination=-0.1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, chromosome_loss=-0.1)
