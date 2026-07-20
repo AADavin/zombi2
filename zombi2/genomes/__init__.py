@@ -40,10 +40,10 @@ from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .events import Event, events_tsv
 from .gene_trees import GeneNode, GeneTree, gene_trees_from_events
+from .chromosomes import ChromosomeEvent
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from .ordered import (
     Chromosome,
-    ChromosomeEvent,
     Gene,
     Inversion,
     OrderedGenomesResult,
