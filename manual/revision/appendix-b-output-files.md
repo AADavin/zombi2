@@ -2,8 +2,10 @@
 
 Every `simulate_*` returns a result; `result.write("out/", outputs=[...])` writes the files, and
 omitting `outputs` writes the **default** set. Trees are Newick, tables and logs are TSV, sequences are
-FASTA. The **Default** column says whether a file is written with no arguments (**yes**), only when you
-name its token (**no**), or is available in Python but has no file yet (**Python**).
+FASTA. Tree branch lengths are **time** everywhere except the sequence phylograms, whose lengths are in
+**substitutions per site**. The **Default** column says whether a file is written with no arguments
+(**yes**), only when you name its token (**no**), or is available in Python but has no file yet
+(**Python**).
 
 ## Species trees — `simulate_species_tree`
 
@@ -37,13 +39,16 @@ name its token (**no**), or is available in Python but has no file yet (**Python
 
 ## Sequences — `simulate_sequences`
 
-One file per gene family (`<f>` = family number); a family with no surviving copy writes none.
+Gene outputs are written **one file per gene family** (`<f>` = family number); a family with no
+surviving copy writes none. Every node is labelled `g<copy>`, so a phylogram's tips pair with its
+alignment and its internal nodes with the ancestral sequences.
 
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
-| Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy (labels `g<copy>_n<species>`) |
-| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal gene-tree node |
-| Phylograms | — | Newick | soon | gene trees in substitutions/site — forthcoming |
+| Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy |
+| Phylograms | `sequences_phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along |
+| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
+| Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock (only when a genome run supplied a species tree) |
 
 ## Traits — `simulate_continuous` / `simulate_discrete`
 
@@ -52,6 +57,13 @@ One file per gene family (`<f>` = family number); a family with no surviving cop
 | Values | `trait_values.tsv` | TSV | yes | value at each extant tip — `node · trait` |
 | Changes | `trait_changes.tsv` | TSV | no | realized transitions per branch — `time · kind · lineage · from · to` (header-only for a continuous trait) |
 | Trait tree | `trait_tree.nwk` | Newick | no | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL) |
+| Driver | `trait_driver.tsv` | TSV | no | the conditioning driver file a genome/sequence run reads via `mod.DrivenBy(...)` (a discrete trait only) |
+
+## Coupling — no new files
+
+Coupling adds no formats. A **conditioned** run writes the target level's files plus the **driver file**
+it read (above), keeping the pairing on disk; a **joint** run writes **both** levels, each in its own
+format.
 
 ## Tools
 

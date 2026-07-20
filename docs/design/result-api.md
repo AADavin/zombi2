@@ -32,7 +32,7 @@ collision the coverage audit found (→ `GenomesResult`) and finally names the s
 |---|---|---|
 | Species | `SpeciesResult` | `.complete_tree`, `.extant_tree`, `.fossils`, `.events` |
 | Genomes | `GenomesResult` | `.genomes` (per-node content), `.gene_trees`, `.profiles` (sparse presence/count matrix), `.transfers`, `.events` (D/T/L/O); structured adds `.chromosome_network`, `.gene_order` (GFF/BED) |
-| Sequences | `SequencesResult` | `.alignments`, `.ancestral`, `.events` |
+| Sequences | `SequencesResult` | `.alignments`, `.ancestral`, `.phylograms` (each gene tree in subs/site — the tree behind each alignment), `.species_phylogram` (the species tree in subs/site — the molecular clock made visible); `.events` deferred (§ *opt-in `record=`*) |
 | Traits | `TraitsResult` | `.values`, `.history`, `.events` |
 
 ## The memory model — three dials (declare what you want, pay only for that)
