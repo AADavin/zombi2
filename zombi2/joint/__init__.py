@@ -398,6 +398,12 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     f"later slice — use one or the other."
                 )
             if isinstance(m, DrivenBy):
+                if not isinstance(m.source, str):
+                    raise TypeError(
+                        f"{label} is driven by a {type(m.source).__name__} object, but a joint model "
+                        f"drives from a live level *name* (a string, e.g. \"trait\" / \"genomes:count\"). "
+                        f"A grown result object is conditioning — pass it to the target level's run."
+                    )
                 sources.append(m.source)
     if not sources:
         raise ValueError(

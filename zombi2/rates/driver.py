@@ -96,4 +96,40 @@ def load_driver(path) -> DriverTrajectory:
     return DriverTrajectory(segments)
 
 
-__all__ = ["DriverTrajectory", "load_driver"]
+def driver_from_result(result) -> DriverTrajectory:
+    """Build a :class:`DriverTrajectory` **directly from a discrete trait result** — the same
+    per-lineage lookup :func:`load_driver` builds from a file, but skipping the file round-trip. This
+    is how a conditioned ``DrivenBy(habitat, …)`` reads a trait grown in the same Python session: still
+    conditioning (the driver was grown first and is held fixed), just handed over in memory rather than
+    written out. Needs a **discrete** trait (its stochastic character map cuts each branch into the
+    constant segments a driver needs); a continuous / threshold trait has no such map."""
+    history = getattr(result, "history", None)
+    tree = getattr(result, "complete_tree", None)
+    if history is None or tree is None:
+        raise ValueError(
+            "a conditioned driver object must be a DISCRETE trait result (from traits.simulate_discrete), "
+            "whose stochastic character map cuts each branch into constant segments; got "
+            f"{type(result).__name__} with no such map. Driving with a continuous trait is a later slice."
+        )
+    segments: dict[int, list[tuple[float, object]]] = {}
+    for i, node in tree.nodes.items():
+        t = node.birth_time
+        segs: list[tuple[float, object]] = []
+        for state, dur in history[i]:
+            segs.append((t, state))
+            t += dur
+        segments[i] = segs
+    return DriverTrajectory(segments)
+
+
+def resolve_driver(source) -> DriverTrajectory:
+    """Resolve a conditioned ``DrivenBy`` ``source`` into a :class:`DriverTrajectory` — a **filename**
+    (str) via :func:`load_driver`, or an **in-memory** discrete trait result via
+    :func:`driver_from_result`. Both are conditioning (the driver grown first); the object form just
+    spares you the ``write``/read step in a single session."""
+    if isinstance(source, str):
+        return load_driver(source)
+    return driver_from_result(source)
+
+
+__all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver"]

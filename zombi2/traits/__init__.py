@@ -230,9 +230,10 @@ def _driver_tsv(tree: "Tree", history: dict) -> str:
         t = tree.nodes[i].birth_time
         for state, dur in history[i]:
             # the state is written as str() to match Table's string-form lookup exactly (so an
-            # int-labelled trait round-trips); times use full precision — they drive the engine's
-            # Gillespie horizon (a switch time), not just display.
-            rows.append(f"n{i}\t{t:.12g}\t{t + dur:.12g}\t{state!s}")
+            # int-labelled trait round-trips); times use FULL float precision (repr) so the round-trip
+            # is lossless — a run driven by the file matches one driven by the in-memory result exactly
+            # (the switch times drive the engine's Gillespie horizon, not just display).
+            rows.append(f"n{i}\t{t!r}\t{(t + dur)!r}\t{state!s}")
             t += dur
     return "\n".join(rows) + "\n"
 

@@ -238,6 +238,34 @@ def test_int_state_trait_drives_loss_end_to_end(tmp_path):
     assert all(driver.value(e.lineage, e.time) == "1" for e in losses)
 
 
+# --- conditioning in-memory: DrivenBy accepts the trait result object (no file step) --------------
+
+def test_drivenby_accepts_traits_result_object(tmp_path):
+    """Passing the discrete TraitsResult directly is the same conditioning as writing a file, and
+    gives an IDENTICAL run (the file round-trip is lossless)."""
+    tree = simulate_species_tree(birth=1.1, total_time=2.5, seed=3).complete_tree
+    habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.5, seed=1)
+    kw = dict(loss=0.5 * mod.DrivenBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0}),
+              origination=0.2, initial_families=8, seed=2)
+    by_object = genomes.simulate_genomes_unordered(tree, **kw)
+
+    habitat.write(tmp_path, outputs=("driver",))
+    by_file = genomes.simulate_genomes_unordered(
+        tree,
+        loss=0.5 * mod.DrivenBy(str(tmp_path / "trait_driver.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
+        origination=0.2, initial_families=8, seed=2)
+    key = lambda r: [(e.time, e.kind, e.lineage, e.copy) for e in r.events]
+    assert key(by_object) == key(by_file)
+
+
+def test_drivenby_object_must_be_discrete(tmp_path):
+    tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=2).complete_tree
+    cont = traits.simulate_continuous(tree, rate=1.0, seed=1)   # a diffusion has no stochastic map
+    with pytest.raises(ValueError, match="DISCRETE"):
+        genomes.simulate_genomes_unordered(
+            tree, loss=0.5 * mod.DrivenBy(cont, {"a": 2.0}), initial_families=3, seed=1)
+
+
 # --- the guard: what is not wired this slice ------------------------------------------------------
 
 def test_driven_transfer_rejected():
