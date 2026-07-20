@@ -25,13 +25,14 @@ the legacy ``zombi2/genomes`` package is untouched.
 from __future__ import annotations
 
 import collections
+import math
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 
 import numpy as np
 
-from ..rates.modifiers import OnTime
+from ..rates.modifiers import DrivenBy, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
@@ -76,10 +77,21 @@ class GenomesResult:
     genomes: dict[int, tuple[GeneCopy, ...]]
     events: list[Event]
     seed: int | None
+    #: ``{name: family id}`` for families seeded by ``families=[…]`` — the handle to a *named* family
+    #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
+    family_names: dict[str, int] = field(default_factory=dict)
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
         return collections.Counter(c.family for c in self.genomes[node_id])
+
+    def has_family(self, node_id: int, name: str) -> bool:
+        """Whether the named family ``name`` (seeded via ``families=``) is present — has ≥ 1 copy — in
+        the genome at ``node_id``. The presence signal a joint ``DrivenBy("genomes:<name>", …)`` reads."""
+        if name not in self.family_names:
+            raise KeyError(f"no named family {name!r}; seeded families are {sorted(self.family_names)}")
+        fid = self.family_names[name]
+        return any(c.family == fid for c in self.genomes[node_id])
 
     @cached_property
     def profiles(self) -> Profiles:
@@ -120,6 +132,29 @@ def _pick_copy(rng, gen, total_copies) -> tuple[int, int]:
             return k, j
         j -= len(g)
     raise AssertionError("total_copies out of sync with the genomes")  # unreachable
+
+
+def _weighted_index(rng, weights: list[float], total: float) -> int:
+    """Pick a lineage index in proportion to ``weights`` (which sum to ``total``) — the per-lineage
+    pick a driven rate needs, the twin of ``species_tree._weighted_index``. When a rate is driven by
+    a trait, lineages differ in their loss/duplication/origination rate, so the affected lineage is
+    drawn weighted by its own effective rate rather than uniformly from the pool."""
+    r = rng.random() * total
+    acc = 0.0
+    for i, w in enumerate(weights):
+        acc += w
+        if r < acc:
+            return i
+    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
+
+
+def _driven_mods(rate) -> list:
+    """The :class:`~zombi2.rates.modifiers.DrivenBy` modifiers a rate carries, or ``[]`` when it is a
+    plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*: each lineage's factor
+    depends on the driver value on that branch, so the engine evaluates the rate lineage-by-lineage and
+    picks the affected lineage weighted (the ``species_tree._grow`` shape). Each modifier's ``key``
+    identifies its driver in the threaded ``drivers`` dict; its ``source`` resolves to a trajectory."""
+    return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
 
 
 # --- the D/T/L/O mutators (each records to the event log; ids from the minters) -------------------
@@ -185,7 +220,7 @@ def _do_transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
 
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
-                               initial_families=0, seed=None) -> GenomesResult:
+                               initial_families=0, families=None, seed=None) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -201,17 +236,32 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     ``Distance(decay=)`` (closer relatives likelier). ``replacement=True`` overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
-    as originations at the crown. Deterministic given ``seed``.
+    as originations at the crown. ``families=["toxin", …]`` additionally seeds **named** families —
+    each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
+    you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
+    ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
+
+    **Conditioning (a trait drives a rate).** ``loss``, ``duplication``, or ``origination`` may be
+    *driven by another level* — ``loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0,
+    "terrestrial": 1.0})`` scales each lineage's loss by the habitat on that branch, read from a
+    driver file grown first (``traits.simulate_discrete(...).write(dir, outputs=("driver",))``). A
+    driven rate is then *per-lineage*: it is summed over the living lineages (each with its own copy
+    count and driver value), the affected lineage is drawn weighted by its rate, and the Gillespie
+    steps at every mid-branch switch of the driver (SPEC §2, ``coupling-api.md``). Driven transfer
+    (which couples two lineages) is a later slice.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     dup = as_rate(duplication, default_scope=PerCopy)
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
-    # this slice wires only the default scope (D/T/L per copy, origination per lineage) and OnTime
-    # (skyline) modifiers. A non-default scope would set the *total* rate one way while the engine
-    # still picks the affected copy/lineage the default way — a silent mismatch (e.g. a PerCopy
-    # origination is base×0 copies, a no-op) — so reject it, as we reject non-OnTime modifiers.
+    # this slice wires only the default scope (D/T/L per copy, origination per lineage). The wired
+    # modifiers are OnTime (skyline) and DrivenBy (a conditioned/joint driver). A non-default scope
+    # would set the *total* rate one way while the engine still picks the affected copy/lineage the
+    # default way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so
+    # reject it. DrivenBy is a per-lineage driver; conditioned driving is wired for the single-lineage
+    # events (loss/duplication/origination) but not yet for transfer (two lineages, donor and recipient).
+    _drivable = {"duplication", "loss", "origination"}
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
         if not isinstance(rate.scope, want):
@@ -220,18 +270,32 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if not isinstance(m, OnTime):
-                raise ValueError(
-                    f"{label} carries {type(m).__name__}, which the unordered genome engine does not "
-                    f"support yet — only OnTime (skyline) is wired. Per-family heterogeneity (ByFamily, "
-                    f"Speed) and clade drift are later slices."
-                )
+            if isinstance(m, OnTime):
+                continue
+            if isinstance(m, DrivenBy):
+                if label not in _drivable:
+                    raise ValueError(
+                        f"{label} carries DrivenBy, but conditioned driving of {label} is a later slice "
+                        f"— loss, duplication, and origination are wired (transfer couples two lineages)."
+                    )
+                continue
+            raise ValueError(
+                f"{label} carries {type(m).__name__}, which the unordered genome engine does not "
+                f"support yet — only OnTime (skyline) and DrivenBy (a conditioned/joint driver) are "
+                f"wired. Per-family heterogeneity (ByFamily, Speed) and clade drift are later slices."
+            )
     if transfer_to == "distance":
         transfer_to = Distance()
     if transfer_to != "uniform" and not isinstance(transfer_to, Distance):
         raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), got {transfer_to!r}")
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
+    families = list(families) if families is not None else []
+    for name in families:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
+    if len(set(families)) != len(families):
+        raise ValueError(f"family names must be unique, got {families}")
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -262,23 +326,64 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     enter(alive, gen, pos, root.id, [])
     for _ in range(initial_families):  # seed the crown as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
+    family_names: dict[str, int] = {}  # named families: a minted id per name (so GeneCopy.family stays int)
+    for name in families:
+        fid = new_family()
+        family_names[name] = fid
+        c = new_copy(fid)
+        gen[0].append(c)
+        events.append(Event(t, "origination", root.id, fid, c.id))
     total_copies = len(gen[0])
+
+    # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
+    # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
+    # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
+    # and the loop stays byte-identical to an uncoupled run.
+    dup_mods, los_mods, org_mods = _driven_mods(dup), _driven_mods(los), _driven_mods(org)
+    by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
+    for m in (*dup_mods, *los_mods, *org_mods):
+        by_key.setdefault(m.key, m.source)
+    trajs = {}
+    if by_key:
+        from ..rates.driver import resolve_driver
+        trajs = {key: resolve_driver(src) for key, src in by_key.items()}
+    any_driven = bool(by_key)
 
     si = 0
     while si < len(schedule):
         n = total_copies
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "time": t}
-        r_dup = dup.effective(**ctx) if n else 0.0      # per copy → base × N × f(t), pooled over all lineages
-        r_los = los.effective(**ctx) if n else 0.0      # per copy
-        r_org = org.effective(**ctx)                     # per lineage → base × K × f(t)
+        # a driven rate is per-lineage: sum its effective rate over the living lineages (each read with
+        # its own copy count and its branch's driver value), keeping the weights for the affected-lineage
+        # pick — the species_tree._grow shape. An undriven rate stays pooled (one .effective, uniform
+        # pick), so a run with no coupling is byte-identical to before.
+        w_dup = w_los = w_org = None
+        if any_driven:
+            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
+            if dup_mods:
+                w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                         for k in range(k_alive)]
+            if los_mods:
+                w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                         for k in range(k_alive)]
+            if org_mods:
+                w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                         for k in range(k_alive)]
+        r_dup = sum(w_dup) if w_dup is not None else (dup.effective(**ctx) if n else 0.0)
+        r_los = sum(w_los) if w_los is not None else (los.effective(**ctx) if n else 0.0)
+        r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)  # a recipient must be able to exist
-        r_tra = tra.effective(**ctx) if can_xfer else 0.0    # per copy
+        r_tra = tra.effective(**ctx) if can_xfer else 0.0    # per copy (transfer is not driven this slice)
         total = r_dup + r_los + r_org + r_tra
 
         next_species = schedule[si][0]  # the tree's own next event: who is alive changes only here
         horizon = min(next_species, dup.next_change(t), los.next_change(t),
                       org.next_change(t), tra.next_change(t))
+        if any_driven:  # a driven rate also changes when the driver switches mid-branch — step there
+            driver_next = min((trajs[key].next_change(alive[k], t) for key in trajs
+                               for k in range(k_alive)), default=math.inf)
+            horizon = min(horizon, driver_next)
 
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
@@ -286,15 +391,24 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 t = t_ev
                 r = float(rng.random()) * total
                 if r < r_dup:
-                    k, j = _pick_copy(rng, gen, n)
+                    if w_dup is not None:  # driven: weighted lineage, then a uniform copy within it
+                        k = _weighted_index(rng, w_dup, r_dup)
+                        j = int(rng.integers(len(gen[k])))
+                    else:
+                        k, j = _pick_copy(rng, gen, n)
                     _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
                     total_copies += 1
                 elif r < r_dup + r_los:
-                    k, j = _pick_copy(rng, gen, n)
+                    if w_los is not None:
+                        k = _weighted_index(rng, w_los, r_los)
+                        j = int(rng.integers(len(gen[k])))
+                    else:
+                        k, j = _pick_copy(rng, gen, n)
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total_copies -= 1
                 elif r < r_dup + r_los + r_org:
-                    k = int(rng.integers(k_alive))  # origination is per lineage: a uniform lineage
+                    k = (_weighted_index(rng, w_org, r_org) if w_org is not None
+                         else int(rng.integers(k_alive)))  # origination is per lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
                     total_copies += 1
                 else:
@@ -324,10 +438,68 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
-    return GenomesResult(tree, genomes, events, seed)
+    return GenomesResult(tree, genomes, events, seed, family_names)
+
+
+# --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------
+
+@dataclass(frozen=True)
+class UnorderedGenome:
+    """An unordered-genome **process** — its D/T/L/O parameters bundled but not yet run (the genome
+    twin of :class:`~zombi2.traits.DiscreteTrait`). ``simulate_genomes_unordered(tree, ...)`` runs
+    this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.unordered(...))``)
+    grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
+    origination (each a ``scope(base) × modifiers`` rate, ``OnTime`` allowed) plus ``initial_families``
+    and named ``families`` (the handle a ``DrivenBy("genomes:<name>", …)`` reads). Transfer is deferred
+    for joint runs (a growing tree's contemporaneous set is still forming as events fire)."""
+
+    duplication: object
+    loss: object
+    origination: object
+    initial_families: int
+    families: tuple
+
+    def _resolve(self):
+        """Coerce and validate the three rates for the joint engine — ``(duplication, loss,
+        origination)`` as resolved :class:`~zombi2.rates.rate.Rate`s. The genome is the **driver**
+        here, not the target, so its own rates carry no coupling (``OnTime`` is the only modifier)."""
+        dup = as_rate(self.duplication, default_scope=PerCopy)
+        los = as_rate(self.loss, default_scope=PerCopy)
+        org = as_rate(self.origination, default_scope=PerLineage)
+        for label, rate, want in (("duplication", dup, PerCopy), ("loss", los, PerCopy),
+                                  ("origination", org, PerLineage)):
+            if not isinstance(rate.scope, want):
+                raise ValueError(
+                    f"{label} has a {type(rate.scope).__name__} scope, but a joint genome wires only "
+                    f"{want.__name__} for {label} — drop the scope wrapper."
+                )
+            for m in rate.modifiers:
+                if not isinstance(m, OnTime):
+                    raise ValueError(
+                        f"{label} carries {type(m).__name__}; a joint genome's own rates take only "
+                        f"OnTime — the genome is the DRIVER of speciation here, not a driven target."
+                    )
+        return dup, los, org
+
+
+def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=0,
+              families=None) -> UnorderedGenome:
+    """An unordered-genome **process spec** — :class:`UnorderedGenome`, unexecuted — for a joint model
+    to grow with the tree its gene content drives (``joint.simulate_joint(genome=genomes.unordered(
+    origination=0.2, loss=0.1, families=["toxin"]))``). Duplication / loss / origination and named
+    ``families``; transfer is a later slice for joint runs."""
+    fams = tuple(families) if families is not None else ()
+    if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
+        raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
+    for name in fams:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
+    if len(set(fams)) != len(fams):
+        raise ValueError(f"family names must be unique, got {list(fams)}")
+    return UnorderedGenome(duplication, loss, origination, initial_families, fams)
 
 
 __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
-           "Profiles", "GeneTree", "GeneNode",
+           "Profiles", "GeneTree", "GeneNode", "UnorderedGenome", "unordered",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
            "ChromosomeEvent", "Inversion", "Transposition", "Translocation"]

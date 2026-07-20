@@ -199,6 +199,19 @@ named likewise; **outside the grammar** — a modifier multiplies *one* rate, so
 (the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier. Full analysis:
 [`proposals/modifier-naming-scheme.md`](proposals/modifier-naming-scheme.md).
 
+**Planned unification — the `On` family shares one response (parked 2026-07-20, not yet active).**
+An `On` modifier is, by its own definition, *a covariate + a response*: a measured quantity mapped to a
+factor. That response is the **same `Table` / `Curve` / `Scalar` vocabulary** the coupling modifier
+`DrivenBy` already takes (`zombi2/rates/mapping.py`) — so every covariate modifier is really
+`On<covariate>(response)`, and `DrivenBy` is just `On<another level>` with the response left open.
+The covariate modifiers should therefore *share* that response: `OnTotalDiversity` would take a mapping
+(its linear-to-`cap` becoming the default preset), etc. The one constraint is **exactness** — the
+event-level Gillespie integrates the rate between breakpoints, so the factor must stay
+**piecewise-constant**. That is automatic when the covariate itself only changes at events (standing
+diversity; a discrete driver), but **not** for continuous time — so `OnTime` must stay a *step*
+schedule (a smooth time-response needs Poisson thinning, a separate slice). Decided direction; to be
+written into this section and propagated **after the coupling level lands**.
+
 ---
 
 ## 6. Canonical vocabulary (and the fossils it replaces)

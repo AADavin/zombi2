@@ -36,11 +36,13 @@ zombi2/
     modifiers.py    ✅ OnTime · OnTotalDiversity · FromParent · ByLineage   (ByFamily · Markov 🔨)
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
     distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform · Geometric   (value / length distributions)
+    mapping.py      ✅ Table · Curve · Scalar · as_mapping   (a driver value → a factor; DrivenBy's response — SPEC §2)
+    driver.py       ✅ DriverTrajectory · load_driver   (a conditioned DrivenBy's file-backing: value/next-switch per lineage)
   species/           ✅ simulate_species_tree → SpeciesResult ;  Tree · Node  (the shared dated tree)
-  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered   (ordered = chromosomes + segmental D/T/L/O + inversion/transposition/translocation + tier ✅; nucleotide 🔨)
-  sequences/         🔨 simulate_sequences → SequencesResult
-  traits/            🔨 simulate_traits → TraitsResult
-  coupling/          🔨 conditioned · joint       (what the old "coevolve" becomes; SPEC §2–4)
+  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered   (ordered ✅; nucleotide 🔨) — loss/dup/origination DrivenBy-conditionable ✅
+  sequences/         ✅ simulate_sequences → SequencesResult
+  traits/            ✅ simulate_continuous · simulate_discrete → TraitsResult ;  discrete(...) process spec (for joint)
+  joint/             ✅ simulate_joint → JointResult   (the FUSE engine; SPEC §2–4). Conditioned needs no engine — it folds into the target level via DrivenBy + rates/driver.py. "Coupling" is the concept (SPEC/manual), not a package.
   cli/               ~  species · genomes (clean); every other subcommand 📦
 legacy/              📦 repo root, not importable — the old code, kept only to port from
 ```
@@ -74,7 +76,13 @@ Level by level, each with its chapter written alongside:
    **nucleotide** (genes, indels) 🔨 remains (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide).
 3. **Sequences** 🔨 — substitution + clocks on the gene trees.
 4. **Traits** 🔨 — the overlay models on the species tree.
-5. **Coupling** 🔨 — conditioned and joint (SPEC §2–4).
+5. **Coupling** — the one mechanism `mod.DrivenBy(source, mapping)` (SPEC §2–4). **Conditioned** ✅
+   (source = a file: `rates/driver.py` + the target level runs it — e.g. genome loss driven by a trait);
+   **joint** ✅ (source = a live level: `joint/simulate_joint` grows both — a discrete trait drives
+   speciation, BiSSE/MuSSE). There is **no `coupling` package**: conditioned folds into the target
+   level, so the only engine is `joint`. Remaining: joint gene-content→speciation, conditioned
+   trait→sequence-clock, continuous drivers (QuaSSE — needs thinning). "Coupling" stays the level's
+   name in SPEC and the manual's Part III.
 
 ## The move (species, first)
 
