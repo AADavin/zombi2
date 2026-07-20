@@ -895,3 +895,23 @@ def test_regimes_validation():
             simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1).complete_tree,
             states=["a", "b"], switch=0.5, seed=1)
         simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 0.0, "b": 1.0}, regimes=other, seed=1)
+
+
+def test_write_trait_tree(tmp_path):
+    # the "tree" output is a Newick with every node annotated [&trait=…] (a trait tree carrying the
+    # exact ancestral values) — for continuous (float), discrete (label), and correlated (per-trait).
+    import re
+    sp = _tree(seed=8, n_extant=6)
+    cases = [
+        (simulate_continuous(sp, rate=1.0, seed=1), "[&trait="),
+        (simulate_discrete(sp, states=["a", "b"], switch=0.4, seed=1), "[&trait="),
+        (simulate_continuous(sp, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
+                             correlation={("x", "y"): 0.5}, seed=1), "[&x="),
+    ]
+    for r, marker in cases:
+        r.write(tmp_path, outputs=["tree"])
+        nwk = (tmp_path / "trait_tree.nwk").read_text().strip()
+        assert nwk.count("(") == nwk.count(")") and nwk.endswith(";")   # structurally valid Newick
+        assert marker in nwk                                            # the right annotation shape
+        ids = {int(m) for m in re.findall(r"n(\d+)\[", nwk)}
+        assert ids == set(r.node_values)                               # every node annotated

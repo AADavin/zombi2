@@ -68,7 +68,7 @@ from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult, Tree
 
-_WRITE_OUTPUTS = ("values", "changes")  # the write vocabulary; "changes" is the discrete event log
+_WRITE_OUTPUTS = ("values", "changes", "tree")  # write vocabulary; "changes" = discrete transitions
 
 
 @dataclass(frozen=True)
@@ -132,7 +132,9 @@ class TraitsResult:
         """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
         ``trait_values.tsv`` (the ``node<TAB>trait`` table over the extant tips); ``"changes"`` →
         ``trait_changes.tsv`` (the realized discrete transitions — header-only for a continuous
-        trait)."""
+        trait); ``"tree"`` → ``trait_tree.nwk``, the complete tree as Newick with **every** node
+        annotated ``[&trait=…]`` (a *trait tree*, carrying the exact ancestral values; opens in
+        FigTree / iTOL)."""
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
@@ -142,11 +144,41 @@ class TraitsResult:
             (d / "trait_values.tsv").write_text(_values_tsv(self.values))
         if "changes" in outputs:
             (d / "trait_changes.tsv").write_text(_changes_tsv(self.events))
+        if "tree" in outputs:
+            (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n")
 
 
 def _fmt(v) -> str:
     """A trait value for TSV: a continuous float compactly, a discrete state label as-is."""
     return f"{v:.6g}" if isinstance(v, float) else str(v)
+
+
+def _trait_annotation(v) -> str:
+    """The BEAST/FigTree ``[&…]`` comment for a node value — ``[&trait=…]`` for a single trait,
+    one ``key=value`` per trait for a correlated (dict) value."""
+    if isinstance(v, dict):
+        return "[&" + ",".join(f"{k}={_fmt(x)}" for k, x in v.items()) + "]"
+    return f"[&trait={_fmt(v)}]"
+
+
+def _trait_newick(tree: "Tree", node_values: dict) -> str:
+    """The complete tree as Newick with **every** node annotated with its trait value (a *trait
+    tree*). Mirrors :meth:`zombi2.species.Tree.to_newick` — branch length ``end_time − birth_time``,
+    leaves and internals named ``n<id>``, the crown-rooted root carrying no branch length — and adds
+    the ``[&trait=…]`` comment at each node, so the exact ancestral states ride along the tree."""
+    def emit(i: int) -> str:
+        node = tree.nodes[i]
+        bl = node.end_time - node.birth_time
+        tag = f"n{i}{_trait_annotation(node_values[i])}"
+        if node.children is None:
+            return f"{tag}:{bl:.6g}"
+        return f"({','.join(emit(c) for c in node.children)}){tag}:{bl:.6g}"
+
+    root = tree.nodes[tree.root]
+    tag = f"n{tree.root}{_trait_annotation(node_values[tree.root])}"
+    if root.children is None:
+        return f"{tag};"
+    return f"({','.join(emit(c) for c in root.children)}){tag};"
 
 
 def _values_tsv(values: dict[int, object]) -> str:
