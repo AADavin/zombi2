@@ -599,7 +599,7 @@ def test_discrete_write(tmp_path):
     vals = (tmp_path / "trait_values.tsv").read_text().splitlines()
     assert vals[0] == "node\ttrait" and set(line.split("\t")[1] for line in vals[1:]) <= {"lo", "hi"}
     changes = (tmp_path / "trait_changes.tsv").read_text().splitlines()
-    assert changes[0] == "time\tlineage\tfrom\tto" and len(changes) - 1 == len(r.events)
+    assert changes[0] == "time\tkind\tlineage\tfrom\tto" and len(changes) - 1 == len(r.events)
 
 
 def test_discrete_validation():
@@ -728,7 +728,7 @@ def test_threshold_state_frequency_law():
 def test_threshold_shape_and_multistate():
     tree = _corr_tree()
     r = simulate_discrete(tree, states=["absent", "present"], liability=1.0, threshold=0.0, seed=1)
-    assert r.kind == "discrete" and r.history is None and r.events == []   # no Gillespie map
+    assert r.kind == "threshold" and r.history is None and r.events == []   # no timed event log/map
     assert set(r.node_values) == set(tree.nodes)
     assert set(r.values.values()) <= {"absent", "present"}
     m = simulate_discrete(tree, states=["low", "mid", "high"], liability=1.0, threshold=[-1.0, 1.0], seed=1)
@@ -783,7 +783,7 @@ def test_threshold_validation():
         simulate_discrete(tree, states=["a", "b"], liability=1.0, seed=1)
 
 
-# --- at_speciation: cladogenetic jumps (continuous) / shifts (discrete) ----------
+# --- at_speciation: on-speciation jumps (continuous) / shifts (discrete) ----------
 
 def _n_splits(tree, i):
     c = 0
@@ -895,3 +895,59 @@ def test_regimes_validation():
             simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1).complete_tree,
             states=["a", "b"], switch=0.5, seed=1)
         simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 0.0, "b": 1.0}, regimes=other, seed=1)
+
+
+def test_write_trait_tree(tmp_path):
+    # the "tree" output is a Newick with every node annotated [&trait=…] (a trait tree carrying the
+    # exact ancestral values) — for continuous (float), discrete (label), and correlated (per-trait).
+    import re
+    sp = _tree(seed=8, n_extant=6)
+    cases = [
+        (simulate_continuous(sp, rate=1.0, seed=1), "[&trait="),
+        (simulate_discrete(sp, states=["a", "b"], switch=0.4, seed=1), "[&trait="),
+        (simulate_continuous(sp, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
+                             correlation={("x", "y"): 0.5}, seed=1), "[&x="),
+    ]
+    for r, marker in cases:
+        r.write(tmp_path, outputs=["tree"])
+        nwk = (tmp_path / "trait_tree.nwk").read_text().strip()
+        assert nwk.count("(") == nwk.count(")") and nwk.endswith(";")   # structurally valid Newick
+        assert marker in nwk                                            # the right annotation shape
+        ids = {int(m) for m in re.findall(r"n(\d+)\[", nwk)}
+        assert ids == set(r.node_values)                               # every node annotated
+
+
+# --- the event log (mirrors genomes) + history derived from it ------------------
+
+def test_events_log_records_speciation_changes():
+    # on-speciation jumps/shifts now live in the event log (kind="on_speciation"); a plain run has none
+    tree = _corr_tree()
+    assert simulate_continuous(tree, rate=1.0, seed=1).events == []            # pure BM: no events
+    jumps = simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=1)
+    assert jumps.events and all(e.kind == "on_speciation" for e in jumps.events)
+    e = jumps.events[0]
+    assert isinstance(e.from_state, float) and isinstance(e.to_state, float)    # pre/post values
+    d = simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.4, seed=2)
+    assert {e.kind for e in d.events} == {"on_branch", "on_speciation"}          # both in the log
+    assert all(e.from_state != e.to_state for e in d.events)
+
+
+def test_events_are_time_sorted():
+    d = simulate_discrete(_corr_tree(), states=["a", "b"], switch=2.0, seed=3)
+    times = [e.time for e in d.events]
+    assert times == sorted(times)
+
+
+def test_history_is_derived_from_events():
+    # history is DERIVED from the event log (discrete only): each branch's segments sum to the branch
+    # length, end at node_values, and their transitions reproduce exactly the log's on-branch events.
+    tree = _corr_tree()
+    d = simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.3, seed=2)
+    for i, segs in d.history.items():
+        node = tree.nodes[i]
+        assert abs(sum(dur for _, dur in segs) - (node.end_time - node.birth_time)) < 1e-9
+        assert segs[-1][0] == d.node_values[i]
+    on_branch = sorted((e.lineage, e.from_state, e.to_state) for e in d.events if e.kind == "on_branch")
+    from_hist = sorted((i, segs[k][0], segs[k + 1][0])
+                       for i, segs in d.history.items() for k in range(len(segs) - 1))
+    assert on_branch == from_hist

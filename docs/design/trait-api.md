@@ -11,10 +11,13 @@ a thirteen-class model zoo (§ *What to delete*). Parallels `species-api.md`, `g
 
 The other three levels are **genealogies**: lineages, gene copies, and sites are *things born and lost*
 along a tree, counted as events. A trait is not born or lost — it is a **value that rides the tree** (a
-body size, a habitat, a presence/absence), and you observe the value itself, not an event count. So the
-trait level has no "rate of events" the way the others do. That is a real seam, named rather than papered
-over. What makes it still belong: the *ways* a value evolves reuse the exact modifier vocabulary the other
-levels already have.
+body size, a habitat, a presence/absence), and you observe the value itself. A **discrete** trait still
+has genuine events, though — its state transitions are timestamped, and its result carries an event log
+that mirrors the genome level's exactly (the source of truth, with the per-branch stochastic map derived
+from it). A **continuous** trait diffuses with no along-branch events, so it is carried by the value at
+every node (`node_values`), and its event log holds only the jumps at speciation nodes.
+What makes the level belong either way: the *ways* a value evolves reuse the exact modifier vocabulary the
+other levels already have.
 
 ## The problem it fixes
 
@@ -160,12 +163,12 @@ per-trait + `correlation=` form is the surface.
   stochastic map painted on the *same* tree: `regimes=<a discrete TraitsResult>` +
   `reverts_to={regime: θ}`; OU is integrated exactly across the regime segments. `pull` / `rate` are
   shared across regimes this slice (per-regime α/σ² — the OUMV/OUMA variants — deferred).
-- **Cladogenesis — `at_speciation=`. *Built* (slice 5).** A jump *at speciation nodes* rather than
+- **Jumps at speciation — `at_speciation=`. *Built* (slice 5).** A jump *at speciation nodes* rather than
   along branches — within-level, not Part III (SPEC §4): a jump *reads* the tree it already lives on,
   it does not change *which* tree exists. `at_speciation=σ²_jump` on `simulate_continuous` (a
   `Normal(0, σ²_jump)` daughter jump), `at_speciation=shift_prob` on `simulate_discrete` (a hop to a
-  uniform other state). It becomes *joint* only when the same trait *also drives* speciation (SSE with
-  cladogenetic change), which is Part III.
+  uniform other state). It becomes *joint* only when the same trait *also drives* speciation (SSE where the
+  trait also changes at each split), which is Part III.
 - **`HiddenStateMk` — deferred (2026-07-20).** Hidden rate categories under an Mk trait (the trait twin
   of the `Markov` clock's hidden classes), likely a hidden-state option on `simulate_discrete`. The
   argument *shape* is still to settle — the leading candidate is the Markov-clock twin (`hidden=[rate
