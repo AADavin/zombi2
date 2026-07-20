@@ -11,10 +11,13 @@ a thirteen-class model zoo (§ *What to delete*). Parallels `species-api.md`, `g
 
 The other three levels are **genealogies**: lineages, gene copies, and sites are *things born and lost*
 along a tree, counted as events. A trait is not born or lost — it is a **value that rides the tree** (a
-body size, a habitat, a presence/absence), and you observe the value itself, not an event count. So the
-trait level has no "rate of events" the way the others do. That is a real seam, named rather than papered
-over. What makes it still belong: the *ways* a value evolves reuse the exact modifier vocabulary the other
-levels already have.
+body size, a habitat, a presence/absence), and you observe the value itself. A **discrete** trait still
+has genuine events, though — its state transitions are timestamped, and its result carries an event log
+that mirrors the genome level's exactly (the source of truth, with the per-branch stochastic map derived
+from it). A **continuous** trait diffuses with no along-branch events, so it is carried by the value at
+every node (`node_values`), and its event log holds only the *cladogenetic* jumps at speciation nodes.
+What makes the level belong either way: the *ways* a value evolves reuse the exact modifier vocabulary the
+other levels already have.
 
 ## The problem it fixes
 

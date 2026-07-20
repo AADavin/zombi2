@@ -1,13 +1,14 @@
 """Traits — a value riding the species tree (level 4).
 
-A trait is not a genealogy of events like the other three levels; it is a **value that rides the
-tree** — a body size, a habitat, a presence/absence — and you observe the value itself, not an event
-count (``docs/design/trait-api.md``). So the trait level has no "rate of events": its compact
-**source of truth is the value at every node** (``node_values``), not an event log, and the rich
-views — ``values`` at the extant tips, the discrete stochastic ``history``, the realized ``events`` —
-are derived from it. That is a real seam, named rather than papered over. What keeps traits inside the
-one framework is that the *ways* a value evolves reuse the same ``scope(base) × modifiers`` rate
-grammar (SPEC §5).
+A trait is a **value that rides the tree** — a body size, a habitat, a presence/absence — evolved
+along the branches of a fixed tree (``docs/design/trait-api.md``). The result records the value at
+**every** node (``node_values``, so the ancestral states are exact, not inferred) and, like the other
+levels, an **event log** (``events``): a **discrete** trait mirrors the genome level exactly — its
+transitions are timestamped events, the source of truth, and the per-branch stochastic character map
+(``history``) is derived from them; a **continuous** trait diffuses with no along-branch events, so
+its log holds only the *cladogenetic* jumps at speciation nodes (empty without ``at_speciation=``),
+and ``node_values`` carries the diffusion. What keeps traits inside the one framework is that the
+*ways* a value evolves reuse the same ``scope(base) × modifiers`` rate grammar (SPEC §5).
 
 This is the **continuous** trait level — ``simulate_continuous`` — and its three variants are the
 same diffusion wearing different knobs, not three classes (SPEC §4):
@@ -38,20 +39,21 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
 other rate, and they compose (``σ² * OnTime({…}) * FromParent(spread=…)``).
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
-tree. That non-pooling is the trait seam in the rate grammar — the engine evaluates the rate one
-lineage at a time (``lineages=1``), where the event levels sum a per-unit rate over everything alive
-at once. (OU with a time-varying σ² — the two knob-sets at once — is deferred; use one or the other.)
+tree — the engine evaluates the rate one lineage at a time (``lineages=1``), where the event levels
+sum a per-unit rate over everything alive at once. (OU with a time-varying σ² — the two knob-sets at
+once — is deferred; use one or the other.)
 
-The **discrete** twin is ``simulate_discrete`` — a state switching along the tree (the Mk model). Its
-jumps are simulated *exactly* by the Gillespie algorithm along every branch, so each node's
-``(state, duration)`` segments *are* the realized history (a stochastic character map, ``.history``)
-and ``.events`` reads off the transitions — the trait level's first genuine event log. ``switch``
-gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or a ``k×k`` matrix).
+The **discrete** twin is ``simulate_discrete`` — a state switching along the tree (the Mk model),
+simulated *exactly* by the Gillespie algorithm along every branch. Its ``events`` log (each transition
+timestamped, on a lineage, ``from_state → to_state``) is the source of truth, exactly as at the genome
+level; ``history`` (each node's ``(state, duration)`` segments) is the derived stochastic character
+map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or a ``k×k`` matrix). The
+**threshold** model (``liability=`` / ``threshold=``) reads a discrete state off a continuous Brownian
+liability; the crossings are un-timed, so it carries no event log or map.
 
-Still to come, each its own slice: the ``correlation=`` overlay for traits that drift together, and
-the threshold model (a discrete state read off a continuous liability) that underpins its discrete
-case; then the named-and-deferred cases (``at_speciation`` jumps, ``regimes``, hidden states, DEC →
-experimental). SSE (BiSSE/MuSSE/QuaSSE) is **not** a trait model — it is trait↔species *joint*, Part III.
+Also built: correlated traits (the ``correlation=`` overlay), cladogenetic jumps (``at_speciation=``),
+and multi-optimum OU (``regimes=``). Still deferred: hidden-state Mk. SSE (BiSSE/MuSSE/QuaSSE) is
+**not** a trait model — it is trait↔species *joint*, Part III.
 """
 
 from __future__ import annotations
@@ -59,7 +61,8 @@ from __future__ import annotations
 import bisect
 import math
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import cached_property
 
 import numpy as np
 
@@ -73,12 +76,15 @@ _WRITE_OUTPUTS = ("values", "changes", "tree")  # write vocabulary; "changes" = 
 
 @dataclass(frozen=True)
 class Change:
-    """A realized discrete-trait transition — an event of the stochastic character map: on lineage
-    ``lineage`` at ``time`` (crown-forward, the species-tree clock), the state changed from
-    ``from_state`` to ``to_state``. Derived from :attr:`TraitsResult.history`; a continuous trait has
-    none."""
+    """A realized trait change — one entry of the event log, the trait twin of the genome level's
+    :class:`~zombi2.genomes.Event`. On lineage ``lineage`` at ``time`` (crown-forward, the species-tree
+    clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"anagenetic"`` — a switch
+    *along* a branch (an Mk transition) — or ``"cladogenetic"`` — a jump *at* a speciation node (from
+    ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
+    values)."""
 
     time: float
+    kind: str
     lineage: int
     from_state: object
     to_state: object
@@ -87,52 +93,47 @@ class Change:
 @dataclass
 class TraitsResult:
     """What ``simulate_continuous`` / ``simulate_discrete`` returns: the ``complete_tree`` it ran on,
-    ``node_values`` at **every** node (the trait's compact source of truth — extant, extinct, and
-    internal alike; a float for a continuous trait, a state label for a discrete one), the ``seed``,
-    the ``kind`` (``"continuous"`` / ``"discrete"``), and — for a discrete trait — the stochastic-map
-    ``history`` (each node's branch as ``(state, duration)`` segments). The observed trait dataset is
-    the extant tips, ``.values``; ``.write`` materialises the chosen outputs.
+    ``node_values`` at **every** node (the value at each node — extant, extinct, and internal alike; a
+    float for a continuous trait, a state label for a discrete / threshold one, a per-trait dict for
+    correlated traits), the ``events`` log, the ``seed``, and the ``kind`` (``"continuous"`` /
+    ``"discrete"`` / ``"threshold"``). The observed dataset is the extant tips, ``.values``.
 
-    The trait seam: unlike the event-log levels, ``node_values`` (continuous) / ``history``
-    (discrete) *is* the source of truth here, and ``.events`` — the realized discrete state-changes —
-    is a **derived view**, empty for a continuous trait (which diffuses with no instantaneous events).
+    ``events`` is the timestamped event log — the **same shape as the genome level's** and the source
+    of truth for a discrete (Mk) trait, from which ``history`` (the per-branch stochastic character
+    map) is derived. A continuous trait has no along-branch events, so its log holds only the
+    *cladogenetic* jumps (empty without ``at_speciation``) while ``node_values`` carries the diffusion;
+    a threshold trait's crossings are un-timed, so its log is empty and it has no map.
     """
 
     complete_tree: Tree
     node_values: dict[int, object]
-    seed: int | None
+    events: list[Change] = field(default_factory=list)
+    seed: int | None = None
     kind: str = "continuous"
-    history: dict[int, list] | None = None
 
     @property
     def values(self) -> dict[int, object]:
         """The observed trait dataset — the value at each **extant** tip (the comparative-data
-        vector): a float for a continuous trait, a state label for a discrete one. Internal and
-        extinct nodes keep their exact ancestral / lineage values in ``node_values``."""
+        vector). Internal and extinct nodes keep their exact ancestral / lineage values in
+        ``node_values``."""
         return {n.id: self.node_values[n.id] for n in self.complete_tree.extant()}
 
-    @property
-    def events(self) -> list[Change]:
-        """The realized discrete state-changes across the whole tree, in time order — the events of
-        the stochastic character map, derived from ``history``. **Empty for a continuous trait**
-        (which diffuses with no instantaneous events)."""
-        if self.history is None:
-            return []
-        out: list[Change] = []
-        for i in self.history:
-            segs = self.history[i]
-            t = self.complete_tree.nodes[i].birth_time
-            for (s_from, dur), (s_to, _d) in zip(segs, segs[1:]):
-                t += dur
-                out.append(Change(t, i, s_from, s_to))
-        out.sort(key=lambda c: c.time)
-        return out
+    @cached_property
+    def history(self) -> dict[int, list] | None:
+        """The per-branch **stochastic character map** — ``{node: [(state, duration), …]}`` whose
+        durations sum to the branch length — **derived from the event log** (a discrete / Mk trait
+        only). ``None`` for a continuous trait (a diffusion has no map) and for a threshold trait
+        (its liability crossings are un-timed)."""
+        if self.kind != "discrete":
+            return None
+        return _history_from_events(self.complete_tree, self.node_values, self.events)
 
     def write(self, directory, outputs=("values",)) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
         ``trait_values.tsv`` (the ``node<TAB>trait`` table over the extant tips); ``"changes"`` →
-        ``trait_changes.tsv`` (the realized discrete transitions — header-only for a continuous
-        trait); ``"tree"`` → ``trait_tree.nwk``, the complete tree as Newick with **every** node
+        ``trait_changes.tsv``, the event log (``time · kind · lineage · from · to``; header-only for a
+        plain continuous trait, whose diffusion has no along-branch events); ``"tree"`` →
+        ``trait_tree.nwk``, the complete tree as Newick with **every** node
         annotated ``[&trait=…]`` (a *trait tree*, carrying the exact ancestral values; opens in
         FigTree / iTOL)."""
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
@@ -198,11 +199,38 @@ def _values_tsv(values: dict[int, object]) -> str:
 
 
 def _changes_tsv(changes: list[Change]) -> str:
-    """The realized discrete transitions as ``time<TAB>lineage<TAB>from<TAB>to``, in time order."""
-    rows = ["time\tlineage\tfrom\tto"]
+    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = anagenetic /
+    cladogenetic), one row per change in time order — the trait twin of ``genome_events.tsv``."""
+    rows = ["time\tkind\tlineage\tfrom\tto"]
     for c in changes:
-        rows.append(f"{c.time:.6g}\tn{c.lineage}\t{c.from_state}\t{c.to_state}")
+        rows.append(f"{c.time:.6g}\t{c.kind}\tn{c.lineage}\t{_fmt(c.from_state)}\t{_fmt(c.to_state)}")
     return "\n".join(rows) + "\n"
+
+
+def _history_from_events(tree: "Tree", node_values: dict, events: list) -> dict:
+    """Reconstruct the per-branch stochastic character map ``{node: [(state, duration), …]}`` from the
+    event log — the inverse of how the Gillespie writes the log. On each branch the anagenetic events
+    (sorted) cut it into segments; a cladogenetic event sets the branch's *start* state, and
+    ``node_values[node]`` is its *end* state (the constant value when a branch has no events)."""
+    ana: dict[int, list] = {i: [] for i in tree.nodes}
+    clado_to: dict[int, object] = {}
+    for e in events:
+        if e.kind == "cladogenetic":
+            clado_to[e.lineage] = e.to_state
+        else:
+            ana[e.lineage].append(e)
+    history: dict[int, list] = {}
+    for i in tree.nodes:
+        node = tree.nodes[i]
+        evs = sorted(ana[i], key=lambda e: e.time)
+        state = evs[0].from_state if evs else clado_to.get(i, node_values[i])  # branch-start state
+        segs, t = [], node.birth_time
+        for e in evs:
+            segs.append((state, e.time - t))
+            state, t = e.to_state, e.time
+        segs.append((state, node.end_time - t))  # final segment to the node's end
+        history[i] = segs
+    return history
 
 
 def _preorder(tree: Tree) -> list[int]:
@@ -361,7 +389,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
             var = sigma2 / (2.0 * alpha) * (1.0 - e * e)
             x = theta + (x - theta) * e + (float(rng.normal(0.0, math.sqrt(var))) if var > 0.0 else 0.0)
         node_values[i] = x
-    return TraitsResult(tree, node_values, seed)
+    return TraitsResult(tree, node_values, [], seed)  # correlated / regimes: no along-branch event log
 
 
 def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_speciation, seed) -> TraitsResult:
@@ -417,7 +445,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
         vec = x + (math.sqrt(dt) * (sigma @ rng.standard_normal(k)) if dt > 0.0 else 0.0)
         node_values[i] = {t: float(vec[j]) for j, t in enumerate(traits)}
 
-    return TraitsResult(tree, node_values, seed)
+    return TraitsResult(tree, node_values, [], seed)  # correlated / regimes: no along-branch event log
 
 
 def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None,
@@ -525,6 +553,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     rng = np.random.default_rng(seed)
     ltt = _LTT(tree) if has_diversity else None  # the standing-diversity curve, when σ² reads it
     node_values: dict[int, float] = {}
+    events: list[Change] = []  # cladogenetic jumps only (a diffusion has no along-branch events)
     inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
     for i in _preorder(tree):
         node = tree.nodes[i]
@@ -532,7 +561,9 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         # < i, already set). One uniform rule: node_values[i] is the trait at node i's end_time.
         x = float(start) if node.parent is None else node_values[node.parent]
         if node.parent is not None and jump_sd > 0.0:
-            x += float(rng.normal(0.0, jump_sd))  # cladogenesis: a jump at the split, then anagenesis
+            jumped = x + float(rng.normal(0.0, jump_sd))  # cladogenesis: a jump at the split…
+            events.append(Change(node.birth_time, "cladogenetic", i, x, jumped))
+            x = jumped                                    # …then anagenesis along the branch
         # thread the inherited factor: the root's is 1.0, each daughter's is its parent's times a
         # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
         if node.parent is None:
@@ -550,7 +581,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 
-    return TraitsResult(tree, node_values, seed)
+    return TraitsResult(tree, node_values, events, seed)
 
 
 # --- discrete traits: a state switching along the tree (Mk) ------------------------------------
@@ -718,7 +749,7 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
             liab_s[i] = x + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
             node_values[i] = label(liab_s[i])
 
-    return TraitsResult(tree, node_values, seed, kind="discrete", history=None)
+    return TraitsResult(tree, node_values, [], seed, kind="threshold")
 
 
 def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, threshold=None,
@@ -778,7 +809,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         )
 
     node_values: dict[int, object] = {}
-    history: dict[int, list] = {}
+    events: list[Change] = []  # the source of truth (like the genome level); history derives from it
     for i in _preorder(tree):
         node = tree.nodes[i]
         # the root starts from `start` at t=0 and evolves over its own branch; every other node from
@@ -786,12 +817,17 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         cur = start_i if node.parent is None else idx[node_values[node.parent]]
         if node.parent is not None and shift > 0.0 and float(rng.random()) < shift:
             j = int(rng.integers(len(states) - 1))  # cladogenesis: hop to a uniform *other* state
-            cur = j if j < cur else j + 1
+            new = j if j < cur else j + 1
+            events.append(Change(node.birth_time, "cladogenetic", i, states[cur], states[new]))
+            cur = new
         end_i, segs = _gillespie(cur, node.end_time - node.birth_time, Q, rng)
+        t = node.birth_time  # the transitions between the Gillespie segments are the anagenetic events
+        for (s1, d1), (s2, _d) in zip(segs, segs[1:]):
+            t += d1
+            events.append(Change(t, "anagenetic", i, states[s1], states[s2]))
         node_values[i] = states[end_i]
-        history[i] = [(states[s], d) for s, d in segs]
-
-    return TraitsResult(tree, node_values, seed, kind="discrete", history=history)
+    events.sort(key=lambda c: c.time)
+    return TraitsResult(tree, node_values, events, seed, kind="discrete")
 
 
 __all__ = ["simulate_continuous", "simulate_discrete", "TraitsResult", "Change"]
