@@ -46,6 +46,11 @@ the driver can be simulated on its own and handed over:
   (The driver is written through the standard `write(dir, outputs=(...))` spine, like every level's
   outputs; the file it produces is `trait_driver.tsv`, a per-branch `node · start · end · state` segment
   table — exact even when a discrete driver switches mid-branch.)
+
+  **In-memory shortcut.** In a single Python session you can skip the file and pass the grown result
+  object straight to `DrivenBy` — `DrivenBy(habitat, {…})` — which is *the same conditioning* (the
+  driver grown first, held fixed), just handed over in memory. The file round-trip is lossless, so the
+  two give an identical run; the file matters for reproducibility, the CLI, and cross-process pipelines.
 - **Joint** — the driver **cannot** be grown first, because it is entangled with what it drives, so
   `source` is a **live level name** and both are grown in one call.
   ```python

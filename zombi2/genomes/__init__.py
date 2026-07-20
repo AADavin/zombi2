@@ -148,12 +148,13 @@ def _weighted_index(rng, weights: list[float], total: float) -> int:
     return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
-def _driven_sources(rate) -> list[str]:
-    """The driver ``source``s a rate reads through :class:`~zombi2.rates.modifiers.DrivenBy`, or ``[]``
-    when the rate is a plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*:
-    each lineage's factor depends on the driver value on that branch, so the engine evaluates the
-    rate lineage-by-lineage and picks the affected lineage weighted (the ``species_tree._grow`` shape)."""
-    return [m.source for m in rate.modifiers if isinstance(m, DrivenBy)]
+def _driven_mods(rate) -> list:
+    """The :class:`~zombi2.rates.modifiers.DrivenBy` modifiers a rate carries, or ``[]`` when it is a
+    plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*: each lineage's factor
+    depends on the driver value on that branch, so the engine evaluates the rate lineage-by-lineage and
+    picks the affected lineage weighted (the ``species_tree._grow`` shape). Each modifier's ``key``
+    identifies its driver in the threaded ``drivers`` dict; its ``source`` resolves to a trajectory."""
+    return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
 
 
 # --- the D/T/L/O mutators (each records to the event log; ids from the minters) -------------------
@@ -334,15 +335,19 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         events.append(Event(t, "origination", root.id, fid, c.id))
     total_copies = len(gen[0])
 
-    # conditioning: a rate carrying DrivenBy reads a driver file per lineage. Resolve each named
-    # source once into a DriverTrajectory (value + next-switch lookups, keyed by the shared species
-    # node id). No driven rate ⇒ this is empty and the loop stays byte-identical to an uncoupled run.
-    dup_src, los_src, org_src = _driven_sources(dup), _driven_sources(los), _driven_sources(org)
-    all_sources = sorted(set(dup_src) | set(los_src) | set(org_src))
+    # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
+    # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
+    # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
+    # and the loop stays byte-identical to an uncoupled run.
+    dup_mods, los_mods, org_mods = _driven_mods(dup), _driven_mods(los), _driven_mods(org)
+    by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
+    for m in (*dup_mods, *los_mods, *org_mods):
+        by_key.setdefault(m.key, m.source)
     trajs = {}
-    if all_sources:
-        from ..rates.driver import load_driver
-        trajs = {s: load_driver(s) for s in all_sources}
+    if by_key:
+        from ..rates.driver import resolve_driver
+        trajs = {key: resolve_driver(src) for key, src in by_key.items()}
+    any_driven = bool(by_key)
 
     si = 0
     while si < len(schedule):
@@ -354,15 +359,15 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         # pick — the species_tree._grow shape. An undriven rate stays pooled (one .effective, uniform
         # pick), so a run with no coupling is byte-identical to before.
         w_dup = w_los = w_org = None
-        if all_sources:
-            drivers = [{s: trajs[s].value(alive[k], t) for s in all_sources} for k in range(k_alive)]
-            if dup_src:
+        if any_driven:
+            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
+            if dup_mods:
                 w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                          for k in range(k_alive)]
-            if los_src:
+            if los_mods:
                 w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                          for k in range(k_alive)]
-            if org_src:
+            if org_mods:
                 w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                          for k in range(k_alive)]
         r_dup = sum(w_dup) if w_dup is not None else (dup.effective(**ctx) if n else 0.0)
@@ -375,8 +380,8 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         next_species = schedule[si][0]  # the tree's own next event: who is alive changes only here
         horizon = min(next_species, dup.next_change(t), los.next_change(t),
                       org.next_change(t), tra.next_change(t))
-        if all_sources:  # a driven rate also changes when the driver switches mid-branch — step there
-            driver_next = min((trajs[s].next_change(alive[k], t) for s in all_sources
+        if any_driven:  # a driven rate also changes when the driver switches mid-branch — step there
+            driver_next = min((trajs[key].next_change(alive[k], t) for key in trajs
                                for k in range(k_alive)), default=math.inf)
             horizon = min(horizon, driver_next)
 

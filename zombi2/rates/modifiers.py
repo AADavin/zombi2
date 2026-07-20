@@ -228,8 +228,9 @@ class DrivenBy(Modifier):
     ``source`` says where the driver comes from, and that single choice splits *conditioned* from
     *joint* — the chapter's spine, *can the driver be grown first?*:
 
-    - a **filename** (``"habitat.tsv"``) — the driver was grown first and written to a file
-      (**conditioned**): two ordinary runs, the driver passed as a file;
+    - a **filename** (``"habitat.tsv"``) or a **grown driver result** (a discrete ``TraitsResult``) —
+      the driver was grown first and handed over (**conditioned**): two ordinary runs. The result
+      object is the file's in-memory shortcut — same conditioning, no ``write``/read step;
     - a **level name** (``"trait"``, ``"genomes:count"``) — the driver co-evolves in one run
       (**joint**): neither level can be grown first.
 
@@ -248,36 +249,42 @@ class DrivenBy(Modifier):
     deferred to experimental for v1.
     """
 
-    def __init__(self, source: str, mapping: object) -> None:
+    def __init__(self, source: object, mapping: object) -> None:
         from .mapping import as_mapping
 
-        if not isinstance(source, str) or not source.strip():
-            raise ValueError(f"DrivenBy source must be a non-empty string (a filename or level name), got {source!r}")
+        if isinstance(source, str):
+            if not source.strip():
+                raise ValueError("DrivenBy source must be a non-empty string (a filename or level name)")
+            self.key: object = source                # a string source is its own context key
+        else:
+            self.key = id(source)                    # an in-memory driver result (conditioning): key by identity
         self.source = source
         self.mapping = as_mapping(mapping)
 
     def factor(self, *, drivers: Mapping | None = None, **_: float) -> float:
         """The mapped multiplier for this lineage's driver value — the engine threads the value under
-        ``drivers[source]``. No ``drivers`` (or this ``source`` absent) ⇒ 1.0, so an unthreaded rate
-        is inert (the engine is responsible for supplying the value where the coupling is supported)."""
+        ``drivers[key]`` (``key`` is the source string, or the identity of an in-memory driver). No
+        ``drivers`` (or this source absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is
+        responsible for supplying the value where the coupling is supported)."""
         if drivers is None:
             return 1.0
-        value = drivers.get(self.source)
+        value = drivers.get(self.key)
         if value is None:
             return 1.0
         return self.mapping.multiplier(value)
 
     def __repr__(self) -> str:
-        return f"DrivenBy({self.source!r}, {self.mapping!r})"
+        src = self.source if isinstance(self.source, str) else f"<{type(self.source).__name__}>"
+        return f"DrivenBy({src!r}, {self.mapping!r})"
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, DrivenBy) and other.source == self.source
+        return (isinstance(other, DrivenBy) and other.key == self.key
                 and other.mapping == self.mapping)
 
     def __hash__(self) -> int:
-        # by source only (a mapping — a dict or callable — need not be hashable); equal DrivenBy
-        # share a source, so this stays consistent with __eq__ and keeps a Rate carrying it hashable.
-        return hash((DrivenBy, self.source))
+        # by key only (a mapping — a dict or callable — need not be hashable); equal DrivenBy share a
+        # key, so this stays consistent with __eq__ and keeps a Rate carrying it hashable.
+        return hash((DrivenBy, self.key))
 
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage", "DrivenBy"]
