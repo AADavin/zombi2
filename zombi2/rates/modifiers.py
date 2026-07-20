@@ -8,12 +8,12 @@ reserved for scope, so a modifier never starts with "per".
 
 You reach them through ``mod``::
 
-    birth = 1.0 * mod.Time({0: 1.0, 3: 0.3})   # a skyline: 1.0, then 0.3 from time 3 on
-    birth = 1.0 * mod.Diversity(cap=100)       # slows to 0 as diversity approaches 100
+    birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})   # a skyline: 1.0, then 0.3 from time 3 on
+    birth = 1.0 * mod.OnTotalDiversity(cap=100)       # slows to 0 as diversity approaches 100
 
-The **deterministic** modifiers (``Time``, ``Diversity``) have a factor that is a pure function of the
+The **deterministic** modifiers (``OnTime``, ``OnTotalDiversity``) have a factor that is a pure function of the
 context. The **stochastic** ones additionally carry a draw method the engine drives with a random
-generator: ``Inherited`` (the rate drifts parent→child along the tree, via ``initial``/``descend``)
+generator: ``FromParent`` (the rate drifts parent→child along the tree, via ``initial``/``descend``)
 and ``ByLineage`` (one i.i.d. draw per lineage, via ``draw``). Still to come: ``ByFamily`` (i.i.d. per
 family) and ``Markov`` (a chain of rate categories). Composition (``*``), which turns
 ``scope(base) × modifiers`` into a Rate, is the Rate module; here each modifier only knows how to
@@ -69,12 +69,12 @@ class Modifier:
         return self.__rmul__(other)
 
 
-class Time(Modifier):
+class OnTime(Modifier):
     """The rate changes in time — a skyline / episodic schedule.
 
     ``schedule`` maps each interval's start time to a relative factor::
 
-        Time({0: 1.0, 3: 0.3})   # factor 1.0 on [0, 3), then 0.3 from time 3 on
+        OnTime({0: 1.0, 3: 0.3})   # factor 1.0 on [0, 3), then 0.3 from time 3 on
 
     Factors are relative (dimensionless): on a base of ``2.0`` the schedule scales it.
     Before the earliest breakpoint the earliest factor applies (define the schedule
@@ -84,12 +84,12 @@ class Time(Modifier):
     def __init__(self, schedule: Mapping[float, float]) -> None:
         steps = tuple(sorted((float(t), float(f)) for t, f in schedule.items()))
         if not steps:
-            raise ValueError("Time needs a non-empty schedule, e.g. Time({0: 1.0, 3: 0.3})")
+            raise ValueError("OnTime needs a non-empty schedule, e.g. OnTime({0: 1.0, 3: 0.3})")
         for t, f in steps:
             if not math.isfinite(t):
-                raise ValueError(f"Time schedule times must be finite, got {t!r}")
+                raise ValueError(f"OnTime schedule times must be finite, got {t!r}")
             if not math.isfinite(f) or f < 0:
-                raise ValueError(f"Time factors must be finite and non-negative, got {f!r}")
+                raise ValueError(f"OnTime factors must be finite and non-negative, got {f!r}")
         self._steps = steps
 
     def factor(self, *, time: float, **_: float) -> float:
@@ -109,21 +109,21 @@ class Time(Modifier):
 
     def __repr__(self) -> str:
         inner = ", ".join(f"{t:g}: {f:g}" for t, f in self._steps)
-        return f"Time({{{inner}}})"
+        return f"OnTime({{{inner}}})"
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Time) and other._steps == self._steps
+        return isinstance(other, OnTime) and other._steps == self._steps
 
     def __hash__(self) -> int:
-        return hash((Time, self._steps))
+        return hash((OnTime, self._steps))
 
 
 @dataclass(frozen=True)
-class Diversity(Modifier):
+class OnTotalDiversity(Modifier):
     """The rate slows as standing diversity grows — diversity-dependence.
 
     The factor falls linearly from 1 toward 0 as diversity rises to ``cap`` (a carrying
-    capacity), and stays 0 beyond it: ``Diversity(cap=100)`` halves the rate at 50
+    capacity), and stays 0 beyond it: ``OnTotalDiversity(cap=100)`` halves the rate at 50
     lineages and stops it at 100.
     """
 
@@ -131,16 +131,16 @@ class Diversity(Modifier):
 
     def __post_init__(self) -> None:
         if isinstance(self.cap, bool) or not isinstance(self.cap, (int, float)):
-            raise TypeError(f"Diversity cap must be a real number, got {self.cap!r}")
+            raise TypeError(f"OnTotalDiversity cap must be a real number, got {self.cap!r}")
         if not math.isfinite(self.cap) or self.cap <= 0:
-            raise ValueError(f"Diversity cap must be finite and positive, got {self.cap!r}")
+            raise ValueError(f"OnTotalDiversity cap must be finite and positive, got {self.cap!r}")
 
     def factor(self, *, diversity: float, **_: float) -> float:
         return max(0.0, 1.0 - diversity / self.cap)
 
 
 @dataclass(frozen=True)
-class Inherited(Modifier):
+class FromParent(Modifier):
     """The rate drifts along the tree — each lineage inherits its parent's rate times a random
     factor drawn at the split (geometric Brownian motion on the rate: clade drift at the species
     level, the autocorrelated clock at the sequence level). ``spread`` (σ) sets the drift width.
@@ -156,9 +156,9 @@ class Inherited(Modifier):
 
     def __post_init__(self) -> None:
         if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)):
-            raise TypeError(f"Inherited spread must be a real number, got {self.spread!r}")
+            raise TypeError(f"FromParent spread must be a real number, got {self.spread!r}")
         if not math.isfinite(self.spread) or self.spread < 0:
-            raise ValueError(f"Inherited spread must be finite and non-negative, got {self.spread!r}")
+            raise ValueError(f"FromParent spread must be finite and non-negative, got {self.spread!r}")
 
     def initial(self) -> float:
         """The root's factor: 1.0 — the rate starts at its base."""
@@ -179,7 +179,7 @@ class ByLineage(Modifier):
     """The rate varies independently from lineage to lineage — an *uncorrelated* ("relaxed") clock.
 
     Each lineage draws **one** i.i.d. multiplier with **no memory** of its parent (contrast
-    :class:`Inherited`, whose rate drifts parent→child). The draw is **mean-corrected** so
+    :class:`FromParent`, whose rate drifts parent→child). The draw is **mean-corrected** so
     ``E[factor] = 1`` — without it the mean rate inflates down the tree (the historical lognormal-clock
     bug). ``spread`` (σ) sets the width; ``dist`` is ``"lognormal"`` (default; σ = the log-scale) or
     ``"gamma"`` (σ = the coefficient of variation) — the two agree to first order in σ.
@@ -215,4 +215,4 @@ class ByLineage(Modifier):
         return bylineage
 
 
-__all__ = ["Modifier", "Time", "Diversity", "Inherited", "ByLineage"]
+__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage"]

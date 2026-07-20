@@ -31,7 +31,7 @@ from functools import cached_property
 
 import numpy as np
 
-from ..rates.modifiers import Time
+from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
@@ -206,10 +206,10 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
-    # this slice wires only the default scope (D/T/L per copy, origination per lineage) and Time
+    # this slice wires only the default scope (D/T/L per copy, origination per lineage) and OnTime
     # (skyline) modifiers. A non-default scope would set the *total* rate one way while the engine
     # still picks the affected copy/lineage the default way — a silent mismatch (e.g. a PerCopy
-    # origination is base×0 copies, a no-op) — so reject it, as we reject non-Time modifiers.
+    # origination is base×0 copies, a no-op) — so reject it, as we reject non-OnTime modifiers.
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
         if not isinstance(rate.scope, want):
@@ -218,10 +218,10 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if not isinstance(m, Time):
+            if not isinstance(m, OnTime):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the unordered genome engine does not "
-                    f"support yet — only Time (skyline) is wired. Per-family heterogeneity (ByFamily, "
+                    f"support yet — only OnTime (skyline) is wired. Per-family heterogeneity (ByFamily, "
                     f"Speed) and clade drift are later slices."
                 )
     if transfer_to == "distance":
