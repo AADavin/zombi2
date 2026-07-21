@@ -129,15 +129,15 @@ You can read the karyotype's whole history off this table: two seed chromosomes;
 
 Readers from the rearrangement and comparative-genomics literature already have names for these events; as in every chapter, the names live in one table and organise nothing.
 
-| From the literature | What it does | Here |
+| What it does | Here | From the literature |
 |---|---|---|
-| Inversion / reversal (GRIMM, MGR) | reverse a gene segment, strands flipped | `inversion=…` |
-| Transposition | cut a segment, paste it elsewhere on the same chromosome | `transposition=…` |
-| Reciprocal translocation | a segment moves to another chromosome | `translocation=…` |
-| Segmental duplication | a block of adjacent genes copied together | `duplication` + `duplication_extension=` |
-| Chromosome fission / fusion | split one chromosome, or merge two | `fission=…`, `fusion=…` |
-| Plasmid / replicon gain | a de-novo chromosome appears | `chromosome_origination=…` |
-| Karyotype / chromosome-number evolution | the chromosome network as a whole | fission + fusion → `chromosome_events` |
+| reverse a gene segment, strands flipped | `inversion=…` | Inversion / reversal (GRIMM, MGR) |
+| cut a segment, paste it elsewhere on the same chromosome | `transposition=…` | Transposition |
+| a segment moves to another chromosome | `translocation=…` | Reciprocal translocation |
+| a block of adjacent genes copied together | `duplication` + `duplication_extension=` | Segmental duplication |
+| split one chromosome, or merge two | `fission=…`, `fusion=…` | Chromosome fission / fusion |
+| a de-novo chromosome appears | `chromosome_origination=…` | Plasmid / replicon gain |
+| the chromosome network as a whole | fission + fusion → `chromosome_events` | Karyotype / chromosome-number evolution |
 
 ## The `OrderedGenomesResult` object
 

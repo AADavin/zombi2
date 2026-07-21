@@ -85,18 +85,18 @@ The payoff is that two of these three are not new. **`mod.ByLineage` is the per-
 
 The old model names are useful (a reader arrives knowing they want "a CIR clock" or "+Γ"), but they do not organise anything. They live here, in one table, and nowhere else.
 
-| Literature name | What it does | ZOMBI2 |
+| What it does | ZOMBI2 | From the literature |
 |---|---|---|
-| Strict / global clock | one rate everywhere | `substitution = 1.0` (default) |
-| Uncorrelated lognormal (UCLN) | each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` |
-| Uncorrelated gamma (UGAM) | each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` |
-| White-noise clock | each lineage i.i.d. — that *is* white-noise | `1.0 * mod.ByLineage(spread=…)` |
-| Autocorrelated lognormal (Thorne–Kishino) | rate drifts along the tree | `1.0 * mod.FromParent(spread=…)` |
-| CIR clock | drift with mean-reversion | `1.0 * mod.FromParent(spread=…, reverts_to=…, pull=…)` |
-| Discrete-category / random local clock | rate hops between categories | `1.0 * mod.Markov(rates=[…], switch=…)` |
-| +Γ rate heterogeneity | variation across sites | `gamma=α` (not a clock) |
-| GY94 / MG94 | codon model, one dN/dS | `model=gy94(omega=…)` |
-| M-series site models (M1a…M8) | dN/dS varies across codon sites | `model=m8(...)` |
+| one rate everywhere | `substitution = 1.0` (default) | Strict / global clock |
+| each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` | Uncorrelated lognormal (UCLN) |
+| each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` | Uncorrelated gamma (UGAM) |
+| each lineage i.i.d. — that *is* white-noise | `1.0 * mod.ByLineage(spread=…)` | White-noise clock |
+| rate drifts along the tree | `1.0 * mod.FromParent(spread=…)` | Autocorrelated lognormal (Thorne–Kishino) |
+| drift with mean-reversion | `1.0 * mod.FromParent(spread=…, reverts_to=…, pull=…)` | CIR clock |
+| rate hops between categories | `1.0 * mod.Markov(rates=[…], switch=…)` | Discrete-category / random local clock |
+| variation across sites | `gamma=α` (not a clock) | +Γ rate heterogeneity |
+| codon model, one dN/dS | `model=gy94(omega=…)` | GY94 / MG94 |
+| dN/dS varies across codon sites | `model=m8(...)` | M-series site models (M1a…M8) |
 
 ## A third source, and which tree the clock rides
 

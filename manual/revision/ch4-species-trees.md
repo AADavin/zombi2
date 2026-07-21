@@ -28,12 +28,12 @@ So far the rates have been constant, but a birth or death rate need not be. It c
 
 The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.OnTotalDiversity`).
 
-| From the literature | What it does | Here |
+| What it does | Here | From the literature |
 |---|---|---|
-| skyline / episodic birth–death | rates change at set times | `1.0 * mod.OnTime({…})` |
-| diversity-dependent diversification | rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` |
-| ClaDS | rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` |
-| mass extinction | a fraction culled at an instant | `mass_extinctions=[(t, f)]` |
+| rates change at set times | `1.0 * mod.OnTime({…})` | skyline / episodic birth–death |
+| rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` | diversity-dependent diversification |
+| rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` | ClaDS |
+| a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
 
 A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time (measured forward from the crown, like every time in ZOMBI2). Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3.
 
