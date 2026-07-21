@@ -266,7 +266,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 - **Coupling diagrams:** dashed = a level a run always evolves on, solid = a coupling you add, a dashed
   capsule = "grown together" (joint).
 - **No subtitles** on figures.
-- Reference figures already drawn: `manual/revision/figures/fig-2-1-four-levels.svg`,
+- Reference figures already drawn: `manual/book/figures/fig-2-1-four-levels.svg`,
   `.../composition.svg`, `.../composition2.svg`, and `docs/img/age_crown.svg` (crown vs stem).
 
 ---
@@ -286,7 +286,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ## 9. The book
 
-Nine chapters + two appendices, one file each in `manual/revision/` (`ch1.md` … `ch9.md`,
+Nine chapters + two appendices, one file each in `manual/book/` (`ch1.md` … `ch9.md`,
 `appendix-a.md`, `appendix-b.md`):
 
 - **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2
