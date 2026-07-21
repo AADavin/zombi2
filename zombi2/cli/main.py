@@ -56,7 +56,11 @@ def main(argv: list[str] | None = None) -> int:
             "  # grow for a fixed time, with a mass-extinction pulse at t=3",
             "  zombi2 species --birth 1 --death 0.4 --total-time 5 --mass-extinction 3 0.75 "
             "--seed 1 -o out/",
-        ))
+            "",
+            "  # a skyline: speciation drops to a third at time 3 (see RATES)",
+            "  zombi2 species --birth \"1.0 * OnTime({0: 1.0, 3: 0.3})\" --death 0.3 "
+            "--total-time 5 --seed 1 -o out/",
+        ) + "\n\n" + species.RATES_HELP)
 
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
@@ -72,7 +76,11 @@ def main(argv: list[str] | None = None) -> int:
             "  # ordered genomes with inversions on 3 chromosomes",
             "  zombi2 genomes -t out/species_complete.nwk --resolution ordered --duplication 0.2 "
             "--loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 42 -o out/",
-        ))
+            "",
+            "  # loss twice as fast from time 2 onward (see RATES)",
+            "  zombi2 genomes -t out/species_complete.nwk --duplication 0.2 "
+            "--loss \"0.25 * OnTime({0: 1.0, 2: 2.0})\" --origination 0.5 --seed 42 -o out/",
+        ) + "\n\n" + genomes.RATES_HELP)
 
     _add_subcommand(
         sub, "sequences", "evolve sequences down each gene tree",
@@ -87,8 +95,8 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "  # GTR with an uncorrelated (relaxed) lineage clock",
             "  zombi2 sequences --genomes out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
-            "--clock-spread 0.3 --seed 1 -o seqs/",
-        ))
+            "--substitution \"1.0 * ByLineage(spread=0.3)\" --seed 1 -o seqs/",
+        ) + "\n\n" + sequences.RATES_HELP)
 
     _add_subcommand(
         sub, "traits", "evolve a trait along a species tree",
@@ -107,7 +115,11 @@ def main(argv: list[str] | None = None) -> int:
             "  # a discrete habitat flipping between two states (Mk)",
             "  zombi2 traits -t out/species_complete.nwk --kind discrete "
             "--states marine,terrestrial --switch 0.1 --seed 1 -o out/",
-        ))
+            "",
+            "  # an early burst: the variance-rate starts at 4 and settles to 1 (see RATES)",
+            "  zombi2 traits -t out/species_complete.nwk "
+            "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1 -o out/",
+        ) + "\n\n" + traits.RATES_HELP)
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run

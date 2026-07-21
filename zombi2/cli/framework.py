@@ -7,6 +7,7 @@ import datetime
 import os
 import shutil
 import sys
+import textwrap
 
 from zombi2 import __version__
 
@@ -74,6 +75,72 @@ def _examples(*lines: str) -> str:
     return header + "\n" + "\n".join(lines)
 
 
+def _rate(text: str):
+    """The argparse ``type`` for every rate flag: the written form of a rate (SPEC §5).
+
+    ``--birth 1.0`` and ``--birth "1.0 * OnTime({0: 1.0, 3: 0.3})"`` both come through here, so the
+    command line takes exactly the expression the Python API takes. Re-raised as an
+    ``ArgumentTypeError`` so argparse prints the parser's own message ("unknown name 'OnDiversity'
+    — did you mean …?") instead of burying it under a generic "invalid value".
+    """
+    from zombi2.rates.parse import parse_rate
+
+    try:
+        return parse_rate(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
+#: one gloss and one worked snippet per modifier, for the RATES help block. A modifier with no entry
+#: still lists (by name), so the help can never fall behind a level's ``WIRED_MODIFIERS`` declaration.
+_MODIFIER_HELP = {
+    "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
+    "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
+    "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree (ClaDS)"),
+    "ByLineage": ("ByLineage(spread=0.3)", "one draw per lineage — the uncorrelated clock"),
+    "DrivenBy": ("DrivenBy('habitat.tsv', {'aquatic': 3.0})", "the rate is driven by another level"),
+}
+
+
+def _wrap_note(note: str, width: int = 86) -> list[str]:
+    return textwrap.wrap(note, width=width, initial_indent="  ", subsequent_indent="  ")
+
+
+def _rates_help(wired, flag: str, *, scopes: str | None = None, note: str | None = None) -> str:
+    """The ``RATES`` epilog block for a command, built from that level's ``WIRED_MODIFIERS``.
+
+    Listing what the engine *declares* (rather than a hand-kept list) is what keeps the help honest:
+    a modifier the level does not wire is rejected by the engine, so it must not be advertised here
+    either — and the worked example is drawn from the same list, so it is always a modifier that runs.
+    """
+    examples = [_MODIFIER_HELP[m.__name__][0] for m in wired if m.__name__ in _MODIFIER_HELP]
+    shown = examples[0] if examples else None
+    key = flag.lstrip("-").replace("-", "_")
+
+    header = _BOLD + "RATES" + _RESET if _use_color() else "RATES"
+    lines = [header,
+             "  Every rate is scope(base) × modifiers (SPEC §5) — a bare number, or the same",
+             "  expression you would write in Python, quoted:",
+             "",
+             f"    {flag} 1.0"]
+    if shown:
+        lines.append(f'    {flag} "1.0 * {shown}"')
+    if scopes:
+        lines.append(f'    {flag} "{scopes}"')
+    lines += ["", "  Modifiers wired for this level (anything else is an error, never ignored):"]
+    for m in wired:
+        name = m.__name__
+        entry = _MODIFIER_HELP.get(name)
+        lines.append(f"    {name:<20}{entry[1]}" if entry else f"    {name}")
+    lines.append("")
+    if note:
+        lines += _wrap_note(note)
+        lines.append("")
+    if shown:
+        lines.append(f'  A --params file takes the same text:  {key} = "1.0 * {shown}"')
+    return "\n".join(lines)
+
+
 def _add_params_arg(g) -> None:
     """Add ``--params FILE`` (a TOML parameters file) to a subcommand's ``general`` group."""
     g.add_argument("--params", metavar="FILE",
@@ -83,6 +150,20 @@ def _add_params_arg(g) -> None:
                         "whole pipeline. Required I/O paths (-o / -t) stay on the command line.")
 
 
+def _log_value(value: object) -> str:
+    """Render one parameter for the run log. A rate is recorded in its **written form**, so the log
+    line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
+    the reader has to translate."""
+    from zombi2.rates.modifiers import Modifier
+    from zombi2.rates.parse import written_form
+    from zombi2.rates.rate import Rate
+    from zombi2.rates.scope import Scope
+
+    if isinstance(value, (Rate, Scope, Modifier)):
+        return written_form(value)
+    return str(value)
+
+
 def _write_params_log(path: str, args: argparse.Namespace, summary: str) -> None:
     """Write the full set of run parameters to ``path`` — always, for reproducibility."""
     lines = ["# ZOMBI2 run parameters",
@@ -90,7 +171,7 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str) -> None
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
              f"command_line\t{' '.join(sys.argv)}"]
     for key, value in sorted(vars(args).items()):
-        lines.append(f"{key}\t{value}")
+        lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")

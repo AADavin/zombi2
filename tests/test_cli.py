@@ -254,12 +254,17 @@ def test_sequences_write_selects_ancestral_and_species_phylogram(tmp_path, genom
 
 
 def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
+    # the relaxed clock is not its own flag: it is a ByLineage modifier on the substitution rate
     out = tmp_path / "s"
     rc = main(["sequences", "--genomes", str(genomes_dir), "--model", "gtr",
-               "--frequencies", "0.3", "0.2", "0.2", "0.3", "--clock-spread", "0.4",
-               "--clock-dist", "gamma", "--seed", "1", "-o", str(out)])
+               "--frequencies", "0.3", "0.2", "0.2", "0.3",
+               "--substitution", "1.0 * ByLineage(spread=0.4, dist='gamma')",
+               "--seed", "1", "-o", str(out)])
     assert rc == 0
-    assert "gamma lineage clock, spread 0.4" in (out / "sequences.log").read_text()
+    log = (out / "sequences.log").read_text()
+    assert "gamma lineage clock, spread 0.4" in log
+    # the rate is logged in its written form, so the log line pastes back into --substitution
+    assert "substitution\t1.0 * ByLineage(spread=0.4, dist='gamma')" in log
 
 
 def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
@@ -437,6 +442,116 @@ def test_params_unknown_key_errors(tmp_path):
         main(["species", "--params", str(tmp_path / "bad.toml"), "--n-extant", "5",
               "-o", str(tmp_path / "o")])
     assert e.value.code == 2
+
+
+# ── rates in their written form (SPEC §5) ───────────────────────────────────────────
+#
+# Every rate flag takes the same expression the Python API takes, so there is one notation for a
+# rate across Python, the command line and a --params file. These tests hold that line: the
+# expression reaches the engine, it changes the run, an unwired modifier is refused, and the
+# parameters log records something you can paste back.
+
+def test_species_takes_a_rate_expression_and_it_bends_the_tree(tmp_path):
+    # a skyline that collapses speciation at t=2 must give a smaller tree than the flat rate,
+    # i.e. the modifier reached the engine rather than being parsed and dropped
+    flat, skyline = tmp_path / "flat", tmp_path / "sky"
+    main(["species", "--birth", "1.0", "--death", "0.2", "--total-time", "6",
+          "--seed", "4", "-o", str(flat)])
+    main(["species", "--birth", "1.0 * OnTime({0: 1.0, 2: 0.05})", "--death", "0.2",
+          "--total-time", "6", "--seed", "4", "-o", str(skyline)])
+    n = {d: len(read_newick((d / "species_complete.nwk").read_text())[0].nodes)
+         for d in (flat, skyline)}
+    assert n[skyline] < n[flat]
+
+
+def test_species_takes_a_scope_wrapper(tmp_path):
+    # Global(base) is one budget for the whole tree: linear growth, so far fewer lineages
+    out = tmp_path / "g"
+    rc = main(["species", "--birth", "Global(2.0)", "--total-time", "5", "--seed", "1",
+               "-o", str(out)])
+    assert rc == 0
+    assert "birth\tGlobal(2.0)" in (out / "species.log").read_text()
+
+
+def test_species_records_the_rate_in_its_written_form(tmp_path):
+    # the log line is the flag value again — a reproducibility record you can paste back
+    out = tmp_path / "o"
+    main(["species", "--birth", "1.0 * OnTime({0: 1.0, 3: 0.3})", "--total-time", "4",
+          "--seed", "1", "-o", str(out)])
+    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text()
+
+
+def test_species_refuses_a_modifier_it_does_not_wire(tmp_path, capsys):
+    # ByLineage would return a factor of 1.0 at this level — a run quietly not the model asked for
+    rc = main(["species", "--birth", "1.0 * ByLineage(spread=0.3)", "--total-time", "3",
+               "--seed", "1", "-o", str(tmp_path / "o")])
+    assert rc == 1
+    assert "does not support" in capsys.readouterr().err
+
+
+def test_a_typo_in_a_modifier_is_caught_at_the_flag(tmp_path, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["species", "--birth", "1.0 * OnDiversity(cap=10)", "--total-time", "3",
+              "-o", str(tmp_path / "o")])
+    assert e.value.code == 2
+    assert "did you mean 'OnTotalDiversity'" in capsys.readouterr().err
+
+
+def test_a_rate_expression_is_never_executed(tmp_path, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["species", "--birth", "__import__('os').system('true')", "--total-time", "3",
+              "-o", str(tmp_path / "o")])
+    assert e.value.code == 2
+    assert "only call a scope or a modifier" in capsys.readouterr().err
+
+
+def test_genomes_takes_a_rate_expression(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--duplication", "0.2",
+               "--loss", "0.25 * OnTime({0: 1.0, 2: 3.0})", "--origination", "0.5",
+               "--seed", "42", "-o", str(out)])
+    assert rc == 0
+    assert "loss\t0.25 * OnTime({0: 1, 2: 3})" in (out / "genomes.log").read_text()
+
+
+def test_traits_takes_a_rate_expression(tmp_path, tree_file):
+    out = tmp_path / "t"
+    rc = main(["traits", "-t", str(tree_file), "--rate", "1.0 * FromParent(spread=0.2)",
+               "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert "rate\t1.0 * FromParent(spread=0.2)" in (out / "traits.log").read_text()
+
+
+def test_params_file_takes_a_rate_expression(tmp_path):
+    # the same text as the flag, quoted as a TOML string — no second notation for a rate
+    (tmp_path / "p.toml").write_text(
+        'birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"\ndeath = 0.3\ntotal-time = 5\n')
+    out = tmp_path / "o"
+    rc = main(["species", "--params", str(tmp_path / "p.toml"), "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text()
+
+
+def test_params_file_rate_expression_matches_the_flag(tmp_path):
+    (tmp_path / "p.toml").write_text('birth = "1.0 * OnTotalDiversity(cap=20)"\n')
+    viafile, viaflag = tmp_path / "f", tmp_path / "c"
+    main(["species", "--params", str(tmp_path / "p.toml"), "--total-time", "5", "--seed", "3",
+          "-o", str(viafile)])
+    main(["species", "--birth", "1.0 * OnTotalDiversity(cap=20)", "--total-time", "5",
+          "--seed", "3", "-o", str(viaflag)])
+    assert (viafile / "species_complete.nwk").read_text() == \
+        (viaflag / "species_complete.nwk").read_text()
+
+
+def test_the_rates_help_lists_only_what_the_level_wires(capsys):
+    # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
+    for command, present, absent in [("species", "FromParent", "ByLineage"),
+                                     ("sequences", "ByLineage", "FromParent")]:
+        with pytest.raises(SystemExit):
+            main([command, "--help"])
+        out = capsys.readouterr().out
+        block = out[out.index("RATES"):]
+        assert present in block and absent not in block
 
 
 # ── top-level dispatch ──────────────────────────────────────────────────────────────

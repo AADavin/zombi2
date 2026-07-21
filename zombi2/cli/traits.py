@@ -4,13 +4,13 @@
 ``continuous`` (a real value diffusing, :func:`zombi2.traits.simulate_continuous` — Brownian motion,
 or Ornstein–Uhlenbeck with ``--reverts-to``/``--pull``) or ``discrete`` (a finite state switching,
 :func:`~zombi2.traits.simulate_discrete` — the Mk model with ``--switch``, or the threshold model
-with ``--liability``/``--threshold``). Long options are the API keyword names; rates are bare
-numbers.
+with ``--liability``/``--threshold``). Long options are the API keyword names, and ``--rate`` takes
+the written form of a rate (SPEC §5) — a bare number, or the same ``scope(base) × modifiers``
+expression the Python API takes: ``--rate "1.0 * OnTime({0: 4.0, 1: 1.0})"`` is an early burst,
+``--rate "1.0 * FromParent(spread=0.2)"`` variable-rates BM.
 
-Modifier-shaped rates (``mod.OnTime`` early burst, ``mod.FromParent`` variable-rates, …),
-correlated multi-trait runs (``correlation=``) and multi-optimum OU (``regimes=``) need a Python
-object, so they stay in the Python API — the CLI covers the single-trait, bare-rate cases, exactly
-as ``zombi2 genomes`` does.
+Correlated multi-trait runs (``correlation=``) and multi-optimum OU (``regimes=``) need a Python
+object, so they stay in the Python API — the CLI covers the single-trait cases.
 """
 from __future__ import annotations
 
@@ -18,10 +18,16 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import _add_params_arg, _write_params_log
+from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
 from zombi2.cli.genomes import _read_tip_fates
 from zombi2.species import read_newick
-from zombi2.traits import simulate_continuous, simulate_discrete
+from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
+
+#: the RATES block for ``zombi2 traits -h``, built from the level's own declaration
+RATES_HELP = _rates_help(
+    WIRED_MODIFIERS, "--rate",
+    note="These bend a continuous trait's variance-rate (--rate). The discrete switching rate "
+         "(--switch) and the liability rate (--liability) are bare numbers this slice.")
 
 # the write vocabularies, mirroring TraitsResult.write ("driver" is discrete-only: it replays the
 # stochastic character map, which a diffusion has no equivalent of)
@@ -59,8 +65,9 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                         "(ZOMBI won't guess extinct lineages from early-sampled tips)")
 
     g = p.add_argument_group("continuous trait", "only with --kind continuous")
-    g.add_argument("--rate", type=float, default=1.0, metavar="RATE",
-                   help="the Brownian variance-rate σ² — how fast the value diffuses (default 1.0)")
+    g.add_argument("--rate", type=_rate, default=1.0, metavar="RATE",
+                   help="the Brownian variance-rate σ² — how fast the value diffuses (default 1.0; "
+                        "see RATES below)")
     g.add_argument("--reverts-to", type=float, default=None, metavar="VALUE", dest="reverts_to",
                    help="[OU] the optimum the value is pulled toward (needs --pull)")
     g.add_argument("--pull", type=float, default=None, metavar="STRENGTH",
@@ -71,10 +78,11 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                    help="the state space, comma-separated (e.g. marine,terrestrial). Required for "
                         "--kind discrete")
     g.add_argument("--switch", type=float, default=None, metavar="RATE",
-                   help="[Mk] the symmetric switching rate between states (an asymmetric rate "
-                        "matrix needs the Python API)")
+                   help="[Mk] the symmetric switching rate between states — a bare number this "
+                        "slice (an asymmetric rate matrix needs the Python API)")
     g.add_argument("--liability", type=float, default=None, metavar="RATE",
-                   help="[threshold] the variance-rate of the underlying continuous liability")
+                   help="[threshold] the variance-rate of the underlying continuous liability — a "
+                        "bare number this slice")
     g.add_argument("--threshold", type=float, default=None, metavar="CUT",
                    help="[threshold] the liability value the state flips at")
 

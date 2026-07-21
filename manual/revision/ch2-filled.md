@@ -112,7 +112,7 @@ Each call takes the object it depends on — genomes and traits read the species
 
 ## Using ZOMBI2 from the CLI
 
-The same simulations run from the command line. Each level is a subcommand of `zombi2`, its flags are the long-form names of the Python arguments, and rates are given as bare numbers:
+The same simulations run from the command line. Each level is a subcommand of `zombi2`, and its flags are the long-form names of the Python arguments:
 
 ```bash
 # a dated species tree (20 extant tips)
@@ -122,7 +122,16 @@ zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
 zombi2 genomes -t out/species_complete.nwk --duplication 0.2 --loss 0.25 --origination 0.5 --seed 42 -o out/
 ```
 
-`-o` sets the output directory and `-t` feeds one level's tree into the next, so a pipeline is a sequence of commands sharing a directory; a `--params` TOML file can hold the settings for a whole pipeline at once. On the clean core the CLI currently covers **species** and **genomes**; sequences, traits, and the coupled models are run from Python until their commands land.
+A rate flag takes a rate **written exactly as you would write it in Python** — a bare number, or a scope wrapper and modifiers composed with `*`, quoted so the shell keeps it in one piece:
+
+```bash
+# speciation drops to a third of its rate at time 3 (a skyline)
+zombi2 species --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --total-time 5 --seed 1 -o out/
+```
+
+There is no second notation: no per-modifier flags, and the same text goes in a `--params` file (`birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"`). Each command's `RATES` help block lists the modifiers that level supports; a modifier a level does not implement is an error, never quietly ignored. The grammar itself — scope, base, modifiers — is the *Rates* section above.
+
+`-o` sets the output directory and `-t` feeds one level's tree into the next, so a pipeline is a sequence of commands sharing a directory; a `--params` TOML file can hold the settings for a whole pipeline at once. On the clean core the CLI covers all four levels — **species**, **genomes**, **sequences**, **traits**; the coupled models are run from Python until their commands land.
 
 ## Output in ZOMBI2
 
