@@ -79,7 +79,7 @@ tree's dead partial-overlap lineages need the finer all-node partition — a lat
 from __future__ import annotations
 
 import collections
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -450,6 +450,10 @@ class NucleotideGenomesResult:
     rearrangements: list[Inversion | Translocation | Transposition]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
+    #: ``{gene family id: (source, start, end)}`` — where each **declared gene** sits in the root
+    #: coordinate space. Empty when no genes were declared. A gene is never split, so its span is
+    #: fixed for the whole run and is exactly the root-block that carries its gene tree.
+    gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -473,8 +477,14 @@ class NucleotideGenomesResult:
 
     @property
     def gene_trees(self) -> dict[int, GeneTree]:
-        """``{family: GeneTree}`` — one gene tree per root-block (family id = the block's index in
-        :attr:`root_blocks`), recovered from the copy-lineage genealogy."""
+        """``{family: GeneTree}`` — the recovered gene trees.
+
+        With **genes declared**, one tree per gene, keyed by its **gene family id** (see
+        :attr:`gene_spans`); the intergenic root-blocks keep their block ancestry in the log but are not
+        built into trees. With **no genes declared** the whole genome is one big intergene, so every
+        recovered root-block is a family in its own right and the key is its index in
+        :attr:`root_blocks`. A declared gene that survives in no extant leaf has no root-block and so no
+        tree."""
         return self._recover()[1]
 
 
@@ -961,6 +971,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)   # (end_time, node) in time order
 
     root_chroms = []
+    gene_spans: dict[int, tuple[int, int, int]] = {}
     for source, (length, top) in enumerate(specs):     # one source per seed replicon; each a network root
         cid = new_chrom_id()
         cp = new_copy()                                 # ...and one seed copy lineage per replicon
@@ -968,6 +979,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                       _seed_blocks(source, length, cp, genes, gene_length, new_family)))
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length))
+        for b in root_chroms[-1].blocks:                # remember where each declared gene sits
+            if b.is_gene:
+                gene_spans[b.gene] = (b.source, b.start, b.end)
 
     t = root.birth_time
     alive: list[int] = []                               # the live-lineage set (species._grow shape)
@@ -1074,7 +1088,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     total_length += cg.length
                     total_chromosomes += len(cg.chromosomes)
             si += 1
-    return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed)
+    return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
+                                  gene_spans)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
@@ -1206,8 +1221,12 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
 
 def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
-    """The full recovery: the root partition, and one :class:`GeneTree` per block (its family id is the
-    block's index in the partition). Reuses the shared per-segment tree builder."""
+    """The full recovery: the root partition, and the gene trees.
+
+    With genes declared we build a tree **only** for the root-blocks that are declared genes, keyed by
+    gene family id — the intergenic blocks keep their genealogy in the log but are not worth a tree, and
+    skipping them is most of the work. With none declared, every root-block is a family (keyed by index).
+    Reuses the shared per-segment tree builder."""
     tree = result.complete_tree
     blocks = _root_block_partition(result)
     origs = [e for e in result.events if isinstance(e, Origination)]
@@ -1221,8 +1240,14 @@ def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, G
         counter[0] += 1
         return counter[0]
 
+    if result.gene_spans:                                # genic: one family per surviving declared gene
+        family_of = {span: fam for fam, span in result.gene_spans.items()}
+        targets = [(family_of[iv], iv) for iv in blocks if iv in family_of]
+    else:                                                # uniform: every root-block is its own family
+        targets = list(enumerate(blocks))
+
     seg_events: list[_SegEvent] = []
-    for fam, (s, a, b) in enumerate(blocks):
+    for fam, (s, a, b) in targets:
         _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, seg_events)
     return blocks, gene_trees_from_events(seg_events, tree)
 
