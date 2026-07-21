@@ -187,7 +187,8 @@ class OrderedGenomesResult:
 
         - ``"events"`` → ``genome_events.tsv``, the gene-genealogy log (the source of truth).
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
-        - ``"gene_order"`` → ``gene_order.tsv``, the observed genomes' layout (one row per gene).
+        - ``"gene_order"`` → ``gene_order.tsv``, every node's layout (one row per gene), ancestors
+          included — so a branch's rearrangements can be replayed from its parent's genome.
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges.
         """
@@ -207,7 +208,7 @@ class OrderedGenomesResult:
     def _gene_order_tsv(self) -> str:
         cols = ("species", "chromosome", "position", "strand", "family", "gene")
         rows = [f"{s}\t{ch}\t{p}\t{st}\t{fam}\t{gid}"
-                for s in sorted(n.id for n in self.complete_tree.extant())
+                for s in sorted(self.genomes)
                 for (ch, p, st, fam, gid) in self.gene_order(s)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 

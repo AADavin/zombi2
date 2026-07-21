@@ -174,17 +174,21 @@ g.write("out/", outputs=("events", "profiles", "gene_order", "rearrangements"))
 ```
 out/genome_events.tsv        the gene genealogy (the source of truth)
 out/profiles.tsv             family × extant-species copy counts
-out/gene_order.tsv           the observed genomes' layout, one row per gene
+out/gene_order.tsv           every node's layout, one row per gene
 out/rearrangements.tsv       inversions, transpositions, translocations
 ```
 
-`gene_order.tsv` is the ordered genome's headline output — the signed gene order of every observed leaf:
+`gene_order.tsv` is the ordered genome's headline output: the signed gene order of every node, one row per gene. Ancestors are included, not just the observed leaves, so node 0 below is the root and node 1 an internal branch:
 
 ```
 species  chromosome  position  strand  family  gene
-2        3           0         1       0       9
-2        3           1         1       5       10
-2        3           2         1       2       11
+0        0           0         1       1       1
+0        0           1         -1      2       5
+1        1           0         1       1       7
+1        1           1         -1      2       8
+2        2           0         1       1       11
 ```
+
+Ancestral rows are what make the rearrangement log usable. `rearrangements.tsv` gives each inversion a start and a length on a branch; to check what it did, or to replay it, you need the genome the branch started from — that is its parent's rows here. Without them the log can only be read at the tips.
 
 The full list of files lives in Appendix B.
