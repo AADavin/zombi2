@@ -18,6 +18,7 @@ from zombi2.genomes.nucleotide import (
     Block,
     Chromosome,
     Duplication,
+    Inversion,
     Loss,
     NucleotideGenome,
     Origination,
@@ -158,7 +159,7 @@ def test_karyotype_length_and_readers():
 
 # --- the tree wiring: heterogeneous seeding, identity, the strong invariant -----------------------
 
-def _run(seed=1, inversion=0.04, chromosomes=1, **kw):
+def _run(seed=1, inversion=2, chromosomes=1, **kw):
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
     params = dict(inversion=inversion, inversion_length=15, root_length=120, chromosomes=chromosomes,
                   seed=seed)
@@ -176,7 +177,7 @@ def test_every_node_has_a_karyotype_of_conserved_length():
 def test_heterogeneous_seeding_sizes_and_shapes():
     specs = [(100, "circular"), (40, "circular"), (25, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=5)
-    r = simulate_genomes_nucleotide(sp, inversion=0.0, chromosomes=specs, seed=5)
+    r = simulate_genomes_nucleotide(sp, inversion=0, chromosomes=specs, seed=5)
     tip = sorted(n.id for n in sp.complete_tree.extant())[0]
     chroms = r.genomes[tip].chromosomes
     assert [c.topology for c in chroms] == ["circular", "circular", "linear"]
@@ -189,7 +190,7 @@ def test_every_node_carries_the_whole_root_sequence_permuted():
     # the strong invariant across chromosomes: inheritance copies ancestry, inversion changes none
     specs = [(100, "circular"), (40, "circular"), (25, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=3)
-    r = simulate_genomes_nucleotide(sp, inversion=0.06, inversion_length=10, chromosomes=specs, seed=3)
+    r = simulate_genomes_nucleotide(sp, inversion=3, inversion_length=10, chromosomes=specs, seed=3)
     full = sorted((s, p) for s, (length, _t) in enumerate(specs) for p in range(length))
     for node_id in r.genomes:
         assert r.ancestry(node_id) == full
@@ -197,7 +198,7 @@ def test_every_node_carries_the_whole_root_sequence_permuted():
 
 def test_chromosome_identity_network_is_well_formed():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=4)
-    r = simulate_genomes_nucleotide(sp, inversion=0.02,
+    r = simulate_genomes_nucleotide(sp, inversion=1,
                                     chromosomes=[(80, "circular"), (30, "linear")], seed=4)
     ce = r.chromosome_events
     roots = [e for e in ce if e.kind == "origination"]
@@ -214,14 +215,14 @@ def test_chromosome_identity_network_is_well_formed():
 
 
 def test_zero_inversion_leaves_each_replicon_a_single_block():
-    sp, r = _run(seed=6, inversion=0.0, chromosomes=2, root_length=50)
+    sp, r = _run(seed=6, inversion=0, chromosomes=2, root_length=50)
     assert r.rearrangements == []
     for g in r.genomes.values():
         assert all(len(c.blocks) == 1 for c in g.chromosomes)
 
 
 def test_inversions_recorded_within_their_branch_and_chromosome():
-    sp, r = _run(seed=7, inversion=0.08, chromosomes=2, root_length=100)
+    sp, r = _run(seed=7, inversion=4, chromosomes=2, root_length=100)
     assert r.rearrangements
     node_chroms = {n: {c.id for c in r.genomes[n].chromosomes} for n in r.genomes}
     for inv in r.rearrangements:
@@ -233,7 +234,7 @@ def test_inversions_recorded_within_their_branch_and_chromosome():
 
 def test_deterministic_given_seed():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=8)
-    kw = dict(inversion=0.05, inversion_length=15, chromosomes=[(120, "circular"), (30, "linear")], seed=8)
+    kw = dict(inversion=2.5, inversion_length=15, chromosomes=[(120, "circular"), (30, "linear")], seed=8)
     a = simulate_genomes_nucleotide(sp, **kw)
     b = simulate_genomes_nucleotide(sp, **kw)
     assert all(a.mosaic(n) == b.mosaic(n) for n in a.genomes)
@@ -292,7 +293,7 @@ def test_duplication_keeps_all_ancestry_with_extra_copies():
     specs = [(120, "circular"), (40, "linear")]
     full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=3)
-    r = simulate_genomes_nucleotide(sp, duplication=0.04, duplication_length=10, inversion=0.02,
+    r = simulate_genomes_nucleotide(sp, duplication=2, duplication_length=10, inversion=1,
                                     chromosomes=specs, seed=3)
     assert any(isinstance(e, Duplication) for e in r.events)
     for node_id in r.genomes:
@@ -304,7 +305,7 @@ def test_duplication_with_loss_stays_a_subset():
     specs = [(120, "circular"), (40, "linear")]
     full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=4)
-    r = simulate_genomes_nucleotide(sp, duplication=0.04, loss=0.04, inversion=0.02, translocation=0.03,
+    r = simulate_genomes_nucleotide(sp, duplication=2, loss=2, inversion=1, translocation=1.5,
                                     fission=0.2, fusion=0.2, chromosomes=specs, seed=4)
     for node_id in r.genomes:
         assert set(r.ancestry(node_id)) <= full             # loss can now remove; dup adds copies
@@ -336,7 +337,7 @@ def test_loss_weakens_the_invariant_monotonically():
     # child's ancestry is a subset of its parent's — monotone non-increasing down every path
     full = {(s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length)}
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=3)
-    r = simulate_genomes_nucleotide(sp, loss=0.05, loss_length=10, inversion=0.02,
+    r = simulate_genomes_nucleotide(sp, loss=2.5, loss_length=10, inversion=1,
                                     chromosomes=_TIER_SPECS, seed=3)
     assert r.events                                          # losses really happened
     for node_id in r.genomes:
@@ -354,7 +355,7 @@ def test_loss_composes_with_everything_and_still_only_subsets():
     full = {(s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length)}
     for seed in range(3):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
-        r = simulate_genomes_nucleotide(sp, loss=0.04, inversion=0.02, translocation=0.03,
+        r = simulate_genomes_nucleotide(sp, loss=2, inversion=1, translocation=1.5,
                                         fission=0.3, fusion=0.3, chromosomes=_TIER_SPECS, seed=seed)
         for node_id in r.genomes:
             anc_list = r.ancestry(node_id)
@@ -377,7 +378,7 @@ def _minter(start):
 
 def _tier(seed, **kw):
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
-    params = dict(inversion=0.02, inversion_length=12, fission=0.6, fusion=0.6,
+    params = dict(inversion=1, inversion_length=12, fission=0.6, fusion=0.6,
                   chromosomes=_TIER_SPECS, seed=seed)
     params.update(kw)
     return sp, simulate_genomes_nucleotide(sp, **params)
@@ -461,7 +462,7 @@ def test_tier_changes_the_chromosome_number():
 
 def test_tier_is_deterministic():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=8)
-    kw = dict(inversion=0.02, fission=0.5, fusion=0.5, chromosomes=_TIER_SPECS, seed=8)
+    kw = dict(inversion=1, fission=0.5, fusion=0.5, chromosomes=_TIER_SPECS, seed=8)
     a = simulate_genomes_nucleotide(sp, **kw)
     b = simulate_genomes_nucleotide(sp, **kw)
     assert a.chromosome_events == b.chromosome_events
@@ -502,7 +503,7 @@ def test_translocation_is_a_noop_with_a_single_chromosome():
 
 def test_translocation_conserves_the_chromosome_count():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
-    r = simulate_genomes_nucleotide(sp, translocation=0.06, translocation_length=10,
+    r = simulate_genomes_nucleotide(sp, translocation=3, translocation_length=10,
                                     chromosomes=_TIER_SPECS, seed=5)
     assert all(len(g.chromosomes) == 3 for g in r.genomes.values())   # material moves, count does not
     assert any(isinstance(x, Translocation) for x in r.rearrangements)
@@ -512,7 +513,7 @@ def test_strong_invariant_survives_translocation():
     full = sorted((s, p) for s, (length, _t) in enumerate(_TIER_SPECS) for p in range(length))
     for seed in range(3):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
-        r = simulate_genomes_nucleotide(sp, translocation=0.08, translocation_length=8, inversion=0.02,
+        r = simulate_genomes_nucleotide(sp, translocation=4, translocation_length=8, inversion=1,
                                         inversion_probability=0.5, chromosomes=_TIER_SPECS, seed=seed)
         for node_id in r.genomes:
             assert r.ancestry(node_id) == full
@@ -520,7 +521,7 @@ def test_strong_invariant_survives_translocation():
 
 def test_all_four_events_compose():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
-    r = simulate_genomes_nucleotide(sp, inversion=0.02, translocation=0.05, fission=0.4, fusion=0.4,
+    r = simulate_genomes_nucleotide(sp, inversion=1, translocation=2.5, fission=0.4, fusion=0.4,
                                     chromosomes=_TIER_SPECS, seed=5)
     assert {"Inversion", "Translocation"} <= {type(x).__name__ for x in r.rearrangements}
     assert {"fission", "fusion"} <= {e.kind for e in r.chromosome_events}
@@ -566,8 +567,8 @@ def test_copy_number_matches_the_genealogy_log():
     from collections import Counter
     specs = [(80, "circular"), (30, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=7)
-    r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.05, duplication_length=8,
-                                    loss_length=8, inversion=0.03, translocation=0.03, fission=0.15,
+    r = simulate_genomes_nucleotide(sp, duplication=2.5, loss=2.5, duplication_length=8,
+                                    loss_length=8, inversion=1.5, translocation=1.5, fission=0.15,
                                     fusion=0.15, chromosomes=specs, seed=7)
     assert any(isinstance(e, Duplication) for e in r.events)   # duplications really fired
     assert any(isinstance(e, Loss) for e in r.events)          # ...and losses
@@ -582,8 +583,8 @@ def test_every_copy_lineage_is_born_and_traces_to_a_root():
     # to a seed origination — no orphans, no cycles, and the unset sentinel (0) never leaks.
     specs = [(80, "circular"), (30, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=9)
-    r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.03, inversion=0.03,
-                                    translocation=0.03, fission=0.15, fusion=0.15, chromosomes=specs,
+    r = simulate_genomes_nucleotide(sp, duplication=2.5, loss=1.5, inversion=1.5,
+                                    translocation=1.5, fission=0.15, fusion=0.15, chromosomes=specs,
                                     seed=9)
     roots = {e.copy for e in r.events if isinstance(e, Origination)}
     parent: dict[int, int] = {}
@@ -614,7 +615,7 @@ def test_speciation_re_mints_every_copy_lineage():
     # Speciation), so a daughter node shares no copy id with its parent node.
     specs = [(60, "circular")]
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=2)
-    r = simulate_genomes_nucleotide(sp, inversion=0.03, duplication=0.03, chromosomes=specs, seed=2)
+    r = simulate_genomes_nucleotide(sp, inversion=1.5, duplication=1.5, chromosomes=specs, seed=2)
     assert [e for e in r.events if isinstance(e, Speciation)]   # speciations recorded
     tree = r.complete_tree
     for node_id, g in r.genomes.items():
@@ -644,7 +645,7 @@ def test_recovery_ancestry_neutral_is_the_species_tree():
     # With no birth/death of copies (only ancestry-neutral events), every extant leaf carries the
     # whole root once, so every root-block's extant gene tree is the species tree: one tip per leaf.
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
-    r = simulate_genomes_nucleotide(sp, inversion=0.05, inversion_length=12, translocation=0.03,
+    r = simulate_genomes_nucleotide(sp, inversion=2.5, inversion_length=12, translocation=1.5,
                                     fission=0.1, fusion=0.1, chromosomes=[(60, "circular")], seed=1)
     leaves = {n.id for n in r.complete_tree.extant()}
     assert r.root_blocks                                       # inversions leave surviving breakpoints
@@ -661,8 +662,8 @@ def test_recovered_extant_leaves_match_observed_copies():
     specs = [(80, "circular"), (30, "linear")]
     for seed in range(4):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
-        r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.05, duplication_length=8,
-                                        loss_length=8, inversion=0.03, translocation=0.03, fission=0.1,
+        r = simulate_genomes_nucleotide(sp, duplication=2.5, loss=2.5, duplication_length=8,
+                                        loss_length=8, inversion=1.5, translocation=1.5, fission=0.1,
                                         fusion=0.1, chromosomes=specs, seed=seed)
         assert any(isinstance(e, Duplication) for e in r.events)
         assert any(isinstance(e, Loss) for e in r.events)
@@ -680,7 +681,7 @@ def test_recovered_extant_leaves_match_observed_copies():
 def test_every_root_block_has_a_parsing_gene_tree():
     specs = [(60, "circular"), (25, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=8)
-    r = simulate_genomes_nucleotide(sp, duplication=0.05, loss=0.04, inversion=0.03, chromosomes=specs,
+    r = simulate_genomes_nucleotide(sp, duplication=2.5, loss=2, inversion=1.5, chromosomes=specs,
                                     seed=8)
     assert set(r.gene_trees) == set(range(len(r.root_blocks)))    # one family per root-block, by index
     assert {s for (s, _a, _b) in r.root_blocks} <= {0, 1}        # blocks live under their seed sources
@@ -693,7 +694,7 @@ def test_duplication_shows_up_as_a_branch_in_a_block_tree():
     # A run with duplication (and nothing that removes copies) must produce at least one block whose
     # extant tree has a duplication node — a leaf carrying two copies of that block.
     sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=6, seed=3)
-    r = simulate_genomes_nucleotide(sp, duplication=0.06, duplication_length=10,
+    r = simulate_genomes_nucleotide(sp, duplication=3, duplication_length=10,
                                     chromosomes=[(80, "circular")], seed=3)
 
     def has_kind(node, kind):
@@ -719,7 +720,7 @@ def test_transfer_is_additive_keeps_all_ancestry_and_grows_copies():
     # Additive transfer only adds copies (the donor keeps its own), and every lineage shares the root
     # sources, so with no loss the ancestry set stays full while copy numbers grow.
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=10, seed=2)
-    r = simulate_genomes_nucleotide(sp, transfer=0.07, transfer_length=10, inversion=0.02,
+    r = simulate_genomes_nucleotide(sp, transfer=3.5, transfer_length=10, inversion=1,
                                     chromosomes=_XFER_SPECS, seed=2)
     assert any(isinstance(e, Transfer) for e in r.events)          # transfers really fired
     for node_id in r.genomes:
@@ -729,7 +730,7 @@ def test_transfer_is_additive_keeps_all_ancestry_and_grows_copies():
 
 def test_transfer_recipient_is_a_distinct_contemporaneous_lineage():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=4)
-    r = simulate_genomes_nucleotide(sp, transfer=0.08, transfer_length=8, chromosomes=_XFER_SPECS, seed=4)
+    r = simulate_genomes_nucleotide(sp, transfer=4, transfer_length=8, chromosomes=_XFER_SPECS, seed=4)
     xfers = [e for e in r.events if isinstance(e, Transfer)]
     assert xfers
     tree = r.complete_tree
@@ -746,8 +747,8 @@ def test_recovery_cross_check_holds_with_transfer():
     import collections
     for seed in range(4):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
-        r = simulate_genomes_nucleotide(sp, transfer=0.05, transfer_length=8, duplication=0.03,
-                                        loss=0.03, inversion=0.03, translocation=0.02, fission=0.1,
+        r = simulate_genomes_nucleotide(sp, transfer=2.5, transfer_length=8, duplication=1.5,
+                                        loss=1.5, inversion=1.5, translocation=1, fission=0.1,
                                         fusion=0.1, chromosomes=_XFER_SPECS, seed=seed)
         assert any(isinstance(e, Transfer) for e in r.events)
         leaves = [n.id for n in r.complete_tree.extant()]
@@ -763,7 +764,7 @@ def test_recovery_cross_check_holds_with_transfer():
 
 def test_transfer_is_a_horizontal_edge_in_a_block_tree():
     sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=8, seed=3)
-    r = simulate_genomes_nucleotide(sp, transfer=0.08, transfer_length=10, chromosomes=_XFER_SPECS, seed=3)
+    r = simulate_genomes_nucleotide(sp, transfer=4, transfer_length=10, chromosomes=_XFER_SPECS, seed=3)
 
     def has_transfer(node):
         stack = [node]
@@ -782,7 +783,7 @@ def test_transfer_to_distance_and_self_transfer_run():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=5)
     for kw in (dict(transfer_to="distance"), dict(transfer_to=Distance(decay=2.0)),
                dict(self_transfer=True)):
-        r = simulate_genomes_nucleotide(sp, transfer=0.06, transfer_length=8, chromosomes=_XFER_SPECS,
+        r = simulate_genomes_nucleotide(sp, transfer=3, transfer_length=8, chromosomes=_XFER_SPECS,
                                         seed=5, **kw)
         assert any(isinstance(e, Transfer) for e in r.events)
         for node_id in r.genomes:                              # additive: full ancestry preserved
@@ -794,9 +795,9 @@ def test_transfer_validation():
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, transfer=-0.1)
     with pytest.raises(ValueError):
-        simulate_genomes_nucleotide(sp, transfer=0.1, transfer_length=0)
+        simulate_genomes_nucleotide(sp, transfer=5, transfer_length=0)
     with pytest.raises(ValueError):
-        simulate_genomes_nucleotide(sp, transfer=0.1, transfer_to="nearest")
+        simulate_genomes_nucleotide(sp, transfer=5, transfer_to="nearest")
 
 
 # --- transposition: an intra-chromosome move (ancestry-neutral) -----------------------------------
@@ -806,7 +807,7 @@ def test_transposition_is_ancestry_neutral_and_conserves_counts():
     full = sorted((s, p) for s, (length, _t) in enumerate(specs) for p in range(length))
     for seed in range(3):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=seed)
-        r = simulate_genomes_nucleotide(sp, transposition=0.08, transposition_length=8,
+        r = simulate_genomes_nucleotide(sp, transposition=4, transposition_length=8,
                                         inversion_probability=0.5, chromosomes=specs, seed=seed)
         assert any(isinstance(x, Transposition) for x in r.rearrangements)
         for node_id in r.genomes:
@@ -817,7 +818,7 @@ def test_transposition_is_ancestry_neutral_and_conserves_counts():
 def test_transposition_works_within_a_single_chromosome():
     # Unlike translocation (needs >=2 chromosomes), transposition moves an arc within one chromosome.
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=2)
-    r = simulate_genomes_nucleotide(sp, transposition=0.1, transposition_length=8, chromosomes=1,
+    r = simulate_genomes_nucleotide(sp, transposition=5, transposition_length=8, chromosomes=1,
                                     root_length=100, seed=2)
     assert any(isinstance(x, Transposition) for x in r.rearrangements)
     full = sorted((0, p) for p in range(100))
@@ -839,37 +840,55 @@ def test_origination_adds_de_novo_sources_beyond_the_root():
     assert any(any(s >= len(specs) for (s, _p) in r.ancestry(n)) for n in r.genomes)
 
 
-def test_origination_family_roots_at_its_own_branch():
-    # Each de-novo family's gene tree is rooted on the branch the origination fired on (not the tree
-    # root) — it exists only in that lineage's subtree.
+def test_origination_mints_a_gene():
+    # origination lays down a GENE, not plain spacer: indivisible, its own family, its own span.
     specs = [(80, "circular"), (30, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=6)
-    r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, inversion=0.02,
+    r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, chromosomes=specs, seed=6)
+    denovo = [e for e in r.events if isinstance(e, Origination) and e.source >= len(specs)]
+    assert denovo
+    # every de-novo source is carried by genic blocks only, and is registered as a gene span
+    denovo_sources = {e.source for e in denovo}
+    for g in r.genomes.values():
+        for chrom in g.chromosomes:
+            for b in chrom.blocks:
+                if b.source in denovo_sources:
+                    assert b.is_gene                          # never plain spacer
+    assert denovo_sources <= {src for (src, _a, _b) in r.gene_spans.values()}
+
+
+def test_origination_family_roots_at_its_own_branch():
+    # Each de-novo gene's tree is rooted on the branch the origination fired on (not the tree root).
+    specs = [(80, "circular"), (30, "linear")]
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=6)
+    r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, inversion=1,
                                     chromosomes=specs, seed=6)
     origin_branch = {e.source: e.lineage for e in r.events
                      if isinstance(e, Origination) and e.source >= len(specs)}
     assert origin_branch
     seen = 0
-    for fam, (s, _a, _b) in enumerate(r.root_blocks):
-        if s in origin_branch:
-            assert r.gene_trees[fam].complete.species == origin_branch[s]   # rooted at the origination branch
+    for fam, gt in r.gene_trees.items():
+        src, _a, _b = r.gene_spans[fam]
+        if src in origin_branch:
+            assert gt.complete.species == origin_branch[src]  # rooted at the origination branch
             seen += 1
-    assert seen                                               # some de-novo family survived to a root-block
+    assert seen                                               # some de-novo gene survived
 
 
 def test_recovery_cross_check_holds_with_origination():
     import collections
     specs = [(80, "circular"), (30, "linear")]
-    for seed in range(4):
+    for seed in range(3):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
-        r = simulate_genomes_nucleotide(sp, origination=0.4, origination_length=10, loss=0.03,
-                                        duplication=0.03, inversion=0.03, transposition=0.02,
+        r = simulate_genomes_nucleotide(sp, origination=0.4, origination_length=10, loss=1.5,
+                                        duplication=1.5, inversion=1.5, transposition=1,
                                         chromosomes=specs, seed=seed)
         assert any(isinstance(e, Origination) and e.source >= len(specs) for e in r.events)
         leaves = [n.id for n in r.complete_tree.extant()]
-        for fam, (s, a, b) in enumerate(r.root_blocks):
-            ex = r.gene_trees[fam].extant
-            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+        assert r.gene_trees
+        for fam, gt in r.gene_trees.items():
+            s, a, b = r.gene_spans[fam]
+            recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
                                             if t.kind == "extant")
             for lid in leaves:
                 observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
@@ -879,7 +898,7 @@ def test_recovery_cross_check_holds_with_origination():
 
 def test_transposition_and_origination_validation():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
-    for kw in (dict(transposition=-0.1), dict(transposition=0.1, transposition_length=0),
+    for kw in (dict(transposition=-0.1), dict(transposition=5, transposition_length=0),
                dict(origination=-0.1), dict(origination=0.1, origination_length=0)):
         with pytest.raises(ValueError):
             simulate_genomes_nucleotide(sp, **kw)
@@ -887,17 +906,24 @@ def test_transposition_and_origination_validation():
 
 # --- the chromosome tier: de-novo replicons (origination) and whole-chromosome death (loss) --------
 
-def test_chromosome_origination_adds_empty_replicons():
+def test_chromosome_origination_adds_a_replicon_carrying_a_gene():
     specs = [(80, "circular"), (30, "linear")]
-    full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    root_full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
-    r = simulate_genomes_nucleotide(sp, chromosome_origination=0.4, chromosomes=specs, seed=3)
+    r = simulate_genomes_nucleotide(sp, chromosome_origination=0.4, origination_length=25,
+                                    chromosomes=specs, seed=3)
     orig_edges = [e for e in r.chromosome_events if e.kind == "origination"]
     assert len(orig_edges) > len(specs)                            # de-novo replicons beyond the seeds
     assert all(e.parents == () and len(e.children) == 1 for e in orig_edges)   # ...are network roots
-    assert any(c.length == 0 for g in r.genomes.values() for c in g.chromosomes)   # empty plasmids
+    # a de-novo replicon is never born empty: it carries one new gene on a fresh source of its own
+    # (the seeded replicons here were declared with no genes at all, so they legitimately have none)
+    de_novo = {c for e in orig_edges if e.time > 0.0 for c in e.children}
+    assert de_novo
+    assert all(c.length > 0 and c.n_genes >= 1
+               for g in r.genomes.values() for c in g.chromosomes if c.id in de_novo)
     for node_id in r.genomes:
-        assert set(r.ancestry(node_id)) == full                    # an empty replicon adds no material
+        assert root_full <= set(r.ancestry(node_id))               # the seed material is untouched...
+    assert any(any(s >= len(specs) for (s, _p) in r.ancestry(n)) for n in r.genomes)  # ...plus new
     assert any(len(g.chromosomes) > len(specs) for g in r.genomes.values())   # the count grew
 
 
@@ -943,13 +969,13 @@ def test_recovery_cross_check_holds_with_chromosome_tier():
     for seed in range(4):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
         r = simulate_genomes_nucleotide(sp, chromosome_origination=0.25, chromosome_loss=0.12,
-                                        loss=0.03, duplication=0.03, transfer=0.03, inversion=0.03,
+                                        loss=1.5, duplication=1.5, transfer=1.5, inversion=1.5,
                                         fission=0.1, fusion=0.1, chromosomes=specs, seed=seed)
         saw_chromosome_loss = saw_chromosome_loss or any(e.kind == "loss" for e in r.chromosome_events)
         leaves = [n.id for n in r.complete_tree.extant()]
-        for fam, (s, a, b) in enumerate(r.root_blocks):
-            ex = r.gene_trees[fam].extant
-            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+        for fam, gt in r.gene_trees.items():               # de-novo replicons carry genes: genic mode
+            s, a, b = r.gene_spans[fam]
+            recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
                                             if t.kind == "extant")
             for lid in leaves:
                 observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
@@ -964,3 +990,632 @@ def test_chromosome_tier_validation():
         simulate_genomes_nucleotide(sp, chromosome_origination=-0.1)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, chromosome_loss=-0.1)
+
+
+# --- the genic layer: declared genes are indivisible ----------------------------------------------
+
+_GENIC = dict(genes=4, gene_length=30, chromosomes=[(300, "circular")])
+
+
+def _gene_spans(r):
+    """``{family: {(source, start, end), …}}`` over every block of every node. A family with more than
+    one span means a gene was cut somewhere — the thing that must never happen."""
+    import collections
+    spans = collections.defaultdict(set)
+    for g in r.genomes.values():
+        for chrom in g.chromosomes:
+            for b in chrom.blocks:
+                if b.gene:
+                    spans[b.gene].add((b.source, b.start, b.end))
+    return spans
+
+
+def test_split_at_refuses_to_cut_a_gene():
+    from zombi2.genomes.nucleotide import _CutsGene
+    ch = Chromosome(0, "linear", [Block(0, 0, 10, 1, 1), Block(0, 10, 20, 1, 1, 7)])  # intergene + gene
+    ch._split_at(5)                                          # inside the intergene: fine
+    assert len(ch.blocks) == 3
+    with pytest.raises(_CutsGene):
+        ch._split_at(15)                                     # strictly inside the gene: refused
+    assert len(ch.blocks) == 3                               # ...and nothing was mutated
+    with pytest.raises(_CutsGene):
+        ch._check_cut(15)                                    # the pure test agrees
+    assert len(ch.blocks) == 3                               # _check_cut mutates nothing
+    ch._split_at(10)                                         # exactly the gene's edge: allowed
+    assert len(ch.blocks) == 3
+
+
+def test_seeding_lays_down_the_alternating_chain():
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, genes=6, gene_length=40, chromosomes=1, root_length=600, seed=1)
+    root = r.genomes[r.complete_tree.root].chromosomes[0]
+    kinds = [("gene" if b.is_gene else "intergene") for b in root.blocks]
+    assert kinds == ["intergene", "gene"] * 6                # I G I G … the declared chain
+    assert [b.length for b in root.blocks if b.is_gene] == [40] * 6
+    assert sum(b.length for b in root.blocks) == 600         # the replicon length is preserved
+    assert len({b.gene for b in root.blocks if b.is_gene}) == 6      # six distinct families
+
+
+def test_no_genes_declared_is_the_uniform_model():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=2)
+    r = simulate_genomes_nucleotide(sp, inversion=2.5, loss=1.5, chromosomes=1, root_length=200, seed=2)
+    assert all(not b.is_gene for g in r.genomes.values() for c in g.chromosomes for b in c.blocks)
+
+
+def test_genes_are_never_split_under_every_event():
+    for seed in range(2):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=seed)
+        r = simulate_genomes_nucleotide(
+            sp, inversion=2.5, transposition=1.5, translocation=1.5, loss=2, duplication=2,
+            transfer=1.5, fission=0.1, fusion=0.1, inversion_probability=0.4, inversion_length=20,
+            loss_length=20, duplication_length=20, transfer_length=20, seed=seed, **_GENIC)
+        spans = _gene_spans(r)
+        assert spans                                         # genes really are present
+        for fam, seen in spans.items():
+            assert len(seen) == 1, f"gene family {fam} was cut into {seen}"
+            (_src, a, b), = seen
+            assert b - a == 30                               # every copy is the whole gene
+
+
+def test_declared_genes_come_back_as_intact_root_blocks():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, inversion=2.5, transposition=1.5, loss=2, duplication=2,
+                                    inversion_length=30, loss_length=30, seed=3, **_GENIC)
+    root_genes = {(b.source, b.start, b.end) for chrom in r.genomes[r.complete_tree.root].chromosomes
+                  for b in chrom.blocks if b.is_gene}
+    assert root_genes
+    assert root_genes <= set(r.root_blocks)                  # each gene is one whole root-block
+
+
+def test_gene_spans_records_every_declared_gene():
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, genes=5, gene_length=40, chromosomes=1, root_length=500, seed=1)
+    assert len(r.gene_spans) == 5                            # one span per declared gene
+    assert all(e - a == 40 for (_s, a, e) in r.gene_spans.values())
+    root = r.genomes[r.complete_tree.root].chromosomes[0]
+    assert {b.gene: (b.source, b.start, b.end) for b in root.blocks if b.is_gene} == r.gene_spans
+
+
+def test_gene_trees_are_one_per_gene_not_per_root_block():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, inversion=2.5, transposition=1.5, loss=2.0, duplication=2.0,
+                                    inversion_length=30, loss_length=30, duplication_length=30,
+                                    seed=3, **_GENIC)
+    assert r.gene_trees                                      # genes declared -> genic families only
+    assert set(r.gene_trees) <= set(r.gene_spans)            # keyed by GENE FAMILY id
+    # the intergenic root-blocks are recovered as blocks but are not built into trees
+    assert len(r.root_blocks) > len(r.gene_trees)
+    for fam in r.gene_trees:
+        assert r.gene_spans[fam] in set(r.root_blocks)       # each gene is a whole root-block
+
+
+def test_recovery_cross_check_holds_with_genes():
+    # the leaves-==-observed-copies check, now per declared gene
+    import collections
+    for seed in range(2):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=seed)
+        r = simulate_genomes_nucleotide(
+            sp, inversion=1.0, transposition=0.5, loss=1.0, duplication=1.0, transfer=0.5,
+            inversion_length=20, loss_length=20, duplication_length=20, seed=seed, **_GENIC)
+        leaves = [n.id for n in r.complete_tree.extant()]
+        assert r.gene_trees
+        for fam, gt in r.gene_trees.items():
+            s, a, b = r.gene_spans[fam]
+            recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                            if t.kind == "extant")
+            for lid in leaves:
+                observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                               if blk.source == s and blk.start <= a and b <= blk.end)
+                assert observed == recovered.get(lid, 0)
+
+
+def test_gene_declaration_validation():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, genes=-1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, genes=3, gene_length=0)
+    with pytest.raises(ValueError):                          # no room left for intergenes
+        simulate_genomes_nucleotide(sp, genes=10, gene_length=100, chromosomes=1, root_length=500)
+
+
+# --- declaring the seed genome from a GFF ---------------------------------------------------------
+
+_GFF_TEXT = ("##gff-version 3\n"
+             "##sequence-region chrom1 1 3000\n"
+             "##sequence-region plasmid 1 800\n"
+             "chrom1\tZOMBI2\tgene\t201\t500\t.\t+\t.\tID=dnaA\n"
+             "chrom1\tZOMBI2\tgene\t900\t1400\t.\t-\t.\tID=recA\n"
+             "chrom1\tZOMBI2\tCDS\t900\t1400\t.\t-\t0\tParent=recA\n"
+             "plasmid\tZOMBI2\tgene\t51\t250\t.\t+\t.\tID=toxin\n")
+
+
+def _gff(tmp_path):
+    path = tmp_path / "seed.gff"
+    path.write_text(_GFF_TEXT)
+    return path
+
+
+def test_seeding_from_a_gff(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), seed=1)
+    # the GFF supplies the replicons too, in sorted seqid order: chrom1 then plasmid
+    chroms = r.genomes[r.complete_tree.root].chromosomes
+    assert [c.length for c in chroms] == [3000, 800]
+    assert r.gene_names == {"dnaA": 1, "recA": 2, "toxin": 3}
+    assert r.gene_spans == {1: (0, 200, 500), 2: (0, 899, 1400), 3: (1, 50, 250)}
+    # the GFF's strand is the gene's CODING strand (annotation), recorded separately...
+    assert r.gene_strands == {1: 1, 2: -1, 3: 1}
+    # ...while every seed block is +1: Block.strand is orientation relative to the ancestral source,
+    # and at the root nothing has been inverted yet.
+    assert all(b.strand == 1 for c in chroms for b in c.blocks)
+    # everything between the genes is intergene, and the chain covers the replicon exactly
+    for c in chroms:
+        assert sum(b.length for b in c.blocks) == c.length
+
+
+def test_gff_genes_are_never_split(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=2)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), inversion=2.0, transposition=1.0,
+                                    translocation=1.0, loss=1.5, duplication=1.5, transfer=1.0,
+                                    inversion_length=100, loss_length=100, duplication_length=100,
+                                    transfer_length=100, inversion_probability=0.4, seed=2)
+    spans = _gene_spans(r)
+    assert spans
+    for fam, seen in spans.items():
+        assert len(seen) == 1, f"gene family {fam} was cut into {seen}"
+        assert seen == {r.gene_spans[fam]}               # ...and it is exactly the declared span
+
+
+def test_gff_genes_get_one_tree_each_lookupable_by_name(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=3)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), inversion=2.0, loss=1.5, duplication=1.5,
+                                    inversion_length=100, loss_length=100, duplication_length=100, seed=3)
+    assert set(r.gene_trees) <= set(r.gene_spans)
+    tree = r.gene_trees[r.gene_names["dnaA"]]            # look a named gene up by name
+    assert tree.to_newick("extant").endswith(";")
+
+
+def test_gff_and_genes_are_mutually_exclusive(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    with pytest.raises(ValueError, match="either gff= or genes="):
+        simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), genes=3, seed=1)
+
+
+# --- drawing arcs directly from the legal set (no guess-and-redraw) -------------------------------
+
+def _dense_chromosome(n_genes=40, gene_len=94, gap=6):
+    """A gene-dense replicon: 94% genic, like a real bacterial genome."""
+    blocks, at, fam = [], 0, 0
+    for _ in range(n_genes):
+        blocks.append(Block(0, at, at + gap, 1, 1)); at += gap
+        fam += 1
+        blocks.append(Block(0, at, at + gene_len, 1, 1, fam)); at += gene_len
+    return Chromosome(0, "circular", blocks), at
+
+
+def _inside_a_gene(chrom, c):
+    pos = 0
+    for b in chrom.blocks:
+        if pos < c < pos + b.length:
+            return b.is_gene
+        pos += b.length
+    return False
+
+
+def test_arc_extent_always_lands_on_a_legal_breakpoint():
+    chrom, total = _dense_chromosome()
+    rng = np.random.default_rng(0)
+    starts = [p for p in range(total) if not _inside_a_gene(chrom, p)]
+    drawn = 0
+    for _ in range(400):
+        start = starts[int(rng.integers(len(starts)))]
+        d = chrom._pick_arc_extent(start, 300, rng)
+        if d is None:
+            continue
+        drawn += 1
+        assert d >= 1
+        assert not _inside_a_gene(chrom, (start + d) % total)   # the far end is always legal
+    assert drawn > 300                                          # and it essentially always finds one
+
+
+def test_legal_cut_never_lands_inside_a_gene():
+    chrom, _total = _dense_chromosome()
+    rng = np.random.default_rng(1)
+    for _ in range(300):
+        c = chrom._pick_legal_cut(rng)
+        assert c is not None and not _inside_a_gene(chrom, c)
+
+
+def test_extent_tracks_the_mean_asked_for():
+    # the realised extent is conditioned by the gene structure (so shorter than asked), but a larger
+    # mean must still give larger arcs
+    chrom, total = _dense_chromosome(n_genes=60)
+    rng = np.random.default_rng(2)
+    starts = [p for p in range(total) if not _inside_a_gene(chrom, p)]
+
+    def mean_extent(mean):
+        got = [chrom._pick_arc_extent(starts[int(rng.integers(len(starts)))], mean, rng)
+               for _ in range(500)]
+        got = [d for d in got if d is not None]
+        return sum(got) / len(got)
+
+    assert mean_extent(100) < mean_extent(1000) < mean_extent(5000)
+
+
+def test_event_rate_is_honoured_on_a_gene_dense_genome():
+    # THE regression this replaced: with guess-and-redraw, a large extent on a dense genome exhausted
+    # its retries and silently dropped up to ~43% of events. The rate must now come out as asked.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    lineage_time = sum(n.end_time - n.birth_time for n in sp.complete_tree.nodes.values())
+    for extent in (200, 20_000):                     # short arcs and arcs spanning many genes
+        counts = []
+        for seed in range(12):
+            r = simulate_genomes_nucleotide(sp, genes=100, gene_length=94, chromosomes=1,
+                                            root_length=10_000, loss=3.0, loss_length=extent, seed=seed)
+            counts.append(sum(1 for e in r.events if isinstance(e, Loss)))
+        expected = 3.0 * lineage_time
+        assert 0.7 * expected < sum(counts) / len(counts) < 1.4 * expected, (extent, counts)
+
+
+def test_with_no_events_the_genome_is_exactly_what_was_declared(tmp_path):
+    """The round trip: run with every rate at zero and each leaf must BE the input genome.
+
+    In particular the coordinate space must be the identity — position i traces back to source
+    position i, forward — including across genes declared on the minus strand. `Block.strand` records
+    inversion relative to the ancestral source, and at the root nothing has been inverted; the GFF's
+    strand is the gene's coding strand, which is annotation and lives in `gene_strands`."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), seed=1)          # no events at all
+    for lid in (n.id for n in r.complete_tree.extant()):
+        chrom1, plasmid = r.genomes[lid].chromosomes
+        assert (chrom1.length, plasmid.length) == (3000, 800)
+        assert chrom1.trace_back() == [(0, i, 1) for i in range(3000)]       # the identity map
+        assert plasmid.trace_back() == [(1, i, 1) for i in range(800)]
+        assert all(b.strand == 1 for c in (chrom1, plasmid) for b in c.blocks)
+    # the declared genes are exactly where the GFF put them, with their coding strands preserved
+    assert r.gene_spans == {1: (0, 200, 500), 2: (0, 899, 1400), 3: (1, 50, 250)}
+    assert r.gene_strands == {1: 1, 2: -1, 3: 1}
+
+
+def test_the_even_layout_also_round_trips():
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=2)
+    r = simulate_genomes_nucleotide(sp, genes=5, gene_length=40, chromosomes=1, root_length=500, seed=2)
+    for lid in (n.id for n in r.complete_tree.extant()):
+        chrom, = r.genomes[lid].chromosomes
+        assert chrom.trace_back() == [(0, i, 1) for i in range(500)]
+    assert set(r.gene_strands.values()) == {1}
+
+
+def test_inversions_along_the_tree_match_an_independent_replay():
+    """The strongest end-to-end check: replay the recorded inversions on a plain per-nucleotide array,
+    node by node down the tree, and demand the engine's genome match exactly at EVERY node.
+
+    The existing oracle tests one chromosome in isolation; this one validates the whole pipeline —
+    genic seeding, the tree wiring, inheritance at speciation, and the block algebra — against a naive
+    simulator that knows nothing about blocks."""
+    import collections
+    length, n_genes, gene_len = 2_000, 12, 120
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    r = simulate_genomes_nucleotide(sp, genes=n_genes, gene_length=gene_len, chromosomes=1,
+                                    root_length=length, inversion=25.0, inversion_length=400, seed=4)
+    inversions = [e for e in r.rearrangements if isinstance(e, Inversion)]
+    assert len(inversions) > 15                              # the run really did rearrange
+
+    def invert(arr, start, ell):
+        n = len(arr)
+        ell = max(1, min(ell, n))
+        s = start % n
+        if s + ell <= n:
+            arr[s:s + ell] = [(src, p, -st) for (src, p, st) in reversed(arr[s:s + ell])]
+        else:
+            arr[:] = arr[s:] + arr[:s]
+            arr[:ell] = [(src, p, -st) for (src, p, st) in reversed(arr[:ell])]
+
+    tree = r.complete_tree
+    by_node = collections.defaultdict(list)
+    for e in inversions:
+        by_node[e.lineage].append(e)
+    stack = [(tree.root, [(0, i, 1) for i in range(length)])]
+    while stack:
+        nid, arr = stack.pop()
+        arr = list(arr)
+        for e in sorted(by_node[nid], key=lambda x: x.time):
+            invert(arr, e.start, e.length)
+        assert r.genomes[nid].chromosomes[0].trace_back() == arr, f"node {nid} diverged from the replay"
+        if tree.nodes[nid].children:
+            for c in tree.nodes[nid].children:
+                stack.append((c, arr))
+
+    full = sorted((0, i) for i in range(length))
+    for leaf in tree.extant():                               # nothing gained, nothing lost
+        assert r.ancestry(leaf.id) == full
+        seen = {b.gene for b in r.genomes[leaf.id].chromosomes[0].blocks if b.is_gene}
+        assert len(seen) == n_genes                          # every gene still there, still whole
+
+
+# --- two chromosomes evolving with the chromosome tier, genes and all --------------------------
+
+_TWO = dict(chromosomes=[(2000, "circular"), (1200, "circular")], genes=8, gene_length=120)
+_TWO_FULL = sorted((s, p) for s, (length, _t) in enumerate(_TWO["chromosomes"]) for p in range(length))
+
+
+def test_two_chromosomes_ancestry_neutral_tier_conserves_everything():
+    """Two replicons, genes on both, evolving with the chromosome tier *and* arcs moving between
+    chromosomes. Every event here is ancestry-neutral, so the karyotype may be reshaped arbitrarily —
+    split, merged, material shuffled across replicons — but not one base may be gained or lost, and no
+    gene may be cut."""
+    import collections
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    r = simulate_genomes_nucleotide(
+        sp, inversion=6.0, inversion_length=300, translocation=6.0, translocation_length=300,
+        transposition=3.0, transposition_length=300, fission=3.0, fusion=3.0, seed=5, **_TWO)
+
+    kinds = collections.Counter(e.kind for e in r.chromosome_events)
+    assert kinds["fission"] > 5 and kinds["fusion"] > 5       # the tier really ran
+    assert any(isinstance(x, Translocation) for x in r.rearrangements)
+
+    for node_id in r.genomes:                                  # nothing gained, nothing lost, anywhere
+        assert r.ancestry(node_id) == _TWO_FULL
+
+    karyotypes = {len(r.genomes[leaf.id].chromosomes) for leaf in r.complete_tree.extant()}
+    assert len(karyotypes) > 1 and karyotypes != {2}           # the karyotype diverged across leaves
+
+    # translocation/fusion mix the two replicons: a chromosome ends up carrying both sources
+    assert any(len({b.source for b in c.blocks}) == 2
+               for leaf in r.complete_tree.extant()
+               for c in r.genomes[leaf.id].chromosomes)
+
+    spans = _gene_spans(r)
+    assert len(spans) == 16                                    # 8 genes on each replicon
+    for fam, seen in spans.items():
+        assert seen == {r.gene_spans[fam]}                     # every gene whole, where it was declared
+    for leaf in r.complete_tree.extant():                      # ...and every gene still present
+        present = {b.gene for c in r.genomes[leaf.id].chromosomes for b in c.blocks if b.is_gene}
+        assert present == set(r.gene_spans)
+
+
+def test_two_chromosomes_with_the_whole_event_set():
+    """The same karyotype with births, deaths and whole-chromosome death piled on: the accounting must
+    still close and the recovered gene trees must still match the genomes."""
+    import collections
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    r = simulate_genomes_nucleotide(
+        sp, inversion=4.0, inversion_length=300, translocation=4.0, translocation_length=300,
+        transposition=2.0, transposition_length=300, fission=2.0, fusion=2.0,
+        chromosome_origination=1.0, chromosome_loss=0.25,
+        loss=3.0, loss_length=250, duplication=3.0, duplication_length=250,
+        transfer=2.0, transfer_length=250, seed=6, **_TWO)
+
+    kinds = collections.Counter(e.kind for e in r.chromosome_events)
+    assert {"fission", "fusion", "origination", "loss", "speciation"} <= set(kinds)
+    assert all(len(g.chromosomes) >= 1 for g in r.genomes.values())    # never the last chromosome
+    # no chromosome is ever left without a gene, so none is ever empty
+    assert all(c.n_genes >= 1 for g in r.genomes.values() for c in g.chromosomes)
+
+    minted = [cid for e in r.chromosome_events for cid in e.children]  # the network stays well-formed
+    assert len(minted) == len(set(minted))
+    for e in r.chromosome_events:
+        if e.kind == "origination":
+            assert e.parents == () and len(e.children) == 1
+        elif e.kind == "loss":
+            assert e.children == () and len(e.parents) == 1
+        elif e.kind == "fusion":
+            assert len(e.parents) == 2 and len(e.children) == 1
+        else:
+            assert len(e.parents) == 1 and len(e.children) == 2
+
+    for fam, seen in _gene_spans(r).items():                   # genes survive the tier intact
+        assert seen == {r.gene_spans[fam]}
+
+    leaves = [n.id for n in r.complete_tree.extant()]          # the cross-check, per gene
+    assert len(r.gene_trees) > 10                              # most genes survive: a real check
+    for fam, gt in r.gene_trees.items():
+        s, a, b = r.gene_spans[fam]
+        recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                        if t.kind == "extant")
+        for lid in leaves:
+            observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                           if blk.source == s and blk.start <= a and b <= blk.end)
+            assert observed == recovered.get(lid, 0)
+
+
+# --- extinction in the species tree ---------------------------------------------------------------
+
+def test_extinct_lineages_evolve_donate_and_are_pruned():
+    """With extinction, whole lineages die. Three things must hold at once: the dead still evolve and
+    are still recorded; what lived only on them never reaches the observable data; but what they
+    *donated* to a surviving lineage does — the classic transfer-from-the-dead."""
+    import collections
+    sp = simulate_species_tree(birth=1.4, death=0.7, n_extant=5, seed=4)
+    tree = sp.complete_tree
+    extant = {n.id for n in tree.extant()}
+
+    def doomed(nid):                                          # no extant descendant anywhere below
+        node = tree.nodes[nid]
+        return (nid not in extant) if node.children is None else all(doomed(c) for c in node.children)
+
+    dead = {nid for nid in tree.nodes if doomed(nid)}
+    assert collections.Counter(n.fate for n in tree.nodes.values())["extinct"] >= 1
+    assert dead and extant and not (dead & extant)
+
+    r = simulate_genomes_nucleotide(sp, chromosomes=[(1500, "circular")], genes=10, gene_length=100,
+                                    inversion=3.0, inversion_length=200, loss=3.0, loss_length=200,
+                                    duplication=3.0, duplication_length=200,
+                                    transfer=6.0, transfer_length=200, seed=4)
+
+    # the dead still evolved, and we kept their genomes
+    assert set(r.genomes) == set(tree.nodes)
+    assert all(r.genomes[d].length > 0 for d in dead)
+
+    # a transfer OUT of a doomed lineage into one that survives: donated by a ghost
+    from_dead = [e for e in r.events if isinstance(e, Transfer)
+                 and e.lineage in dead and e.recipient not in dead]
+    assert from_dead
+
+    # what lived only on doomed lineages is not observable, so it gets no gene tree
+    in_extant = {b.gene for lid in extant for c in r.genomes[lid].chromosomes
+                 for b in c.blocks if b.is_gene}
+    in_dead = {b.gene for d in dead for c in r.genomes[d].chromosomes for b in c.blocks if b.is_gene}
+    only_dead = in_dead - in_extant
+    assert only_dead                                          # some gene really did die with them
+    assert not (only_dead & set(r.gene_trees))                # ...and none of those has a tree
+
+    # the complete tree keeps the dead; the extant tree prunes to survivors only
+    assert any(t.kind == "extinct" for gt in r.gene_trees.values() for t in _tips(gt.complete))
+    for gt in r.gene_trees.values():
+        if gt.extant is not None:
+            assert all(t.kind == "extant" for t in _tips(gt.extant))
+
+    # and the cross-check still closes, against the EXTANT leaves
+    for fam, gt in r.gene_trees.items():
+        s, a, b = r.gene_spans[fam]
+        recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                        if t.kind == "extant")
+        for lid in extant:
+            observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                           if blk.source == s and blk.start <= a and b <= blk.end)
+            assert observed == recovered.get(lid, 0)
+
+
+# --- pathological genomes -------------------------------------------------------------------------
+
+_HOT = dict(inversion=8.0, inversion_length=200, translocation=4.0, translocation_length=200,
+            transposition=4.0, transposition_length=200, loss=6.0, loss_length=200,
+            duplication=6.0, duplication_length=200, transfer=4.0, transfer_length=200,
+            fission=2.0, fusion=2.0, chromosome_origination=1.0, chromosome_loss=0.5,
+            origination=1.0, origination_length=50)
+
+
+def _invariants_hold(r):
+    """Genes never split, and the recovered trees still match the genomes."""
+    import collections
+    spans = _gene_spans(r)
+    assert all(v == {r.gene_spans[f]} for f, v in spans.items())
+    extant = [n.id for n in r.complete_tree.extant()]
+    for fam, gt in r.gene_trees.items():
+        s, a, b = r.gene_spans[fam]
+        recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                        if t.kind == "extant")
+        for lid in extant:
+            observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                           if blk.source == s and blk.start <= a and b <= blk.end)
+            assert observed == recovered.get(lid, 0)
+
+
+@pytest.mark.parametrize("label, kwargs", [
+    ("a 1 bp replicon",            dict(chromosomes=1, root_length=1)),
+    ("a 2 bp replicon",            dict(chromosomes=1, root_length=2)),
+    ("a 10 bp replicon, gene of 5", dict(chromosomes=1, root_length=10, genes=1, gene_length=5)),
+    ("genes of a single base",     dict(chromosomes=1, root_length=100, genes=20, gene_length=1)),
+    ("a linear replicon",          dict(chromosomes=1, root_length=200, genes=3, gene_length=40,
+                                        topology="linear")),
+])
+def test_degenerate_genomes_survive_every_event(label, kwargs):
+    """Absurdly small genomes, run flat out with every event switched on. Nothing may crash, no gene
+    may be cut, and the recovery must still agree with the genomes."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, seed=1, **kwargs, **_HOT)
+    assert all(g.length >= 1 for g in r.genomes.values())      # a genome is never wiped out entirely
+    _invariants_hold(r)
+
+
+def test_extents_far_larger_than_the_genome():
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, chromosomes=1, root_length=500, genes=4, gene_length=50,
+                                    inversion=8.0, inversion_length=10**6,
+                                    loss=6.0, loss_length=10**6,
+                                    duplication=6.0, duplication_length=10**6, seed=1)
+    assert all(g.length >= 1 for g in r.genomes.values())
+    _invariants_hold(r)
+
+
+def test_a_single_leaf_tree():
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=1, seed=1)
+    r = simulate_genomes_nucleotide(sp, chromosomes=1, root_length=500, genes=4, gene_length=50,
+                                    seed=1, **_HOT)
+    assert len(list(r.complete_tree.extant())) == 1
+    _invariants_hold(r)
+
+
+def test_a_fully_genic_genome_cannot_rearrange(tmp_path):
+    """A genome with **no intergenic base at all** is frozen for sequence-level events.
+
+    Events nucleate in the spacer (`_pick_intergenic_position`), so with zero spacer there is nowhere
+    to start and every arc event is a no-op — the genome cannot invert, lose, duplicate or transfer
+    anything, however high the rates. Only the chromosome tier, which needs no breakpoint, still runs.
+
+    This is a consequence of the model, not a crash, and it is pinned here so that any future change
+    to where events may nucleate shows up as a failure of this test rather than a silent shift."""
+    path = tmp_path / "allgenic.gff"
+    path.write_text("##gff-version 3\n##sequence-region c 1 600\n" +
+                    "".join(f"c\t.\tgene\t{1 + 100 * i}\t{100 * (i + 1)}\t.\t+\t.\tID=g{i}\n"
+                            for i in range(6)))
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, gff=path, **_HOT, seed=1)
+    # no arc can nucleate, so nothing is rearranged, lost, duplicated or donated...
+    assert not r.rearrangements
+    assert not [e for e in r.events
+                if isinstance(e, (Loss, Duplication, Transfer))]
+    # ...though material can still be *added*, because a gene's own edge is a legal insertion point
+    assert all(g.length >= 600 for g in r.genomes.values())
+    _invariants_hold(r)
+
+
+def test_legal_cuts_include_gene_edges_and_empty_replicons():
+    """A breakpoint is illegal only *strictly inside* a gene, so a gene's own edge is a legal cut, and
+    an empty replicon has position 0. Sampling used to be stricter than the rule, which left de-novo
+    plasmids unable to ever receive material and froze fully-genic chromosomes completely."""
+    rng = np.random.default_rng(0)
+    assert Chromosome(0, "circular", [])._pick_legal_cut(rng) == 0          # an empty replicon
+    genic = Chromosome(1, "circular", [Block(0, 0, 100, 1, 1, 1), Block(0, 100, 200, 1, 1, 2)])
+    assert {genic._pick_legal_cut(rng) for _ in range(200)} == {0, 100}     # only the gene edges
+    mixed = Chromosome(2, "circular", [Block(0, 0, 10, 1, 1), Block(0, 10, 60, 1, 1, 1)])
+    seen = {mixed._pick_legal_cut(rng) for _ in range(2000)}
+    assert seen == set(range(11))              # the spacer's interior plus the gene's left edge only
+
+
+def test_a_de_novo_replicon_is_born_with_a_gene_and_can_grow():
+    """A plasmid from `chromosome_origination` is born carrying a gene, and material can still arrive
+    on it afterwards."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=3)
+    r = simulate_genomes_nucleotide(sp, chromosomes=[(800, "circular")], genes=4, gene_length=80,
+                                    chromosome_origination=3.0, translocation=6.0,
+                                    translocation_length=150, transfer=4.0, transfer_length=150,
+                                    origination=2.0, origination_length=60, inversion=2.0,
+                                    inversion_length=150, seed=3)
+    seeds = {c for e in r.chromosome_events if e.kind == "origination" and e.time == 0.0
+             for c in e.children}
+    de_novo = {c for e in r.chromosome_events if e.kind == "origination" and e.time > 0.0
+               for c in e.children}
+    assert de_novo
+    born = {c.id for g in r.genomes.values() for c in g.chromosomes if c.id in de_novo}
+    assert born and not (born & seeds)
+    assert all(c.n_genes >= 1 for g in r.genomes.values() for c in g.chromosomes)
+    # and they are not frozen at their birth size: some grew past their single gene
+    assert any(c.length > 0 and c.n_genes >= 1 and len(c.blocks) > 1
+               for g in r.genomes.values() for c in g.chromosomes if c.id in de_novo)
+    _invariants_hold(r)
+
+
+def test_no_chromosome_is_ever_left_without_a_gene():
+    """A chromosome never exists without a gene. A replicon is born with one, and any event that would
+    strip a chromosome of its last — a loss, a translocation carrying it away, a fission splitting off
+    a geneless half — simply does not happen. Run flat out, with every event that could violate it."""
+    for seed in range(4):
+        sp = simulate_species_tree(birth=1.2, death=0.4, n_extant=6, seed=seed)
+        r = simulate_genomes_nucleotide(
+            sp, chromosomes=[(800, "circular"), (600, "circular")], genes=4, gene_length=100,
+            loss=12.0, loss_length=400,                  # brutal loss: tries hard to empty things
+            translocation=8.0, translocation_length=400, # tries to carry the last gene away
+            fission=6.0, fusion=3.0,                     # tries to split off a geneless half
+            transposition=4.0, transposition_length=200, inversion=4.0, inversion_length=200,
+            duplication=3.0, duplication_length=200, transfer=3.0, transfer_length=200,
+            chromosome_origination=2.0, chromosome_loss=1.0, origination_length=80, seed=seed)
+        for node_id, g in r.genomes.items():
+            assert g.chromosomes                          # a genome always keeps a chromosome
+            assert g.length > 0                           # ...and a lineage never ends up with no DNA
+            for c in g.chromosomes:
+                assert c.n_genes >= 1, f"node {node_id} chromosome {c.id} lost its last gene"
+                assert c.length > 0                       # so a chromosome is never empty either
+        _invariants_hold(r)
