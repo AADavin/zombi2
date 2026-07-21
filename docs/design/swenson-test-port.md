@@ -40,17 +40,17 @@ have to be re-derived.
 | Fork test | What it exercised | Where it landed |
 | --- | --- | --- |
 | `test_geneorder_events.py` (4) | replay the per-branch gene-order events → reconstruct the genomes | **Ported** → `tests/test_genomes_event_positions.py`. Needed new output first — see below. |
-| `test_events.py` (26) | exact gene order / orientation / intergene lengths after a scripted inversion | **Ported (inversions)** → `tests/test_genomes_geneorder_examples.py`. Its D/T/L/O worked examples are **not** portable — see below. |
+| `test_events.py` (26) | exact gene order / orientation / intergene lengths after a scripted event | **Ported** → `tests/test_genomes_geneorder_examples.py`: inversion, tandem duplication, loss, transposition and origination. Its 2 transfer cases are not — see below. |
 | `test_divisions.py` (8) | `natural_cuts` / `init_divisions` boundaries after inversions | **Ported** → `test_blocks_tile_the_chromosome_and_split_only_at_the_cuts`, plus the composing-inversions case. |
 | `test_randomization.py` (5) | same seed → identical output directory | **Ported** → `tests/test_cli_determinism.py`, widened to the whole pipeline. |
-| `test_genomes.py` (2) | `cut_and_paste`, coordinate exclusion | **Already covered** by `test_genomes_ordered.py` (`test_transpose_relocates_a_segment_within_the_chromosome_preserving_ids` and its flipping twin). Not duplicated. |
+| `test_genomes.py` (2) | `cut_and_paste`, coordinate exclusion | **Ported** → the transposition cases in `test_genomes_geneorder_examples.py`, gene-aware where the ordered-level tests are id-only. |
 | `test_commandline.py` (5) | modes run; `All_genomes` vs `Genomes` crosscheck | **Already covered** by `test_cli.py` (files exist, per level) plus the replay test (the crosscheck's real content). |
 | `test_pieces.py` (4) | divisions/pieces after events | **Not ported** — ~80% commented-out stubs in the fork; the live assertions are a subset of `test_divisions.py`. |
 
 ## What the port needed built first
 
-Krister's best test could not run against the clean core as it stood, so three things changed. Each
-is a feature in its own right, not test scaffolding:
+Krister's tests could not run against the clean core as it stood, so four things changed. Each is a
+feature in its own right, not test scaffolding:
 
 1. **`gene_order.tsv` covers every node** (was extant tips only). A branch's rearrangements are
    meaningless without the genome it started from, which is its parent's row set.
@@ -61,6 +61,12 @@ is a feature in its own right, not test scaffolding:
    edge outright instead of being matched by timestamp.
 3. **A `write()` for the nucleotide resolution**, and `zombi2 genomes --resolution nucleotide`.
    Before this the whole resolution was in-memory only.
+4. **The mutators split into choose and apply.** `Chromosome` already had `invert(start, length)`;
+   `duplicate`, `delete`, `originate` and `excise`/`place` now sit beside it, and the `_do_*` events
+   pick with the rng and then call them. That is what lets a test run the fork's way — all rates
+   zero, then events applied by hand — and it is one implementation, not two, so the engine runs
+   exactly the code a scripted event runs. `tests/test_genomes_nucleotide_golden.py` pins the rng
+   draw order against a stored fixture, since that was the whole risk of the extraction.
 
 ## What was deliberately not ported
 
@@ -69,11 +75,9 @@ is a feature in its own right, not test scaffolding:
   random inversions against an independent brute-force array. One scenario is kept
   (`test_trace_back_maps_every_position_home`) to fix the *convention* — that is what a worked
   example is for; the rest would add bulk, not coverage.
-- **The fork's tandem-duplication / loss / origination / transfer worked examples.** At the
-  nucleotide resolution only inversion takes explicit coordinates; the others draw their position
-  from the rng, so scripting one means reaching past the engine's public surface. The *properties*
-  they assert are covered by the ordered-level tests and the oracle. **If it is worth making these
-  mutators scriptable, this is the reason to.**
+- **The fork's 2 transfer worked examples.** A transfer needs a donor and a recipient alive at the
+  same instant, so scripting one means driving a global timeline, not a chromosome. The file-based
+  replay test covers transfers instead, which is the stronger check anyway.
 - **`test_pieces.py`**, which is mostly commented out upstream.
 
 ## The gap that is still open
@@ -89,5 +93,6 @@ the test is for.
 ```
 pytest tests/test_genomes_geneorder_examples.py \
        tests/test_genomes_event_positions.py \
-       tests/test_cli_determinism.py
+       tests/test_cli_determinism.py \
+       tests/test_genomes_nucleotide_golden.py
 ```
