@@ -1,8 +1,8 @@
 # Genomes I: unordered
 
-Genomes live inside the species tree and they can be simulated with different levels of resolution. The simplest case would be a single gene family evolving the species tree. The most complex, one genome in which every nucleotide is tracked across multiple chromosomes.
+Genomes live inside the species tree, and they can be simulated at different levels of **resolution**. The simplest case is a single gene family evolving along the species tree. The most complex is a genome in which every nucleotide is tracked across several chromosomes. ZOMBI2 offers three resolutions, one per chapter: **unordered** here, **ordered** in Chapter 5, **nucleotide** in Chapter 6.
 
-The **unordered** resolution account for genomes in which there are only gene families evolving inside the species tree and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
+The **unordered** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
 
 ## The four events
 
@@ -30,7 +30,7 @@ The root starts with `initial_families` families of one copy each, recorded as o
 
 The rates follow the **same grammar as the species level** (`base` optionally wrapped in a scope, optionally multiplied by modifiers). The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want — more genes, more chances. Origination is counted **per lineage**: acquiring a wholly new family is a property of the lineage, not of any gene it already has.
 
-Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome, fast early and slow later, or any schedule you give:
+Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
 
 ```python
 from zombi2.rates import modifiers as mod
@@ -38,13 +38,13 @@ from zombi2.rates import modifiers as mod
 g = simulate_genomes_unordered(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
 
-## Lateral Gene Transfers
+## Lateral gene transfers
 
-Transfer is the one event that couples lineages, and it is what makes the unordered resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**. 
+Transfer is the one event that couples lineages, and it is what makes the unordered resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**.
 
 Three arguments shape what a transfer does:
 
-- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*, meaning its strength means the same whether your tree is measured in years or in millions of them.
+- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*: its strength means the same whether your tree is measured in years or in millions of them.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
 - **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Combined with `replacement=True` it is not a duplication at all: the arriving copy overwrites a paralogue in the same genome, which is gene conversion.
 
@@ -63,8 +63,8 @@ One consequence is worth stating plainly: a transfer can arrive **from a lineage
 `simulate_genomes_unordered` returns a **GenomesResult** which carries:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages and all.
-- `.genomes` — a dict from node to that node's genome
-- `.events` — the event log: every gene event with its time and lineage — origination, duplication, transfer, loss, and the *speciations* at a split. 
+- `.genomes` — a dict from node to that node's genome.
+- `.events` — the event log: every gene event with its time and lineage — origination, duplication, transfer, loss, and the *speciations* at a split.
 - `.profiles` — the family × extant-species copy-count table.
 - `.gene_trees` — one `GeneTree` per family.
 - `.seed` — the seed, so the run reproduces.
@@ -84,7 +84,7 @@ g.write("out/")                      # genome_events.tsv + profiles.tsv
 
 Two products are usually what you came for, and ZOMBI2 derives both from the run's recorded history.
 
-**Profiles** are the classic comparative-genomics view: how many copies of each gene family sit in each extant species.  They are read straight off the observed genomes, so the run stays lean and you materialise them on access.
+**Profiles** are the classic comparative-genomics view: how many copies of each gene family sit in each extant species. They are read straight off the observed genomes, so the run stays lean and you materialise them on access.
 
 ```python
 g.profiles.matrix        # families × extant-species copy counts, a NumPy array
@@ -92,7 +92,7 @@ g.profiles.presence      # the same as 0/1 presence/absence
 g.profiles.to_tsv()      # the table as text
 ```
 
-**Gene trees** are the deeper output. Every family has two trees:  the `.complete` tree with every gene lineage and the `.extant` tree pruned to the genes that survive. 
+**Gene trees** are the deeper output. Every family has two trees: the `.complete` tree with every gene lineage, and the `.extant` tree pruned to the genes that survive.
 
 ```python
 gt = g.gene_trees[7]                 # the gene tree of family 7
