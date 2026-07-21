@@ -55,7 +55,7 @@ alignment and its internal nodes with the ancestral sequences.
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
 | Values | `trait_values.tsv` | TSV | yes | value at each extant tip — `node · trait` |
-| Changes | `trait_changes.tsv` | TSV | no | realized transitions per branch — `time · kind · lineage · from · to` (header-only for a continuous trait) |
+| Changes | `trait_changes.tsv` | TSV | no | realized changes — `time · kind · lineage · from · to`, where `kind` is `on_branch` or `on_speciation` (a continuous trait diffuses, so it logs only its `at_speciation` jumps: header-only without them) |
 | Trait tree | `trait_tree.nwk` | Newick | no | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL) |
 | Driver | `trait_driver.tsv` | TSV | no | the conditioning driver file a genome/sequence run reads via `mod.DrivenBy(...)` (a discrete trait only) |
 
