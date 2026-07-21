@@ -29,21 +29,25 @@ Python) · Contents.
 
 ## Project
 
-ZOMBI2 is a phylogenetic simulator (Rust engine + Python library + CLI) that simulates four levels of
-evolution — species trees, genomes, sequences, traits — independently, conditioned, or jointly, and
-records the true history behind every dataset. Author: Adrián Davín.
+ZOMBI2 is a phylogenetic simulator (Python library + CLI) that simulates four levels of evolution —
+species trees, genomes, sequences, traits — independently, conditioned, or jointly, and records the
+true history behind every dataset. Author: Adrián Davín.
+
+The clean core is **pure Python**: nothing in `zombi2/` imports the Rust extension. A Rust engine is
+stage 2 of the rebuild; today only `legacy/` binds to it.
 
 ## Run environment
 
 - Python: `/Users/aadria/miniconda3/bin/python` (3.12). Bare `python`/`zombi2` are not on PATH.
-- After any `rust/` change, rebuild: `maturin build --release -m rust/Cargo.toml` then force-reinstall.
+- The clean core needs **no build step**. If `rust/` ever gets wired into `zombi2/`, rebuild after any
+  `rust/` change: `maturin build --release -m rust/Cargo.toml` then force-reinstall.
 - PDF/manual toolchain: `xelatex` at `/Library/TeX/texbin`, `pandoc` + `rsvg-convert` on PATH.
 
 ## Manual revision (in progress)
 
 A chapter-by-chapter rewrite of the manual is underway with Adrián, tracked in `manual/revision/`:
 - `dashboard.yml` — every round-1 comment + the ratified decisions (source of truth for the revision).
-- `proposed-index.md` — the agreed 11-chapter index with section detail.
+- `proposed-index.md` — the agreed 9-chapter index with section detail.
 - `SPEC.md` (in `docs/design/`) is the distilled constitution; the manual is its exposition.
 
 Work happens on a branch in an isolated worktree, not the shared main checkout.
