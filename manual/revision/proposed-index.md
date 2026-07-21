@@ -55,19 +55,28 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - Gene trees and the event log — the event log is a full genealogy; reconstructing the gene trees; reconciliation ⟨from old ch8⟩
 - **Tail:** the genome & profile objects → Python → CLI → Outputs *(profile matrix, sparse; event trace)* ⟨D7⟩
 
-*(The old "Genomes II — Structured" was **split in two** on 2026-07-21: one chapter was carrying gene order, rearrangements, the karyotype and the chromosome network at once. The seam is order *within* a chromosome versus the chromosomes themselves.)*
+*(The old "Genomes II — Structured" was **split in two** on 2026-07-21, then **re-cut the same day**:
+splitting the ordered resolution across two chapters left the karyotype separated from the gene order
+it carries, while the **nucleotide** resolution — built, and the third rung of the resolution ladder —
+had no chapter at all. So the ordered resolution is one chapter again, chromosomes first, and the
+freed chapter goes to nucleotide. The three genome chapters are now exactly the three resolutions.)*
 
-### 5. Genomes II — Gene order
+### 5. Genomes II — Ordered
 - From families to positions: what structure adds
-- Events act on **segments** — the extension, and why neighbours share a history
-- Rearrangements: inversion, transposition, translocation
-- **Tail:** the `OrderedGenomesResult` object → Python → CLI → Outputs *(gene order, rearrangements)* ⟨D7⟩
-
-### 6. Genomes III — Chromosomes
 - The karyotype: number and topology (circular / linear)
 - The chromosome tier: **fission, fusion, chromosome origination, chromosome loss**
 - The **chromosome network** — species tree ⊃ chromosome network ⊃ gene trees; a reticulating graph, written as an edge list
-- **Tail:** Python → CLI → Outputs *(chromosome events)* ⟨D7⟩
+- Events act on **segments** — the extension, and why neighbours share a history
+- Rearrangements: inversion, transposition, translocation
+- **Tail:** the `OrderedGenomesResult` object → Python → CLI → Outputs *(gene order, rearrangements, chromosome events)* ⟨D7⟩
+
+### 6. Genomes III — Nucleotide
+- A genome as a coordinate space of base pairs: **blocks**, and genes vs intergenes
+- **Genes are never split** — how an event picks its extent, and the two consequences: turnover is emergent and size-dependent, and the realised extent is not the one you asked for
+- The events, now in bp — and the one scope change: **per lineage**, not per copy
+- Chromosomes here: sizes and shapes, and *a chromosome never exists without a gene*
+- Seeding the root genome: evenly spaced genes, or a **GFF**
+- **Tail:** the `NucleotideGenomesResult` object → Python → Outputs ⟨**open:** no CLI and no `.write()` yet, so the chapter documents Python accessors only⟩
 
 ### 7. Sequence evolution  *(merges old 12 + 13)*
 - The idea: one branch length = one expected substitution — the phylogram is the deliverable ⟨C12.3, was buried at the end⟩
