@@ -6,9 +6,9 @@ The species tree is the backbone every other level runs on, so it is where almos
 
 A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give ZOMBI2 a **speciation rate** and an **extinction rate**, and it plays the birth–death process out: every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest. Out comes a dated, bifurcating tree of the lineages that survive to the present.
 
-The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process, which in ZOMBI2 is just birth–death with the death rate at zero, not a separate model. As extinction rises, the tree of survivors becomes a thinner and thinner trace of the one that actually grew; what became of the lineages that died is taken up later, under *Extinct lineages*.
+The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. As extinction rises, the tree of survivors becomes a thinner and thinner trace of the one that actually grew; what became of the lineages that died is taken up later, under *Extinct lineages*.
 
-You also say when to stop: grow the tree to a fixed **total time** (`total_time`), or until it reaches a fixed **number of surviving tips** (`n_extant`). Both work.
+You also say when to stop: grow the tree to a fixed **total time** (`total_time`), or until it reaches a fixed **number of surviving lineages** (`n_extant`). Both work.
 
 ```python
 from zombi2 import species
@@ -16,26 +16,32 @@ from zombi2 import species
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 ```
 
-By default each rate is counted **per lineage**: every branch alive is an independent chance for the event to fire. To make a rate a single shared budget for the whole tree instead, wrap it: `birth = scope.Global(1.0)`. The scope wrappers live in `zombi2.rates.scope` (`scope.Global`, `scope.PerLineage`, …), and `Global` is capitalised because `global` is a reserved word in Python.
-
-## What the rate depends on
+## Simulating species trees with variable rates
 
 So far the rates have been constant, but a birth or death rate need not be. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. You express each the same way: multiply the base rate by a **modifier** that names what it depends on.
 
-- **OnTime** — the rate changes at set moments, fast early and slow later, or any schedule you give. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then a third of it.
-- **OnTotalDiversity** — the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
-- **FromParent** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
+- **To make the rates depend on time** — You can simulate a tree in which the rates have change at specific points in time. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then a third of it.
+- **To make the rates depend on the total diversity** — You can simulate a tree in which the rate slows as the tree fills up, so diversity levels off toward a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
+- **To make the rates themselves dependant on their parents** — You can simulate in which each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
 
-The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death are bent independently. Note the two ways of shaping a rate: you *wrap* it to set the scope (`scope.Global`), and you *multiply* it to bend it (`* mod.OnTotalDiversity`).
+CLAUDE, QUESTION: IT IS NOT POSSIBLE TO MAKE SPECIATION AND EXTINCTION UNCORRELATED? EVERY TIME A NEW BRANCH IS BORN, YOU DRAW FROM A DISTRIBUTION. I AM JUST ASKING
 
-| What it does | Here | From the literature |
+The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` (a rate that changes in time *and* saturates). Birth and death can be modified independently.
+
+## Other models
+
+The modifiers allow the user to create all sorts of very specific evolutionary scenarios. However, in ZOMBI2 we have included some other models that are a bit difficult to express in the previous framework. So far we have also the possibility of simulating mass extinctions (in which at a specific given point, only a fraction of the total lineages survive) and (CLAUDE ANY OTHERs?)
+
+## A summary of models
+
+CLAUDE FOR THE TABLE. MAKE LITERATURE THE LAST COLUMN. MAKE WHAT IT DOES THE FIRST COLUMN
+
+| From the literature | What it does | Here |
 |---|---|---|
-| rates change at set times | `1.0 * mod.OnTime({…})` | skyline / episodic birth–death |
-| rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` | diversity-dependent diversification |
-| rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` | ClaDS |
-| a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
-
-A **mass extinction** belongs here too, as the extinction rate spiking at a single instant: a fraction of the living culled at a chosen time (measured forward from the crown, like every time in ZOMBI2). Because it is a pulse and not a steady rate, it is its own argument. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3.
+| skyline / episodic birth–death | rates change at set times | `1.0 * mod.OnTime({…})` |
+| diversity-dependent diversification | rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` |
+| ClaDS | rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` |
+| mass extinction | a fraction culled at an instant | `mass_extinctions=[(t, f)]` |
 
 ## Sampling
 
@@ -55,15 +61,13 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fos
 
 ## Extinct lineages
 
-Every birth–death tree is really two trees. The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **extant** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want. ZOMBI2 grows the tree **forward** in time and records the complete tree; the extant tree is the survivors pruned out of it, with the internal nodes that lose all their descendants suppressed so it stays dated and bifurcating.
+The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **extant** tree keeps only the survivors, the extant species, and it is what you get by default, because it is almost always what you want. ZOMBI2 grows the tree **forward** in time and records the complete tree; the extant tree is the survivors pruned out of it, with the internal nodes that lose all their descendants suppressed so it stays dated and bifurcating.
 
 *(Backward sampling of the extant tree, and ghost lineages, are planned for a later release; v1 is forward-only.)*
 
 ## The `SpeciesResult` object
 
-`simulate_species_tree` returns a **`SpeciesResult`**, not a bare tree — a birth–death run produces *two* trees plus the event log, and no single tree object can hold all three. Every level returns a bundle of this shape (`GenomesResult`, `SequencesResult`, `TraitsResult`), so the four levels stay symmetric.
-
-A `SpeciesResult` carries:
+`simulate_species_tree` returns a **`SpeciesResult`**, which carries:
 
 - `.extant_tree` — the survivors' tree, dated and bifurcating; this is what you get by default and hand to the next level.
 - `.complete_tree` — the whole tree that grew, with the extinct lineages still on it.
@@ -108,8 +112,6 @@ zombi2 species --birth 1.0 --death 0.3 --n-extant 20 --seed 1 -o out/
 # grow to time 5, with a mass extinction at time 3 and half the survivors sampled
 zombi2 species --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 2 -o out/
 ```
-
-The scope-and-modifier richness (the skyline, the diversity cap, clade drift) has no flags; those compositions live in Python, where a rate is a small expression rather than a number. Every flag name *is* the Python keyword, so a `--params` TOML file can carry the same keys and drive a whole pipeline, and `--write` chooses which outputs to keep.
 
 ## Outputs
 
