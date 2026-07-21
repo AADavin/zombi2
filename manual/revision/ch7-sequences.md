@@ -3,7 +3,7 @@
 The sequence level does two main things:
 
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
-* It evolves the nucleotides that sit inside every gene, so each family ends with an alignment.
+* It evolves the residues that sit inside every gene, so each family ends with an alignment.
 
 The sequence level is always dependent on a genome-level run, and it takes that run's result directly:
 
@@ -28,14 +28,25 @@ Two things therefore have to be chosen: *what* changes (the substitution model, 
 ZOMBI2 implements different standard models of sequence evolution:
 
 ```python
-# --- nucleotide models ---
+# --- nucleotide models (4 states, ACGT) ---
 model = jc69()                    # equal rates, equal base frequencies — no free parameters
 model = k80(kappa=2.0)            # a transition/transversion bias
 model = hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))            # bias + unequal frequencies
 model = gtr(rates=(1,2,1,1,2,1), freqs=(0.25,0.25,0.25,0.25))   # six exchangeabilities + freqs
+
+# --- protein models (20 states, amino acids) ---
+model = poisson()                 # equal rates, equal frequencies — the JC69 of proteins
+model = jtt()                     # Jones, Taylor & Thornton 1992
+model = dayhoff()                 # Dayhoff, Schwartz & Orcutt 1978
+model = wag()                     # Whelan & Goldman 2001
+model = lg()                      # Le & Gascuel 2008
 ```
 
-All four are nucleotide models, so `length` counts sites and each site holds one of the four bases. They are four different models, not one model with four settings: each has its own rate matrix. They do nest, though, in the order written — `jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies — so each step down the list adds free parameters.
+The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one.
+
+The nucleotide models are four different rate matrices, not one model with four settings, but they do nest in the order written — `jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies — so each step down the list adds free parameters.
+
+The protein models work differently. Their rate matrices are **empirical**: each was estimated once from a large set of real alignments and is then used as a fixed table. That is why they take no parameters. You choose one, you do not tune it. `poisson` is the exception that proves the rule — it gives every replacement the same rate, and is useful as a null rather than as a description of any real protein.
 
 ## Relaxed molecular clocks
 
@@ -89,7 +100,7 @@ An end-to-end run, from a species tree through genomes to alignments:
 ```python
 from zombi2 import species, genomes, sequences
 from zombi2.rates import modifiers as mod
-from zombi2.sequences.substitution_models import hky85, gtr
+from zombi2.sequences.substitution_models import hky85, gtr, lg
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
 my_genomes = genomes.simulate_genomes_unordered(tree, duplication=0.2, transfer=0.1,
@@ -107,6 +118,9 @@ result = sequences.simulate_sequences(my_genomes,
     model=gtr(rates=(1, 2, 1, 1, 2, 1), freqs=(0.3, 0.2, 0.2, 0.3)),
     substitution=1.0 * mod.ByLineage(spread=0.3),   # the relaxed clock
     length=500, seed=1)
+
+# proteins under LG — 300 residues per gene
+result = sequences.simulate_sequences(my_genomes, model=lg(), length=300, seed=1)
 ```
 
 ## Usage from the CLI
@@ -128,6 +142,15 @@ zombi2 sequences --genomes out/ --model gtr \
     --substitution "1.0 * ByLineage(spread=0.3)" \
     --seed 1 -o seqs/ --write alignments phylograms ancestral species_phylogram
 ```
+
+A protein model is the same command with a different `--model`:
+
+```bash
+# proteins under LG, 300 residues per gene
+zombi2 sequences --genomes out/ --model lg --length 300 --seed 1 -o seqs/
+```
+
+Because a protein model has no parameters, passing one is an error rather than a flag that gets quietly ignored: `--model lg --kappa 2.0` stops with *"these options don't apply to --model lg: --kappa"*.
 
 The clock keeps its written form on the command line, exactly as in Python — `"1.0 * ByLineage(spread=0.3)"` is the same expression either way, so a rate can be moved between a script, a flag and a `--params` file without being rewritten.
 

@@ -19,13 +19,20 @@ the same small shared vocabulary the rest of ZOMBI2 uses.
 
 ## The entry point
 
-One function, taking the gene trees a genome run produced:
+One function, taking the **genome run** whose gene trees the sequences evolve along:
 
 ```python
-sequences.simulate_sequences(gene_trees, model=hky85(kappa=2.0), length=1000, seed=1)
+genomes_run = genomes.simulate_genomes_unordered(species_run, duplication=0.2, loss=0.2, seed=1)
+sequences.simulate_sequences(genomes_run, model=hky85(kappa=2.0), length=1000, seed=1)
 ```
 
 (Today the surface is a `SequenceEvolution` class plus `evolve_on_tree`; the function is the target.)
+
+**The whole run, not just its `.gene_trees`** (decided with Adrián, 2026-07-21). A bare
+`{family: GeneTree}` mapping would run, but silently degraded: the lineage clock below is drawn *per
+species branch* and shared across families, so without the species tree there is no clock and no
+`species_phylogram`. A level reads the level above it whole; a mapping is rejected with the loud
+error the other levels use.
 
 ## Two things vary, and they are different axes
 
@@ -38,7 +45,7 @@ They are orthogonal and must not be conflated:
   `+Γ` of phylogenetics and stays its own argument (`gamma=0.5`, the shape α), not a clock.
 
 ```python
-sequences.simulate_sequences(gene_trees,
+sequences.simulate_sequences(genomes_run,
     model=gtr(...),                       # the substitution model (a menu, see below)
     substitution=1.0 * mod.ByLineage(spread=0.3),   # the clock: across-lineage variation
     gamma=0.5,                            # +Γ: across-site variation (shape α)
@@ -161,5 +168,5 @@ this is the sequence chapter's.
 - Keep the substitution models as a **menu** of constructors (`jc69`, `k80`, `hky85`, `gtr`, `lg`, …);
   they are genuinely different matrices, not a zoo.
 - Keep `+Γ` as its own `gamma=` argument (across-site variation ≠ across-branch clock).
-- Add the `sequences.simulate_sequences(gene_trees, …)` entry point over the existing evolution core.
+- Add the `sequences.simulate_sequences(genomes_run, …)` entry point over the existing evolution core.
 - `DriverClock` → a Part III conditioning (`traits`/level → sequences), not a menu member.

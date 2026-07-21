@@ -1,19 +1,25 @@
 """Sequences — level 3: a sequence evolving inside a gene, along its gene tree.
 
 A sequence lives **inside a gene**, so it sees the species tree only through its gene tree
-(``SPEC §1``): :func:`simulate_sequences` takes the ``{family: GeneTree}`` a genome run produced
-(``GenomesResult.gene_trees``) and evolves one sequence down each family's *complete* gene tree under
-a substitution **model** (the menu — :func:`jc69` · :func:`k80` · :func:`hky85` · :func:`gtr`) and a
+(``SPEC §1``): :func:`simulate_sequences` takes a **genome run** (a
+:class:`~zombi2.genomes.GenomesResult`) and evolves one sequence down each family's *complete* gene
+tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``,
+or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; :mod:`.substitution_models`) and a
 substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are **target-only** in
 v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
+
+The whole genome run is required, not just its gene trees, because a level below reads the level
+above: the **species tree** is what the lineage clock rides (one rate per species branch, shared by
+every family passing through it — ``SPEC §5``) and what the ``species_phylogram`` is drawn on. Bare
+gene trees would run, but silently without either, so they are rejected.
 
 ``substitution`` is a per-site rate (a bare number, default ``1.0``: a gene-tree branch of ``Δt`` time
 gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it
 (``SPEC §5``, the by-lineage rate modifier). The other clocks (``FromParent`` drift, ``Markov`` hops),
-the per-family ``ByFamily`` speed, across-site ``+Γ``, protein/codon models, real-genome-at-root, the
-``record=`` memory dial, and the CLI are named later slices; each is a pure addition.
+the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, real-genome-at-root, and the
+``record=`` memory dial are named later slices; each is a pure addition.
 
 The result is a :class:`SequencesResult` bundle mirroring the other levels (``result-api.md``):
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
@@ -62,16 +68,16 @@ class SequencesResult:
       behind each alignment. **Every** node is labelled by its gene id ``g<copy>``, so the tips match
       the ``alignments`` keys and the internal nodes match the ``ancestral`` keys (the phylogram pairs
       one-to-one with the sequences). ``"extant"`` is ``None`` for a family with no survivor.
-    - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``, or ``None`` when the
-      run was given bare gene trees rather than a ``GenomesResult``: the **species tree** with branch
-      lengths in substitutions/site — the molecular clock made visible (which lineages ran hot / cold).
+    - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``: the **species tree**
+      with branch lengths in substitutions/site — the molecular clock made visible (which lineages ran
+      hot / cold). Always present: a run always comes from a genome run, which carries its tree.
     - ``seed`` — the run's seed.
     """
 
     alignments: dict[int, dict[str, str]]
     ancestral: dict[int, dict[str, str]]
     phylograms: dict[int, dict[str, str | None]]
-    species_phylogram: dict[str, str | None] | None
+    species_phylogram: dict[str, str | None]
     seed: int | None
 
     def write(self, directory, outputs=("alignments", "phylograms")) -> None:
@@ -80,8 +86,7 @@ class SequencesResult:
         - ``"alignments"`` → ``sequences_alignment_fam<family>.fasta`` (skipped for empty families).
         - ``"ancestral"`` → ``sequences_ancestral_fam<family>.fasta``.
         - ``"phylograms"`` → ``sequences_phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
-        - ``"species_phylogram"`` → ``sequences_species_phylogram_{complete,extant}.nwk`` (subs/site;
-          nothing written when the run was given bare gene trees).
+        - ``"species_phylogram"`` → ``sequences_species_phylogram_{complete,extant}.nwk`` (subs/site).
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -101,7 +106,7 @@ class SequencesResult:
                 (d / f"sequences_phylogram_fam{fam}_complete.nwk").write_text(ph["complete"] + "\n")
                 if ph["extant"] is not None:
                     (d / f"sequences_phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
-        if "species_phylogram" in outputs and self.species_phylogram is not None:
+        if "species_phylogram" in outputs:
             sp = self.species_phylogram
             (d / "sequences_species_phylogram_complete.nwk").write_text(sp["complete"] + "\n")
             if sp["extant"] is not None:
@@ -140,8 +145,9 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
 
 def _all_species(gene_trees) -> list[int]:
     """The sorted set of species-branch ids the gene trees touch — the lineages the clock is drawn
-    over. Collected from the gene trees (so it works with a bare ``{family: GeneTree}`` too); every
-    branch that needs a clock value has its species branch present as some node's ``species``."""
+    over. Collected from the gene trees rather than the species tree, so the draws depend only on the
+    branches genes actually pass through; every branch that needs a clock value has its species
+    branch present as some node's ``species`` (a branch no gene crossed keeps the factor 1.0)."""
     ids: set[int] = set()
     for gt in gene_trees.values():
         stack = [gt.complete]
@@ -224,17 +230,22 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
     return Tree(scaled, tree.root)
 
 
-def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
+def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
                        substitution=1.0, seed=None) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
-    ``gene_trees`` is a ``{family: GeneTree}`` mapping (a genome run's ``GenomesResult.gene_trees``),
-    or a :class:`~zombi2.genomes.GenomesResult` directly (its ``gene_trees`` are used). Each family's
-    *complete* gene tree is evolved, so the true history is complete and ancestral sequences exist for
-    extinct/lost lineages too; the observable ``alignments`` are the extant tips.
+    ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.GenomesResult` that
+    ``genomes.simulate_genomes_unordered(...)`` returned. Its ``gene_trees`` are what the sequences
+    evolve along and its ``complete_tree`` is the species tree the lineage clock rides; bare gene
+    trees are rejected (they would run, but with no clock and no species phylogram — a silent
+    degradation). Each family's *complete* gene tree is evolved, so the true history is complete and
+    ancestral sequences exist for extinct/lost lineages too; the observable ``alignments`` are the
+    extant tips.
 
-    ``model`` is a substitution model from the menu (:func:`jc69` · :func:`k80` · :func:`hky85` ·
-    :func:`gtr`). ``length`` is the number of sites. ``substitution`` is the per-site substitution
+    ``model`` is a substitution model from the menu (:mod:`.substitution_models`) — nucleotide
+    ``jc69`` · ``k80`` · ``hky85`` · ``gtr``, or protein ``poisson`` · ``jtt`` · ``dayhoff`` ·
+    ``wag`` · ``lg``; its alphabet is what the sequences are written in (``ACGT`` or the 20 amino
+    acids). ``length`` is the number of sites. ``substitution`` is the per-site substitution
     rate (default ``1.0``): a branch of ``Δt`` time accrues ``substitution · Δt`` substitutions/site.
     The root sequence of each family is drawn from the model's stationary frequencies. Deterministic
     given ``seed``.
@@ -245,14 +256,20 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
     (the ``FromParent`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
     non-``PerSite`` scope is a later slice and raises.
 
-    The result carries the **phylograms** the sequences were drawn along — each gene tree, and (when a
-    ``GenomesResult`` is passed) the species tree, with branch lengths converted from time to
-    substitutions/site by the same ``base × clock × Δt``.
+    The result carries the **phylograms** the sequences were drawn along — each gene tree and the
+    species tree, with branch lengths converted from time to substitutions/site by the same
+    ``base × clock × Δt``.
     """
-    species_tree = None
-    if isinstance(gene_trees, GenomesResult):
-        species_tree = gene_trees.complete_tree
-        gene_trees = gene_trees.gene_trees
+    if not isinstance(genomes, GenomesResult):
+        raise TypeError(
+            f"the sequence level runs on a genome run, got {type(genomes).__name__} — pass the "
+            "GenomesResult that genomes.simulate_genomes_unordered(...) returned: the whole run, "
+            "not its .gene_trees (the ordered / nucleotide results are a later slice). A sequence "
+            "lives inside a gene, but its clock rides the *species* branch that gene sits on — one "
+            "draw per lineage, shared by every family — so the run needs the species tree too."
+        )
+    species_tree = genomes.complete_tree
+    gene_trees = genomes.gene_trees
     if not isinstance(model, SubstitutionModel):
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
     if isinstance(length, bool) or not isinstance(length, int) or length < 1:
@@ -295,12 +312,10 @@ def simulate_sequences(gene_trees, *, model: SubstitutionModel, length: int,
         phylograms[family] = {"complete": _gene_newick(scaled.complete),
                               "extant": _gene_newick(ext) if ext is not None else None}
 
-    species_phylogram = None
-    if species_tree is not None:
-        sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)
-        sp_extant = prune(sp_scaled, keep="extant")
-        species_phylogram = {"complete": sp_scaled.to_newick(),
-                             "extant": sp_extant.to_newick() if sp_extant is not None else None}
+    sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
+    sp_extant = prune(sp_scaled, keep="extant")
+    species_phylogram = {"complete": sp_scaled.to_newick(),
+                         "extant": sp_extant.to_newick() if sp_extant is not None else None}
 
     return SequencesResult(alignments, ancestral, phylograms, species_phylogram, seed)
 
