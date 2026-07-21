@@ -23,11 +23,14 @@ physical order; ``natural_cuts`` → block boundaries; ``Inversion.afterToBefore
 
 Not ported: the fork's per-nucleotide ``afterToBeforeS``/``afterToBeforeT`` arithmetic cases, whose
 content the oracle already proves for arbitrary inputs (one scenario is kept below, to fix the
-*convention*); the transposition-does-not-flip contrast, already in ``test_genomes_ordered``
-(``test_transpose_relocates_a_segment_within_the_chromosome_preserving_ids`` and its flipping twin);
-and the fork's tandem-duplication / loss / transfer worked examples, because at this resolution only
-inversion takes explicit coordinates — the others draw their position from the rng, so there is no
-way to script one without reaching past the engine's public surface.
+*convention*); and its transfer worked examples, which need a donor and a recipient alive at the
+same instant — a global timeline, not a scripted chromosome.
+
+Every example runs the same way the fork's did: a run with all rates zero, so the root genome is
+exactly the declaration, and then the events applied by hand. What the engine draws from the rng,
+these call outright — the mutators take explicit coordinates (``invert``, ``duplicate``, ``delete``,
+``originate``, ``excise``/``place``), and the engine calls those same ones after picking, so there
+is no second code path to drift.
 """
 
 import pytest
@@ -243,3 +246,146 @@ def test_trace_back_maps_every_position_home(tmp_path):
     assert strands[:3] == [1, 1, 1] and strands[3:9] == [-1] * 6 and strands[9:12] == [1, 1, 1]
     # the multiset of ancestral positions is conserved: an inversion moves material, never makes it
     assert sorted(where) == list(range(30))
+
+
+# --- tandem duplication: the fork's test_tandemdup_* ----------------------------------------------
+
+def _counter(start=100):
+    """A copy-id minter, standing in for the engine's."""
+    n = [start]
+
+    def mint():
+        n[0] += 1
+        return n[0]
+    return mint
+
+
+def test_a_tandem_duplication_copies_a_gene_in_place(tmp_path):
+    # the arc [3, 9) is spacer + g2. Duplicated in tandem the copy lands immediately after, so the
+    # genome reads g1, spacer, g2, spacer, g2, then on as before — g2 twice, six bases longer.
+    chrom = _seed(tmp_path)
+    copied = chrom.duplicate(3, 6, _counter())
+    assert chrom.length == 36
+    assert _genes(chrom) == [(1, 1), (2, 1), (2, 1), (3, 1), (4, 1), (5, 1)]
+    assert [(p, n, g) for (p, n, g, _s) in _layout(chrom)][:5] == [
+        (0, 3, 1), (3, 3, 0), (6, 3, 2), (9, 3, 0), (12, 3, 2)]
+    # the record names each block's parent copy and the fresh child it begot
+    assert [(src, beg, end) for (_par, _child, src, beg, end) in copied] == [(0, 3, 6), (0, 6, 9)]
+    # one fresh lineage per *copy lineage*, not per block: the seed genome is all one lineage, so
+    # the two blocks of the arc beget a single child between them
+    assert len({parent for (parent, *_rest) in copied}) == 1
+    assert len({child for (_par, child, *_rest) in copied}) == 1
+
+
+def test_a_duplicated_gene_keeps_its_orientation(tmp_path):
+    # the contrast with inversion, which is the fork's whole point in separating the two: a
+    # duplication moves nothing and turns nothing, it only adds
+    chrom = _seed(tmp_path)
+    chrom.duplicate(3, 6, _counter())
+    assert all(s == 1 for (_p, _n, _g, s) in _layout(chrom))
+
+
+def test_duplicating_a_multi_gene_arc_keeps_the_order(tmp_path):
+    # [3, 18) spans g2 and g3; the copy repeats them in the same order, unlike an inversion
+    chrom = _seed(tmp_path)
+    chrom.duplicate(3, 15, _counter())
+    assert _genes(chrom) == [(1, 1), (2, 1), (3, 1), (2, 1), (3, 1), (4, 1), (5, 1)]
+
+
+def test_a_duplication_that_would_cut_a_gene_is_refused(tmp_path):
+    chrom = _seed(tmp_path)
+    with pytest.raises(_CutsGene):
+        chrom.duplicate(4, 4, _counter())               # ends at 8, inside g2 [6, 9)
+
+
+# --- loss: the fork's test_loss_* -----------------------------------------------------------------
+
+def test_a_loss_removes_a_gene_and_closes_the_gap(tmp_path):
+    # the arc [3, 9) is spacer + g2: deleting it leaves g1 abutting the spacer that followed g2
+    chrom = _seed(tmp_path)
+    lost = chrom.delete(3, 6)
+    assert chrom.length == 24
+    assert _genes(chrom) == [(1, 1), (3, 1), (4, 1), (5, 1)]
+    assert [(src, beg, end) for (_cp, src, beg, end) in lost] == [(0, 3, 6), (0, 6, 9)]
+
+
+def test_a_loss_inside_one_intergene_removes_no_gene(tmp_path):
+    chrom = _seed(tmp_path)
+    chrom.delete(3, 3)
+    assert chrom.length == 27
+    assert _genes(chrom) == [(1, 1), (2, 1), (3, 1), (4, 1), (5, 1)]
+
+
+def test_a_loss_that_would_take_the_last_gene_does_not_happen(tmp_path):
+    # a chromosome never exists without a gene, so the whole-genome deletion is refused outright
+    chrom = _seed(tmp_path)
+    assert chrom.delete(0, 30) is None
+    assert chrom.length == 30 and len(_genes(chrom)) == 5
+
+
+def test_a_loss_may_take_every_gene_but_one(tmp_path):
+    # ...but stripping it down to a single gene is allowed
+    chrom = _seed(tmp_path)
+    assert chrom.delete(3, 24) is not None               # [3, 27): g2..g5 and their spacers
+    assert _genes(chrom) == [(1, 1)]
+    assert chrom.length == 6
+
+
+# --- transposition: the fork's test_transposition* and test_genomes.py's cut_and_paste ------------
+
+def test_a_transposition_moves_a_gene_without_turning_it(tmp_path):
+    # the fork's cut-and-paste. Lift [3, 9) (spacer + g2) out; the remainder is 24 bp reading
+    # g1, spacer, g3, spacer, g4, spacer, g5, spacer. Drop the arc back at 12 — after g3's spacer —
+    # and g2 sits between g3 and g4, still pointing forwards.
+    chrom = _seed(tmp_path)
+    assert chrom.transpose(3, 6, 12) is True
+    assert chrom.length == 30
+    assert _genes(chrom) == [(1, 1), (3, 1), (2, 1), (4, 1), (5, 1)]
+    assert all(s == 1 for (_p, _n, g, s) in _layout(chrom) if g)
+
+
+def test_a_flipped_transposition_turns_only_the_moved_block(tmp_path):
+    chrom = _seed(tmp_path)
+    chrom.transpose(3, 6, 12, flipped=True)
+    assert _genes(chrom) == [(1, 1), (3, 1), (2, -1), (4, 1), (5, 1)]
+
+
+def test_a_transposition_that_lands_inside_a_gene_leaves_the_genome_intact(tmp_path):
+    # the rollback the engine relies on: a landing that would split a gene undoes the excision
+    chrom = _seed(tmp_path)
+    before = _layout(chrom)
+    with pytest.raises(_CutsGene):
+        chrom.transpose(3, 6, 13)                        # 13 is inside g3, which sits at [12, 15)
+    assert _layout(chrom) == before                      # nothing lost, nothing moved
+
+
+def test_transposing_a_whole_arc_back_to_where_it_was_is_a_no_op(tmp_path):
+    chrom = _seed(tmp_path)
+    before = _genes(chrom)
+    chrom.transpose(3, 6, 3)
+    assert _genes(chrom) == before
+
+
+# --- origination: the fork's test_origination1 ----------------------------------------------------
+
+def test_an_origination_lays_down_a_new_gene(tmp_path):
+    # a de-novo gene of its own fresh source, inserted at a legal cut — indivisible from birth
+    chrom = _seed(tmp_path)
+    chrom.originate(9, 12, source=99, copy=500, family=42)
+    assert chrom.length == 42
+    assert _genes(chrom) == [(1, 1), (2, 1), (42, 1), (3, 1), (4, 1), (5, 1)]
+    new = next(b for b in chrom.blocks if b.gene == 42)
+    assert (new.source, new.start, new.end, new.strand) == (99, 0, 12, 1)
+
+
+def test_an_origination_inside_a_gene_is_refused(tmp_path):
+    chrom = _seed(tmp_path)
+    with pytest.raises(_CutsGene):
+        chrom.originate(7, 12, source=99, copy=500, family=42)   # 7 is inside g2 [6, 9)
+
+
+def test_an_originated_gene_is_indivisible_like_a_declared_one(tmp_path):
+    chrom = _seed(tmp_path)
+    chrom.originate(9, 12, source=99, copy=500, family=42)
+    with pytest.raises(_CutsGene):
+        chrom.invert(10, 6)                              # would cut the new gene at [9, 21)
