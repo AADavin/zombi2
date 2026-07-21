@@ -40,7 +40,7 @@ zombi2/
     mapping.py      ✅ Table · Curve · Scalar · as_mapping   (a driver value → a factor; DrivenBy's response — SPEC §2)
     driver.py       ✅ DriverTrajectory · load_driver   (a conditioned DrivenBy's file-backing: value/next-switch per lineage)
   species/           ✅ simulate_species_tree → SpeciesResult ;  Tree · Node  (the shared dated tree)
-  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered   (ordered ✅; nucleotide 🔨) — loss/dup/origination DrivenBy-conditionable ✅
+  genomes/           ✅ simulate_genomes_unordered · simulate_genomes_ordered · simulate_genomes_nucleotide   (all three on the CLI via --resolution) — loss/dup/origination DrivenBy-conditionable ✅ (unordered/ordered; nucleotide takes constant rates)
   sequences/         ✅ simulate_sequences → SequencesResult
   traits/            ✅ simulate_continuous · simulate_discrete → TraitsResult ;  discrete(...) process spec (for joint)
   joint/             ✅ simulate_joint → JointResult   (the FUSE engine; SPEC §2–4). Conditioned needs no engine — it folds into the target level via DrivenBy + rates/driver.py. "Coupling" is the concept (SPEC/manual), not a package.
@@ -61,6 +61,8 @@ species level produces it and the other levels read it (`from zombi2.species imp
 | `zombi2.genomes` | `simulate_genomes_unordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, transfer_to="uniform", replacement=False, self_transfer=False, initial_families=0, seed=None)` → `GenomesResult(.complete_tree, .genomes, .events, .seed, .family_counts())`. Also `GeneCopy(id, family)`, `Distance(decay=1.0)`. |
 | `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, transposition=0, translocation=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, <event>_extension=Geometric(mean=1), inversion_probability=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=0, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order(), .event_positions)`. Every gene-level event acts on an **extension** (a run of consecutive genes, length ~ `<event>_extension`; origination is single). Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion` · `Transposition` · `Translocation` (identity-preserving, in `.rearrangements`), `EventPosition` (where each gene-genealogy `Event` fired — the positional companion to the position-blind log, in `.event_positions`), `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`; `ChromosomeEvent` and its `chromosome_events_tsv` writer live in `genomes/chromosomes.py`, one home for both the ordered and the nucleotide engine. |
 
+| `zombi2.genomes` (nucleotide) | `simulate_genomes_nucleotide(tree, *, inversion=0, translocation=0, transposition=0, loss=0, duplication=0, transfer=0, origination=0, <event>_length=50.0, inversion_probability=0, fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, chromosomes=1, root_length=1000, topology="circular", genes=0, gene_length=100, gff=None, trim_overlaps=False, transfer_to=…, self_transfer=…, seed=None)` → `NucleotideGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .gene_spans, .gene_names, .gene_strands, .mosaic(), .trace_back(), .ancestry(), .root_blocks, .gene_trees)`. The genome is a nucleotide sequence of `Block`s (a run of one unbroken ancestry) on `Chromosome`s; a **declared gene is indivisible** (an event that would cut one redraws). Its `Origination` · `Loss` · `Duplication` · `Transfer` · `Speciation` records are **positional already** (each names ancestral intervals), so there is no `EventPosition` companion here. Rates are **constants** — no `scope × modifiers` grammar yet. |
+
 Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(s) / `.seed` /
 `.write(dir, [...])`, with the `record=[...]` memory dial (see [`result-api.md`](result-api.md)).
 
@@ -73,8 +75,11 @@ Level by level, each with its chapter written alongside:
    identity-bearing containers; **segmental** D/T/L/O + inversion/transposition/translocation (every
    gene-level event acts on an *extension* of consecutive genes, the ZOMBI1 model); and the
    number-changing tier (fission/fusion/origination/loss) forming a reticulating chromosome network,
-   recorded as the `chromosome_events` edge-list ground truth (`chromosome-network.md`). Only
-   **nucleotide** (genes, indels) 🔨 remains (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide).
+   recorded as the `chromosome_events` edge-list ground truth (`chromosome-network.md`).
+   **Nucleotide** ✅ — blocks of unbroken ancestry, indivisible declared genes (from `--gff` or an
+   even layout), the same event set in base pairs, its own outputs and `--resolution nucleotide`
+   (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide). Its rates are still constants: the
+   `scope × modifiers` grammar 🔨 is not wired there.
 3. **Sequences** 🔨 — substitution + clocks on the gene trees.
 4. **Traits** 🔨 — the overlay models on the species tree.
 5. **Coupling** — the one mechanism `mod.DrivenBy(source, mapping)` (SPEC §2–4). **Conditioned** ✅

@@ -1653,10 +1653,11 @@ def test_write_emits_the_selected_outputs(tmp_path):
         "chromosome_events.tsv"}
 
 
-def test_write_defaults_to_events_blocks_and_genes(tmp_path):
+def test_write_defaults_to_events_and_genes_but_not_blocks(tmp_path):
+    # blocks.tsv is one row per block per node and blocks are not kept maximal, so it is opt-in
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     simulate_genomes_nucleotide(sp, root_length=200, inversion=1.0, seed=1).write(tmp_path)
-    assert {p.name for p in tmp_path.iterdir()} == {"genome_events.tsv", "blocks.tsv", "genes.tsv"}
+    assert {p.name for p in tmp_path.iterdir()} == {"genome_events.tsv", "genes.tsv"}
 
 
 def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):
