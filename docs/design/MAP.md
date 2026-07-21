@@ -32,9 +32,10 @@ Legend:  ✅ built · 🔨 to build · 📦 quarantined in `legacy/`
 zombi2/
   __init__.py          thin — no top-level re-exports (one canonical path per name)
   rates/               the cross-level rate grammar (SPEC §5): effective rate = scope(base) × modifiers
-    scope.py        ✅ PerCopy · PerLineage · PerSite · Global
-    modifiers.py    ✅ OnTime · OnTotalDiversity · FromParent · ByLineage   (ByFamily · Markov 🔨)
+    scope.py        ✅ PerCopy · PerLineage · PerSite · PerChromosome · Global
+    modifiers.py    ✅ OnTime · OnTotalDiversity · FromParent · ByLineage · DrivenBy   (ByFamily · Markov 🔨)
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
+    parse.py        ✅ parse_rate           (the written form → a rate spec: the CLI and --params read the same expression as Python, SPEC §5)
     distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform · Geometric   (value / length distributions)
     mapping.py      ✅ Table · Curve · Scalar · as_mapping   (a driver value → a factor; DrivenBy's response — SPEC §2)
     driver.py       ✅ DriverTrajectory · load_driver   (a conditioned DrivenBy's file-backing: value/next-switch per lineage)
@@ -43,7 +44,7 @@ zombi2/
   sequences/         ✅ simulate_sequences → SequencesResult
   traits/            ✅ simulate_continuous · simulate_discrete → TraitsResult ;  discrete(...) process spec (for joint)
   joint/             ✅ simulate_joint → JointResult   (the FUSE engine; SPEC §2–4). Conditioned needs no engine — it folds into the target level via DrivenBy + rates/driver.py. "Coupling" is the concept (SPEC/manual), not a package.
-  cli/               ~  species · genomes (clean); every other subcommand 📦
+  cli/               ~  species · genomes · sequences · traits (clean, one flag per API keyword, rates in the written form); tools and the coupled commands 📦
 legacy/              📦 repo root, not importable — the old code, kept only to port from
 ```
 
@@ -55,7 +56,7 @@ species level produces it and the other levels read it (`from zombi2.species imp
 
 | Canonical home | Public names |
 |---|---|
-| `zombi2.rates` | `from zombi2.rates import scope, modifiers` → `scope.Global`, `modifiers.OnTime({...})`. Scopes: `PerCopy · PerLineage · PerSite · Global`. Modifiers: `OnTime · OnTotalDiversity · FromParent · ByLineage`. |
+| `zombi2.rates` | `from zombi2.rates import scope, modifiers` → `scope.Global`, `modifiers.OnTime({...})`. Scopes: `PerCopy · PerLineage · PerSite · PerChromosome · Global`. Modifiers: `OnTime · OnTotalDiversity · FromParent · ByLineage · DrivenBy`. Also `parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")` — the same expression the CLI and `--params` take. |
 | `zombi2.species` | `simulate_species_tree(birth, death=0, *, n_extant=None, total_time=None, mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None)` → `SpeciesResult(.complete_tree, .extant_tree, .fossils, .events, .seed)`. Also `Tree`, `Node`, `prune(tree, keep="extant")`. |
 | `zombi2.genomes` | `simulate_genomes_unordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, transfer_to="uniform", replacement=False, self_transfer=False, initial_families=0, seed=None)` → `GenomesResult(.complete_tree, .genomes, .events, .seed, .family_counts())`. Also `GeneCopy(id, family)`, `Distance(decay=1.0)`. |
 | `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, transposition=0, translocation=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, <event>_extension=Geometric(mean=1), inversion_probability=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=0, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order())`. Every gene-level event acts on an **extension** (a run of consecutive genes, length ~ `<event>_extension`; origination is single). Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion` · `Transposition` · `Translocation` (identity-preserving, in `.rearrangements`), `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`. |

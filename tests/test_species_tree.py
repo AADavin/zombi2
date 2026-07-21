@@ -258,6 +258,26 @@ def test_drifting_birth_with_non_drifting_global_death_is_allowed():
     assert r.n_extant == 30
 
 
+# --- the level rejects what it does not wire (SPEC §5) --------------------
+
+@pytest.mark.parametrize("modifier", [mod.ByLineage(spread=0.3),
+                                      mod.DrivenBy("habitat.tsv", {"a": 2.0})])
+def test_an_unwired_modifier_raises_rather_than_being_ignored(modifier):
+    # an unthreaded modifier returns its default factor of 1.0, so silently accepting one would run
+    # a model the user did not ask for — the whole point of declaring WIRED_MODIFIERS
+    with pytest.raises(ValueError, match="does not support"):
+        simulate_species_tree(birth=1.0 * modifier, n_extant=10, seed=1)
+    with pytest.raises(ValueError, match="does not support"):
+        simulate_species_tree(birth=1.0, death=0.1 * modifier, n_extant=10, seed=1)
+
+
+@pytest.mark.parametrize("wrapper", [scope.PerCopy, scope.PerSite, scope.PerChromosome])
+def test_a_foreign_scope_raises(wrapper):
+    # the species engine counts lineages; any other unit would ask it for a count it has no idea of
+    with pytest.raises(ValueError, match="counts lineages"):
+        simulate_species_tree(birth=wrapper(1.0), n_extant=10, seed=1)
+
+
 def _colless(result):
     """Colless imbalance of the extant tree: Σ over internal nodes of |left tips − right tips|.
     Higher = more lopsided. A pure Yule tree is comparatively balanced; heritable rate drift
