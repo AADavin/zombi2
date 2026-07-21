@@ -43,8 +43,9 @@ permuted). The ancestry-**changing** events are here too:
 - **Transfer** — an arc copied into a **contemporaneous recipient** lineage (per lineage,
   additive). A *horizontal* birth that couples two lineages — the reason the whole engine runs on a
   **global timeline** (all lineages alive at once, one clock) rather than branch-by-branch.
-- **Origination** — a fresh source of new material laid down de novo (per lineage). A birth of a
-  wholly new gene family, beyond the root sources; each roots its own gene tree at its own branch.
+- **Origination** — a **new gene** laid down de novo on a fresh source (per lineage): its own family,
+  indivisible from birth, rooting its own gene tree at its own branch. Origination mints a gene, never
+  plain spacer.
 
 Threaded through all of the above is the **copy lineage** (``Block.copy``): the persistent identity
 that a split preserves, a duplication / transfer mints fresh (parent → child), and a speciation
@@ -627,17 +628,21 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     return sum(b.length for b in arc)                   # the recipient's length gain
 
 
-def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy) -> int:
-    """New material arises **de novo** — a fresh source (a geometric-length stretch, its own copy
-    lineage) inserted at a random spot on a uniformly-chosen chromosome. Per lineage (a family is born
-    once). The root of a new gene tree. Returns the length added."""
+def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy,
+                    new_family, gene_spans) -> int:
+    """A **new gene** arises de novo: a fresh source (a geometric-length stretch, mean
+    ``origination_length``), its own copy lineage and its own **gene family**, inserted at a random spot
+    on a uniformly-chosen chromosome. Per lineage — a family is born once. Origination mints a *gene*,
+    never plain spacer, so the new block is indivisible from birth and gets its own gene tree. Returns
+    the length added."""
     chrom = g.chromosomes[int(rng.integers(len(g.chromosomes)))]
     length = max(1, int(rng.geometric(1.0 / origination_length)))
-    src, cp = new_source(), new_copy()
+    src, cp, fam = new_source(), new_copy(), new_family()
     p = int(rng.integers(chrom.length + 1))
     chrom._split_at(p)
     k = chrom._index_at(p)
-    chrom.blocks[k:k] = [Block(src, 0, length, 1, cp)]
+    chrom.blocks[k:k] = [Block(src, 0, length, 1, cp, fam)]
+    gene_spans[fam] = (src, 0, length)                   # a de-novo gene, tracked like a declared one
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length))
     return length
 
@@ -881,8 +886,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
       **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
       :class:`Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
       (the donor keeps its copy). This is what needs the global timeline.
-    - ``origination`` (**per lineage**) lays down a fresh source of new material (a geometric-length,
-      mean ``origination_length``, de-novo stretch) — a *birth* of a wholly new gene family.
+    - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
+      mean ``origination_length``) — a *birth* of a wholly new family, indivisible from birth.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
       (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**).
       ``chromosome_origination`` (**per lineage**) adds a de-novo empty circular replicon (a plasmid, a
@@ -1049,7 +1054,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                         elif r < b_org:
                             k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
                             total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
-                                                            rng, events, new_source, new_copy)
+                                                            rng, events, new_source, new_copy,
+                                                            new_family, gene_spans)
                         elif r < b_fis:
                             k = _pick_lineage_by_chromosomes(rng, gen, count)
                             total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
