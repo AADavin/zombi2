@@ -73,7 +73,7 @@ traits.simulate_continuous(tree,
     seed=1)
 ```
 
-The overlay is a dimensionless number in `[−1, 1]`, not a covariance matrix, so it reads the way people actually think about correlation. Under `correlation=` the per-trait rates are plain numbers; combining them with modifiers is a later slice.
+The overlay is a dimensionless number in `[−1, 1]`, not a covariance matrix. Under `correlation=` the per-trait rates are plain numbers.
 
 The same overlay handles *discrete* correlation with no extra machinery, through the threshold model: give each trait a liability, correlate the liabilities, and put the thresholds on top. Correlated presence/absence characters, the setting Pagel's method was built for, are then one call:
 

@@ -84,7 +84,7 @@ Transposition stays within a chromosome; translocation is the one that carries a
 
 ## Chromosomes and the tier
 
-A genome is seeded with a **karyotype**: `chromosomes=N` chromosomes, each with a `topology` — `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is, for now, just a label: it does not change how inversions or the tier behave (it will gate which fissions and fusions are legal in a later refinement).
+A genome is seeded with a **karyotype**: `chromosomes=N` chromosomes, each with a `topology` — `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is a label: it does not change how inversions or the tier behave.
 
 On top of the karyotype, four events change the **number** of chromosomes — the *chromosome tier*:
 
@@ -158,10 +158,6 @@ g.gene_order(2)                  # its layout, gene by gene
 g.chromosome_events              # the chromosome network (edge list)
 g.gene_trees[0].to_newick()      # a family's gene tree — unchanged from unordered
 ```
-
-## The nucleotide resolution
-
-The third resolution — where every gene and every intergenic gap is given a length in base pairs, indels act on those gaps, and a run can be started from a real annotated genome — builds on everything here. It is the subject of the next part of this chapter and is not yet in the clean engine; the ordered resolution above is complete.
 
 ## Usage from Python
 
@@ -247,4 +243,3 @@ species  chromosome  position  strand  family  gene
 2        3           2         1       2       11
 ```
 
-*(A `zombi2 genomes` command mirroring these calls arrives with the genome CLI; today this is the Python engine, and `.write` already puts the outputs on disk.)*

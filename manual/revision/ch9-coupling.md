@@ -58,7 +58,7 @@ genomes.simulate_genomes_unordered(tree,
 
 The driver file is the one from Chapter 8: a discrete trait's stochastic character map, cut into the constant stretches of each branch. That segmentation is what lets the genome engine step its Gillespie at every switch, so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The coupling is exact, not a per-branch average.
 
-Three of the four unordered rates can be driven this way — `loss`, `duplication` and `origination`. Driving `transfer` is a later slice, and asking for it fails loudly rather than quietly ignoring you, which is the discipline everywhere in ZOMBI2: a modifier a level cannot honour is rejected, never dropped.
+Three of the four unordered rates can be driven this way: `loss`, `duplication` and `origination`. Driving `transfer` is rejected. That is the discipline everywhere in ZOMBI2 — a modifier a level cannot honour raises an error rather than being silently dropped.
 
 Notice too that the coupling **folds into the target level's own command**. There is no separate coupling step and no coupling object to build; you grow the driver, then make an ordinary genome run whose `loss` happens to be `DrivenBy` instead of a bare number. That holds on the command line as well, where the rate keeps its written form:
 

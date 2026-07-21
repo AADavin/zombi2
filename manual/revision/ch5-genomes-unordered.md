@@ -38,12 +38,6 @@ from zombi2.rates import modifiers as mod
 g = simulate_genomes_unordered(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
 
-FROM HERE
-
-Two richer dials are part of the design but land in a later release, and this version rejects them loudly rather than pretending: **per-family heterogeneity** — letting each family carry its own rate, or a single per-family *speed* that scales all of a family's rates together, so some families churn and others sit still — and **scope overrides** on the genome rates. For now every family shares the given rate, and the defaults (per copy, per lineage) are fixed. 
-
-TO HERE, I WANT IT REMOVED, AND DISCUSSED WITH ME!
-
 ## Lateral Gene Transfers
 
 Transfer is the one event that couples lineages, and it is what makes the unordered resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**. 
@@ -52,7 +46,7 @@ Three arguments shape what a transfer does:
 
 - **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*, meaning its strength means the same whether your tree is measured in years or in millions of them.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
-- **`self_transfer`** — whether a lineage may donate to itself. Off by default; on, a lineage can be its own recipient. The net effect is a duplication of the gene. CLAUDE DISCUSS WITH ME
+- **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Combined with `replacement=True` it is not a duplication at all: the arriving copy overwrites a paralogue in the same genome, which is gene conversion.
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=7)
@@ -62,16 +56,7 @@ g = simulate_genomes_unordered(
     origination=0.4, initial_families=10, seed=3)
 ```
 
-One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct**. Genomes evolve on the whole tree, dead branches included (next section), so a gene can enter a survivor from a donor that leaves no other trace.
-
-## The complete tree (CLAUDE; REMOVE THIS SECTION ENTIRELY)
-
-Just as a birth–death tree is really two trees, a genome run happens on the **complete** tree — every linea not only on the survivors. This is deliberate: it is what lets a transfer come from the dead, and it is what makes the true gene-family history complete rather than a trace of it. What you *observe* is the genomes at the **extant tips**; the rest are the hidden history behind them.
-
-```python
-# the genomes you actually observe: the extant tips of the complete tree
-observed = {n.id: g.genomes[n.id] for n in g.complete_tree.extant()}
-```
+One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct**. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace.
 
 ## The `GenomesResult` object
 
