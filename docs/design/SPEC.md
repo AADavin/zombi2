@@ -5,8 +5,7 @@
 This document is the single source of truth for how ZOMBI2 is organised, what it may and may not do,
 and the exact words used to describe it. When any other file — code, docstring, CLI help, manual
 chapter, design doc, README — disagrees with this document, that other file is a **fossil** and must be
-changed to match. It reflects decisions ratified with Adrián in July 2026 (tracked in
-`manual/revision/dashboard.yml`).
+changed to match. It reflects decisions ratified with Adrián in July 2026.
 
 It **supersedes** these earlier design docs, which encode the old lexicon: `coevolve-grammar.md`,
 `opportunity.md`, `opportunity-knob.md`, `rate-vocabulary.md`, `rate-modifiers.md`, and the coupling
@@ -287,7 +286,8 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ## 9. The book
 
-Nine chapters + two appendices (section detail in `manual/revision/proposed-index.md`):
+Nine chapters + two appendices, one file each in `manual/revision/` (`ch1.md` … `ch9.md`,
+`appendix-a.md`, `appendix-b.md`):
 
 - **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2
 - **II The four levels** — 3 Species trees · 4 Genomes I: Unordered · 5 Genomes II: Ordered ·
@@ -343,5 +343,5 @@ Fossils to fix; why a fresh reader must not trust the code over this document.
 
 ---
 
-*When you finish an alignment task, update §12 and `manual/revision/dashboard.yml`. When a convention
-genuinely needs to change, change it HERE first, then propagate.*
+*When you finish an alignment task, update §12. When a convention genuinely needs to change, change it
+HERE first, then propagate.*
