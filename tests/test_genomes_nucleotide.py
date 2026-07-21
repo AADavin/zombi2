@@ -18,6 +18,7 @@ from zombi2.genomes.nucleotide import (
     Block,
     Chromosome,
     Duplication,
+    Inversion,
     Loss,
     NucleotideGenome,
     Origination,
@@ -1277,3 +1278,50 @@ def test_the_even_layout_also_round_trips():
         chrom, = r.genomes[lid].chromosomes
         assert chrom.trace_back() == [(0, i, 1) for i in range(500)]
     assert set(r.gene_strands.values()) == {1}
+
+
+def test_inversions_along_the_tree_match_an_independent_replay():
+    """The strongest end-to-end check: replay the recorded inversions on a plain per-nucleotide array,
+    node by node down the tree, and demand the engine's genome match exactly at EVERY node.
+
+    The existing oracle tests one chromosome in isolation; this one validates the whole pipeline —
+    genic seeding, the tree wiring, inheritance at speciation, and the block algebra — against a naive
+    simulator that knows nothing about blocks."""
+    import collections
+    length, n_genes, gene_len = 2_000, 12, 120
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    r = simulate_genomes_nucleotide(sp, genes=n_genes, gene_length=gene_len, chromosomes=1,
+                                    root_length=length, inversion=25.0, inversion_length=400, seed=4)
+    inversions = [e for e in r.rearrangements if isinstance(e, Inversion)]
+    assert len(inversions) > 15                              # the run really did rearrange
+
+    def invert(arr, start, ell):
+        n = len(arr)
+        ell = max(1, min(ell, n))
+        s = start % n
+        if s + ell <= n:
+            arr[s:s + ell] = [(src, p, -st) for (src, p, st) in reversed(arr[s:s + ell])]
+        else:
+            arr[:] = arr[s:] + arr[:s]
+            arr[:ell] = [(src, p, -st) for (src, p, st) in reversed(arr[:ell])]
+
+    tree = r.complete_tree
+    by_node = collections.defaultdict(list)
+    for e in inversions:
+        by_node[e.lineage].append(e)
+    stack = [(tree.root, [(0, i, 1) for i in range(length)])]
+    while stack:
+        nid, arr = stack.pop()
+        arr = list(arr)
+        for e in sorted(by_node[nid], key=lambda x: x.time):
+            invert(arr, e.start, e.length)
+        assert r.genomes[nid].chromosomes[0].trace_back() == arr, f"node {nid} diverged from the replay"
+        if tree.nodes[nid].children:
+            for c in tree.nodes[nid].children:
+                stack.append((c, arr))
+
+    full = sorted((0, i) for i in range(length))
+    for leaf in tree.extant():                               # nothing gained, nothing lost
+        assert r.ancestry(leaf.id) == full
+        seen = {b.gene for b in r.genomes[leaf.id].chromosomes[0].blocks if b.is_gene}
+        assert len(seen) == n_genes                          # every gene still there, still whole
