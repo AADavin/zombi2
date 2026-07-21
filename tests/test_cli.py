@@ -299,6 +299,24 @@ def test_traits_on_external_tree_writes_a_name_map(tmp_path):
     assert nodes <= set(names)
 
 
+def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file):
+    # a [traits] table scopes one file to this command (so one file can drive a whole pipeline)
+    (tmp_path / "p.toml").write_text('[traits]\nkind = "discrete"\n'
+                                     'states = "marine,terrestrial"\nswitch = 0.15\n'
+                                     'write = ["values", "changes"]\nseed = 7\n')
+    argv = ["traits", "--params", str(tmp_path / "p.toml"), "-t", str(tree_file)]
+    out = tmp_path / "a"
+    assert main([*argv, "-o", str(out)]) == 0
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_changes.tsv", "traits.log"}
+    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    assert states <= {"marine", "terrestrial"}          # the file's states reached the engine
+
+    # a flag given on the command line still wins over the file
+    other = tmp_path / "b"
+    assert main([*argv, "--seed", "8", "-o", str(other)]) == 0
+    assert (other / "trait_values.tsv").read_text() != (out / "trait_values.tsv").read_text()
+
+
 # ── --params ────────────────────────────────────────────────────────────────────────
 
 def test_params_file_supplies_defaults_and_cli_overrides(tmp_path):
