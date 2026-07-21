@@ -30,10 +30,14 @@ intergene, and the engine is exactly today's uniform-sequence model.
 There is **one** way an event picks its target — mixing two would make the model muddy. Every event
 works the same way:
 
-1. start at a breakpoint,
-2. extend outward,
-3. land when **both ends sit in an intergene** — never inside a gene. If an end would fall inside a
-   gene, **redraw** (retry up to `N` times; then the event is a no-op).
+1. **nucleate** at a uniform *intergenic* position,
+2. choose the far end **among the positions where a breakpoint is legal** (never strictly inside a
+   gene), weighted by `exp(-d / mean)` — the extent you asked for, restricted to the ends that exist.
+
+Landing spots and chromosome cuts are picked the same way. Nothing is guessed and retried, so **no event
+is ever silently dropped**: the rate you set is the rate you get, at any gene density. (Measured on a
+94%-genic real genome: observed/expected loss count 0.99–1.04, for extents from 200 bp to 20 kb. The
+earlier guess-and-redraw lost up to 43% of events at large extents.)
 
 So a gene is always **whole**: an event either engulfs it entirely (both breakpoints in the flanking
 intergenes) or leaves it untouched. Genes are never split. In code this is just today's engine plus one
@@ -72,6 +76,12 @@ extent. So **large genes are rarely lost or duplicated**; small ones more easily
 This is honest — a big gene really does need a big deletion — but it **must be documented prominently**,
 because it surprises people: setting a small deletion rate on a genome of 1 000 nt genes leaves the genes
 essentially untouched. The guide should say plainly: *to get more gene turnover, use larger events.*
+
+**And the second, related surprise to document:** the *realised* extent is shorter than the mean you ask
+for, the more so the denser the genome — on the 94%-genic real genome, asking 1 500 bp yields ~700 and
+asking 20 000 yields ~15 500. A long stretch that both begins *and* ends in a spacer often simply does
+not exist, and an event that would cut a gene does not happen. That conditioning **is** the model; what
+it must not do — and no longer does — is quietly eat the event *rate* along with it.
 
 ---
 

@@ -60,15 +60,22 @@ re-mints into each daughter. The genealogy ``events`` — ``origination`` / ``lo
   equal the copies actually present in every extant leaf.
 
 Finally, the **genic layer** (``genes`` / ``gene_length``) declares some blocks to be **genes**, the
-rest **intergenes**. There is exactly **one** way an event picks its target — an *extension*: start at
-a breakpoint, extend, and land only when both ends sit in an intergene. A draw whose end would fall
-strictly inside a gene **redraws** (up to ``_GENE_CUT_RETRIES``, then the event is a no-op) rather than
-clipping the gene or snapping around it — snapping would inflate a drawn extent to "whatever it takes
-to clear the gene", while redrawing keeps a successful event's span equal to its drawn length. So a
-gene is only ever engulfed **whole**, never split, and each one recovers as exactly one root-block with
-one gene tree. **Consequence, which the guide must state plainly:** gene turnover is *emergent* and
-size-dependent — a gene changes copy number only when an event engulfs it, so large genes are rarely
-lost or duplicated. To get more turnover, use larger events.
+rest **intergenes**. There is exactly **one** way an event picks its target — an *extension* — and it is
+drawn **directly from the legal arcs**, never guessed and retried: the event **nucleates at a uniform
+intergenic position**, and its far end is chosen among the positions where a breakpoint is legal (never
+strictly inside a gene), **weighted by** ``exp(-d / mean)`` — the extent distribution you asked for,
+restricted to the ends that exist. Landing spots and chromosome cuts are picked the same way. Nothing is
+clipped, nothing is snapped (snapping would inflate an extent to "whatever it takes to clear the gene"),
+and nothing is silently dropped for running out of retries. So a gene is only ever engulfed **whole**,
+never split, and each recovers as exactly one root-block with one gene tree.
+
+**Two consequences the guide must state plainly.** (1) Gene turnover is *emergent* and size-dependent —
+a gene changes copy number only when an event engulfs it whole, so large genes are rarely lost or
+duplicated. (2) The **realised extent is shorter than the mean you ask for**, the more so the denser the
+genome: on a 94%-genic bacterial genome, asking for 3 000 bp yields ~1 300. A long stretch that both
+begins *and* ends in a spacer often simply does not exist, and an event that would cut a gene does not
+happen. That conditioning is the model; what it must not do — and no longer does — is quietly eat the
+event *rate* along with it.
 
 Deferred to later slices: homologous *replacement* transfer (only additive for now); indels;
 pseudogenization (``gene → intergene``); declaring genes from a GFF / distribution file; BED / FASTA
@@ -80,6 +87,7 @@ tree's dead partial-overlap lineages need the finer all-node partition — a lat
 from __future__ import annotations
 
 import collections
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -127,13 +135,12 @@ class Block:
         return self.gene != 0
 
 
-_GENE_CUT_RETRIES = 10        # redraws allowed before an event that keeps cutting a gene gives up
-
-
 class _CutsGene(Exception):
-    """Raised when a breakpoint would fall **strictly inside a gene**. Genes are indivisible, so the
-    event does not clip them and does not snap around them (that would inflate its extent) — it simply
-    **redraws**. The driver retries a few times, then leaves the event a no-op."""
+    """Raised when a breakpoint would fall **strictly inside a gene** — a **guard, not a control flow**.
+
+    Every breakpoint is now drawn from the legal set to begin with (:meth:`Chromosome._pick_legal_cut`,
+    :meth:`Chromosome._pick_arc_extent`), so this should never fire; if it does, a caller invented a
+    position instead of picking one, and failing loudly beats silently mangling a gene."""
 
 
 def _split_block(b: Block, o: int) -> list[Block]:
@@ -211,15 +218,86 @@ class Chromosome:
             return len(self.blocks)
         raise ValueError(f"no block boundary at physical {phys}")
 
+    def _legal_cut_spans(self) -> list[tuple[int, int]]:
+        """The physical windows where a breakpoint is legal — the intergenic blocks, endpoints included
+        (a gene's own edge is legal; only its interior is not). ``[(lo, hi), …]`` in block order."""
+        out, pos = [], 0
+        for b in self.blocks:
+            if not b.is_gene:
+                out.append((pos, pos + b.length))
+            pos += b.length
+        return out
+
+    def _pick_legal_cut(self, rng) -> int | None:
+        """A **uniform** position at which a breakpoint is legal — where an arc may land, or a
+        chromosome be cut, without splitting a gene. ``None`` when the chromosome is all gene."""
+        spans = self._legal_cut_spans()
+        total = sum(hi - lo for lo, hi in spans)
+        if total == 0:
+            return None
+        m = int(rng.integers(total))
+        for lo, hi in spans:
+            if m < hi - lo:
+                return lo + m
+            m -= hi - lo
+        raise AssertionError("legal-cut length out of sync with the blocks")  # unreachable
+
+    def _pick_arc_extent(self, start: int, mean: float, rng) -> int | None:
+        """Choose the arc's far end, forward from ``start``: an extent ``d >= 1`` whose breakpoint at
+        ``start + d`` is **legal** (never strictly inside a gene), drawn with weight ``exp(-d/mean)``.
+
+        This is the extent distribution you asked for, **restricted to the ends that exist** — the same
+        law that draw-then-reject would converge to, but sampled directly, so nothing is ever wasted and
+        no event silently vanishes because its retries ran out. On a gene-dense genome the realised
+        extent therefore comes out *shorter* than ``mean``: a long stretch that both begins and ends in a
+        spacer often simply does not exist. That conditioning is the model (an event that would cut a
+        gene does not happen); what it must not do is quietly eat the event *rate* as well.
+
+        ``None`` when no legal end exists."""
+        total = self.length
+        if total < 2:
+            return None
+        circular = self.topology == "circular"
+        limit = total - 1 if circular else total - start     # the longest arc that still fits
+        if limit < 1:
+            return None
+        spans = self._legal_cut_spans()
+        if not spans:
+            return None
+        if circular:                                         # the ring: the same windows one lap on
+            spans = spans + [(lo + total, hi + total) for lo, hi in spans]
+        windows = []
+        for lo, hi in spans:
+            d_lo, d_hi = max(lo - start, 1), min(hi - start, limit)
+            if d_lo <= d_hi:
+                windows.append((d_lo, d_hi))
+        if not windows:
+            return None
+        q = math.exp(-1.0 / mean)                            # a geometric extent, summed per window
+        weights = [max(q ** d_lo - q ** (d_hi + 1), 0.0) for d_lo, d_hi in windows]
+        bulk = sum(weights)
+        if bulk <= 0.0:                                      # every window is far beyond `mean`
+            return min(windows, key=lambda w: w[0])[0]       # ...so take the nearest legal end
+        r = float(rng.random()) * bulk
+        for (d_lo, d_hi), w in zip(windows, weights):
+            if r < w:
+                head, tail = q ** d_lo, q ** (d_hi + 1)      # inverse-CDF inside the window
+                u = float(rng.random())
+                target = head - u * (head - tail)
+                d = int(math.log(target) / math.log(q)) - 1 if target > 0 else d_hi
+                return min(max(d, d_lo), d_hi)
+            r -= w
+        return windows[-1][1]                                # floating-point guard
+
     def _arc_range(self, start: int, length: int) -> tuple[int, int] | None:
         """Prepare the arc ``[start, start+length)`` and return the block index range ``[i, j)`` it
         occupies, or ``None`` for an empty arc. Splits at both ends first. A **linear** chromosome
         clamps the arc to its ends; a **circular** one may wrap the origin, rotating the ring to bring
         the arc to the front (the origin drifts to a real breakpoint — harmless on a ring).
 
-        Both ends are checked **before** either is split, so a draw that lands inside a gene raises
-        :class:`_CutsGene` leaving the chromosome untouched — a redraw costs nothing and never leaves a
-        stray breakpoint behind."""
+        Both ends are checked **before** either is split, so an illegal arc leaves the chromosome
+        untouched rather than half-cut. With the ends drawn from the legal set this never triggers; it
+        is a guard."""
         total = self.length
         if total == 0:
             return None
@@ -611,7 +689,9 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     if spot is None:
         return 0
     chrom, start = spot
-    ell = min(chrom.length, max(1, int(rng.geometric(1.0 / duplication_length))))
+    ell = chrom._pick_arc_extent(start, duplication_length, rng)
+    if ell is None:
+        return 0
     span = chrom._arc_range(start, ell)
     if span is None:
         return 0
@@ -640,7 +720,9 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     if spot is None:
         return 0
     chrom, start = spot
-    ell = min(chrom.length, max(1, int(rng.geometric(1.0 / transfer_length))))
+    ell = chrom._pick_arc_extent(start, transfer_length, rng)
+    if ell is None:
+        return 0
     span = chrom._arc_range(start, ell)
     if span is None:
         return 0
@@ -660,7 +742,9 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     transferred = tuple((b.copy, child_of[b.copy], b.source, b.start, b.end) for b in arc)
     xfers = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy], b.gene) for b in arc]
     rchrom = rgenome.chromosomes[int(rng.integers(len(rgenome.chromosomes)))]
-    p = int(rng.integers(rchrom.length + 1))            # arrive as a block at a random recipient spot
+    p = rchrom._pick_legal_cut(rng)                     # arrive at a legal spot on the recipient
+    if p is None:
+        return 0
     rchrom._split_at(p)
     q = rchrom._index_at(p)
     rchrom.blocks[q:q] = xfers
@@ -678,7 +762,9 @@ def _do_origination(g, node_id, t, origination_length, rng, events, new_source, 
     chrom = g.chromosomes[int(rng.integers(len(g.chromosomes)))]
     length = max(1, int(rng.geometric(1.0 / origination_length)))
     src, cp, fam = new_source(), new_copy(), new_family()
-    p = int(rng.integers(chrom.length + 1))
+    p = chrom._pick_legal_cut(rng)
+    if p is None:
+        return 0
     chrom._split_at(p)
     k = chrom._index_at(p)
     chrom.blocks[k:k] = [Block(src, 0, length, 1, cp, fam)]
@@ -698,7 +784,9 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     chrom, start = spot
     if chrom.length < 2:
         return 0
-    ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / loss_length))))
+    ell = chrom._pick_arc_extent(start, loss_length, rng)
+    if ell is None:
+        return 0
     span = chrom._arc_range(start, ell)
     if span is None:
         return 0
@@ -716,7 +804,9 @@ def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
     if spot is None:
         return
     chrom, pos = spot
-    length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
+    length = chrom._pick_arc_extent(pos, inversion_length, rng)
+    if length is None:
+        return
     chrom.invert(pos, length)
     rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
 
@@ -736,7 +826,9 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     source, start = spot
     if source.length < 2:
         return
-    ell = min(source.length - 1, max(1, int(rng.geometric(1.0 / translocation_length))))
+    ell = source._pick_arc_extent(start, translocation_length, rng)
+    if ell is None:
+        return
     span = source._arc_range(start, ell)
     if span is None:
         return
@@ -749,12 +841,10 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
         arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
     others = [c for c in g.chromosomes if c is not source]
     dest = others[int(rng.integers(len(others)))]
-    pos = int(rng.integers(dest.length + 1))
-    try:
-        dest._check_cut(pos)                             # landing inside a gene -> put the arc back
-    except _CutsGene:
-        source.blocks = intact
-        raise
+    pos = dest._pick_legal_cut(rng)                      # land where it will not split a gene
+    if pos is None:
+        source.blocks = intact                           # nowhere legal to land: undo the excision
+        return
     dest._split_at(pos)
     k = dest._index_at(pos)
     dest.blocks[k:k] = arc
@@ -773,7 +863,9 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     chrom, start = spot
     if chrom.length < 2:
         return
-    ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / transposition_length))))
+    ell = chrom._pick_arc_extent(start, transposition_length, rng)
+    if ell is None:
+        return
     span = chrom._arc_range(start, ell)
     if span is None:
         return
@@ -784,12 +876,10 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     flipped = bool(rng.random() < inversion_probability)
     if flipped:
         arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
-    dest = int(rng.integers(chrom.length + 1))          # a spot on the remainder (may be the origin)
-    try:
-        chrom._check_cut(dest)                           # landing inside a gene -> put the arc back
-    except _CutsGene:
-        chrom.blocks = intact
-        raise
+    dest = chrom._pick_legal_cut(rng)                   # a legal spot on the remainder
+    if dest is None:
+        chrom.blocks = intact                            # nowhere legal to land: undo the excision
+        return
     chrom._split_at(dest)
     k = chrom._index_at(dest)
     chrom.blocks[k:k] = arc
@@ -806,13 +896,18 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
     if chrom.length < 2:
         return 0
     if chrom.topology == "linear":
-        c = int(rng.integers(1, chrom.length))
+        c = chrom._pick_legal_cut(rng)
+        if c is None or c == 0:
+            return 0
         chrom._split_at(c)
         i = chrom._index_at(c)
         a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i])
         b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:])
     else:
-        c1, c2 = sorted(int(x) for x in rng.choice(chrom.length, size=2, replace=False))
+        cuts = {chrom._pick_legal_cut(rng), chrom._pick_legal_cut(rng)} - {None}
+        if len(cuts) < 2:
+            return 0
+        c1, c2 = sorted(cuts)
         chrom._split_at(c1)
         chrom._split_at(c2)
         i, j = chrom._index_at(c1), chrom._index_at(c2)
@@ -1083,55 +1178,50 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 b_fis = b_org + r_fis
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor
-                for _attempt in range(_GENE_CUT_RETRIES):   # a draw that cuts a gene redraws
-                    try:
-                        if r < r_inv:
-                            k = int(rng.integers(nlin))
-                            _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
-                        elif r < b_trl:
-                            k = int(rng.integers(nlin))
-                            _do_translocation(gen[k], alive[k], t, rates.translocation_length,
-                                              rates.inversion_probability, rng, rearrangements)
-                        elif r < b_trp:
-                            k = int(rng.integers(nlin))
-                            _do_transposition(gen[k], alive[k], t, rates.transposition_length,
-                                              rates.inversion_probability, rng, rearrangements)
-                        elif r < b_los:
-                            k = int(rng.integers(nlin))
-                            total_length += _do_loss(gen[k], alive[k], t, rates.loss_length, rng, events)
-                        elif r < b_dup:
-                            k = int(rng.integers(nlin))
-                            total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_length,
-                                                            rng, events, new_copy)
-                        elif r < b_tra:
-                            kd = int(rng.integers(nlin))
-                            total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_length,
-                                                         transfer_to, self_transfer, depth, events, new_copy)
-                        elif r < b_org:
-                            k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
-                            total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
-                                                            rng, events, new_source, new_copy,
-                                                            new_family, gene_spans)
-                        elif r < b_fis:
-                            k = _pick_lineage_by_chromosomes(rng, gen, count)
-                            total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
-                                                             new_chrom_id)
-                        elif r < b_fus:
-                            k = _pick_lineage_by_chromosomes(rng, gen, count)
-                            total_chromosomes += _do_fusion(gen[k], alive[k], t, rng, chromosome_events,
-                                                            new_chrom_id)
-                        elif r < b_cor:
-                            k = int(rng.integers(nlin))         # chromosome origination is per lineage
-                            total_chromosomes += _do_chromosome_origination(gen[k], alive[k], t,
-                                                                            chromosome_events, new_chrom_id)
-                        else:
-                            k = _pick_lineage_by_chromosomes(rng, gen, count)
-                            dc, dl = _do_chromosome_loss(gen[k], alive[k], t, rng, events, chromosome_events)
-                            total_chromosomes += dc
-                            total_length += dl
-                    except _CutsGene:
-                        continue                    # landed inside a gene: try again
-                    break
+                if r < r_inv:
+                    k = int(rng.integers(nlin))
+                    _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
+                elif r < b_trl:
+                    k = int(rng.integers(nlin))
+                    _do_translocation(gen[k], alive[k], t, rates.translocation_length,
+                                      rates.inversion_probability, rng, rearrangements)
+                elif r < b_trp:
+                    k = int(rng.integers(nlin))
+                    _do_transposition(gen[k], alive[k], t, rates.transposition_length,
+                                      rates.inversion_probability, rng, rearrangements)
+                elif r < b_los:
+                    k = int(rng.integers(nlin))
+                    total_length += _do_loss(gen[k], alive[k], t, rates.loss_length, rng, events)
+                elif r < b_dup:
+                    k = int(rng.integers(nlin))
+                    total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_length,
+                                                    rng, events, new_copy)
+                elif r < b_tra:
+                    kd = int(rng.integers(nlin))
+                    total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_length,
+                                                 transfer_to, self_transfer, depth, events, new_copy)
+                elif r < b_org:
+                    k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
+                    total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
+                                                    rng, events, new_source, new_copy,
+                                                    new_family, gene_spans)
+                elif r < b_fis:
+                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
+                                                     new_chrom_id)
+                elif r < b_fus:
+                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    total_chromosomes += _do_fusion(gen[k], alive[k], t, rng, chromosome_events,
+                                                    new_chrom_id)
+                elif r < b_cor:
+                    k = int(rng.integers(nlin))         # chromosome origination is per lineage
+                    total_chromosomes += _do_chromosome_origination(gen[k], alive[k], t,
+                                                                    chromosome_events, new_chrom_id)
+                else:
+                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    dc, dl = _do_chromosome_loss(gen[k], alive[k], t, rng, events, chromosome_events)
+                    total_chromosomes += dc
+                    total_length += dl
                 continue
 
         t = next_species                                # advance to the next species event(s)

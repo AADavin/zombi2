@@ -1170,3 +1170,79 @@ def test_gff_and_genes_are_mutually_exclusive(tmp_path):
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
     with pytest.raises(ValueError, match="either gff= or genes="):
         simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), genes=3, seed=1)
+
+
+# --- drawing arcs directly from the legal set (no guess-and-redraw) -------------------------------
+
+def _dense_chromosome(n_genes=40, gene_len=94, gap=6):
+    """A gene-dense replicon: 94% genic, like a real bacterial genome."""
+    blocks, at, fam = [], 0, 0
+    for _ in range(n_genes):
+        blocks.append(Block(0, at, at + gap, 1, 1)); at += gap
+        fam += 1
+        blocks.append(Block(0, at, at + gene_len, 1, 1, fam)); at += gene_len
+    return Chromosome(0, "circular", blocks), at
+
+
+def _inside_a_gene(chrom, c):
+    pos = 0
+    for b in chrom.blocks:
+        if pos < c < pos + b.length:
+            return b.is_gene
+        pos += b.length
+    return False
+
+
+def test_arc_extent_always_lands_on_a_legal_breakpoint():
+    chrom, total = _dense_chromosome()
+    rng = np.random.default_rng(0)
+    starts = [p for p in range(total) if not _inside_a_gene(chrom, p)]
+    drawn = 0
+    for _ in range(400):
+        start = starts[int(rng.integers(len(starts)))]
+        d = chrom._pick_arc_extent(start, 300, rng)
+        if d is None:
+            continue
+        drawn += 1
+        assert d >= 1
+        assert not _inside_a_gene(chrom, (start + d) % total)   # the far end is always legal
+    assert drawn > 300                                          # and it essentially always finds one
+
+
+def test_legal_cut_never_lands_inside_a_gene():
+    chrom, _total = _dense_chromosome()
+    rng = np.random.default_rng(1)
+    for _ in range(300):
+        c = chrom._pick_legal_cut(rng)
+        assert c is not None and not _inside_a_gene(chrom, c)
+
+
+def test_extent_tracks_the_mean_asked_for():
+    # the realised extent is conditioned by the gene structure (so shorter than asked), but a larger
+    # mean must still give larger arcs
+    chrom, total = _dense_chromosome(n_genes=60)
+    rng = np.random.default_rng(2)
+    starts = [p for p in range(total) if not _inside_a_gene(chrom, p)]
+
+    def mean_extent(mean):
+        got = [chrom._pick_arc_extent(starts[int(rng.integers(len(starts)))], mean, rng)
+               for _ in range(500)]
+        got = [d for d in got if d is not None]
+        return sum(got) / len(got)
+
+    assert mean_extent(100) < mean_extent(1000) < mean_extent(5000)
+
+
+def test_event_rate_is_honoured_on_a_gene_dense_genome():
+    # THE regression this replaced: with guess-and-redraw, a large extent on a dense genome exhausted
+    # its retries and silently dropped up to ~43% of events. The rate must now come out as asked.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    lineage_time = sum(n.end_time - n.birth_time for n in sp.complete_tree.nodes.values())
+    for extent in (200, 20_000):                     # short arcs and arcs spanning many genes
+        counts = []
+        for seed in range(12):
+            r = simulate_genomes_nucleotide(sp, genes=100, gene_length=94, chromosomes=1,
+                                            root_length=10_000, loss=3.0, loss_length=extent, seed=seed)
+            counts.append(sum(1 for e in r.events if isinstance(e, Loss)))
+        expected = 3.0 * lineage_time
+        assert 0.7 * expected < sum(counts) / len(counts) < 1.4 * expected, (extent, counts)
