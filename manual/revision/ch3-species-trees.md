@@ -4,7 +4,7 @@ The species tree is the backbone every other level runs on, so it is where almos
 
 ## The birth–death process
 
-A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give ZOMBI2 a **speciation rate** and an **extinction rate**, and it plays the birth–death process out: every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest. Out comes a dated, bifurcating tree of the lineages that survive to the present.
+A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give ZOMBI2 a **speciation rate** and an **extinction rate**, and it plays the birth–death process out: every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest. 
 
 The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. As extinction rises, the tree of survivors becomes a thinner and thinner trace of the one that actually grew; what became of the lineages that died is taken up later, under *Extinct lineages*.
 
@@ -57,9 +57,7 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, sampli
 result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=1)
 ```
 
-## Extinct lineages
 
-The **complete** tree contains every lineage that ever lived, including the ones that went extinct. The **extant** tree keeps only the survivors, and it is what you get by default because it is almost always what you want. ZOMBI2 grows the tree forward in time and records the complete tree. The extant tree is the survivors pruned out of it, with internal nodes that lose all their descendants suppressed, so it stays dated and bifurcating.
 
 ## The `SpeciesResult` object
 

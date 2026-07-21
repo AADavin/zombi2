@@ -18,15 +18,33 @@ The engine is fast. A birth–death tree with 100,000 surviving species takes ab
 
 ## What it can do
 
-- **Species** — dated species trees from a birth–death process. The rates can be constant, change through time, slow down as the clade fills up, or drift from parent to daughter lineage. Mass-extinction pulses, incomplete sampling and fossil recovery are all available. You get both the complete tree, with the extinct lineages still on it, and the tree of the survivors.
+Some questions ZOMBI2 is built to answer, each of which is one run and a comparison:
 
-- **Genomes** — gene families evolving along a species tree by duplication, transfer, loss and origination. The event log is a full genealogy, so every family's true gene tree comes out of it, along with the copy-number profile of each species. At the ordered resolution the genes sit at positions on chromosomes, and inversions, transpositions, translocations, fissions and fusions rearrange them.
+- **How well does a reconciliation method recover the truth?** Evolve gene families under duplication, transfer and loss, and you get every family's true gene tree together with the event behind every node. Reconcile the gene trees against the species tree and score what the method found against what actually happened.
 
-- **Sequences** — a nucleotide alignment for each gene family, evolved down that family's own gene tree under JC69, K80, HKY85 or GTR. The clock can be strict or relaxed. You get the alignment, the phylogram in substitutions per site, and the sequence at every internal node.
+- **Can a transfer be detected when the donor is gone?** Transfers in ZOMBI2 can come from lineages that later go extinct, so a gene arrives in a survivor from a donor that leaves no other trace. The event log names that donor, so you can ask how often a detection method finds a transfer whose source is no longer on the tree.
 
-- **Traits** — a phenotype evolving along a tree. A continuous trait diffuses, either freely or pulled toward an optimum; a discrete trait switches between the states you name. The value is recorded at every node, and a discrete trait also records every change along every branch.
+- **What does genome reduction look like in host-restricted bacteria?** Evolve a lifestyle trait, free-living or host-restricted, then let it drive the loss rate. Lineages that move inside a host shed genes faster, and you can measure how much of the resulting genome-size pattern a method attributes to lifestyle rather than to shared ancestry.
 
-- **Coupling** — a rate at one level can read its value from another level instead of being a number you type. When the driver can be simulated first, it is written to a file and handed to the level it drives. When the two are entangled, as when a trait drives speciation and so shapes the tree it is evolving on, both are grown together in a single run from the Python library.
+- **Does a dating method survive a clock that is not strict?** Give the substitution rate a relaxed clock, so lineages evolve at different paces, and compare the dates a method infers from the alignment against the true node ages.
+
+- **How accurate is ancestral sequence reconstruction?** A run records the sequence at every internal node, not just the tips, so a reconstruction can be compared residue by residue against the sequence that really sat there.
+
+- **Is a trait correlation real, or an artefact of the tree?** Two traits evolving on the same tree look correlated at the tips whether or not either drives the other, because they share ancestry. Simulate with the correlation switched off, on the same tree, and you have the baseline any comparative method has to beat.
+
+- **Does a trait actually drive diversification?** Let a trait set the speciation rate, so the tree and the trait grow together, and test whether a state-dependent method recovers the effect — or reports one when the trait is inert.
+
+- **What signal survives in gene order?** At the ordered resolution, inversions, transpositions and translocations rearrange genes on chromosomes, and fissions and fusions change the karyotype itself, so synteny and rearrangement methods can be tested against the moves that were actually made.
+
+## Installing it
+
+ZOMBI2 needs Python 3.10 or newer and depends only on NumPy, so there is no compiler and no toolchain to set up.
+
+```bash
+pip install zombi2
+```
+
+`zombi2 --version` confirms the install, and `zombi2 -h` lists the commands, one per level.
 
 ## For the impatient
 

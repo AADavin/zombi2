@@ -101,8 +101,6 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) |
 | discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel |
 
-Two families of model a reader may come looking for are deliberately absent. **DEC**, the dispersal–extinction–cladogenesis model of geographic ranges, is not implemented in the clean core. The **SSE** family — BiSSE and its relatives — is not a trait model at all: a trait that drives speciation reaches back into the tree it rides on, so the tree becomes an output grown together with the trait. That is Chapter 9.
-
 ## The objects
 
 A run returns a **`TraitsResult`** bundle:
