@@ -1,6 +1,6 @@
 # ZOMBI2 manual — proposed detailed index
 
-Round-1 restructure, drafted 2026-07-17. 11 chapters + 2 appendices, down from 17+1.
+Round-1 restructure, drafted 2026-07-17; revised 2026-07-21. 9 chapters + 2 appendices, down from 17+1.
 Provisional section titles; `⟨Dn⟩` marks a spot still gated by an open decision.
 
 Conventions baked in: levels are **words** — Species, Genomes, Sequences, Traits — never single
@@ -14,7 +14,8 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 ### 1. Introduction  *(essay)*
 - Why simulate: ground truth for methods
 - What ZOMBI2 is: one platform, four levels, a fast engine
-- What it can do — five bullets, one per level plus coupling ⟨C1.6⟩
+- What it can do — worked questions, biologically grounded, not one bullet per level ⟨C1.6; revised 2026-07-21⟩
+- Installing it — brief; the rest lives in the README ⟨absorbed from the old ch3⟩
 - For the impatient — the same short run in CLI **and** Python ⟨C1.11⟩
 
 ### 2. A tour of ZOMBI2  *(essay — the vocabulary chapter)*
@@ -24,11 +25,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - How rates work: how many, how fast — scope(base) × modifiers ⟨D3: section here, or its own chapter?⟩
 - The ZOMBI2 vocabulary — a short glossary (level, rate, resolution, complete/extant) ⟨C2.11, D6⟩
 
-### 3. Getting started
-- Installation (from source · building the engine · optional extras · verifying)
-- Your first simulation: a species tree, then gene families along it
-- The output folder — what each file is
-- Reading the results back in Python
+*(A separate "Getting started" chapter was written and then **cut** on 2026-07-21 as redundant: its first run duplicated Ch1's, its output-folder tour duplicated the level chapters and Appendix B. Installation moved into Ch1.)*
 
 ---
 
@@ -38,7 +35,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 > the same way: **The objects** (the result type and its API) → **Usage from Python** →
 > **Usage from the CLI** → **Outputs**. Only the chapter-specific tail notes are listed below.
 
-### 4. Species trees  *(merges old 4 + 5)*
+### 3. Species trees  *(merges old 4 + 5)*
 - **Forward and backward** — the two modes, with a figure; opens the chapter ⟨C4.2/C4.6⟩
 - The birth–death process — the base (Yule as a note: death = 0, not a class) ⟨C4.3⟩
 - **What the rate depends on** — one table, one process: nothing (constant) · time (episodic) · ancestry (the rate drifts as lineages split — "ClaDS" a footnote) · standing diversity · clade ⟨D5⟩
@@ -48,7 +45,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - *(trait- and gene-driven diversification live in ch9 Coupling levels — one forward pointer)*
 - **Tail:** the `Tree` object → Python → CLI → Outputs *(complete & extant Newick)* ⟨D6, D7⟩
 
-### 5. Genomes I — Unordered  *(old 7 + the genealogy half of 8)*
+### 4. Genomes I — Unordered  *(old 7 + the genealogy half of 8)*
 - What an unordered genome is: a multiset of gene families — the base resolution
 - The four events: origination, duplication, transfer, loss
 - Rates: **per copy vs per lineage** (the scope), and **shared vs per-family** (heterogeneity) — kept distinct ⟨C7.5, D3⟩
@@ -58,19 +55,19 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 - Gene trees and the event log — the event log is a full genealogy; reconstructing the gene trees; reconciliation ⟨from old ch8⟩
 - **Tail:** the genome & profile objects → Python → CLI → Outputs *(profile matrix, sparse; event trace)* ⟨D7⟩
 
-### 6. Genomes II — Structured  *(old 9 + 10)*
+*(The old "Genomes II — Structured" was **split in two** on 2026-07-21: one chapter was carrying gene order, rearrangements, the karyotype and the chromosome network at once. The seam is order *within* a chromosome versus the chromosomes themselves.)*
+
+### 5. Genomes II — Gene order
 - From families to positions: what structure adds
-- Ordered genomes: segments; rearrangements (inversion, transposition)
-- Chromosomes: topology (circular / linear), number, and **fission, fusion, translocation** — with a figure ⟨C6.10, C6.11⟩
-- Nucleotide resolution
-  - Genes and intergenes — explained **before** rates ⟨C10.3⟩
-  - The model; blocks as units of shared ancestry
-  - Mean segment length in nucleotides (not a raw probability) ⟨C10.7⟩
-  - Intergenic indels
-- Reading a leaf genome; BED annotations; starting from a real genome (GFF)
-- Pseudogenization
-- *(the Rust engine folded into a note, not a section)* ⟨C10.9⟩
-- **Tail:** the ordered & nucleotide genome objects → Python → CLI → Outputs *(genomes, BED, FASTA, karyotype)* ⟨D7⟩
+- Events act on **segments** — the extension, and why neighbours share a history
+- Rearrangements: inversion, transposition, translocation
+- **Tail:** the `OrderedGenomesResult` object → Python → CLI → Outputs *(gene order, rearrangements)* ⟨D7⟩
+
+### 6. Genomes III — Chromosomes
+- The karyotype: number and topology (circular / linear)
+- The chromosome tier: **fission, fusion, chromosome origination, chromosome loss**
+- The **chromosome network** — species tree ⊃ chromosome network ⊃ gene trees; a reticulating graph, written as an edge list
+- **Tail:** Python → CLI → Outputs *(chromosome events)* ⟨D7⟩
 
 ### 7. Sequence evolution  *(merges old 12 + 13)*
 - The idea: one branch length = one expected substitution — the phylogram is the deliverable ⟨C12.3, was buried at the end⟩
@@ -96,7 +93,7 @@ Every model chapter ends with **Outputs**; concept chapters are exempt essays.
 
 ## Part III — Coupling the levels
 
-### 9. Coupling levels  *(merges old 9 Conditioning + 10 Joint + 11 Nulls into one chapter)*
+### 9. Conditioning and joining  *(merges old 9 Conditioning + 10 Joint + 11 Nulls into one chapter)*
 - The one idea: a rate driven by another level — `mod.DrivenBy(source, mapping)`, a parameter that stops being a number you type
 - Conditioned vs joint is **one** distinction: *can the driver be grown first?* — a file source (two commands, ordered) vs a live-level source (one command). NOT "does it change the tree" ⟨D14, D15⟩
 - **Conditioned** — the driver is a file, grown first and handed over: a trait drives gene loss (Traits → Genomes); a gene drives a trait's optimum (Genomes → Traits); a trait drives selection / clock speed (Traits → Sequences)

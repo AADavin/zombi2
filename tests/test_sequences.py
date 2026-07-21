@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from zombi2 import species
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import GenomesResult, simulate_genomes_unordered
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import SequencesResult, simulate_sequences
@@ -18,23 +18,37 @@ from zombi2.sequences.substitution_models import gtr, hky85, jc69, k80
 
 # --- hand-built gene trees: origination → speciation → two extant tips -----------------------------
 
-def _pair_tree(t_spec: float, t_tip: float) -> GeneTree:
-    """A minimal family (per-segment gene ids): the founding gene (id 0) on species 0 ends by a
-    ``speciation`` at ``t_spec``; its two daughters (ids 1, 2) reach ``extant`` tips (species 1, 2) at
-    ``t_tip``. The root→tip branch has length ``t_tip - t_spec`` (so ``_pair_tree(0.0, d)`` is one
-    branch of length ``d`` from the root gene to each tip)."""
+def _run(gene_trees, *, t_split: float = 1.0, t_now: float = 2.0) -> GenomesResult:
+    """The **genome run** the sequence level requires, wrapped around hand-built gene trees: a
+    three-lineage species tree (root 0 splits at ``t_split`` into extant tips 1 and 2 at ``t_now``)
+    carrying the given families. The gene trees are attached directly — these families are written by
+    hand, so there is no event log for the run to derive them from."""
+    tree = species.Tree({0: species.Node(0, None, 0.0, t_split, (1, 2), "speciation"),
+                         1: species.Node(1, 0, t_split, t_now, None, "extant"),
+                         2: species.Node(2, 0, t_split, t_now, None, "extant")}, 0)
+    run = GenomesResult(complete_tree=tree, genomes={}, events=[], seed=None)
+    run.gene_trees = dict(gene_trees)      # a cached_property: the instance dict wins
+    return run
+
+
+def _pair_run(t_spec: float, t_tip: float) -> GenomesResult:
+    """A minimal family (per-segment gene ids) in its genome run: the founding gene (id 0) on species
+    0 ends by a ``speciation`` at ``t_spec``; its two daughters (ids 1, 2) reach ``extant`` tips
+    (species 1, 2) at ``t_tip``. The root→tip branch has length ``t_tip - t_spec`` (so
+    ``_pair_run(0.0, d)`` is one branch of length ``d`` from the root gene to each tip)."""
     root = GeneNode("speciation", 0, t_spec, 0)
     root.children = [GeneNode("extant", 1, t_tip, 1), GeneNode("extant", 2, t_tip, 2)]
-    return GeneTree(0, root)
+    return _run({0: GeneTree(0, root)}, t_split=t_spec, t_now=t_tip)
 
 
-def _one_lineage(species: int, t_tip: float) -> GeneTree:
-    """A family whose founding gene (id 0) on ``species`` ends by a ``speciation`` at t=0, both
-    daughters (ids 1, 2) staying on ``species`` to ``extant`` tips at ``t_tip`` — so both branches ride
-    the *same* species lineage's clock. Used to test that the lineage clock is shared across families."""
-    root = GeneNode("speciation", species, 0.0, 0)
-    root.children = [GeneNode("extant", species, t_tip, 1), GeneNode("extant", species, t_tip, 2)]
-    return GeneTree(0, root)
+def _one_lineage(family: int, lineage: int, t_tip: float) -> GeneTree:
+    """A family whose founding gene (id 0) on species ``lineage`` ends by a ``speciation`` at t=0,
+    both daughters (ids 1, 2) staying on ``lineage`` to ``extant`` tips at ``t_tip`` — so both
+    branches ride the *same* species lineage's clock. Used to test that the lineage clock is shared
+    across families."""
+    root = GeneNode("speciation", lineage, 0.0, 0)
+    root.children = [GeneNode("extant", lineage, t_tip, 1), GeneNode("extant", lineage, t_tip, 2)]
+    return GeneTree(family, root)
 
 
 def _iter_nodes(root):
@@ -71,17 +85,17 @@ def test_models_are_normalised_to_one_substitution_per_unit_time():
 # --- the engine: determinism, the strict clock, structure ------------------------------------------
 
 def test_determinism_same_seed_identical_different_seed_differs():
-    gts = {0: _pair_tree(1.0, 2.0)}
-    a = simulate_sequences(gts, model=jc69(), length=200, seed=7)
-    b = simulate_sequences(gts, model=jc69(), length=200, seed=7)
+    run = _pair_run(1.0, 2.0)
+    a = simulate_sequences(run, model=jc69(), length=200, seed=7)
+    b = simulate_sequences(run, model=jc69(), length=200, seed=7)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
-    c = simulate_sequences(gts, model=jc69(), length=200, seed=8)
+    c = simulate_sequences(run, model=jc69(), length=200, seed=8)
     assert a.alignments != c.alignments
 
 
 def test_zero_rate_leaves_every_node_equal_to_the_root():
     # substitution = 0 → every branch length is 0 → no site ever changes
-    r = simulate_sequences({0: _pair_tree(1.0, 2.0)}, model=hky85(kappa=3.0), length=150,
+    r = simulate_sequences(_pair_run(1.0, 2.0), model=hky85(kappa=3.0), length=150,
                            substitution=0.0, seed=1)
     assert len(set(_seqs(r))) == 1
 
@@ -91,25 +105,25 @@ def test_zero_length_branch_copies_its_parent():
     # zero-length branch — so it must copy the root's sequence
     root = GeneNode("duplication", 0, 1.0, 0)
     root.children = [GeneNode("extant", 1, 1.0, 1), GeneNode("extant", 2, 2.0, 2)]
-    r = simulate_sequences({0: GeneTree(0, root)}, model=jc69(), length=120, seed=3)
+    r = simulate_sequences(_run({0: GeneTree(0, root)}), model=jc69(), length=120, seed=3)
     assert r.alignments[0]["g1"] == r.ancestral[0]["g0"]
 
 
 def test_every_sequence_has_the_requested_length_over_the_alphabet():
-    r = simulate_sequences({0: _pair_tree(1.0, 2.0)}, model=gtr(), length=123, seed=1)
+    r = simulate_sequences(_pair_run(1.0, 2.0), model=gtr(), length=123, seed=1)
     for seq in _seqs(r):
         assert len(seq) == 123
         assert set(seq) <= set("ACGT")
 
 
 def test_alignment_labels_are_exactly_the_extant_tips():
-    r = simulate_sequences({0: _pair_tree(1.0, 2.0)}, model=k80(2.0), length=10, seed=1)
+    r = simulate_sequences(_pair_run(1.0, 2.0), model=k80(2.0), length=10, seed=1)
     assert set(r.alignments[0]) == {"g1", "g2"}             # the two extant daughter genes
 
 
 def test_jc69_holds_uniform_base_composition():
     # root drawn from the uniform stationary; JC69 keeps it uniform, so tips stay ≈ 25% each
-    r = simulate_sequences({0: _pair_tree(1.0, 5.0)}, model=jc69(), length=20000, seed=42)
+    r = simulate_sequences(_pair_run(1.0, 5.0), model=jc69(), length=20000, seed=42)
     seq = r.alignments[0]["g1"]
     for base in "ACGT":
         assert abs(seq.count(base) / len(seq) - 0.25) < 0.03
@@ -123,7 +137,7 @@ def test_jc69_pdistance_matches_theory_and_rate_scales_it():
         return np.mean(np.frombuffer(a.encode(), np.uint8) != np.frombuffer(b.encode(), np.uint8))
 
     def root_tip_pdistance(*, t_tip, substitution):
-        r = simulate_sequences({0: _pair_tree(0.0, t_tip)}, model=jc69(), length=40000,
+        r = simulate_sequences(_pair_run(0.0, t_tip), model=jc69(), length=40000,
                                substitution=substitution, seed=1)
         return pdist(r.ancestral[0]["g0"], r.alignments[0]["g1"])   # root gene g0 → daughter tip g1
 
@@ -136,7 +150,7 @@ def test_jc69_pdistance_matches_theory_and_rate_scales_it():
 def test_hky85_transition_bias_makes_diverged_tips_still_reflect_frequencies():
     # a strongly skewed base composition is reproduced at the tips (endpoint stays near stationary)
     freqs = (0.4, 0.1, 0.1, 0.4)
-    r = simulate_sequences({0: _pair_tree(1.0, 4.0)}, model=hky85(4.0, freqs), length=20000, seed=5)
+    r = simulate_sequences(_pair_run(1.0, 4.0), model=hky85(4.0, freqs), length=20000, seed=5)
     seq = r.alignments[0]["g1"]
     comp = [seq.count(b) / len(seq) for b in "ACGT"]
     assert comp[0] > comp[1] and comp[3] > comp[2]   # A,T (0.4) exceed C,G (0.1)
@@ -149,18 +163,18 @@ def test_family_with_no_extant_copy_has_empty_alignment_but_full_ancestral():
     # real internal node with a reconstructed sequence
     root = GeneNode("speciation", 0, 1.0, 0)
     root.children = [GeneNode("loss", 0, 2.0, 1), GeneNode("loss", 0, 2.0, 2)]
-    r = simulate_sequences({0: GeneTree(0, root)}, model=jc69(), length=10, seed=1)
+    r = simulate_sequences(_run({0: GeneTree(0, root)}), model=jc69(), length=10, seed=1)
     assert r.alignments[0] == {}
     assert set(r.ancestral[0]) == {"g0"}               # the root gene still gets a sequence
 
 
 # --- integration: species → genomes → sequences ----------------------------------------------------
 
-def test_accepts_a_genomes_result_and_covers_every_node():
+def test_a_real_genome_run_is_covered_node_for_node():
     sp = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1)
     g = simulate_genomes_unordered(sp, duplication=0.2, loss=0.2, transfer=0.1,
                                    initial_families=6, seed=2)
-    r = simulate_sequences(g, model=hky85(kappa=2.5), length=300, seed=3)   # GenomesResult input
+    r = simulate_sequences(g, model=hky85(kappa=2.5), length=300, seed=3)   # the genome run itself
     assert isinstance(r, SequencesResult)
     assert set(r.alignments) == set(g.gene_trees) == set(r.ancestral)       # one entry per family
     for fam, gt in g.gene_trees.items():
@@ -189,17 +203,17 @@ def _pdist(a: str, b: str) -> float:
 
 def test_bylineage_zero_spread_is_bit_identical_to_the_strict_clock():
     # spread=0 draws 1.0 without touching the rng, so the run matches the strict clock exactly
-    gts = {0: _pair_tree(1.0, 2.0)}
-    strict = simulate_sequences(gts, model=jc69(), length=300, seed=5)
-    clocked = simulate_sequences(gts, model=jc69(), length=300,
+    run = _pair_run(1.0, 2.0)
+    strict = simulate_sequences(run, model=jc69(), length=300, seed=5)
+    clocked = simulate_sequences(run, model=jc69(), length=300,
                                  substitution=1.0 * mod.ByLineage(spread=0.0), seed=5)
     assert clocked.alignments == strict.alignments and clocked.ancestral == strict.ancestral
 
 
 def test_bylineage_perturbs_the_output_and_stays_valid():
-    gts = {0: _pair_tree(1.0, 2.0)}
-    strict = simulate_sequences(gts, model=jc69(), length=300, seed=5)
-    clocked = simulate_sequences(gts, model=jc69(), length=300,
+    run = _pair_run(1.0, 2.0)
+    strict = simulate_sequences(run, model=jc69(), length=300, seed=5)
+    clocked = simulate_sequences(run, model=jc69(), length=300,
                                  substitution=1.0 * mod.ByLineage(spread=0.5), seed=5)
     assert clocked.alignments != strict.alignments          # the clock rescales branch lengths
     for seq in _seqs(clocked):
@@ -207,10 +221,10 @@ def test_bylineage_perturbs_the_output_and_stays_valid():
 
 
 def test_bylineage_is_deterministic():
-    gts = {0: _pair_tree(1.0, 2.0)}
+    run = _pair_run(1.0, 2.0)
     spec = 1.0 * mod.ByLineage(spread=0.4)
-    a = simulate_sequences(gts, model=hky85(2.0), length=200, substitution=spec, seed=9)
-    b = simulate_sequences(gts, model=hky85(2.0), length=200, substitution=spec, seed=9)
+    a = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
+    b = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
 
 
@@ -218,8 +232,8 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
     # 20 identical single-branch families, ALL on species lineage 0 → all feel the SAME clock[0].
     # A per-family clock would scatter their root→tip divergences by ~spread; a shared clock leaves
     # only sampling noise, so the across-family spread collapses.
-    gts = {f: _one_lineage(species=0, t_tip=1.0) for f in range(20)}
-    r = simulate_sequences(gts, model=jc69(), length=5000,
+    run = _run({f: _one_lineage(f, lineage=0, t_tip=1.0) for f in range(20)}, t_split=0.0, t_now=1.0)
+    r = simulate_sequences(run, model=jc69(), length=5000,
                            substitution=1.0 * mod.ByLineage(spread=0.8), seed=4)
     ds = [_pdist(r.ancestral[f]["g0"], r.alignments[f]["g1"]) for f in range(20)]
     mean = sum(ds) / len(ds)
@@ -228,14 +242,14 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
 
 
 def test_bylineage_rejects_other_and_multiple_modifiers():
-    gts = {0: _pair_tree(1.0, 2.0)}
+    run = _pair_run(1.0, 2.0)
     with pytest.raises(ValueError):                 # FromParent clock — a later slice
-        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.FromParent(spread=0.3))
+        simulate_sequences(run, model=jc69(), length=10, substitution=1.0 * mod.FromParent(spread=0.3))
     with pytest.raises(ValueError):                 # two ByLineage — only a single clock is wired
-        simulate_sequences(gts, model=jc69(), length=10,
+        simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
     with pytest.raises(ValueError):                 # ByLineage × OnTime — mixed modifiers
-        simulate_sequences(gts, model=jc69(), length=10,
+        simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.OnTime({0: 1.0}))
 
 
@@ -249,10 +263,10 @@ def _total_bl(nwk: str) -> float:
     return sum(float(x) for x in re.findall(r":([0-9.eE+-]+)", nwk))
 
 
-def _small_run(clock=1.0, bare=False):
+def _small_run(clock=1.0):
     sp = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1)
     g = simulate_genomes_unordered(sp, duplication=0.3, loss=0.3, transfer=0.1, initial_families=8, seed=2)
-    r = simulate_sequences(g.gene_trees if bare else g, model=jc69(), length=10, substitution=clock, seed=3)
+    r = simulate_sequences(g, model=jc69(), length=10, substitution=clock, seed=3)
     return g, r
 
 
@@ -307,10 +321,13 @@ def test_lineage_clock_reshapes_the_phylograms():
     assert any(clocked.phylograms[f]["complete"] != strict.phylograms[f]["complete"] for f in g.gene_trees)
 
 
-def test_bare_gene_trees_have_no_species_phylogram():
-    g, r = _small_run(bare=True)
-    assert r.species_phylogram is None                 # no species tree was passed
-    assert set(r.phylograms) == set(g.gene_trees)      # gene phylograms are still produced
+def test_bare_gene_trees_are_rejected():
+    # the level runs on a genome run, never on a loose {family: GeneTree}: without the species tree
+    # the lineage clock has no branches to ride and the species phylogram cannot exist, so accepting
+    # the mapping would hide that degradation instead of naming it
+    g, _ = _small_run()
+    with pytest.raises(TypeError, match="simulate_genomes_unordered"):
+        simulate_sequences(g.gene_trees, model=jc69(), length=10, seed=3)
 
 
 def test_write_emits_phylogram_newick(tmp_path):
@@ -325,21 +342,24 @@ def test_write_emits_phylogram_newick(tmp_path):
 
 def test_rejects_bad_arguments_and_unwired_rate_specs():
     from zombi2.rates.scope import PerLineage
-    gts = {0: _pair_tree(1.0, 2.0)}
+    run = _pair_run(1.0, 2.0)
     with pytest.raises(TypeError):
-        simulate_sequences(gts, model="jc69", length=10)                  # not a SubstitutionModel
+        simulate_sequences(run, model="jc69", length=10)                  # not a SubstitutionModel
     with pytest.raises(ValueError):
-        simulate_sequences(gts, model=jc69(), length=0)                   # non-positive length
+        simulate_sequences(run, model=jc69(), length=0)                   # non-positive length
     with pytest.raises(ValueError):
-        simulate_sequences(gts, model=jc69(), length=10, substitution=1.0 * mod.OnTime({0: 1.0}))
+        simulate_sequences(run, model=jc69(), length=10, substitution=1.0 * mod.OnTime({0: 1.0}))
     with pytest.raises(ValueError):
-        simulate_sequences(gts, model=jc69(), length=10, substitution=PerLineage(1.0))
+        simulate_sequences(run, model=jc69(), length=10, substitution=PerLineage(1.0))
+    with pytest.raises(TypeError, match="genome run"):                    # a species run is not one
+        simulate_sequences(species.simulate_species_tree(birth=1.0, n_extant=4, seed=1),
+                           model=jc69(), length=10)
 
 
 # --- writing ---------------------------------------------------------------------------------------
 
 def test_write_emits_fasta_per_family(tmp_path):
-    r = simulate_sequences({0: _pair_tree(1.0, 2.0)}, model=jc69(), length=20, seed=1)
+    r = simulate_sequences(_pair_run(1.0, 2.0), model=jc69(), length=20, seed=1)
     r.write(tmp_path)
     aln = tmp_path / "sequences_alignment_fam0.fasta"
     assert aln.exists() and ">g1" in aln.read_text()

@@ -7,9 +7,13 @@ transition/transversion structure and base composition — so, unlike the clock,
 collapse to one grammar: they stay a menu of constructors, each taking its own physical parameters
 (``SPEC §4`` — "faking a grammar over the matrices would be worse than a menu").
 
-This slice ships the four **nucleotide** models (4 states, ``ACGT``). Amino-acid and codon models,
-and across-site ``+Γ`` heterogeneity, are named later slices; adding them is a pure extension of this
-menu, no refactor.
+Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`` — :func:`jc69` ·
+:func:`k80` · :func:`hky85` · :func:`gtr`) and the five **protein** models (20 states,
+:data:`AMINO_ACIDS` — :func:`poisson` · :func:`jtt` · :func:`dayhoff` · :func:`wag` · :func:`lg`).
+The protein models are *empirical*: their exchangeabilities and frequencies were estimated once from
+large alignments and are read off the published matrices (:mod:`._aa_matrices`), so they take **no
+free parameters** — you pick one, you do not tune it. Codon models and across-site ``+Γ``
+heterogeneity are named later slices; adding them is a pure extension of this menu, no refactor.
 
 Every model here is time-reversible, so the transition matrix over a branch of length ``t`` (in
 substitutions/site), ``P(t) = exp(Q·t)``, is computed by eigendecomposition of the *symmetric*
@@ -23,8 +27,17 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ._aa_matrices import (
+    _DAYHOFF_EXCH, _DAYHOFF_PI, _JTT_EXCH, _JTT_PI, _LG_EXCH, _LG_PI, _WAG_EXCH, _WAG_PI,
+)
+
 #: the nucleotide alphabet, in the order ``Q`` and ``stationary`` follow.
 BASES = "ACGT"
+
+#: the 20-letter amino-acid alphabet, in the PAML column order every empirical protein matrix is
+#: published in (``A R N D C Q E G H I L K M F P S T W Y V``) — the order ``Q`` and ``stationary``
+#: follow for the protein models, and the order :func:`decode` reads them back in.
+AMINO_ACIDS = "ARNDCQEGHILKMFPSTWYV"
 
 
 @dataclass(frozen=True)
@@ -131,9 +144,58 @@ def gtr(rates=(1, 1, 1, 1, 1, 1), freqs=(0.25, 0.25, 0.25, 0.25)) -> Substitutio
     return _gtr_model("GTR", rates, freqs)
 
 
+# --- the protein models: 20 states, empirical exchangeabilities + frequencies ----------------------
+
+def _lower_triangle(tri, k: int) -> np.ndarray:
+    """Expand a flat lower triangle (entry ``(i, j)`` for ``i = 1..k-1``, ``j < i``, row by row — the
+    PAML layout of :mod:`._aa_matrices`) into the symmetric ``k×k`` exchangeability matrix."""
+    S = np.zeros((k, k))
+    it = iter(tri)
+    for i in range(1, k):
+        for j in range(i):
+            S[i, j] = S[j, i] = next(it)
+    return S
+
+
+def _empirical_protein(name: str, tri, pi) -> SubstitutionModel:
+    """Build a 20-state protein model from published lower-triangular exchangeabilities and freqs,
+    both in :data:`AMINO_ACIDS` order — normalised, like every model here, to one expected
+    substitution per site per unit branch length."""
+    return _reversible_model(name, _lower_triangle(tri, 20), pi, AMINO_ACIDS)
+
+
+def poisson() -> SubstitutionModel:
+    """Poisson: equal exchangeabilities, equal frequencies — the JC69 of proteins. No free parameters."""
+    S = np.ones((20, 20)) - np.eye(20)
+    return _reversible_model("Poisson", S, np.full(20, 1.0 / 20.0), AMINO_ACIDS)
+
+
+def jtt() -> SubstitutionModel:
+    """JTT (Jones, Taylor & Thornton 1992): the empirical matrix from close protein homologues."""
+    return _empirical_protein("JTT", _JTT_EXCH, _JTT_PI)
+
+
+def dayhoff() -> SubstitutionModel:
+    """Dayhoff (Dayhoff, Schwartz & Orcutt 1978): the original PAM matrix, in PAML's values."""
+    return _empirical_protein("Dayhoff", _DAYHOFF_EXCH, _DAYHOFF_PI)
+
+
+def wag() -> SubstitutionModel:
+    """WAG (Whelan & Goldman 2001): estimated by maximum likelihood over a wide protein database."""
+    return _empirical_protein("WAG", _WAG_EXCH, _WAG_PI)
+
+
+def lg() -> SubstitutionModel:
+    """LG (Le & Gascuel 2008): WAG's successor, fitted with across-site rate variation — the
+    default protein model of modern phylogenetics."""
+    return _empirical_protein("LG", _LG_EXCH, _LG_PI)
+
+
 def decode(states: np.ndarray, alphabet: str = BASES) -> str:
-    """Map an array of integer states back to a string over ``alphabet`` (default ``ACGT``)."""
+    """Map an array of integer states back to a string over ``alphabet`` — ``ACGT`` by default, or
+    :data:`AMINO_ACIDS` for a protein model (callers pass ``model.alphabet``)."""
     return "".join(alphabet[i] for i in np.asarray(states))
 
 
-__all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr", "decode", "BASES"]
+__all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr",
+           "poisson", "jtt", "dayhoff", "wag", "lg", "decode", "BASES", "AMINO_ACIDS"]
