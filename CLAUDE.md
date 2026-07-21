@@ -20,7 +20,7 @@ MAP.md (shape) **first**, then propagate.
 ## Output files — keep the cheatsheet in sync
 
 Every file ZOMBI2 writes is catalogued in one table per level in
-[`manual/revision/appendix-b.md`](manual/revision/appendix-b.md) (Appendix B;
+[`manual/book/appendix-b.md`](manual/book/appendix-b.md) (Appendix B;
 the docs site single-sources it at `docs/reference/output-files.md`, so editing the appendix updates both
 book and site). **Whenever you add or change an output** — a new `.write()` token, a new filename or
 format, a changed default, new columns, or a new Python-only accessor like `.gene_trees` — **update that
@@ -45,7 +45,7 @@ stage 2 of the rebuild; today only `legacy/` binds to it.
 
 ## The manual
 
-The book lives in `manual/revision/`, one file per chapter: `ch1.md` … `ch9.md`, plus `appendix-a.md`
+The book lives in `manual/book/`, one file per chapter: `ch1.md` … `ch9.md`, plus `appendix-a.md`
 (the Gillespie algorithm) and `appendix-b.md` (output files). SPEC is the constitution; the manual is
 its exposition.
 
