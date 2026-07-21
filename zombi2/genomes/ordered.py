@@ -42,7 +42,7 @@ from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
-from .chromosomes import ChromosomeEvent
+from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .events import Event, events_tsv
@@ -259,7 +259,7 @@ class OrderedGenomesResult:
         if "rearrangements" in outputs:
             (d / "rearrangements.tsv").write_text(_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
-            (d / "chromosome_events.tsv").write_text(_chromosome_events_tsv(self.chromosome_events))
+            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "event_positions" in outputs:
             (d / "genome_event_positions.tsv").write_text(_event_positions_tsv(self.event_positions))
 
@@ -297,13 +297,6 @@ def _event_positions_tsv(event_positions: list[EventPosition]) -> str:
     rows = ["\t".join("" if (v := getattr(p, c)) is None else str(v) for c in _POSITION_COLS)
             for p in event_positions]
     return "\n".join(["\t".join(_POSITION_COLS), *rows]) + "\n"
-
-
-def _chromosome_events_tsv(chromosome_events: list[ChromosomeEvent]) -> str:
-    cols = ("time", "kind", "lineage", "parents", "children")
-    rows = [f"{e.time}\t{e.kind}\t{e.lineage}\t{';'.join(map(str, e.parents))}\t"
-            f"{';'.join(map(str, e.children))}" for e in chromosome_events]
-    return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
 # --- picking, over the chromosome-nested state ----------------------------------------------------

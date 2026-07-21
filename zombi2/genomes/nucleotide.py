@@ -88,6 +88,7 @@ from __future__ import annotations
 
 import collections
 import math
+import pathlib
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -95,7 +96,7 @@ import numpy as np
 from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
-from .chromosomes import ChromosomeEvent
+from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .gene_trees import GeneTree, gene_trees_from_events
 from .gff import read_gff
 
@@ -611,6 +612,118 @@ class NucleotideGenomesResult:
         :attr:`root_blocks`. A declared gene that survives in no extant leaf has no root-block and so no
         tree."""
         return self._recover()[1]
+
+    def write(self, directory, outputs=("events", "blocks", "genes")) -> None:
+        """Materialise chosen ``outputs`` to ``directory`` (created if needed):
+
+        - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.
+          One row per **ancestral interval** an event touched, so an event that spanned several
+          blocks writes several rows sharing a ``time`` and ``kind``.
+        - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
+          included, as for the ordered resolution's ``gene_order``).
+        - ``"genes"`` → ``genes.tsv``, the declared genes and where they sit in root coordinates.
+          Header-only for a run that declared none.
+        - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
+        - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges.
+
+        Gene trees stay Python-only (:attr:`gene_trees`), as they are at the other resolutions.
+        """
+        d = pathlib.Path(directory)
+        d.mkdir(parents=True, exist_ok=True)
+        if "events" in outputs:
+            (d / "genome_events.tsv").write_text(_nucleotide_events_tsv(self.events))
+        if "blocks" in outputs:
+            (d / "blocks.tsv").write_text(self._blocks_tsv())
+        if "genes" in outputs:
+            (d / "genes.tsv").write_text(self._genes_tsv())
+        if "rearrangements" in outputs:
+            (d / "rearrangements.tsv").write_text(_nucleotide_rearrangements_tsv(self.rearrangements))
+        if "chromosome_events" in outputs:
+            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
+
+    def _blocks_tsv(self) -> str:
+        """Every node's genome, block by block. ``position`` is the block's physical offset along its
+        chromosome, so the rows of one chromosome tile it end to end from 0."""
+        cols = ("species", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
+        rows = []
+        for s in sorted(self.genomes):
+            for c in self.genomes[s].chromosomes:
+                at = 0
+                for b in c.blocks:
+                    rows.append(f"{s}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
+                                f"{b.copy}\t{b.gene}")
+                    at += b.length
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+    def _genes_tsv(self) -> str:
+        """The declared genes: family id, name (blank when unnamed), the root interval the gene
+        occupies, and the **coding** strand the GFF gave it."""
+        cols = ("family", "name", "source", "start", "end", "strand")
+        name_of = {fam: name for name, fam in self.gene_names.items()}
+        rows = [f"{fam}\t{name_of.get(fam, '')}\t{src}\t{start}\t{end}\t{self.gene_strands.get(fam, 1)}"
+                for fam, (src, start, end) in sorted(self.gene_spans.items())]
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+
+_NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "parent", "recipient",
+                          "source", "start", "end")
+
+
+def _nucleotide_events_tsv(events) -> str:
+    """The copy-lineage genealogy as TSV — one row per ancestral interval an event touched.
+
+    An event here can span several blocks at once (a loss deletes an arc covering many), and each
+    carries its own copy lineage and ancestral interval, so a flat table needs one row apiece. Rows
+    of the same event share ``time``, ``kind`` and ``lineage``. Empty cells for the fields a kind
+    does not use; a speciation re-mints a copy lineage without touching sequence, so it names only
+    ``parent`` and ``copy``.
+    """
+    rows = []
+
+    def row(*cells):
+        rows.append("\t".join("" if c is None else str(c) for c in cells))
+
+    for e in events:
+        if isinstance(e, Origination):
+            row(e.time, "origination", e.lineage, e.chromosome, e.copy, None, None,
+                e.source, e.start, e.end)
+        elif isinstance(e, Loss):
+            for (copy, source, start, end) in e.lost:
+                row(e.time, "loss", e.lineage, e.chromosome, copy, None, None, source, start, end)
+        elif isinstance(e, Duplication):
+            for (parent, child, source, start, end) in e.copied:
+                row(e.time, "duplication", e.lineage, e.chromosome, child, parent, None,
+                    source, start, end)
+        elif isinstance(e, Transfer):
+            for (parent, child, source, start, end) in e.transferred:
+                row(e.time, "transfer", e.lineage, None, child, parent, e.recipient,
+                    source, start, end)
+        elif isinstance(e, Speciation):
+            for child in e.children:
+                row(e.time, "speciation", e.lineage, None, child, e.parent, None, None, None, None)
+        else:
+            raise AssertionError(f"unhandled event {type(e).__name__}")
+    return "\n".join(["\t".join(_NUCLEOTIDE_EVENT_COLS), *rows]) + "\n"
+
+
+_NUCLEOTIDE_REARRANGEMENT_COLS = ("time", "kind", "lineage", "chromosome", "start", "length",
+                                  "dest_chromosome", "dest_position", "flipped")
+
+
+def _nucleotide_rearrangements_tsv(rearrangements) -> str:
+    """The ancestry-neutral rearrangements as TSV — one table for all three kinds, empty cells for
+    the fields a kind does not use. Coordinates are **physical** (bp along the chromosome), unlike
+    the genealogy log's ancestral ones."""
+    def row(r):
+        if isinstance(r, Inversion):
+            return (r.time, "inversion", r.lineage, r.chromosome, r.start, r.length, "", "", "")
+        if isinstance(r, Transposition):
+            return (r.time, "transposition", r.lineage, r.chromosome, r.start, r.length,
+                    "", r.dest, int(r.flipped))
+        return (r.time, "translocation", r.lineage, r.source, r.start, r.length,
+                r.dest, "", int(r.flipped))
+    rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
+    return "\n".join(["\t".join(_NUCLEOTIDE_REARRANGEMENT_COLS), *rows]) + "\n"
 
 
 def _valid_length(length) -> int:
