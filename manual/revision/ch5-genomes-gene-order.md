@@ -191,4 +191,24 @@ species  chromosome  position  strand  family  gene
 
 Ancestral rows are what make the rearrangement log usable. `rearrangements.tsv` gives each inversion a start and a length on a branch; to check what it did, or to replay it, you need the genome the branch started from — that is its parent's rows here. Without them the log can only be read at the tips.
 
+### Replaying a run
+
+`genome_events.tsv` records which gene copy each event created or ended, but not where on the chromosome it happened. That is deliberate: an event is about identity and descent, which is the same at every resolution, so the log is shared with the unordered core (Chapter 5) unchanged. The `event_positions` output adds the coordinates alongside it:
+
+```python
+g.write("out/", outputs=("gene_order", "rearrangements", "event_positions"))
+```
+
+```
+time   kind         lineage  chromosome  start  length  family  recipient  dest_chromosome  dest_position
+0.0    origination  0        0           0      1       0
+0.209  transfer     2        2           0      1               1          1                0
+0.345  loss         4        4           3      1
+0.644  duplication  4        4           3      1                                           4
+```
+
+`start` and `length` mark the run of genes the event acted on, in the genome as it stood just before. `dest_position` says where material landed: a duplication's copy block, or a transferred block in the recipient. Origination carries its `family`, because it is the only event whose gene does not come from a genome you already have.
+
+Those three files together are enough to reconstruct the whole run: start from a node's parent in `gene_order.tsv`, apply that branch's rows from `rearrangements.tsv` and `genome_event_positions.tsv` in time order, and you get the node's own rows back. Events sharing a timestamp apply in the order written.
+
 The full list of files lives in Appendix B.

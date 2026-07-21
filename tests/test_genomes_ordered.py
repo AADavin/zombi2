@@ -434,15 +434,19 @@ def test_geometric_mean_one_is_always_a_single_gene():
 
 def test_duplicate_copies_a_block_in_tandem():
     ch = Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, 1)])
-    events, counter = [], [10]
+    events, positions, counter = [], [], [10]
 
     def ng(fam, strand):
         counter[0] += 1
         return Gene(counter[0], fam, strand)
-    added = _duplicate(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, ng)
+    added = _duplicate(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, positions, ng)
     assert added == 2 and len(ch.genes) == 5
     assert [g.family for g in ch.genes] == [0, 1, 0, 1, 2]   # conts in place, then the tandem copy block
     assert len(events) == 4 and all(e.kind == "duplication" for e in events)
+    # one position row for the whole event, naming where the copy block landed
+    assert len(positions) == 1
+    p = positions[0]
+    assert (p.kind, p.chromosome, p.start, p.length, p.dest_position) == ("duplication", 0, 0, 2, 2)
 
 
 def test_transpose_relocates_a_segment_within_the_chromosome_preserving_ids():

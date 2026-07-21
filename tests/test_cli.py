@@ -163,6 +163,24 @@ def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
                                                "genome_species_tree.nwk", "genomes.log"}
 
 
+def test_genomes_ordered_writes_event_positions(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--resolution", "ordered", "--duplication", "0.3",
+               "--loss", "0.2", "--origination", "0.6", "--seed", "42", "-o", str(out),
+               "--write", "event_positions"])
+    assert rc == 0
+    rows = (out / "genome_event_positions.tsv").read_text().splitlines()
+    assert rows[0].split("\t")[:6] == ["time", "kind", "lineage", "chromosome", "start", "length"]
+    assert len(rows) > 1, "the run should have produced positioned events"
+
+
+def test_genomes_rejects_event_positions_under_unordered(tmp_path, tree_file):
+    with pytest.raises(SystemExit) as e:                         # positions need genes to have places
+        main(["genomes", "-t", str(tree_file), "--write", "event_positions",
+              "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+
+
 def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
     with pytest.raises(SystemExit) as e:
         main(["genomes", "-t", str(tree_file), "--inversion", "0.3", "-o", str(tmp_path / "g")])
