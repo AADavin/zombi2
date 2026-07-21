@@ -906,17 +906,24 @@ def test_transposition_and_origination_validation():
 
 # --- the chromosome tier: de-novo replicons (origination) and whole-chromosome death (loss) --------
 
-def test_chromosome_origination_adds_empty_replicons():
+def test_chromosome_origination_adds_a_replicon_carrying_a_gene():
     specs = [(80, "circular"), (30, "linear")]
-    full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
+    root_full = {(s, p) for s, (length, _t) in enumerate(specs) for p in range(length)}
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
-    r = simulate_genomes_nucleotide(sp, chromosome_origination=0.4, chromosomes=specs, seed=3)
+    r = simulate_genomes_nucleotide(sp, chromosome_origination=0.4, origination_length=25,
+                                    chromosomes=specs, seed=3)
     orig_edges = [e for e in r.chromosome_events if e.kind == "origination"]
     assert len(orig_edges) > len(specs)                            # de-novo replicons beyond the seeds
     assert all(e.parents == () and len(e.children) == 1 for e in orig_edges)   # ...are network roots
-    assert any(c.length == 0 for g in r.genomes.values() for c in g.chromosomes)   # empty plasmids
+    # a de-novo replicon is never born empty: it carries one new gene on a fresh source of its own
+    # (the seeded replicons here were declared with no genes at all, so they legitimately have none)
+    de_novo = {c for e in orig_edges if e.time > 0.0 for c in e.children}
+    assert de_novo
+    assert all(c.length > 0 and c.n_genes >= 1
+               for g in r.genomes.values() for c in g.chromosomes if c.id in de_novo)
     for node_id in r.genomes:
-        assert set(r.ancestry(node_id)) == full                    # an empty replicon adds no material
+        assert root_full <= set(r.ancestry(node_id))               # the seed material is untouched...
+    assert any(any(s >= len(specs) for (s, _p) in r.ancestry(n)) for n in r.genomes)  # ...plus new
     assert any(len(g.chromosomes) > len(specs) for g in r.genomes.values())   # the count grew
 
 
@@ -966,9 +973,9 @@ def test_recovery_cross_check_holds_with_chromosome_tier():
                                         fission=0.1, fusion=0.1, chromosomes=specs, seed=seed)
         saw_chromosome_loss = saw_chromosome_loss or any(e.kind == "loss" for e in r.chromosome_events)
         leaves = [n.id for n in r.complete_tree.extant()]
-        for fam, (s, a, b) in enumerate(r.root_blocks):
-            ex = r.gene_trees[fam].extant
-            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+        for fam, gt in r.gene_trees.items():               # de-novo replicons carry genes: genic mode
+            s, a, b = r.gene_spans[fam]
+            recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
                                             if t.kind == "extant")
             for lid in leaves:
                 observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
@@ -1383,8 +1390,8 @@ def test_two_chromosomes_with_the_whole_event_set():
     kinds = collections.Counter(e.kind for e in r.chromosome_events)
     assert {"fission", "fusion", "origination", "loss", "speciation"} <= set(kinds)
     assert all(len(g.chromosomes) >= 1 for g in r.genomes.values())    # never the last chromosome
-    # a de-novo replicon that never received any material stays empty — by design, not a bug
-    assert any(c.length == 0 for g in r.genomes.values() for c in g.chromosomes)
+    # no chromosome is ever left without a gene, so none is ever empty
+    assert all(c.n_genes >= 1 for g in r.genomes.values() for c in g.chromosomes)
 
     minted = [cid for e in r.chromosome_events for cid in e.children]  # the network stays well-formed
     assert len(minted) == len(set(minted))
@@ -1568,9 +1575,9 @@ def test_legal_cuts_include_gene_edges_and_empty_replicons():
     assert seen == set(range(11))              # the spacer's interior plus the gene's left edge only
 
 
-def test_a_de_novo_replicon_can_receive_material():
-    """A plasmid from `chromosome_origination` starts empty; material must be able to arrive on it,
-    otherwise the event only ever produces dead weight."""
+def test_a_de_novo_replicon_is_born_with_a_gene_and_can_grow():
+    """A plasmid from `chromosome_origination` is born carrying a gene, and material can still arrive
+    on it afterwards."""
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=3)
     r = simulate_genomes_nucleotide(sp, chromosomes=[(800, "circular")], genes=4, gene_length=80,
                                     chromosome_origination=3.0, translocation=6.0,
@@ -1582,7 +1589,33 @@ def test_a_de_novo_replicon_can_receive_material():
     de_novo = {c for e in r.chromosome_events if e.kind == "origination" and e.time > 0.0
                for c in e.children}
     assert de_novo
-    filled = {c.id for g in r.genomes.values() for c in g.chromosomes
-              if c.id in de_novo and c.length > 0}
-    assert filled and not (filled & seeds)     # plasmids born empty really did fill up
+    born = {c.id for g in r.genomes.values() for c in g.chromosomes if c.id in de_novo}
+    assert born and not (born & seeds)
+    assert all(c.n_genes >= 1 for g in r.genomes.values() for c in g.chromosomes)
+    # and they are not frozen at their birth size: some grew past their single gene
+    assert any(c.length > 0 and c.n_genes >= 1 and len(c.blocks) > 1
+               for g in r.genomes.values() for c in g.chromosomes if c.id in de_novo)
     _invariants_hold(r)
+
+
+def test_no_chromosome_is_ever_left_without_a_gene():
+    """A chromosome never exists without a gene. A replicon is born with one, and any event that would
+    strip a chromosome of its last — a loss, a translocation carrying it away, a fission splitting off
+    a geneless half — simply does not happen. Run flat out, with every event that could violate it."""
+    for seed in range(4):
+        sp = simulate_species_tree(birth=1.2, death=0.4, n_extant=6, seed=seed)
+        r = simulate_genomes_nucleotide(
+            sp, chromosomes=[(800, "circular"), (600, "circular")], genes=4, gene_length=100,
+            loss=12.0, loss_length=400,                  # brutal loss: tries hard to empty things
+            translocation=8.0, translocation_length=400, # tries to carry the last gene away
+            fission=6.0, fusion=3.0,                     # tries to split off a geneless half
+            transposition=4.0, transposition_length=200, inversion=4.0, inversion_length=200,
+            duplication=3.0, duplication_length=200, transfer=3.0, transfer_length=200,
+            chromosome_origination=2.0, chromosome_loss=1.0, origination_length=80, seed=seed)
+        for node_id, g in r.genomes.items():
+            assert g.chromosomes                          # a genome always keeps a chromosome
+            assert g.length > 0                           # ...and a lineage never ends up with no DNA
+            for c in g.chromosomes:
+                assert c.n_genes >= 1, f"node {node_id} chromosome {c.id} lost its last gene"
+                assert c.length > 0                       # so a chromosome is never empty either
+        _invariants_hold(r)

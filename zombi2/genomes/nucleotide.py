@@ -175,6 +175,12 @@ class Chromosome:
     def length(self) -> int:
         return sum(b.length for b in self.blocks)
 
+    @property
+    def n_genes(self) -> int:
+        """How many gene copies this chromosome carries. A chromosome may never be left with none:
+        a replicon is born with a gene, and an event that would strip its last one does not happen."""
+        return sum(1 for b in self.blocks if b.is_gene)
+
     def _check_cut(self, c: int) -> None:
         """Raise :class:`_CutsGene` if a breakpoint at ``c`` would fall **strictly inside a gene**.
         Pure — mutates nothing — so a caller can test both ends of an arc *before* splitting either."""
@@ -816,6 +822,8 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
         return 0
     i, j = span
     gone = chrom.blocks[i:j]
+    if chrom.n_genes and sum(1 for b in gone if b.is_gene) == chrom.n_genes:
+        return 0                                         # would leave the chromosome geneless: no-op
     lost = tuple((b.copy, b.source, b.start, b.end) for b in gone)
     chrom.blocks = chrom.blocks[:i] + chrom.blocks[j:]
     events.append(Loss(t, node_id, chrom.id, lost))
@@ -858,6 +866,8 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
         return
     i, j = span
     arc = source.blocks[i:j]
+    if source.n_genes and sum(1 for b in arc if b.is_gene) == source.n_genes:
+        return                                           # would leave the donor geneless: no-op
     intact = source.blocks                               # keep for rollback if the landing cuts a gene
     source.blocks = source.blocks[:i] + source.blocks[j:]
     flipped = bool(rng.random() < inversion_probability)
@@ -925,6 +935,9 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
             return 0
         chrom._split_at(c)
         i = chrom._index_at(c)
+        if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[:i])
+                                  and any(x.is_gene for x in chrom.blocks[i:])):
+            return 0                                     # a half without a gene: the fission fails
         a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i])
         b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:])
     else:
@@ -935,6 +948,9 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         chrom._split_at(c1)
         chrom._split_at(c2)
         i, j = chrom._index_at(c1), chrom._index_at(c2)
+        if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[i:j])
+                                  and any(x.is_gene for x in chrom.blocks[:i] + chrom.blocks[j:])):
+            return 0                                     # a half without a gene: the fission fails
         a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j])
         b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:])
     g.chromosomes[ci:ci + 1] = [a, b]
@@ -961,14 +977,21 @@ def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
     return -1
 
 
-def _do_chromosome_origination(g, node_id, t, chromosome_events, new_chrom_id) -> int:
-    """A de-novo replicon (a plasmid): a fresh **empty** circular chromosome — a **root** of the
-    chromosome network (no parent). It carries no sequence yet (length 0); material arrives later by
-    origination / transfer / translocation. Returns the chromosome-count delta (``+1``)."""
-    cid = new_chrom_id()
-    g.chromosomes.append(Chromosome(cid, "circular", []))
+def _do_chromosome_origination(g, node_id, t, origination_length, rng, events, chromosome_events,
+                               new_chrom_id, new_source, new_copy, new_family,
+                               gene_spans, gene_strands) -> tuple[int, int]:
+    """A de-novo replicon (a plasmid): a fresh circular chromosome — a **root** of the chromosome
+    network (no parent) — **carrying one new gene**. A chromosome never exists without a gene, so the
+    replicon is born with one rather than as an empty shell: its own source, copy lineage and family,
+    exactly like a de-novo :func:`_do_origination`. Returns ``(chromosome delta, length delta)``."""
+    cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
+    length = max(1, int(rng.geometric(1.0 / origination_length)))
+    g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)]))
+    gene_spans[fam] = (src, 0, length)
+    gene_strands[fam] = 1
     chromosome_events.append(ChromosomeEvent(t, "origination", node_id, (), (cid,)))
-    return 1
+    events.append(Origination(t, node_id, cid, cp, src, 0, length))
+    return (1, length)
 
 
 def _do_chromosome_loss(g, node_id, t, rng, events, chromosome_events) -> tuple[int, int]:
@@ -1055,9 +1078,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
       mean ``origination_length``) — a *birth* of a wholly new family, indivisible from birth.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
       (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**).
-      ``chromosome_origination`` (**per lineage**) adds a de-novo empty circular replicon (a plasmid, a
-      network **root**); ``chromosome_loss`` (**per chromosome**) kills a whole chromosome (its material
-      dies as a loss; never the last one) — a network **leaf**. All record a chromosome-network edge.
+      ``chromosome_origination`` (**per lineage**) adds a de-novo circular replicon (a plasmid, a
+      network **root**) **carrying one new gene**; ``chromosome_loss`` (**per chromosome**) kills a
+      whole chromosome (its material dies as a loss; never the last one) — a network **leaf**. All
+      record a chromosome-network edge.
+
+    **A chromosome never exists without a gene.** A replicon is born with one, and any event that
+    would strip a chromosome of its last gene — a loss, a translocation carrying it away, a fission
+    splitting off a geneless half — simply does not happen. (Vacuous when no genes are declared.)
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
     (every extension event is **per lineage** — the rate says how often a lineage does it, the extent how
@@ -1241,8 +1269,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                                     new_chrom_id)
                 elif r < b_cor:
                     k = int(rng.integers(nlin))         # chromosome origination is per lineage
-                    total_chromosomes += _do_chromosome_origination(gen[k], alive[k], t,
-                                                                    chromosome_events, new_chrom_id)
+                    dc, dl = _do_chromosome_origination(
+                        gen[k], alive[k], t, rates.origination_length, rng, events, chromosome_events,
+                        new_chrom_id, new_source, new_copy, new_family, gene_spans, gene_strands)
+                    total_chromosomes += dc
+                    total_length += dl
                 else:
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     dc, dl = _do_chromosome_loss(gen[k], alive[k], t, rng, events, chromosome_events)

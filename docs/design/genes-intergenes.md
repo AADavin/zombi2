@@ -85,6 +85,20 @@ it must not do — and no longer does — is quietly eat the event *rate* along 
 
 ---
 
+## A chromosome never exists without a gene
+
+A chromosome may not be left carrying no genes:
+
+- `chromosome_origination` births a replicon **already carrying one new gene** (its own source, copy
+  lineage and family) rather than as an empty shell;
+- any event that would strip a chromosome of its **last** gene simply does not happen — a `loss` that
+  would take it, a `translocation` carrying it away, a `fission` splitting off a geneless half.
+
+The rule is vacuous when no genes are declared. It also removes a pathology found while probing: with
+empty replicons allowed, `chromosome_loss` could take the only content-bearing chromosome and leave a
+lineage holding nothing but empty plasmids — a genome of length 0, which could never recover. Now every
+chromosome carries a gene, so every genome always has DNA.
+
 ## Seeding
 
 The root genome is **declared**, in one of two forms:
