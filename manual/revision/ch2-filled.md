@@ -37,13 +37,11 @@ In ZOMBI2 everything depends on a species tree, and in most cases you begin a wo
 
 ## Time
 
-ZOMBI2 is a forward simulator, meaning that the evolution is simulated from an ancestral original state (time 0) to the present. (Footnote: there are some bits of ZOMBI2 that are simulated backwards though)
+ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 to the present.
 
-Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time is normally measured from the **crown** of the species tree, but you can instead set time zero at the **stem**. The difference is easiest to see in Figure 2.
+Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 — the moment of a mass extinction, the breakpoints of a rate that changes through time — is measured on that scale.
 
-![What `age` measures. With `age_type='crown'` (left) the age is the depth from the crown, the first speciation, to the present. With `age_type='stem'` (right) it is measured from the origin, so a stem branch precedes the crown.](figures/age_crown_print.png){width=92%}
-
-In the second case, evolution can happen at the stem also and this is important in some cases. For example if you simulate genomes in a tree with a stem, some duplications could potentially precede the root of the tree.
+The founding lineage lives for a while before it first splits, so it has a duration of its own. Newick does not record that first branch length. A tree written to disk and read back therefore begins at the first speciation, and its events sit slightly earlier in time than the same run held in memory.
 
 ## Rates
 
