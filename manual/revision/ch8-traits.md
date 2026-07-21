@@ -30,7 +30,7 @@ traits.simulate_continuous(tree, start=0.0,
                            rate=1.0 * mod.OnTime({0: 1.0, 5: 0.2}), seed=1)
 ```
 
-The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. They are the same two knobs the CIR clock takes one level over, in Chapter 7 — a shared vocabulary, not shared code, because there they revert a *rate* and here they revert the trait's *value*. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
+The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
 
 The rest of the modifier vocabulary applies to `rate` unchanged, and each one has a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), and `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two further knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where different clades pull toward different optima (a discrete trait supplies the painting, and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches.
 
