@@ -38,6 +38,12 @@ from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
+
+#: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
+#: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
+#: scope this slice, ``DrivenBy`` is wired for the single-lineage events, and the ordered engine
+#: wires ``OnTime`` only; the gates below say so per rate.
+WIRED_MODIFIERS = (OnTime, DrivenBy)
 from .events import Event, events_tsv
 from .gene_trees import GeneNode, GeneTree, gene_trees_from_events
 from .chromosomes import ChromosomeEvent

@@ -3,17 +3,25 @@
 ``--resolution`` picks the model: ``unordered`` (the D/T/L/O gene-family core,
 :func:`zombi2.genomes.simulate_genomes_unordered`) or ``ordered`` (genes with a position and
 orientation on chromosomes — segmental rearrangements and the chromosome tier,
-:func:`~zombi2.genomes.simulate_genomes_ordered`). Long options are the API keyword names; rates
-are bare numbers on their natural scope."""
+:func:`~zombi2.genomes.simulate_genomes_ordered`). Long options are the API keyword names, and every
+rate takes the written form (SPEC §5): a bare number on its natural scope, or the same ``scope(base)
+× modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3: 2.0})"``."""
 from __future__ import annotations
 
 import argparse
 import os
 import time
 
-from zombi2.genomes import simulate_genomes_ordered, simulate_genomes_unordered
+from zombi2.genomes import WIRED_MODIFIERS, simulate_genomes_ordered, simulate_genomes_unordered
 from zombi2.species import read_newick
-from zombi2.cli.framework import _add_params_arg, _write_params_log
+from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+
+#: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
+RATES_HELP = _rates_help(
+    WIRED_MODIFIERS, "--loss",
+    note="Each rate keeps its natural scope here (D/T/L per copy, origination per lineage), so "
+         "there is no scope wrapper to write. DrivenBy is wired for --loss, --duplication and "
+         "--origination; --resolution ordered wires OnTime only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _UNORDERED_OUTPUTS = ("events", "profiles")
@@ -48,14 +56,14 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "declaring each tip's fate; required when the input tree is not ultrametric "
                         "(ZOMBI won't guess extinct lineages from early-sampled tips)")
 
-    g = p.add_argument_group("gene-family events (D/T/L/O)", "bare-number rates on their natural scope")
-    g.add_argument("--duplication", type=float, default=0.0, metavar="RATE",
+    g = p.add_argument_group("gene-family events (D/T/L/O)", "rates on their natural scope — see RATES below")
+    g.add_argument("--duplication", type=_rate, default=0.0, metavar="RATE",
                    help="gene duplication rate (per copy)")
-    g.add_argument("--transfer", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--transfer", type=_rate, default=0.0, metavar="RATE",
                    help="horizontal transfer rate (per copy)")
-    g.add_argument("--loss", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--loss", type=_rate, default=0.0, metavar="RATE",
                    help="gene loss rate (per copy)")
-    g.add_argument("--origination", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--origination", type=_rate, default=0.0, metavar="RATE",
                    help="new-family origination rate (per lineage)")
 
     g = p.add_argument_group("transfer & content")
@@ -71,23 +79,23 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="number of gene families present at the crown (default 0)")
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered")
-    g.add_argument("--inversion", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
                    help="segmental inversion rate (per copy)")
-    g.add_argument("--transposition", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
                    help="segmental transposition rate — move a run within a chromosome (per copy)")
-    g.add_argument("--translocation", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--translocation", type=_rate, default=0.0, metavar="RATE",
                    help="segmental translocation rate — move a run to another chromosome (per copy)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
                    help="number of chromosomes at the crown (default 1)")
     g.add_argument("--topology", choices=("circular", "linear"), default="circular", metavar="TOPO",
                    help="chromosome topology (default circular)")
-    g.add_argument("--fission", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--fission", type=_rate, default=0.0, metavar="RATE",
                    help="chromosome fission rate")
-    g.add_argument("--fusion", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--fusion", type=_rate, default=0.0, metavar="RATE",
                    help="chromosome fusion rate")
-    g.add_argument("--chromosome-origination", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--chromosome-origination", type=_rate, default=0.0, metavar="RATE",
                    dest="chromosome_origination", help="new-chromosome origination rate")
-    g.add_argument("--chromosome-loss", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--chromosome-loss", type=_rate, default=0.0, metavar="RATE",
                    dest="chromosome_loss", help="whole-chromosome loss rate")
     g.add_argument("--inversion-probability", type=float, default=0.0, metavar="P",
                    dest="inversion_probability",

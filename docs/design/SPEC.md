@@ -177,6 +177,26 @@ Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiply
 `time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
 with "per".
 
+**One written form, everywhere.** That expression is not Python syntax that the CLI then translates —
+it is *the* way a rate is written, and the CLI and the parameters file take it **verbatim**:
+
+```
+birth = 1.0 * OnTime({0: 1.0, 3: 0.3})          # Python
+--birth "1.0 * OnTime({0: 1.0, 3: 0.3})"        # the command line
+birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"        # a --params TOML value
+```
+
+A bare number stays a bare number in all three (`--birth 1.0`, `birth = 1.0`). The `mod.` / `scope.`
+qualifiers Python needs are optional in the other two, so a manual snippet pastes in unchanged. There
+is **no second notation** — no per-modifier flags, no nested parameter tables; adding a modifier must
+never add a flag. (Read by `rates/parse.py`; it parses the expression, it does not evaluate code.)
+
+**A level rejects the modifiers it does not wire.** A modifier a level has not implemented must
+**raise**, never be silently ignored — an unwired modifier that returns a factor of 1.0 is a run that
+is quietly not the model the user asked for. Each level therefore declares what it wires
+(`WIRED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed, and
+the engine's own gate may be stricter still where a rate is wired more narrowly than the level.
+
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
@@ -307,7 +327,9 @@ Fossils to fix; why a fresh reader must not trust the code over this document.
   docstring says nothing consults it. Delete the dead layer; **keep `is_fused`** (it correctly computes
   "must be simulated jointly") and the live vocabulary (`Scalar/Table/Curve/Jump`).
 - **`per="site"` is documented but raises `ValueError`**; `--rate-per` vs `--per` disagree between
-  subcommands; `--rate-model shared` maps to `--rate-per copy`. Align the rate CLI to §5.
+  subcommands; `--rate-model shared` maps to `--rate-per copy`. ~~Align the rate CLI to §5.~~ *Done for
+  the clean core (2026-07-21): every rate flag takes the one written form above. The fossil is now
+  `legacy/` only.*
 - **The CLI still says `genes:` where the spec says `genomes:`.**
 - **The old lexicon is live in user-facing surfaces**: "diamond" ships in `zombi2 sequences --help` and
   in a rendered figure title; "propensity"/"opportunity"/"tier" appear in the manual/docs; two different
