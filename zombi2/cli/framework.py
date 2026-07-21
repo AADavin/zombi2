@@ -17,9 +17,10 @@ Simulate each level of evolution on its own. Run 'zombi2 <command> -h' for a com
 Levels
   species              simulate a dated species tree
   genomes              evolve gene families along a species tree (unordered or ordered)
+  sequences            evolve sequences down each gene tree (a prior genomes run)
 
-Sequences, traits, and the coupled (conditioned / joint) models land here as those levels are
-rebuilt on the clean core; until then they live only in the legacy code.
+Traits and the coupled (conditioned / joint) models land here as those levels are rebuilt on the
+clean core; until then they live only in the legacy code.
 """
 
 

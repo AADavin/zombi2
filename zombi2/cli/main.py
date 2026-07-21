@@ -12,13 +12,13 @@ import argparse
 import sys
 
 from zombi2 import __version__
-from zombi2.cli import genomes, species
+from zombi2.cli import genomes, sequences, species
 from zombi2.cli.framework import (
     _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
 )
 
 #: command name -> handler; the single source of dispatch
-_RUN = {"species": species.run, "genomes": genomes.run}
+_RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.run}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -32,6 +32,9 @@ def main(argv: list[str] | None = None) -> int:
             "  # 2. gene families along it",
             "  zombi2 genomes -t out/species_complete.nwk --duplication 0.2 --transfer 0.1 "
             "--loss 0.25 --origination 0.5 --seed 42 -o out/",
+            "",
+            "  # 3. sequences down each gene tree",
+            "  zombi2 sequences --genomes out/ --model hky85 --length 1000 --seed 1 -o out/",
             "",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
         ),
@@ -68,6 +71,22 @@ def main(argv: list[str] | None = None) -> int:
             "  # ordered genomes with inversions on 3 chromosomes",
             "  zombi2 genomes -t out/species_complete.nwk --resolution ordered --duplication 0.2 "
             "--loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 42 -o out/",
+        ))
+
+    _add_subcommand(
+        sub, "sequences", "evolve sequences down each gene tree",
+        "Evolve one sequence inside each gene, down its gene tree, under a nucleotide substitution "
+        "model and a per-site rate. Replays a prior 'zombi2 genomes' run (--genomes DIR).",
+        "zombi2 sequences --genomes DIR -o DIR --model MODEL [options]",
+        sequences._add_sequence_args,
+        epilog=_examples(
+            "  # HKY85, 1000 sites, strict clock, along a prior genomes run",
+            "  zombi2 sequences --genomes out/ --model hky85 --kappa 2 --length 1000 --seed 1 "
+            "-o seqs/",
+            "",
+            "  # GTR with an uncorrelated (relaxed) lineage clock",
+            "  zombi2 sequences --genomes out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
+            "--clock-spread 0.3 --seed 1 -o seqs/",
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override

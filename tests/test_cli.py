@@ -147,7 +147,9 @@ def test_genomes_unordered_writes_events_and_profiles(tmp_path, tree_file):
     rc = main(["genomes", "-t", str(tree_file), "--duplication", "0.2", "--transfer", "0.1",
                "--loss", "0.25", "--origination", "0.5", "--seed", "42", "-o", str(out)])
     assert rc == 0
-    assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "profiles.tsv", "genomes.log"}
+    # genome_species_tree.nwk is the always-written handoff tree for `zombi2 sequences --genomes`
+    assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "profiles.tsv",
+                                               "genome_species_tree.nwk", "genomes.log"}
 
 
 def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
@@ -156,7 +158,8 @@ def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
                "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3",
                "--seed", "42", "-o", str(out), "--write", "gene_order", "rearrangements"])
     assert rc == 0
-    assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "rearrangements.tsv", "genomes.log"}
+    assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "rearrangements.tsv",
+                                               "genome_species_tree.nwk", "genomes.log"}
 
 
 def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
@@ -210,6 +213,93 @@ def test_genomes_nonultrametric_tree_runs_with_tip_fates_file(tmp_path):
     assert len((out / "profiles.tsv").read_text().splitlines()[0].split("\t")) == 1 + 2
 
 
+# ── zombi2 sequences ────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def genomes_dir(tmp_path):
+    """A completed species→genomes run on disk, for the sequences command to replay."""
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "25", "--seed", "1",
+          "-o", str(tmp_path)])
+    gdir = tmp_path / "g"
+    main(["genomes", "-t", str(tmp_path / "species_complete.nwk"), "--duplication", "0.2",
+          "--transfer", "0.1", "--loss", "0.25", "--origination", "0.6", "--seed", "42",
+          "-o", str(gdir)])
+    return gdir
+
+
+def test_sequences_writes_alignments_and_phylograms_by_default(tmp_path, genomes_dir):
+    out = tmp_path / "s"
+    rc = main(["sequences", "--genomes", str(genomes_dir), "--model", "hky85", "--kappa", "2",
+               "--length", "300", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    names = {p.name for p in out.iterdir()}
+    assert "sequences.log" in names
+    # the default write set is alignments + phylograms; ancestral / species_phylogram are opt-in
+    assert any(n.startswith("sequences_alignment_fam") for n in names)
+    assert any(n.startswith("sequences_phylogram_fam") for n in names)
+    assert not any(n.startswith("sequences_ancestral_fam") for n in names)
+    assert not any(n.startswith("sequences_species_phylogram") for n in names)
+
+
+def test_sequences_write_selects_ancestral_and_species_phylogram(tmp_path, genomes_dir):
+    out = tmp_path / "s"
+    rc = main(["sequences", "--genomes", str(genomes_dir), "--model", "jc69", "--length", "200",
+               "--seed", "1", "-o", str(out), "--write", "ancestral", "species_phylogram"])
+    assert rc == 0
+    names = {p.name for p in out.iterdir()}
+    # the species phylogram is produced only because the CLI hands the engine the species tree
+    assert "sequences_species_phylogram_complete.nwk" in names
+    assert any(n.startswith("sequences_ancestral_fam") for n in names)
+    assert not any(n.startswith("sequences_alignment_fam") for n in names)   # not requested
+
+
+def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
+    out = tmp_path / "s"
+    rc = main(["sequences", "--genomes", str(genomes_dir), "--model", "gtr",
+               "--frequencies", "0.3", "0.2", "0.2", "0.3", "--clock-spread", "0.4",
+               "--clock-dist", "gamma", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert "gamma lineage clock, spread 0.4" in (out / "sequences.log").read_text()
+
+
+def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
+    with pytest.raises(SystemExit) as e:                         # --kappa is meaningless for jc69
+        main(["sequences", "--genomes", str(genomes_dir), "--model", "jc69", "--kappa", "2",
+              "-o", str(tmp_path / "s")])
+    assert e.value.code == 2
+
+
+def test_sequences_is_deterministic_given_the_seed(tmp_path, genomes_dir):
+    a, b = tmp_path / "a", tmp_path / "b"
+    for out in (a, b):
+        main(["sequences", "--genomes", str(genomes_dir), "--model", "hky85", "--length", "250",
+              "--seed", "7", "-o", str(out)])
+    assert _dir_seq_text(a) == _dir_seq_text(b)
+
+
+def _dir_seq_text(d):
+    return {p.name: p.read_text() for p in d.iterdir() if p.suffix in (".fasta", ".nwk")}
+
+
+def test_sequences_missing_genomes_dir_is_reported_cleanly(tmp_path, capsys):
+    rc = main(["sequences", "--genomes", str(tmp_path / "nope"), "--model", "jc69",
+               "-o", str(tmp_path / "s")])
+    assert rc == 1
+    assert "genome_species_tree.nwk not found" in capsys.readouterr().err
+
+
+def test_sequences_needs_the_genome_event_log(tmp_path, capsys):
+    # a genomes run written with --write profiles has no event log to replay
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "15", "--seed", "1",
+          "-o", str(tmp_path)])
+    gdir = tmp_path / "g"
+    main(["genomes", "-t", str(tmp_path / "species_complete.nwk"), "--duplication", "0.2",
+          "--seed", "1", "-o", str(gdir), "--write", "profiles"])
+    rc = main(["sequences", "--genomes", str(gdir), "--model", "jc69", "-o", str(tmp_path / "s")])
+    assert rc == 1
+    assert "genome_events.tsv not found" in capsys.readouterr().err
+
+
 # ── --params ────────────────────────────────────────────────────────────────────────
 
 def test_params_file_supplies_defaults_and_cli_overrides(tmp_path):
@@ -230,7 +320,8 @@ def test_params_file_scopes_by_command_table(tmp_path):
     main(["species", "--params", str(tmp_path / "pipeline.toml"), "--seed", "1", "-o", str(sp)])
     main(["genomes", "--params", str(tmp_path / "pipeline.toml"), "-t",
           str(sp / "species_complete.nwk"), "--seed", "1", "-o", str(gn)])
-    assert {p.name for p in gn.iterdir()} == {"profiles.tsv", "genomes.log"}   # write=["profiles"]
+    assert {p.name for p in gn.iterdir()} == {"profiles.tsv", "genome_species_tree.nwk",
+                                              "genomes.log"}   # write=["profiles"] (+ handoff tree)
 
 
 def test_params_unknown_key_errors(tmp_path):

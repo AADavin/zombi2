@@ -168,6 +168,11 @@ def run(args, parser):
         result.write(args.output, outputs=args.write)
     else:
         result.write(args.output)               # each Result.write's own default
+    # the tree the events are indexed against, canonicalised to n<id> labels so its ids match the
+    # event log's `lineage` column — this makes the run self-describing and lets `zombi2 sequences
+    # --genomes DIR` rebuild the gene trees (from genome_events.tsv + this tree) with no other input.
+    with open(os.path.join(args.output, "genome_species_tree.nwk"), "w") as f:
+        f.write(result.complete_tree.to_newick() + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(args.output, "names.tsv"), "w") as f:
