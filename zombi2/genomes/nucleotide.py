@@ -228,19 +228,30 @@ class Chromosome:
             pos += b.length
         return out
 
-    def _pick_legal_cut(self, rng) -> int | None:
+    def _pick_legal_cut(self, rng) -> int:
         """A **uniform** position at which a breakpoint is legal — where an arc may land, or a
-        chromosome be cut, without splitting a gene. ``None`` when the chromosome is all gene."""
-        spans = self._legal_cut_spans()
-        total = sum(hi - lo for lo, hi in spans)
-        if total == 0:
-            return None
+        chromosome be cut, without splitting a gene.
+
+        Legal means *not strictly inside a gene*, so the candidates are every **block boundary** (a
+        gene's own edge is a legal cut) plus the **interior of every intergene**. Note both extremes
+        matter: an **empty** chromosome — what a de-novo replicon starts as — still has position 0, so
+        material can arrive on it; and a **fully genic** chromosome still has its gene boundaries, so
+        whole genes can still be moved about. Counting per block keeps this O(blocks)."""
+        marks, pos = [], 0
+        for b in self.blocks:
+            marks.append((pos, 1 if b.is_gene else b.length))   # boundary, plus an intergene's interior
+            pos += b.length
+        if self.topology == "linear":
+            marks.append((pos, 1))                              # the far end is a legal cut too
+        if not marks:
+            return 0                                            # an empty replicon: position 0 it is
+        total = sum(n for _p, n in marks)
         m = int(rng.integers(total))
-        for lo, hi in spans:
-            if m < hi - lo:
-                return lo + m
-            m -= hi - lo
-        raise AssertionError("legal-cut length out of sync with the blocks")  # unreachable
+        for start, n in marks:
+            if m < n:
+                return start + m                                # m == 0 is the boundary itself
+            m -= n
+        raise AssertionError("legal-cut count out of sync with the blocks")  # unreachable
 
     def _pick_arc_extent(self, start: int, mean: float, rng) -> int | None:
         """Choose the arc's far end, forward from ``start``: an extent ``d >= 1`` whose breakpoint at

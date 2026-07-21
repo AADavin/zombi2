@@ -1469,3 +1469,120 @@ def test_extinct_lineages_evolve_donate_and_are_pruned():
             observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
                            if blk.source == s and blk.start <= a and b <= blk.end)
             assert observed == recovered.get(lid, 0)
+
+
+# --- pathological genomes -------------------------------------------------------------------------
+
+_HOT = dict(inversion=8.0, inversion_length=200, translocation=4.0, translocation_length=200,
+            transposition=4.0, transposition_length=200, loss=6.0, loss_length=200,
+            duplication=6.0, duplication_length=200, transfer=4.0, transfer_length=200,
+            fission=2.0, fusion=2.0, chromosome_origination=1.0, chromosome_loss=0.5,
+            origination=1.0, origination_length=50)
+
+
+def _invariants_hold(r):
+    """Genes never split, and the recovered trees still match the genomes."""
+    import collections
+    spans = _gene_spans(r)
+    assert all(v == {r.gene_spans[f]} for f, v in spans.items())
+    extant = [n.id for n in r.complete_tree.extant()]
+    for fam, gt in r.gene_trees.items():
+        s, a, b = r.gene_spans[fam]
+        recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                        if t.kind == "extant")
+        for lid in extant:
+            observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                           if blk.source == s and blk.start <= a and b <= blk.end)
+            assert observed == recovered.get(lid, 0)
+
+
+@pytest.mark.parametrize("label, kwargs", [
+    ("a 1 bp replicon",            dict(chromosomes=1, root_length=1)),
+    ("a 2 bp replicon",            dict(chromosomes=1, root_length=2)),
+    ("a 10 bp replicon, gene of 5", dict(chromosomes=1, root_length=10, genes=1, gene_length=5)),
+    ("genes of a single base",     dict(chromosomes=1, root_length=100, genes=20, gene_length=1)),
+    ("a linear replicon",          dict(chromosomes=1, root_length=200, genes=3, gene_length=40,
+                                        topology="linear")),
+])
+def test_degenerate_genomes_survive_every_event(label, kwargs):
+    """Absurdly small genomes, run flat out with every event switched on. Nothing may crash, no gene
+    may be cut, and the recovery must still agree with the genomes."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, seed=1, **kwargs, **_HOT)
+    assert all(g.length >= 1 for g in r.genomes.values())      # a genome is never wiped out entirely
+    _invariants_hold(r)
+
+
+def test_extents_far_larger_than_the_genome():
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, chromosomes=1, root_length=500, genes=4, gene_length=50,
+                                    inversion=8.0, inversion_length=10**6,
+                                    loss=6.0, loss_length=10**6,
+                                    duplication=6.0, duplication_length=10**6, seed=1)
+    assert all(g.length >= 1 for g in r.genomes.values())
+    _invariants_hold(r)
+
+
+def test_a_single_leaf_tree():
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=1, seed=1)
+    r = simulate_genomes_nucleotide(sp, chromosomes=1, root_length=500, genes=4, gene_length=50,
+                                    seed=1, **_HOT)
+    assert len(list(r.complete_tree.extant())) == 1
+    _invariants_hold(r)
+
+
+def test_a_fully_genic_genome_cannot_rearrange(tmp_path):
+    """A genome with **no intergenic base at all** is frozen for sequence-level events.
+
+    Events nucleate in the spacer (`_pick_intergenic_position`), so with zero spacer there is nowhere
+    to start and every arc event is a no-op — the genome cannot invert, lose, duplicate or transfer
+    anything, however high the rates. Only the chromosome tier, which needs no breakpoint, still runs.
+
+    This is a consequence of the model, not a crash, and it is pinned here so that any future change
+    to where events may nucleate shows up as a failure of this test rather than a silent shift."""
+    path = tmp_path / "allgenic.gff"
+    path.write_text("##gff-version 3\n##sequence-region c 1 600\n" +
+                    "".join(f"c\t.\tgene\t{1 + 100 * i}\t{100 * (i + 1)}\t.\t+\t.\tID=g{i}\n"
+                            for i in range(6)))
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, gff=path, **_HOT, seed=1)
+    # no arc can nucleate, so nothing is rearranged, lost, duplicated or donated...
+    assert not r.rearrangements
+    assert not [e for e in r.events
+                if isinstance(e, (Loss, Duplication, Transfer))]
+    # ...though material can still be *added*, because a gene's own edge is a legal insertion point
+    assert all(g.length >= 600 for g in r.genomes.values())
+    _invariants_hold(r)
+
+
+def test_legal_cuts_include_gene_edges_and_empty_replicons():
+    """A breakpoint is illegal only *strictly inside* a gene, so a gene's own edge is a legal cut, and
+    an empty replicon has position 0. Sampling used to be stricter than the rule, which left de-novo
+    plasmids unable to ever receive material and froze fully-genic chromosomes completely."""
+    rng = np.random.default_rng(0)
+    assert Chromosome(0, "circular", [])._pick_legal_cut(rng) == 0          # an empty replicon
+    genic = Chromosome(1, "circular", [Block(0, 0, 100, 1, 1, 1), Block(0, 100, 200, 1, 1, 2)])
+    assert {genic._pick_legal_cut(rng) for _ in range(200)} == {0, 100}     # only the gene edges
+    mixed = Chromosome(2, "circular", [Block(0, 0, 10, 1, 1), Block(0, 10, 60, 1, 1, 1)])
+    seen = {mixed._pick_legal_cut(rng) for _ in range(2000)}
+    assert seen == set(range(11))              # the spacer's interior plus the gene's left edge only
+
+
+def test_a_de_novo_replicon_can_receive_material():
+    """A plasmid from `chromosome_origination` starts empty; material must be able to arrive on it,
+    otherwise the event only ever produces dead weight."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=3)
+    r = simulate_genomes_nucleotide(sp, chromosomes=[(800, "circular")], genes=4, gene_length=80,
+                                    chromosome_origination=3.0, translocation=6.0,
+                                    translocation_length=150, transfer=4.0, transfer_length=150,
+                                    origination=2.0, origination_length=60, inversion=2.0,
+                                    inversion_length=150, seed=3)
+    seeds = {c for e in r.chromosome_events if e.kind == "origination" and e.time == 0.0
+             for c in e.children}
+    de_novo = {c for e in r.chromosome_events if e.kind == "origination" and e.time > 0.0
+               for c in e.children}
+    assert de_novo
+    filled = {c.id for g in r.genomes.values() for c in g.chromosomes
+              if c.id in de_novo and c.length > 0}
+    assert filled and not (filled & seeds)     # plasmids born empty really did fill up
+    _invariants_hold(r)
