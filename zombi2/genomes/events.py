@@ -60,7 +60,12 @@ def events_from_tsv(text: str) -> list[Event]:
         raise ValueError("empty genome event log — is the file empty?")
     header = lines[0].split("\t")
     if tuple(header) != _COLS:
-        raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}")
+        # the nucleotide resolution writes its own, wider log to the same filename — a likely
+        # mistake worth naming, since the two look alike until you read the columns
+        hint = ("; this looks like a --resolution nucleotide log, whose events are keyed by "
+                "ancestral interval rather than gene family — sequences replays the unordered or "
+                "ordered log" if "source" in header and "family" not in header else "")
+        raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}{hint}")
     events: list[Event] = []
     for lineno, raw in enumerate(lines[1:], 2):
         if not raw:                                     # tolerate a trailing blank line

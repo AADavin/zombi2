@@ -46,13 +46,12 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 
 ## Genomes, nucleotide — `simulate_genomes_nucleotide`
 
-Python-only for now: the `zombi2 genomes` command has no `--resolution nucleotide` yet, so these
-come from `result.write(dir, outputs=[...])`.
+From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...])`.
 
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
 | Event log | `genome_events.tsv` | TSV | yes | the copy-lineage genealogy — `time · kind · lineage · chromosome · copy · parent · recipient · source · start · end`. One row per **ancestral interval** an event touched, so an event spanning several blocks writes several rows |
-| Blocks | `blocks.tsv` | TSV | yes | every node's genome as its block mosaic, ancestors included — `species · chromosome · position · source · start · end · strand · copy · gene`. The rows of one chromosome tile it end to end from 0 |
+| Blocks | `blocks.tsv` | TSV | no | every node's genome as its block mosaic, ancestors included — `species · chromosome · position · source · start · end · strand · copy · gene`. The rows of one chromosome tile it end to end from 0. Off by default: blocks are not kept maximal during a run, so this file grows with their number × every node |
 | Genes | `genes.tsv` | TSV | yes | the declared genes in root coordinates — `family · name · source · start · end · strand` (the **coding** strand). Header-only when none were declared |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations, in **physical** bp — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped` |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — same format as ordered |
