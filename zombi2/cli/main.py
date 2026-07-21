@@ -84,8 +84,9 @@ def main(argv: list[str] | None = None) -> int:
 
     _add_subcommand(
         sub, "sequences", "evolve sequences down each gene tree",
-        "Evolve one sequence inside each gene, down its gene tree, under a nucleotide substitution "
-        "model and a per-site rate. Replays a prior 'zombi2 genomes' run (--genomes DIR).",
+        "Evolve one sequence inside each gene, down its gene tree, under a nucleotide or protein "
+        "substitution model and a per-site rate. Replays a prior 'zombi2 genomes' run "
+        "(--genomes DIR).",
         "zombi2 sequences --genomes DIR -o DIR --model MODEL [options]",
         sequences._add_sequence_args,
         epilog=_examples(
@@ -96,6 +97,9 @@ def main(argv: list[str] | None = None) -> int:
             "  # GTR with an uncorrelated (relaxed) lineage clock",
             "  zombi2 sequences --genomes out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
             "--substitution \"1.0 * ByLineage(spread=0.3)\" --seed 1 -o seqs/",
+            "",
+            "  # a protein alignment: LG, 300 residues (an empirical model takes no parameters)",
+            "  zombi2 sequences --genomes out/ --model lg --length 300 --seed 1 -o seqs/",
         ) + "\n\n" + sequences.RATES_HELP)
 
     _add_subcommand(

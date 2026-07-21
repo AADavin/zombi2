@@ -7,6 +7,7 @@ import pytest
 
 from zombi2.cli.main import main
 from zombi2.genomes import simulate_genomes_unordered
+from zombi2.sequences.substitution_models import AMINO_ACIDS
 from zombi2.species import read_newick, simulate_species_tree
 
 
@@ -270,6 +271,27 @@ def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
 def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
     with pytest.raises(SystemExit) as e:                         # --kappa is meaningless for jc69
         main(["sequences", "--genomes", str(genomes_dir), "--model", "jc69", "--kappa", "2",
+              "-o", str(tmp_path / "s")])
+    assert e.value.code == 2
+
+
+@pytest.mark.parametrize("model", ["poisson", "jtt", "dayhoff", "wag", "lg"])
+def test_sequences_protein_models_write_amino_acid_alignments(tmp_path, genomes_dir, model):
+    out = tmp_path / model
+    rc = main(["sequences", "--genomes", str(genomes_dir), "--model", model, "--length", "60",
+               "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    fasta = next(p for p in out.iterdir() if p.name.startswith("sequences_alignment_fam"))
+    residues = set("".join(ln for ln in fasta.read_text().splitlines() if not ln.startswith(">")))
+    assert residues <= set(AMINO_ACIDS) and not residues <= set("ACGT")
+
+
+@pytest.mark.parametrize("flag,value", [("--kappa", ["2"]), ("--frequencies", ["0.25"] * 4),
+                                        ("--gtr-rates", ["1"] * 6)])
+def test_sequences_protein_models_take_no_parameters(tmp_path, genomes_dir, flag, value):
+    # an empirical matrix has nothing to tune, so a nucleotide knob must be rejected, not ignored
+    with pytest.raises(SystemExit) as e:
+        main(["sequences", "--genomes", str(genomes_dir), "--model", "lg", flag, *value,
               "-o", str(tmp_path / "s")])
     assert e.value.code == 2
 

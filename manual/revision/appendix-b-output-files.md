@@ -58,10 +58,10 @@ sequences.
 
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
-| Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy |
+| Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model |
 | Phylograms | `sequences_phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along |
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
-| Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock (only when a genome run supplied a species tree) |
+| Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock |
 
 ## Traits — `simulate_continuous` / `simulate_discrete`
 
