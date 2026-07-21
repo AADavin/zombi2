@@ -4,12 +4,14 @@ A sequence sees the species tree only through its gene tree, so this command tak
 run** (``--genomes DIR``) and replays its gene genealogy: it reads that directory's
 ``genome_species_tree.nwk`` and ``genome_events.tsv``, rebuilds the ``{family: GeneTree}`` the run
 produced, and evolves one sequence down each family's *complete* gene tree under a substitution
-**model** (the menu — ``jc69`` · ``k80`` · ``hky85`` · ``gtr``) at a per-site substitution **rate**
-(a bare number — the strict clock — optionally times a ``ByLineage`` lineage clock).
+**model** (the menu — ``jc69`` · ``k80`` · ``hky85`` · ``gtr``) at a per-site substitution **rate**.
 
-Long options are the API keyword names; the model's physical parameters (``--kappa`` / ``--frequencies``
-/ ``--gtr-rates``) are rejected for a model that does not use them, so a silently-ignored flag can't
-give a misleading run. See :func:`zombi2.sequences.simulate_sequences`."""
+Long options are the API keyword names, and ``--substitution`` takes the written form of a rate
+(SPEC §5): a bare number is the strict clock, and the uncorrelated ("relaxed") lineage clock is that
+rate times a ``ByLineage`` modifier — ``--substitution "1.0 * ByLineage(spread=0.3)"``. The model's
+physical parameters (``--kappa`` / ``--frequencies`` / ``--gtr-rates``) are rejected for a model that
+does not use them, so a silently-ignored flag can't give a misleading run. See
+:func:`zombi2.sequences.simulate_sequences`."""
 from __future__ import annotations
 
 import argparse
@@ -19,10 +21,17 @@ import time
 from zombi2.genomes import GenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.rates.modifiers import ByLineage
-from zombi2.sequences import simulate_sequences
+from zombi2.sequences import WIRED_MODIFIERS, simulate_sequences
 from zombi2.sequences.substitution_models import gtr, hky85, jc69, k80
 from zombi2.species import read_newick
-from zombi2.cli.framework import _add_params_arg, _write_params_log
+from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+
+#: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
+RATES_HELP = _rates_help(
+    WIRED_MODIFIERS, "--substitution",
+    note="ByLineage on --substitution IS the uncorrelated ('relaxed') clock: one i.i.d. multiplier "
+         "per species lineage, shared across gene families. spread is σ; dist is 'lognormal' "
+         "(default, σ = the log-scale) or 'gamma' (σ = the coefficient of variation).")
 
 # the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import)
 _SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "species_phylogram")
@@ -66,18 +75,11 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
                    help="[gtr] the six exchangeabilities (default all 1)")
 
-    g = p.add_argument_group("substitution rate & clock", "bare-number per-site rate × a lineage clock")
-    g.add_argument("--substitution", type=float, default=1.0, metavar="RATE",
+    g = p.add_argument_group("substitution rate & clock", "the per-site rate — see RATES below")
+    g.add_argument("--substitution", type=_rate, default=1.0, metavar="RATE",
                    help="per-site substitution rate: a gene-tree branch of Δt time accrues "
-                        "substitution·Δt substitutions/site (default 1.0 — the strict clock)")
-    g.add_argument("--clock-spread", type=float, default=0.0, metavar="SPREAD", dest="clock_spread",
-                   help="lineage-clock spread (σ): one i.i.d. rate multiplier per species lineage, "
-                        "shared across families — the uncorrelated ('relaxed') clock. 0 = strict "
-                        "(default)")
-    g.add_argument("--clock-dist", choices=("lognormal", "gamma"), default="lognormal",
-                   metavar="DIST", dest="clock_dist",
-                   help="lineage-clock distribution: lognormal (default, σ = log-scale) or gamma "
-                        "(σ = coefficient of variation). Only used when --clock-spread > 0")
+                        "substitution·Δt substitutions/site (default 1.0 — the strict clock). A "
+                        "ByLineage modifier makes it a relaxed clock: \"1.0 * ByLineage(spread=0.3)\"")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
@@ -109,8 +111,6 @@ def run(args, parser):
              if getattr(args, k) is not None and k not in allowed]
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
-    if args.clock_spread < 0:
-        parser.error("--clock-spread must be >= 0")
 
     tree_path = os.path.join(args.genomes, "genome_species_tree.nwk")
     events_path = os.path.join(args.genomes, "genome_events.tsv")
@@ -135,13 +135,10 @@ def run(args, parser):
     genome_run = GenomesResult(complete_tree=tree, genomes={}, events=events, seed=None)
 
     model = _build_model(args)
-    substitution = args.substitution
-    if args.clock_spread > 0:
-        substitution = args.substitution * ByLineage(spread=args.clock_spread, dist=args.clock_dist)
 
     t0 = time.perf_counter()
     result = simulate_sequences(genome_run, model=model, length=args.length,
-                                substitution=substitution, seed=args.seed)
+                                substitution=args.substitution, seed=args.seed)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.output, exist_ok=True)
@@ -152,8 +149,10 @@ def run(args, parser):
 
     n_families = sum(1 for aln in result.alignments.values() if aln)
     n_seqs = sum(len(aln) for aln in result.alignments.values())
-    clock = ("strict clock" if args.clock_spread == 0 else
-             f"{args.clock_dist} lineage clock, spread {args.clock_spread:g}")
+    # the clock is now read off the rate itself: a ByLineage modifier is the relaxed clock
+    clocks = [m for m in getattr(args.substitution, "modifiers", ()) if isinstance(m, ByLineage)]
+    clock = (f"{clocks[0].dist} lineage clock, spread {clocks[0].spread:g}" if clocks
+             else "strict clock")
     summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
                f"{args.length} sites, {clock}")
     print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")

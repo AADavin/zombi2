@@ -1,16 +1,23 @@
 """``zombi2 species`` — the dated species tree (a thin shell over
 :func:`zombi2.species.simulate_species_tree`).
 
-The long options are the API keyword names; rates are bare numbers on their natural scope (the
-``scope(base) × modifiers`` richness of SPEC §5 stays in the Python API for now)."""
+The long options are the API keyword names, and ``--birth`` / ``--death`` take a rate in its written
+form (SPEC §5): a bare number on its natural scope (per lineage), or the same ``scope(base) ×
+modifiers`` expression the Python API takes — ``--birth "1.0 * OnTime({0: 1.0, 3: 0.3})"``."""
 from __future__ import annotations
 
 import argparse
 import os
 import time
 
-from zombi2.species import _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import _add_params_arg, _write_params_log
+from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
+from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+
+#: the RATES block for ``zombi2 species -h``, built from the level's own declaration
+RATES_HELP = _rates_help(
+    WIRED_MODIFIERS, "--birth", scopes="Global(1.0)",
+    note="Global(base) is one shared budget for the whole tree (linear, not exponential, growth); "
+         "a bare number is per lineage.")
 
 
 def _add_species_args(p: argparse.ArgumentParser) -> None:
@@ -23,10 +30,10 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
 
     # --birth and the stop condition are validated in run(), not marked argparse-`required`, so a
     # --params file can supply them (a required argument is never satisfied by a default).
-    g = p.add_argument_group("diversification", "the per-lineage birth–death rates")
-    g.add_argument("--birth", type=float, default=None, metavar="RATE",
+    g = p.add_argument_group("diversification", "the per-lineage birth–death rates (see RATES below)")
+    g.add_argument("--birth", type=_rate, default=None, metavar="RATE",
                    help="speciation rate (per lineage) — required")
-    g.add_argument("--death", type=float, default=0.0, metavar="RATE",
+    g.add_argument("--death", type=_rate, default=0.0, metavar="RATE",
                    help="extinction rate (per lineage); 0 = a pure-birth (Yule) tree (default 0)")
 
     g = p.add_argument_group("stop condition", "grow the tree until exactly one of these — required")

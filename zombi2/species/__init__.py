@@ -23,9 +23,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..rates.modifiers import FromParent
+from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
 from ..rates.rate import as_rate
-from ..rates.scope import PerLineage
+from ..rates.scope import Global, PerLineage
+
+#: The rate grammar this level wires (SPEC §5). Both the engine's gate below and the CLI's help read
+#: this, so a modifier can never be advertised without being implemented — or silently ignored.
+WIRED_SCOPES = (PerLineage, Global)
+WIRED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent)
 
 
 @dataclass
@@ -667,6 +672,21 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
+        # a modifier this engine does not thread would return its default factor of 1.0 — a run that
+        # is quietly not the model asked for — so reject it (SPEC §5, the genome engine's discipline)
+        if not isinstance(rate.scope, WIRED_SCOPES):
+            raise ValueError(
+                f"{label} has a {type(rate.scope).__name__} scope, but the species engine counts "
+                f"lineages — use PerLineage(...) (the default, so a bare number is enough) or "
+                f"Global(...) for one shared budget."
+            )
+        for m in rate.modifiers:
+            if not isinstance(m, WIRED_MODIFIERS):
+                raise ValueError(
+                    f"{label} carries {type(m).__name__}, which the species engine does not "
+                    f"support — OnTime (skyline), OnTotalDiversity (diversity-dependent) and "
+                    f"FromParent (clade drift, ClaDS) are wired."
+                )
         if _drift(rate) is not None and not isinstance(rate.scope, PerLineage):
             raise ValueError(
                 f"{label} carries FromParent (per-lineage drift) but its scope is "

@@ -9,5 +9,7 @@ Shared by every level, so it lives in one place. Reach the pieces as submodules:
 - ``scope`` — *per what?* ``PerCopy`` · ``PerLineage`` · ``PerSite`` · ``Global``
 - ``modifiers`` — *depends on what?* ``OnTime`` · ``OnTotalDiversity`` · ``FromParent``
 - ``rate`` — the internal ``Rate`` plumbing (users never build a ``Rate`` directly)
+- ``parse`` — ``parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")``: the same expression written as text,
+  which is how the CLI and a ``--params`` file take a rate (SPEC §5, *one written form*)
 - ``distributions`` — value/length distributions
 """

@@ -42,6 +42,11 @@ from .substitution_models import SubstitutionModel, decode
 
 _WRITE_OUTPUTS = ("alignments", "ancestral", "phylograms", "species_phylogram")  # the write vocabulary
 
+#: The rate grammar this level wires (SPEC §5) — read by the engine gate in :func:`simulate_sequences`
+#: and by the CLI's help, so a modifier is never advertised without being implemented. ``ByLineage``
+#: on the substitution rate *is* the uncorrelated ("relaxed") lineage clock.
+WIRED_MODIFIERS = (ByLineage,)
+
 
 @dataclass
 class SequencesResult:

@@ -7,6 +7,12 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 (**yes**), only when you name its token (**no**), or is available in Python but has no file yet
 (**Python**).
 
+Every `zombi2` **command** also writes a run log next to its outputs (`species.log`, `genomes.log`,
+`sequences.log`, `traits.log`): the version, the timestamp, the command line, and every resolved
+parameter. Rates are recorded in their **written form** — `birth<TAB>1.0 * OnTime({0: 1, 3: 0.3})` —
+so a line pastes straight back into the flag or a `--params` file. It is a CLI artifact, not a
+`result.write()` output, so it has no row in the tables below.
+
 ## Species trees — `simulate_species_tree`
 
 | Output | File | Format | Default | Contents |

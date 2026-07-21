@@ -71,6 +71,11 @@ from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult, Tree
 
+#: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
+#: help, so a modifier is never advertised without being implemented. These bend a *continuous*
+#: trait's variance-rate; the discrete switching rate is a bare number this slice.
+WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity)
+
 _WRITE_OUTPUTS = ("values", "changes", "tree", "driver")  # write vocabulary; "changes" = discrete transitions
 
 
@@ -542,7 +547,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     # OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity (diversity-dependent) are the
     # wired σ² modifiers; anything else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
-        if not isinstance(m, (OnTime, FromParent, OnTotalDiversity)):
+        if not isinstance(m, WIRED_MODIFIERS):
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not support "
                 f"— OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity "
