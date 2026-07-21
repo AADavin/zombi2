@@ -89,6 +89,7 @@ from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent
 from .gene_trees import GeneTree, gene_trees_from_events
+from .gff import read_gff
 
 
 @dataclass
@@ -455,6 +456,9 @@ class NucleotideGenomesResult:
     #: coordinate space. Empty when no genes were declared. A gene is never split, so its span is
     #: fixed for the whole run and is exactly the root-block that carries its gene tree.
     gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
+    #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
+    #: to look a named gene up in :attr:`gene_spans` / :attr:`gene_trees`. Empty for the even layout.
+    gene_names: dict[str, int] = field(default_factory=dict)
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -509,27 +513,41 @@ def _replicon_specs(chromosomes, root_length, topology) -> list[tuple[int, str]]
     return specs
 
 
-def _seed_blocks(source, length, cp, genes, gene_length, new_family) -> list[Block]:
-    """Lay one seed replicon of ``length`` down as its blocks.
-
-    With ``genes == 0`` that is a single intergenic block — today's uniform sequence. Otherwise the
-    replicon is the **alternating chain** ``intergene, gene, intergene, gene, …``: ``genes`` genes of
-    ``gene_length``, with the leftover spread as evenly as possible over the ``genes`` intergenes that
-    precede them. Every block shares the replicon's seed copy lineage ``cp`` (they are one copy of one
-    replicon); each **gene** additionally gets a fresh **family** id, which is what makes it
-    indivisible and gives it a gene tree."""
+def _even_gene_intervals(length, genes, gene_length) -> list[tuple[int, int, int, str | None]]:
+    """The evenly-spaced layout: ``genes`` genes of ``gene_length``, with the leftover spread as evenly
+    as possible over the intergenes that precede them. Returns ``(start, end, strand, name)`` intervals,
+    0-based half-open, in order."""
     if genes == 0:
-        return [Block(source, 0, length, 1, cp)]
+        return []
     base, extra = divmod(length - genes * gene_length, genes)   # `extra` intergenes are 1 bp longer
-    blocks, at = [], 0
+    out, at = [], 0
     for i in range(genes):
-        spacer = base + (1 if i < extra else 0)
-        if spacer:
-            blocks.append(Block(source, at, at + spacer, 1, cp))              # intergene
-            at += spacer
-        blocks.append(Block(source, at, at + gene_length, 1, cp, new_family()))  # gene (indivisible)
+        at += base + (1 if i < extra else 0)
+        out.append((at, at + gene_length, 1, None))
         at += gene_length
-    return blocks
+    return out
+
+
+def _seed_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names) -> list[Block]:
+    """Lay one seed replicon of ``length`` down as its blocks: the declared genes at ``intervals``
+    (0-based half-open, sorted, non-overlapping) and **intergene** everywhere else — the alternating
+    chain. Every block shares the replicon's seed copy lineage ``cp`` (they are one copy of one
+    replicon); each **gene** additionally gets a fresh **family** id, which is what makes it indivisible
+    and gives it a gene tree, and is recorded in ``gene_spans`` (and ``gene_names`` when it is named).
+    With no intervals the replicon is a single intergenic block — today's uniform sequence."""
+    blocks, at = [], 0
+    for (start, end, strand, name) in intervals:
+        if start > at:
+            blocks.append(Block(source, at, start, 1, cp))       # intergene before this gene
+        fam = new_family()
+        blocks.append(Block(source, start, end, strand, cp, fam))
+        gene_spans[fam] = (source, start, end)
+        if name is not None:
+            gene_names[name] = fam
+        at = end
+    if at < length:
+        blocks.append(Block(source, at, length, 1, cp))           # trailing intergene
+    return blocks or [Block(source, 0, length, 1, cp)]
 
 
 def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chromosome:
@@ -864,7 +882,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 origination_length=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
-                                seed=None) -> NucleotideGenomesResult:
+                                gff=None, seed=None) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
     The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its own source: an int
@@ -928,11 +946,23 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         raise ValueError(f"genes must be a non-negative integer, got {genes!r}")
     if genes and (isinstance(gene_length, bool) or not isinstance(gene_length, int) or gene_length < 1):
         raise ValueError(f"gene_length must be a positive integer, got {gene_length!r}")
-    specs = _replicon_specs(chromosomes, root_length, topology)
-    for _length, _top in specs:                      # every gene must fit, and leave intergenic room
-        if genes and genes * gene_length >= _length:
-            raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp replicon "
-                             f"with room left for intergenes")
+    if gff is not None:                              # declared from a GFF: exact coordinates and names
+        if genes:
+            raise ValueError("pass either gff= or genes=, not both — a GFF already declares the genes")
+        lengths, gff_genes = read_gff(gff)
+        seqids = sorted(lengths)                     # a deterministic replicon order
+        by_seqid: dict[str, list] = {sq: [] for sq in seqids}
+        for gene in gff_genes:
+            by_seqid[gene.seqid].append((gene.start, gene.end, gene.strand, gene.name))
+        specs = [(_valid_length(lengths[sq]), topology) for sq in seqids]
+        layouts = [by_seqid[sq] for sq in seqids]
+    else:
+        specs = _replicon_specs(chromosomes, root_length, topology)
+        for _length, _top in specs:                  # every gene must fit, and leave intergenic room
+            if genes and genes * gene_length >= _length:
+                raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
+                                 f"replicon with room left for intergenes")
+        layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
     rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
                    fission, fusion, chromosome_origination, chromosome_loss, inversion_length,
                    translocation_length, transposition_length, loss_length, duplication_length,
@@ -977,16 +1007,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
 
     root_chroms = []
     gene_spans: dict[int, tuple[int, int, int]] = {}
-    for source, (length, top) in enumerate(specs):     # one source per seed replicon; each a network root
+    gene_names: dict[str, int] = {}
+    for source, ((length, top), intervals) in enumerate(zip(specs, layouts)):  # one source per replicon
         cid = new_chrom_id()
         cp = new_copy()                                 # ...and one seed copy lineage per replicon
-        root_chroms.append(Chromosome(cid, top,
-                                      _seed_blocks(source, length, cp, genes, gene_length, new_family)))
+        root_chroms.append(Chromosome(cid, top, _seed_blocks(source, length, cp, intervals, new_family,
+                                                             gene_spans, gene_names)))
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length))
-        for b in root_chroms[-1].blocks:                # remember where each declared gene sits
-            if b.is_gene:
-                gene_spans[b.gene] = (b.source, b.start, b.end)
 
     t = root.birth_time
     alive: list[int] = []                               # the live-lineage set (species._grow shape)
@@ -1095,7 +1123,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     total_chromosomes += len(cg.chromosomes)
             si += 1
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                  gene_spans)
+                                  gene_spans, gene_names)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------

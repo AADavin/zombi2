@@ -1109,3 +1109,64 @@ def test_gene_declaration_validation():
         simulate_genomes_nucleotide(sp, genes=3, gene_length=0)
     with pytest.raises(ValueError):                          # no room left for intergenes
         simulate_genomes_nucleotide(sp, genes=10, gene_length=100, chromosomes=1, root_length=500)
+
+
+# --- declaring the seed genome from a GFF ---------------------------------------------------------
+
+_GFF_TEXT = ("##gff-version 3\n"
+             "##sequence-region chrom1 1 3000\n"
+             "##sequence-region plasmid 1 800\n"
+             "chrom1\tZOMBI2\tgene\t201\t500\t.\t+\t.\tID=dnaA\n"
+             "chrom1\tZOMBI2\tgene\t900\t1400\t.\t-\t.\tID=recA\n"
+             "chrom1\tZOMBI2\tCDS\t900\t1400\t.\t-\t0\tParent=recA\n"
+             "plasmid\tZOMBI2\tgene\t51\t250\t.\t+\t.\tID=toxin\n")
+
+
+def _gff(tmp_path):
+    path = tmp_path / "seed.gff"
+    path.write_text(_GFF_TEXT)
+    return path
+
+
+def test_seeding_from_a_gff(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), seed=1)
+    # the GFF supplies the replicons too, in sorted seqid order: chrom1 then plasmid
+    chroms = r.genomes[r.complete_tree.root].chromosomes
+    assert [c.length for c in chroms] == [3000, 800]
+    assert r.gene_names == {"dnaA": 1, "recA": 2, "toxin": 3}
+    assert r.gene_spans == {1: (0, 200, 500), 2: (0, 899, 1400), 3: (1, 50, 250)}
+    # the minus-strand gene is seeded reverse-complemented
+    strands = {b.gene: b.strand for c in chroms for b in c.blocks if b.is_gene}
+    assert strands == {1: 1, 2: -1, 3: 1}
+    # everything between the genes is intergene, and the chain covers the replicon exactly
+    for c in chroms:
+        assert sum(b.length for b in c.blocks) == c.length
+
+
+def test_gff_genes_are_never_split(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=2)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), inversion=2.0, transposition=1.0,
+                                    translocation=1.0, loss=1.5, duplication=1.5, transfer=1.0,
+                                    inversion_length=100, loss_length=100, duplication_length=100,
+                                    transfer_length=100, inversion_probability=0.4, seed=2)
+    spans = _gene_spans(r)
+    assert spans
+    for fam, seen in spans.items():
+        assert len(seen) == 1, f"gene family {fam} was cut into {seen}"
+        assert seen == {r.gene_spans[fam]}               # ...and it is exactly the declared span
+
+
+def test_gff_genes_get_one_tree_each_lookupable_by_name(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=3)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), inversion=2.0, loss=1.5, duplication=1.5,
+                                    inversion_length=100, loss_length=100, duplication_length=100, seed=3)
+    assert set(r.gene_trees) <= set(r.gene_spans)
+    tree = r.gene_trees[r.gene_names["dnaA"]]            # look a named gene up by name
+    assert tree.to_newick("extant").endswith(";")
+
+
+def test_gff_and_genes_are_mutually_exclusive(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    with pytest.raises(ValueError, match="either gff= or genes="):
+        simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), genes=3, seed=1)

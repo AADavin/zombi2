@@ -119,9 +119,18 @@ So the recovery is the recovery we built. The only additions:
 
 ---
 
-## Open — to settle while building
+## Settled while building
 
-1. **`origination`** — is it specifically a new *gene* (+ flanking intergene), or new sequence that may
-   be genic or not?
-2. **Retry cap `N`** — default, and whether it is user-exposed.
-3. **GFF / declaration-file schema** — the column set, and where multi-replicon karyotypes are expressed.
+1. **`origination` mints a gene** — never plain spacer. The de-novo block gets its own family
+   (indivisible from birth), its own source and copy lineage, and its own gene tree rooted at the branch
+   the origination fired on.
+2. **GFF** — `gff=` declares the seed genome: `##sequence-region` gives each replicon's extent (a
+   replicon without one ends at its last gene) and `gene` features give exact coordinates, strand and
+   name; other feature types (`CDS`, `exon`, …) are ignored. 1-based inclusive converts to 0-based
+   half-open on the way in; `-` seeds the gene reverse-complemented. Genes may touch but never overlap.
+   `gff=` and `genes=` are mutually exclusive. Names land in `result.gene_names`.
+
+## Open
+
+1. **Retry cap `N`** — default (currently 10), and whether it is user-exposed.
+2. **Per-replicon topology from a GFF** — every GFF replicon currently takes the `topology=` argument.
