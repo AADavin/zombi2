@@ -1411,3 +1411,61 @@ def test_two_chromosomes_with_the_whole_event_set():
             observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
                            if blk.source == s and blk.start <= a and b <= blk.end)
             assert observed == recovered.get(lid, 0)
+
+
+# --- extinction in the species tree ---------------------------------------------------------------
+
+def test_extinct_lineages_evolve_donate_and_are_pruned():
+    """With extinction, whole lineages die. Three things must hold at once: the dead still evolve and
+    are still recorded; what lived only on them never reaches the observable data; but what they
+    *donated* to a surviving lineage does — the classic transfer-from-the-dead."""
+    import collections
+    sp = simulate_species_tree(birth=1.4, death=0.7, n_extant=5, seed=4)
+    tree = sp.complete_tree
+    extant = {n.id for n in tree.extant()}
+
+    def doomed(nid):                                          # no extant descendant anywhere below
+        node = tree.nodes[nid]
+        return (nid not in extant) if node.children is None else all(doomed(c) for c in node.children)
+
+    dead = {nid for nid in tree.nodes if doomed(nid)}
+    assert collections.Counter(n.fate for n in tree.nodes.values())["extinct"] >= 1
+    assert dead and extant and not (dead & extant)
+
+    r = simulate_genomes_nucleotide(sp, chromosomes=[(1500, "circular")], genes=10, gene_length=100,
+                                    inversion=3.0, inversion_length=200, loss=3.0, loss_length=200,
+                                    duplication=3.0, duplication_length=200,
+                                    transfer=6.0, transfer_length=200, seed=4)
+
+    # the dead still evolved, and we kept their genomes
+    assert set(r.genomes) == set(tree.nodes)
+    assert all(r.genomes[d].length > 0 for d in dead)
+
+    # a transfer OUT of a doomed lineage into one that survives: donated by a ghost
+    from_dead = [e for e in r.events if isinstance(e, Transfer)
+                 and e.lineage in dead and e.recipient not in dead]
+    assert from_dead
+
+    # what lived only on doomed lineages is not observable, so it gets no gene tree
+    in_extant = {b.gene for lid in extant for c in r.genomes[lid].chromosomes
+                 for b in c.blocks if b.is_gene}
+    in_dead = {b.gene for d in dead for c in r.genomes[d].chromosomes for b in c.blocks if b.is_gene}
+    only_dead = in_dead - in_extant
+    assert only_dead                                          # some gene really did die with them
+    assert not (only_dead & set(r.gene_trees))                # ...and none of those has a tree
+
+    # the complete tree keeps the dead; the extant tree prunes to survivors only
+    assert any(t.kind == "extinct" for gt in r.gene_trees.values() for t in _tips(gt.complete))
+    for gt in r.gene_trees.values():
+        if gt.extant is not None:
+            assert all(t.kind == "extant" for t in _tips(gt.extant))
+
+    # and the cross-check still closes, against the EXTANT leaves
+    for fam, gt in r.gene_trees.items():
+        s, a, b = r.gene_spans[fam]
+        recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                        if t.kind == "extant")
+        for lid in extant:
+            observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                           if blk.source == s and blk.start <= a and b <= blk.end)
+            assert observed == recovered.get(lid, 0)
