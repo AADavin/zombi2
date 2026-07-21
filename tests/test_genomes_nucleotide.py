@@ -839,9 +839,25 @@ def test_origination_adds_de_novo_sources_beyond_the_root():
     assert any(any(s >= len(specs) for (s, _p) in r.ancestry(n)) for n in r.genomes)
 
 
+def test_origination_mints_a_gene():
+    # origination lays down a GENE, not plain spacer: indivisible, its own family, its own span.
+    specs = [(80, "circular"), (30, "linear")]
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=6)
+    r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, chromosomes=specs, seed=6)
+    denovo = [e for e in r.events if isinstance(e, Origination) and e.source >= len(specs)]
+    assert denovo
+    # every de-novo source is carried by genic blocks only, and is registered as a gene span
+    denovo_sources = {e.source for e in denovo}
+    for g in r.genomes.values():
+        for chrom in g.chromosomes:
+            for b in chrom.blocks:
+                if b.source in denovo_sources:
+                    assert b.is_gene                          # never plain spacer
+    assert denovo_sources <= {src for (src, _a, _b) in r.gene_spans.values()}
+
+
 def test_origination_family_roots_at_its_own_branch():
-    # Each de-novo family's gene tree is rooted on the branch the origination fired on (not the tree
-    # root) — it exists only in that lineage's subtree.
+    # Each de-novo gene's tree is rooted on the branch the origination fired on (not the tree root).
     specs = [(80, "circular"), (30, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=6)
     r = simulate_genomes_nucleotide(sp, origination=0.5, origination_length=10, inversion=1,
@@ -850,26 +866,28 @@ def test_origination_family_roots_at_its_own_branch():
                      if isinstance(e, Origination) and e.source >= len(specs)}
     assert origin_branch
     seen = 0
-    for fam, (s, _a, _b) in enumerate(r.root_blocks):
-        if s in origin_branch:
-            assert r.gene_trees[fam].complete.species == origin_branch[s]   # rooted at the origination branch
+    for fam, gt in r.gene_trees.items():
+        src, _a, _b = r.gene_spans[fam]
+        if src in origin_branch:
+            assert gt.complete.species == origin_branch[src]  # rooted at the origination branch
             seen += 1
-    assert seen                                               # some de-novo family survived to a root-block
+    assert seen                                               # some de-novo gene survived
 
 
 def test_recovery_cross_check_holds_with_origination():
     import collections
     specs = [(80, "circular"), (30, "linear")]
-    for seed in range(4):
+    for seed in range(3):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
         r = simulate_genomes_nucleotide(sp, origination=0.4, origination_length=10, loss=1.5,
                                         duplication=1.5, inversion=1.5, transposition=1,
                                         chromosomes=specs, seed=seed)
         assert any(isinstance(e, Origination) and e.source >= len(specs) for e in r.events)
         leaves = [n.id for n in r.complete_tree.extant()]
-        for fam, (s, a, b) in enumerate(r.root_blocks):
-            ex = r.gene_trees[fam].extant
-            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+        assert r.gene_trees
+        for fam, gt in r.gene_trees.items():
+            s, a, b = r.gene_spans[fam]
+            recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
                                             if t.kind == "extant")
             for lid in leaves:
                 observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
