@@ -4,12 +4,13 @@ The third and hardest resolution. Where an ordered genome is a *list of gene tok
 genome is a **karyotype of chromosomes**, each a coordinate axis of base pairs represented as an
 ordered list of **blocks**. The vocabulary (fixed here, once):
 
-- **block** — the persistent unit of both the representation *and* the ancestry: a **maximal** run of
-  one unbroken ancestry, the half-open interval ``[start, end)`` on an ancestral ``source``, read
-  forward (``strand`` ``+1``) or reverse-complemented (``-1``). *Maximal*: two adjacent collinear
-  blocks are one lineage, so they are merged. A block carries (later) one gene tree.
-- **gene / intergene** — a *classification* of blocks (genic mode, later): a gene is a declared,
-  indivisible block; an intergene fragments freely into many blocks.
+- **block** — the persistent unit of both the representation *and* the ancestry: a run of one unbroken
+  ancestry, the half-open interval ``[start, end)`` on an ancestral ``source``, read forward (``strand``
+  ``+1``) or reverse-complemented (``-1``). Blocks are **not** merged during the run — an event only
+  ever *splits* — so maximality is a property of the *recovered* root-blocks, not the working ones.
+- **gene / intergene** — a *classification* of blocks: a **gene** is a *declared, indivisible* block
+  (one family, one id, **never split**) carrying one gene tree; an **intergene** is the spacer, which
+  fragments freely into many blocks.
 - **segment** — *not* an object: the **extent** a single event acts on, the arc ``[start,
   start+length)``. "An inversion inverts a segment of a chromosome."
 
@@ -34,16 +35,17 @@ slowly). Built so far:
 Those are all **ancestry-neutral** (the strong invariant: every node carries the whole root sequence,
 permuted). The ancestry-**changing** events are here too:
 
-- **Loss** — an arc deleted (per nucleotide, never emptying a chromosome). A death, in the ``events``
+- **Loss** — an arc deleted (per lineage, never emptying a chromosome). A death, in the ``events``
   (genealogy) log. On its own it weakens the invariant to *subset*: each ancestral position at most
   once, monotonically down every path.
-- **Duplication** — an arc copied in **tandem** (per nucleotide). A *birth*: the copied material now
+- **Duplication** — an arc copied in **tandem** (per lineage). A *birth*: the copied material now
   has an extra copy (same source coordinates), so a position can appear more than once.
-- **Transfer** — an arc copied into a **contemporaneous recipient** lineage (per nucleotide,
+- **Transfer** — an arc copied into a **contemporaneous recipient** lineage (per lineage,
   additive). A *horizontal* birth that couples two lineages — the reason the whole engine runs on a
   **global timeline** (all lineages alive at once, one clock) rather than branch-by-branch.
-- **Origination** — a fresh source of new material laid down de novo (per lineage). A birth of a
-  wholly new gene family, beyond the root sources; each roots its own gene tree at its own branch.
+- **Origination** — a **new gene** laid down de novo on a fresh source (per lineage): its own family,
+  indivisible from birth, rooting its own gene tree at its own branch. Origination mints a gene, never
+  plain spacer.
 
 Threaded through all of the above is the **copy lineage** (``Block.copy``): the persistent identity
 that a split preserves, a duplication / transfer mints fresh (parent → child), and a speciation
@@ -57,16 +59,36 @@ re-mints into each daughter. The genealogy ``events`` — ``origination`` / ``lo
   bifurcation), reusing the shared per-segment builder. Validated end to end: the recovered extant tips
   equal the copies actually present in every extant leaf.
 
-Deferred to later slices: homologous *replacement* transfer (only additive for now); indels; declared
-genes / intergenes (pseudogenization, replacement); GFF input and BED / FASTA output. (The recovery
-above builds the *extant* tree exactly; the *complete* tree's dead partial-overlap lineages need the
-finer all-node partition — a later refinement.)
+Finally, the **genic layer** (``genes`` / ``gene_length``) declares some blocks to be **genes**, the
+rest **intergenes**. There is exactly **one** way an event picks its target — an *extension* — and it is
+drawn **directly from the legal arcs**, never guessed and retried: the event **nucleates at a uniform
+intergenic position**, and its far end is chosen among the positions where a breakpoint is legal (never
+strictly inside a gene), **weighted by** ``exp(-d / mean)`` — the extent distribution you asked for,
+restricted to the ends that exist. Landing spots and chromosome cuts are picked the same way. Nothing is
+clipped, nothing is snapped (snapping would inflate an extent to "whatever it takes to clear the gene"),
+and nothing is silently dropped for running out of retries. So a gene is only ever engulfed **whole**,
+never split, and each recovers as exactly one root-block with one gene tree.
+
+**Two consequences the guide must state plainly.** (1) Gene turnover is *emergent* and size-dependent —
+a gene changes copy number only when an event engulfs it whole, so large genes are rarely lost or
+duplicated. (2) The **realised extent is shorter than the mean you ask for**, the more so the denser the
+genome: on a 94%-genic bacterial genome, asking for 3 000 bp yields ~1 300. A long stretch that both
+begins *and* ends in a spacer often simply does not exist, and an event that would cut a gene does not
+happen. That conditioning is the model; what it must not do — and no longer does — is quietly eat the
+event *rate* along with it.
+
+Deferred to later slices: homologous *replacement* transfer (only additive for now); indels;
+pseudogenization (``gene → intergene``); declaring genes from a GFF / distribution file; BED / FASTA
+output; and the opt-in per-copy dial (size-blind, settable per-gene turnover — a *second* selection
+method, deliberately kept out). (The recovery above builds the *extant* tree exactly; the *complete*
+tree's dead partial-overlap lineages need the finer all-node partition — a later refinement.)
 """
 
 from __future__ import annotations
 
 import collections
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -75,6 +97,7 @@ from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent
 from .gene_trees import GeneTree, gene_trees_from_events
+from .gff import read_gff
 
 
 @dataclass
@@ -84,7 +107,12 @@ class Block:
     (``-1``). Its physical length is ``end - start``. ``copy`` names the **copy lineage** it belongs to
     — the persistent identity that threads through splits and moves (a split preserves it, a
     duplication mints a fresh child), re-minted into daughters at speciation; the gene-tree recovery
-    reads it to resolve *which copy begat which*. (A gene / intergene classification joins later.)
+    reads it to resolve *which copy begat which*.
+
+    ``gene`` is the **genic classification**: ``0`` for an **intergene** (the free-fragmenting spacer),
+    or the **gene family id** for a **gene** — a *declared, indivisible* block that is **never split**
+    (an event that would cut one redraws instead). A duplicated gene keeps its family and gets a fresh
+    ``copy``.
 
     Blocks are **not** kept maximal during the run — a rearrangement leaves collinear neighbours split
     rather than merging them (merging would muddy the copy-lineage bookkeeping). Maximality is instead
@@ -95,22 +123,36 @@ class Block:
     end: int
     strand: int
     copy: int = 0
+    gene: int = 0
 
     @property
     def length(self) -> int:
         return self.end - self.start
+
+    @property
+    def is_gene(self) -> bool:
+        """Whether this block is a declared gene (indivisible) rather than intergenic spacer."""
+        return self.gene != 0
+
+
+class _CutsGene(Exception):
+    """Raised when a breakpoint would fall **strictly inside a gene** — a **guard, not a control flow**.
+
+    Every breakpoint is now drawn from the legal set to begin with (:meth:`Chromosome._pick_legal_cut`,
+    :meth:`Chromosome._pick_arc_extent`), so this should never fire; if it does, a caller invented a
+    position instead of picking one, and failing loudly beats silently mangling a gene."""
 
 
 def _split_block(b: Block, o: int) -> list[Block]:
     """Split ``b`` after ``o`` physical positions into ``[left, right]``, strand-aware. For a forward
     block the cut falls at ``start + o``; for a reversed one the first ``o`` physical positions are
     the **high** end of the source, so the cut falls at ``end - o``. Both pieces keep ``b``'s copy
-    lineage — a split is not a birth."""
+    lineage and genic tag — a split is not a birth."""
     if b.strand == 1:
-        return [Block(b.source, b.start, b.start + o, 1, b.copy),
-                Block(b.source, b.start + o, b.end, 1, b.copy)]
-    return [Block(b.source, b.end - o, b.end, -1, b.copy),
-            Block(b.source, b.start, b.end - o, -1, b.copy)]
+        return [Block(b.source, b.start, b.start + o, 1, b.copy, b.gene),
+                Block(b.source, b.start + o, b.end, 1, b.copy, b.gene)]
+    return [Block(b.source, b.end - o, b.end, -1, b.copy, b.gene),
+            Block(b.source, b.start, b.end - o, -1, b.copy, b.gene)]
 
 
 @dataclass
@@ -133,9 +175,32 @@ class Chromosome:
     def length(self) -> int:
         return sum(b.length for b in self.blocks)
 
+    @property
+    def n_genes(self) -> int:
+        """How many gene copies this chromosome carries. A chromosome may never be left with none:
+        a replicon is born with a gene, and an event that would strip its last one does not happen."""
+        return sum(1 for b in self.blocks if b.is_gene)
+
+    def _check_cut(self, c: int) -> None:
+        """Raise :class:`_CutsGene` if a breakpoint at ``c`` would fall **strictly inside a gene**.
+        Pure — mutates nothing — so a caller can test both ends of an arc *before* splitting either."""
+        if c <= 0:
+            return
+        pos = 0
+        for b in self.blocks:
+            if pos == c:
+                return
+            if pos < c < pos + b.length:
+                if b.is_gene:
+                    raise _CutsGene
+                return
+            pos += b.length
+
     def _split_at(self, c: int) -> None:
         """Ensure a block boundary at physical coordinate ``c`` (``0 <= c <= length``). A no-op at the
-        ends or an existing boundary; otherwise the block straddling ``c`` is split."""
+        ends or an existing boundary; otherwise the block straddling ``c`` is split — unless that block
+        is a **gene**, which is indivisible, in which case :class:`_CutsGene` is raised (and nothing is
+        mutated) so the event redraws."""
         if c <= 0:
             return
         pos = 0
@@ -143,6 +208,8 @@ class Chromosome:
             if pos == c:
                 return
             if pos < c < pos + b.length:
+                if b.is_gene:
+                    raise _CutsGene
                 self.blocks[i:i + 1] = _split_block(b, c - pos)
                 return
             pos += b.length
@@ -157,11 +224,97 @@ class Chromosome:
             return len(self.blocks)
         raise ValueError(f"no block boundary at physical {phys}")
 
+    def _legal_cut_spans(self) -> list[tuple[int, int]]:
+        """The physical windows where a breakpoint is legal — the intergenic blocks, endpoints included
+        (a gene's own edge is legal; only its interior is not). ``[(lo, hi), …]`` in block order."""
+        out, pos = [], 0
+        for b in self.blocks:
+            if not b.is_gene:
+                out.append((pos, pos + b.length))
+            pos += b.length
+        return out
+
+    def _pick_legal_cut(self, rng) -> int:
+        """A **uniform** position at which a breakpoint is legal — where an arc may land, or a
+        chromosome be cut, without splitting a gene.
+
+        Legal means *not strictly inside a gene*, so the candidates are every **block boundary** (a
+        gene's own edge is a legal cut) plus the **interior of every intergene**. Note both extremes
+        matter: an **empty** chromosome — what a de-novo replicon starts as — still has position 0, so
+        material can arrive on it; and a **fully genic** chromosome still has its gene boundaries, so
+        whole genes can still be moved about. Counting per block keeps this O(blocks)."""
+        marks, pos = [], 0
+        for b in self.blocks:
+            marks.append((pos, 1 if b.is_gene else b.length))   # boundary, plus an intergene's interior
+            pos += b.length
+        if self.topology == "linear":
+            marks.append((pos, 1))                              # the far end is a legal cut too
+        if not marks:
+            return 0                                            # an empty replicon: position 0 it is
+        total = sum(n for _p, n in marks)
+        m = int(rng.integers(total))
+        for start, n in marks:
+            if m < n:
+                return start + m                                # m == 0 is the boundary itself
+            m -= n
+        raise AssertionError("legal-cut count out of sync with the blocks")  # unreachable
+
+    def _pick_arc_extent(self, start: int, mean: float, rng) -> int | None:
+        """Choose the arc's far end, forward from ``start``: an extent ``d >= 1`` whose breakpoint at
+        ``start + d`` is **legal** (never strictly inside a gene), drawn with weight ``exp(-d/mean)``.
+
+        This is the extent distribution you asked for, **restricted to the ends that exist** — the same
+        law that draw-then-reject would converge to, but sampled directly, so nothing is ever wasted and
+        no event silently vanishes because its retries ran out. On a gene-dense genome the realised
+        extent therefore comes out *shorter* than ``mean``: a long stretch that both begins and ends in a
+        spacer often simply does not exist. That conditioning is the model (an event that would cut a
+        gene does not happen); what it must not do is quietly eat the event *rate* as well.
+
+        ``None`` when no legal end exists."""
+        total = self.length
+        if total < 2:
+            return None
+        circular = self.topology == "circular"
+        limit = total - 1 if circular else total - start     # the longest arc that still fits
+        if limit < 1:
+            return None
+        spans = self._legal_cut_spans()
+        if not spans:
+            return None
+        if circular:                                         # the ring: the same windows one lap on
+            spans = spans + [(lo + total, hi + total) for lo, hi in spans]
+        windows = []
+        for lo, hi in spans:
+            d_lo, d_hi = max(lo - start, 1), min(hi - start, limit)
+            if d_lo <= d_hi:
+                windows.append((d_lo, d_hi))
+        if not windows:
+            return None
+        q = math.exp(-1.0 / mean)                            # a geometric extent, summed per window
+        weights = [max(q ** d_lo - q ** (d_hi + 1), 0.0) for d_lo, d_hi in windows]
+        bulk = sum(weights)
+        if bulk <= 0.0:                                      # every window is far beyond `mean`
+            return min(windows, key=lambda w: w[0])[0]       # ...so take the nearest legal end
+        r = float(rng.random()) * bulk
+        for (d_lo, d_hi), w in zip(windows, weights):
+            if r < w:
+                head, tail = q ** d_lo, q ** (d_hi + 1)      # inverse-CDF inside the window
+                u = float(rng.random())
+                target = head - u * (head - tail)
+                d = int(math.log(target) / math.log(q)) - 1 if target > 0 else d_hi
+                return min(max(d, d_lo), d_hi)
+            r -= w
+        return windows[-1][1]                                # floating-point guard
+
     def _arc_range(self, start: int, length: int) -> tuple[int, int] | None:
         """Prepare the arc ``[start, start+length)`` and return the block index range ``[i, j)`` it
         occupies, or ``None`` for an empty arc. Splits at both ends first. A **linear** chromosome
         clamps the arc to its ends; a **circular** one may wrap the origin, rotating the ring to bring
-        the arc to the front (the origin drifts to a real breakpoint — harmless on a ring)."""
+        the arc to the front (the origin drifts to a real breakpoint — harmless on a ring).
+
+        Both ends are checked **before** either is split, so an illegal arc leaves the chromosome
+        untouched rather than half-cut. With the ends drawn from the legal set this never triggers; it
+        is a guard."""
         total = self.length
         if total == 0:
             return None
@@ -170,11 +323,15 @@ class Chromosome:
             end = min(start + max(0, length), total)
             if end <= start:
                 return None
+            self._check_cut(start)
+            self._check_cut(end)
             self._split_at(start)
             self._split_at(end)
             return self._index_at(start), self._index_at(end)
         ell = max(1, min(length, total))
         s = start % total
+        self._check_cut(s)
+        self._check_cut((s + ell) % total)
         self._split_at(s)
         self._split_at((s + ell) % total)
         if s + ell <= total:
@@ -238,6 +395,26 @@ class NucleotideGenome:
                 return c, m
             m -= c.length
         raise AssertionError("length out of sync with the chromosomes")  # unreachable
+
+    def _pick_intergenic_position(self, rng) -> tuple[Chromosome, int] | None:
+        """A uniform pick over the genome's **intergenic** nucleotides → ``(chromosome, physical
+        position)``. An event nucleates in the spacer, never inside a gene — genes are indivisible, so
+        starting inside one could only ever be redrawn away. With no genes declared every nucleotide is
+        intergenic and this is just a uniform pick. ``None`` when the genome is all gene (nowhere to
+        start)."""
+        total = sum(b.length for c in self.chromosomes for b in c.blocks if not b.is_gene)
+        if total == 0:
+            return None
+        m = int(rng.integers(total))
+        for c in self.chromosomes:
+            pos = 0
+            for b in c.blocks:
+                if not b.is_gene:
+                    if m < b.length:
+                        return c, pos + m
+                    m -= b.length
+                pos += b.length
+        raise AssertionError("intergenic length out of sync with the blocks")  # unreachable
 
     def mosaic(self) -> dict[int, list[tuple[int, int, int, int]]]:
         """``{chromosome id: its block mosaic}``."""
@@ -390,6 +567,18 @@ class NucleotideGenomesResult:
     rearrangements: list[Inversion | Translocation | Transposition]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
+    #: ``{gene family id: (source, start, end)}`` — where each **declared gene** sits in the root
+    #: coordinate space. Empty when no genes were declared. A gene is never split, so its span is
+    #: fixed for the whole run and is exactly the root-block that carries its gene tree.
+    gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
+    #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
+    #: to look a named gene up in :attr:`gene_spans` / :attr:`gene_trees`. Empty for the even layout.
+    gene_names: dict[str, int] = field(default_factory=dict)
+    #: ``{gene family id: +1 / -1}`` — each declared gene's **coding** strand (which strand carries the
+    #: ORF), as given by the GFF. This is annotation, *not* ancestry: it is fixed for the family and is
+    #: unrelated to :attr:`Block.strand`, which records whether a stretch has been inverted since the
+    #: root. The even layout declares every gene on ``+1``.
+    gene_strands: dict[int, int] = field(default_factory=dict)
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -413,8 +602,14 @@ class NucleotideGenomesResult:
 
     @property
     def gene_trees(self) -> dict[int, GeneTree]:
-        """``{family: GeneTree}`` — one gene tree per root-block (family id = the block's index in
-        :attr:`root_blocks`), recovered from the copy-lineage genealogy."""
+        """``{family: GeneTree}`` — the recovered gene trees.
+
+        With **genes declared**, one tree per gene, keyed by its **gene family id** (see
+        :attr:`gene_spans`); the intergenic root-blocks keep their block ancestry in the log but are not
+        built into trees. With **no genes declared** the whole genome is one big intergene, so every
+        recovered root-block is a family in its own right and the key is its index in
+        :attr:`root_blocks`. A declared gene that survives in no extant leaf has no root-block and so no
+        tree."""
         return self._recover()[1]
 
 
@@ -438,12 +633,56 @@ def _replicon_specs(chromosomes, root_length, topology) -> list[tuple[int, str]]
     return specs
 
 
+def _even_gene_intervals(length, genes, gene_length) -> list[tuple[int, int, int, str | None]]:
+    """The evenly-spaced layout: ``genes`` genes of ``gene_length``, with the leftover spread as evenly
+    as possible over the intergenes that precede them. Returns ``(start, end, strand, name)`` intervals,
+    0-based half-open, in order."""
+    if genes == 0:
+        return []
+    base, extra = divmod(length - genes * gene_length, genes)   # `extra` intergenes are 1 bp longer
+    out, at = [], 0
+    for i in range(genes):
+        at += base + (1 if i < extra else 0)
+        out.append((at, at + gene_length, 1, None))
+        at += gene_length
+    return out
+
+
+def _seed_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names,
+                 gene_strands) -> list[Block]:
+    """Lay one seed replicon of ``length`` down as its blocks: the declared genes at ``intervals``
+    (0-based half-open, sorted, non-overlapping) and **intergene** everywhere else — the alternating
+    chain. Every block shares the replicon's seed copy lineage ``cp`` (they are one copy of one
+    replicon); each **gene** additionally gets a fresh **family** id, which is what makes it indivisible
+    and gives it a gene tree, and is recorded in ``gene_spans``, ``gene_strands`` (its **coding**
+    strand) and ``gene_names`` (when it is named).
+    With no intervals the replicon is a single intergenic block — today's uniform sequence."""
+    blocks, at = [], 0
+    for (start, end, strand, name) in intervals:
+        if start > at:
+            blocks.append(Block(source, at, start, 1, cp))       # intergene before this gene
+        fam = new_family()
+        # NB: every seed block is strand +1. `Block.strand` is orientation *relative to the ancestral
+        # source*, and at the root the genome IS its own source — nothing is inverted yet. A gene's
+        # coding strand from the GFF is a different thing entirely (which strand carries the ORF), a
+        # constant property of the family, so it is recorded separately.
+        blocks.append(Block(source, start, end, 1, cp, fam))
+        gene_spans[fam] = (source, start, end)
+        gene_strands[fam] = strand
+        if name is not None:
+            gene_names[name] = fam
+        at = end
+    if at < length:
+        blocks.append(Block(source, at, length, 1, cp))           # trailing intergene
+    return blocks or [Block(source, 0, length, 1, cp)]
+
+
 def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chromosome:
     """A daughter chromosome: a fresh id, a deep copy of the blocks (fresh :class:`Block` objects, so
     a daughter's inversions never mutate the parent's genome), with every block's copy lineage
     re-minted through ``copy_map`` (parent copy id → this daughter's fresh copy id)."""
     return Chromosome(cid, c.topology,
-                      [Block(b.source, b.start, b.end, b.strand, copy_map[b.copy]) for b in c.blocks])
+                      [Block(b.source, b.start, b.end, b.strand, copy_map[b.copy], b.gene) for b in c.blocks])
 
 
 @dataclass(frozen=True)
@@ -475,8 +714,13 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     source coordinates). Each distinct copy lineage in the arc begets one fresh child lineage, so the
     tandem copy is a new copy of that material; the parentage is recorded as a :class:`Duplication`.
     Returns the length added (0 on a no-op)."""
-    chrom, start = g._pick_position(rng)
-    ell = min(chrom.length, max(1, int(rng.geometric(1.0 / duplication_length))))
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
+        return 0
+    chrom, start = spot
+    ell = chrom._pick_arc_extent(start, duplication_length, rng)
+    if ell is None:
+        return 0
     span = chrom._arc_range(start, ell)
     if span is None:
         return 0
@@ -487,7 +731,8 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
         if b.copy not in child_of:
             child_of[b.copy] = new_copy()
     copied = tuple((b.copy, child_of[b.copy], b.source, b.start, b.end) for b in arc)
-    chrom.blocks[j:j] = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy]) for b in arc]
+    chrom.blocks[j:j] = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy], b.gene)
+                         for b in arc]
     events.append(Duplication(t, node_id, chrom.id, copied))
     return sum(b.length for b in arc)
 
@@ -500,10 +745,13 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     chromosome (strands travel with them). A horizontal edge in each block's gene tree. **Additive**
     — the donor keeps its copy — so it returns the recipient's length gain (0 on a no-op)."""
     donor_g = gen[kd]
-    if donor_g.length == 0:
+    spot = donor_g._pick_intergenic_position(rng)
+    if spot is None:
         return 0
-    chrom, start = donor_g._pick_position(rng)
-    ell = min(chrom.length, max(1, int(rng.geometric(1.0 / transfer_length))))
+    chrom, start = spot
+    ell = chrom._pick_arc_extent(start, transfer_length, rng)
+    if ell is None:
+        return 0
     span = chrom._arc_range(start, ell)
     if span is None:
         return 0
@@ -521,9 +769,11 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
         if b.copy not in child_of:
             child_of[b.copy] = new_copy()
     transferred = tuple((b.copy, child_of[b.copy], b.source, b.start, b.end) for b in arc)
-    xfers = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy]) for b in arc]
+    xfers = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy], b.gene) for b in arc]
     rchrom = rgenome.chromosomes[int(rng.integers(len(rgenome.chromosomes)))]
-    p = int(rng.integers(rchrom.length + 1))            # arrive as a block at a random recipient spot
+    p = rchrom._pick_legal_cut(rng)                     # arrive at a legal spot on the recipient
+    if p is None:
+        return 0
     rchrom._split_at(p)
     q = rchrom._index_at(p)
     rchrom.blocks[q:q] = xfers
@@ -531,17 +781,24 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     return sum(b.length for b in arc)                   # the recipient's length gain
 
 
-def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy) -> int:
-    """New material arises **de novo** — a fresh source (a geometric-length stretch, its own copy
-    lineage) inserted at a random spot on a uniformly-chosen chromosome. Per lineage (a family is born
-    once). The root of a new gene tree. Returns the length added."""
+def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy,
+                    new_family, gene_spans, gene_strands) -> int:
+    """A **new gene** arises de novo: a fresh source (a geometric-length stretch, mean
+    ``origination_length``), its own copy lineage and its own **gene family**, inserted at a random spot
+    on a uniformly-chosen chromosome. Per lineage — a family is born once. Origination mints a *gene*,
+    never plain spacer, so the new block is indivisible from birth and gets its own gene tree. Returns
+    the length added."""
     chrom = g.chromosomes[int(rng.integers(len(g.chromosomes)))]
     length = max(1, int(rng.geometric(1.0 / origination_length)))
-    src, cp = new_source(), new_copy()
-    p = int(rng.integers(chrom.length + 1))
+    src, cp, fam = new_source(), new_copy(), new_family()
+    p = chrom._pick_legal_cut(rng)
+    if p is None:
+        return 0
     chrom._split_at(p)
     k = chrom._index_at(p)
-    chrom.blocks[k:k] = [Block(src, 0, length, 1, cp)]
+    chrom.blocks[k:k] = [Block(src, 0, length, 1, cp, fam)]
+    gene_spans[fam] = (src, 0, length)                   # a de-novo gene, tracked like a declared one
+    gene_strands[fam] = 1
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length))
     return length
 
@@ -551,15 +808,22 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
     deferred tier event). Records the deleted material — which copy lineage lost which arc — as a
     :class:`Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
-    chrom, start = g._pick_position(rng)
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
+        return 0
+    chrom, start = spot
     if chrom.length < 2:
         return 0
-    ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / loss_length))))
+    ell = chrom._pick_arc_extent(start, loss_length, rng)
+    if ell is None:
+        return 0
     span = chrom._arc_range(start, ell)
     if span is None:
         return 0
     i, j = span
     gone = chrom.blocks[i:j]
+    if chrom.n_genes and sum(1 for b in gone if b.is_gene) == chrom.n_genes:
+        return 0                                         # would leave the chromosome geneless: no-op
     lost = tuple((b.copy, b.source, b.start, b.end) for b in gone)
     chrom.blocks = chrom.blocks[:i] + chrom.blocks[j:]
     events.append(Loss(t, node_id, chrom.id, lost))
@@ -568,8 +832,13 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
 
 def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
     """Invert a geometric-length arc of a length-weighted chromosome (length-neutral)."""
-    chrom, pos = g._pick_position(rng)
-    length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
+        return
+    chrom, pos = spot
+    length = chrom._pick_arc_extent(pos, inversion_length, rng)
+    if length is None:
+        return
     chrom.invert(pos, length)
     rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
 
@@ -583,22 +852,33 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     chromosome — it leaves at least one)."""
     if len(g.chromosomes) < 2:
         return
-    source, start = g._pick_position(rng)
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
+        return
+    source, start = spot
     if source.length < 2:
         return
-    ell = min(source.length - 1, max(1, int(rng.geometric(1.0 / translocation_length))))
+    ell = source._pick_arc_extent(start, translocation_length, rng)
+    if ell is None:
+        return
     span = source._arc_range(start, ell)
     if span is None:
         return
     i, j = span
     arc = source.blocks[i:j]
+    if source.n_genes and sum(1 for b in arc if b.is_gene) == source.n_genes:
+        return                                           # would leave the donor geneless: no-op
+    intact = source.blocks                               # keep for rollback if the landing cuts a gene
     source.blocks = source.blocks[:i] + source.blocks[j:]
     flipped = bool(rng.random() < inversion_probability)
     if flipped:
-        arc = [Block(b.source, b.start, b.end, -b.strand, b.copy) for b in reversed(arc)]
+        arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
     others = [c for c in g.chromosomes if c is not source]
     dest = others[int(rng.integers(len(others)))]
-    pos = int(rng.integers(dest.length + 1))
+    pos = dest._pick_legal_cut(rng)                      # land where it will not split a gene
+    if pos is None:
+        source.blocks = intact                           # nowhere legal to land: undo the excision
+        return
     dest._split_at(pos)
     k = dest._index_at(pos)
     dest.blocks[k:k] = arc
@@ -611,20 +891,29 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     the same chromosome**, landing inverted with probability ``inversion_probability``. Ancestry-neutral
     (blocks keep their source coordinates). No-op below two nucleotides (an arc leaves at least one, so
     there is a landing spot)."""
-    chrom, start = g._pick_position(rng)
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
+        return
+    chrom, start = spot
     if chrom.length < 2:
         return
-    ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / transposition_length))))
+    ell = chrom._pick_arc_extent(start, transposition_length, rng)
+    if ell is None:
+        return
     span = chrom._arc_range(start, ell)
     if span is None:
         return
     i, j = span
     arc = chrom.blocks[i:j]
+    intact = chrom.blocks                                # keep for rollback if the landing cuts a gene
     chrom.blocks = chrom.blocks[:i] + chrom.blocks[j:]
     flipped = bool(rng.random() < inversion_probability)
     if flipped:
-        arc = [Block(b.source, b.start, b.end, -b.strand, b.copy) for b in reversed(arc)]
-    dest = int(rng.integers(chrom.length + 1))          # a spot on the remainder (may be the origin)
+        arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
+    dest = chrom._pick_legal_cut(rng)                   # a legal spot on the remainder
+    if dest is None:
+        chrom.blocks = intact                            # nowhere legal to land: undo the excision
+        return
     chrom._split_at(dest)
     k = chrom._index_at(dest)
     chrom.blocks[k:k] = arc
@@ -641,16 +930,27 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
     if chrom.length < 2:
         return 0
     if chrom.topology == "linear":
-        c = int(rng.integers(1, chrom.length))
+        c = chrom._pick_legal_cut(rng)
+        if c is None or c == 0:
+            return 0
         chrom._split_at(c)
         i = chrom._index_at(c)
+        if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[:i])
+                                  and any(x.is_gene for x in chrom.blocks[i:])):
+            return 0                                     # a half without a gene: the fission fails
         a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i])
         b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:])
     else:
-        c1, c2 = sorted(int(x) for x in rng.choice(chrom.length, size=2, replace=False))
+        cuts = {chrom._pick_legal_cut(rng), chrom._pick_legal_cut(rng)} - {None}
+        if len(cuts) < 2:
+            return 0
+        c1, c2 = sorted(cuts)
         chrom._split_at(c1)
         chrom._split_at(c2)
         i, j = chrom._index_at(c1), chrom._index_at(c2)
+        if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[i:j])
+                                  and any(x.is_gene for x in chrom.blocks[:i] + chrom.blocks[j:])):
+            return 0                                     # a half without a gene: the fission fails
         a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j])
         b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:])
     g.chromosomes[ci:ci + 1] = [a, b]
@@ -677,14 +977,21 @@ def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
     return -1
 
 
-def _do_chromosome_origination(g, node_id, t, chromosome_events, new_chrom_id) -> int:
-    """A de-novo replicon (a plasmid): a fresh **empty** circular chromosome — a **root** of the
-    chromosome network (no parent). It carries no sequence yet (length 0); material arrives later by
-    origination / transfer / translocation. Returns the chromosome-count delta (``+1``)."""
-    cid = new_chrom_id()
-    g.chromosomes.append(Chromosome(cid, "circular", []))
+def _do_chromosome_origination(g, node_id, t, origination_length, rng, events, chromosome_events,
+                               new_chrom_id, new_source, new_copy, new_family,
+                               gene_spans, gene_strands) -> tuple[int, int]:
+    """A de-novo replicon (a plasmid): a fresh circular chromosome — a **root** of the chromosome
+    network (no parent) — **carrying one new gene**. A chromosome never exists without a gene, so the
+    replicon is born with one rather than as an empty shell: its own source, copy lineage and family,
+    exactly like a de-novo :func:`_do_origination`. Returns ``(chromosome delta, length delta)``."""
+    cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
+    length = max(1, int(rng.geometric(1.0 / origination_length)))
+    g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)]))
+    gene_spans[fam] = (src, 0, length)
+    gene_strands[fam] = 1
     chromosome_events.append(ChromosomeEvent(t, "origination", node_id, (), (cid,)))
-    return 1
+    events.append(Origination(t, node_id, cid, cp, src, 0, length))
+    return (1, length)
 
 
 def _do_chromosome_loss(g, node_id, t, rng, events, chromosome_events) -> tuple[int, int]:
@@ -701,17 +1008,6 @@ def _do_chromosome_loss(g, node_id, t, rng, events, chromosome_events) -> tuple[
     del g.chromosomes[ci]
     chromosome_events.append(ChromosomeEvent(t, "loss", node_id, (lost.id,), ()))
     return (-1, -lost.length)
-
-
-def _pick_lineage_by_length(rng, gen, total_length) -> int:
-    """Pick a lineage index proportional to its genome length — together with each mutator's
-    within-genome length-weighting this realises one global per-nucleotide pick."""
-    m = int(rng.integers(total_length))
-    for k, g in enumerate(gen):
-        if m < g.length:
-            return k
-        m -= g.length
-    raise AssertionError("total_length out of sync with the alive set")  # unreachable
 
 
 def _pick_lineage_by_chromosomes(rng, gen, total_chromosomes) -> int:
@@ -755,7 +1051,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 transfer_to="uniform", self_transfer=False, origination=0.0,
                                 origination_length=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
-                                root_length=1000, topology="circular", seed=None) -> NucleotideGenomesResult:
+                                root_length=1000, topology="circular", genes=0, gene_length=100,
+                                gff=None, trim_overlaps=False, seed=None) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
     The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its own source: an int
@@ -763,31 +1060,37 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's
     karyotype at speciation, with **every chromosome re-minted** (the chromosome network), and evolves:
 
-    - ``inversion`` (**per nucleotide**) reverses a geometric-length (mean ``inversion_length``) arc
+    - ``inversion`` (**per lineage**) reverses a geometric-length (mean ``inversion_length``) arc
       of a length-weighted chromosome.
-    - ``translocation`` (**per nucleotide**) moves a geometric-length (mean ``translocation_length``)
-      arc to a **different** chromosome; ``transposition`` (**per nucleotide**, mean
+    - ``translocation`` (**per lineage**) moves a geometric-length (mean ``translocation_length``)
+      arc to a **different** chromosome; ``transposition`` (**per lineage**, mean
       ``transposition_length``) moves one **within** its chromosome. Both land inverted with
       probability ``inversion_probability``, keep source coordinates, and are rearrangements, not edges.
-    - ``loss`` (**per nucleotide**) deletes a geometric-length (mean ``loss_length``) arc — an
+    - ``loss`` (**per lineage**) deletes a geometric-length (mean ``loss_length``) arc — an
       ancestry-**changing** event (a death), recorded in ``events``. Never empties a chromosome.
-    - ``duplication`` (**per nucleotide**) copies a geometric-length (mean ``duplication_length``) arc
+    - ``duplication`` (**per lineage**) copies a geometric-length (mean ``duplication_length``) arc
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
-    - ``transfer`` (**per nucleotide**) copies a geometric-length (mean ``transfer_length``) arc into a
+    - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_length``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
       :class:`Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
       (the donor keeps its copy). This is what needs the global timeline.
-    - ``origination`` (**per lineage**) lays down a fresh source of new material (a geometric-length,
-      mean ``origination_length``, de-novo stretch) — a *birth* of a wholly new gene family.
+    - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
+      mean ``origination_length``) — a *birth* of a wholly new family, indivisible from birth.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
       (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**).
-      ``chromosome_origination`` (**per lineage**) adds a de-novo empty circular replicon (a plasmid, a
-      network **root**); ``chromosome_loss`` (**per chromosome**) kills a whole chromosome (its material
-      dies as a loss; never the last one) — a network **leaf**. All record a chromosome-network edge.
+      ``chromosome_origination`` (**per lineage**) adds a de-novo circular replicon (a plasmid, a
+      network **root**) **carrying one new gene**; ``chromosome_loss`` (**per chromosome**) kills a
+      whole chromosome (its material dies as a loss; never the last one) — a network **leaf**. All
+      record a chromosome-network edge.
+
+    **A chromosome never exists without a gene.** A replicon is born with one, and any event that
+    would strip a chromosome of its last gene — a loss, a translocation carrying it away, a fission
+    splitting off a geneless half — simply does not happen. (Vacuous when no genes are declared.)
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
-    (each per-nucleotide rate scales with the *total* current length over the alive set, per-chromosome
-    rates with the total chromosome count, per-lineage rates with the lineage count), so a transfer
+    (every extension event is **per lineage** — the rate says how often a lineage does it, the extent how
+    much it touches, so a bigger genome does not get proportionally more events; the chromosome tier is
+    per chromosome), so a transfer
     couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
     of the root sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
@@ -814,7 +1117,27 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     if transfer_to != "uniform" and not isinstance(transfer_to, Distance):
         raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), "
                          f"got {transfer_to!r}")
-    specs = _replicon_specs(chromosomes, root_length, topology)
+    if isinstance(genes, bool) or not isinstance(genes, int) or genes < 0:
+        raise ValueError(f"genes must be a non-negative integer, got {genes!r}")
+    if genes and (isinstance(gene_length, bool) or not isinstance(gene_length, int) or gene_length < 1):
+        raise ValueError(f"gene_length must be a positive integer, got {gene_length!r}")
+    if gff is not None:                              # declared from a GFF: exact coordinates and names
+        if genes:
+            raise ValueError("pass either gff= or genes=, not both — a GFF already declares the genes")
+        lengths, gff_genes = read_gff(gff, trim_overlaps=trim_overlaps)
+        seqids = sorted(lengths)                     # a deterministic replicon order
+        by_seqid: dict[str, list] = {sq: [] for sq in seqids}
+        for gene in gff_genes:
+            by_seqid[gene.seqid].append((gene.start, gene.end, gene.strand, gene.name))
+        specs = [(_valid_length(lengths[sq]), topology) for sq in seqids]
+        layouts = [by_seqid[sq] for sq in seqids]
+    else:
+        specs = _replicon_specs(chromosomes, root_length, topology)
+        for _length, _top in specs:                  # every gene must fit, and leave intergenic room
+            if genes and genes * gene_length >= _length:
+                raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
+                                 f"replicon with room left for intergenes")
+        layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
     rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
                    fission, fusion, chromosome_origination, chromosome_loss, inversion_length,
                    translocation_length, transposition_length, loss_length, duplication_length,
@@ -837,6 +1160,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         copy_counter += 1
         return copy_counter                             # copy ids start at 1 (0 = the unset sentinel)
 
+    family_counter = 0
+
+    def new_family() -> int:
+        nonlocal family_counter
+        family_counter += 1
+        return family_counter                           # gene family ids start at 1 (0 = intergene)
+
     def new_source() -> int:
         nonlocal source_counter
         src = source_counter
@@ -851,10 +1181,15 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)   # (end_time, node) in time order
 
     root_chroms = []
-    for source, (length, top) in enumerate(specs):     # one source per seed replicon; each a network root
+    gene_spans: dict[int, tuple[int, int, int]] = {}
+    gene_names: dict[str, int] = {}
+    gene_strands: dict[int, int] = {}
+    for source, ((length, top), intervals) in enumerate(zip(specs, layouts)):  # one source per replicon
         cid = new_chrom_id()
         cp = new_copy()                                 # ...and one seed copy lineage per replicon
-        root_chroms.append(Chromosome(cid, top, [Block(source, 0, length, 1, cp)]))
+        root_chroms.append(Chromosome(cid, top, _seed_blocks(source, length, cp, intervals, new_family,
+                                                             gene_spans, gene_names,
+                                                             gene_strands)))
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length))
 
@@ -870,13 +1205,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     while si < len(schedule):
         length, count, nlin = total_length, total_chromosomes, len(alive)
         can_xfer = nlin >= 2 or self_transfer
-        r_inv = rates.inversion * length
-        r_trl = rates.translocation * length
-        r_trp = rates.transposition * length
-        r_los = rates.loss * length
-        r_dup = rates.duplication * length
-        r_tra = rates.transfer * length if can_xfer else 0.0
-        r_org = rates.origination * nlin                # per lineage
+        r_inv = rates.inversion * nlin                  # every extension event is PER LINEAGE:
+        r_trl = rates.translocation * nlin              # the rate says how often a lineage does this,
+        r_trp = rates.transposition * nlin              # and the extent says how much it touches — so
+        r_los = rates.loss * nlin                       # a bigger genome does NOT get more events
+        r_dup = rates.duplication * nlin                # (that would double-count size and explode).
+        r_tra = rates.transfer * nlin if can_xfer else 0.0
+        r_org = rates.origination * nlin
         r_fis = rates.fission * count
         r_fus = rates.fusion * count
         r_cor = rates.chromosome_origination * nlin     # per lineage (de-novo replicon)
@@ -898,31 +1233,32 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor
                 if r < r_inv:
-                    k = _pick_lineage_by_length(rng, gen, length)
+                    k = int(rng.integers(nlin))
                     _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
                 elif r < b_trl:
-                    k = _pick_lineage_by_length(rng, gen, length)
+                    k = int(rng.integers(nlin))
                     _do_translocation(gen[k], alive[k], t, rates.translocation_length,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_trp:
-                    k = _pick_lineage_by_length(rng, gen, length)
+                    k = int(rng.integers(nlin))
                     _do_transposition(gen[k], alive[k], t, rates.transposition_length,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_los:
-                    k = _pick_lineage_by_length(rng, gen, length)
+                    k = int(rng.integers(nlin))
                     total_length += _do_loss(gen[k], alive[k], t, rates.loss_length, rng, events)
                 elif r < b_dup:
-                    k = _pick_lineage_by_length(rng, gen, length)
+                    k = int(rng.integers(nlin))
                     total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_length,
                                                     rng, events, new_copy)
                 elif r < b_tra:
-                    kd = _pick_lineage_by_length(rng, gen, length)
+                    kd = int(rng.integers(nlin))
                     total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_length,
                                                  transfer_to, self_transfer, depth, events, new_copy)
                 elif r < b_org:
                     k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
                     total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
-                                                    rng, events, new_source, new_copy)
+                                                    rng, events, new_source, new_copy,
+                                                    new_family, gene_spans, gene_strands)
                 elif r < b_fis:
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
@@ -933,8 +1269,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                                     new_chrom_id)
                 elif r < b_cor:
                     k = int(rng.integers(nlin))         # chromosome origination is per lineage
-                    total_chromosomes += _do_chromosome_origination(gen[k], alive[k], t,
-                                                                    chromosome_events, new_chrom_id)
+                    dc, dl = _do_chromosome_origination(
+                        gen[k], alive[k], t, rates.origination_length, rng, events, chromosome_events,
+                        new_chrom_id, new_source, new_copy, new_family, gene_spans, gene_strands)
+                    total_chromosomes += dc
+                    total_length += dl
                 else:
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     dc, dl = _do_chromosome_loss(gen[k], alive[k], t, rng, events, chromosome_events)
@@ -958,7 +1297,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     total_length += cg.length
                     total_chromosomes += len(cg.chromosomes)
             si += 1
-    return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed)
+    return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
+                                  gene_spans, gene_names, gene_strands)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
@@ -1090,8 +1430,12 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
 
 def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
-    """The full recovery: the root partition, and one :class:`GeneTree` per block (its family id is the
-    block's index in the partition). Reuses the shared per-segment tree builder."""
+    """The full recovery: the root partition, and the gene trees.
+
+    With genes declared we build a tree **only** for the root-blocks that are declared genes, keyed by
+    gene family id — the intergenic blocks keep their genealogy in the log but are not worth a tree, and
+    skipping them is most of the work. With none declared, every root-block is a family (keyed by index).
+    Reuses the shared per-segment tree builder."""
     tree = result.complete_tree
     blocks = _root_block_partition(result)
     origs = [e for e in result.events if isinstance(e, Origination)]
@@ -1105,8 +1449,14 @@ def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, G
         counter[0] += 1
         return counter[0]
 
+    if result.gene_spans:                                # genic: one family per surviving declared gene
+        family_of = {span: fam for fam, span in result.gene_spans.items()}
+        targets = [(family_of[iv], iv) for iv in blocks if iv in family_of]
+    else:                                                # uniform: every root-block is its own family
+        targets = list(enumerate(blocks))
+
     seg_events: list[_SegEvent] = []
-    for fam, (s, a, b) in enumerate(blocks):
+    for fam, (s, a, b) in targets:
         _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, seg_events)
     return blocks, gene_trees_from_events(seg_events, tree)
 
