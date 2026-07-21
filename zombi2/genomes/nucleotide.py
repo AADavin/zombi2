@@ -35,12 +35,12 @@ slowly). Built so far:
 Those are all **ancestry-neutral** (the strong invariant: every node carries the whole root sequence,
 permuted). The ancestry-**changing** events are here too:
 
-- **Loss** — an arc deleted (per nucleotide, never emptying a chromosome). A death, in the ``events``
+- **Loss** — an arc deleted (per lineage, never emptying a chromosome). A death, in the ``events``
   (genealogy) log. On its own it weakens the invariant to *subset*: each ancestral position at most
   once, monotonically down every path.
-- **Duplication** — an arc copied in **tandem** (per nucleotide). A *birth*: the copied material now
+- **Duplication** — an arc copied in **tandem** (per lineage). A *birth*: the copied material now
   has an extra copy (same source coordinates), so a position can appear more than once.
-- **Transfer** — an arc copied into a **contemporaneous recipient** lineage (per nucleotide,
+- **Transfer** — an arc copied into a **contemporaneous recipient** lineage (per lineage,
   additive). A *horizontal* birth that couples two lineages — the reason the whole engine runs on a
   **global timeline** (all lineages alive at once, one clock) rather than branch-by-branch.
 - **Origination** — a fresh source of new material laid down de novo (per lineage). A birth of a
@@ -558,6 +558,8 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     source coordinates). Each distinct copy lineage in the arc begets one fresh child lineage, so the
     tandem copy is a new copy of that material; the parentage is recorded as a :class:`Duplication`.
     Returns the length added (0 on a no-op)."""
+    if g.length == 0:
+        return 0
     chrom, start = g._pick_position(rng)
     ell = min(chrom.length, max(1, int(rng.geometric(1.0 / duplication_length))))
     span = chrom._arc_range(start, ell)
@@ -635,6 +637,8 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
     deferred tier event). Records the deleted material — which copy lineage lost which arc — as a
     :class:`Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
+    if g.length == 0:
+        return 0
     chrom, start = g._pick_position(rng)
     if chrom.length < 2:
         return 0
@@ -652,6 +656,8 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
 
 def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
     """Invert a geometric-length arc of a length-weighted chromosome (length-neutral)."""
+    if g.length == 0:
+        return
     chrom, pos = g._pick_position(rng)
     length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
     chrom.invert(pos, length)
@@ -665,7 +671,7 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     Ancestry-neutral (blocks keep their source coordinates); both chromosomes persist. No-op if the
     genome has one chromosome or the source is below two nucleotides (an arc never empties a
     chromosome — it leaves at least one)."""
-    if len(g.chromosomes) < 2:
+    if len(g.chromosomes) < 2 or g.length == 0:
         return
     source, start = g._pick_position(rng)
     if source.length < 2:
@@ -701,6 +707,8 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     the same chromosome**, landing inverted with probability ``inversion_probability``. Ancestry-neutral
     (blocks keep their source coordinates). No-op below two nucleotides (an arc leaves at least one, so
     there is a landing spot)."""
+    if g.length == 0:
+        return
     chrom, start = g._pick_position(rng)
     if chrom.length < 2:
         return
@@ -799,17 +807,6 @@ def _do_chromosome_loss(g, node_id, t, rng, events, chromosome_events) -> tuple[
     return (-1, -lost.length)
 
 
-def _pick_lineage_by_length(rng, gen, total_length) -> int:
-    """Pick a lineage index proportional to its genome length — together with each mutator's
-    within-genome length-weighting this realises one global per-nucleotide pick."""
-    m = int(rng.integers(total_length))
-    for k, g in enumerate(gen):
-        if m < g.length:
-            return k
-        m -= g.length
-    raise AssertionError("total_length out of sync with the alive set")  # unreachable
-
-
 def _pick_lineage_by_chromosomes(rng, gen, total_chromosomes) -> int:
     """Pick a lineage index proportional to its chromosome count — a global per-chromosome pick."""
     m = int(rng.integers(total_chromosomes))
@@ -860,17 +857,17 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's
     karyotype at speciation, with **every chromosome re-minted** (the chromosome network), and evolves:
 
-    - ``inversion`` (**per nucleotide**) reverses a geometric-length (mean ``inversion_length``) arc
+    - ``inversion`` (**per lineage**) reverses a geometric-length (mean ``inversion_length``) arc
       of a length-weighted chromosome.
-    - ``translocation`` (**per nucleotide**) moves a geometric-length (mean ``translocation_length``)
-      arc to a **different** chromosome; ``transposition`` (**per nucleotide**, mean
+    - ``translocation`` (**per lineage**) moves a geometric-length (mean ``translocation_length``)
+      arc to a **different** chromosome; ``transposition`` (**per lineage**, mean
       ``transposition_length``) moves one **within** its chromosome. Both land inverted with
       probability ``inversion_probability``, keep source coordinates, and are rearrangements, not edges.
-    - ``loss`` (**per nucleotide**) deletes a geometric-length (mean ``loss_length``) arc — an
+    - ``loss`` (**per lineage**) deletes a geometric-length (mean ``loss_length``) arc — an
       ancestry-**changing** event (a death), recorded in ``events``. Never empties a chromosome.
-    - ``duplication`` (**per nucleotide**) copies a geometric-length (mean ``duplication_length``) arc
+    - ``duplication`` (**per lineage**) copies a geometric-length (mean ``duplication_length``) arc
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
-    - ``transfer`` (**per nucleotide**) copies a geometric-length (mean ``transfer_length``) arc into a
+    - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_length``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
       :class:`Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
       (the donor keeps its copy). This is what needs the global timeline.
@@ -883,8 +880,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
       dies as a loss; never the last one) — a network **leaf**. All record a chromosome-network edge.
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
-    (each per-nucleotide rate scales with the *total* current length over the alive set, per-chromosome
-    rates with the total chromosome count, per-lineage rates with the lineage count), so a transfer
+    (every extension event is **per lineage** — the rate says how often a lineage does it, the extent how
+    much it touches, so a bigger genome does not get proportionally more events; the chromosome tier is
+    per chromosome), so a transfer
     couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
     of the root sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
@@ -983,13 +981,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     while si < len(schedule):
         length, count, nlin = total_length, total_chromosomes, len(alive)
         can_xfer = nlin >= 2 or self_transfer
-        r_inv = rates.inversion * length
-        r_trl = rates.translocation * length
-        r_trp = rates.transposition * length
-        r_los = rates.loss * length
-        r_dup = rates.duplication * length
-        r_tra = rates.transfer * length if can_xfer else 0.0
-        r_org = rates.origination * nlin                # per lineage
+        r_inv = rates.inversion * nlin                  # every extension event is PER LINEAGE:
+        r_trl = rates.translocation * nlin              # the rate says how often a lineage does this,
+        r_trp = rates.transposition * nlin              # and the extent says how much it touches — so
+        r_los = rates.loss * nlin                       # a bigger genome does NOT get more events
+        r_dup = rates.duplication * nlin                # (that would double-count size and explode).
+        r_tra = rates.transfer * nlin if can_xfer else 0.0
+        r_org = rates.origination * nlin
         r_fis = rates.fission * count
         r_fus = rates.fusion * count
         r_cor = rates.chromosome_origination * nlin     # per lineage (de-novo replicon)
@@ -1013,25 +1011,25 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 for _attempt in range(_GENE_CUT_RETRIES):   # a draw that cuts a gene redraws
                     try:
                         if r < r_inv:
-                            k = _pick_lineage_by_length(rng, gen, length)
+                            k = int(rng.integers(nlin))
                             _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
                         elif r < b_trl:
-                            k = _pick_lineage_by_length(rng, gen, length)
+                            k = int(rng.integers(nlin))
                             _do_translocation(gen[k], alive[k], t, rates.translocation_length,
                                               rates.inversion_probability, rng, rearrangements)
                         elif r < b_trp:
-                            k = _pick_lineage_by_length(rng, gen, length)
+                            k = int(rng.integers(nlin))
                             _do_transposition(gen[k], alive[k], t, rates.transposition_length,
                                               rates.inversion_probability, rng, rearrangements)
                         elif r < b_los:
-                            k = _pick_lineage_by_length(rng, gen, length)
+                            k = int(rng.integers(nlin))
                             total_length += _do_loss(gen[k], alive[k], t, rates.loss_length, rng, events)
                         elif r < b_dup:
-                            k = _pick_lineage_by_length(rng, gen, length)
+                            k = int(rng.integers(nlin))
                             total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_length,
                                                             rng, events, new_copy)
                         elif r < b_tra:
-                            kd = _pick_lineage_by_length(rng, gen, length)
+                            kd = int(rng.integers(nlin))
                             total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_length,
                                                          transfer_to, self_transfer, depth, events, new_copy)
                         elif r < b_org:
