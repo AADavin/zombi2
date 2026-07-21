@@ -1325,3 +1325,89 @@ def test_inversions_along_the_tree_match_an_independent_replay():
         assert r.ancestry(leaf.id) == full
         seen = {b.gene for b in r.genomes[leaf.id].chromosomes[0].blocks if b.is_gene}
         assert len(seen) == n_genes                          # every gene still there, still whole
+
+
+# --- two chromosomes evolving with the chromosome tier, genes and all --------------------------
+
+_TWO = dict(chromosomes=[(2000, "circular"), (1200, "circular")], genes=8, gene_length=120)
+_TWO_FULL = sorted((s, p) for s, (length, _t) in enumerate(_TWO["chromosomes"]) for p in range(length))
+
+
+def test_two_chromosomes_ancestry_neutral_tier_conserves_everything():
+    """Two replicons, genes on both, evolving with the chromosome tier *and* arcs moving between
+    chromosomes. Every event here is ancestry-neutral, so the karyotype may be reshaped arbitrarily —
+    split, merged, material shuffled across replicons — but not one base may be gained or lost, and no
+    gene may be cut."""
+    import collections
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    r = simulate_genomes_nucleotide(
+        sp, inversion=6.0, inversion_length=300, translocation=6.0, translocation_length=300,
+        transposition=3.0, transposition_length=300, fission=3.0, fusion=3.0, seed=5, **_TWO)
+
+    kinds = collections.Counter(e.kind for e in r.chromosome_events)
+    assert kinds["fission"] > 5 and kinds["fusion"] > 5       # the tier really ran
+    assert any(isinstance(x, Translocation) for x in r.rearrangements)
+
+    for node_id in r.genomes:                                  # nothing gained, nothing lost, anywhere
+        assert r.ancestry(node_id) == _TWO_FULL
+
+    karyotypes = {len(r.genomes[leaf.id].chromosomes) for leaf in r.complete_tree.extant()}
+    assert len(karyotypes) > 1 and karyotypes != {2}           # the karyotype diverged across leaves
+
+    # translocation/fusion mix the two replicons: a chromosome ends up carrying both sources
+    assert any(len({b.source for b in c.blocks}) == 2
+               for leaf in r.complete_tree.extant()
+               for c in r.genomes[leaf.id].chromosomes)
+
+    spans = _gene_spans(r)
+    assert len(spans) == 16                                    # 8 genes on each replicon
+    for fam, seen in spans.items():
+        assert seen == {r.gene_spans[fam]}                     # every gene whole, where it was declared
+    for leaf in r.complete_tree.extant():                      # ...and every gene still present
+        present = {b.gene for c in r.genomes[leaf.id].chromosomes for b in c.blocks if b.is_gene}
+        assert present == set(r.gene_spans)
+
+
+def test_two_chromosomes_with_the_whole_event_set():
+    """The same karyotype with births, deaths and whole-chromosome death piled on: the accounting must
+    still close and the recovered gene trees must still match the genomes."""
+    import collections
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=1)
+    r = simulate_genomes_nucleotide(
+        sp, inversion=4.0, inversion_length=300, translocation=4.0, translocation_length=300,
+        transposition=2.0, transposition_length=300, fission=2.0, fusion=2.0,
+        chromosome_origination=1.0, chromosome_loss=0.25,
+        loss=3.0, loss_length=250, duplication=3.0, duplication_length=250,
+        transfer=2.0, transfer_length=250, seed=6, **_TWO)
+
+    kinds = collections.Counter(e.kind for e in r.chromosome_events)
+    assert {"fission", "fusion", "origination", "loss", "speciation"} <= set(kinds)
+    assert all(len(g.chromosomes) >= 1 for g in r.genomes.values())    # never the last chromosome
+    # a de-novo replicon that never received any material stays empty — by design, not a bug
+    assert any(c.length == 0 for g in r.genomes.values() for c in g.chromosomes)
+
+    minted = [cid for e in r.chromosome_events for cid in e.children]  # the network stays well-formed
+    assert len(minted) == len(set(minted))
+    for e in r.chromosome_events:
+        if e.kind == "origination":
+            assert e.parents == () and len(e.children) == 1
+        elif e.kind == "loss":
+            assert e.children == () and len(e.parents) == 1
+        elif e.kind == "fusion":
+            assert len(e.parents) == 2 and len(e.children) == 1
+        else:
+            assert len(e.parents) == 1 and len(e.children) == 2
+
+    for fam, seen in _gene_spans(r).items():                   # genes survive the tier intact
+        assert seen == {r.gene_spans[fam]}
+
+    leaves = [n.id for n in r.complete_tree.extant()]          # the cross-check, per gene
+    assert len(r.gene_trees) > 10                              # most genes survive: a real check
+    for fam, gt in r.gene_trees.items():
+        s, a, b = r.gene_spans[fam]
+        recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
+                                        if t.kind == "extant")
+        for lid in leaves:
+            observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                           if blk.source == s and blk.start <= a and b <= blk.end)
+            assert observed == recovered.get(lid, 0)
