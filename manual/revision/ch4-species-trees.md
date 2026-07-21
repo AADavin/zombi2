@@ -43,11 +43,18 @@ A few models do not fit the modifier framework. ZOMBI2 provides one: a **mass ex
 
 ## Sampling
 
+Two more choices decide not how the tree grows, but how much of it you get to see.
+
 Real datasets are incomplete, but by default you see every surviving species. **`sampling`** keeps a fraction of the extant tips, chosen at random, so `sampling=0.5` gives you half. It thins a tree that has already grown, so it costs nothing.
+
+**`fossils`** does the opposite: it recovers some of the lineages that died. Fossils are picked up along the branches of the complete tree at a rate you set, so `fossils=0.1` scatters fossil observations through the tree's history. They are a side output — the sampled lineages and their ages, reported alongside the trees. A fossil does not remove its lineage, and it does not appear in the extant tree.
 
 ```python
 # see only half the survivors
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, sampling=0.5, seed=1)
+
+# recover fossils of extinct lineages along the branches
+result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=1)
 ```
 
 ## Extinct lineages
@@ -60,6 +67,7 @@ The **complete** tree contains every lineage that ever lived, including the ones
 
 - `.extant_tree` — the survivors' tree, dated and bifurcating; this is what you get by default and hand to the next level.
 - `.complete_tree` — the whole tree that grew, with the extinct lineages still on it.
+- `.fossils` — the sampled fossil lineages and their ages, present when you asked for `fossils`.
 - `.events` — the event log: every speciation and extinction with its time, the source of truth the run exists to record.
 
 As at every level, the bundle also carries `.seed` and `.write(dir, outputs=[...])` to write the chosen outputs to disk. Each tree carries its topology and dated branch lengths, and lets you ask for its tips, its internal nodes, and which tips are extant. Hand `.extant_tree` to the next level as the tree that genomes, sequences, or traits will evolve along.
@@ -91,7 +99,7 @@ result = species.simulate_species_tree(
 
 ## Usage from the CLI
 
-The command mirrors the Python call. The base rates, the stop condition and the sampling fraction each have a flag:
+The command mirrors the Python call. The base rates, the stop condition, and the sampling and fossil knobs each have a flag:
 
 ```bash
 # a birth–death tree of 20 surviving lineages
@@ -105,4 +113,4 @@ zombi2 species --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 -
 
 A run writes two Newick trees by default: the **extant** tree of survivors (`species_extant.nwk`) and the **complete** tree, which also carries the extinct and unsampled lineages (`species_complete.nwk`). The survivors are tips of both trees; the dead and unsampled are tips of the complete tree only.
 
-The **event log** (`species_events.tsv`) is always written: every speciation and extinction with its time. It is the ground truth the simulator exists to record. The full list of files lives in Appendix B.
+The **event log** (`species_events.tsv`) is always written: every speciation and extinction with its time. It is the ground truth the simulator exists to record. If you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.
