@@ -287,13 +287,16 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ## 9. The book
 
-Eleven chapters + two appendices (section detail in `manual/revision/proposed-index.md`):
+Nine chapters + two appendices (section detail in `manual/revision/proposed-index.md`):
 
-- **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2 · 3 Getting started
-- **II The four levels** — 4 Species trees · 5 Genomes I: Unordered · 6 Genomes II: Structured ·
-  7 Sequence evolution · 8 Trait evolution
-- **III Coupling the levels** — 9 Conditioning · 10 Joint models · 11 Null models
+- **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2
+- **II The four levels** — 3 Species trees · 4 Genomes I: Unordered · 5 Genomes II: Ordered ·
+  6 Genomes III: Nucleotide · 7 Sequence evolution · 8 Trait evolution
+- **III Coupling the levels** — 9 Conditioning and joining (nulls close the chapter)
 - **Appendix A** Gillespie · **Appendix B** Output files
+
+The three genome chapters are the **resolution** ladder of §4 — unordered ⊂ ordered ⊂ nucleotide —
+one chapter per rung.
 
 Every Part II (level) chapter ends the same way: **The objects → Usage from Python → Usage from the
 CLI → Outputs.** Concept chapters (1, 2) and Part III are essays.
