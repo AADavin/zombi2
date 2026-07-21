@@ -44,9 +44,20 @@ inflate a drawn extent to "whatever it takes to clear the gene" — with a 30 nt
 `intergene(10) · gene(1 000 000) · intergene(20)`, a snap turns a 30 into a 1 000 000+ event. Redrawing
 keeps the contract exact: **a successful event's span equals its drawn length, or it never happened.**
 
-The extent is in **nucleotides** (as today). The anchor is drawn over **intergenic** nucleotides, so the
-rate scales with intergenic room (`rate × intergenic length`): a gene-dense genome rearranges slowly, a
-spacer-rich one freely.
+The extent is in **nucleotides**, but the **rate is per lineage** — *not* per nucleotide. With
+extensions that matters: a per-nucleotide rate double-counts size, because a bigger genome would get
+proportionally *more* events and each still spans an extent, so the churn per unit time grows with
+length. Per lineage says "this lineage does N of these per unit time, wherever they land", which is both
+the sane model and what keeps it tractable. Measured on an 8-tip tree, growing the genome 1 kb → 1 Mb:
+
+| scope | 1 kb | 10 kb | 100 kb | 1 Mb |
+|---|---|---|---|---|
+| **per lineage** | 0.00 s | 0.01 s | 0.03 s | **0.20 s** |
+| per nucleotide | 0.04 s | 0.33 s | **41 s** | (hopeless) |
+
+Per lineage keeps the event count flat as the genome grows; per nucleotide explodes it. Block count then
+tracks genome *structure* (how many genes were declared) rather than churn — which is exactly what makes
+the block representation pay off.
 
 **Which events:** all of them — `inversion`, `transposition`, `translocation`, `loss`, `duplication`,
 `transfer`, `origination`, and the chromosome tier (`fission` / `fusion` cut-points are intergenic too).
