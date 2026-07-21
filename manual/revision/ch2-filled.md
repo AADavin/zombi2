@@ -37,13 +37,11 @@ In ZOMBI2 everything depends on a species tree, and in most cases you begin a wo
 
 ## Time
 
-ZOMBI2 is a forward simulator, meaning that the evolution is simulated from an ancestral original state (time 0) to the present. (Footnote: there are some bits of ZOMBI2 that are simulated backwards though)
+ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 to the present.
 
-Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time is normally measured from the **crown** of the species tree, but you can instead set time zero at the **stem**. The difference is easiest to see in Figure 2.
+Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 — the moment of a mass extinction, the breakpoints of a rate that changes through time — is measured on that scale.
 
-![What `age` measures. With `age_type='crown'` (left) the age is the depth from the crown, the first speciation, to the present. With `age_type='stem'` (right) it is measured from the origin, so a stem branch precedes the crown.](figures/age_crown_print.png){width=92%}
-
-In the second case, evolution can happen at the stem also and this is important in some cases. For example if you simulate genomes in a tree with a stem, some duplications could potentially precede the root of the tree.
+The founding lineage lives for a while before it first splits, so it has a duration of its own.
 
 ## Rates
 
@@ -128,8 +126,6 @@ A rate flag takes a rate **written exactly as you would write it in Python** —
 # speciation drops to a third of its rate at time 3 (a skyline)
 zombi2 species --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --total-time 5 --seed 1 -o out/
 ```
-
-There is no second notation: no per-modifier flags, and the same text goes in a `--params` file (`birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"`). Each command's `RATES` help block lists the modifiers that level supports; a modifier a level does not implement is an error, never quietly ignored. The grammar itself — scope, base, modifiers — is the *Rates* section above.
 
 `-o` sets the output directory and `-t` feeds one level's tree into the next, so a pipeline is a sequence of commands sharing a directory; a `--params` TOML file can hold the settings for a whole pipeline at once. On the clean core the CLI covers all four levels — **species**, **genomes**, **sequences**, **traits**; the coupled models are run from Python until their commands land.
 
