@@ -2,19 +2,22 @@
 
 The sequence level does two main things:
 
-* It produces gene trees and species tree scaled measured in substitutions per branch (**phylograms**)
-* It simulates nucleotides, amino acids, or codons that sit inside every gene. 
+* It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
+* It evolves the nucleotides that sit inside every gene, so each family ends with an alignment.
 
-The sequence level is always dependent on a genome-level run:
+The sequence level is always dependent on a genome-level run, and it takes that run's result directly:
 
 ```python
-from zombi2 import sequences
+from zombi2 import genomes, sequences
 from zombi2.sequences.substitution_models import hky85
-result = sequences.simulate_sequences(gene_trees, model=hky85(kappa=2.0),
+
+my_genomes = genomes.simulate_genomes_unordered(tree, duplication=0.2, transfer=0.1,
+                                                loss=0.25, origination=0.5, seed=1)
+result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),
                                       length=1000, seed=1)
 ```
 
-CLAUDE -> DISCUSS WITH ME: gene_trees sould be in fact a genome level object
+Handing over the whole `GenomesResult` is the form to prefer. The sequence level needs each family's gene tree, which it takes from the result itself, but it also needs the *species* tree behind them if it is to report which lineages ran fast and which ran slow — and a bare collection of gene trees does not carry one. You can still pass a plain `{family: GeneTree}` mapping when that is all you have; you simply get no species phylogram out of it.
 
 ## Creating phylograms
 
@@ -29,121 +32,104 @@ ZOMBI2 implements different standard models of sequence evolution:
 ```python
 model = jc69()                    # equal rates, equal base frequencies — no free parameters
 model = k80(kappa=2.0)            # a transition/transversion bias
-model = hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))
+model = hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))            # bias + unequal frequencies
 model = gtr(rates=(1,2,1,1,2,1), freqs=(0.25,0.25,0.25,0.25))   # six exchangeabilities + freqs
-model = lg()                      # an empirical 20-state amino-acid matrix
-model = gy94(omega=0.2)           # a codon model: dN/dS below 1 is purifying selection
 ```
 
-The alphabet follows from the model: the DNA models (`jc69`, `k80`, `hky85`, `gtr`) evolve nucleotides, the protein models (`lg`, `wag`, `jtt`, `dayhoff`, `poisson`) evolve amino acids, and the codon models (`gy94`, `mg94`) evolve in-frame triplets and read `length` as a number of codons. 
-
-## Rate variation
-
-A substitution rate can vary along the tree in two ways:
-
-- **Across lineages** — some lineages evolve faster than others. 
-- **Across sites** — within one gene, some positions evolve faster than others. This is the classic **+Γ** of phylogenetics: each site draws a multiplier from a Gamma distribution of shape α. 
-
-```python
-sequences.simulate_sequences(gene_trees,
-    model=gtr(rates=..., freqs=...),
-    substitution=1.0 * mod.ByLineage(spread=0.3),   # the clock: across-branch variation
-    gamma=0.5,                                      # +Γ: across-site variation (the shape α)
-    length=1000, seed=1)
-```
+These are nucleotide models, so `length` counts sites and each site holds one of the four bases. They are a genuine menu rather than one model wearing four sets of parameters: each is a different rate matrix, a different claim about which substitutions are easy. They do nest, though, in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal frequencies — so moving down the list only ever adds free parameters.
 
 ## Relaxed molecular clocks
 
-By using the modifiers of ZOMBI2, it is easy to reproduce some of the most well known relaxed molecular clocks in the literature. 
+The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree.
+
+Real lineages do not oblige, and a rate that varies from lineage to lineage is what the field calls a **relaxed clock**. In ZOMBI2 that is not a new kind of object but the ordinary rate grammar: multiply the rate by a modifier.
 
 ```python
 # strict clock — one rate everywhere; the default, so write nothing
 substitution = 1.0
 
-# uncorrelated / relaxed — each lineage draws its own rate, independently (no memory)
-substitution = 1.0 * mod.ByLineage(spread=0.3)                  # lognormal (the default)
+# relaxed — each lineage draws its own rate, independently of its neighbours
+substitution = 1.0 * mod.ByLineage(spread=0.3)                 # lognormal (the default)
 substitution = 1.0 * mod.ByLineage(spread=0.3, dist="gamma")   # or gamma
-
-# autocorrelated — the rate drifts continuously down the tree (continuous memory)
-substitution = 1.0 * mod.FromParent(spread=0.3)
-
-# CIR — the same continuous drift, but pulled back toward a mean (mean-reversion)
-substitution = 1.0 * mod.FromParent(spread=0.3, reverts_to=1.0, pull=0.5)
-
-# the Markov clock — the rate hops between a few discrete categories (discrete memory)
-substitution = 1.0 * mod.Markov(rates=[0.5, 1.0, 2.0], switch=0.1)
 ```
 
-The important modifiers to remember are:
+**`ByLineage`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier, not a modifier of its own.
 
-- **`ByLineage`** — *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. This is the uncorrelated or relaxed family; the distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter, not a new modifier. An i.i.d. per-lineage draw is itself the "white-noise" clock.
-- **`FromParent`** — *continuous memory*: a lineage starts from its parent's rate and drifts, so close relatives resemble each other. This is the autocorrelated clock; adding `reverts_to` (a mean) and `pull` (how hard it is drawn back) gives the CIR clock.
-- **`Markov`** — *discrete memory*: the rate is one of a few fixed categories and hops between them along the tree at a switching rate.
+One detail is worth stating, because it decides what the clock means. A clock is a property of a **lineage**: a whole species runs hot or cold, and every gene passing through that branch feels it. So the draw is made once per *species* branch and shared by all the families that pass through it, and each gene-tree branch reads the clock of the species branch it is reconciled to. That reconciliation is already known from the genome run, so nothing has to be wired up — but it is why the species tree has to come along, and why a lineage running hot shows up across all of its genes at once rather than in one family alone.
 
 A reference table that can be handy to people who want to implement a specific model from the literature:
 
-| Literature name | What it does | ZOMBI2 |
+| What it does | ZOMBI2 | From the literature |
 |---|---|---|
-| Strict / global clock | one rate everywhere | `substitution = 1.0` (default) |
-| Uncorrelated lognormal (UCLN) | each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` |
-| Uncorrelated gamma (UGAM) | each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` |
-| White-noise clock | each lineage i.i.d. — that *is* white-noise | `1.0 * mod.ByLineage(spread=…)` |
-| Autocorrelated lognormal (Thorne–Kishino) | rate drifts along the tree | `1.0 * mod.FromParent(spread=…)` |
-| CIR clock | drift with mean-reversion | `1.0 * mod.FromParent(spread=…, reverts_to=…, pull=…)` |
-| Discrete-category / random local clock | rate hops between categories | `1.0 * mod.Markov(rates=[…], switch=…)` |
-| +Γ rate heterogeneity | variation across sites | `gamma=α` (not a clock) |
-| GY94 / MG94 | codon model, one dN/dS | `model=gy94(omega=…)` |
-| M-series site models (M1a…M8) | dN/dS varies across codon sites | `model=m8(...)` |
+| one rate everywhere | `substitution = 1.0` (default) | Strict / global clock |
+| each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` | Uncorrelated lognormal (UCLN) |
+| each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` | Uncorrelated gamma (UGAM) |
+| each lineage i.i.d. — that *is* white-noise | `1.0 * mod.ByLineage(spread=…)` | White-noise clock |
 
-## Families evolving at different speeds
-
-There is one more kind of rate variation: a **per-family speed**. Independently of any lineage or site effect, one whole gene family can evolve faster than another. This is `mod.ByFamily`, exactly the sequence-level reading of the genome level's modifier of the same name: each family draws one constant speed multiplier. 
-
-```python
-substitution = 1.0 * mod.ByFamily(spread=0.4)          # each gene family its own speed
-substitution = 1.0 * mod.ByLineage(spread=0.3) * mod.ByFamily(spread=0.4)  # lineages and families
-```
+Three of those four names are the same modifier. That is the table earning its keep: a reader who arrives wanting "a UCLN clock" or "a white-noise clock" finds that both are `mod.ByLineage`, differing in a parameter or in nothing at all.
 
 ## The objects
 
-(write briefly following what is written in Ch4)
+`simulate_sequences` returns a **`SequencesResult`**, which carries:
+
+- `.alignments` — the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
+- `.ancestral` — the sequence at **every** node, internal and extinct alike. Because the run wrote a sequence at each node as it went, ancestral reconstruction is a byproduct rather than a separate step, and these are the exact ancestors, not estimates.
+- `.phylograms` — for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were actually drawn along.
+- `.species_phylogram` — the same conversion applied to the species tree, so the clock is visible as branch lengths. It is `None` when the run was given bare gene trees instead of a `GenomesResult`.
+
+As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
 ## Usage from Python
 
-An end-to-end run, from the gene trees a genome simulation produced through to alignments:
+An end-to-end run, from a species tree through genomes to alignments:
 
 ```python
-from zombi2 import sequences
+from zombi2 import species, genomes, sequences
 from zombi2.rates import modifiers as mod
-from zombi2.sequences.substitution_models import hky85
+from zombi2.sequences.substitution_models import hky85, gtr
 
-# the common case: DNA under HKY, a strict clock, one rate per site
-result = sequences.simulate_sequences(gene_trees, model=hky85(kappa=2.0),
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
+my_genomes = genomes.simulate_genomes_unordered(tree, duplication=0.2, transfer=0.1,
+                                                loss=0.25, origination=0.5, seed=1)
+
+# the common case: DNA under HKY85, a strict clock
+result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),
                                       length=1000, seed=1)
+result.alignments          # {family: {gene copy: sequence}} — the observable data
+result.ancestral           # the same, at every node
+result.species_phylogram   # the species tree in substitutions per site
 
-# proteins under LG, a relaxed (uncorrelated) clock, and +Γ across sites
-result = sequences.simulate_sequences(gene_trees,
-    model=lg(),
+# GTR with unequal base frequencies, under a relaxed (uncorrelated) clock
+result = sequences.simulate_sequences(my_genomes,
+    model=gtr(rates=(1, 2, 1, 1, 2, 1), freqs=(0.3, 0.2, 0.2, 0.3)),
     substitution=1.0 * mod.ByLineage(spread=0.3),   # the relaxed clock
-    gamma=0.5,                                      # across-site heterogeneity
     length=500, seed=1)
-
-# codons under GY94 with purifying selection and an autocorrelated clock
-result = sequences.simulate_sequences(gene_trees,
-    model=gy94(omega=0.2),
-    substitution=1.0 * mod.FromParent(spread=0.3),  # ClaDS's modifier, one level down
-    length=300, seed=1)
 ```
 
 ## Usage from the CLI
 
-*[Draft — the sequence CLI is not part of the clean core yet, and its re-fit to this API is still to be designed; the command below is a provisional sketch.]*
+On the command line the genome run is handed over as a **directory**: `zombi2 sequences --genomes DIR` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them.
 
 ```bash
-zombi2 sequences --genomes my_genomes/ --model hky85 --kappa 2.0 \
-    --length 1000 --clock relaxed --spread 0.3 --gamma 0.5 --seed 1 -o my_sequences
+# 1. genomes along a species tree (from the previous chapters)
+zombi2 genomes -t out/species_complete.nwk \
+    --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 1 -o out/
+
+# 2. HKY85, 1000 sites, strict clock
+zombi2 sequences --genomes out/ --model hky85 --kappa 2.0 \
+    --length 1000 --seed 1 -o seqs/
+
+# GTR with unequal frequencies under a relaxed clock, also writing the ancestral sequences
+zombi2 sequences --genomes out/ --model gtr \
+    --frequencies 0.3 0.2 0.2 0.3 \
+    --substitution "1.0 * ByLineage(spread=0.3)" \
+    --seed 1 -o seqs/ --write alignments phylograms ancestral species_phylogram
 ```
+
+The clock keeps its written form on the command line, exactly as in Python — `"1.0 * ByLineage(spread=0.3)"` is the same expression either way, so a rate can be moved between a script, a flag and a `--params` file without being rewritten.
 
 ## Outputs
 
-A run writes one **alignment** per gene family, in FASTA, with the extant genes as the aligned rows. And because every internal node was recorded, the **ancestral sequences** at each node can be written too, the raw material for scoring any ancestral-reconstruction method against the truth. It also writes the **phylograms** the sequences were drawn along — each gene tree, and the species tree, in Newick with branch lengths in substitutions per site rather than time — so the ground-truth tree behind each alignment is kept, and the molecular clock (which lineages ran fast or slow) is visible on the species tree. The full list of files lives in Appendix B.
+A run writes, by default, one **alignment** per gene family in FASTA, with the extant gene copies as the aligned rows, and the **phylograms** those sequences were drawn along — each family's gene tree in Newick, with branch lengths in substitutions per site rather than time, so the ground-truth tree behind every alignment is kept beside it.
+
+Two more outputs are written on request. The **ancestral sequences** (`--write ancestral`) give the sequence at every internal node, the raw material for scoring an ancestral-reconstruction method against the truth. The **species phylogram** (`--write species_phylogram`) is the species tree under the same conversion, which is where the clock becomes visible: a lineage that ran hot is simply a longer branch there than its age would suggest. Every node is labelled `g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the ancestral sequences. The full list of files lives in Appendix B.
