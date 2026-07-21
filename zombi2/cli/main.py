@@ -12,13 +12,14 @@ import argparse
 import sys
 
 from zombi2 import __version__
-from zombi2.cli import genomes, sequences, species
+from zombi2.cli import genomes, sequences, species, traits
 from zombi2.cli.framework import (
     _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
 )
 
 #: command name -> handler; the single source of dispatch
-_RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.run}
+_RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.run,
+        "traits": traits.run}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,6 +88,25 @@ def main(argv: list[str] | None = None) -> int:
             "  # GTR with an uncorrelated (relaxed) lineage clock",
             "  zombi2 sequences --genomes out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
             "--clock-spread 0.3 --seed 1 -o seqs/",
+        ))
+
+    _add_subcommand(
+        sub, "traits", "evolve a trait along a species tree",
+        "Evolve a trait along a species tree, with a continuous (a real value diffusing) or "
+        "discrete (a finite state switching) state space.",
+        "zombi2 traits -t FILE -o DIR [--kind KIND] [options]",
+        traits._add_traits_args,
+        epilog=_examples(
+            "  # a continuous trait diffusing by Brownian motion (variance-rate 1.0)",
+            "  zombi2 traits -t out/species_complete.nwk --rate 1.0 --seed 1 -o out/",
+            "",
+            "  # the same value pulled toward an optimum (Ornstein-Uhlenbeck)",
+            "  zombi2 traits -t out/species_complete.nwk --rate 1.0 --reverts-to 2 --pull 0.5 "
+            "--seed 1 -o out/",
+            "",
+            "  # a discrete habitat flipping between two states (Mk)",
+            "  zombi2 traits -t out/species_complete.nwk --kind discrete "
+            "--states marine,terrestrial --switch 0.1 --seed 1 -o out/",
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override

@@ -300,6 +300,113 @@ def test_sequences_needs_the_genome_event_log(tmp_path, capsys):
     assert "genome_events.tsv not found" in capsys.readouterr().err
 
 
+# ── traits ──────────────────────────────────────────────────────────────────────────
+
+def test_traits_continuous_writes_values_and_tree(tmp_path, tree_file):
+    out = tmp_path / "t"
+    rc = main(["traits", "-t", str(tree_file), "--rate", "1.0", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_tree.nwk", "traits.log"}
+    header, first = (out / "trait_values.tsv").read_text().splitlines()[:2]
+    assert header == "node\ttrait"
+    assert first.split("\t")[0].startswith("n")          # n<id>, matching the Newick
+    float(first.split("\t")[1])                          # a continuous trait is a number
+
+
+def test_traits_ou_and_threshold_run(tmp_path, tree_file):
+    # OU: the same diffusion pulled to an optimum
+    assert main(["traits", "-t", str(tree_file), "--rate", "1.0", "--reverts-to", "2",
+                 "--pull", "0.5", "--seed", "1", "-o", str(tmp_path / "ou")]) == 0
+    # the threshold model: a discrete state read off a continuous liability
+    out = tmp_path / "th"
+    assert main(["traits", "-t", str(tree_file), "--kind", "discrete", "--states", "absent,present",
+                 "--liability", "1.0", "--threshold", "0.0", "--seed", "1", "-o", str(out)]) == 0
+    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    assert states <= {"absent", "present"}
+
+
+def test_traits_discrete_writes_the_event_log_and_driver(tmp_path, tree_file):
+    out = tmp_path / "t"
+    rc = main(["traits", "-t", str(tree_file), "--kind", "discrete",
+               "--states", "marine,terrestrial", "--switch", "0.3", "--start", "marine",
+               "--seed", "1", "--write", "values", "changes", "tree", "driver", "-o", str(out)])
+    assert rc == 0
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_changes.tsv",
+                                               "trait_tree.nwk", "trait_driver.tsv", "traits.log"}
+    assert (out / "trait_changes.tsv").read_text().splitlines()[0] == "time\tkind\tlineage\tfrom\tto"
+
+
+def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
+    out = tmp_path / "t"
+    main(["traits", "-t", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1",
+          "--write", "changes", "-o", str(out)])
+    rows = (out / "trait_changes.tsv").read_text().splitlines()[1:]
+    assert rows and all(r.split("\t")[1] == "on_speciation" for r in rows)   # a diffusion has no
+    #                                                    along-branch events, only the split jumps
+
+
+@pytest.mark.parametrize("argv, msg", [
+    (["--kind", "discrete", "--states", "a,b", "--switch", "0.1", "--rate", "2"], "--kind continuous"),
+    (["--switch", "0.1"], "--kind discrete"),                       # discrete knob, continuous run
+    (["--kind", "discrete", "--switch", "0.1"], "--states"),        # discrete without a state space
+    (["--kind", "discrete", "--states", "a,b"], "--switch"),        # discrete without a model
+    (["--write", "driver"], "not available for --kind continuous"),  # driver is discrete-only
+    (["--start", "marine"], "must be a number"),                    # a label on a continuous trait
+])
+def test_traits_argument_errors_exit_2(argv, msg, tmp_path, tree_file, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["traits", "-t", str(tree_file), *argv, "-o", str(tmp_path / "t")])
+    assert e.value.code == 2
+    assert msg in capsys.readouterr().err
+
+
+def test_traits_is_deterministic_given_the_seed(tmp_path, tree_file):
+    written = []
+    for name in ("a", "b"):
+        out = tmp_path / name
+        main(["traits", "-t", str(tree_file), "--kind", "discrete", "--states", "a,b",
+              "--switch", "0.4", "--seed", "99", "-o", str(out)])
+        written.append((out / "trait_values.tsv").read_text())
+    assert written[0] == written[1]
+
+
+def test_traits_missing_tree_is_reported_cleanly(tmp_path, capsys):
+    rc = main(["traits", "-t", str(tmp_path / "nope.nwk"), "--rate", "1", "-o", str(tmp_path / "t")])
+    assert rc == 1                                        # a clean one-line error, not a traceback
+    assert "tree file not found" in capsys.readouterr().err
+
+
+def test_traits_on_external_tree_writes_a_name_map(tmp_path):
+    (tmp_path / "ext.nwk").write_text("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);\n")
+    out = tmp_path / "t"
+    rc = main(["traits", "-t", str(tmp_path / "ext.nwk"), "--rate", "1.0", "--seed", "1",
+               "-o", str(out)])
+    assert rc == 0
+    names = dict(ln.split("\t") for ln in (out / "names.tsv").read_text().splitlines()[1:])
+    assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
+    # the name map joins the values table on its node column
+    nodes = {ln.split("\t")[0] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    assert nodes <= set(names)
+
+
+def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file):
+    # a [traits] table scopes one file to this command (so one file can drive a whole pipeline)
+    (tmp_path / "p.toml").write_text('[traits]\nkind = "discrete"\n'
+                                     'states = "marine,terrestrial"\nswitch = 0.15\n'
+                                     'write = ["values", "changes"]\nseed = 7\n')
+    argv = ["traits", "--params", str(tmp_path / "p.toml"), "-t", str(tree_file)]
+    out = tmp_path / "a"
+    assert main([*argv, "-o", str(out)]) == 0
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_changes.tsv", "traits.log"}
+    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    assert states <= {"marine", "terrestrial"}          # the file's states reached the engine
+
+    # a flag given on the command line still wins over the file
+    other = tmp_path / "b"
+    assert main([*argv, "--seed", "8", "-o", str(other)]) == 0
+    assert (other / "trait_values.tsv").read_text() != (out / "trait_values.tsv").read_text()
+
+
 # ── --params ────────────────────────────────────────────────────────────────────────
 
 def test_params_file_supplies_defaults_and_cli_overrides(tmp_path):
