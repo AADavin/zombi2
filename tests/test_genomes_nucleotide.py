@@ -964,3 +964,106 @@ def test_chromosome_tier_validation():
         simulate_genomes_nucleotide(sp, chromosome_origination=-0.1)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, chromosome_loss=-0.1)
+
+
+# --- the genic layer: declared genes are indivisible ----------------------------------------------
+
+_GENIC = dict(genes=4, gene_length=30, chromosomes=[(300, "circular")])
+
+
+def _gene_spans(r):
+    """``{family: {(source, start, end), …}}`` over every block of every node. A family with more than
+    one span means a gene was cut somewhere — the thing that must never happen."""
+    import collections
+    spans = collections.defaultdict(set)
+    for g in r.genomes.values():
+        for chrom in g.chromosomes:
+            for b in chrom.blocks:
+                if b.gene:
+                    spans[b.gene].add((b.source, b.start, b.end))
+    return spans
+
+
+def test_split_at_refuses_to_cut_a_gene():
+    from zombi2.genomes.nucleotide import _CutsGene
+    ch = Chromosome(0, "linear", [Block(0, 0, 10, 1, 1), Block(0, 10, 20, 1, 1, 7)])  # intergene + gene
+    ch._split_at(5)                                          # inside the intergene: fine
+    assert len(ch.blocks) == 3
+    with pytest.raises(_CutsGene):
+        ch._split_at(15)                                     # strictly inside the gene: refused
+    assert len(ch.blocks) == 3                               # ...and nothing was mutated
+    with pytest.raises(_CutsGene):
+        ch._check_cut(15)                                    # the pure test agrees
+    assert len(ch.blocks) == 3                               # _check_cut mutates nothing
+    ch._split_at(10)                                         # exactly the gene's edge: allowed
+    assert len(ch.blocks) == 3
+
+
+def test_seeding_lays_down_the_alternating_chain():
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, genes=6, gene_length=40, chromosomes=1, root_length=600, seed=1)
+    root = r.genomes[r.complete_tree.root].chromosomes[0]
+    kinds = [("gene" if b.is_gene else "intergene") for b in root.blocks]
+    assert kinds == ["intergene", "gene"] * 6                # I G I G … the declared chain
+    assert [b.length for b in root.blocks if b.is_gene] == [40] * 6
+    assert sum(b.length for b in root.blocks) == 600         # the replicon length is preserved
+    assert len({b.gene for b in root.blocks if b.is_gene}) == 6      # six distinct families
+
+
+def test_no_genes_declared_is_the_uniform_model():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=2)
+    r = simulate_genomes_nucleotide(sp, inversion=0.05, loss=0.03, chromosomes=1, root_length=200, seed=2)
+    assert all(not b.is_gene for g in r.genomes.values() for c in g.chromosomes for b in c.blocks)
+
+
+def test_genes_are_never_split_under_every_event():
+    for seed in range(2):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=seed)
+        r = simulate_genomes_nucleotide(
+            sp, inversion=0.05, transposition=0.03, translocation=0.03, loss=0.04, duplication=0.04,
+            transfer=0.03, fission=0.1, fusion=0.1, inversion_probability=0.4, inversion_length=20,
+            loss_length=20, duplication_length=20, transfer_length=20, seed=seed, **_GENIC)
+        spans = _gene_spans(r)
+        assert spans                                         # genes really are present
+        for fam, seen in spans.items():
+            assert len(seen) == 1, f"gene family {fam} was cut into {seen}"
+            (_src, a, b), = seen
+            assert b - a == 30                               # every copy is the whole gene
+
+
+def test_declared_genes_come_back_as_intact_root_blocks():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, inversion=0.05, transposition=0.03, loss=0.04, duplication=0.04,
+                                    inversion_length=30, loss_length=30, seed=3, **_GENIC)
+    root_genes = {(b.source, b.start, b.end) for chrom in r.genomes[r.complete_tree.root].chromosomes
+                  for b in chrom.blocks if b.is_gene}
+    assert root_genes
+    assert root_genes <= set(r.root_blocks)                  # each gene is one whole root-block
+
+
+def test_recovery_cross_check_holds_with_genes():
+    import collections
+    for seed in range(2):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=seed)
+        r = simulate_genomes_nucleotide(
+            sp, inversion=0.02, transposition=0.01, loss=0.02, duplication=0.02, transfer=0.01,
+            inversion_length=20, loss_length=20, duplication_length=20, seed=seed, **_GENIC)
+        leaves = [n.id for n in r.complete_tree.extant()]
+        for fam, (s, a, b) in enumerate(r.root_blocks):
+            ex = r.gene_trees[fam].extant
+            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+                                            if t.kind == "extant")
+            for lid in leaves:
+                observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
+                               if blk.source == s and blk.start <= a and b <= blk.end)
+                assert observed == recovered.get(lid, 0)
+
+
+def test_gene_declaration_validation():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, genes=-1)
+    with pytest.raises(ValueError):
+        simulate_genomes_nucleotide(sp, genes=3, gene_length=0)
+    with pytest.raises(ValueError):                          # no room left for intergenes
+        simulate_genomes_nucleotide(sp, genes=10, gene_length=100, chromosomes=1, root_length=500)
