@@ -270,6 +270,33 @@ def test_write_emits_the_selected_outputs(tmp_path):
     assert head.split("\t") == ["species", "chromosome", "position", "strand", "family", "gene"]
 
 
+def _written_gene_order(path):
+    """``gene_order.tsv`` -> ``{node: [(chromosome, position, strand, family, gene), ...]}``."""
+    lines = (path / "gene_order.tsv").read_text().splitlines()[1:]
+    written = {}
+    for row in lines:
+        s, *rest = (int(c) for c in row.split("\t"))
+        written.setdefault(s, []).append(tuple(rest))
+    return written
+
+
+def test_gene_order_is_written_for_every_node_not_only_the_tips(tmp_path):
+    # ancestral layouts are what make rearrangements.tsv replayable: an inversion's (start, length)
+    # only means something against the genome its branch started from — its parent's rows.
+    _, r = _run(seed=5)
+    r.write(tmp_path, outputs=("gene_order",))
+    written = _written_gene_order(tmp_path)
+
+    internal = {n.id for n in r.complete_tree.nodes.values() if n.children is not None}
+    assert internal, "the fixture tree should have internal nodes to write"
+    # every node with genes is present — root and internal branches included, not just the tips
+    assert set(written) == {s for s in r.genomes if r.gene_order(s)}
+    assert internal & set(written)
+    # and each node's written rows are that node's actual layout
+    for s, rows in written.items():
+        assert rows == r.gene_order(s)
+
+
 def test_empty_run_has_chromosomes_but_no_genes():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     r = simulate_genomes_ordered(sp, chromosomes=3, seed=1)   # no families, no events

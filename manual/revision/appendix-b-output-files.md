@@ -38,7 +38,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 |---|---|---|---|---|
 | Event log | `genome_events.tsv` | TSV | yes | as unordered |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of each leaf — `species · chromosome · position · strand · family · gene` |
+| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `species · chromosome · position · strand · family · gene` |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped` |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time · kind · lineage · parents · children` |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
