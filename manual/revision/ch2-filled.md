@@ -41,7 +41,7 @@ ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 
 
 Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 — the moment of a mass extinction, the breakpoints of a rate that changes through time — is measured on that scale.
 
-The founding lineage lives for a while before it first splits, so it has a duration of its own. Newick does not record that first branch length. A tree written to disk and read back therefore begins at the first speciation, and its events sit slightly earlier in time than the same run held in memory.
+The founding lineage lives for a while before it first splits, so it has a duration of its own.
 
 ## Rates
 
@@ -126,8 +126,6 @@ A rate flag takes a rate **written exactly as you would write it in Python** —
 # speciation drops to a third of its rate at time 3 (a skyline)
 zombi2 species --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --total-time 5 --seed 1 -o out/
 ```
-
-There is no second notation: no per-modifier flags, and the same text goes in a `--params` file (`birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"`). Each command's `RATES` help block lists the modifiers that level supports; a modifier a level does not implement is an error, never quietly ignored. The grammar itself — scope, base, modifiers — is the *Rates* section above.
 
 `-o` sets the output directory and `-t` feeds one level's tree into the next, so a pipeline is a sequence of commands sharing a directory; a `--params` TOML file can hold the settings for a whole pipeline at once. On the clean core the CLI covers all four levels — **species**, **genomes**, **sequences**, **traits**; the coupled models are run from Python until their commands land.
 
