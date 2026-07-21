@@ -37,11 +37,18 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time · kind · lineage · parents · children` |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
 
+The `zombi2 genomes` **command** also writes `genome_species_tree.nwk` — the complete species tree
+canonicalised so its `n<id>` labels match the event log's `lineage` column — so `zombi2 sequences
+--genomes DIR` can replay the gene genealogy from that directory alone. Like `names.tsv` (external
+input trees) and the `.log`, it is a CLI artifact, not a `result.write()` output.
+
 ## Sequences — `simulate_sequences`
 
-Gene outputs are written **one file per gene family** (`<f>` = family number); a family with no
-surviving copy writes none. Every node is labelled `g<copy>`, so a phylogram's tips pair with its
-alignment and its internal nodes with the ancestral sequences.
+The `zombi2 sequences` command replays a prior `zombi2 genomes` output directory (`--genomes DIR`) —
+its `genome_species_tree.nwk` and `genome_events.tsv`. Gene outputs are written **one file per gene
+family** (`<f>` = family number); a family with no surviving copy writes none. Every node is labelled
+`g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the ancestral
+sequences.
 
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
