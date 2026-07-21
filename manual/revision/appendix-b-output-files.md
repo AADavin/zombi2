@@ -41,7 +41,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `species · chromosome · position · strand · family · gene` |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped` |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time · kind · lineage · parents · children` |
-| Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened — `time · kind · lineage · chromosome · start · length · family · recipient · dest_chromosome · dest_position`. With `gene_order` and `rearrangements`, enough to replay the run |
+| Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time · kind · lineage · chromosome · start · length · family · donor · recipient · dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
 
 The `zombi2 genomes` **command** also writes `genome_species_tree.nwk` — the complete species tree
