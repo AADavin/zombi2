@@ -1041,17 +1041,41 @@ def test_declared_genes_come_back_as_intact_root_blocks():
     assert root_genes <= set(r.root_blocks)                  # each gene is one whole root-block
 
 
+def test_gene_spans_records_every_declared_gene():
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, genes=5, gene_length=40, chromosomes=1, root_length=500, seed=1)
+    assert len(r.gene_spans) == 5                            # one span per declared gene
+    assert all(e - a == 40 for (_s, a, e) in r.gene_spans.values())
+    root = r.genomes[r.complete_tree.root].chromosomes[0]
+    assert {b.gene: (b.source, b.start, b.end) for b in root.blocks if b.is_gene} == r.gene_spans
+
+
+def test_gene_trees_are_one_per_gene_not_per_root_block():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=3)
+    r = simulate_genomes_nucleotide(sp, inversion=2.5, transposition=1.5, loss=2.0, duplication=2.0,
+                                    inversion_length=30, loss_length=30, duplication_length=30,
+                                    seed=3, **_GENIC)
+    assert r.gene_trees                                      # genes declared -> genic families only
+    assert set(r.gene_trees) <= set(r.gene_spans)            # keyed by GENE FAMILY id
+    # the intergenic root-blocks are recovered as blocks but are not built into trees
+    assert len(r.root_blocks) > len(r.gene_trees)
+    for fam in r.gene_trees:
+        assert r.gene_spans[fam] in set(r.root_blocks)       # each gene is a whole root-block
+
+
 def test_recovery_cross_check_holds_with_genes():
+    # the leaves-==-observed-copies check, now per declared gene
     import collections
     for seed in range(2):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=seed)
         r = simulate_genomes_nucleotide(
-            sp, inversion=1, transposition=0.5, loss=1, duplication=1, transfer=0.5,
+            sp, inversion=1.0, transposition=0.5, loss=1.0, duplication=1.0, transfer=0.5,
             inversion_length=20, loss_length=20, duplication_length=20, seed=seed, **_GENIC)
         leaves = [n.id for n in r.complete_tree.extant()]
-        for fam, (s, a, b) in enumerate(r.root_blocks):
-            ex = r.gene_trees[fam].extant
-            recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
+        assert r.gene_trees
+        for fam, gt in r.gene_trees.items():
+            s, a, b = r.gene_spans[fam]
+            recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
                                             if t.kind == "extant")
             for lid in leaves:
                 observed = sum(1 for chrom in r.genomes[lid].chromosomes for blk in chrom.blocks
