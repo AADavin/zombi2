@@ -1136,9 +1136,11 @@ def test_seeding_from_a_gff(tmp_path):
     assert [c.length for c in chroms] == [3000, 800]
     assert r.gene_names == {"dnaA": 1, "recA": 2, "toxin": 3}
     assert r.gene_spans == {1: (0, 200, 500), 2: (0, 899, 1400), 3: (1, 50, 250)}
-    # the minus-strand gene is seeded reverse-complemented
-    strands = {b.gene: b.strand for c in chroms for b in c.blocks if b.is_gene}
-    assert strands == {1: 1, 2: -1, 3: 1}
+    # the GFF's strand is the gene's CODING strand (annotation), recorded separately...
+    assert r.gene_strands == {1: 1, 2: -1, 3: 1}
+    # ...while every seed block is +1: Block.strand is orientation relative to the ancestral source,
+    # and at the root nothing has been inverted yet.
+    assert all(b.strand == 1 for c in chroms for b in c.blocks)
     # everything between the genes is intergene, and the chain covers the replicon exactly
     for c in chroms:
         assert sum(b.length for b in c.blocks) == c.length
@@ -1246,3 +1248,32 @@ def test_event_rate_is_honoured_on_a_gene_dense_genome():
             counts.append(sum(1 for e in r.events if isinstance(e, Loss)))
         expected = 3.0 * lineage_time
         assert 0.7 * expected < sum(counts) / len(counts) < 1.4 * expected, (extent, counts)
+
+
+def test_with_no_events_the_genome_is_exactly_what_was_declared(tmp_path):
+    """The round trip: run with every rate at zero and each leaf must BE the input genome.
+
+    In particular the coordinate space must be the identity — position i traces back to source
+    position i, forward — including across genes declared on the minus strand. `Block.strand` records
+    inversion relative to the ancestral source, and at the root nothing has been inverted; the GFF's
+    strand is the gene's coding strand, which is annotation and lives in `gene_strands`."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), seed=1)          # no events at all
+    for lid in (n.id for n in r.complete_tree.extant()):
+        chrom1, plasmid = r.genomes[lid].chromosomes
+        assert (chrom1.length, plasmid.length) == (3000, 800)
+        assert chrom1.trace_back() == [(0, i, 1) for i in range(3000)]       # the identity map
+        assert plasmid.trace_back() == [(1, i, 1) for i in range(800)]
+        assert all(b.strand == 1 for c in (chrom1, plasmid) for b in c.blocks)
+    # the declared genes are exactly where the GFF put them, with their coding strands preserved
+    assert r.gene_spans == {1: (0, 200, 500), 2: (0, 899, 1400), 3: (1, 50, 250)}
+    assert r.gene_strands == {1: 1, 2: -1, 3: 1}
+
+
+def test_the_even_layout_also_round_trips():
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=2)
+    r = simulate_genomes_nucleotide(sp, genes=5, gene_length=40, chromosomes=1, root_length=500, seed=2)
+    for lid in (n.id for n in r.complete_tree.extant()):
+        chrom, = r.genomes[lid].chromosomes
+        assert chrom.trace_back() == [(0, i, 1) for i in range(500)]
+    assert set(r.gene_strands.values()) == {1}

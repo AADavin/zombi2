@@ -557,6 +557,11 @@ class NucleotideGenomesResult:
     #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
     #: to look a named gene up in :attr:`gene_spans` / :attr:`gene_trees`. Empty for the even layout.
     gene_names: dict[str, int] = field(default_factory=dict)
+    #: ``{gene family id: +1 / -1}`` — each declared gene's **coding** strand (which strand carries the
+    #: ORF), as given by the GFF. This is annotation, *not* ancestry: it is fixed for the family and is
+    #: unrelated to :attr:`Block.strand`, which records whether a stretch has been inverted since the
+    #: root. The even layout declares every gene on ``+1``.
+    gene_strands: dict[int, int] = field(default_factory=dict)
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -626,20 +631,27 @@ def _even_gene_intervals(length, genes, gene_length) -> list[tuple[int, int, int
     return out
 
 
-def _seed_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names) -> list[Block]:
+def _seed_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names,
+                 gene_strands) -> list[Block]:
     """Lay one seed replicon of ``length`` down as its blocks: the declared genes at ``intervals``
     (0-based half-open, sorted, non-overlapping) and **intergene** everywhere else — the alternating
     chain. Every block shares the replicon's seed copy lineage ``cp`` (they are one copy of one
     replicon); each **gene** additionally gets a fresh **family** id, which is what makes it indivisible
-    and gives it a gene tree, and is recorded in ``gene_spans`` (and ``gene_names`` when it is named).
+    and gives it a gene tree, and is recorded in ``gene_spans``, ``gene_strands`` (its **coding**
+    strand) and ``gene_names`` (when it is named).
     With no intervals the replicon is a single intergenic block — today's uniform sequence."""
     blocks, at = [], 0
     for (start, end, strand, name) in intervals:
         if start > at:
             blocks.append(Block(source, at, start, 1, cp))       # intergene before this gene
         fam = new_family()
-        blocks.append(Block(source, start, end, strand, cp, fam))
+        # NB: every seed block is strand +1. `Block.strand` is orientation *relative to the ancestral
+        # source*, and at the root the genome IS its own source — nothing is inverted yet. A gene's
+        # coding strand from the GFF is a different thing entirely (which strand carries the ORF), a
+        # constant property of the family, so it is recorded separately.
+        blocks.append(Block(source, start, end, 1, cp, fam))
         gene_spans[fam] = (source, start, end)
+        gene_strands[fam] = strand
         if name is not None:
             gene_names[name] = fam
         at = end
@@ -753,7 +765,7 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
 
 
 def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy,
-                    new_family, gene_spans) -> int:
+                    new_family, gene_spans, gene_strands) -> int:
     """A **new gene** arises de novo: a fresh source (a geometric-length stretch, mean
     ``origination_length``), its own copy lineage and its own **gene family**, inserted at a random spot
     on a uniformly-chosen chromosome. Per lineage — a family is born once. Origination mints a *gene*,
@@ -769,6 +781,7 @@ def _do_origination(g, node_id, t, origination_length, rng, events, new_source, 
     k = chrom._index_at(p)
     chrom.blocks[k:k] = [Block(src, 0, length, 1, cp, fam)]
     gene_spans[fam] = (src, 0, length)                   # a de-novo gene, tracked like a declared one
+    gene_strands[fam] = 1
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length))
     return length
 
@@ -1131,11 +1144,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     root_chroms = []
     gene_spans: dict[int, tuple[int, int, int]] = {}
     gene_names: dict[str, int] = {}
+    gene_strands: dict[int, int] = {}
     for source, ((length, top), intervals) in enumerate(zip(specs, layouts)):  # one source per replicon
         cid = new_chrom_id()
         cp = new_copy()                                 # ...and one seed copy lineage per replicon
         root_chroms.append(Chromosome(cid, top, _seed_blocks(source, length, cp, intervals, new_family,
-                                                             gene_spans, gene_names)))
+                                                             gene_spans, gene_names,
+                                                             gene_strands)))
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length))
 
@@ -1204,7 +1219,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
                     total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
                                                     rng, events, new_source, new_copy,
-                                                    new_family, gene_spans)
+                                                    new_family, gene_spans, gene_strands)
                 elif r < b_fis:
                     k = _pick_lineage_by_chromosomes(rng, gen, count)
                     total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
@@ -1241,7 +1256,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     total_chromosomes += len(cg.chromosomes)
             si += 1
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                  gene_spans, gene_names)
+                                  gene_spans, gene_names, gene_strands)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
