@@ -132,21 +132,29 @@ class EventPosition:
     :class:`~zombi2.genomes.events.Event`.
 
     The event log is position-blind on purpose (it records identity and descent, which is the same
-    whatever the resolution), so the ordered engine records position here instead, one row per *event*
-    — not per gene, even when the event acted on a run of ``length`` genes.
+    whatever the resolution), so the ordered engine records position here instead.
 
-    ``start``/``length`` locate the run the event acted on **in the genome as it stood just before**;
-    ``dest_*`` says where material landed, for the kinds that put material somewhere new:
+    **Every row belongs to exactly one branch.** ``lineage`` names it, and ``chromosome`` /
+    ``start`` / ``length`` are coordinates in *that* branch's genome, as it stood just before the
+    event. So a reader can take the rows for one branch and know everything that happened to it,
+    without holding the rest of the run. One row covers a whole event, even when it acted on a run
+    of ``length`` genes — it is not per gene.
 
-    - ``"origination"`` — one new gene of family ``family`` inserted at ``start`` (``length`` 1); no
-      destination. This is the only kind that carries a ``family``, because it is the only one whose
-      material does not come from a genome the replayer already holds.
-    - ``"duplication"`` — the run at ``[start, start+length)`` copied in tandem, the copy block landing
-      at ``dest_position`` (always ``start+length``; stated so the file needs no outside knowledge).
-    - ``"loss"`` — the run at ``[start, start+length)`` removed; no destination.
-    - ``"transfer"`` — the run at ``[start, start+length)`` of donor chromosome ``chromosome`` on
-      ``lineage`` copied into species ``recipient``, arriving at ``dest_position`` of that genome's
-      chromosome ``dest_chromosome``.
+    - ``"origination"`` — one new gene of family ``family`` inserted at ``start`` (``length`` 1).
+      The only kind that carries a ``family``, because it is the only one whose material does not
+      come from a genome the reader already holds.
+    - ``"duplication"`` — the run at ``[start, start+length)`` copied in tandem, the copy block
+      landing at ``dest_position`` (always ``start+length``; stated so the file needs no outside
+      knowledge).
+    - ``"loss"`` — the run at ``[start, start+length)`` removed.
+    - ``"transfer_donor"`` — the run at ``[start, start+length)`` was copied **out** of this branch.
+      The branch itself is unchanged; the row says what left and where it went.
+    - ``"transfer_recipient"`` — a block of ``length`` genes arrived **at** ``start`` of this branch.
+
+    A transfer spans two branches, so it writes **two rows** — one on each — and both name the whole
+    edge in ``donor`` and ``recipient``. Pair them on ``(time, donor, recipient)``; the donor row is
+    written first. (This follows Krister Swenson's fork, which splits a transfer into a leaving and
+    an arriving event, except that the branches are named outright rather than matched by timestamp.)
 
     Together with the genomes (``gene_order``) and the rearrangement log this is **sufficient to
     replay a run**: no join back to the genealogy is needed. A join is still possible — on
@@ -157,15 +165,15 @@ class EventPosition:
     homologs (each a ``loss`` on the recipient) before the arriving block is inserted."""
 
     time: float
-    kind: str  # "origination" | "duplication" | "loss" | "transfer"
-    lineage: int  # the species branch it fired on (for a transfer: the donor)
+    kind: str  # origination | duplication | loss | transfer_donor | transfer_recipient
+    lineage: int  # the species branch these coordinates are in
     chromosome: int
     start: int
     length: int
     family: int | None = None  # origination only: the family the new gene founds
-    recipient: int | None = None  # transfer only: the species lineage the copy lands on
-    dest_chromosome: int | None = None  # transfer only: the recipient chromosome it lands on
-    dest_position: int | None = None  # transfer & duplication: where the block lands
+    donor: int | None = None  # both transfer rows: the branch the block was copied out of
+    recipient: int | None = None  # both transfer rows: the branch it arrived on
+    dest_position: int | None = None  # duplication only: where the tandem copy block lands
 
 
 @dataclass
@@ -281,7 +289,7 @@ def _rearrangements_tsv(rearrangements) -> str:
 
 
 _POSITION_COLS = ("time", "kind", "lineage", "chromosome", "start", "length", "family",
-                  "recipient", "dest_chromosome", "dest_position")
+                  "donor", "recipient", "dest_position")
 
 
 def _event_positions_tsv(event_positions: list[EventPosition]) -> str:
@@ -430,6 +438,10 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     conts = [new_gene(g.family, g.strand) for g in segment]
     xfers = [new_gene(g.family, g.strand) for g in segment]
     gen[kd][cdi].genes[jd:jd + m] = conts               # continuations replace the segment on the donor
+    # the donor's row first, then any displacements it causes, then the arrival: within one timestamp
+    # the rows are written in the order a replayer must apply them
+    positions.append(EventPosition(t, "transfer_donor", donor, gen[kd][cdi].id, jd, m,
+                                   donor=donor, recipient=recipient))
     delta = m
     if replacement:
         cont_ids = {c.id for c in conts}                # self-transfer: never overwrite our own conts
@@ -441,14 +453,13 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
                 victim = rgenome[ci].genes[p]
                 del rgenome[ci].genes[p]
                 events.append(Event(t, "loss", recipient, victim.family, victim.id))
-                # written before the arriving block below: at one timestamp, rows apply in file order
                 positions.append(EventPosition(t, "loss", recipient, rgenome[ci].id, p, 1))
                 delta -= 1
     rchrom = rgenome[int(rng.integers(len(rgenome)))]   # arrive as a block on a random recipient chromosome
     pos = int(rng.integers(len(rchrom.genes) + 1))
     rchrom.genes[pos:pos] = xfers
-    positions.append(EventPosition(t, "transfer", donor, gen[kd][cdi].id, jd, m, recipient=recipient,
-                                   dest_chromosome=rchrom.id, dest_position=pos))
+    positions.append(EventPosition(t, "transfer_recipient", recipient, rchrom.id, pos, m,
+                                   donor=donor, recipient=recipient))
     for old, cont, xf in zip(segment, conts, xfers):
         events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id))
         events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id, recipient=recipient))

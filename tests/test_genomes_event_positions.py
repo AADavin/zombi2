@@ -9,10 +9,11 @@ landing before rather than after) yields a plausible file that replays to the wr
 every in-memory test still passes.
 
 So this test reads only what ``write`` put on disk — ``genome_event_positions.tsv``,
-``rearrangements.tsv``, ``genome_events.tsv``, ``gene_order.tsv`` — replays the whole run forward
-from an empty root genome with an independent implementation of each operation, and asserts the
-result matches ``gene_order.tsv`` at **every** node. It is a global replay, not a per-branch one,
-because a transfer's arriving block comes from a contemporaneous donor mid-branch.
+``rearrangements.tsv``, ``gene_order.tsv`` — replays the whole run forward from an empty root genome
+with an independent implementation of each operation, and asserts the result matches
+``gene_order.tsv`` at **every** node. It is a global replay, not a per-branch one, because a
+transfer's arriving block comes from a contemporaneous donor mid-branch: the ``transfer_donor`` row
+says what left, and the ``transfer_recipient`` row it pairs with says where it landed.
 
 Genomes are compared as ``(family, strand)`` sequences: gene ids are re-minted at every event (the
 per-segment id model), so they cannot be replayed, while families and orientations can.
@@ -75,6 +76,7 @@ def _replay(steps, tree):
     """
     live = {tree.root: []}
     ended = {}
+    in_flight = {}                    # a transfer's donor row, waiting for its recipient row
     pending = sorted((n.end_time, n.id) for n in tree.nodes.values() if n.end_time is not None)
     p = 0
 
@@ -104,9 +106,13 @@ def _replay(steps, tree):
             g[at:at] = g[start:start + length]
         elif kind == "loss":
             del g[start:start + length]
-        elif kind == "transfer":
-            recipient, at = int(r["recipient"]), int(r["dest_position"])
-            live[recipient][at:at] = g[start:start + length]
+        elif kind == "transfer_donor":
+            # the donor branch is unchanged; hold what left until its arriving row turns up
+            in_flight[(t, int(r["donor"]), int(r["recipient"]))] = g[start:start + length]
+        elif kind == "transfer_recipient":
+            block = in_flight.pop((t, int(r["donor"]), int(r["recipient"])))
+            assert len(block) == length, "the two rows of a transfer disagree on its length"
+            g[start:start] = block                      # the block arrives at start
         elif kind == "inversion":
             g[start:start + length] = _flip(g[start:start + length])
         elif kind in ("transposition", "translocation"):
@@ -118,6 +124,7 @@ def _replay(steps, tree):
             raise AssertionError(f"unhandled event kind {kind!r}")
 
     settle(float("inf"))
+    assert not in_flight, f"{len(in_flight)} transfer(s) left without an arriving row"
     return ended | live
 
 
@@ -149,7 +156,14 @@ def test_replacing_transfers_displace_before_they_arrive(tmp_path):
     # the ordering rule the file format promises: rows sharing a timestamp apply as written, so a
     # replacing transfer's losses land before its block does
     r = _run(tmp_path, seed=7, replacement=True, transfer=0.8)
-    assert any(p.kind == "transfer" for p in r.event_positions), "fixture produced no transfers"
+    # the fixture must actually displace something, or the ordering rule goes untested
+    arrivals = [i for i, p in enumerate(r.event_positions) if p.kind == "transfer_recipient"]
+    assert arrivals, "fixture produced no transfers"
+    displaced = [i for i, p in enumerate(r.event_positions)
+                 if p.kind == "loss" and any(p.time == r.event_positions[j].time and i < j
+                                             for j in arrivals)]
+    assert displaced, "fixture produced no replacement displacements"
+
     replayed = _replay(_read_steps(tmp_path), r.complete_tree)
     for node, genome in _read_gene_order(tmp_path).items():
         assert replayed[node] == genome, f"replay diverges at node {node}"
@@ -167,25 +181,42 @@ def test_the_replay_is_sensitive_to_a_one_position_slip(tmp_path):
     assert replayed != _read_gene_order(tmp_path)
 
 
+def test_the_replay_is_sensitive_to_a_misplaced_arrival(tmp_path):
+    # the same control for the half a transfer's second row is responsible for. Perturbing *one*
+    # arrival need not show: genomes are compared as (family, strand), and a block landing between
+    # two genes of the same family reads identically either side of the boundary. So perturb each
+    # arrival in turn and require that the replay notices at least one.
+    r = _run(tmp_path, seed=1)
+    written = _read_gene_order(tmp_path)
+    n_arrivals = sum(1 for s in _read_steps(tmp_path) if s["kind"] == "transfer_recipient")
+    assert n_arrivals, "fixture produced no transfers"
+
+    noticed = 0
+    for i in range(n_arrivals):
+        steps = _read_steps(tmp_path)                      # a fresh copy for each perturbation
+        victim = [s for s in steps if s["kind"] == "transfer_recipient"][i]
+        victim["start"] = str(int(victim["start"]) + 1)    # one position further along
+        try:
+            noticed += _replay(steps, r.complete_tree) != written
+        except AssertionError:                             # a start past the end is also "noticed"
+            noticed += 1
+    assert noticed, f"none of the {n_arrivals} arrivals mattered — the replay is not reading them"
+
+
 def test_every_gene_content_event_has_a_position(tmp_path):
     # the table is total over the events that change gene content: no silent gaps, and speciation
     # (which copies a genome wholesale) is correctly absent
     r = _run(tmp_path, seed=3)
-    positioned = {(p.time, p.lineage, p.kind) for p in r.event_positions}
-    # a transfer is one edge across two branches and gets a single row, filed under the donor —
-    # while its genealogy rows name the donor on one and the recipient on the other
-    transferred = {(p.time, p.lineage, p.recipient) for p in r.event_positions if p.kind == "transfer"}
+    # a transfer writes one row per branch, so every genealogy row — donor side and recipient side —
+    # finds its position under its own lineage once the two transfer kinds are folded together
+    positioned = {(p.time, p.lineage, p.kind.split("_")[0]) for p in r.event_positions}
 
     kinds = set()
     for e in r.events:
         if e.kind == "speciation":            # a genome is copied wholesale: no position to record
             continue
         kinds.add(e.kind)
-        if e.kind == "transfer":
-            assert any(e.lineage in (donor, rec) and e.time == t for t, donor, rec in transferred), \
-                f"transfer at {e.time} touching {e.lineage} has no position"
-        else:
-            assert (e.time, e.lineage, e.kind) in positioned, \
-                f"{e.kind} at {e.time} on {e.lineage} has no position"
+        assert (e.time, e.lineage, e.kind) in positioned, \
+            f"{e.kind} at {e.time} on {e.lineage} has no position"
     assert kinds == {"origination", "duplication", "loss", "transfer"}, \
         f"the fixture should exercise every gene-content kind, got {sorted(kinds)}"

@@ -200,15 +200,18 @@ g.write("out/", outputs=("gene_order", "rearrangements", "event_positions"))
 ```
 
 ```
-time   kind         lineage  chromosome  start  length  family  recipient  dest_chromosome  dest_position
-0.0    origination  0        0           0      1       0
-0.209  transfer     2        2           0      1               1          1                0
-0.345  loss         4        4           3      1
-0.644  duplication  4        4           3      1                                           4
+time   kind                lineage  chromosome  start  length  family  donor  recipient  dest_position
+0.0    origination         0        0           0      1       0
+0.209  transfer_donor      2        2           0      1               2      1
+0.209  transfer_recipient  1        1           0      1               2      1
+0.345  loss                4        4           3      1
+0.644  duplication         4        4           3      1                                 4
 ```
 
-`start` and `length` mark the run of genes the event acted on, in the genome as it stood just before. `dest_position` says where material landed: a duplication's copy block, or a transferred block in the recipient. Origination carries its `family`, because it is the only event whose gene does not come from a genome you already have.
+Every row belongs to one branch. `lineage` names it, and `chromosome`, `start` and `length` are coordinates in that branch's genome as it stood just before the event. So you can pull out the rows for a single branch and know everything that happened to it. `dest_position` says where a duplication's copy block landed. Origination carries its `family`, because it is the only event whose gene does not come from a genome you already have.
 
-Those three files together are enough to reconstruct the whole run: start from a node's parent in `gene_order.tsv`, apply that branch's rows from `rearrangements.tsv` and `genome_event_positions.tsv` in time order, and you get the node's own rows back. Events sharing a timestamp apply in the order written.
+A transfer spans two branches, so it writes two rows — one on each — and both name the whole edge in `donor` and `recipient`. The `transfer_donor` row says what left; the `transfer_recipient` row says where it arrived. Pair them on time, donor and recipient.
+
+Those three files together are enough to reconstruct the whole run: start from a node's parent in `gene_order.tsv`, apply that branch's rows from `rearrangements.tsv` and `genome_event_positions.tsv` in time order, and you get the node's own rows back. Rows sharing a timestamp apply in the order written.
 
 The full list of files lives in Appendix B.
