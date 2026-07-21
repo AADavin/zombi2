@@ -25,7 +25,8 @@ RATES_HELP = _rates_help(
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _UNORDERED_OUTPUTS = ("events", "profiles")
-_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "rearrangements", "chromosome_events")
+_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "rearrangements", "chromosome_events",
+                    "event_positions")
 
 # ordered-only knobs — (attribute, default) pairs — rejected under --resolution unordered
 _ORDERED_ONLY = (
@@ -105,7 +106,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--write", nargs="+", choices=_ORDERED_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write (default: events, profiles [+ gene_order when "
                         "ordered]). unordered: events, profiles. ordered adds: gene_order, "
-                        "rearrangements, chromosome_events.")
+                        "rearrangements, chromosome_events, event_positions.")
 
 
 def _read_tip_fates(path: str) -> dict:

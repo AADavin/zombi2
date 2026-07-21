@@ -126,6 +126,48 @@ class Translocation:
     flipped: bool
 
 
+@dataclass(frozen=True)
+class EventPosition:
+    """**Where** one gene-genealogy event happened — the positional companion to an
+    :class:`~zombi2.genomes.events.Event`.
+
+    The event log is position-blind on purpose (it records identity and descent, which is the same
+    whatever the resolution), so the ordered engine records position here instead, one row per *event*
+    — not per gene, even when the event acted on a run of ``length`` genes.
+
+    ``start``/``length`` locate the run the event acted on **in the genome as it stood just before**;
+    ``dest_*`` says where material landed, for the kinds that put material somewhere new:
+
+    - ``"origination"`` — one new gene of family ``family`` inserted at ``start`` (``length`` 1); no
+      destination. This is the only kind that carries a ``family``, because it is the only one whose
+      material does not come from a genome the replayer already holds.
+    - ``"duplication"`` — the run at ``[start, start+length)`` copied in tandem, the copy block landing
+      at ``dest_position`` (always ``start+length``; stated so the file needs no outside knowledge).
+    - ``"loss"`` — the run at ``[start, start+length)`` removed; no destination.
+    - ``"transfer"`` — the run at ``[start, start+length)`` of donor chromosome ``chromosome`` on
+      ``lineage`` copied into species ``recipient``, arriving at ``dest_position`` of that genome's
+      chromosome ``dest_chromosome``.
+
+    Together with the genomes (``gene_order``) and the rearrangement log this is **sufficient to
+    replay a run**: no join back to the genealogy is needed. A join is still possible — on
+    ``(time, lineage, kind)`` — but is not one-to-one, since the crown's founding originations all
+    fire at the same instant on the same lineage.
+
+    Rows sharing a ``time`` apply **in the order written** — a replacing transfer displaces its
+    homologs (each a ``loss`` on the recipient) before the arriving block is inserted."""
+
+    time: float
+    kind: str  # "origination" | "duplication" | "loss" | "transfer"
+    lineage: int  # the species branch it fired on (for a transfer: the donor)
+    chromosome: int
+    start: int
+    length: int
+    family: int | None = None  # origination only: the family the new gene founds
+    recipient: int | None = None  # transfer only: the species lineage the copy lands on
+    dest_chromosome: int | None = None  # transfer only: the recipient chromosome it lands on
+    dest_position: int | None = None  # transfer & duplication: where the block lands
+
+
 @dataclass
 class OrderedGenomesResult:
     """What :func:`simulate_genomes_ordered` returns: the ``complete_tree`` it ran on, the final
@@ -143,6 +185,9 @@ class OrderedGenomesResult:
     seed: int | None
     #: ``{name: family id}`` for families seeded by ``families=[…]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
+    #: where each gene-genealogy :class:`~zombi2.genomes.events.Event` happened — the positional
+    #: companion to :attr:`events`, which is position-blind. See :class:`EventPosition`.
+    event_positions: list[EventPosition] = field(default_factory=list)
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count`` (across all chromosomes)."""
@@ -191,6 +236,9 @@ class OrderedGenomesResult:
           included — so a branch's rearrangements can be replayed from its parent's genome.
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges.
+        - ``"event_positions"`` → ``genome_event_positions.tsv``, where each gene-genealogy event
+          happened. With ``gene_order`` and ``rearrangements`` this completes the replayable history:
+          every event that changes a genome's layout now carries its coordinates.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -204,6 +252,8 @@ class OrderedGenomesResult:
             (d / "rearrangements.tsv").write_text(_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(_chromosome_events_tsv(self.chromosome_events))
+        if "event_positions" in outputs:
+            (d / "genome_event_positions.tsv").write_text(_event_positions_tsv(self.event_positions))
 
     def _gene_order_tsv(self) -> str:
         cols = ("species", "chromosome", "position", "strand", "family", "gene")
@@ -228,6 +278,17 @@ def _rearrangements_tsv(rearrangements) -> str:
                 r.dest, r.dest_position, int(r.flipped))
     rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
     return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+
+_POSITION_COLS = ("time", "kind", "lineage", "chromosome", "start", "length", "family",
+                  "recipient", "dest_chromosome", "dest_position")
+
+
+def _event_positions_tsv(event_positions: list[EventPosition]) -> str:
+    # the positional companion to genome_events.tsv; empty cells for fields a kind does not use
+    rows = ["\t".join("" if (v := getattr(p, c)) is None else str(v) for c in _POSITION_COLS)
+            for p in event_positions]
+    return "\n".join(["\t".join(_POSITION_COLS), *rows]) + "\n"
 
 
 def _chromosome_events_tsv(chromosome_events: list[ChromosomeEvent]) -> str:
@@ -279,17 +340,19 @@ def _oriented(segment, flip):
 
 # --- the mutators (position-, chromosome-, and extension-aware; each records to its log) -----------
 
-def _originate(genome, node, t, events, new_gene, new_family, rng) -> None:
+def _originate(genome, node, t, events, positions, new_gene, new_family, rng) -> None:
     """A new gene family arises: mint a single founding gene (a family is born once — no extension) on
     a uniformly-chosen chromosome at a uniformly-chosen position (strand ``+1``), and record it."""
     chrom = genome[int(rng.integers(len(genome)))]
     fam = new_family()
     g = new_gene(fam, +1)
-    chrom.genes.insert(int(rng.integers(len(chrom.genes) + 1)), g)
+    at = int(rng.integers(len(chrom.genes) + 1))
+    chrom.genes.insert(at, g)
     events.append(Event(t, "origination", node.id, fam, g.id))
+    positions.append(EventPosition(t, "origination", node.id, chrom.id, at, 1, family=fam))
 
 
-def _duplicate(chrom, j, m, node, t, events, new_gene) -> int:
+def _duplicate(chrom, j, m, node, t, events, positions, new_gene) -> int:
     """The ``m`` genes at ``[j, j+m)`` duplicate **in tandem**: each ends and two fresh copies (same
     strand) descend — the continuation in place, the copy block inserted immediately after the
     segment (order preserved). Returns the ``m`` copies added."""
@@ -300,14 +363,16 @@ def _duplicate(chrom, j, m, node, t, events, new_gene) -> int:
     for old, cont, cp in zip(segment, conts, copies):
         events.append(Event(t, "duplication", node.id, old.family, cont.id, parent=old.id))
         events.append(Event(t, "duplication", node.id, old.family, cp.id, parent=old.id))
+    positions.append(EventPosition(t, "duplication", node.id, chrom.id, j, m, dest_position=j + m))
     return m
 
 
-def _lose_at(chrom, j, m, node, t, events) -> int:
+def _lose_at(chrom, j, m, node, t, events, positions) -> int:
     """The ``m`` genes at ``[j, j+m)`` are lost together, removed in place. Returns the ``m`` removed."""
     for g in chrom.genes[j:j + m]:
         events.append(Event(t, "loss", node.id, g.family, g.id))
     del chrom.genes[j:j + m]
+    positions.append(EventPosition(t, "loss", node.id, chrom.id, j, m))
     return m
 
 
@@ -349,7 +414,7 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
     rearrangements.append(Translocation(t, node.id, source.id, dest.id, i, m, pos, flipped))
 
 
-def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, new_gene,
+def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, new_gene,
                  transfer_to, replacement, self_transfer, depth) -> int:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient: each gene ends → a continuation on the donor branch and a transferred copy on the
@@ -376,10 +441,14 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, new_gene,
                 victim = rgenome[ci].genes[p]
                 del rgenome[ci].genes[p]
                 events.append(Event(t, "loss", recipient, victim.family, victim.id))
+                # written before the arriving block below: at one timestamp, rows apply in file order
+                positions.append(EventPosition(t, "loss", recipient, rgenome[ci].id, p, 1))
                 delta -= 1
     rchrom = rgenome[int(rng.integers(len(rgenome)))]   # arrive as a block on a random recipient chromosome
     pos = int(rng.integers(len(rchrom.genes) + 1))
     rchrom.genes[pos:pos] = xfers
+    positions.append(EventPosition(t, "transfer", donor, gen[kd][cdi].id, jd, m, recipient=recipient,
+                                   dest_chromosome=rchrom.id, dest_position=pos))
     for old, cont, xf in zip(segment, conts, xfers):
         events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id))
         events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id, recipient=recipient))
@@ -432,7 +501,7 @@ def _chromosome_originate(genome, node, t, chromosome_events, new_chromosome) ->
     return (1, 0)
 
 
-def _chromosome_lose(genome, ci, node, t, events, chromosome_events) -> tuple[int, int]:
+def _chromosome_lose(genome, ci, node, t, events, positions, chromosome_events) -> tuple[int, int]:
     """A whole chromosome and its genes die — a **leaf** of the chromosome network (no child); each
     gene on it ends as a gene ``loss``. No-op if it is the genome's last chromosome (a lineage never
     loses its entire genome this way)."""
@@ -441,6 +510,8 @@ def _chromosome_lose(genome, ci, node, t, events, chromosome_events) -> tuple[in
     lost = genome[ci]
     for g in lost.genes:
         events.append(Event(t, "loss", node.id, g.family, g.id))
+    if lost.genes:  # the whole chromosome goes, so its genes are one run starting at 0
+        positions.append(EventPosition(t, "loss", node.id, lost.id, 0, len(lost.genes)))
     del genome[ci]
     chromosome_events.append(ChromosomeEvent(t, "loss", node.id, (lost.id,), ()))
     return (-1, -len(lost.genes))
@@ -595,6 +666,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[Chromosome, ...]] = {}
     events: list[Event] = []
+    event_positions: list[EventPosition] = []
     rearrangements: list[Inversion | Transposition | Translocation] = []
     chromosome_events: list[ChromosomeEvent] = []
 
@@ -603,10 +675,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         cid = new_chromosome()
         root_chroms.append(Chromosome(cid, label, []))
         chromosome_events.append(ChromosomeEvent(t, "origination", root.id, (), (cid,)))
+    # the crown seeding is logged like any other origination — each founding gene appended in turn —
+    # so the position table is total over gene-content events and a replay of the root branch can
+    # start from an empty karyotype (every other branch starts from its parent's gene_order rows)
     for i in range(initial_families):  # deal the founding genes round-robin across the chromosomes
         fam = new_family()
-        root_chroms[i % n_chrom_seed].genes.append(new_gene(fam, +1))
-        events.append(Event(t, "origination", root.id, fam, root_chroms[i % n_chrom_seed].genes[-1].id))
+        chrom = root_chroms[i % n_chrom_seed]
+        chrom.genes.append(new_gene(fam, +1))
+        events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
+        event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
+                                             len(chrom.genes) - 1, 1, family=fam))
     family_names: dict[str, int] = {}  # named crown families, dealt round-robin after the anonymous ones
     for j, name in enumerate(families):
         fam = new_family()
@@ -614,6 +692,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         chrom = root_chroms[(initial_families + j) % n_chrom_seed]
         chrom.genes.append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
+        event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
+                                             len(chrom.genes) - 1, 1, family=fam))
     enter(alive, gen, pos, root.id, root_chroms)
     total_copies = initial_families + len(families)
     total_chromosomes = n_chrom_seed
@@ -662,21 +742,25 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     k, ci, j = _pick_gene(rng, gen, n)
                     chrom = gen[k][ci]
                     m = _extent(rng, dup_ext, j, len(chrom.genes))
-                    total_copies += _duplicate(chrom, j, m, tree.nodes[alive[k]], t, events, new_gene)
+                    total_copies += _duplicate(chrom, j, m, tree.nodes[alive[k]], t, events,
+                                               event_positions, new_gene)
                 elif r < b_los:
                     k, ci, j = _pick_gene(rng, gen, n)
                     chrom = gen[k][ci]
                     m = _extent(rng, los_ext, j, len(chrom.genes))
-                    total_copies -= _lose_at(chrom, j, m, tree.nodes[alive[k]], t, events)
+                    total_copies -= _lose_at(chrom, j, m, tree.nodes[alive[k]], t, events,
+                                             event_positions)
                 elif r < b_org:
                     k = int(rng.integers(k_alive))  # origination is per lineage: a uniform lineage
-                    _originate(gen[k], tree.nodes[alive[k]], t, events, new_gene, new_family, rng)
+                    _originate(gen[k], tree.nodes[alive[k]], t, events, event_positions, new_gene,
+                               new_family, rng)
                     total_copies += 1
                 elif r < b_tra:
                     kd, cdi, jd = _pick_gene(rng, gen, n)
                     m = _extent(rng, tra_ext, jd, len(gen[kd][cdi].genes))
                     total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
-                                                 new_gene, transfer_to, replacement, self_transfer, depth)
+                                                 event_positions, new_gene, transfer_to, replacement,
+                                                 self_transfer, depth)
                 elif r < b_inv:
                     k, ci = _pick_chromosome(rng, gen, c)
                     chrom = gen[k][ci]
@@ -717,7 +801,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 else:
                     k, ci = _pick_chromosome(rng, gen, c)
                     dc, dg = _chromosome_lose(gen[k], ci, tree.nodes[alive[k]], t, events,
-                                              chromosome_events)
+                                              event_positions, chromosome_events)
                     total_chromosomes += dc
                     total_copies += dg
                 continue
@@ -756,7 +840,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
-    return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed, family_names)
+    return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
+                                family_names, event_positions)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
