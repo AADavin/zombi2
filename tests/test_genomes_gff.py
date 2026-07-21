@@ -6,7 +6,7 @@ GFF is 1-based inclusive; blocks are 0-based half-open, so the reader converts o
 
 import pytest
 
-from zombi2.genomes.gff import GffGene, read_gff
+from zombi2.genomes.gff import GffGene, read_gff, trim_overlapping_genes
 
 
 def _write(tmp_path, text):
@@ -104,3 +104,23 @@ def test_rejects_malformed_lines(tmp_path, line, match):
 def test_rejects_an_empty_declaration(tmp_path):
     with pytest.raises(ValueError, match="no replicon and no gene"):
         read_gff(_write(tmp_path, "##gff-version 3\n"))
+
+
+def test_trim_overlapping_genes_shortens_and_is_idempotent():
+    genes = [GffGene("c", 0, 100, 1, "a"), GffGene("c", 90, 200, 1, "b"),
+             GffGene("c", 300, 400, 1, "c"), GffGene("c", 310, 350, 1, "swallowed")]
+    out, trimmed, dropped = trim_overlapping_genes(genes)
+    assert [(g.name, g.start, g.end) for g in out] == [("a", 0, 100), ("b", 100, 200), ("c", 300, 400)]
+    assert trimmed == 1 and dropped == ["swallowed"]         # b shortened, the contained one dropped
+    again, n, d = trim_overlapping_genes(out)                # re-trimming changes nothing
+    assert again == out and n == 0 and d == []
+
+
+def test_read_gff_can_trim_instead_of_raising(tmp_path):
+    text = (HEADER + "chrom1\t.\tgene\t101\t200\t.\t+\t.\tID=a\n"
+                     "chrom1\t.\tgene\t150\t300\t.\t+\t.\tID=b\n")
+    path = tmp_path / "ov.gff"; path.write_text(text)
+    with pytest.raises(ValueError, match="trim_overlaps=True"):
+        read_gff(path)
+    _lengths, genes = read_gff(path, trim_overlaps=True)
+    assert [(g.name, g.start, g.end) for g in genes] == [("a", 100, 200), ("b", 200, 300)]

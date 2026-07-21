@@ -42,12 +42,40 @@ def _attribute(attrs: str, key: str) -> str | None:
     return None
 
 
-def read_gff(source) -> tuple[dict[str, int], list[GffGene]]:
+def trim_overlapping_genes(genes: list[GffGene]) -> tuple[list[GffGene], int, list[str]]:
+    """Shorten genes so that none overlap, and report what that cost.
+
+    Real bacterial annotations **do** overlap — usually by a base or two where genes abut in an operon,
+    occasionally by more. Here a gene is an *indivisible block* laid end to end, so overlaps have to go.
+    Walking each replicon in coordinate order, a gene starting before the previous one ends has its
+    **start pushed** to that end; one swallowed whole is dropped. Returns ``(genes, trimmed, dropped)``
+    — the resolved genes, how many were shortened, and the names of any dropped."""
+    out: list[GffGene] = []
+    trimmed, dropped = 0, []
+    end_of: dict[str, int] = {}
+    for g in sorted(genes, key=lambda x: (x.seqid, x.start)):
+        previous_end = end_of.get(g.seqid, 0)
+        if g.start < previous_end:
+            if g.end <= previous_end:                    # swallowed whole by its neighbour
+                dropped.append(g.name)
+                continue
+            g = GffGene(g.seqid, previous_end, g.end, g.strand, g.name)
+            trimmed += 1
+        out.append(g)
+        end_of[g.seqid] = g.end
+    return out, trimmed, dropped
+
+
+def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], list[GffGene]]:
     """Read ``source`` (a path or an iterable of lines) and return ``({seqid: length}, [GffGene, …])``,
     the genes sorted by replicon and start.
 
-    Raises :class:`ValueError` on a malformed line, a gene outside its replicon, or two genes that
-    **overlap** — genes are indivisible blocks laid end to end, so they may touch but never overlap."""
+    Genes are indivisible blocks laid end to end, so they may **touch but never overlap**. Real
+    annotations do overlap, so pass ``trim_overlaps=True`` to shorten them instead of raising (see
+    :func:`trim_overlapping_genes`).
+
+    Raises :class:`ValueError` on a malformed line, a gene outside its replicon, or — unless
+    ``trim_overlaps`` — two genes that overlap."""
     if isinstance(source, (str, pathlib.Path)):
         lines = pathlib.Path(source).read_text().splitlines()
     else:
@@ -84,10 +112,14 @@ def read_gff(source) -> tuple[dict[str, int], list[GffGene]]:
         genes.append(GffGene(seqid, start - 1, end, -1 if strand == "-" else 1, name))
 
     genes.sort(key=lambda g: (g.seqid, g.start))
-    for a, b in zip(genes, genes[1:]):                   # laid end to end: they may touch, never overlap
-        if a.seqid == b.seqid and b.start < a.end:
-            raise ValueError(f"genes {a.name!r} and {b.name!r} overlap on {a.seqid!r} "
-                             f"([{a.start}, {a.end}) and [{b.start}, {b.end}))")
+    if trim_overlaps:
+        genes, _trimmed, _dropped = trim_overlapping_genes(genes)
+    else:
+        for a, b in zip(genes, genes[1:]):               # laid end to end: may touch, never overlap
+            if a.seqid == b.seqid and b.start < a.end:
+                raise ValueError(f"genes {a.name!r} and {b.name!r} overlap on {a.seqid!r} "
+                                 f"([{a.start}, {a.end}) and [{b.start}, {b.end})) — pass "
+                                 f"trim_overlaps=True to shorten them instead")
     declared = set(lengths)                              # replicons given by ##sequence-region
     for g in genes:                                      # any other replicon ends at its last gene
         if g.seqid not in declared:
@@ -101,4 +133,4 @@ def read_gff(source) -> tuple[dict[str, int], list[GffGene]]:
     return lengths, genes
 
 
-__all__ = ["GffGene", "read_gff"]
+__all__ = ["GffGene", "read_gff", "trim_overlapping_genes"]

@@ -301,6 +301,26 @@ class NucleotideGenome:
             m -= c.length
         raise AssertionError("length out of sync with the chromosomes")  # unreachable
 
+    def _pick_intergenic_position(self, rng) -> tuple[Chromosome, int] | None:
+        """A uniform pick over the genome's **intergenic** nucleotides → ``(chromosome, physical
+        position)``. An event nucleates in the spacer, never inside a gene — genes are indivisible, so
+        starting inside one could only ever be redrawn away. With no genes declared every nucleotide is
+        intergenic and this is just a uniform pick. ``None`` when the genome is all gene (nowhere to
+        start)."""
+        total = sum(b.length for c in self.chromosomes for b in c.blocks if not b.is_gene)
+        if total == 0:
+            return None
+        m = int(rng.integers(total))
+        for c in self.chromosomes:
+            pos = 0
+            for b in c.blocks:
+                if not b.is_gene:
+                    if m < b.length:
+                        return c, pos + m
+                    m -= b.length
+                pos += b.length
+        raise AssertionError("intergenic length out of sync with the blocks")  # unreachable
+
     def mosaic(self) -> dict[int, list[tuple[int, int, int, int]]]:
         """``{chromosome id: its block mosaic}``."""
         return {c.id: c.mosaic() for c in self.chromosomes}
@@ -587,9 +607,10 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     source coordinates). Each distinct copy lineage in the arc begets one fresh child lineage, so the
     tandem copy is a new copy of that material; the parentage is recorded as a :class:`Duplication`.
     Returns the length added (0 on a no-op)."""
-    if g.length == 0:
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
         return 0
-    chrom, start = g._pick_position(rng)
+    chrom, start = spot
     ell = min(chrom.length, max(1, int(rng.geometric(1.0 / duplication_length))))
     span = chrom._arc_range(start, ell)
     if span is None:
@@ -615,9 +636,10 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     chromosome (strands travel with them). A horizontal edge in each block's gene tree. **Additive**
     — the donor keeps its copy — so it returns the recipient's length gain (0 on a no-op)."""
     donor_g = gen[kd]
-    if donor_g.length == 0:
+    spot = donor_g._pick_intergenic_position(rng)
+    if spot is None:
         return 0
-    chrom, start = donor_g._pick_position(rng)
+    chrom, start = spot
     ell = min(chrom.length, max(1, int(rng.geometric(1.0 / transfer_length))))
     span = chrom._arc_range(start, ell)
     if span is None:
@@ -670,9 +692,10 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
     deferred tier event). Records the deleted material — which copy lineage lost which arc — as a
     :class:`Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
-    if g.length == 0:
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
         return 0
-    chrom, start = g._pick_position(rng)
+    chrom, start = spot
     if chrom.length < 2:
         return 0
     ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / loss_length))))
@@ -689,9 +712,10 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
 
 def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
     """Invert a geometric-length arc of a length-weighted chromosome (length-neutral)."""
-    if g.length == 0:
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
         return
-    chrom, pos = g._pick_position(rng)
+    chrom, pos = spot
     length = min(chrom.length, int(rng.geometric(1.0 / inversion_length)))
     chrom.invert(pos, length)
     rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
@@ -704,9 +728,12 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     Ancestry-neutral (blocks keep their source coordinates); both chromosomes persist. No-op if the
     genome has one chromosome or the source is below two nucleotides (an arc never empties a
     chromosome — it leaves at least one)."""
-    if len(g.chromosomes) < 2 or g.length == 0:
+    if len(g.chromosomes) < 2:
         return
-    source, start = g._pick_position(rng)
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
+        return
+    source, start = spot
     if source.length < 2:
         return
     ell = min(source.length - 1, max(1, int(rng.geometric(1.0 / translocation_length))))
@@ -740,9 +767,10 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     the same chromosome**, landing inverted with probability ``inversion_probability``. Ancestry-neutral
     (blocks keep their source coordinates). No-op below two nucleotides (an arc leaves at least one, so
     there is a landing spot)."""
-    if g.length == 0:
+    spot = g._pick_intergenic_position(rng)
+    if spot is None:
         return
-    chrom, start = g._pick_position(rng)
+    chrom, start = spot
     if chrom.length < 2:
         return
     ell = min(chrom.length - 1, max(1, int(rng.geometric(1.0 / transposition_length))))
@@ -882,7 +910,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 origination_length=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
-                                gff=None, seed=None) -> NucleotideGenomesResult:
+                                gff=None, trim_overlaps=False, seed=None) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
     The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its own source: an int
@@ -949,7 +977,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     if gff is not None:                              # declared from a GFF: exact coordinates and names
         if genes:
             raise ValueError("pass either gff= or genes=, not both — a GFF already declares the genes")
-        lengths, gff_genes = read_gff(gff)
+        lengths, gff_genes = read_gff(gff, trim_overlaps=trim_overlaps)
         seqids = sorted(lengths)                     # a deterministic replicon order
         by_seqid: dict[str, list] = {sq: [] for sq in seqids}
         for gene in gff_genes:
