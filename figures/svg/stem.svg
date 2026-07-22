@@ -1,31 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="760" height="415" viewBox="0 0 760 415">
+     width="760" height="355" viewBox="0 0 760 355">
 <defs>
 </defs>
-<rect x="0" y="0" width="760" height="415" fill="white" />
-<text x="380.0" y="44" font-size="32" font-family="Helvetica" text-anchor="middle" font-weight="bold" fill="#1a1a1a">The stem: before the first split</text>
-<path d="M267.0,134.66666666666669 L267.0,241.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M267.0,134.66666666666669 L456.98,134.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M267.0,241.33333333333334 L506.53999999999996,241.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M456.98,108.0 L456.98,161.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M506.53999999999996,214.66666666666669 L506.53999999999996,268.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M456.98,108.0 L680.0,108.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M456.98,161.33333333333334 L680.0,161.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M506.53999999999996,214.66666666666669 L680.0,214.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M506.53999999999996,268.0 L680.0,268.0" stroke="#1a1a1a" stroke-width="2.6" />
-<path d="M90,188.0 L267.0,188.0" stroke="#1a1a1a" stroke-width="2.6" />
-<circle cx="90" cy="188.0" r="5.5" fill="#1a1a1a" />
-<text x="90" y="172.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">origin</text>
-<circle cx="267.0" cy="188.0" r="5.5" fill="#1a1a1a" />
-<text x="279.0" y="172.0" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">crown</text>
-<text x="279.0" y="218.0" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">first split</text>
-<path d="M90,310 L267.0,310" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M90,303 L90,317" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M267.0,303 L267.0,317" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="178.5" y="336" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold" font-style="normal">stem</text>
-<path d="M90,366 L680,366" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M90,359 L90,373" stroke="#1a1a1a" stroke-width="1.8" />
-<path d="M680,359 L680,373" stroke="#1a1a1a" stroke-width="1.8" />
-<text x="385.0" y="392" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold" font-style="normal">time (origin to present)</text>
+<rect x="0" y="0" width="760" height="355" fill="white" />
+<path d="M267.0,74.66666666666667 L267.0,181.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M267.0,74.66666666666667 L456.98,74.66666666666667" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M267.0,181.33333333333334 L506.53999999999996,181.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M456.98,48.0 L456.98,101.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M506.53999999999996,154.66666666666669 L506.53999999999996,208.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M456.98,48.0 L680.0,48.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M456.98,101.33333333333334 L680.0,101.33333333333334" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M506.53999999999996,154.66666666666669 L680.0,154.66666666666669" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M506.53999999999996,208.0 L680.0,208.0" stroke="#1a1a1a" stroke-width="2.6" />
+<path d="M90,128.0 L267.0,128.0" stroke="#1a1a1a" stroke-width="2.6" />
+<circle cx="90" cy="128.0" r="5.5" fill="#1a1a1a" />
+<text x="90" y="112.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold">origin</text>
+<circle cx="267.0" cy="128.0" r="5.5" fill="#1a1a1a" />
+<text x="279.0" y="112.0" font-size="22" font-family="Helvetica" text-anchor="start" fill="#1a1a1a" font-weight="bold">crown</text>
+<text x="279.0" y="158.0" font-size="22" font-family="Helvetica" text-anchor="start" fill="#8a8a8a" font-style="italic">first split</text>
+<path d="M90,250 L267.0,250" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M90,243 L90,257" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M267.0,243 L267.0,257" stroke="#1a1a1a" stroke-width="1.8" />
+<text x="178.5" y="276" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold" font-style="normal">stem</text>
+<path d="M90,306 L680,306" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M90,299 L90,313" stroke="#1a1a1a" stroke-width="1.8" />
+<path d="M680,299 L680,313" stroke="#1a1a1a" stroke-width="1.8" />
+<text x="385.0" y="332" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#1a1a1a" font-weight="bold" font-style="normal">time (origin to present)</text>
 </svg>

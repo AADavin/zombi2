@@ -9,7 +9,7 @@ it — which is why every tree ZOMBI2 writes gives its root a branch length.
 Grown out of the old `fig_age_crown.py`, which compared two settings of an `age_type=` argument the
 API no longer has. The drawing is the same; what it names is not.
 
-House style: B&W, one centered title, ASCII text.
+House style: B&W, ASCII text. No title inside the figure — the manual captions it.
 
 Run:  python figures/scripts/fig_stem.py
 """
@@ -23,10 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import drawsvg as draw
 
-from zombi_style import save, FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import save, FONT, INK, MUTED, FS_LABEL, FS_ANNOT, FS_TICK
 
 
-W, H = 760, 415
+W, H = 760, 355
 
 # a small fixed 4-tip ultrametric tree, node times normalised 0 (crown) .. 1 (present)
 TIP_T = 1.0
@@ -75,10 +75,7 @@ def render():
     d = draw.Drawing(W, H, origin=(0, 0))
     d.append(draw.Rectangle(0, 0, W, H, fill="white"))
 
-    d.append(draw.Text("The stem: before the first split", FS_TITLE, W / 2, 44, font_family=FONT,
-                       text_anchor="middle", font_weight="bold", fill=INK))
-
-    ytop, ybot = 108, 268
+    ytop, ybot = 48, 208
     x0, x1 = 90, 680                                       # origin ... present
     xcrown = x0 + STEM_FRACTION * (x1 - x0)
 
@@ -96,8 +93,8 @@ def render():
     d.append(draw.Text("first split", FS_ANNOT, xcrown + 12, yC + 30, font_family=FONT,
                        text_anchor="start", fill=MUTED, font_style="italic"))
 
-    span(d, x0, xcrown, 310, "stem")
-    span(d, x0, x1, 366, "time (origin to present)")
+    span(d, x0, xcrown, 250, "stem")
+    span(d, x0, x1, 306, "time (origin to present)")
 
     save(d, "stem")
 

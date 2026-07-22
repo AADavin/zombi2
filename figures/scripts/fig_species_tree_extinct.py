@@ -33,7 +33,7 @@ import drawsvg as draw
 import phylustrator as ph
 from phylustrator.io import read_newick
 
-from zombi_style import save, INK, species_style, FS_TITLE, FS_LABEL, FS_TICK
+from zombi_style import save, INK, species_style, FS_LABEL, FS_TICK
 
 FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_extinct" / "species_tree.nwk"
@@ -150,14 +150,9 @@ def main() -> None:
                     label="Time (root to present)", tick_size=6.0, padding=14.0,
                     stroke_width=1.6)
 
-    # title: one short bold line, horizontally centered at the top
-    d.drawing.append(draw.Text("A species tree with extinct lineages", FS_TITLE, 0,
-                               -style.height / 2 + 44, font_weight="bold",
-                               font_family=style.font_family, text_anchor="middle",
-                               dominant_baseline="central", fill=INK))
-
-    # top-left open band, just under the title and left of where the crown spreads
-    add_legend(d, x=-style.width / 2 + 40, y=-style.height / 2 + 150)
+    # No title inside the figure: the manual captions it, and a title would say it twice.
+    # top-left open band, left of where the crown spreads
+    add_legend(d, x=-style.width / 2 + 40, y=-style.height / 2 + 110)
 
     save(d.drawing, "species_tree")
     print(f"  ({len(extant)} extant + {len(extinct)} extinct tips)")
