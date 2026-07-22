@@ -1,5 +1,7 @@
 """Tests for the forward birth-death engine (species)."""
 
+import re
+
 import pytest
 
 from zombi2.rates import modifiers as mod
@@ -158,6 +160,20 @@ def test_newick_is_wellformed():
     assert nwk.endswith(";")
     assert nwk.count("(") == nwk.count(")")   # balanced parens
     assert nwk.count(",") == 25 - 1           # a bifurcating tree of 25 tips has 24 joins
+
+
+def test_newick_root_carries_the_stem():
+    # a forward run starts from one lineage, so the root's branch is real simulated time: the stem,
+    # origin to first split. Writing it is what keeps the tree's full height in the file.
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=2)
+    root = r.complete_tree.nodes[r.complete_tree.root]
+    stem = root.end_time - root.birth_time
+    first_split = min(e.time for e in r.events if e.kind == "speciation")
+
+    assert stem == pytest.approx(first_split)
+    assert re.search(rf"\)n{r.complete_tree.root}:[0-9.e+-]+;$", r.complete_tree.to_newick())
+    assert float(r.complete_tree.to_newick().rsplit(":", 1)[1].rstrip(";")) == pytest.approx(
+        stem, rel=1e-5)
 
 
 def test_write_produces_newick_files(tmp_path):

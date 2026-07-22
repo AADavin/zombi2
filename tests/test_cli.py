@@ -23,15 +23,14 @@ def test_read_newick_round_trips_a_complete_tree():
     assert back.root == t.root
     assert len(back.extant()) == len(t.extant())
     assert len(back.extinct()) == len(t.extinct())
-    # every non-root branch length (duration) survives to Newick's 6 significant figures
+    # every branch length (duration) survives to Newick's 6 significant figures — the root's
+    # included, so the stem is not silently dropped and the round-tripped tree keeps its full height
     for i, n in t.nodes.items():
-        if i == t.root:
-            continue
         assert back.nodes[i].end_time - back.nodes[i].birth_time == pytest.approx(
             n.end_time - n.birth_time, rel=1e-5, abs=1e-9)
-    # the crown-rooted convention drops the root's own branch length (SPEC §8): it reads back as a
-    # zero-duration crown, so the tree starts at the first split
-    assert back.nodes[back.root].end_time - back.nodes[back.root].birth_time == 0.0
+    assert back.nodes[back.root].end_time - back.nodes[back.root].birth_time > 0.0
+    assert max(n.end_time for n in back.nodes.values()) == pytest.approx(
+        max(n.end_time for n in t.nodes.values()), rel=1e-5)
 
 
 def test_read_newick_ultrametric_external_tree_is_all_extant_with_a_name_map():
