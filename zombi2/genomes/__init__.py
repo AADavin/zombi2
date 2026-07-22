@@ -33,7 +33,7 @@ from functools import cached_property
 import numpy as np
 
 from ..rates.modifiers import DrivenBy, OnTime
-from ..rates.rate import as_rate
+from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
 from ._live import enter, retire
@@ -194,16 +194,25 @@ def _lose_at(genome, j, node, t, events) -> None:
     events.append(Event(t, "loss", node.id, lost.family, lost.id))
 
 
-def _do_transfer(rng, tree, alive, gen, total_copies, t, events, new_copy,
-                 transfer_to, replacement, self_transfer, depth) -> int:
-    """A gene transfers from a donor copy to a contemporaneous recipient lineage. Returns the change
-    in total copy count: +1 additive, 0 replacement (the arriving copy displaces a resident)."""
-    kd, jd = _pick_copy(rng, gen, total_copies)
+def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
+                 transfer_to, replacement, self_transfer, depth, to_traj=None) -> int:
+    """The copy ``jd`` of the donor lineage ``kd`` transfers to a contemporaneous recipient lineage.
+    The donor is picked by the caller (uniformly across the copy pool, or weighted by lineage when
+    the transfer rate is driven), the recipient by ``transfer_to``. Returns the change in total copy
+    count: +1 additive, 0 replacement (the arriving copy displaces a resident).
+
+    **No eligible recipient ⇒ nothing happens.** Under a driven ``transfer_to`` a candidate mapped to
+    weight 0 cannot receive, and at some instants that is every candidate. The event is then dropped
+    before anything is minted or logged — which is not an approximation: rejecting an event on a
+    condition that depends only on the current state is Poisson thinning, so the kept transfers are
+    exactly the process whose transfer rate is zero while no recipient is eligible."""
     donor = alive[kd]
+    cand = [k for k in range(len(alive)) if self_transfer or k != kd]
+    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj)
+    if kr is None:                                     # every candidate weighs 0 — no-op (see above)
+        return 0
     src = gen[kd][jd]
     fam = src.family
-    cand = [k for k in range(len(alive)) if self_transfer or k != kd]
-    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
     recipient = alive[kr]
     rg = gen[kr]
     # the donor gene ends; two fresh copies descend from it (ZOMBI1 re-id): the continuation on the
@@ -240,8 +249,9 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     Rates (each a ``scope(base) × modifiers`` spec): ``duplication``/``transfer``/``loss`` default
     **per copy**, ``origination`` **per lineage**. When a transfer fires it moves a copy from a
     uniformly-chosen donor copy to a recipient lineage alive at that instant, chosen by
-    ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage) or ``"distance"`` /
-    ``Distance(decay=)`` (closer relatives likelier). ``replacement=True`` overwrites a homologous
+    ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage), ``"distance"`` /
+    ``Distance(decay=)`` (closer relatives likelier), or ``mod.DrivenBy(source, mapping)`` (weighted
+    by another level; see below). ``replacement=True`` overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
     as originations at the crown. ``families=["toxin", …]`` additionally seeds **named** families —
@@ -249,14 +259,23 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
     ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
 
-    **Conditioning (a trait drives a rate).** ``loss``, ``duplication``, or ``origination`` may be
-    *driven by another level* — ``loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0,
-    "terrestrial": 1.0})`` scales each lineage's loss by the habitat on that branch, read from a
-    driver file grown first (``traits.simulate_discrete(...).write(dir, outputs=("driver",))``). A
-    driven rate is then *per-lineage*: it is summed over the living lineages (each with its own copy
-    count and driver value), the affected lineage is drawn weighted by its rate, and the Gillespie
-    steps at every mid-branch switch of the driver (SPEC §2, ``coupling-api.md``). Driven transfer
-    (which couples two lineages) is a later slice.
+    **Conditioning (a trait drives a rate).** Any of the four rates may be *driven by another level* —
+    ``loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
+    lineage's loss by the habitat on that branch, read from a driver file grown first
+    (``traits.simulate_discrete(...).write(dir, outputs=("driver",))``). A driven rate is then
+    *per-lineage*: it is summed over the living lineages (each with its own copy count and driver
+    value), the affected lineage is drawn weighted by its rate, and the Gillespie steps at every
+    mid-branch switch of the driver (SPEC §2, ``coupling-api.md``). For ``transfer`` the affected
+    lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
+
+    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is
+    the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
+    rate multipliers, so they leave the total amount of transfer alone and only redistribute it
+    (SPEC §5, the choice slot). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
+    and receives with probability ``w_k / Σw`` — five candidates at weight 1 and five at weight 2 send
+    two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
+    candidate weighs 0 the transfer does not happen (see :func:`_do_transfer`). The two couplings are
+    independent and may be used together or apart.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     dup = as_rate(duplication, default_scope=PerCopy)
@@ -267,9 +286,8 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     # modifiers are OnTime (skyline) and DrivenBy (a conditioned/joint driver). A non-default scope
     # would set the *total* rate one way while the engine still picks the affected copy/lineage the
     # default way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so
-    # reject it. DrivenBy is a per-lineage driver; conditioned driving is wired for the single-lineage
-    # events (loss/duplication/origination) but not yet for transfer (two lineages, donor and recipient).
-    _drivable = {"duplication", "loss", "origination"}
+    # reject it. DrivenBy is a per-lineage driver, wired for all four events; on transfer the driven
+    # lineage is the DONOR (who receives is the separate transfer_to slot, below).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
         if not isinstance(rate.scope, want):
@@ -278,14 +296,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if isinstance(m, OnTime):
-                continue
-            if isinstance(m, DrivenBy):
-                if label not in _drivable:
-                    raise ValueError(
-                        f"{label} carries DrivenBy, but conditioned driving of {label} is a later slice "
-                        f"— loss, duplication, and origination are wired (transfer couples two lineages)."
-                    )
+            if isinstance(m, (OnTime, DrivenBy)):
                 continue
             raise ValueError(
                 f"{label} carries {type(m).__name__}, which the unordered genome engine does not "
@@ -294,8 +305,26 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             )
     if transfer_to == "distance":
         transfer_to = Distance()
-    if transfer_to != "uniform" and not isinstance(transfer_to, Distance):
-        raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), got {transfer_to!r}")
+    if isinstance(transfer_to, Rate):
+        # `1.0 * mod.DrivenBy(...)` — the rate spelling, in a slot that is not a rate. Say so rather
+        # than let a Rate fall through to the generic "must be …" message.
+        raise ValueError(
+            "transfer_to takes the DrivenBy modifier on its own, not a rate — write "
+            "transfer_to=mod.DrivenBy(source, {...}) with no base number. In this slot the mapping's "
+            "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
+            "multiplier: they change who receives, never how much transfer happens."
+        )
+    if isinstance(transfer_to, (list, tuple)):
+        raise ValueError(
+            "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
+            "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
+            "Distance(decay=), or mod.DrivenBy(source, {...})."
+        )
+    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy)):
+        raise ValueError(
+            f"transfer_to must be 'uniform', 'distance' / Distance(decay=), or "
+            f"mod.DrivenBy(source, {{...}}) (a recipient weight driven by another level), "
+            f"got {transfer_to!r}")
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
     families = list(families) if families is not None else []
@@ -347,26 +376,38 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
     # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
     # and the loop stays byte-identical to an uncoupled run.
-    dup_mods, los_mods, org_mods = _driven_mods(dup), _driven_mods(los), _driven_mods(org)
+    dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
+    org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
     by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
-    for m in (*dup_mods, *los_mods, *org_mods):
+    for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
         by_key.setdefault(m.key, m.source)
-    trajs = {}
+    rate_keys = list(by_key)     # the drivers that move a RATE: they alone set the Gillespie horizon
+    to_mod = transfer_to if isinstance(transfer_to, DrivenBy) else None
+    if to_mod is not None:       # the transfer_to driver is read only at the instant a transfer fires
+        by_key.setdefault(to_mod.key, to_mod.source)
+    resolved = {}
     if by_key:
         from ..rates.driver import resolve_driver
-        trajs = {key: resolve_driver(src) for key, src in by_key.items()}
-    any_driven = bool(by_key)
+        resolved = {key: resolve_driver(src) for key, src in by_key.items()}
+    # a driven transfer_to changes no rate — the weights are evaluated when a transfer fires, so the
+    # recipient driver deliberately stays OUT of trajs (no per-lineage rate weights, no extra horizon
+    # breakpoints for it). Only the rate drivers make the loop per-lineage.
+    trajs = {key: resolved[key] for key in rate_keys}
+    to_traj = resolved[to_mod.key] if to_mod is not None else None
+    any_driven = bool(rate_keys)
 
     si = 0
     while si < len(schedule):
         n = total_copies
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "time": t}
+        can_xfer = n > 0 and (k_alive >= 2 or self_transfer)  # a recipient must be able to exist
         # a driven rate is per-lineage: sum its effective rate over the living lineages (each read with
         # its own copy count and its branch's driver value), keeping the weights for the affected-lineage
         # pick — the species_tree._grow shape. An undriven rate stays pooled (one .effective, uniform
-        # pick), so a run with no coupling is byte-identical to before.
-        w_dup = w_los = w_org = None
+        # pick), so a run with no coupling is byte-identical to before. For transfer the affected
+        # lineage is the donor, so a driven transfer weights who donates.
+        w_dup = w_los = w_org = w_tra = None
         if any_driven:
             drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
             if dup_mods:
@@ -378,11 +419,13 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             if org_mods:
                 w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                          for k in range(k_alive)]
+            if tra_mods and can_xfer:
+                w_tra = [tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                         for k in range(k_alive)]
         r_dup = sum(w_dup) if w_dup is not None else (dup.effective(**ctx) if n else 0.0)
         r_los = sum(w_los) if w_los is not None else (los.effective(**ctx) if n else 0.0)
         r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
-        can_xfer = n > 0 and (k_alive >= 2 or self_transfer)  # a recipient must be able to exist
-        r_tra = tra.effective(**ctx) if can_xfer else 0.0    # per copy (transfer is not driven this slice)
+        r_tra = sum(w_tra) if w_tra is not None else (tra.effective(**ctx) if can_xfer else 0.0)
         total = r_dup + r_los + r_org + r_tra
 
         next_species = schedule[si][0]  # the tree's own next event: who is alive changes only here
@@ -420,8 +463,17 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
                     total_copies += 1
                 else:
-                    total_copies += _do_transfer(rng, tree, alive, gen, n, t, events, new_copy,
-                                                 transfer_to, replacement, self_transfer, depth)
+                    if w_tra is not None:  # driven: weighted DONOR lineage, then a uniform copy in it
+                        kd = _weighted_index(rng, w_tra, r_tra)
+                        if not gen[kd]:    # only via _weighted_index's r == total float guard: a
+                            # zero-weight lineage has no copies to donate, so take the heaviest instead
+                            kd = max(range(k_alive), key=lambda k: w_tra[k])
+                        jd = int(rng.integers(len(gen[kd])))
+                    else:
+                        kd, jd = _pick_copy(rng, gen, n)
+                    total_copies += _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
+                                                 transfer_to, replacement, self_transfer, depth,
+                                                 to_traj)
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch

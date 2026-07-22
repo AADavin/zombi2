@@ -154,11 +154,16 @@ def _log_value(value: object) -> str:
     """Render one parameter for the run log. A rate is recorded in its **written form**, so the log
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
-    from zombi2.rates.modifiers import Modifier
+    from zombi2.rates.modifiers import DrivenBy, Modifier
     from zombi2.rates.parse import written_form
     from zombi2.rates.rate import Rate
     from zombi2.rates.scope import Scope
 
+    if isinstance(value, DrivenBy):
+        # a bare DrivenBy is how the choice slots are written (--transfer-to), where there is no base
+        # number to print; its repr is the same expression the flag takes, and it also round-trips as
+        # a rate (a bare modifier is base 1.0), so both readings paste straight back in.
+        return repr(value)
     if isinstance(value, (Rate, Scope, Modifier)):
         return written_form(value)
     return str(value)

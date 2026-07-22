@@ -108,6 +108,8 @@ We describe each model by **what it does**, not by a jargon name.
 **The couplings you can condition on** (one level reads another; the driver is passed as a file):
 
 - a trait drives gene gain or loss
+- a trait drives horizontal transfer — how often a lineage donates (a rate), or which lineages
+  receive (a weight); these are two different models, not two spellings of one
 - gene content drives a trait's optimum
 - a trait drives selection (dN/dS) or clock speed on sequences
 - a sequence drives a trait — *deferred (§10)*
@@ -195,6 +197,23 @@ never add a flag. (Read by `rates/parse.py`; it parses the expression, it does n
 is quietly not the model the user asked for. Each level therefore declares what it wires
 (`WIRED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed, and
 the engine's own gate may be stricter still where a rate is wired more narrowly than the level.
+
+**A driver's number is not always a rate multiplier.** `DrivenBy(source, mapping)` is the one coupling
+mechanism (§2), and the **slot** it sits in decides what the mapping's number means. In a rate it is an
+ordinary modifier: dimensionless, multiplying, changing *how fast*. In a **choice slot** it is a
+**weight**, normalised across the candidates the choice is made over, so it changes neither how fast
+nor how many — only **who**. Today the one choice slot is the genome level's `transfer_to`, the "who
+receives" of a horizontal transfer:
+
+```
+transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how much transfer
+transfer_to =       DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a weight: where it lands
+```
+
+The first changes the total amount of transfer; the second redistributes the same transfers. A choice
+slot takes the modifier **on its own**, never `base * modifier` — there is no base, because there is no
+rate. A weight of 0 means "cannot receive"; when every candidate weighs 0 the transfer cannot happen at
+all, so the event does not fire.
 
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate

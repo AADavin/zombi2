@@ -56,9 +56,46 @@ genomes.simulate_genomes_unordered(tree,
     duplication=0.2, origination=0.5, seed=2)
 ```
 
+That is the whole of conditioning today, and it fits in two rows:
+
+| The driver | What it drives | Written like this | Mapping |
+|---|---|---|---|
+| a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the rates of an unordered genome run | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | `transfer_to` — which lineage a transfer lands on | `transfer_to = mod.DrivenBy(source, {…})` | Table |
+
+`source` in both rows is the grown `TraitsResult`, or the path to the `trait_driver.tsv` it wrote.
+
 The driver file is the one from Chapter 8: a discrete trait's stochastic character map, cut into the constant stretches of each branch. That segmentation is what lets the genome engine step its Gillespie at every switch, so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The coupling is exact, not a per-branch average.
 
-Three of the four unordered rates can be driven this way: `loss`, `duplication` and `origination`. Driving `transfer` is rejected. That is the discipline everywhere in ZOMBI2 — a modifier a level cannot honour raises an error rather than being silently dropped.
+### Two ways a trait can drive transfer
+
+A transfer joins two lineages, a donor and a recipient. A trait can drive either end, and the two are different models. The second row of the table is the recipient end.
+
+Driving the **rate** drives the donor. `transfer = 0.1 * mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0})` makes a competent lineage donate three times as often as a normal one. That changes how much horizontal transfer happens in the run.
+
+Driving `transfer_to` drives the recipient. `transfer_to = mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0})` makes a competent lineage three times likelier than a normal one to be the lineage a transfer lands on. That changes no rate at all. The same transfers happen; they go somewhere else.
+
+The two expressions look alike, but their numbers mean different things. In a rate, the number is a multiplier: it multiplies the rate of the lineage it is read on. In `transfer_to` it is a **weight**: the engine reads it on every lineage alive at that instant, and the recipient is drawn in proportion. Five candidates at weight 1 and five at weight 2 send two thirds of the transfers to the weight-2 group, because ten of the fifteen units of weight are theirs. Weights are normalised, so doubling all of them changes nothing.
+
+That is why `transfer_to` takes the modifier on its own, with no number in front of it. A rate has a base, `0.1` per copy per unit time; a weight does not. Writing `transfer_to = 1.0 * mod.DrivenBy(...)` is an error.
+
+A weight of 0 means the lineage cannot receive, which is often the point: only a competent lineage takes DNA up. That has one consequence worth stating plainly. If at some instant every candidate weighs 0, the transfer has nowhere to land, so it does not happen. While no eligible recipient is alive, the run's transfer rate is 0.
+
+The two couplings are independent, and a run may use either or both:
+
+```python
+competence = traits.simulate_discrete(tree, states=["competent", "normal"],
+                                      switch=0.3, seed=1)
+
+genomes.simulate_genomes_unordered(tree,
+    transfer    = 0.1 * mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0}),
+    transfer_to =       mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0}),
+    initial_families=10, seed=2)
+```
+
+Combining a driven `transfer_to` with the `"distance"` rule of Chapter 4 is not supported: `transfer_to` takes one rule.
+
+Everything outside those two rows raises an error. Every rate of the ordered resolution of Chapter 5 is refused, and so are the rates of sequence evolution and of a trait run. The ordered resolution refuses a driven `transfer_to` as well. The driver has to be a discrete trait: only a discrete trait carries the character map that cuts a branch into constant segments, so a continuous trait is refused as a driver. That is the discipline everywhere in ZOMBI2 — a modifier a level cannot honour raises an error rather than being silently dropped.
 
 Notice too that the coupling **folds into the target level's own command**. There is no separate coupling step and no coupling object to build; you grow the driver, then make an ordinary genome run whose `loss` happens to be `DrivenBy` instead of a bare number. That holds on the command line as well, where the rate keeps its written form:
 
@@ -74,6 +111,19 @@ zombi2 traits --kind discrete -t out/species_complete.nwk \
 zombi2 genomes -t out/species_complete.nwk \
     --loss "0.25 * DrivenBy('out/trait_driver.tsv', {'cave': 4.0, 'surface': 1.0})" \
     --duplication 0.2 --origination 0.5 --seed 2 -o out/
+```
+
+Both halves of transfer take that same text: the rate with a base number in front of it, the recipient weight without one.
+
+```bash
+# the driver: a competence trait, into its own directory
+zombi2 traits --kind discrete -t out/species_complete.nwk \
+    --states competent,normal --switch 0.3 --seed 1 -o comp/ --write driver
+
+zombi2 genomes -t out/species_complete.nwk --initial-families 10 \
+    --transfer    "0.1 * DrivenBy('comp/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
+    --transfer-to "DrivenBy('comp/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
+    --seed 2 -o comp_genomes/
 ```
 
 ## Joining
@@ -109,6 +159,16 @@ joint.simulate_joint(
 ```
 
 The live `source` names either the family, `"genomes:toxin"`, or the lineage's total gene count, `"genomes:count"` — and a count is a number, so that is where a **Curve** earns its place: `mod.DrivenBy("genomes:count", lambda n: math.exp(0.02 * n))` makes gene-rich lineages speciate faster along a smooth response rather than a lookup table.
+
+The three live sources in full:
+
+| The driver | The rates it can drive | `source` | Mapping |
+|---|---|---|---|
+| a discrete trait | `birth`, `death` | `"trait"` | Table |
+| a named family's presence | `birth`, `death` | `"genomes:<family>"` | Table on `present`/`absent` |
+| a lineage's gene count | `birth`, `death` | `"genomes:count"` | Curve, or Scalar |
+
+Give one driver per run, `trait=` or `genome=`, not both, and drive `birth`, `death`, or both with it.
 
 Stop the run at a size with `n_extant=` or at an age with `total_time=`, exactly as in Chapter 3, and give one or the other. What comes back is a `JointResult` carrying **both** grown levels: `.species` always, and then either `.trait` or `.genome`, the same result objects the standalone commands return. They share one `complete_tree`, because there was only ever one tree — the one they grew between them. Joint runs are Python-only for now; the conditioned half of the chapter is the part that has a command line.
 
