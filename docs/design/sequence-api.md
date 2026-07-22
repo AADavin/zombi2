@@ -170,3 +170,35 @@ this is the sequence chapter's.
 - Keep `+Γ` as its own `gamma=` argument (across-site variation ≠ across-branch clock).
 - Add the `sequences.simulate_sequences(genomes_run, …)` entry point over the existing evolution core.
 - `DriverClock` → a Part III conditioning (`traits`/level → sequences), not a menu member.
+
+## Sequences on a nucleotide genome (decided 2026-07-22, not yet built)
+
+Today the sequence level runs only on an unordered or ordered genome run. It refuses a
+`NucleotideGenomesResult` — a type check, not a missing capability: that result already carries the
+`complete_tree` and the recovered trees the level needs. Wiring it is what makes a **real gene layout
+from a GFF** and **evolving residues** the same run, which is the one combination the two paths
+cannot express apart.
+
+**What it evolves.** Every recovered **root block**, not just the declared genes — genes *and*
+intergenic spacer — so the run reconstructs the whole genome rather than a handful of loci.
+
+**The work is building the intergenic trees, not lifting a filter.** The root partition already
+covers the whole genome (a 3-gene test genome recovers 12 root blocks). But with genes declared,
+`_recover` builds a tree only for the blocks that *are* declared genes, and says so: "skipping them is
+most of the work" (`nucleotide.py`). Those trees are always built once this lands — not opt-in.
+
+**Two models, keyed on what is already recorded.** `Block.gene` is the family id for a gene and `0`
+for spacer, so no new classification is needed. Genes take `model=`; spacer takes `intergene_model=`,
+defaulting to `jc69` — flat, equal frequencies, no free parameters, which is the right null for
+unconstrained sequence. Spacer also runs faster: `intergene_speed=3.0` multiplies the gene rate, so
+the ratio (relaxed constraint) stays fixed when the overall rate changes.
+
+**`length=` is rejected here, not ignored.** Each block brings its own length in bp from the genome,
+so a single `length=` would contradict the coordinates the genomes run recorded — the same discipline
+that rejects `--kappa` for `jc69`.
+
+**Output.** The per-block alignments, plus one FASTA per extant lineage with the blocks concatenated
+in genome order (`blocks.tsv` already tiles each chromosome end to end from 0).
+
+Care needed: `_recover` is pinned by the Swenson port (`tests/test_nucleotide_model_krister.py`),
+whose whole argument is that the *written files* must mean what they claim.
