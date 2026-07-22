@@ -19,7 +19,7 @@ import os
 import time
 
 from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
-                                  _write_params_log, level_dir)
+                                  _write_params_log, level_dir, resolve_tree)
 from zombi2.cli.genomes import _read_tip_fates
 from zombi2.species import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
@@ -48,10 +48,11 @@ _DISCRETE_ONLY = (("states", None), ("switch", None), ("liability", None), ("thr
 def _add_traits_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    g.add_argument("-t", "--tree", required=True, metavar="FILE",
-                   help="the tree the trait rides, Newick (a ZOMBI 'species_complete.nwk' or any "
-                        "external tree; the trait evolves on the complete tree, extinct lineages "
-                        "included)")
+    g.add_argument("-t", "--tree", required=True, metavar="FILE|DIR",
+                   help="the tree the trait rides: a Newick file, or a 'zombi2 species' run "
+                        "directory to take its complete tree from (-t out/ instead of -t "
+                        "out/species/species_complete.nwk). Any external tree works too; the trait "
+                        "evolves on the complete tree, extinct lineages included")
     g.add_argument("-o", "--output", required=True, metavar="DIR", dest="output",
                    help="output directory (created if needed)")
     g.add_argument("--kind", choices=("continuous", "discrete"), default="continuous",
@@ -136,11 +137,12 @@ def run(args, parser):
                          "--liability/--threshold (the threshold model)")
 
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else None
+    tree_path = resolve_tree(args.tree)
     try:
-        with open(args.tree) as f:
+        with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
     except FileNotFoundError:
-        raise FileNotFoundError(f"tree file not found: {args.tree}") from None
+        raise FileNotFoundError(f"tree file not found: {tree_path}") from None
 
     t0 = time.perf_counter()
     if discrete:

@@ -55,7 +55,7 @@ Two commands: build a species tree, then evolve gene families along it.
 zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
 
 # 2. gene families along it, by duplication, transfer, loss and origination
-zombi2 genomes -t out/species/species_complete.nwk \
+zombi2 genomes -t out/ \
     --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42 -o out/
 ```
 

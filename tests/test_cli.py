@@ -817,3 +817,51 @@ def test_the_two_layouts_write_the_same_files(tmp_path):
               "--seed", "2", "-o", str(root), "--write", "events", "profiles", "gene_trees", *extra])
         outs[name] = {p.name for p in root.rglob("*") if p.is_file()}
     assert outs["grouped"] == outs["flat"]      # same files, only the directories differ
+
+
+def test_tree_flag_takes_a_run_directory(tmp_path):
+    # -t out/ instead of -t out/species/species_complete.nwk: the command already knows the layout
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "-o", str(tmp_path)])
+    assert main(["genomes", "-t", str(tmp_path), "--initial-families", "3", "--seed", "2",
+                 "-o", str(tmp_path)]) == 0
+    assert main(["traits", "-t", str(tmp_path), "--rate", "1.0", "--seed", "1",
+                 "-o", str(tmp_path)]) == 0
+    assert (tmp_path / "genomes" / "genome_events.tsv").exists()
+    assert (tmp_path / "traits" / "trait_values.tsv").exists()
+
+
+def test_tree_flag_takes_a_flat_run_directory(tmp_path):
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "-o", str(tmp_path), "--flat"])
+    assert main(["genomes", "-t", str(tmp_path), "--initial-families", "3", "--seed", "2",
+                 "-o", str(tmp_path), "--flat"]) == 0
+    assert (tmp_path / "genome_events.tsv").exists()
+
+
+def test_tree_flag_still_takes_a_file(tmp_path):
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "-o", str(tmp_path)])
+    direct = tmp_path / "direct"
+    assert main(["genomes", "-t", str(tmp_path / "species" / "species_complete.nwk"),
+                 "--initial-families", "3", "--seed", "2", "-o", str(direct)]) == 0
+
+
+def test_a_directory_without_a_tree_says_so(tmp_path, capsys):
+    (tmp_path / "empty").mkdir()
+    rc = main(["genomes", "-t", str(tmp_path / "empty"), "--seed", "1", "-o", str(tmp_path / "o")])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "holds no species tree" in err and "species_complete.nwk" in err
+
+
+def test_the_directory_and_the_file_give_the_same_run(tmp_path):
+    main(["species", "--birth", "1", "--death", "0.3", "--n-extant", "10", "--seed", "1",
+          "-o", str(tmp_path)])
+    a, b = tmp_path / "a", tmp_path / "b"
+    main(["genomes", "-t", str(tmp_path), "--initial-families", "4", "--duplication", "0.3",
+          "--seed", "9", "-o", str(a)])
+    main(["genomes", "-t", str(tmp_path / "species" / "species_complete.nwk"),
+          "--initial-families", "4", "--duplication", "0.3", "--seed", "9", "-o", str(b)])
+    assert (a / "genomes" / "genome_events.tsv").read_text() == \
+           (b / "genomes" / "genome_events.tsv").read_text()

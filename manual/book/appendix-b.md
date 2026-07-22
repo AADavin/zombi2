@@ -36,8 +36,10 @@ expects one directory. The same files are written either way; only the directori
 files being grouped is a CLI matter, not the library's: `result.write(dir)` writes into whatever
 directory you hand it.
 
-`zombi2 sequences --genomes DIR` accepts either layout — point it at the run directory whose
-`genomes/` holds the handoff files, or at a flat directory holding them directly.
+Every command that reads a prior level takes the **run directory**, and finds the file itself, in
+either layout: `-t out/` on `zombi2 genomes` and `zombi2 traits` picks up that run's complete species
+tree, and `--genomes out/` on `zombi2 sequences` picks up its handoff files. Naming a Newick file
+directly still works, and is what you do for a tree from somewhere else.
 
 Every `zombi2` **command** also writes a run log (`species.log`, `genomes.log`,
 `sequences.log`, `traits.log`): the version, the timestamp, the command line, and every resolved

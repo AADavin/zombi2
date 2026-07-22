@@ -170,6 +170,29 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     return path
 
 
+#: What `-t` resolves to inside a run directory, in the order tried: the grouped layout first, then
+#: --flat. Both name the *complete* tree — every level runs on the tree with its extinct lineages.
+_TREE_IN_RUN = (os.path.join("species", "species_complete.nwk"), "species_complete.nwk")
+
+
+def resolve_tree(path: str) -> str:
+    """Take ``-t`` as either a Newick file or a **run directory**, and give back the file to open.
+
+    Typing out ``-t out/species/species_complete.nwk`` to feed a run its own tree is a detour through
+    a layout the command already knows; ``-t out/`` says the same thing. A path that is not a
+    directory is returned untouched, so any tree from anywhere still works."""
+    if not os.path.isdir(path):
+        return path
+    for candidate in _TREE_IN_RUN:
+        full = os.path.join(path, candidate)
+        if os.path.exists(full):
+            return full
+    raise FileNotFoundError(
+        f"{path} is a directory but holds no species tree — looked for "
+        f"{' and '.join(_TREE_IN_RUN)}. Point -t at a 'zombi2 species' run directory, or at a "
+        f"Newick file directly.")
+
+
 def _log_value(value: object) -> str:
     """Render one parameter for the run log. A rate is recorded in its **written form**, so the log
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
