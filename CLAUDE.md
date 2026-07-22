@@ -62,8 +62,8 @@ Two rules learned the hard way:
   genuinely partial, say so plainly (Ch6 does this: the nucleotide resolution has no CLI and no
   `.write()`, so it documents Python accessors only).
 
-Only Ch3 and Ch4 are published to the docs site so far, via snippet includes in `docs/guide/`; Appendix
-B is included at `docs/reference/output-files.md`. Renaming a chapter file breaks those includes and
-CI's `mkdocs --strict` will catch it.
+Every chapter is published to the docs site as a snippet include — Ch1–Ch9 under `docs/guide/`, the
+two appendices under `docs/reference/`. Renaming a chapter file breaks those includes and CI's
+`mkdocs --strict` will catch it.
 
 Work happens on a branch in an isolated worktree, not the shared main checkout.

@@ -53,8 +53,8 @@ reconparser = ["pandas>=2.0.0"]
 bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 
 # The `zombi2` CLI is grown from the clean core (see docs/design/MAP.md), one level at a time. It
-# currently exposes the two built levels — `zombi2 species` and `zombi2 genomes`; the rest land as
-# their levels are rebuilt (the old commands stay quarantined in legacy/ until then).
+# currently exposes the four built levels — `species`, `genomes`, `sequences`, `traits`; the coupled
+# commands land as they are rebuilt (the old ones stay quarantined in legacy/ until then).
 [project.scripts]
 zombi2 = "zombi2.cli.main:main"
 
