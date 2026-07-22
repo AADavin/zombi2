@@ -59,8 +59,7 @@ Two rules learned the hard way:
 - **Run every example before trusting a chapter.** They drift behind the code in both directions —
   flags get invented, and shipped features get described as forthcoming.
 - **Document only what ships.** Cut an unbuilt model rather than marking it "not yet". Where a level is
-  genuinely partial, say so plainly (Ch6 does this: the nucleotide resolution has no CLI and no
-  `.write()`, so it documents Python accessors only).
+  genuinely partial, say so plainly, and delete the caveat the moment it stops being true.
 
 Every chapter is published to the docs site as a snippet include — Ch1–Ch9 under `docs/guide/`, the
 two appendices under `docs/reference/`. Renaming a chapter file breaks those includes and CI's

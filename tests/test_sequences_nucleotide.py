@@ -9,6 +9,8 @@ That pins the two things an assembly gets silently wrong: which stretch of which
 and which strand it is read on. A genome with either wrong still looks exactly like a genome.
 """
 
+import collections
+
 import pytest
 
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_unordered
@@ -377,3 +379,43 @@ def test_the_genome_level_writes_the_initial_mosaic_in_its_own_file(tmp_path):
     # and it is not smuggled into blocks.tsv, whose every lineage is a real node
     labels = {ln.split("\t")[0] for ln in (tmp_path / "blocks.tsv").read_text().splitlines()[1:]}
     assert labels == {node_label(i) for i in genomes.genomes}
+
+
+# --- reading a written run back ---------------------------------------------------------------------
+
+def test_a_written_run_reads_back_to_the_same_recovery(tmp_path):
+    """The handoff has to carry the blocks, not just the event log: at this resolution the sequences
+    evolve down a tree per block, and the blocks come from the genomes themselves."""
+    from zombi2.genomes.nucleotide import read_nucleotide_genomes
+
+    g = _busy(seed=2)
+    g.write(tmp_path)
+    back = read_nucleotide_genomes(tmp_path, g.complete_tree)
+    assert back.events == g.events
+    assert back.root_blocks == g.root_blocks
+    assert back.gene_spans == g.gene_spans and back.gene_strands == g.gene_strands
+    assert {i: t.to_newick("complete") for i, t in back.block_trees.items()} == \
+           {i: t.to_newick("complete") for i, t in g.block_trees.items()}
+    # and what it writes is byte-identical to what it read
+    out = tmp_path / "again"
+    back.write(out, outputs=("events", "blocks", "genes", "initial_genome"))
+    for name in ("genome_events.tsv", "blocks.tsv", "genes.tsv", "initial_genome.tsv"):
+        assert (out / name).read_text() == (tmp_path / name).read_text(), name
+
+
+def test_reading_back_regroups_multi_row_events_correctly(tmp_path):
+    """An event spanning several ancestral intervals is several rows, and every copy re-minted at one
+    node shares a time and lineage. Both have to regroup to exactly what was written."""
+    from zombi2.genomes.nucleotide import Duplication, Loss, Speciation, read_nucleotide_genomes
+
+    g = _busy(seed=6, n_extant=12)
+    kinds = collections.Counter(type(e).__name__ for e in g.events)
+    assert kinds["Speciation"] > kinds["Duplication"], "no speciation crowd in this run"
+    assert any(len(e.lost) > 1 for e in g.events if isinstance(e, Loss)) or \
+           any(len(e.copied) > 1 for e in g.events if isinstance(e, Duplication)), \
+        "no multi-interval event in this run — pick another seed"
+    at_one_node = collections.Counter(
+        (e.time, e.lineage) for e in g.events if isinstance(e, Speciation))
+    assert max(at_one_node.values()) > 1, "no node re-minted several copies — pick another seed"
+    g.write(tmp_path)
+    assert read_nucleotide_genomes(tmp_path, g.complete_tree).events == g.events

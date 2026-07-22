@@ -166,6 +166,18 @@ In a deliberately punishing 91-node run — 39 kb over three replicons, every ev
 
 The model has to be a nucleotide one, since a genome is measured in base pairs and its blocks are read on either strand. A protein model is refused.
 
+From the command line it is the same two commands as any other run — the handoff says which resolution wrote it, so nothing has to be repeated:
+
+```bash
+zombi2 genomes out/ --resolution nucleotide --gff ecoli.gff --trim-overlaps \
+  --inversion 5.0 --inversion-length 50000 --loss 2.0 --loss-length 8000 --seed 7
+
+zombi2 sequences out/ --model hky85 --kappa 3.0 --substitution 0.02 \
+  --intergene-speed 3.0 --write genomes initial_genome --seed 7
+```
+
+On the real *E. coli* annotation that is 4 477 genes over 8 272 blocks and 23 Mb of assembled genome, in about nine seconds. `--length` is refused here — the genome sets the lengths — and `--intergene-model` / `--intergene-speed` apply only here.
+
 ### Blocks are numbered, not families
 
 This is the one thing to get right when reading a nucleotide run's output. The integer key of `.alignments`, `.ancestral`, `.founding` and `.phylograms` is a **block index** — a position in the genome run's `.root_blocks` — because every block evolves and spacer belongs to no family. Meanwhile `.gene_spans` and `.gene_trees` are keyed by **gene family id**. Two numbering schemes, both plain integers over overlapping ranges, so mixing them up returns a different locus without complaining.

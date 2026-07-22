@@ -269,13 +269,16 @@ def test_genomes_rejects_nucleotide_only_flags_elsewhere(tmp_path, tree_file, re
     assert e.value.code == 2
 
 
-def test_sequences_names_the_resolution_when_handed_a_nucleotide_log(tmp_path, tree_file, capsys):
-    # the two resolutions write different logs to the same filename, so the error has to say so
+def test_sequences_reads_a_nucleotide_handoff_through_from(tmp_path, tree_file):
+    # --from a nucleotide run works like any other: the handoff says which resolution wrote it (only
+    # that one writes blocks.tsv), so nothing has to be repeated from the genomes command
     out = tmp_path / "g"
     main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--seed", "1", "--flat"])
-    rc = main(["sequences", str(tmp_path / "s"), "--from", str(out), "--model", "jc69", "--seed", "1", "--flat"])
-    assert rc == 1
-    assert "--resolution nucleotide log" in capsys.readouterr().err
+    s = tmp_path / "s"
+    rc = main(["sequences", str(s), "--from", str(out), "--model", "jc69", "--seed", "1", "--flat"])
+    assert rc == 0
+    assert list(s.glob("genome_n*.fasta"))            # assembled genomes, which only this level has
+    assert list(s.glob("block*.fasta"))               # blocks, not families: the files say so
 
 
 def test_genomes_missing_tree_is_reported_cleanly(tmp_path, capsys):
@@ -900,3 +903,69 @@ def test_traits_requires_an_explicit_kind(tmp_path, capsys, tree_file):
         main(["traits", str(tmp_path / "t"), "--from", str(tree_file), "--rate", "1.0"])
     assert e.value.code == 2
     assert "--kind is required" in capsys.readouterr().err
+
+
+# ── sequences on a nucleotide genome run ────────────────────────────────────────────
+
+def _nucleotide_run(tmp_path, *, extra=()):
+    """species → nucleotide genomes → sequences, all three from the command line."""
+    run = str(tmp_path / "run")
+    main(["species", run, "--birth", "1.0", "--death", "0.3", "--n-extant", "5",
+          "--seed", "3", "--quiet"])
+    main(["genomes", run, "--resolution", "nucleotide", "--root-length", "2000", "--genes", "5",
+          "--gene-length", "150", "--inversion", "3.0", "--inversion-length", "250",
+          "--duplication", "1.0", "--loss", "1.0", "--seed", "3", "--quiet"])
+    main(["sequences", run, "--model", "hky85", "--kappa", "3.0", "--substitution", "0.05",
+          "--seed", "3", "--quiet", *extra])
+    return tmp_path / "run" / "sequences"
+
+
+def test_sequences_runs_on_a_nucleotide_handoff_and_assembles_the_genomes(tmp_path):
+    # the handoff says what it is — blocks.tsv is the nucleotide resolution's and no other's — so
+    # nothing has to be repeated from the genomes command
+    out = _nucleotide_run(tmp_path)
+    names = {p.name for p in out.iterdir()}
+    assert {p.name for p in (out / "alignments").iterdir()} and \
+           all(n.startswith("block") for n in {p.name for p in (out / "alignments").iterdir()})
+    genomes = sorted(n for n in names if n.startswith("genome_n"))
+    assert len(genomes) == 5                                  # one FASTA per extant lineage
+    for name in genomes:
+        text = (out / name).read_text()
+        assert text.startswith(">") and set("".join(text.splitlines()[1:])) <= set("ACGT")
+
+
+def test_sequences_writes_the_ancestral_and_initial_genomes_on_request(tmp_path):
+    out = _nucleotide_run(tmp_path, extra=("--write", "genomes", "ancestral_genomes",
+                                           "initial_genome"))
+    names = {p.name for p in out.iterdir()}
+    assert "genome_initial.fasta" in names
+    assert len([n for n in names if n.startswith("genome_ancestral_n")]) == 4
+    initial = "".join((out / "genome_initial.fasta").read_text().splitlines()[1:])
+    assert len(initial) == 2000                               # the genome the run was seeded with
+
+
+def test_sequences_matches_the_python_api_on_a_nucleotide_run(tmp_path):
+    # the CLI is a shell: rebuilt from disk, it must give exactly what the objects give in memory
+    from zombi2.genomes import simulate_genomes_nucleotide
+    from zombi2.sequences import simulate_sequences
+    from zombi2.sequences.substitution_models import hky85
+
+    out = _nucleotide_run(tmp_path)
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=3)
+    g = simulate_genomes_nucleotide(sp, root_length=2000, genes=5, gene_length=150, inversion=3.0,
+                                    inversion_length=250, duplication=1.0, loss=1.0, seed=3)
+    r = simulate_sequences(g, model=hky85(kappa=3.0), substitution=0.05, seed=3)
+    for lineage, chroms in r.genomes.items():
+        text = (out / f"genome_{lineage}.fasta").read_text()
+        assert "".join(text.splitlines()[1:]) == "".join(chroms.values())
+
+
+def test_sequences_rejects_length_and_an_intergene_model_where_they_do_not_apply(tmp_path):
+    with pytest.raises(SystemExit):
+        _nucleotide_run(tmp_path, extra=("--length", "300"))   # the genome sets the lengths
+    run = str(tmp_path / "unordered")
+    main(["species", run, "--birth", "1.0", "--n-extant", "4", "--seed", "1", "--quiet"])
+    main(["genomes", run, "--initial-families", "4", "--duplication", "0.2", "--loss", "0.2",
+          "--seed", "1", "--quiet"])
+    with pytest.raises(SystemExit):                            # no spacer in a gene-family run
+        main(["sequences", run, "--model", "jc69", "--intergene-model", "jc69", "--quiet"])
