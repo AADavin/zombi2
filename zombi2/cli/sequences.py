@@ -41,10 +41,10 @@ RATES_HELP = _rates_help(
          "(default, σ = the log-scale) or 'gamma' (σ = the coefficient of variation).")
 
 # the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import).
-# The last three exist only for a nucleotide handoff, which is the only run with coordinates to lay
-# a genome out in; asking for one otherwise writes nothing rather than failing.
+# The last two exist only for a nucleotide handoff, which is the only run with coordinates to lay a
+# genome out in; asking for one otherwise writes nothing rather than failing.
 _SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "founding", "species_phylogram",
-                     "genomes", "ancestral_genomes", "initial_genome")
+                     "genomes", "initial_genome")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
@@ -115,12 +115,12 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="which outputs to write (default: alignments, phylograms, "
                         "species_phylogram — the last written as clock_species_tree_*.nwk, the "
                         "species tree with its branches in substitutions/site — and, on a "
-                        "nucleotide run, genomes: one assembled FASTA per extant lineage. also "
-                        "available: ancestral (the sequence at every node that is not an extant "
-                        "tip), founding (each family's sequence at its origination, where the "
-                        "phylogram's root branch starts), ancestral_genomes (the ancestors' and "
-                        "extinct lineages' assembled genomes) and initial_genome (the genome the "
-                        "run started with). The last three genome outputs need a nucleotide run")
+                        "nucleotide run, genomes and initial_genome: one assembled FASTA per node "
+                        "of the complete tree, plus the genome the run started with. 'genomes' is "
+                        "the big one, a whole genome times every node. also available: ancestral "
+                        "(the sequence at every node that is not an extant tip) and founding (each "
+                        "family's sequence at its origination, where the phylogram's root branch "
+                        "starts)")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 
@@ -217,7 +217,7 @@ def run(args, parser):
         bp = sum(len(seq) for chroms in result.genomes.values() for seq in chroms.values())
         spacer = args.intergene_model or "jc69"
         summary = (f"{n_seqs} sequences across {n_families} blocks, {bp:,} bp assembled into "
-                   f"{len(result.genomes)} extant genomes, {model.name} genes / {spacer} spacer at "
+                   f"{len(result.genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
                    f"{args.intergene_speed:g}x, {clock}")
     else:
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "

@@ -125,9 +125,8 @@ sequences.
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | the sequence at every node that is not an extant tip: internal nodes, and the tips where a copy was lost or its species died |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
-| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per extant lineage, one record `<lineage>_chr<c>` per chromosome — the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: an unordered or ordered run has gene families, not coordinates, so there is nothing to lay out |
-| Ancestral genomes | `genome_ancestral_<lineage>.fasta` | FASTA | no | the same for every other node — the reconstructed ancestral genomes, and the extinct lineages'. With the genomes above they cover the complete tree: every node, none left out |
-| Initial genome | `genome_initial.fasta` | FASTA | no | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. Nucleotide runs only |
+| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: an unordered or ordered run has gene families, not coordinates, so there is nothing to lay out. The biggest thing this level writes — a whole genome times every node |
+| Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. Nucleotide runs only |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in

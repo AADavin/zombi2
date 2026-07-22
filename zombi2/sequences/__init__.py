@@ -25,9 +25,9 @@ The result is a :class:`SequencesResult` bundle mirroring the other levels (``re
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
-tree scaled the same way — the molecular clock made visible), ``.genomes`` and
-``.ancestral_genomes`` (every node's whole genome, assembled — a **nucleotide** run only), and
-``.seed``. Genuine substitution
+tree scaled the same way — the molecular clock made visible), ``.genomes`` and ``.initial_genome``
+(every node's whole genome, assembled, and the one the run started with — a **nucleotide** run only),
+and ``.seed``. Genuine substitution
 ``.events`` are the deferred opt-in ``record=`` slice, not the default spine (a substitution log is not
 compact the way the speciation / D-T-L-O logs are).
 """
@@ -51,7 +51,7 @@ from .evolution import evolve_gene_tree
 from .substitution_models import BASES, SubstitutionModel, decode, jc69
 
 _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram",
-                  "genomes", "ancestral_genomes", "initial_genome")
+                  "genomes", "initial_genome")
 
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -87,17 +87,17 @@ class SequencesResult:
     - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``: the **species tree**
       with branch lengths in substitutions/site — the molecular clock made visible (which lineages ran
       hot / cold). Always present: a run always comes from a genome run, which carries its tree.
-    - ``genomes`` — ``{lineage: {chromosome id: sequence}}``: each **extant** lineage's assembled
-      genome, its blocks concatenated in physical order (reverse-complemented where the genome carries
-      them inverted). Only a **nucleotide** genome run has one — an unordered or ordered run has gene
-      families, not coordinates, so there is no genome to lay out and this is empty.
-    - ``ancestral_genomes`` — the same at every **other** species node: the ancestors, and the lineages
-      that went extinct. It pairs with ``genomes`` exactly as ``ancestral`` pairs with ``alignments``,
-      and together they cover the complete tree — every node, none left out.
+    - ``genomes`` — ``{lineage: {chromosome id: sequence}}``: **every** node's assembled genome, its
+      blocks concatenated in physical order (reverse-complemented where the genome carries them
+      inverted) — extant tips, ancestors and the lineages that went extinct alike. The same coverage
+      as the genome level's own ``genomes``, which is keyed the same way: the observed ones are the
+      extant tips, ``{node_label(n.id) for n in complete_tree.extant()}``. Only a **nucleotide** genome
+      run has any — an unordered or ordered run has gene families, not coordinates, so there is no
+      genome to lay out and this is empty.
     - ``initial_genome`` — ``{chromosome id: sequence}``: the genome the run **started** with, at the
-      root lineage's origination. In neither of the two above, because it belongs to no node: the root
-      branch is real simulated time, so the root *node*'s genome is this one plus whatever happened
-      along the stem. It stands to them as ``founding`` stands to ``ancestral``.
+      root lineage's origination. Not in ``genomes``, because it belongs to no node: the root branch is
+      real simulated time, so the root *node*'s genome is this one plus whatever happened along the
+      stem. It stands to ``genomes`` as ``founding`` stands to ``ancestral``.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
       **names**: ``"family"`` (a gene family id) on an unordered or ordered run, ``"block"`` (an index
@@ -114,7 +114,6 @@ class SequencesResult:
     species_phylogram: dict[str, str | None]
     seed: int | None
     genomes: dict[str, dict[int, str]] = field(default_factory=dict)
-    ancestral_genomes: dict[str, dict[int, str]] = field(default_factory=dict)
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
 
@@ -125,7 +124,8 @@ class SequencesResult:
         return {"family": "fam", "block": "block"}[self.unit]
 
     def write(self, directory,
-              outputs=("alignments", "phylograms", "species_phylogram", "genomes")) -> None:
+              outputs=("alignments", "phylograms", "species_phylogram", "genomes",
+                       "initial_genome")) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
         ``fam<family>`` on an unordered or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see :attr:`unit`):
@@ -137,10 +137,9 @@ class SequencesResult:
         - ``"phylograms"`` → ``phylogram_<u>_{complete,extant}.nwk`` (subs/site).
         - ``"species_phylogram"`` → ``clock_species_tree_{complete,extant}.nwk``: the species tree
           with its branches in substitutions/site — the molecular clock made visible.
-        - ``"genomes"`` → ``genome_<lineage>.fasta``, one file per extant lineage, one record per
-          chromosome — the assembled genome. Nucleotide runs only; nothing is written otherwise.
-        - ``"ancestral_genomes"`` → ``genome_ancestral_<lineage>.fasta``, the same for every other node
-          — the reconstructed ancestral genomes, and the extinct lineages'.
+        - ``"genomes"`` → ``genome_<lineage>.fasta``, one file per node — extant, extinct and
+          ancestral alike — with one record per chromosome. Nucleotide runs only; nothing is written
+          otherwise. The big one: a real genome times every node in the tree.
         - ``"initial_genome"`` → ``genome_initial.fasta``, the genome the run started with.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
@@ -170,15 +169,13 @@ class SequencesResult:
             (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
             if sp["extant"] is not None:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
-        for token, prefix, genomes in (("genomes", "genome", self.genomes),
-                                       ("ancestral_genomes", "genome_ancestral",
-                                        self.ancestral_genomes),
-                                       ("initial_genome", "genome",
-                                        {"initial": self.initial_genome} if self.initial_genome
-                                        else {})):
+        # every genome is written the same way and named by whose it is — a node label, or "initial"
+        for token, genomes in (("genomes", self.genomes),
+                               ("initial_genome",
+                                {"initial": self.initial_genome} if self.initial_genome else {})):
             if token in outputs:
                 for lineage, chroms in genomes.items():
-                    (d / f"{prefix}_{lineage}.fasta").write_text(
+                    (d / f"genome_{lineage}.fasta").write_text(
                         _fasta({f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()}))
 
 
@@ -361,8 +358,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
     ``intergene_model`` (default ``jc69``) the spacer, at ``intergene_speed`` times the rate (default
     ``3.0``). Because the whole genome is covered, the run also **puts the genomes back together**:
-    ``.genomes`` holds each extant lineage's chromosomes, blocks concatenated in physical order, and
-    ``.ancestral_genomes`` every other node's — the complete tree, reconstructed.
+    ``.genomes`` holds every node's chromosomes, blocks concatenated in physical order — the complete
+    tree, reconstructed — and ``.initial_genome`` the one the run started with.
 
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
     species tree, with branch lengths converted from time to substitutions/site by the same
@@ -481,18 +478,16 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),
                          "extant": sp_extant.to_newick() if sp_extant is not None else None}
-    # A nucleotide run evolved every block, so **every** node's genome can be put back together. The
-    # split is the same one the sequences already make: the extant tips are the observable half and
-    # read the alignments, everything else — ancestors and the lineages that died — reads the
-    # ancestral set.
+    # A nucleotide run evolved every block, so **every** node's genome can be put back together —
+    # one map, as at the genome level. Which sequences each node reads is the split the level already
+    # makes: an extant tip's genes are tips of their block trees, everything else's are not.
     assembled: dict[str, dict[int, str]] = {}
-    ancestral_genomes: dict[str, dict[int, str]] = {}
     initial_genome: dict[int, str] = {}
     if nucleotide:
         extant = {n.id for n in species_tree.extant()}
         assembled = _assemble(genomes, sorted(extant), alignments)
-        ancestral_genomes = _assemble(genomes, [i for i in sorted(species_tree.nodes)
-                                                if i not in extant], ancestral)
+        assembled.update(_assemble(genomes, [i for i in sorted(species_tree.nodes)
+                                             if i not in extant], ancestral))
         # The genome the run started with. Its blocks were all laid down at seeding, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
         # so it is in neither map above; the same reason `founding` is not in `ancestral`.
@@ -502,8 +497,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                 for (block, strand) in pieces)
 
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
-                           assembled, ancestral_genomes, initial_genome,
-                           "block" if nucleotide else "family")
+                           assembled, initial_genome, "block" if nucleotide else "family")
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,

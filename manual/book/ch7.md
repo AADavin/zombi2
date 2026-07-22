@@ -91,7 +91,7 @@ Three of those four names are the same modifier. A reader who wants "a UCLN cloc
 - `.founding` — for each family, the sequence it began with, at its origination.
 - `.phylograms` — for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
 - `.species_phylogram` — the same conversion applied to the species tree, so the clock is visible as branch lengths.
-- `.genomes`, `.ancestral_genomes`, `.initial_genome` — the assembled genome of each lineage, and of the run's starting point, present only when the run came from a **nucleotide** genome. See below.
+- `.genomes`, `.initial_genome` — the assembled genome of every node, and of the run's starting point, present only when the run came from a **nucleotide** genome. See below.
 
 As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
@@ -150,13 +150,13 @@ result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
                                       intergene_speed=3.0, substitution=0.05, seed=1)
 
 result.genomes["n5"]             # {chromosome: sequence} — a whole assembled genome
-result.ancestral_genomes["n0"]   # the same, at an internal node — a reconstructed ancestor
+result.genomes["n0"]             # the same at an ancestor — reconstructed, not estimated
 result.initial_genome            # the genome the run started with, before anything happened
 ```
 
-Because the whole genome is covered, the run can put the genomes back together. `.genomes` holds one entry per extant lineage: its chromosomes, each one its blocks concatenated in physical order, reverse-complemented wherever the genome carries them inverted. This is the only place ZOMBI2 emits a genome as sequence rather than as coordinates, and it is a genome with a known history — every base of it traces to a block, a tree and an event.
+Because the whole genome is covered, the run can put the genomes back together. `.genomes` holds one entry per node — extant tips, ancestors and the lineages that went extinct alike: its chromosomes, each one its blocks concatenated in physical order, reverse-complemented wherever the genome carries them inverted. No node is a special case, exactly as at the genome level, where `.genomes` also covers the whole tree. This is the only place ZOMBI2 emits a genome as sequence rather than as coordinates, and it is a genome with a known history — every base of it traces to a block, a tree and an event.
 
-`.ancestral_genomes` is the same for every other node — the ancestors, and the lineages that went extinct — and pairs with `.genomes` exactly as `.ancestral` pairs with `.alignments`: the extant tips are the observable half, everything else is the history behind them. So a run gives you the whole tree's genomes, reconstructed rather than estimated.
+They are all written by default, one `genome_<lineage>.fasta` apiece, plus `genome_initial.fasta`. That is deliberately the biggest thing this level writes: a whole genome times every node in the tree. Narrow it with `--write` when it matters.
 
 No node is left out. That is worth stating plainly, because it depends entirely on one decision: **every node votes on where the blocks are cut**, not just the surviving ones. A partition cut from the survivors alone leaves two kinds of hole — material no survivor kept has no block at all, and an ancestor can be left holding a *fragment* of a block whose genealogy, being the survivors', has no lineage for it. Counting every node closes both, because each node's own breakpoints are then in the partition, so each of its blocks is a whole number of blocks.
 
@@ -173,7 +173,7 @@ zombi2 genomes out/ --resolution nucleotide --gff ecoli.gff --trim-overlaps \
   --inversion 5.0 --inversion-length 50000 --loss 2.0 --loss-length 8000 --seed 7
 
 zombi2 sequences out/ --model hky85 --kappa 3.0 --substitution 0.02 \
-  --intergene-speed 3.0 --write genomes initial_genome --seed 7
+  --intergene-speed 3.0 --seed 7
 ```
 
 On the real *E. coli* annotation that is 4 477 genes over 8 272 blocks and 23 Mb of assembled genome, in about nine seconds. `--length` is refused here — the genome sets the lengths — and `--intergene-model` / `--intergene-speed` apply only here.
@@ -196,7 +196,7 @@ For the run above, `dnaA` is gene family 1 and root block 6. Asking for `phylogr
 
 The check worth doing once, because it is the claim the whole level rests on: declare a genome in a GFF, evolve it down a tree until the leaves are thoroughly rearranged, then rebuild it from the descendants and compare with what you declared. At a substitution rate of zero nothing mutates, so the comparison is exact.
 
-On real E. coli — NC_000913.3, 4,641,652 bp, 4,498 genes, a 25-node tree with 1,236 events — `.initial_genome` comes back identical, base for base, with all 4,477 annotated genes at the coordinates and on the strands the GFF gave them. Compare `.ancestral_genomes["n0"]` instead and it will usually *not* match, and correctly so: that is the genome after the stem's events, which is what was actually there. Both are exact; they are answers to different questions.
+On real E. coli — NC_000913.3, 4,641,652 bp, 4,498 genes, a 25-node tree with 1,236 events — `.initial_genome` comes back identical, base for base, with all 4,477 annotated genes at the coordinates and on the strands the GFF gave them. Compare `.genomes["n0"]` instead and it will usually *not* match, and correctly so: that is the genome after the stem's events, which is what was actually there. Both are exact; they are answers to different questions.
 
 ## Usage from the CLI
 
@@ -235,4 +235,4 @@ A run writes, by default, one **alignment** per gene family in FASTA, with the e
 
 The **clock species tree** (`clock_species_tree_complete.nwk`, and `…_extant.nwk`) comes with them: the species tree under the same conversion, and where the clock becomes visible — a fast-evolving lineage has a longer branch there than its age alone would give it. One output is written only on request: the **ancestral sequences** (`--write ancestral`) give the sequence at every internal node, which is what you need to score an ancestral-reconstruction method against the truth.
 
-Every node is labelled `g<copy>`, so a phylogram's tips match its alignment and its internal nodes match the ancestral sequences. A run on a nucleotide genome adds `genome_<lineage>.fasta`, one file per extant lineage with one record per chromosome — the assembled genome — and, on request, `genome_ancestral_<lineage>.fasta` for the internal nodes. The full list of files lives in Appendix B.
+Every node is labelled `g<copy>`, so a phylogram's tips match its alignment and its internal nodes match the ancestral sequences. A run on a nucleotide genome adds `genome_<lineage>.fasta`, one file per node of the complete tree with one record per chromosome, and `genome_initial.fasta` for the genome it started with. The full list of files lives in Appendix B.

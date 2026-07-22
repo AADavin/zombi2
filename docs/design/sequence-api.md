@@ -224,10 +224,11 @@ event, so a copy that duplicated twice is three genes in a row, and the one a ge
 the **last** rung of that ladder. That map (`{(block, copy): gene id}`) now comes back from the
 recovery beside the trees.
 
-**Every node, not just the survivors.** `.ancestral_genomes` covers the ancestors *and* the extinct
-lineages, pairing with `.genomes` as `.ancestral` pairs with `.alignments` — the extant tips are the
-observable half, everything else is the history behind them. Two changes made that possible, and both
-were forced by a stress run (91 nodes, three replicons, every event kind, 128 losses) that the small
+**Every node, not just the survivors.** `.genomes` covers the whole tree in one map — extant tips,
+ancestors and extinct lineages — the same coverage the genome level's own `.genomes` has, written as
+one `genome_<lineage>.fasta` apiece. (It briefly had a second `.ancestral_genomes` map and an
+`ancestral` filename prefix; both went, because no node is a special case and an extinct tip is not an
+ancestor.) Two changes made it possible, and both were forced by a stress run (91 nodes, three replicons, every event kind, 128 losses) that the small
 runs could not produce:
 
 1. **The root partition is cut at every node's breakpoints, not the extant leaves'.** Cutting from the
