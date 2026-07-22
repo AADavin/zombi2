@@ -96,8 +96,8 @@ class SequencesResult:
         - ``"founding"`` → ``sequences_founding.fasta``, one record ``fam<family>`` per family: the
           sequence each family originated with, before its stem.
         - ``"phylograms"`` → ``phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
-        - ``"species_phylogram"`` → ``clock_species_tree.nwk`` (and ``…_extant.nwk``): the species
-          tree with its branches in substitutions/site — the molecular clock made visible.
+        - ``"species_phylogram"`` → ``clock_species_tree_{complete,extant}.nwk``: the species tree
+          with its branches in substitutions/site — the molecular clock made visible.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -122,7 +122,7 @@ class SequencesResult:
                     (d / f"phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
-            (d / "clock_species_tree.nwk").write_text(sp["complete"] + "\n")
+            (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
             if sp["extant"] is not None:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
 

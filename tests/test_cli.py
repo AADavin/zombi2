@@ -320,7 +320,7 @@ def test_sequences_write_selects_ancestral_and_species_phylogram(tmp_path, genom
     assert rc == 0
     names = {p.name for p in out.iterdir()}
     # the species phylogram is produced only because the CLI hands the engine the species tree
-    assert "clock_species_tree.nwk" in names
+    assert "clock_species_tree_complete.nwk" in names
     assert any(n.startswith("sequences_ancestral_fam") for n in names)
     assert not any(n.startswith("fam") for n in names)   # not requested
 
