@@ -1658,7 +1658,9 @@ def test_write_defaults_to_events_and_genes_but_not_blocks(tmp_path):
     # blocks.tsv is one row per block per node and blocks are not kept maximal, so it is opt-in
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     simulate_genomes_nucleotide(sp, root_length=200, inversion=1.0, seed=1).write(tmp_path)
-    assert {p.name for p in tmp_path.iterdir()} == {"genome_events.tsv", "genes.tsv"}
+    written = {p.name for p in tmp_path.iterdir()}
+    assert {"genome_events.tsv", "genes.tsv"} <= written
+    assert "blocks.tsv" not in written                   # the point: big, so still opt-in
 
 
 def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):

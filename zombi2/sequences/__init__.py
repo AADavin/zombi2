@@ -88,7 +88,7 @@ class SequencesResult:
     species_phylogram: dict[str, str | None]
     seed: int | None
 
-    def write(self, directory, outputs=("alignments", "phylograms")) -> None:
+    def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram")) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"alignments"`` → ``fam<family>.fasta`` (skipped for empty families).
@@ -96,7 +96,8 @@ class SequencesResult:
         - ``"founding"`` → ``sequences_founding.fasta``, one record ``fam<family>`` per family: the
           sequence each family originated with, before its stem.
         - ``"phylograms"`` → ``phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
-        - ``"species_phylogram"`` → ``sequences_species_phylogram_{complete,extant}.nwk`` (subs/site).
+        - ``"species_phylogram"`` → ``clock_species_tree.nwk`` (and ``…_extant.nwk``): the species
+          tree with its branches in substitutions/site — the molecular clock made visible.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -121,9 +122,9 @@ class SequencesResult:
                     (d / f"phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
-            (d / "sequences_species_phylogram_complete.nwk").write_text(sp["complete"] + "\n")
+            (d / "clock_species_tree.nwk").write_text(sp["complete"] + "\n")
             if sp["extant"] is not None:
-                (d / "sequences_species_phylogram_extant.nwk").write_text(sp["extant"] + "\n")
+                (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
 
 
 def _fasta(records: dict[str, str], width: int = 70) -> str:

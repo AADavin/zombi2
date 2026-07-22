@@ -21,7 +21,7 @@ one file per gene family a directory of their own:
 out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv
 out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
-out/sequences/              sequences_founding.fasta · sequences_species_phylogram_*.nwk
+out/sequences/              clock_species_tree.nwk · sequences.log
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
 out/traits/                 trait_values.tsv · trait_tree.nwk · trait_changes.tsv · traits.log
@@ -63,8 +63,8 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 |-----------|-----------------|-------|-----|------------------------|
 | Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Genomes | `genomes.tsv` | TSV | no | every node's gene content, **ancestors included** — `lineage` · `family` · `copy`. **One row per gene copy**, so a lineage holding six genes has six rows; two rows sharing a `family` are two copies of it. `copy` is the same identifier the event log uses, so a gene can be followed from the genome it sits in back to the event that made it. `profiles.tsv` is the same information counted, and only for the extant tips |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | each family's true genealogy. A family with no surviving copy writes no `_extant` file |
+| Genomes | `genomes.tsv` | TSV | yes | every node's gene content, **ancestors included** — `lineage` · `family` · `copy`. **One row per gene copy**, so a lineage holding six genes has six rows; two rows sharing a `family` are two copies of it. `copy` is the same identifier the event log uses, so a gene can be followed from the genome it sits in back to the event that made it. `profiles.tsv` is the same information counted, and only for the extant tips |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. A family with no surviving copy writes no `_extant` file |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
 
@@ -78,7 +78,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹ |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
 | Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `family` · `donor` · `recipient` · `dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | as unordered — position is orthogonal to genealogy |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as unordered — position is orthogonal to genealogy |
 
 ¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
 `length` (how many genes it covered), counted rightwards from `start` and **wrapping past position 0 on
@@ -96,7 +96,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Genes | `genes.tsv` | TSV | yes | the declared genes in root coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations, in **physical** bp — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped` |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — same format as ordered |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | one tree per declared gene (else per recovered root-block) |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block) |
 
 The nucleotide log needs no separate positions file: its events carry ancestral coordinates already.
 
@@ -121,7 +121,7 @@ sequences.
 | Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `sequences/phylograms/` |
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
-| Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock |
+| Clock species tree | `clock_species_tree.nwk` · `clock_species_tree_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
 
 ## Traits — `simulate_continuous` / `simulate_discrete`
 

@@ -117,7 +117,7 @@ class GenomesResult:
         :mod:`.gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
-    def write(self, directory, outputs=("events", "profiles")) -> None:
+    def write(self, directory, outputs=("events", "profiles", "genomes", "gene_trees")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).

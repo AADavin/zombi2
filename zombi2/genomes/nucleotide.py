@@ -709,7 +709,7 @@ class NucleotideGenomesResult:
         tree."""
         return self._recover()[1]
 
-    def write(self, directory, outputs=("events", "genes")) -> None:
+    def write(self, directory, outputs=("events", "genes", "gene_trees")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.

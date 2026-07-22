@@ -20,7 +20,7 @@ from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simula
                             simulate_genomes_unordered)
 from zombi2.species import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, level_dir,
+                                  _rate, _rates_help, _write_params_log, default_outputs, level_dir,
                                   resolve_tree)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
@@ -167,10 +167,10 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
                    default=None, metavar="PART",
                    help="which outputs to write (default: each resolution's own; [+ …] are "
-                        "on request). unordered: events, profiles [+ genomes, gene_trees]. "
-                        "ordered: events, profiles, gene_order [+ gene_trees, rearrangements, "
-                        "chromosome_events, event_positions]. nucleotide: events, genes "
-                        "[+ blocks, gene_trees, rearrangements, chromosome_events]. "
+                        "on request). unordered: events, profiles, genomes, gene_trees. "
+                        "ordered: events, profiles, gene_order, gene_trees [+ rearrangements, "
+                        "chromosome_events, event_positions]. nucleotide: events, genes, "
+                        "gene_trees [+ blocks, rearrangements, chromosome_events]. "
                         "'genomes' is every node's gene content, ancestors included, where "
                         "'profiles' counts only the extant tips; 'gene_trees' writes one Newick "
                         "per family, complete and extant.")
@@ -311,16 +311,13 @@ def run(args, parser):
 
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
-    wanted = args.write if args.write else None
     # gene trees are one file per family per view, so a hundred families is hundreds of files —
-    # they get their own directory unless --flat says otherwise
-    if wanted is None:
-        result.write(out)                       # each Result.write's own default
-    else:
-        if rest := [o for o in wanted if o != "gene_trees"]:
-            result.write(out, outputs=rest)
-        if "gene_trees" in wanted:
-            result.write(level_dir(out, "gene_trees", args.flat), outputs=("gene_trees",))
+    # they get their own directory unless --flat says otherwise, whether asked for or defaulted
+    wanted = tuple(args.write) if args.write else default_outputs(result)
+    if rest := [o for o in wanted if o != "gene_trees"]:
+        result.write(out, outputs=rest)
+    if "gene_trees" in wanted:
+        result.write(level_dir(out, "gene_trees", args.flat), outputs=("gene_trees",))
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
     # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where

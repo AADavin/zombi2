@@ -159,6 +159,17 @@ def _add_flat_arg(g) -> None:
                         "flat directory")
 
 
+def default_outputs(result) -> tuple[str, ...]:
+    """What a result writes when ``--write`` is not given — read off its own ``write()`` signature.
+
+    The CLI has to know the default before it calls ``write``, because it routes the one-file-per-family
+    outputs into their own directories. Reading it here rather than repeating it keeps the two from
+    drifting: a level that changes what it writes by default changes it in one place."""
+    import inspect
+
+    return tuple(inspect.signature(result.write).parameters["outputs"].default)
+
+
 def _add_quiet_arg(g) -> None:
     """Add ``--quiet`` — no progress bar, for a log file or a batch of runs."""
     g.add_argument("--quiet", action="store_true",
