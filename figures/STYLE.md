@@ -22,7 +22,7 @@ longer uses. They are still the reference for *how to draw*; read them there.
 These are the conventions the rewrite settled on. They outrank anything below.
 
 - **Black and white / neutral.** No colour to distinguish levels.
-- **No subtitles.**
+- **No title and no subtitle inside the figure** — the caption carries both.
 - **Nodes:** rounded rectangles, white fill, ink outline, ink label; **plural** labels.
 - **The four-levels layout:** a vertical chain **Species → Genomes → Sequences**, with **Traits**
   branching to the side from Species on a **curved** arrow, at the same height as Genomes. It is not
@@ -44,8 +44,9 @@ tree, survivors solid and extinct lineages dashed).
 ## Typography
 - Font: `FONT` (Helvetica). Sizes come from the shared scale in `zombi_style.py`:
   `FS_TITLE=32`, `FS_LABEL=22`, `FS_ANNOT=20`, `FS_TICK=18`. Never hard-code small sizes.
-- **Title**: one short bold line, **horizontally centered** at the top
-  (`text_anchor="middle"`, `x = W/2`). **No subtitle.**
+- **No title inside the figure.** Every figure in the manual is captioned, and a title repeats
+  the caption in a second voice a few millimetres above it. Say it once, in the caption, where it
+  can be a sentence. (No subtitle either — that was never in question.)
 - **ASCII only** in text — `rsvg`/`cairosvg` render `->`... no: do NOT use `→ λ μ θ × ≤`
   etc. (they become tofu boxes). Use words ("to", "lambda", "theta") or *draw* the symbol.
 
