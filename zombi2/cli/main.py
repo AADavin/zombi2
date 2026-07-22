@@ -27,15 +27,17 @@ def main(argv: list[str] | None = None) -> int:
         prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
+            "  # one run accumulates in one directory, named once per command",
+            "",
             "  # 1. a dated species tree (20 extant tips)",
-            "  zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/",
+            "  zombi2 species   out/ --birth 1 --death 0.3 --n-extant 20 --seed 1",
             "",
             "  # 2. gene families along it",
-            "  zombi2 genomes -t out/ --duplication 0.2 --transfer 0.1 "
-            "--loss 0.25 --origination 0.5 --seed 42 -o out/",
+            "  zombi2 genomes   out/ --duplication 0.2 --transfer 0.1 "
+            "--loss 0.25 --origination 0.5 --seed 42",
             "",
             "  # 3. sequences down each gene tree",
-            "  zombi2 sequences --genomes out/ --model hky85 --length 1000 --seed 1 -o out/",
+            "  zombi2 sequences out/ --model hky85 --length 1000 --seed 1",
             "",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
         ),
@@ -47,82 +49,82 @@ def main(argv: list[str] | None = None) -> int:
         sub, "species", "simulate a dated species tree",
         "Simulate a dated species tree by a per-lineage birth–death process (time runs forward "
         "from the crown).",
-        "zombi2 species -o DIR --birth RATE (--n-extant N | --total-time T) [options]",
+        "zombi2 species DIR --birth RATE (--n-extant N | --total-time T) [options]",
         species._add_species_args,
         epilog=_examples(
             "  # 20 extant tips, birth–death",
-            "  zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/",
+            "  zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1",
             "",
             "  # grow for a fixed time, with a mass-extinction pulse at t=3",
-            "  zombi2 species --birth 1 --death 0.4 --total-time 5 --mass-extinction 3 0.75 "
-            "--seed 1 -o out/",
+            "  zombi2 species out/ --birth 1 --death 0.4 --total-time 5 "
+            "--mass-extinction 3 0.75 --seed 1",
             "",
             "  # a skyline: speciation drops to a third at time 3 (see RATES)",
-            "  zombi2 species --birth \"1.0 * OnTime({0: 1.0, 3: 0.3})\" --death 0.3 "
-            "--total-time 5 --seed 1 -o out/",
+            "  zombi2 species out/ --birth \"1.0 * OnTime({0: 1.0, 3: 0.3})\" --death 0.3 "
+            "--total-time 5 --seed 1",
         ) + "\n\n" + species.RATES_HELP)
 
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
         "Evolve gene families along a species tree, at the unordered (gene-family counts) or "
         "ordered (genes positioned on chromosomes) resolution.",
-        "zombi2 genomes -t FILE -o DIR [--resolution RESOLUTION] [options]",
+        "zombi2 genomes DIR [--from PATH] [--resolution RESOLUTION] [options]",
         genomes._add_genomes_args,
         epilog=_examples(
             "  # unordered D/T/L/O gene families, with the event log and profiles",
-            "  zombi2 genomes -t out/ --duplication 0.2 --transfer 0.1 "
-            "--loss 0.25 --origination 0.5 --seed 42 -o out/",
+            "  zombi2 genomes out/ --duplication 0.2 --transfer 0.1 "
+            "--loss 0.25 --origination 0.5 --seed 42",
             "",
             "  # ordered genomes with inversions on 3 chromosomes",
-            "  zombi2 genomes -t out/ --resolution ordered --duplication 0.2 "
-            "--loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 42 -o out/",
+            "  zombi2 genomes out/ --resolution ordered --duplication 0.2 "
+            "--loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 42",
             "",
             "  # loss twice as fast from time 2 onward (see RATES)",
-            "  zombi2 genomes -t out/ --duplication 0.2 "
-            "--loss \"0.25 * OnTime({0: 1.0, 2: 2.0})\" --origination 0.5 --seed 42 -o out/",
+            "  # a tree from somewhere else, written to a run of its own",
+            "  zombi2 genomes run/ --from mytree.nwk --duplication 0.2 "
+            "--loss \"0.25 * OnTime({0: 1.0, 2: 2.0})\" --origination 0.5 --seed 42",
         ) + "\n\n" + genomes.RATES_HELP)
 
     _add_subcommand(
         sub, "sequences", "evolve sequences down each gene tree",
         "Evolve one sequence inside each gene, down its gene tree, under a nucleotide or protein "
         "substitution model and a per-site rate. Replays a prior 'zombi2 genomes' run "
-        "(--genomes DIR).",
-        "zombi2 sequences --genomes DIR -o DIR --model MODEL [options]",
+        "(its own directory, or --from another).",
+        "zombi2 sequences DIR [--from PATH] --model MODEL [options]",
         sequences._add_sequence_args,
         epilog=_examples(
             "  # HKY85, 1000 sites, strict clock, along a prior genomes run",
-            "  zombi2 sequences --genomes out/ --model hky85 --kappa 2 --length 1000 --seed 1 "
-            "-o seqs/",
+            "  zombi2 sequences out/ --model hky85 --kappa 2 --length 1000 --seed 1",
             "",
             "  # GTR with an uncorrelated (relaxed) lineage clock",
-            "  zombi2 sequences --genomes out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
-            "--substitution \"1.0 * ByLineage(spread=0.3)\" --seed 1 -o seqs/",
+            "  zombi2 sequences out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
+            "--substitution \"1.0 * ByLineage(spread=0.3)\" --seed 1",
             "",
             "  # a protein alignment: LG, 300 residues (an empirical model takes no parameters)",
-            "  zombi2 sequences --genomes out/ --model lg --length 300 --seed 1 -o seqs/",
+            "  # replaying one genomes run into a separate output run",
+            "  zombi2 sequences seqs/ --from out/ --model lg --length 300 --seed 1",
         ) + "\n\n" + sequences.RATES_HELP)
 
     _add_subcommand(
         sub, "traits", "evolve a trait along a species tree",
         "Evolve a trait along a species tree, with a continuous (a real value diffusing) or "
         "discrete (a finite state switching) state space.",
-        "zombi2 traits -t FILE -o DIR [--kind KIND] [options]",
+        "zombi2 traits DIR [--from PATH] [--kind KIND] [options]",
         traits._add_traits_args,
         epilog=_examples(
             "  # a continuous trait diffusing by Brownian motion (variance-rate 1.0)",
-            "  zombi2 traits -t out/ --rate 1.0 --seed 1 -o out/",
+            "  zombi2 traits out/ --rate 1.0 --seed 1",
             "",
             "  # the same value pulled toward an optimum (Ornstein-Uhlenbeck)",
-            "  zombi2 traits -t out/ --rate 1.0 --reverts-to 2 --pull 0.5 "
-            "--seed 1 -o out/",
+            "  zombi2 traits out/ --rate 1.0 --reverts-to 2 --pull 0.5 --seed 1",
             "",
             "  # a discrete habitat flipping between two states (Mk)",
-            "  zombi2 traits -t out/ --kind discrete "
-            "--states marine,terrestrial --switch 0.1 --seed 1 -o out/",
+            "  zombi2 traits out/ --kind discrete "
+            "--states marine,terrestrial --switch 0.1 --seed 1",
             "",
             "  # an early burst: the variance-rate starts at 4 and settles to 1 (see RATES)",
-            "  zombi2 traits -t out/ "
-            "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1 -o out/",
+            "  zombi2 traits out/ "
+            "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1",
         ) + "\n\n" + traits.RATES_HELP)
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override

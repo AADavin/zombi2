@@ -52,11 +52,11 @@ Two commands: build a species tree, then evolve gene families along it.
 
 ```bash
 # 1. a species tree: 20 surviving species from a birth-death process
-zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
+zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
 
 # 2. gene families along it, by duplication, transfer, loss and origination
-zombi2 genomes -t out/ \
-    --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42 -o out/
+zombi2 genomes out/ \
+    --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42
 ```
 
 `out/` now holds one directory per level:
@@ -87,6 +87,6 @@ sp.write("out/")
 gen.write("out/")
 ```
 
-Each CLI flag is the Python argument of the same name, hyphenated, and `.write()` does what `-o` does. In a session you can also read a result straight off, without writing anything: `gen.profiles` is the copy-number matrix, and `gen.gene_trees` gives each gene family's true gene tree.
+Each CLI flag is the Python argument of the same name, hyphenated, and `.write()` does what the run directory does. In a session you can also read a result straight off, without writing anything: `gen.profiles` is the copy-number matrix, and `gen.gene_trees` gives each gene family's true gene tree.
 
 The next chapter, *A tour of ZOMBI2*, lays out the four levels, the three ways they can relate, how every rate is written, and the vocabulary the rest of the book uses.

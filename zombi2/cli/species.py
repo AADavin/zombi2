@@ -11,8 +11,8 @@ import os
 import time
 
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
-                                  _write_params_log, level_dir)
+from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _add_run_arg, _rate,
+                                  _rates_help, _write_params_log, level_dir)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -22,10 +22,9 @@ RATES_HELP = _rates_help(
 
 
 def _add_species_args(p: argparse.ArgumentParser) -> None:
+    _add_run_arg(p, "where this run's files are written")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    g.add_argument("-o", "--output", required=True, metavar="DIR", dest="output",
-                   help="output directory (created if needed)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
 
@@ -79,8 +78,8 @@ def run(args, parser):
         mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed)
     dt = time.perf_counter() - t0
 
-    os.makedirs(args.output, exist_ok=True)
-    out = level_dir(args.output, "species", args.flat)
+    os.makedirs(args.run, exist_ok=True)
+    out = level_dir(args.run, "species", args.flat)
     result.write(out, outputs=args.write)
 
     n_extant = result.n_extant
@@ -93,7 +92,7 @@ def run(args, parser):
     if result.fossils:
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
-    print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "species.log"),
+    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "species.log"),
                       args, summary)
     return 0

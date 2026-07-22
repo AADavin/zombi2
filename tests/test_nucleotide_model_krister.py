@@ -630,28 +630,14 @@ PIPELINE_SEED = "20"
 def _pipeline(root):
     """Run species → genomes (all three resolutions) → sequences → traits into ``root``."""
     tree = str(root / "species_complete.nwk")
-    assert main(["species", "--birth", "1.0", "--death", "0.3", "--n-extant", "12",
-                 "--seed", PIPELINE_SEED, "-o", str(root), "--flat"]) == 0
+    assert main(["species", str(root), "--birth", "1.0", "--death", "0.3", "--n-extant", "12", "--seed", PIPELINE_SEED, "--flat"]) == 0
 
-    assert main(["genomes", "-t", tree, "--duplication", "0.3", "--loss", "0.25",
-                 "--origination", "0.6", "--seed", PIPELINE_SEED, "-o", str(root / "g_unordered"), "--flat"]) == 0
-    assert main(["genomes", "-t", tree, "--resolution", "ordered", "--duplication", "0.3",
-                 "--loss", "0.25", "--origination", "0.6", "--transfer", "0.2",
-                 "--inversion", "0.4", "--transposition", "0.3", "--chromosomes", "2",
-                 "--seed", PIPELINE_SEED, "-o", str(root / "g_ordered"),
-                 "--write", "events", "profiles", "gene_order", "rearrangements",
-                 "chromosome_events", "event_positions", "--flat"]) == 0
-    assert main(["genomes", "-t", tree, "--resolution", "nucleotide", "--root-length", "600",
-                 "--genes", "4", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3",
-                 "--seed", PIPELINE_SEED, "-o", str(root / "g_nucleotide"),
-                 "--write", "events", "genes", "blocks", "rearrangements", "--flat"]) == 0
+    assert main(["genomes", str(root / "g_unordered"), "--from", tree, "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--seed", PIPELINE_SEED, "--flat"]) == 0
+    assert main(["genomes", str(root / "g_ordered"), "--from", tree, "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--transfer", "0.2", "--inversion", "0.4", "--transposition", "0.3", "--chromosomes", "2", "--seed", PIPELINE_SEED, "--write", "events", "profiles", "gene_order", "rearrangements", "chromosome_events", "event_positions", "--flat"]) == 0
+    assert main(["genomes", str(root / "g_nucleotide"), "--from", tree, "--resolution", "nucleotide", "--root-length", "600", "--genes", "4", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3", "--seed", PIPELINE_SEED, "--write", "events", "genes", "blocks", "rearrangements", "--flat"]) == 0
 
-    assert main(["sequences", "--genomes", str(root / "g_unordered"), "--model", "hky85",
-                 "--length", "150", "--seed", PIPELINE_SEED, "-o", str(root / "s"),
-                 "--write", "alignments", "phylograms", "ancestral",
-                 "species_phylogram", "--flat"]) == 0
-    assert main(["traits", "-t", tree, "--rate", "1.0", "--seed", PIPELINE_SEED,
-                 "-o", str(root / "t"), "--flat"]) == 0
+    assert main(["sequences", str(root / "s"), "--from", str(root / "g_unordered"), "--model", "hky85", "--length", "150", "--seed", PIPELINE_SEED, "--write", "alignments", "phylograms", "ancestral", "species_phylogram", "--flat"]) == 0
+    assert main(["traits", str(root / "t"), "--from", tree, "--rate", "1.0", "--seed", PIPELINE_SEED, "--flat"]) == 0
 
 
 def _artifacts(root):
@@ -702,16 +688,15 @@ def test_excluding_the_run_logs_is_justified_and_narrow(tmp_path):
     for tag in ("a", "b"):
         root = tmp_path / tag
         root.mkdir()
-        main(["species", "--birth", "1.0", "--death", "0.3", "--n-extant", "10", "--seed", PIPELINE_SEED,
-              "-o", str(root), "--flat"])
+        main(["species", str(root), "--birth", "1.0", "--death", "0.3", "--n-extant", "10", "--seed", PIPELINE_SEED, "--flat"])
         runs.append((root / "species.log").read_text().splitlines())
 
     first, second = runs
     assert any(line.startswith("timestamp\t") for line in first), \
         "no timestamp in the run log — the exclusion would be unnecessary"
-    # `output` differs by construction: the two runs write to different directories
+    # `run` differs by construction: the two runs write to different directories
     differing = [(a, b) for a, b in zip(first, second, strict=True) if a != b]
-    assert all(a.startswith(("timestamp\t", "output\t")) for a, _ in differing), \
+    assert all(a.startswith(("timestamp\t", "run\t")) for a, _ in differing), \
         f"a run log differs by more than its timestamp and path: {differing}"
 
 # ==================================================================================================

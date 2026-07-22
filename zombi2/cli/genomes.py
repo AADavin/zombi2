@@ -19,8 +19,9 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
 from zombi2.species import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
-                                  _write_params_log, level_dir, resolve_tree)
+from zombi2.cli.framework import (_add_flat_arg, _add_from_arg, _add_params_arg, _add_run_arg,
+                                  _rate, _rates_help, _write_params_log, level_dir,
+                                  resolve_tree)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -70,15 +71,10 @@ _NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replace
 
 
 def _add_genomes_args(p: argparse.ArgumentParser) -> None:
+    _add_run_arg(p, "genomes evolve along the species tree it already holds")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    g.add_argument("-t", "--tree", required=True, metavar="FILE|DIR",
-                   help="the species tree: a Newick file, or a 'zombi2 species' run directory to "
-                        "take its complete tree from (-t out/ instead of -t "
-                        "out/species/species_complete.nwk). Any external tree works too; genomes "
-                        "evolve on the complete tree, extinct lineages included")
-    g.add_argument("-o", "--output", required=True, metavar="DIR", dest="output",
-                   help="output directory (created if needed)")
+    _add_from_arg(g, "the species tree — a Newick file, or another run's directory")
     g.add_argument("--resolution", choices=("unordered", "ordered", "nucleotide"),
                    default="unordered", metavar="RESOLUTION",
                    help="unordered (gene-family counts, default), ordered (genes positioned on "
@@ -274,7 +270,7 @@ def run(args, parser):
                          f"{args.resolution}; choose from: {', '.join(vocab)}")
 
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else None
-    tree_path = resolve_tree(args.tree)
+    tree_path = resolve_tree(args.source or args.run)
     try:
         with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
@@ -310,8 +306,8 @@ def run(args, parser):
             tree, replacement=args.replacement, initial_families=args.initial_families, **common)
     dt = time.perf_counter() - t0
 
-    os.makedirs(args.output, exist_ok=True)
-    out = level_dir(args.output, "genomes", args.flat)
+    os.makedirs(args.run, exist_ok=True)
+    out = level_dir(args.run, "genomes", args.flat)
     wanted = args.write if args.write else None
     # gene trees are one file per family per view, so a hundred families is hundreds of files —
     # they get their own directory unless --flat says otherwise
@@ -340,7 +336,7 @@ def run(args, parser):
     else:
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
-    print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "genomes.log"),
+    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "genomes.log"),
                       args, summary)
     return 0

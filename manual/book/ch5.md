@@ -227,17 +227,17 @@ The ordered resolution is `--resolution ordered`. It adds the chromosome and seg
 
 ```bash
 # chromosomes split and merge along the tree
-zombi2 genomes -t out/ --resolution ordered \
-    --origination 0.5 --fission 0.05 --fusion 0.05 --chromosomes 2 --seed 1 -o out/
+zombi2 genomes out/ --resolution ordered \
+    --origination 0.5 --fission 0.05 --fusion 0.05 --chromosomes 2 --seed 1
 
 # segmental duplications, losses and inversions on three chromosomes
-zombi2 genomes -t out/ --resolution ordered \
-    --duplication 0.2 --loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 1 -o out/
+zombi2 genomes out/ --resolution ordered \
+    --duplication 0.2 --loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 1
 
 # blocks relocate and move between chromosomes, sometimes inverting
-zombi2 genomes -t out/ --resolution ordered \
+zombi2 genomes out/ --resolution ordered \
     --origination 0.5 --transposition 0.2 --translocation 0.1 \
-    --inversion-probability 0.5 --chromosomes 2 --seed 1 -o out/
+    --inversion-probability 0.5 --chromosomes 2 --seed 1
 ```
 
 The segment-length distributions (how long a duplicated or inverted run is) are structured objects, so like the rate modifiers they stay in Python; the CLI takes the rates as numbers. The same tree-reading rules apply as in Chapter 4, and `--write` selects among the richer ordered outputs.

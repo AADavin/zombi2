@@ -101,10 +101,10 @@ The command mirrors the Python call. The base rates, the stop condition, and the
 
 ```bash
 # a birth–death tree of 20 surviving lineages
-zombi2 species --birth 1.0 --death 0.3 --n-extant 20 --seed 1 -o out/
+zombi2 species out/ --birth 1.0 --death 0.3 --n-extant 20 --seed 1
 
 # grow to time 5, with a mass extinction at time 3 and half the survivors sampled
-zombi2 species --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 2 -o out/
+zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 2
 ```
 
 ## Outputs
