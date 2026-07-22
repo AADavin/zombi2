@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/",
             "",
             "  # 2. gene families along it",
-            "  zombi2 genomes -t out/species/species_complete.nwk --duplication 0.2 --transfer 0.1 "
+            "  zombi2 genomes -t out/ --duplication 0.2 --transfer 0.1 "
             "--loss 0.25 --origination 0.5 --seed 42 -o out/",
             "",
             "  # 3. sequences down each gene tree",
@@ -70,15 +70,15 @@ def main(argv: list[str] | None = None) -> int:
         genomes._add_genomes_args,
         epilog=_examples(
             "  # unordered D/T/L/O gene families, with the event log and profiles",
-            "  zombi2 genomes -t out/species/species_complete.nwk --duplication 0.2 --transfer 0.1 "
+            "  zombi2 genomes -t out/ --duplication 0.2 --transfer 0.1 "
             "--loss 0.25 --origination 0.5 --seed 42 -o out/",
             "",
             "  # ordered genomes with inversions on 3 chromosomes",
-            "  zombi2 genomes -t out/species/species_complete.nwk --resolution ordered --duplication 0.2 "
+            "  zombi2 genomes -t out/ --resolution ordered --duplication 0.2 "
             "--loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 42 -o out/",
             "",
             "  # loss twice as fast from time 2 onward (see RATES)",
-            "  zombi2 genomes -t out/species/species_complete.nwk --duplication 0.2 "
+            "  zombi2 genomes -t out/ --duplication 0.2 "
             "--loss \"0.25 * OnTime({0: 1.0, 2: 2.0})\" --origination 0.5 --seed 42 -o out/",
         ) + "\n\n" + genomes.RATES_HELP)
 
@@ -110,18 +110,18 @@ def main(argv: list[str] | None = None) -> int:
         traits._add_traits_args,
         epilog=_examples(
             "  # a continuous trait diffusing by Brownian motion (variance-rate 1.0)",
-            "  zombi2 traits -t out/species/species_complete.nwk --rate 1.0 --seed 1 -o out/",
+            "  zombi2 traits -t out/ --rate 1.0 --seed 1 -o out/",
             "",
             "  # the same value pulled toward an optimum (Ornstein-Uhlenbeck)",
-            "  zombi2 traits -t out/species/species_complete.nwk --rate 1.0 --reverts-to 2 --pull 0.5 "
+            "  zombi2 traits -t out/ --rate 1.0 --reverts-to 2 --pull 0.5 "
             "--seed 1 -o out/",
             "",
             "  # a discrete habitat flipping between two states (Mk)",
-            "  zombi2 traits -t out/species/species_complete.nwk --kind discrete "
+            "  zombi2 traits -t out/ --kind discrete "
             "--states marine,terrestrial --switch 0.1 --seed 1 -o out/",
             "",
             "  # an early burst: the variance-rate starts at 4 and settles to 1 (see RATES)",
-            "  zombi2 traits -t out/species/species_complete.nwk "
+            "  zombi2 traits -t out/ "
             "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1 -o out/",
         ) + "\n\n" + traits.RATES_HELP)
 
