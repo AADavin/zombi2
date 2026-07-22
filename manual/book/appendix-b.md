@@ -39,9 +39,14 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Event log | `genome_events.tsv` | TSV | yes | as unordered |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of each leaf — `species · chromosome · position · strand · family · gene` |
-| Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped` |
+| Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped`¹ |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time · kind · lineage · parents · children` |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
+
+¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
+`length` (how many genes it covered), counted rightwards from `start` and **wrapping past position 0 on
+a circular chromosome** — so `start + length` greater than the chromosome's gene count means the run
+crossed the origin. `dest_position` is an index into what was left after the run was excised.
 
 The `zombi2 genomes` **command** also writes `genome_species_tree.nwk` — the complete species tree
 canonicalised so its `n<id>` labels match the event log's `lineage` column — so `zombi2 sequences

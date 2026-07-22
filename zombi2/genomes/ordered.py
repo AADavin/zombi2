@@ -5,7 +5,10 @@ no longer a multiset of gene copies but a list of **chromosomes**, each an order
 :class:`Gene`\\ s.
 
 **Every gene-level event acts on an extension** — a run of consecutive genes (the ZOMBI1 model), its
-length drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). Over that
+length drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). The run
+starts at a drawn gene and goes rightwards, and where it stops is set by the chromosome's
+**topology**: a **circular** chromosome has no ends, so a run that reaches the last gene continues
+from the first; a **linear** one has ends, so a run stops at the last gene. Over that
 segment: **duplication** copies it in tandem, **loss** removes it, **transfer** sends it to a
 contemporaneous recipient as a block, **inversion** reverses it (flipping strands), **transposition**
 relocates it elsewhere on the same chromosome, and **translocation** moves it to a different
@@ -67,38 +70,50 @@ class Gene:
 class Chromosome:
     """One chromosome: an ordered run of :class:`Gene`\\ s, identified by ``id`` (re-minted at every
     speciation, so it names a chromosome *lineage*), with a ``topology`` — ``"circular"`` or
-    ``"linear"``. In this slice topology is just a label (it will gate which fissions/fusions are
-    legal later); it does not affect inversions."""
+    ``"linear"``.
+
+    Topology decides where a segmental event's run stops. A **circular** chromosome has no ends, so a
+    run that reaches the last gene continues from the first — it wraps position 0 — and is limited
+    only by the whole chromosome. A **linear** one has ends, so a run stops at the last gene. Position
+    0 is therefore a real boundary on a linear chromosome and pure bookkeeping on a circular one,
+    where it may be re-anchored freely (see :func:`_anchor`). Topology does not yet gate which
+    fissions and fusions are legal."""
 
     id: int
     topology: str
     genes: list[Gene]
 
 
+# Every rearrangement record names its run the same way: ``start`` is the run's first position in the
+# chromosome's frame just *before* the event, and ``length`` is how many genes it covers. The run is
+# those positions counted rightwards **modulo the chromosome's gene count**, so ``start + length``
+# greater than that count means the run wrapped position 0 — possible only on a circular chromosome.
+# Destination fields (``dest``, ``dest_position``) are insertion indices in the frame that exists at
+# the moment of insertion, i.e. after the run has been excised.
+
 @dataclass(frozen=True)
 class Inversion:
-    """A recorded inversion: on species branch ``lineage`` at ``time``, the genes in positions
-    ``start``..``end`` (inclusive) of chromosome ``chromosome`` were reversed and their strands
-    flipped. Gene ids are untouched — an inversion reshapes order, it does not end lineages — so it is
-    logged here, separate from the gene-genealogy :class:`~zombi2.genomes.events.Event` stream."""
+    """A recorded inversion: on species branch ``lineage`` at ``time``, the run of ``length`` genes
+    starting at position ``start`` of chromosome ``chromosome`` was reversed and its strands flipped.
+    On a circular chromosome the run may wrap position 0 (``start + length`` exceeds the chromosome's
+    gene count). Gene ids are untouched — an inversion reshapes order, it does not end lineages — so
+    it is logged here, separate from the gene-genealogy :class:`~zombi2.genomes.events.Event`
+    stream."""
 
     time: float
     lineage: int
     chromosome: int
     start: int
-    end: int
-
-    @property
-    def length(self) -> int:
-        """Number of genes inverted (``end - start + 1``)."""
-        return self.end - self.start + 1
+    length: int
 
 
 @dataclass(frozen=True)
 class Transposition:
     """A recorded transposition: on branch ``lineage`` at ``time``, the ``length`` genes starting at
     ``start`` on chromosome ``chromosome`` were excised and reinserted at position ``dest`` on the
-    **same** chromosome, ``flipped`` (reversed + strands) or not. Gene ids are untouched."""
+    **same** chromosome, ``flipped`` (reversed + strands) or not. The run may wrap position 0 on a
+    circular chromosome; ``dest`` indexes what was left after the excision, so it can never fall
+    inside the run. Gene ids are untouched."""
 
     time: float
     lineage: int
@@ -113,8 +128,9 @@ class Transposition:
 class Translocation:
     """A recorded translocation: on branch ``lineage`` at ``time``, the ``length`` genes starting at
     ``start`` on chromosome ``source`` were moved to position ``dest_position`` on chromosome ``dest``
-    (a **different** chromosome of the same genome), ``flipped`` or not. Gene ids are untouched — a
-    gene lineage crosses to another chromosome lineage, which is *not* a chromosome-network edge."""
+    (a **different** chromosome of the same genome), ``flipped`` or not. The run may wrap position 0
+    on a circular ``source``. Gene ids are untouched — a gene lineage crosses to another chromosome
+    lineage, which is *not* a chromosome-network edge."""
 
     time: float
     lineage: int
@@ -264,10 +280,34 @@ def _pick_chromosome(rng, gen, total_chromosomes) -> tuple[int, int]:
 
 # --- extension: every gene-level event acts on a run of consecutive genes (the ZOMBI1 model) -------
 
-def _extent(rng, dist, start, n) -> int:
-    """A segment length in genes: sample the event's extension distribution and clamp so the segment
-    ``[start, start+m)`` fits the chromosome (``1 <= m <= n - start``)."""
-    return min(max(1, int(dist.sample(rng))), n - start)
+def _extent(rng, dist, chrom, start) -> int:
+    """A segment length in genes: sample the event's extension distribution, then clamp it to what
+    the chromosome can carry from ``start``.
+
+    A **linear** chromosome has ends, so the run stops at the last gene: ``1 <= m <= n - start``. A
+    **circular** one has none, so the run wraps past position 0 and only the whole chromosome bounds
+    it: ``1 <= m <= n``. That difference is the point of ``topology``. Clamping a circular run at the
+    end of the gene array — as if the array boundary were a real end — would truncate every run that
+    started near it, pull the realised mean extension below the nominal one, and leave the genes
+    around position 0 covered less often than the rest."""
+    m = max(1, int(dist.sample(rng)))
+    n = len(chrom.genes)
+    return min(m, n) if chrom.topology == "circular" else min(m, n - start)
+
+
+def _anchor(chrom, start, m) -> int:
+    """Make the run ``[start, start+m)`` one contiguous slice, and return the index it now begins at.
+
+    A run that wraps position 0 — only possible on a circular chromosome — is brought to the front by
+    rotating the gene list, so it becomes ``[0, m)``; every mutator can then work on a plain slice
+    instead of two. Rotating a ring changes nothing biological: on a circular chromosome position 0
+    is an index, not a feature of the molecule, so it is free to move (an event that changes the
+    run's length, like a segmental duplication or loss, has to move it anyway). A run that does not
+    wrap is left where it is and ``start`` comes back unchanged."""
+    if start + m <= len(chrom.genes):
+        return start
+    chrom.genes[:] = chrom.genes[start:] + chrom.genes[:start]
+    return 0
 
 
 def _oriented(segment, flip):
@@ -291,7 +331,9 @@ def _originate(genome, node, t, events, new_gene, new_family, rng) -> None:
 def _duplicate(chrom, j, m, node, t, events, new_gene) -> int:
     """The ``m`` genes at ``[j, j+m)`` duplicate **in tandem**: each ends and two fresh copies (same
     strand) descend — the continuation in place, the copy block inserted immediately after the
-    segment (order preserved). Returns the ``m`` copies added."""
+    segment (order preserved). The run may wrap position 0 on a circular chromosome. Returns the
+    ``m`` copies added."""
+    j = _anchor(chrom, j, m)
     segment = chrom.genes[j:j + m]
     conts = [new_gene(g.family, g.strand) for g in segment]
     copies = [new_gene(g.family, g.strand) for g in segment]
@@ -303,7 +345,11 @@ def _duplicate(chrom, j, m, node, t, events, new_gene) -> int:
 
 
 def _lose_at(chrom, j, m, node, t, events) -> int:
-    """The ``m`` genes at ``[j, j+m)`` are lost together, removed in place. Returns the ``m`` removed."""
+    """The ``m`` genes at ``[j, j+m)`` are lost together, removed in place; the run may wrap position
+    0 on a circular chromosome. A run covering the whole chromosome empties it — the chromosome
+    itself survives as an empty replicon, exactly as a de-novo one starts out; only
+    :func:`_chromosome_lose` removes a chromosome from the karyotype. Returns the ``m`` removed."""
+    j = _anchor(chrom, j, m)
     for g in chrom.genes[j:j + m]:
         events.append(Event(t, "loss", node.id, g.family, g.id))
     del chrom.genes[j:j + m]
@@ -311,18 +357,26 @@ def _lose_at(chrom, j, m, node, t, events) -> int:
 
 
 def _invert(chrom, i, m, node, t, rearrangements) -> None:
-    """Invert the segment ``[i, i+m)``: reverse the run and flip each gene's strand. Ids untouched —
-    identity persists through an inversion — so only the rearrangement log is written."""
-    end = i + m - 1
-    chrom.genes[i:end + 1] = [Gene(g.id, g.family, -g.strand) for g in reversed(chrom.genes[i:end + 1])]
-    rearrangements.append(Inversion(t, node.id, chrom.id, i, end))
+    """Invert the segment ``[i, i+m)``: reverse the run and flip each gene's strand. On a circular
+    chromosome the run may wrap position 0 — reversal on a ring is well defined, and an inversion
+    spanning the origin is a real event; a run covering the whole chromosome reverses the
+    entire ring, which is the same molecule read the other way round. Ids untouched — identity
+    persists through an inversion — so only the rearrangement log is written, and it records the run
+    in the frame it had **before** the event."""
+    a = _anchor(chrom, i, m)
+    chrom.genes[a:a + m] = [Gene(g.id, g.family, -g.strand) for g in reversed(chrom.genes[a:a + m])]
+    rearrangements.append(Inversion(t, node.id, chrom.id, i, m))
 
 
 def _transpose(chrom, i, m, node, t, rearrangements, rng, inversion_probability) -> None:
     """Excise the segment ``[i, i+m)`` and reinsert it elsewhere on the **same** chromosome, flipped
-    (reversed + strands) with probability ``inversion_probability``. Ids untouched."""
-    segment = chrom.genes[i:i + m]
-    del chrom.genes[i:i + m]
+    (reversed + strands) with probability ``inversion_probability``. The run may wrap position 0 on a
+    circular chromosome. The destination is drawn *after* the excision, over what is left, so it can
+    never land inside the run itself; a run covering the whole chromosome leaves nothing behind, so
+    the block goes straight back and only its orientation can change. Ids untouched."""
+    a = _anchor(chrom, i, m)
+    segment = chrom.genes[a:a + m]
+    del chrom.genes[a:a + m]
     flipped = bool(rng.random() < inversion_probability)
     dest = int(rng.integers(len(chrom.genes) + 1))
     chrom.genes[dest:dest] = _oriented(segment, flipped)
@@ -332,12 +386,16 @@ def _transpose(chrom, i, m, node, t, rearrangements, rng, inversion_probability)
 def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_probability) -> None:
     """Move the segment ``[i, i+m)`` from chromosome ``ci`` to a **different** chromosome of the same
     genome, flipped with probability ``inversion_probability``. No-op if the genome has one
-    chromosome. Ids untouched — a gene lineage crosses to another chromosome lineage."""
+    chromosome. The run may wrap position 0 on a circular source; the destination is on another
+    chromosome, so it never falls inside the run, and a run covering the whole source chromosome
+    empties it (it survives as an empty replicon). Ids untouched — a gene lineage crosses to another
+    chromosome lineage."""
     if len(genome) < 2:
         return
     source = genome[ci]
-    segment = source.genes[i:i + m]
-    del source.genes[i:i + m]
+    a = _anchor(source, i, m)
+    segment = source.genes[a:a + m]
+    del source.genes[a:a + m]
     flipped = bool(rng.random() < inversion_probability)
     dj = int(rng.integers(len(genome) - 1))
     if dj >= ci:
@@ -352,10 +410,12 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, new_gene,
                  transfer_to, replacement, self_transfer, depth) -> int:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient: each gene ends → a continuation on the donor branch and a transferred copy on the
-    recipient (a horizontal gene-tree edge). The transferred copies arrive as a block at a random
-    position on a uniformly-chosen recipient chromosome (strands travel with them). Returns the change
-    in total gene count: ``+m`` additive, minus one per homologous copy displaced under ``replacement``."""
+    recipient (a horizontal gene-tree edge). The run may wrap position 0 on a circular donor
+    chromosome. The transferred copies arrive as a block at a random position on a uniformly-chosen
+    recipient chromosome (strands travel with them). Returns the change in total gene count: ``+m``
+    additive, minus one per homologous copy displaced under ``replacement``."""
     donor = alive[kd]
+    jd = _anchor(gen[kd][cdi], jd, m)
     segment = gen[kd][cdi].genes[jd:jd + m]
     cand = [k for k in range(len(alive)) if self_transfer or k != kd]
     kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
@@ -489,6 +549,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     ``origination`` is the exception: a family is born once, a single gene, no extension.
     ``transposition`` and ``translocation`` land the moved block inverted with probability
     ``inversion_probability``.
+
+    **Where a run stops is set by the chromosome's ``topology``.** A run goes rightwards from the gene
+    it starts at. On a ``"circular"`` chromosome there are no ends, so a run that reaches the last
+    gene continues from the first, and only the whole chromosome bounds it; on a ``"linear"`` one the
+    run stops at the last gene. So on a circular chromosome every gene is covered by segmental events
+    at the same rate, and the nominal mean extension is the realised one.
 
     Scopes follow the cross-level grammar: ``duplication``/``transfer``/``loss``/``translocation`` are
     **per copy**, ``origination``/``chromosome_origination`` **per lineage**, and
@@ -660,12 +726,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 if r < r_dup:                            # every gene-level event acts on an extension
                     k, ci, j = _pick_gene(rng, gen, n)
                     chrom = gen[k][ci]
-                    m = _extent(rng, dup_ext, j, len(chrom.genes))
+                    m = _extent(rng, dup_ext, chrom, j)
                     total_copies += _duplicate(chrom, j, m, tree.nodes[alive[k]], t, events, new_gene)
                 elif r < b_los:
                     k, ci, j = _pick_gene(rng, gen, n)
                     chrom = gen[k][ci]
-                    m = _extent(rng, los_ext, j, len(chrom.genes))
+                    m = _extent(rng, los_ext, chrom, j)
                     total_copies -= _lose_at(chrom, j, m, tree.nodes[alive[k]], t, events)
                 elif r < b_org:
                     k = int(rng.integers(k_alive))  # origination is per lineage: a uniform lineage
@@ -673,7 +739,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     total_copies += 1
                 elif r < b_tra:
                     kd, cdi, jd = _pick_gene(rng, gen, n)
-                    m = _extent(rng, tra_ext, jd, len(gen[kd][cdi].genes))
+                    m = _extent(rng, tra_ext, gen[kd][cdi], jd)
                     total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                  new_gene, transfer_to, replacement, self_transfer, depth)
                 elif r < b_inv:
@@ -681,18 +747,18 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     chrom = gen[k][ci]
                     if chrom.genes:  # an empty chromosome has nothing to rearrange (a no-op; rare)
                         i0 = int(rng.integers(len(chrom.genes)))
-                        _invert(chrom, i0, _extent(rng, inv_ext, i0, len(chrom.genes)),
+                        _invert(chrom, i0, _extent(rng, inv_ext, chrom, i0),
                                 tree.nodes[alive[k]], t, rearrangements)
                 elif r < b_trp:
                     k, ci = _pick_chromosome(rng, gen, c)
                     chrom = gen[k][ci]
                     if chrom.genes:
                         i0 = int(rng.integers(len(chrom.genes)))
-                        _transpose(chrom, i0, _extent(rng, trp_ext, i0, len(chrom.genes)),
+                        _transpose(chrom, i0, _extent(rng, trp_ext, chrom, i0),
                                    tree.nodes[alive[k]], t, rearrangements, rng, inversion_probability)
                 elif r < b_trl:
                     k, ci, j = _pick_gene(rng, gen, n)
-                    m = _extent(rng, trl_ext, j, len(gen[k][ci].genes))
+                    m = _extent(rng, trl_ext, gen[k][ci], j)
                     _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,
                                  inversion_probability)
                 elif r < b_fis:
