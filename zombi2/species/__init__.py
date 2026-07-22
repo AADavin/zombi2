@@ -624,7 +624,7 @@ def _mass_extinction_pulses(mass_extinctions, total_time: float | None) -> list[
     if total_time is None:
         raise ValueError(
             "mass_extinctions need a run with a fixed end — give total_time=..., not n_extant= "
-            "(under n_extant the run can stop before a pulse's time is reached)"
+            "(under n_extant= the run can stop before a pulse's time is reached)"
         )
     pulses: list[tuple[float, float]] = []
     for pulse in mass_extinctions:

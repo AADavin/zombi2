@@ -9,6 +9,7 @@ entry here.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 
 from zombi2 import __version__
@@ -157,9 +158,32 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _RUN[args.command](args, parser)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
-        # Report expected failures as a clean one-line error, never a traceback.
-        print(f"zombi2: error: {e}", file=sys.stderr)
+        # Report expected failures as a clean one-line error, never a traceback — in the words of
+        # the surface the user is standing on, not the one underneath it.
+        print(f"zombi2: error: {_in_flags(str(e), sub.choices[args.command])}", file=sys.stderr)
         return 1
+
+
+#: a keyword argument named in a library message — ``trim_overlaps=True``, ``switch=``,
+#: ``total_time=...`` — with the placeholder value the sentence does not need once it is a flag
+_KWARG = re.compile(r"\b([a-z][a-z0-9_]*)=(?:True|\.\.\.)?(?![\w'\"(])")
+
+
+def _in_flags(message: str, command: argparse.ArgumentParser) -> str:
+    """Respell a library message's keyword arguments as the flags that reach them.
+
+    The engines raise for a Python caller, so their advice is spelt ``pass trim_overlaps=True`` —
+    right in a notebook, and a dead end at a shell prompt where the thing to type is
+    ``--trim-overlaps``. Every long option **is** its level's keyword name (the invariant each
+    command module opens with), so the translation is exact and mechanical: swap the name for the
+    flag, and drop the ``=`` along with a value that was only ever a placeholder.
+
+    Only names this command actually has are touched, so an ``=`` that is part of the data — a
+    filename, a mapping in a rate expression — is left as the engine wrote it."""
+    flags = {o for a in command._actions for o in a.option_strings if o.startswith("--")}
+    return _KWARG.sub(
+        lambda m: flag if (flag := "--" + m.group(1).replace("_", "-")) in flags else m.group(0),
+        message)
 
 
 if __name__ == "__main__":

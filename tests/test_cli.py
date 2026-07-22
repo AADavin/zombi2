@@ -128,6 +128,29 @@ def test_species_engine_error_is_reported_cleanly(tmp_path, capsys):
     assert "zombi2: error:" in capsys.readouterr().err
 
 
+def test_engine_error_is_respelt_in_flags(tmp_path, capsys, tree_file):
+    # the engines raise for a Python caller ("pass trim_overlaps=True"), which is a dead end at a
+    # shell prompt. The CLI must hand back the flag that reaches the same keyword.
+    gff = tmp_path / "overlapping.gff"
+    gff.write_text("##sequence-region c1 1 900\n"
+                   "c1\t.\tgene\t100\t400\t.\t+\t.\tID=a\n"
+                   "c1\t.\tgene\t300\t600\t.\t+\t.\tID=b\n")
+    rc = main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
+               "--resolution", "nucleotide", "--gff", str(gff), "--flat"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "--trim-overlaps" in err and "trim_overlaps=True" not in err
+
+
+def test_an_equals_sign_in_the_data_is_left_alone(tmp_path, capsys, tree_file):
+    # only names the command actually has are respelt, so a '=' inside a filename (or a mapping in
+    # a rate expression) survives the trip verbatim
+    rc = main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
+               "--resolution", "nucleotide", "--gff", str(tmp_path / "no=such=file.gff"), "--flat"])
+    assert rc == 1
+    assert "no=such=file.gff" in capsys.readouterr().err
+
+
 # ── zombi2 genomes ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
