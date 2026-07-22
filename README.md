@@ -123,8 +123,7 @@ Pandoc. Start with the [quickstart](docs/quickstart.md).
 
 ## Citation
 
-If you use ZOMBI2, please cite it via [`CITATION.cff`](CITATION.cff) (GitHub's *Cite this
-repository* button). A dedicated ZOMBI2 paper is in preparation; until then, cite the original
+A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
 [ZOMBI](https://github.com/AADavin/Zombi).
 
 ## License
