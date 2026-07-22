@@ -315,8 +315,9 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
             events.append(Event(t, "loss", recipient, fam, victim.id))
             delta = 0
     rg.append(xfer)
-    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id))
-    events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient))
+    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor))
+    events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
+                        donor=donor))
     return delta
 
 

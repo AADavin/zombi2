@@ -321,8 +321,8 @@ class OrderedGenomesResult:
 #: ``lineage`` (where it came from) and gains ``dest_lineage`` (where it went). ``recipient`` keeps
 #: the genealogy's meaning — the branch the *new* copy is born on — and so is set on the arriving row
 #: only; it is what tells the two sides apart.
-_EVENT_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient",
-               "donor", "dest_lineage",
+_EVENT_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor",
+               "dest_lineage",
                "chromosome", "position", "length", "dest_chromosome", "dest_position", "flipped")
 
 
@@ -350,11 +350,13 @@ def _events_tsv(events, event_positions, rearrangements) -> str:
         p = where.get(key)
         cells = [e.time, e.kind, node_label(e.lineage), e.family, e.copy,
                  "" if e.parent is None else e.parent,
-                 "" if e.recipient is None else node_label(e.recipient)]
-        # a transfer's two sides each name the whole edge, so neither needs its partner's row
+                 "" if e.recipient is None else node_label(e.recipient),
+                 "" if e.donor is None else node_label(e.donor)]
+        # `donor` is on both of a transfer's rows (it comes from the event itself); the row that
+        # *left* additionally needs to say where the material went, which its own `recipient` cannot
+        # — that field names the branch the new copy is born on, so it is the arriving row's.
         arriving = e.kind == "transfer" and e.recipient is not None
-        cells += ["" if p is None or p.donor is None or not arriving else node_label(p.donor),
-                  "" if p is None or p.recipient is None or arriving else node_label(p.recipient)]
+        cells += ["" if p is None or p.recipient is None or arriving else node_label(p.recipient)]
         # The arc belongs to the **event**, not to each copy it touched: a duplication of three genes
         # ends three and starts six, but there is one arc. So it is written on the event's first row
         # and left empty on the rest — filter on a non-empty `position` to get one row per event that
@@ -582,8 +584,9 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     positions.append(EventPosition(t, "transfer_recipient", recipient, rchrom.id, pos, m,
                                    donor=donor, recipient=recipient))
     for old, cont, xf in zip(segment, conts, xfers):
-        events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id))
-        events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id, recipient=recipient))
+        events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id, donor=donor))
+        events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id,
+                            recipient=recipient, donor=donor))
     return delta
 
 
