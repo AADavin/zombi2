@@ -14,7 +14,7 @@ import collections
 import numpy as np
 import pytest
 
-from zombi2.genomes.events import node_from_label
+from zombi2.genomes.events import node_from_label, node_label
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
@@ -1834,3 +1834,88 @@ def test_the_partition_is_at_least_as_fine_as_every_nodes_blocks():
                 spans += sum(1 for (s, a, b) in g.root_blocks
                              if s == blk.source and blk.start <= a and b <= blk.end) > 1
     assert spans, "no block spanned several root blocks — the multi-piece path went untested"
+
+
+# --- GFF / BED export ------------------------------------------------------------------------------
+
+def _export_run(tmp_path, **kw):
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=4, seed=5)
+    params = dict(root_length=1200, genes=4, gene_length=150, inversion=3.0, inversion_length=200,
+                  duplication=1.5, loss=0.5, seed=5)
+    params.update(kw)
+    g = simulate_genomes_nucleotide(sp, **params)
+    g.write(tmp_path)
+    return g
+
+
+def test_gff_and_bed_are_written_for_every_genome_and_name_the_fasta_records(tmp_path):
+    # the whole point of the seqid: a genome and its annotation have to join without renaming
+    from zombi2.sequences import simulate_sequences
+    from zombi2.sequences.substitution_models import jc69
+
+    g = _export_run(tmp_path)
+    simulate_sequences(g, model=jc69(), substitution=0.05, seed=5).write(tmp_path)
+    labels = [node_label(i) for i in g.genomes] + ["initial"]
+    assert {p.stem for p in tmp_path.glob("genome_*.gff")} == {f"genome_{lab}" for lab in labels}
+    assert {p.stem for p in tmp_path.glob("genome_*.bed")} == {f"genome_{lab}" for lab in labels}
+    for lab in labels:
+        fasta = {ln[1:] for ln in (tmp_path / f"genome_{lab}.fasta").read_text().splitlines()
+                 if ln.startswith(">")}
+        bed = {ln.split("\t")[0] for ln in (tmp_path / f"genome_{lab}.bed").read_text().splitlines()}
+        gff = {ln.split("\t")[0] for ln in (tmp_path / f"genome_{lab}.gff").read_text().splitlines()
+               if not ln.startswith("#")}
+        assert bed == fasta and gff <= fasta
+
+
+def test_bed_tiles_the_genome_and_names_each_block_by_its_ancestry(tmp_path):
+    g = _export_run(tmp_path)
+    for node_id, genome in g.genomes.items():
+        rows = [ln.split("\t") for ln in
+                (tmp_path / f"genome_{node_label(node_id)}.bed").read_text().splitlines()]
+        assert len(rows) == sum(len(c.blocks) for c in genome.chromosomes)
+        at = collections.defaultdict(int)
+        for (chrom, start, end, name, _score, strand) in rows:
+            assert int(start) == at[chrom]                 # 0-based half-open, tiling from 0
+            at[chrom] = int(end)
+            assert strand in ("+", "-")
+        for chrom in genome.chromosomes:                   # ...to exactly the chromosome's length
+            assert at[f"{node_label(node_id)}_chr{chrom.id}"] == chrom.length
+        expected = {f"{b.source}:{b.start}-{b.end}" for c in genome.chromosomes for b in c.blocks}
+        assert {r[3] for r in rows} == expected
+
+
+def test_gff_gives_every_gene_unique_id_right_coordinates_and_the_strand_it_now_reads_on(tmp_path):
+    g = _export_run(tmp_path)
+    flipped = 0
+    for node_id, genome in g.genomes.items():
+        rows = [ln.split("\t") for ln in
+                (tmp_path / f"genome_{node_label(node_id)}.gff").read_text().splitlines()
+                if not ln.startswith("#")]
+        genes = [(c, at, b) for c in genome.chromosomes
+                 for at, b in [(sum(x.length for x in c.blocks[:i]), c.blocks[i])
+                               for i in range(len(c.blocks))] if b.is_gene]
+        assert len(rows) == len(genes)
+        assert len({r[8].split(";")[0] for r in rows}) == len(rows)          # IDs unique in the file
+        for (chrom, at, b), row in zip(genes, rows):
+            assert (int(row[3]), int(row[4])) == (at + 1, at + b.length)     # GFF is 1-based inclusive
+            attrs = dict(kv.split("=", 1) for kv in row[8].split(";"))
+            assert int(attrs["family"]) == b.gene and int(attrs["copy"]) == b.copy
+            assert attrs["source"] == f"{b.source}:{b.start}-{b.end}"
+            # the strand it reads on HERE: coding strand, flipped if the block has been inverted
+            expected = "+" if g.gene_strands.get(b.gene, 1) * b.strand == 1 else "-"
+            assert row[6] == expected
+            flipped += b.strand == -1
+    assert flipped, "no gene sits on an inverted block — the flip went untested"
+
+
+def test_a_gff_we_wrote_reads_back_through_our_own_gff_reader(tmp_path):
+    # the strongest thing to check about a format: our reader accepts what our writer produced, and
+    # puts the genes back where they were
+    from zombi2.genomes.gff import read_gff
+
+    g = _export_run(tmp_path, inversion=0.0, duplication=0.0, loss=0.0)   # nothing moved yet
+    lengths, genes = read_gff(tmp_path / "genome_initial.gff")
+    chrom = g.initial_genome.chromosomes[0]
+    assert lengths == {f"initial_chr{chrom.id}": chrom.length}
+    declared = sorted((a, b) for (_src, a, b) in g.gene_spans.values())
+    assert sorted((gene.start, gene.end) for gene in genes) == declared
