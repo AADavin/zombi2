@@ -373,3 +373,80 @@ def test_write_gene_trees_emits_one_newick_per_family():
             extant = out / f"gene_tree_fam{fam}_extant.nwk"
             # a family with no survivor has no extant tree, and writes no file for it
             assert extant.exists() == (gt.to_newick("extant") is not None)
+
+
+# --- ByFamily: per-family rate heterogeneity -------------------------------
+
+def _dup_per_family(g, n_families):
+    counts = collections.Counter(e.family for e in g.events if e.kind == "duplication")
+    return [counts.get(f, 0) for f in range(n_families)]
+
+
+def test_by_family_spreads_the_rates_without_moving_their_mean():
+    # the point of the modifier: families stop being interchangeable. The draw is mean-corrected,
+    # so widening the spread must widen the spread of outcomes without inflating the average.
+    sp = _tree(seed=1, n_extant=20, death=0.0)
+    flat = simulate_genomes_unordered(sp, duplication=0.25, loss=0.25, initial_families=150, seed=3)
+    varied = simulate_genomes_unordered(sp, duplication=0.25 * mod.ByFamily(spread=0.5),
+                                        loss=0.25, initial_families=150, seed=3)
+    f, v = _dup_per_family(flat, 150), _dup_per_family(varied, 150)
+    import statistics
+    assert statistics.pstdev(v) > 1.5 * statistics.pstdev(f)      # families genuinely differ
+    assert statistics.mean(v) == pytest.approx(statistics.mean(f), rel=0.35)   # mean is held
+
+
+def test_a_run_with_no_by_family_is_untouched():
+    # the weighted path costs something, so it must only be taken when it is asked for
+    sp = _tree(seed=2, n_extant=12)
+    a = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, loss=0.2,
+                                   initial_families=10, seed=5)
+    b = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, loss=0.2,
+                                   initial_families=10, seed=5)
+    assert [(e.time, e.kind, e.copy) for e in a.events] == [(e.time, e.kind, e.copy) for e in b.events]
+
+
+def test_by_family_is_deterministic_given_the_seed():
+    sp = _tree(seed=2, n_extant=12)
+    kw = dict(duplication=0.2 * mod.ByFamily(spread=0.6), loss=0.2, initial_families=20, seed=5)
+    a = simulate_genomes_unordered(sp, **kw)
+    b = simulate_genomes_unordered(sp, **kw)
+    assert [(e.time, e.kind, e.copy) for e in a.events] == [(e.time, e.kind, e.copy) for e in b.events]
+
+
+def test_family_speed_moves_every_rate_of_a_family_together():
+    # the other placement: one draw per family, scaling all its rates. A family that duplicates a
+    # lot should also be losing a lot — which is exactly what a per-rate ByFamily does NOT give.
+    sp = _tree(seed=1, n_extant=20, death=0.0)
+    g = simulate_genomes_unordered(sp, duplication=0.25, loss=0.25,
+                                   family_speed=mod.ByFamily(spread=0.6),
+                                   initial_families=150, seed=3)
+    dup = collections.Counter(e.family for e in g.events if e.kind == "duplication")
+    los = collections.Counter(e.family for e in g.events if e.kind == "loss")
+    fams = [f for f in range(150) if dup.get(f, 0) + los.get(f, 0) > 4]
+    assert len(fams) > 20
+    xs = [dup.get(f, 0) for f in fams]
+    ys = [los.get(f, 0) for f in fams]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    cov = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
+    sx = sum((a - mx) ** 2 for a in xs) ** 0.5
+    sy = sum((b - my) ** 2 for b in ys) ** 0.5
+    assert cov / (sx * sy) > 0.3          # a fast family is fast at everything
+
+
+def test_by_family_is_refused_on_origination():
+    sp = _tree(seed=1, n_extant=8)
+    with pytest.raises(ValueError, match="families are CREATED"):
+        simulate_genomes_unordered(sp, origination=0.5 * mod.ByFamily(spread=0.3), seed=1)
+
+
+def test_family_speed_takes_a_by_family_modifier():
+    sp = _tree(seed=1, n_extant=8)
+    with pytest.raises(ValueError, match="family_speed takes a ByFamily"):
+        simulate_genomes_unordered(sp, loss=0.2, family_speed=0.5, seed=1)
+
+
+def test_by_family_with_driven_by_is_refused_for_now():
+    sp = _tree(seed=1, n_extant=8)
+    with pytest.raises(ValueError, match="later slice"):
+        simulate_genomes_unordered(sp, loss=0.2 * mod.ByFamily(spread=0.3),
+                                   duplication=0.2 * mod.DrivenBy("x.tsv", {"a": 2.0}), seed=1)

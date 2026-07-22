@@ -32,7 +32,7 @@ from functools import cached_property
 
 import numpy as np
 
-from ..rates.modifiers import DrivenBy, OnTime
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
@@ -60,7 +60,7 @@ from .profiles import Profiles, profiles_from_genomes
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
 #: scope this slice, ``DrivenBy`` is wired for the single-lineage events, and the ordered engine
 #: wires ``OnTime`` only; the gates below say so per rate.
-WIRED_MODIFIERS = (OnTime, DrivenBy)
+WIRED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
 
 
 @dataclass(frozen=True)
@@ -162,6 +162,22 @@ def _pick_copy(rng, gen, total_copies) -> tuple[int, int]:
     raise AssertionError("total_copies out of sync with the genomes")  # unreachable
 
 
+def _pick_copy_by_family(rng, genome, mult: dict[int, float]) -> int:
+    """A copy index within one lineage, drawn in proportion to each copy's family multiplier.
+
+    The within-lineage twin of :func:`_weighted_index`. Needed whenever families carry different
+    rates: the totals are summed with those multipliers, so the copy has to be drawn with them too,
+    or the rate would say one thing and the picking another."""
+    total = sum(mult[c.family] for c in genome)
+    r = float(rng.random()) * total
+    acc = 0.0
+    for j, c in enumerate(genome):
+        acc += mult[c.family]
+        if r < acc:
+            return j
+    return len(genome) - 1                    # float guard: r == total lands on the last copy
+
+
 def _weighted_index(rng, weights: list[float], total: float) -> int:
     """Pick a lineage index in proportion to ``weights`` (which sum to ``total``) — the per-lineage
     pick a driven rate needs, the twin of ``species_tree._weighted_index``. When a rate is driven by
@@ -257,7 +273,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
-                               initial_families=0, families=None, seed=None,
+                               initial_families=0, families=None, family_speed=None, seed=None,
                                progress=False) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
@@ -317,13 +333,30 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if isinstance(m, (OnTime, DrivenBy)):
+            if isinstance(m, ByFamily) and label == "origination":
+                raise ValueError(
+                    "origination carries ByFamily, but origination is the rate at which families are "
+                    "CREATED — when it is read there is no family yet to have drawn a factor for. "
+                    "Put ByFamily on duplication, transfer or loss, or use family_speed= for a "
+                    "family-wide tempo.")
+            if isinstance(m, (OnTime, DrivenBy, ByFamily)):
                 continue
             raise ValueError(
                 f"{label} carries {type(m).__name__}, which the unordered genome engine does not "
-                f"support yet — only OnTime (skyline) and DrivenBy (a conditioned/joint driver) are "
-                f"wired. Per-family heterogeneity (ByFamily, Speed) and clade drift are later slices."
+                f"support yet — only OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
+                f"ByFamily (per-family heterogeneity) are wired. Clade drift is a later slice."
             )
+    if any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers) and \
+            any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
+        raise ValueError(
+            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "driver and the other weights copies by their family, and combining them means "
+            "weighting by the product. Use one or the other for now.")
+    if family_speed is not None and not isinstance(family_speed, ByFamily):
+        raise ValueError(
+            f"family_speed takes a ByFamily modifier — family_speed=mod.ByFamily(spread=0.5) — "
+            f"got {family_speed!r}. It is the family-wide slot: one draw per family scaling every "
+            f"rate that family has.")
     if transfer_to == "distance":
         transfer_to = Distance()
     if isinstance(transfer_to, Rate):
@@ -365,10 +398,25 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         copy_counter += 1
         return c
 
+    # Per-family multipliers, drawn once when a family is minted and then fixed for its whole life:
+    # family_speed scales every rate that family has (one draw), and a ByFamily on a single rate
+    # varies that rate on its own (a separate draw). Placement is what decides whether a family's
+    # rates move together. Empty unless one of them is used, and then the engine takes its weighted
+    # path; a run without either draws nothing here and is byte-identical to before.
+    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
+              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
+              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None)}
+    any_family = family_speed is not None or any(fam_by.values())
+    fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
+
     def new_family() -> int:
         nonlocal family_counter
         f = family_counter
         family_counter += 1
+        if any_family:
+            speed = family_speed.draw(rng) if family_speed is not None else 1.0
+            for key, m in fam_by.items():
+                fam_mult[key][f] = speed * (m.draw(rng) if m is not None else 1.0)
         return f
 
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
@@ -433,6 +481,20 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         # pick), so a run with no coupling is byte-identical to before. For transfer the affected
         # lineage is the donor, so a driven transfer weights who donates.
         w_dup = w_los = w_org = w_tra = None
+        if any_family:
+            # A per-copy rate pools over copies, so with per-family multipliers the total is the
+            # unit rate times the sum of those multipliers over the live copies — and the copy has
+            # to be drawn with the same weights, or the rates would say one thing and the picking
+            # another. Summed per lineage, so the existing weighted-lineage pick can be reused.
+            fw = {key: [sum(fam_mult[key][c.family] for c in gen[k]) for k in range(k_alive)]
+                  for key in fam_mult}
+            unit = {"duplication": dup.effective(copies=1, lineages=1, time=t),
+                    "loss": los.effective(copies=1, lineages=1, time=t),
+                    "transfer": tra.effective(copies=1, lineages=1, time=t) if can_xfer else 0.0}
+            w_dup = [unit["duplication"] * s for s in fw["duplication"]]
+            w_los = [unit["loss"] * s for s in fw["loss"]]
+            if can_xfer:
+                w_tra = [unit["transfer"] * s for s in fw["transfer"]]
         if any_driven:
             drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
             if dup_mods:
@@ -467,9 +529,10 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 t = t_ev
                 r = float(rng.random()) * total
                 if r < r_dup:
-                    if w_dup is not None:  # driven: weighted lineage, then a uniform copy within it
+                    if w_dup is not None:  # weighted lineage, then a copy within it
                         k = _weighted_index(rng, w_dup, r_dup)
-                        j = int(rng.integers(len(gen[k])))
+                        j = (_pick_copy_by_family(rng, gen[k], fam_mult["duplication"])
+                             if any_family else int(rng.integers(len(gen[k]))))
                     else:
                         k, j = _pick_copy(rng, gen, n)
                     _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
@@ -477,7 +540,8 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                 elif r < r_dup + r_los:
                     if w_los is not None:
                         k = _weighted_index(rng, w_los, r_los)
-                        j = int(rng.integers(len(gen[k])))
+                        j = (_pick_copy_by_family(rng, gen[k], fam_mult["loss"])
+                             if any_family else int(rng.integers(len(gen[k]))))
                     else:
                         k, j = _pick_copy(rng, gen, n)
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
@@ -493,7 +557,8 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                         if not gen[kd]:    # only via _weighted_index's r == total float guard: a
                             # zero-weight lineage has no copies to donate, so take the heaviest instead
                             kd = max(range(k_alive), key=lambda k: w_tra[k])
-                        jd = int(rng.integers(len(gen[kd])))
+                        jd = (_pick_copy_by_family(rng, gen[kd], fam_mult["transfer"])
+                              if any_family else int(rng.integers(len(gen[kd]))))
                     else:
                         kd, jd = _pick_copy(rng, gen, n)
                     total_copies += _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,

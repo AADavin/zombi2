@@ -215,6 +215,58 @@ class ByLineage(Modifier):
         return bylineage
 
 
+@dataclass(frozen=True)
+class ByFamily(Modifier):
+    """The rate varies independently from gene family to gene family.
+
+    The family-twin of :class:`ByLineage`, and the same i.i.d.-heterogeneity idea: each **family**
+    draws one multiplier with no memory, mean-corrected so ``E[factor] = 1`` — so widening ``spread``
+    spreads the families out without moving the average one off the base rate. ``dist`` is
+    ``"lognormal"`` (default; σ = the log-scale) or ``"gamma"`` (σ = the coefficient of variation).
+
+    **Where you put it decides what varies together** (``genome-api.md``). On a single rate, that rate
+    varies by family on its own::
+
+        loss = 0.25 * mod.ByFamily(spread=0.5)      # a family that loses fast is not thereby
+        duplication = 0.2 * mod.ByFamily(spread=0.5)   # duplicating fast — independent draws
+
+    In the family-wide ``family_speed=`` slot, one draw scales **every** rate that family has, so a
+    fast family is fast at everything::
+
+        simulate_genomes_unordered(tree, duplication=0.2, loss=0.25,
+                                   family_speed=mod.ByFamily(spread=0.5))
+
+    The two compose: a family-wide tempo, plus extra variation on one rate.
+
+    Not accepted on ``origination``, which is the rate at which families are *created* — at the moment
+    it is read there is no family to have drawn a factor for. The engine rejects it rather than
+    quietly ignoring it.
+    """
+
+    spread: float
+    dist: str = "lognormal"
+
+    def __post_init__(self) -> None:
+        if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)) \
+                or not math.isfinite(self.spread) or self.spread < 0:
+            raise ValueError(f"ByFamily spread must be a finite non-negative number, got {self.spread!r}")
+        if self.dist not in ("lognormal", "gamma"):
+            raise ValueError(f"ByFamily dist must be 'lognormal' or 'gamma', got {self.dist!r}")
+
+    def draw(self, rng) -> float:
+        """One independent, mean-1 multiplier for a family. ``spread = 0`` gives 1.0 (no variation)."""
+        s = self.spread
+        if s == 0.0:
+            return 1.0
+        if self.dist == "lognormal":
+            return math.exp(rng.normal(-0.5 * s * s, s))     # mean-corrected lognormal
+        return float(rng.gamma(1.0 / (s * s), s * s))        # mean-1 gamma, coefficient of variation = s
+
+    def factor(self, *, byfamily: float = 1.0, **_: float) -> float:
+        """The family's drawn factor — the engine threads it and passes it back as ``byfamily``."""
+        return byfamily
+
+
 class DrivenBy(Modifier):
     """The rate is **driven by another level** — the one coupling mechanism (SPEC §2, ``coupling-api.md``).
 
@@ -287,4 +339,5 @@ class DrivenBy(Modifier):
         return hash((DrivenBy, self.key))
 
 
-__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage", "DrivenBy"]
+__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage",
+           "ByFamily", "DrivenBy"]

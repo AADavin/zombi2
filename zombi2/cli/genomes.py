@@ -166,11 +166,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
                    default=None, metavar="PART",
-                   help="which outputs to write (default: each resolution's own; [+ …] are "
-                        "on request). unordered: events, profiles, genomes, gene_trees. "
+                   help="which outputs to write (default: each resolution's own). "
+                        "unordered: events, profiles, genomes, gene_trees. "
                         "ordered: everything — events, profiles, gene_order, gene_trees, "
-                        "rearrangements, chromosome_events, event_positions. nucleotide: events, genes, "
-                        "gene_trees [+ blocks, rearrangements, chromosome_events]. "
+                        "rearrangements, chromosome_events, event_positions. nucleotide: everything "
+                        "too — events, genes, blocks, gene_trees, rearrangements, chromosome_events. "
                         "'genomes' is every node's gene content, ancestors included, where "
                         "'profiles' counts only the extant tips; 'gene_trees' writes one Newick "
                         "per family, complete and extant.")

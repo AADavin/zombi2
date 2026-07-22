@@ -709,16 +709,18 @@ class NucleotideGenomesResult:
         tree."""
         return self._recover()[1]
 
-    def write(self, directory, outputs=("events", "genes", "gene_trees")) -> None:
+    def write(self, directory,
+              outputs=("events", "genes", "blocks", "gene_trees", "rearrangements",
+                       "chromosome_events")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.
           One row per **ancestral interval** an event touched, so an event that spanned several
           blocks writes several rows sharing a ``time`` and ``kind``.
         - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
-          included, as for the ordered resolution's ``gene_order``). Off by default: blocks are not
-          kept maximal during a run, so a rearrangement-heavy genome carries far more of them than
-          it has distinct ancestral runs, and this file grows with their number × every node.
+          included, as for the ordered resolution's ``gene_order``). The one big file here: blocks
+          are not kept maximal during a run, so a rearrangement-heavy genome carries far more of
+          them than it has distinct ancestral runs, and this grows with their number × every node.
         - ``"genes"`` → ``genes.tsv``, the declared genes and where they sit in root coordinates.
           Header-only for a run that declared none.
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.

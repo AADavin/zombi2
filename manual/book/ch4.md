@@ -26,6 +26,32 @@ g = simulate_genomes_unordered(
 
 The root starts with `initial_families` families of one copy each, recorded as originations at the crown; from there the four rates drive everything.
 
+### Families that differ from one another
+
+A bare rate is shared by every family: give `loss=0.25` and all of them lose at 0.25. Real families do not behave alike, and **`ByFamily`** is how you say so — the family twin of the sequence level's `ByLineage`, and the same idea, an independent draw per unit with no memory. Each family draws one multiplier, mean-corrected so `E[factor] = 1`, which is what lets you widen the spread without moving the average family off the base rate.
+
+Where you put it decides what varies *together*:
+
+```python
+# each rate varies by family on its own — a family that loses fast is not thereby duplicating fast
+g = simulate_genomes_unordered(
+    tree,
+    duplication = 0.2  * mod.ByFamily(spread=0.6),
+    transfer    = 0.1  * mod.ByFamily(spread=0.6),
+    loss        = 0.25 * mod.ByFamily(spread=0.6),
+    initial_families = 100, seed = 42)
+
+# one tempo per family, scaling every rate it has — a fast family is fast at everything
+g = simulate_genomes_unordered(
+    tree, duplication=0.2, transfer=0.1, loss=0.25,
+    family_speed = mod.ByFamily(spread=0.5),
+    initial_families = 100, seed = 42)
+```
+
+The two compose: `family_speed` for a family's overall tempo, and a `ByFamily` on one rate for extra variation particular to it. On the command line the rate keeps its written form, `--loss "0.25 * ByFamily(spread=0.6)"`.
+
+`ByFamily` is refused on `origination`, and that is not an oversight: origination is the rate at which families are *created*, so when it is read there is no family yet to have drawn a factor for.
+
 The two ways of stocking a genome are worth separating. `initial_families` puts families there at the start, and `origination` adds new ones as the run goes. From Python `initial_families` defaults to 0, so a caller says what it wants; from the command line `--initial-families` defaults to 100, so a bare run hands back a genome rather than a hundred empty ones. `--origination` is 0 by default either way: nothing arrives that you did not ask for. Every run's `.log` records the value it used, so a run is never ambiguous about which.
 
 ## What the rate depends on

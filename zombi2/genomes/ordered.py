@@ -625,7 +625,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extension=None, transposition_extension=None,
                              translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=0, families=None, seed=None,
+                             initial_families=0, families=None, family_speed=None, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
@@ -719,6 +719,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
     if len(set(families)) != len(families):
         raise ValueError(f"family names must be unique, got {families}")
+
+    if family_speed is not None:
+        raise ValueError(
+            "family_speed (per-family heterogeneity) is wired at the unordered resolution only for "
+            "now — the ordered engine draws segments as well as copies, so a per-family weight has "
+            "to reach the segment pick too. Use --resolution unordered, or leave it unset.")
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
