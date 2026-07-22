@@ -98,7 +98,10 @@ g.profiles.to_tsv()      # the table as text
 gt = g.gene_trees[7]                 # the gene tree of family 7
 gt.to_newick("extant")               # the surviving copies as Newick ...
 gt.to_newick("complete")             # ... or the whole genealogy
+gt.origination                       # when the family began
 ```
+
+The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination and the founding gene then lives for a while before its first duplication, transfer or speciation, and that wait is the root's branch: the family's stem. It matters most for a family that originates late, whose whole history is short. A gene that originated and never split at all is a one-node tree, written as its own lifespan — `g55:0.263097;`.
 
 ## Usage from Python
 

@@ -38,7 +38,7 @@ def _pair_run(t_spec: float, t_tip: float) -> GenomesResult:
     ``_pair_run(0.0, d)`` is one branch of length ``d`` from the root gene to each tip)."""
     root = GeneNode("speciation", 0, t_spec, 0)
     root.children = [GeneNode("extant", 1, t_tip, 1), GeneNode("extant", 2, t_tip, 2)]
-    return _run({0: GeneTree(0, root)}, t_split=t_spec, t_now=t_tip)
+    return _run({0: GeneTree(0, root, 0.0)}, t_split=t_spec, t_now=t_tip)
 
 
 def _one_lineage(family: int, lineage: int, t_tip: float) -> GeneTree:
@@ -48,7 +48,7 @@ def _one_lineage(family: int, lineage: int, t_tip: float) -> GeneTree:
     across families."""
     root = GeneNode("speciation", lineage, 0.0, 0)
     root.children = [GeneNode("extant", lineage, t_tip, 1), GeneNode("extant", lineage, t_tip, 2)]
-    return GeneTree(family, root)
+    return GeneTree(family, root, 0.0)
 
 
 def _iter_nodes(root):
@@ -105,7 +105,7 @@ def test_zero_length_branch_copies_its_parent():
     # zero-length branch — so it must copy the root's sequence
     root = GeneNode("duplication", 0, 1.0, 0)
     root.children = [GeneNode("extant", 1, 1.0, 1), GeneNode("extant", 2, 2.0, 2)]
-    r = simulate_sequences(_run({0: GeneTree(0, root)}), model=jc69(), length=120, seed=3)
+    r = simulate_sequences(_run({0: GeneTree(0, root, 0.0)}), model=jc69(), length=120, seed=3)
     assert r.alignments[0]["g1"] == r.ancestral[0]["g0"]
 
 
@@ -163,7 +163,7 @@ def test_family_with_no_extant_copy_has_empty_alignment_but_full_ancestral():
     # real internal node with a reconstructed sequence
     root = GeneNode("speciation", 0, 1.0, 0)
     root.children = [GeneNode("loss", 0, 2.0, 1), GeneNode("loss", 0, 2.0, 2)]
-    r = simulate_sequences(_run({0: GeneTree(0, root)}), model=jc69(), length=10, seed=1)
+    r = simulate_sequences(_run({0: GeneTree(0, root, 0.0)}), model=jc69(), length=10, seed=1)
     assert r.alignments[0] == {}
     assert set(r.ancestral[0]) == {"g0"}               # the root gene still gets a sequence
 
@@ -282,13 +282,26 @@ def test_strict_clock_phylogram_matches_the_chronogram_lengths():
     # base 1, strict clock -> subs/site == time, so the phylogram's branch lengths equal the
     # chronogram's (same topology; the phylogram labels every node by gene id, so internal labels
     # differ). The species phylogram keeps the species labels, so there it is byte-identical.
+    #
+    # The root is the one exception, and deliberately so. The chronogram gives it the family's stem
+    # — origination to the founding gene's end, real elapsed time. The phylogram cannot: it pairs
+    # one-to-one with the sequences, the engine draws the root sequence from the model's stationary
+    # frequencies, and no sequence exists at origination for that branch to lead from. So the
+    # chronogram carries a root branch the phylogram has none of.
     def bls(nwk):
         return sorted(re.findall(r":([0-9.eE+-]+)", nwk))
+
+    def without_stem(nwk):
+        return re.sub(r":[0-9.eE+-]+;$", ";", nwk)
+
     g, r = _small_run(clock=1.0)
     for fam, gt in g.gene_trees.items():
-        assert bls(r.phylograms[fam]["complete"]) == bls(gt.to_newick("complete"))
+        chrono = gt.to_newick("complete")
+        assert re.search(r":[0-9.eE+-]+;$", chrono)             # the chronogram states the stem
+        assert not re.search(r":[0-9.eE+-]+;$", r.phylograms[fam]["complete"])   # the phylogram does not
+        assert bls(r.phylograms[fam]["complete"]) == bls(without_stem(chrono))
         if r.phylograms[fam]["extant"] is not None:
-            assert bls(r.phylograms[fam]["extant"]) == bls(gt.to_newick("extant"))
+            assert bls(r.phylograms[fam]["extant"]) == bls(without_stem(gt.to_newick("extant")))
     assert r.species_phylogram["complete"] == g.complete_tree.to_newick()
 
 

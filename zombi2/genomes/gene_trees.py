@@ -47,10 +47,15 @@ class GeneNode:
 class GeneTree:
     """One gene family's true genealogy. ``complete`` is the whole tree (lost and extinct-species
     lineages included); ``extant`` is it pruned to the genes surviving at the extant tips (degree-two
-    nodes suppressed), or ``None`` if the family left no extant gene. ``to_newick`` serialises either."""
+    nodes suppressed), or ``None`` if the family left no extant gene. ``to_newick`` serialises either.
+
+    ``origination`` is when the family was founded — the exact time of its origination event, or the
+    root lineage's start for a family seeded by ``initial_families``. A :class:`GeneNode` records when
+    it *ended*, so this is the one time the tree cannot derive: it is where the root's branch begins."""
 
     family: int
     complete: GeneNode
+    origination: float
 
     @property
     def extant(self) -> GeneNode | None:
@@ -61,11 +66,16 @@ class GeneTree:
     def to_newick(self, which: str = "extant", *, annotate: bool = True) -> str | None:
         """Newick of the ``"extant"`` (default) or ``"complete"`` tree; ``None`` if it is empty.
         Leaves are ``g<id>``; with ``annotate`` internal nodes carry ``<kind>_n<species>``; branch
-        lengths are time differences."""
+        lengths are time differences.
+
+        The root carries one too, running from ``origination`` to where the root gene ended — the
+        stem of the family, real time in which that founding gene existed. On the extant tree the
+        root may be a node whose ancestors were suppressed; its branch still starts at ``origination``
+        and so absorbs them, exactly as the species tree's extant root absorbs its own."""
         root = self.extant if which == "extant" else self.complete
         if root is None:
             return None
-        return _to_newick(root, annotate) + ";"
+        return _to_newick(root, annotate, self.origination) + ";"
 
 
 def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:
@@ -75,11 +85,13 @@ def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:
     children: dict[int, list[int]] = collections.defaultdict(list)   # gene -> descendant genes
     ended_by: dict[int, str] = {}                         # gene -> the event kind that ended it
     end_time: dict[int, float] = {}                       # gene -> when it ended
+    origin_time: dict[int, float] = {}                    # founding gene -> when its family began
     lost: set[int] = set()
     roots: list[int] = []
     for e in events:
         if e.kind == "origination":
             birth[e.copy] = (e.family, e.lineage)
+            origin_time[e.copy] = e.time                  # where the root's branch begins
             roots.append(e.copy)
         elif e.kind in ("duplication", "transfer", "speciation"):
             birth[e.copy] = (e.family, e.lineage)
@@ -90,7 +102,8 @@ def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:
             lost.add(e.copy)
             end_time[e.copy] = e.time
     return {birth[root][0]: GeneTree(birth[root][0],
-                                     _build(root, birth, children, ended_by, end_time, lost, tree.nodes))
+                                     _build(root, birth, children, ended_by, end_time, lost, tree.nodes),
+                                     origin_time[root])
             for root in roots}
 
 
@@ -143,9 +156,11 @@ def _prune_to_extant(root: GeneNode) -> GeneNode | None:
     return pruned[id(root)]
 
 
-def _to_newick(root: GeneNode, annotate: bool) -> str:
-    """Serialise iteratively (gene trees run deeper than CPython's C-stack recursion guard)."""
-    stack: list[list] = [[root, None, 0, []]]              # [node, parent_time, next_child, child_strings]
+def _to_newick(root: GeneNode, annotate: bool, origination: float) -> str:
+    """Serialise iteratively (gene trees run deeper than CPython's C-stack recursion guard). The root
+    is seeded with ``origination`` as its parent time, so it gets a branch length like every other
+    node instead of the bare label that would drop the family's stem."""
+    stack: list[list] = [[root, origination, 0, []]]       # [node, parent_time, next_child, child_strings]
     result = ""
     while stack:
         frame = stack[-1]
@@ -154,7 +169,7 @@ def _to_newick(root: GeneNode, annotate: bool) -> str:
             frame[2] = ci + 1
             stack.append([node.children[ci], node.time, 0, []])
             continue
-        bl = "" if parent_time is None else f":{node.time - parent_time:.6g}"
+        bl = f":{node.time - parent_time:.6g}"             # the root's parent time is `origination`
         if node.is_leaf:
             s = f"g{node.copy}{bl}"
         else:

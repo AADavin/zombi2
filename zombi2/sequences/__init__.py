@@ -180,7 +180,11 @@ def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
             schild = GeneNode(ochild.kind, ochild.species, snode.time + blen, ochild.copy)
             snode.children.append(schild)
             stack.append((ochild, schild))
-    return GeneTree(gt.family, scaled_root)
+    # Origination 0.0, not the scaled stem: the engine draws the root sequence from the model's
+    # stationary frequencies, so no substitutions are simulated above the root. The gene tree's stem
+    # is real *time*, but on a phylogram it is zero *substitutions*, and claiming otherwise would
+    # report evolution that never happened.
+    return GeneTree(gt.family, scaled_root, 0.0)
 
 
 def _gene_newick(root: GeneNode) -> str:

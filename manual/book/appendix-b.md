@@ -31,6 +31,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | each family's true genealogy (`.complete` and `.extant`) |
+| Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
 ## Genomes, ordered — `simulate_genomes_ordered`
 
