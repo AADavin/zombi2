@@ -1,8 +1,13 @@
 name: Site
 
-# Build the landing page (web/) at the site root and the MkDocs docs under
-# /docs/, then publish both to GitHub Pages on every push to main.
+# Build the landing page (web/) at the site root, the MkDocs docs under /docs/, and the PDF manual
+# at /zombi2-manual.pdf, then publish all three to GitHub Pages on every push to main.
 # Pages source must be set to "GitHub Actions" (Settings -> Pages).
+#
+# The manual is built here, and not only attached to releases, so the published PDF tracks main.
+# releases/latest/download/zombi2-manual.pdf only moves when a release is cut, which left the
+# advertised manual months behind the book. Release assets stay: those pin the manual to a version,
+# which is what a release is for. This URL is the living one.
 on:
   push:
     branches: [main]
@@ -19,8 +24,35 @@ permissions:
   id-token: write
 
 jobs:
+  # Kept in step with the `manual` job in release.yml, which builds the same PDF for release assets.
+  manual:
+    name: manual PDF
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XeLaTeX and librsvg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            librsvg2-bin lmodern \
+            texlive-xetex texlive-latex-recommended texlive-latex-extra \
+            texlive-fonts-recommended texlive-fonts-extra texlive-plain-generic
+      - name: Install a recent Pandoc (Ubuntu's apt pandoc is too old for --syntax-highlighting)
+        run: |
+          ver=$(curl -fsSL https://api.github.com/repos/jgm/pandoc/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+          curl -fsSL "https://github.com/jgm/pandoc/releases/download/${ver}/pandoc-${ver}-1-amd64.deb" -o /tmp/pandoc.deb
+          sudo dpkg -i /tmp/pandoc.deb
+          pandoc --version | head -1
+      - name: Build the manual
+        run: make -C manual manual
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zombi2-manual
+          path: manual/build/zombi2-manual.pdf
+
   build:
     name: build site
+    needs: manual
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -38,6 +70,11 @@ jobs:
         run: mkdocs build --strict --site-dir _site/docs
       - name: Add the landing page at the site root
         run: cp -R web/. _site/
+      - name: Add the manual PDF at the site root
+        uses: actions/download-artifact@v4
+        with:
+          name: zombi2-manual
+          path: _site
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
