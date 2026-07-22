@@ -17,21 +17,15 @@ The most general way to connect the four levels is shown in Figure 1.
 
 You can run a simulation in which every level is simulated. We write it in this notation:
 
-\begin{center}
-P(Species) · P(Genomes | Species) · P(Sequences | Genomes) · P(Traits | Species)
-\end{center}
+$$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species}) \cdot P(\text{Sequences} \mid \text{Genomes}) \cdot P(\text{Traits} \mid \text{Species})$$
 
 But you can always choose which levels to run; you need not run them all. For example, you do not need to simulate sequences if you are only interested in gene trees, which the genome level already produces:
 
-\begin{center}
-P(Species) · P(Genomes | Species)
-\end{center}
+$$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species})$$
 
 And you do not have to simulate genomes if all you want is a species tree with some traits on it:
 
-\begin{center}
-P(Species) · P(Traits | Species)
-\end{center}
+$$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species})$$
 
 In ZOMBI2 everything depends on a species tree, and in most cases you begin a workflow by simulating the tree alone. There are a few exceptions, which we cover a bit later.
 
@@ -54,9 +48,7 @@ In ZOMBI2 everything is driven by events that fire over time. The kind of event 
 
 The frequency at which an event fires depends on its **effective rate**:
 
-\begin{center}
-Effective rate = scope(base) × modifiers.
-\end{center}
+$$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
 The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps that base to say how many independent chances the event has: per lineage, per copy, or per site. The **modifiers** are dimensionless context multipliers that make a rate faster or slower depending on some factor — the lineage where the event happens, the gene family affected, or the total diversity present in the simulation.
 
@@ -80,15 +72,11 @@ ZOMBI2 adds two new connections between levels to reach scenarios like these. On
 
 When we **condition** one level on another, a parameter of the second level stops being a fixed number you set and instead reads the state of the first. In the run below, the gene-loss rate is no longer constant: it depends on the trait's value on each branch. For example, you can use this to simulate that aquatic lineages lose their olfactory genes faster. Because the trait can be simulated first and then held fixed, conditioning is still two ordinary runs in order: you simulate the driver level, write it out, and feed it to the second, exactly as you already feed a species tree to a genome run.
 
-\begin{center}
-P(Species) · P(Traits | Species) · P(Genomes | Species, Traits)
-\end{center}
+$$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
 
 When we **join** two levels, neither can be simulated first, because each depends on the other as it unfolds. If a trait speeds up speciation, then faster-speciating lineages leave more descendants, so the tree's shape depends on the trait, but the trait is evolving along that very tree at the same time. No order works, so the two levels are grown together in a single run, step by step. When the coupling reaches back into the species tree, the tree itself becomes an output rather than an input.
 
-\begin{center}
-P(Species, Traits)
-\end{center}
+$$P(\text{Species}, \text{Traits})$$
 
 We **join** whenever a coupling would form a loop: when one level shapes another and is shaped back, directly or through the tree. If the influence runs only one way, we condition; if it runs in a loop, we join. In the directional case we can still name the variable the driver sets on its target: for a trait driving speciation, that variable is the speciation rate.
 

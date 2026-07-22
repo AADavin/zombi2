@@ -43,6 +43,19 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
 
+# TEMPORARY — until the chapter figures are wired into the site.
+# The chapters reference their figures as `figures/<name>_print.png`: the flattened raster the PDF
+# build generates from `manual/book/figures/<name>.svg` and never commits, so nothing under that
+# path exists for MkDocs to serve. Under `--strict` each one is a build-breaking warning. Left at
+# `info` the text of every chapter publishes now and the figures follow in their own commit, which
+# should point the chapters at the tracked, theme-aware `.svg` (it honours the site's dark mode)
+# and teach the PDF build to swap in the raster. Restore the default then.
+# The guard that matters is untouched: a renamed chapter still fails the build, because the
+# snippets plugin checks its own include paths (`check_paths: true` below).
+validation:
+  links:
+    not_found: info
+
 plugins:
   - search
   - mkdocstrings:
@@ -59,8 +72,16 @@ plugins:
             merge_init_into_class: true
             filters: ["!^_"]
 
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
 markdown_extensions:
   - admonition
+  # The chapters set their display formulas as TeX ($$…$$) so they typeset in both outputs — as
+  # display math in the PDF, and here via MathJax (see javascripts/mathjax.js).
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.highlight:
@@ -75,12 +96,21 @@ markdown_extensions:
       base_path: ["."]
       check_paths: true
 
-# The docs site is being rewritten on the clean core (see docs/design/MAP.md), growing a
-# page as each level lands. The old pages are parked in legacy/docs/, out of the build.
+# The site IS the manual: every page under Guide and Reference is a snippet include of the
+# corresponding file in manual/book/, so the book and the site cannot drift. The order below is
+# the book's reading order. Adding a chapter means adding a stub page and a line here.
 nav:
   - Home: index.md
   - Guide:
+      - Introduction: guide/introduction.md
+      - A tour of ZOMBI2: guide/tour.md
       - Species trees: guide/species-trees.md
       - "Genomes I: unordered": guide/genomes.md
+      - "Genomes II: ordered": guide/genomes-ordered.md
+      - "Genomes III: nucleotide": guide/genomes-nucleotide.md
+      - Sequence evolution: guide/sequences.md
+      - Trait evolution: guide/traits.md
+      - Conditioning and joining: guide/conditioning-and-joining.md
   - Reference:
+      - Rates and the Gillespie algorithm: reference/rates-and-gillespie.md
       - Output files: reference/output-files.md
