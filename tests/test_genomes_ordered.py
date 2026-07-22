@@ -10,6 +10,7 @@ import inspect
 
 import pytest
 
+from zombi2.genomes.events import node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
 from zombi2.rates.modifiers import OnTime
@@ -285,7 +286,8 @@ def _written_gene_order(path):
     lines = (path / "gene_order.tsv").read_text().splitlines()[1:]
     written = {}
     for row in lines:
-        s, *rest = (int(c) for c in row.split("\t"))
+        s, *rest = row.split("\t")
+        s, rest = node_from_label(s), [int(c) for c in rest]
         written.setdefault(s, []).append(tuple(rest))
     return written
 

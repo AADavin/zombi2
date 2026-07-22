@@ -7,6 +7,9 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 (**yes**), only when you name its token (**no**), or is available in Python but has no file yet
 (**Python**).
 
+A species-tree node is written `n<id>` everywhere it appears — in the Newick, and in every `lineage`,
+`species`, `donor` and `recipient` column — so a node reads the same in any file of a run.
+
 Every `zombi2` **command** also writes a run log next to its outputs (`species.log`, `genomes.log`,
 `sequences.log`, `traits.log`): the version, the timestamp, the command line, and every resolved
 parameter. Rates are recorded in their **written form** — `birth<TAB>1.0 * OnTime({0: 1, 3: 0.3})` —
@@ -30,7 +33,8 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 |-----------|-----------------|-------|-----|------------------------|
 | Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | each family's true genealogy (`.complete` and `.extant`) |
+| Genomes | `genomes.tsv` | TSV | no | every node's gene content, **ancestors included** — `species` · `family` · `gene`. One row per gene copy, where `profiles.tsv` counts only the extant tips |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | each family's true genealogy. A family with no surviving copy writes no `_extant` file |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
 
@@ -44,7 +48,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹ |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
 | Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `family` · `donor` · `recipient` · `dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
-| Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | as unordered — position is orthogonal to genealogy |
 
 ¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
 `length` (how many genes it covered), counted rightwards from `start` and **wrapping past position 0 on
@@ -62,7 +66,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Genes | `genes.tsv` | TSV | yes | the declared genes in root coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations, in **physical** bp — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped` |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — same format as ordered |
-| Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | one tree per declared gene (else per recovered root-block) |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | one tree per declared gene (else per recovered root-block) |
 
 The nucleotide log needs no separate positions file: its events carry ancestral coordinates already.
 

@@ -78,6 +78,22 @@ class GeneTree:
         return _to_newick(root, annotate, self.origination) + ";"
 
 
+def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory) -> None:
+    """Write ``gene_tree_fam<family>_complete.nwk`` and ``…_extant.nwk``, one pair per family, into
+    ``directory``. Every resolution writes them the same way, so the writer lives here rather than
+    three times over. A family with no surviving copy has no extant tree and writes no ``_extant``
+    file — its ``_complete`` one still records the lineages that died."""
+    import pathlib
+
+    d = pathlib.Path(directory)
+    d.mkdir(parents=True, exist_ok=True)
+    for fam, gt in sorted(gene_trees.items()):
+        (d / f"gene_tree_fam{fam}_complete.nwk").write_text(gt.to_newick("complete") + "\n")
+        extant = gt.to_newick("extant")
+        if extant is not None:
+            (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n")
+
+
 def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:
     """Derive ``{family id: GeneTree}`` from the event log inside the complete ``tree``. Each event
     records a gene ending and its descendants beginning, so this is a direct parent→children read."""

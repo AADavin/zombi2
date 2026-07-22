@@ -1,6 +1,8 @@
 """Tests for the unordered D/L/O gene-family core (zombi2.genomes_unordered)."""
 
 import collections
+import pathlib
+import tempfile
 
 import pytest
 
@@ -302,3 +304,72 @@ def test_distance_decay_validation():
     for bad in (-1.0, float("inf"), float("nan"), True):
         with pytest.raises(ValueError, match="Distance decay"):
             Distance(decay=bad)
+
+
+# --- the written outputs ---------------------------------------------------
+
+def _rows(path):
+    lines = path.read_text().splitlines()
+    cols = lines[0].split("\t")
+    return cols, [dict(zip(cols, ln.split("\t"))) for ln in lines[1:] if ln]
+
+
+def test_written_node_columns_carry_the_n_label():
+    # species_events.tsv and trait_values.tsv have always written n<id>; the genome tables used to
+    # write bare ints, so the same node read two ways in one output directory.
+    sp = _tree(seed=2)
+    g = simulate_genomes_unordered(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
+                                   initial_families=4, seed=7)
+    with tempfile.TemporaryDirectory() as d:
+        out = pathlib.Path(d)
+        g.write(out, outputs=("events", "genomes"))
+        _, events = _rows(out / "genome_events.tsv")
+        assert events and all(r["lineage"].startswith("n") for r in events)
+        assert any(r["recipient"].startswith("n") for r in events if r["recipient"])
+        # gene-copy columns are NOT lineages and stay bare
+        assert all(not r["copy"].startswith("n") for r in events)
+        assert all(not r["parent"].startswith("n") for r in events if r["parent"])
+        _, genomes = _rows(out / "genomes.tsv")
+        assert genomes and all(r["species"].startswith("n") for r in genomes)
+
+
+def test_written_log_round_trips_through_the_reader():
+    from zombi2.genomes.events import events_from_tsv, events_tsv
+    sp = _tree(seed=2)
+    g = simulate_genomes_unordered(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
+                                   initial_families=4, seed=7)
+    back = events_from_tsv(events_tsv(g.events))
+    assert [(e.time, e.kind, e.lineage, e.recipient) for e in back] == \
+           [(e.time, e.kind, e.lineage, e.recipient) for e in g.events]
+
+
+def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
+    sp = _tree(seed=5, death=0.6)
+    g = simulate_genomes_unordered(sp, duplication=0.3, loss=0.3, origination=0.6,
+                                   initial_families=5, seed=3)
+    with tempfile.TemporaryDirectory() as d:
+        out = pathlib.Path(d)
+        g.write(out, outputs=("genomes", "profiles"))
+        _, rows = _rows(out / "genomes.tsv")
+        written = {r["species"] for r in rows}
+        assert written == {f"n{s}" for s in g.genomes if g.genomes[s]}
+        internal = {f"n{n.id}" for n in sp.complete_tree.nodes.values() if n.children is not None}
+        assert written & internal, "ancestral genomes must be in there, not just the tips"
+        # profiles is the extant-only view
+        tips = {f"n{n.id}" for n in sp.complete_tree.extant()}
+        assert set((out / "profiles.tsv").read_text().splitlines()[0].split("\t")[1:]) == tips
+
+
+def test_write_gene_trees_emits_one_newick_per_family():
+    sp = _tree(seed=5, death=0.6)
+    g = simulate_genomes_unordered(sp, duplication=0.3, loss=0.3, origination=0.6,
+                                   initial_families=5, seed=3)
+    with tempfile.TemporaryDirectory() as d:
+        out = pathlib.Path(d)
+        g.write(out, outputs=("gene_trees",))
+        for fam, gt in g.gene_trees.items():
+            complete = out / f"gene_tree_fam{fam}_complete.nwk"
+            assert complete.read_text().strip() == gt.to_newick("complete")
+            extant = out / f"gene_tree_fam{fam}_extant.nwk"
+            # a family with no survivor has no extant tree, and writes no file for it
+            assert extant.exists() == (gt.to_newick("extant") is not None)

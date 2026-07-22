@@ -97,7 +97,8 @@ from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
-from .gene_trees import GeneTree, gene_trees_from_events
+from .events import node_label
+from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_gff
 
 
@@ -721,8 +722,8 @@ class NucleotideGenomesResult:
           Header-only for a run that declared none.
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges.
-
-        Gene trees stay Python-only (:attr:`gene_trees`), as they are at the other resolutions.
+        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
+          genealogy per family that survives in at least one extant leaf.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -736,6 +737,8 @@ class NucleotideGenomesResult:
             (d / "rearrangements.tsv").write_text(_nucleotide_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
+        if "gene_trees" in outputs:
+            write_gene_trees(self.gene_trees, d)
 
     def _blocks_tsv(self) -> str:
         """Every node's genome, block by block. ``position`` is the block's physical offset along its
@@ -746,7 +749,7 @@ class NucleotideGenomesResult:
             for c in self.genomes[s].chromosomes:
                 at = 0
                 for b in c.blocks:
-                    rows.append(f"{s}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
+                    rows.append(f"{node_label(s)}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
                                 f"{b.copy}\t{b.gene}")
                     at += b.length
         return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -775,9 +778,13 @@ def _nucleotide_events_tsv(events) -> str:
     ``parent`` and ``copy``.
     """
     rows = []
+    # the columns holding a species-tree node, labelled n<id> like every other table
+    node_at = {i for i, c in enumerate(_NUCLEOTIDE_EVENT_COLS) if c in ("lineage", "recipient")}
 
     def row(*cells):
-        rows.append("\t".join("" if c is None else str(c) for c in cells))
+        rows.append("\t".join(
+            "" if c is None else (node_label(c) if i in node_at else str(c))
+            for i, c in enumerate(cells)))
 
     for e in events:
         if isinstance(e, Origination):
@@ -811,12 +818,13 @@ def _nucleotide_rearrangements_tsv(rearrangements) -> str:
     the fields a kind does not use. Coordinates are **physical** (bp along the chromosome), unlike
     the genealogy log's ancestral ones."""
     def row(r):
+        ln = node_label(r.lineage)
         if isinstance(r, Inversion):
-            return (r.time, "inversion", r.lineage, r.chromosome, r.start, r.length, "", "", "")
+            return (r.time, "inversion", ln, r.chromosome, r.start, r.length, "", "", "")
         if isinstance(r, Transposition):
-            return (r.time, "transposition", r.lineage, r.chromosome, r.start, r.length,
+            return (r.time, "transposition", ln, r.chromosome, r.start, r.length,
                     "", r.dest, int(r.flipped))
-        return (r.time, "translocation", r.lineage, r.source, r.start, r.length,
+        return (r.time, "translocation", ln, r.source, r.start, r.length,
                 r.dest, "", int(r.flipped))
     rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
     return "\n".join(["\t".join(_NUCLEOTIDE_REARRANGEMENT_COLS), *rows]) + "\n"

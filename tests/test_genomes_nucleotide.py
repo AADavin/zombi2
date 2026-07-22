@@ -14,6 +14,7 @@ import collections
 import numpy as np
 import pytest
 
+from zombi2.genomes.events import node_from_label
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
@@ -1668,7 +1669,7 @@ def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):
 
     by_chromosome = {}
     for row in rows:
-        by_chromosome.setdefault((int(row["species"]), int(row["chromosome"])), []).append(row)
+        by_chromosome.setdefault((node_from_label(row["species"]), int(row["chromosome"])), []).append(row)
 
     seen = set()
     for (node, chrom_id), chrom_rows in by_chromosome.items():
@@ -1728,7 +1729,7 @@ def test_written_rearrangements_carry_one_row_per_kind(tmp_path):
     assert len(rows) == len(r.rearrangements)
     assert set(row["kind"] for row in rows) == {"inversion", "transposition", "translocation"}
     for row, rec in zip(rows, r.rearrangements, strict=True):
-        assert float(row["time"]) == rec.time and int(row["lineage"]) == rec.lineage
+        assert float(row["time"]) == rec.time and node_from_label(row["lineage"]) == rec.lineage
         assert int(row["length"]) == rec.length and int(row["start"]) == rec.start
 
 
