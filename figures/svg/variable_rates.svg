@@ -8,6 +8,7 @@
 <g transform="translate(590.0,210.0)">
 <rect x="-590.0" y="-210.0" width="1180" height="420" fill="white" />
 <path d="M477.3052469223252,-126.0 L477.3052469223252,126.0" stroke="#c9c9c9" stroke-width="1.0" stroke-dasharray="2,4" />
+<path d="M-99.44997382212489,-126.0 L-99.44997382212489,126.0" stroke="#8a8a8a" stroke-width="1.4" stroke-dasharray="5,4" />
 <path d="M-261.4790834275431,-114.0 L493.9993884474595,-114.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M-225.9328879190998,-106.4 L167.82014720589598,-106.4" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
 <path d="M-161.75222426079722,-98.8 L323.08071165723015,-98.8" stroke="#1a1a1a" stroke-width="2.6" stroke-dasharray="6,5" stroke-linecap="butt" />
@@ -134,8 +135,8 @@
 <text x="-494.0" y="154.0" font-size="22" text-anchor="middle" font-family="Helvetica">0.0</text>
 <path d="M-251.17359456378747,126.0 L-251.17359456378747,132.0" stroke="black" stroke-width="1.6" />
 <text x="-251.17359456378747" y="154.0" font-size="22" text-anchor="middle" font-family="Helvetica">1.2</text>
-<path d="M-8.347386402588086,126.0 L-8.347386402588086,132.0" stroke="black" stroke-width="1.6" />
-<text x="-8.347386402588086" y="154.0" font-size="22" text-anchor="middle" font-family="Helvetica">2.5</text>
+<path d="M-99.44997382212489,126.0 L-99.44997382212489,132.0" stroke="black" stroke-width="1.6" />
+<text x="-99.44997382212489" y="154.0" font-size="22" text-anchor="middle" font-family="Helvetica">2.0</text>
 <path d="M234.47901903362447,126.0 L234.47901903362447,132.0" stroke="black" stroke-width="1.6" />
 <text x="234.47901903362447" y="154.0" font-size="22" text-anchor="middle" font-family="Helvetica">3.7</text>
 <path d="M477.30522719482383,126.0 L477.30522719482383,132.0" stroke="black" stroke-width="1.6" />

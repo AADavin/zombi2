@@ -41,6 +41,13 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                    help="stop at N extant (surviving) lineages — conditioned on survival")
     g.add_argument("--total-time", type=float, default=None, metavar="T", dest="total_time",
                    help="grow forward for T time units (time runs forward from the crown)")
+    g.add_argument("--max-lineages", type=int, default=100_000, metavar="N", dest="max_lineages",
+                   help="stop with an error if standing diversity passes N (default 100000). "
+                        "A time-conditioned run grows like exp((birth-death)*t), so a rate a "
+                        "little too high runs to millions of lineages; this catches it instead of "
+                        "filling memory. Raise it if that is the size you want, or pass 0 to lift "
+                        "the guard. It never truncates a tree — a tree cut off at a size is no "
+                        "longer a sample from the process you asked for"),
 
     g = p.add_argument_group("sampling & fossils")
     g.add_argument("--sampling", type=float, default=1.0, metavar="RHO",
@@ -77,7 +84,7 @@ def run(args, parser):
     result = simulate_species_tree(
         birth=args.birth, death=args.death, n_extant=args.n_extant, total_time=args.total_time,
         mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed,
-        progress=not args.quiet)
+        progress=not args.quiet, max_lineages=args.max_lineages or None)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)

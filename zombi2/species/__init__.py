@@ -454,7 +454,8 @@ def _weighted_index(rng, weights: list[float], total: float) -> int:
 
 
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,
-          pulses: list[tuple[float, float]], progress: bool = False) -> tuple[Tree, list[Event]]:
+          pulses: list[tuple[float, float]], progress: bool = False,
+          max_lineages: int | None = None) -> tuple[Tree, list[Event]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
@@ -494,9 +495,23 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     # a tree grows toward whichever stop condition was given: a tip count, or a time
     bar = progress_bar(n_extant if n_extant is not None else total_time, "species",
                        unit="tip" if n_extant is not None else "time", enabled=progress)
+    # A run conditioned on time has no natural ceiling: standing diversity grows like
+    # exp((birth - death) * t), so a rate a little too high or a time a little too long is the
+    # difference between a thousand lineages and ten million. The guard RAISES rather than stopping
+    # early — a tree cut off at a size is no longer a sample from the process asked for, and handing
+    # one back as if it were would be worse than not running at all.
+    ceiling = None if max_lineages is None else max(max_lineages, n_extant or 0)
     while alive:
         bar.to(len(alive) if n_extant is not None else t)
         n = len(alive)
+        if ceiling is not None and n > ceiling:
+            bar.close()
+            raise RuntimeError(
+                f"the tree passed {ceiling} standing lineages at time {t:.3g} and is still growing "
+                f"— birth exceeds death by enough that this run has no realistic end. Lower the "
+                f"rates, shorten total_time, cap the growth with a modifier "
+                f"(birth * OnTotalDiversity(cap=...)), or raise max_lineages if the size is what "
+                f"you want (max_lineages=None removes the guard).")
         # standing diversity = the living lineages; OnTotalDiversity/OnTime read `diversity`/`time`
         ctx = {"diversity": n, "time": t}
         # a drifting rate's total is the sum over lineages of each lineage's effective rate —
@@ -660,7 +675,7 @@ def _recover_fossils(tree: Tree, rate: float, rng) -> list[tuple[int, float]]:
 
 def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                           mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None,
-                          progress=False) -> SpeciesResult:
+                          progress=False, max_lineages=100_000) -> SpeciesResult:
     """Grow a forward birth-death tree.
 
     ``birth`` and ``death`` are rate specs (a number, a ``scope`` wrapper, or a product
@@ -730,11 +745,13 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
 
     if total_time is not None:
-        tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress)
+        tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress,
+                             max_lineages)
         return _finish(tree, events)
 
     for _ in range(_MAX_ATTEMPTS):
-        tree, events = _grow(rng, birth_rate, death_rate, n_extant, None, [], progress)
+        tree, events = _grow(rng, birth_rate, death_rate, n_extant, None, [], progress,
+                             max_lineages)
         if sum(1 for nd in tree.nodes.values() if nd.fate == "extant") == n_extant:  # survivors (pre-sampling)
             return _finish(tree, events)
     raise RuntimeError(
