@@ -26,6 +26,8 @@ So far the rates have been constant, but a birth or death rate need not be. It c
 - **On total diversity** — the rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
 - **On the parent's rate** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
 
+![Three ways a rate can vary, one tree apiece — all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `OnTime`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `OnTotalDiversity`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `FromParent`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
+
 The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` to get a rate that changes in time *and* saturates.
 
 Birth and death are modified independently. Give both a `FromParent` and each lineage draws its own speciation factor and its own extinction factor at every split, so the two rates drift without correlation.
