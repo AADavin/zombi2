@@ -35,7 +35,9 @@ ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 
 
 Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 — the moment of a mass extinction, the breakpoints of a rate that changes through time — is measured on that scale.
 
-The founding lineage lives for a while before it first splits, so it has a duration of its own.
+The founding lineage lives for a while before it first splits, so it has a duration of its own. That stretch is the tree's **stem**, and the first split is its **crown**.
+
+![The stem. A run starts from one lineage at time 0 — the origin — which lives for a while before it first splits. Everything up to that split is the stem, and it is ordinary simulated time: genes are gained and lost along it, traits drift along it. Every tree ZOMBI2 writes therefore gives its root a branch length.](figures/stem.pdf){width=70%}
 
 ## Rates
 
