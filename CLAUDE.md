@@ -4,7 +4,9 @@
 
 **Before changing any code, docs, CLI, or manual chapter, read both:**
 - **[`docs/design/SPEC.md`](docs/design/SPEC.md)** — the **model and the words** (the four levels, the
-  independent / conditioned / joint framework, the rate grammar, the canonical vocabulary, figure conventions).
+  independent / conditioned / joint framework, the rate grammar, the canonical vocabulary).
+  Figure style is not here: it lives in [`figures/STYLE.md`](figures/STYLE.md), which also says
+  where a figure's script, SVG and PNG belong.
 - **[`docs/design/MAP.md`](docs/design/MAP.md)** — the **files and the names** (every module, every public
   name, its one canonical home; the clean core vs the `legacy/` quarantine; the rebuild order).
 

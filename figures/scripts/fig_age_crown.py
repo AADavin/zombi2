@@ -22,12 +22,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import cairosvg
 import drawsvg as draw
 
-from zombi_style import FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
+from zombi_style import save, FONT, INK, MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
-OUT_DIR = Path(__file__).resolve().parent.parent
 
 W, H = 1160, 380
 
@@ -114,11 +112,7 @@ def render():
     age_bracket(d, bx0, bx1, ybase, "age")
 
     name = "age_crown"
-    out = OUT_DIR / name
-    out.mkdir(parents=True, exist_ok=True)
-    (out / f"{name}.svg").write_text(d.as_svg(), encoding="utf-8")
-    cairosvg.svg2png(bytestring=d.as_svg().encode(), write_to=str(out / f"{name}.png"), scale=300 / 72.0)
-    print(f"wrote {out}/{name}.svg / .png")
+    save(d, name)
 
 
 if __name__ == "__main__":

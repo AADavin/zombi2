@@ -1,16 +1,37 @@
 # ZOMBI2 figure house style
 
-The agreed style for every manual figure. Shared constants live in
-`figures/scripts/zombi_style.py`.
+The agreed style for every figure in the manual and on the site. This is the only place figure
+style is written down: SPEC defers here. Shared constants live in `figures/scripts/zombi_style.py`.
+
+Where the figures live:
+
+    figures/scripts/   the generators, one per figure, plus zombi_style.py
+    figures/svg/       every figure as SVG — what the manual and the site both read
+    figures/png/       the same figures at 300 dpi, for slides and anywhere raster is wanted
+
+A generator calls `save(d, name)` from `zombi_style`, which writes both. `docs/img/` holds symlinks
+into `figures/svg/`, because MkDocs can only serve what is under `docs/`.
 
 The reference implementations — `fig_diversity_dependent.py`, `fig_species_tree_events.py`,
 `fig_gene_tree.py`, `fig_clads.py`, `fig_mass_extinction.py`, `fig_trait_ou.py` — are in
 `legacy/figures/scripts/`, along with every other generator whose figure the rewritten manual no
 longer uses. They are still the reference for *how to draw*; read them there.
 
-**SPEC §7 governs.** It fixes the conventions the rewrite settled on — black and white, no
-subtitles, node shapes, the four-levels layout. Where this file disagrees with it, SPEC wins and
-this file is the fossil.
+## What every figure must obey
+
+These are the conventions the rewrite settled on. They outrank anything below.
+
+- **Black and white / neutral.** No colour to distinguish levels.
+- **No subtitles.**
+- **Nodes:** rounded rectangles, white fill, ink outline, ink label; **plural** labels.
+- **The four-levels layout:** a vertical chain **Species → Genomes → Sequences**, with **Traits**
+  branching to the side from Species on a **curved** arrow, at the same height as Genomes. It is not
+  a diamond; do not call it "the diamond". Sequences is never placed centre-bottom.
+- **Coupling diagrams:** dashed = a level a run always evolves on, solid = a coupling you add, a
+  dashed capsule = "grown together" (joint).
+
+Figures already drawn to these rules, to copy from: `manual/book/figures/fig-2-1-four-levels.svg`,
+`.../composition.svg`, `.../composition2.svg`, and `figures/svg/age_crown.svg` (crown vs stem).
 
 ## Canvas & rendering
 - `drawsvg` canvas ~1000–1180 px wide. Make the canvas tall/wide enough that **no label
