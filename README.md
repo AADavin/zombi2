@@ -2,7 +2,7 @@
   ZOMBI2&nbsp;<img src="assets/logo.svg" alt="ZOMBI2 logo" height="32" align="absmiddle">
 </h1>
 
-**[🌐 Website](https://aadavin.github.io/zombi2/)** · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf) · [Tools manual (pdf)](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-tools-manual.pdf) · [Quickstart](https://aadavin.github.io/zombi2/docs/quickstart/)
+**[🌐 Website](https://aadavin.github.io/zombi2/)** · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://github.com/AADavin/zombi2/releases/latest/download/zombi2-manual.pdf) · [Quickstart](https://aadavin.github.io/zombi2/docs/quickstart/)
 
 [![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
@@ -10,13 +10,13 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
-**A simulator suite for genome evolution.**
+**Simulating the evolution of species, genomes, sequences and traits.**
 
-ZOMBI2 simulates how genomes evolve along a phylogeny across **four levels** — **species
-trees**, the **genomes** (gene families) that evolve along them, phenotypic **traits**, and
-molecular **sequences** — plus their **coevolution**, as one composable, seeded, fully
-reproducible suite. Use it to generate benchmark datasets with known ground truth for
-phylogenetic and comparative methods.
+ZOMBI2 simulates evolution at **four levels** — the **species** tree of lineages, the
+**genomes** that evolve along it, the **sequences** inside each gene, and the **traits** a
+lineage carries. Each level runs on its own, conditioned on another, or jointly with it, and
+every run records the true history behind the dataset. Use it to generate benchmark datasets
+with known ground truth for phylogenetic and comparative methods.
 
 ---
 
