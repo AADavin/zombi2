@@ -7,8 +7,9 @@ clock** (this slice) the rate is one number for the whole tree, so the branch le
 just ``rate_base · Δt``. (The relaxed-clock family — a per-branch ``clock`` modifier riding the
 species tree — and across-site ``+Γ`` are later slices; they scale this same branch length.)
 
-The engine draws the root sequence from the model's stationary frequencies, then walks the tree from
-root to tips: a child's sequence is sampled site-by-site from ``P(bl)[parent_state]``, where
+The engine draws the founding sequence from the model's stationary frequencies **at the family's
+origination**, then walks the tree from root to tips: a child's sequence is sampled site-by-site from
+``P(bl)[parent_state]``, where
 ``P(bl) = exp(Q·bl)`` (the reversible eigendecomposition in :mod:`.substitution_models`). Only the branch
 *endpoints* are sampled — this gives the sequence at every node (the observable tip alignment and the
 ancestral reconstructions) but not the individual substitution events, which are a later opt-in
@@ -27,42 +28,45 @@ from .substitution_models import SubstitutionModel
 
 
 def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: float,
-                     clock: "dict[int, float] | None", rng: np.random.Generator) -> dict[int, np.ndarray]:
+                     clock: "dict[int, float] | None", rng: np.random.Generator,
+                     origination: float) -> tuple[dict[int, np.ndarray], np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
-    :class:`~zombi2.genomes.gene_trees.GeneNode`).
+    :class:`~zombi2.genomes.gene_trees.GeneNode`), starting at ``origination``.
 
-    Returns ``{id(node): states}`` for **every** node — integer state arrays over the model's
-    alphabet, keyed by object identity (gene-tree nodes carry no unique id, and identity is unique and
-    stable for the run). The caller decodes and labels only the nodes it keeps. Deterministic given
-    ``rng``.
+    Returns ``({id(node): states}, founding_states)``. The first is **every** node — integer state
+    arrays over the model's alphabet, keyed by object identity (gene-tree nodes carry no unique id,
+    and identity is unique and stable for the run); the caller decodes and labels only the nodes it
+    keeps. The second is the sequence the family began with. Deterministic given ``rng``.
 
     The branch ending at a node lies on that node's species branch, so its length in substitutions/site
     is ``rate_base · clock[node.species] · (node.time - parent.time)`` — the lineage clock (``clock``,
     one value per species branch, shared across families) rescales it. ``clock=None`` (the strict
     clock) uses factor 1 everywhere.
+
+    The **root is an ordinary node** here, its parent time being ``origination``: a family exists from
+    the moment it originates, and its founding gene evolves across the stem before whatever event ends
+    it. Drawing the root's own sequence from the stationary frequencies instead would leave that
+    stretch of the gene's life un-evolved, and give the phylogram a root branch nothing happened on.
     """
     pi = model.stationary
     k = model.k
-    root_states = rng.choice(k, size=length, p=pi).astype(np.int8)
+    founding_states = rng.choice(k, size=length, p=pi).astype(np.int8)
     out: dict[int, np.ndarray] = {}
     pcache: dict[float, np.ndarray] = {}
 
     # Iterative pre-order. Each stack frame carries the parent's end time and states so a node's own
     # states are sampled when it is popped (strict pre-order rng consumption); children are pushed
-    # reversed so they pop in forward order. ``parent_time is None`` marks the root.
-    stack: list[tuple[object, float | None, np.ndarray | None]] = [(root, None, None)]
+    # reversed so they pop in forward order. The root's "parent" is the origination.
+    stack: list[tuple[object, float, np.ndarray]] = [(root, origination, founding_states)]
     while stack:
         node, parent_time, parent_states = stack.pop()
-        if parent_states is None:
-            states = root_states
-        else:
-            factor = 1.0 if clock is None else clock.get(node.species, 1.0)
-            bl = rate_base * factor * (node.time - parent_time)
-            states = parent_states if bl <= 0.0 else _sample(parent_states, _p_for(pcache, model, bl), rng)
+        factor = 1.0 if clock is None else clock.get(node.species, 1.0)
+        bl = rate_base * factor * (node.time - parent_time)
+        states = parent_states if bl <= 0.0 else _sample(parent_states, _p_for(pcache, model, bl), rng)
         out[id(node)] = states
         for child in reversed(node.children):
             stack.append((child, node.time, states))
-    return out
+    return out, founding_states
 
 
 def _p_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:

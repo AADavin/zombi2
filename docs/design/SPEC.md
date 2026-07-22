@@ -305,13 +305,12 @@ can drift apart.
 - Book subtitle: **"Simulating the Evolution of Species, Genomes, Sequences and Traits."**
 - Trees: **complete** (keeps extinct lineages) vs **extant** (the sampled survivors); output filenames
   are frozen (`_extant.nwk` is the extant tree, kept from ZOMBI1).
-- Every node in a written tree carries a branch length, **the root included**. A forward run starts
-  from one lineage, so the root's branch is its **stem** — real simulated time in which events
-  happen. Writing a crown-rooted `)n0;` would discard it. For a species tree the stem runs from the
-  origin to the first split; for a gene tree, from the family's **origination** to the founding
-  gene's first event. One exception, and only this one: a **phylogram** measured in substitutions
-  gives its root no branch, because the engine draws the root sequence from the model's stationary
-  frequencies and no sequence exists at origination for that branch to lead from.
+- Every node in a written tree carries a branch length, **the root included** — no exceptions. A
+  forward run starts from one lineage, so the root's branch is its **stem**: real simulated time in
+  which events happen. Writing a crown-rooted `)n0;` would discard it. For a species tree the stem
+  runs from the origin to the first split; for a gene tree, from the family's **origination** to the
+  founding gene's first event; for a **phylogram**, it is that same stem in substitutions, because
+  the founding sequence is drawn at origination and evolves across the stem like any other branch.
 - Prose target: **≤ 4 em dashes per 1,000 words** (the `- term — gloss` bullet form and captions are
   exempt).
 

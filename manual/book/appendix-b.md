@@ -33,6 +33,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | each family's true genealogy (`.complete` and `.extant`) |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
+
 ## Genomes, ordered — `simulate_genomes_ordered`
 
 | Output | File | Format | Default | Contents |
@@ -83,6 +84,7 @@ sequences.
 | Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model |
 | Phylograms | `sequences_phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along |
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
+| Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock |
 
 ## Traits — `simulate_continuous` / `simulate_discrete`

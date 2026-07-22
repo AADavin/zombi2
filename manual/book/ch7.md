@@ -88,10 +88,17 @@ Three of those four names are the same modifier. A reader who wants "a UCLN cloc
 
 - `.alignments` — the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
 - `.ancestral` — the sequence at **every** node, internal and extinct alike. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates.
+- `.founding` — for each family, the sequence it began with, at its origination.
 - `.phylograms` — for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
 - `.species_phylogram` — the same conversion applied to the species tree, so the clock is visible as branch lengths.
 
 As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
+
+### Where a sequence starts
+
+A family does not begin at the first branching of its gene tree. It begins when it originates, and the founding gene then lives for a while — its **stem** — before anything splits it. So that is where the sequence starts: one draw from the model's stationary frequencies at the origination, which then evolves across the stem in the ordinary way and arrives at the root gene as a sequence that has already changed. `.founding` is that first draw; `.ancestral` holds what the root gene ended up with, and the two differ by however much the stem allowed.
+
+This is why a phylogram's root carries a branch length. It is the stem in substitutions per site, exactly as every other branch is its own stretch of time converted by the rate. Under a strict clock of rate 1 a phylogram is its chronogram, root branch included.
 
 ## Usage from Python
 
