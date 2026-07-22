@@ -19,7 +19,8 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
 from zombi2.species import read_newick
-from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
+                                  _write_params_log, level_dir)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -175,6 +176,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "'genomes' is every node's gene content, ancestors included, where "
                         "'profiles' counts only the extant tips; 'gene_trees' writes one Newick "
                         "per family, complete and extant.")
+    _add_flat_arg(g)
 
 
 def _transfer_to(text: str):
@@ -306,18 +308,25 @@ def run(args, parser):
     dt = time.perf_counter() - t0
 
     os.makedirs(args.output, exist_ok=True)
-    if args.write:
-        result.write(args.output, outputs=args.write)
+    out = level_dir(args.output, "genomes", args.flat)
+    wanted = args.write if args.write else None
+    # gene trees are one file per family per view, so a hundred families is hundreds of files —
+    # they get their own directory unless --flat says otherwise
+    if wanted is None:
+        result.write(out)                       # each Result.write's own default
     else:
-        result.write(args.output)               # each Result.write's own default
+        if rest := [o for o in wanted if o != "gene_trees"]:
+            result.write(out, outputs=rest)
+        if "gene_trees" in wanted:
+            result.write(level_dir(out, "gene_trees", args.flat), outputs=("gene_trees",))
     # the tree the events are indexed against, canonicalised to n<id> labels so its ids match the
     # event log's `lineage` column — this makes the run self-describing and lets `zombi2 sequences
     # --genomes DIR` rebuild the gene trees (from genome_events.tsv + this tree) with no other input.
-    with open(os.path.join(args.output, "genome_species_tree.nwk"), "w") as f:
+    with open(os.path.join(out, "genome_species_tree.nwk"), "w") as f:
         f.write(result.complete_tree.to_newick() + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
-        with open(os.path.join(args.output, "names.tsv"), "w") as f:
+        with open(os.path.join(out, "names.tsv"), "w") as f:
             f.write("\n".join(rows) + "\n")
 
     if args.resolution == "nucleotide":         # no phyletic profiles here: the unit is a base pair
@@ -329,5 +338,6 @@ def run(args, parser):
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(args.output, "genomes.log"), args, summary)
+    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "genomes.log"),
+                      args, summary)
     return 0

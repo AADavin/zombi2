@@ -105,7 +105,7 @@ The same simulations run from the command line. Each level is a subcommand of `z
 zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
 
 # gene families along it
-zombi2 genomes -t out/species_complete.nwk --duplication 0.2 --loss 0.25 --origination 0.5 --seed 42 -o out/
+zombi2 genomes -t out/species/species_complete.nwk --duplication 0.2 --loss 0.25 --origination 0.5 --seed 42 -o out/
 ```
 
 A rate flag takes a rate **written exactly as you would write it in Python** — a bare number, or a scope wrapper and modifiers composed with `*`, quoted so the shell keeps it in one piece:

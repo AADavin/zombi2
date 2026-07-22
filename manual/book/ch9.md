@@ -104,11 +104,11 @@ Notice too that the coupling **folds into the target level's own command**. Ther
 zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
 
 # 2. the driver: a habitat trait, writing the driver file
-zombi2 traits --kind discrete -t out/species_complete.nwk \
+zombi2 traits --kind discrete -t out/species/species_complete.nwk \
     --states cave,surface --switch 0.1 --seed 1 -o out/ --write values tree driver
 
 # 3. the target: genomes whose loss reads that trait
-zombi2 genomes -t out/species_complete.nwk \
+zombi2 genomes -t out/species/species_complete.nwk \
     --loss "0.25 * DrivenBy('out/trait_driver.tsv', {'cave': 4.0, 'surface': 1.0})" \
     --duplication 0.2 --origination 0.5 --seed 2 -o out/
 ```
@@ -117,10 +117,10 @@ Both halves of transfer take that same text: the rate with a base number in fron
 
 ```bash
 # the driver: a competence trait, into its own directory
-zombi2 traits --kind discrete -t out/species_complete.nwk \
+zombi2 traits --kind discrete -t out/species/species_complete.nwk \
     --states competent,normal --switch 0.3 --seed 1 -o comp/ --write driver
 
-zombi2 genomes -t out/species_complete.nwk --initial-families 10 \
+zombi2 genomes -t out/species/species_complete.nwk --initial-families 10 \
     --transfer    "0.1 * DrivenBy('comp/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
     --transfer-to "DrivenBy('comp/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
     --seed 2 -o comp_genomes/

@@ -11,7 +11,8 @@ import os
 import time
 
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
+                                  _write_params_log, level_dir)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -58,6 +59,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--write", nargs="+", choices=_WRITE_OUTPUTS, default=None, metavar="PART",
                    help=f"which outputs to write (default all applicable): "
                         f"{', '.join(_WRITE_OUTPUTS)}. Files are prefixed 'species_'.")
+    _add_flat_arg(g)
 
 
 def run(args, parser):
@@ -78,7 +80,8 @@ def run(args, parser):
     dt = time.perf_counter() - t0
 
     os.makedirs(args.output, exist_ok=True)
-    result.write(args.output, outputs=args.write)
+    out = level_dir(args.output, "species", args.flat)
+    result.write(out, outputs=args.write)
 
     n_extant = result.n_extant
     n_total = len(result.complete_tree.nodes)
@@ -91,5 +94,6 @@ def run(args, parser):
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
     print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(args.output, "species.log"), args, summary)
+    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "species.log"),
+                      args, summary)
     return 0
