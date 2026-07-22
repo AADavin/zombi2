@@ -1805,14 +1805,22 @@ def test_assembly_tiles_every_node_exactly_as_its_trace_back():
                                     duplication=0.4, duplication_length=40, transfer=0.6,
                                     transfer_length=60, root_length=600, genes=3, gene_length=90,
                                     seed=4)
-    partial = 0
+    partial = checked = refused = 0
     for node_id in sorted(g.genomes):
+        try:
+            layout = g.assembly(node_id)
+        except ValueError:            # an ancestor whose material no survivor kept, or a fragment a
+            refused += 1              # partial loss left behind: refused, and never an extant leaf
+            assert g.complete_tree.nodes[node_id].fate != "extant"
+            continue
         assert _expand(g, node_id) == g.trace_back(node_id)
-        for pieces in g.assembly(node_id).values():
+        checked += 1
+        for pieces in layout.values():
             for (i, _gene, start, end, _strand) in pieces:
                 _src, a, z = g.root_blocks[i]
                 partial += (start, end) != (0, z - a)
+    assert checked > len(g.complete_tree.extant()), "only the leaves were checked"
     # a leaf's own breakpoints are all in the partition, so every piece of a *leaf* is a whole block;
-    # an ancestor's need not be — a transfer can carry an unbroken run across a boundary the ancestor
-    # has, so the partition cuts inside its block and the piece is a stretch of one. Both happen here.
+    # an ancestor's need not be — where it has a breakpoint no survivor kept, the partition cuts
+    # inside its block and the piece is a stretch of one. Both happen in this run.
     assert partial, "no piece was a stretch of a block — the sub-block path went untested"

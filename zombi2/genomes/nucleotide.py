@@ -797,6 +797,14 @@ class NucleotideGenomesResult:
                                 f"{node_label(node_id)} carries copy lineage {b.copy} over "
                                 f"{blocks[i]}, but that block's genealogy has no such copy — the "
                                 "event log and the genomes disagree")
+                        if tips[key] is None:
+                            raise ValueError(
+                                f"{node_label(node_id)} carries [{lo}, {hi}) of block {blocks[i]} "
+                                f"under copy lineage {b.copy}, but a loss ended that copy over this "
+                                "block, so its tree has no lineage for the fragment left behind. "
+                                "Resolving these dead partial-overlap lineages needs the finer "
+                                "all-node partition; the extant leaves are never affected, because "
+                                "the partition is cut from them.")
                         cut.append((i, tips[key], lo - a, hi - a, b.strand))
                         covered = hi
                     k += 1
@@ -1748,7 +1756,11 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
             out.append(_SegEvent(kind, fam, species[c], t, nxt, prev))       # continuation, on c's branch
             out.append(_SegEvent(kind, fam, species[cc], t, seg_in[cc], prev))  # the new copy
             prev = nxt
-        tip_of[(fam, c)] = prev                            # the gene a genome still carrying c holds
+        # The gene a genome still carrying c holds. ``None`` when a loss ended c over this block: the
+        # loss need only *overlap* the block, so a node can still carry a **fragment** of it while the
+        # block's tree has no lineage for that fragment — nothing to read a sequence from. It cannot
+        # happen at an extant leaf, whose own breakpoints are all in the partition.
+        tip_of[(fam, c)] = None if c in loss_of else prev
         if c in loss_of:                                   # a death (dead leaf)
             out.append(_SegEvent("loss", fam, species[c], loss_of[c], prev, None))
         elif c in specs:                                   # a bifurcation into the daughter species
@@ -1762,9 +1774,10 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
 def _recover_gene_trees(result, *, every_block: bool = False
                         ) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree],
-                                   dict[tuple[int, int], int]]:
+                                   dict[tuple[int, int], int | None]]:
     """The full recovery: the root partition, a tree per family, and ``{(family, copy): gene id}`` —
-    the last gene each copy lineage held, which is what a genome still carrying that copy is made of.
+    the last gene each copy lineage held, which is what a genome still carrying that copy is made of
+    (``None`` where a loss ended that copy over that block, leaving nothing to read a fragment from).
 
     With genes declared we build a tree for the root-blocks that are declared genes, keyed by gene
     family id; with none declared, every root-block is a family (keyed by index). Either way the

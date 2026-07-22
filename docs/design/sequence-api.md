@@ -227,10 +227,19 @@ recovery beside the trees.
 **Ancestral genomes too**, as `.ancestral_genomes` — the same split the sequences already make, since a
 leaf's genes are tips of their block trees and an ancestor's are internal nodes of them, so one reads
 `.alignments` and the other `.ancestral` through the same `(block, copy)` map. Two nodes are left out
-rather than returned incomplete: an **extinct leaf** (neither a tip nor an internal node, so it has no
-sequence anywhere) and an **ancestor holding material no surviving lineage kept** (the partition is cut
-from the extant leaves, so there is no block for it — `assembly` raises when asked directly). Covering
-the second would need the finer all-node partition the nucleotide module already flags.
+rather than returned incomplete, all for the same reason — only the surviving lineages decide where the
+blocks are cut: an **extinct leaf** (neither a tip nor an internal node, so it has no sequence
+anywhere); an **ancestor holding material no surviving lineage kept** (no block for it); and an
+**ancestor left holding a fragment** — a loss need only *overlap* a block to end that copy's lineage
+for it, so the block's tree has no lineage for the part that survives. `assembly` raises on all three.
+Extant lineages are never affected, provably: a block sits inside a surviving leaf's own block, copy ids
+belong to one branch, so a loss ending that copy would have taken part of the block with it.
+
+The fragment case is the "dead partial-overlap lineages" the nucleotide module already flags, and it is
+what the finer **all-node partition** would fix. It was found by scale, not by reasoning: a 91-node run
+over three replicons with every event kind on turned it up as a `KeyError` deep in the assembly, where
+the smaller runs had never produced one. In that run all 25 extant lineages and 32 of the 45 ancestors
+rebuild exactly (2.11 Mb checked base by base); the 13 that do not are the deepest nodes.
 
 **The round trip is checked.** Declare a genome in a GFF, evolve it, rebuild the root from its
 descendants at substitution rate 0: identical, base for base, to the founding blocks in root coordinate

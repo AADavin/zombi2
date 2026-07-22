@@ -157,7 +157,15 @@ Because the whole genome is covered, the run can put the genomes back together. 
 
 `.ancestral_genomes` is the same at every internal node, and pairs with `.genomes` exactly as `.ancestral` pairs with `.alignments`: a leaf's genes are tips of their block trees, an ancestor's are internal nodes of them. So a run gives the ancestral genomes as well as the observed ones — reconstructed, not estimated.
 
-Two nodes are left out rather than returned incomplete. An **extinct leaf** is neither a tip nor an internal node of its block trees, so it has no sequence anywhere. And an **ancestor holding material that no surviving lineage kept** has no recovered block for it, so it would come back with a hole; asking for one directly raises instead.
+Some nodes are left out rather than returned incomplete, and it is worth knowing which, because the reason is the same in every case: **only the surviving lineages decide where the blocks are cut.**
+
+- An **extinct leaf** is neither a tip nor an internal node of its block trees, so no sequence was ever written for it.
+- An **ancestor holding material that no surviving lineage kept** has no recovered block for it.
+- An **ancestor left holding a fragment** — a loss need only overlap a block to end that copy's lineage for it, so an ancestor can be left carrying part of a block that the block's own tree no longer has a lineage for.
+
+Asking for one of these directly raises rather than returning a genome with a hole in it. Extant lineages are never affected, and that is provable rather than lucky: a block sits inside a surviving leaf's own block, and a loss that ended its copy would have taken part of that block with it.
+
+In practice the limitation bites at the **oldest** ancestors, which have had the most time for their material to be lost somewhere along every path. In a deliberately punishing 91-node run — 39 kb over three replicons, every event kind on, 128 losses — all 25 extant lineages and 32 of the 45 ancestors were reconstructed exactly; the 13 that were not are the deepest nodes in the tree. Resolving them needs a finer partition cut at every node rather than at the survivors, which is future work.
 
 The model has to be a nucleotide one, since a genome is measured in base pairs and its blocks are read on either strand. A protein model is refused.
 
