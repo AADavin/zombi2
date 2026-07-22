@@ -18,10 +18,9 @@ Only what something a reader reaches actually names:
 | Figure | Named by |
 | --- | --- |
 | `manual/book/figures/fig-2-1-four-levels.svg` | Ch2, the docs home page, the README |
-| `manual/book/figures/composition.svg`, `composition2.svg` | SPEC §7, as reference figures |
-| `docs/img/age_crown.svg` | SPEC §7, as a reference figure |
-| `docs/img/gillespie_{poisson,step,loop,everywhere}.svg` | Appendix A |
-| `docs/img/event_levels.svg` | the genome resolution ladder — kept deliberately, not yet placed |
+| `figures/svg/age_crown.svg` | `figures/STYLE.md`, as a reference figure |
+| `figures/svg/gillespie_{poisson,step,loop,everywhere}.svg` | Appendix A |
+| `figures/svg/event_levels.svg` | the genome resolution ladder — kept deliberately, not yet placed |
 | `assets/logo.svg` | the README |
 
 `figures/scripts/zombi_style.py` is the house style every generator imports, and `figures/STYLE.md`
