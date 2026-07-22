@@ -282,27 +282,34 @@ def test_strict_clock_phylogram_matches_the_chronogram_lengths():
     # base 1, strict clock -> subs/site == time, so the phylogram's branch lengths equal the
     # chronogram's (same topology; the phylogram labels every node by gene id, so internal labels
     # differ). The species phylogram keeps the species labels, so there it is byte-identical.
-    #
-    # The root is the one exception, and deliberately so. The chronogram gives it the family's stem
-    # — origination to the founding gene's end, real elapsed time. The phylogram cannot: it pairs
-    # one-to-one with the sequences, the engine draws the root sequence from the model's stationary
-    # frequencies, and no sequence exists at origination for that branch to lead from. So the
-    # chronogram carries a root branch the phylogram has none of.
+    # The root branch is included: the family's founding sequence evolves across the stem, so the
+    # phylogram states it in subs/site just as the chronogram states it in time.
     def bls(nwk):
         return sorted(re.findall(r":([0-9.eE+-]+)", nwk))
 
-    def without_stem(nwk):
-        return re.sub(r":[0-9.eE+-]+;$", ";", nwk)
-
     g, r = _small_run(clock=1.0)
     for fam, gt in g.gene_trees.items():
-        chrono = gt.to_newick("complete")
-        assert re.search(r":[0-9.eE+-]+;$", chrono)             # the chronogram states the stem
-        assert not re.search(r":[0-9.eE+-]+;$", r.phylograms[fam]["complete"])   # the phylogram does not
-        assert bls(r.phylograms[fam]["complete"]) == bls(without_stem(chrono))
+        assert re.search(r":[0-9.eE+-]+;$", r.phylograms[fam]["complete"])   # the root branch is there
+        assert bls(r.phylograms[fam]["complete"]) == bls(gt.to_newick("complete"))
         if r.phylograms[fam]["extant"] is not None:
-            assert bls(r.phylograms[fam]["extant"]) == bls(without_stem(gt.to_newick("extant")))
+            assert bls(r.phylograms[fam]["extant"]) == bls(gt.to_newick("extant"))
     assert r.species_phylogram["complete"] == g.complete_tree.to_newick()
+
+
+def test_the_founding_sequence_evolves_across_the_stem():
+    # a family exists from its origination, so the sequence it started with is not the sequence its
+    # root gene ended with — it evolved across the stem, and the phylogram's root branch is that.
+    g, r = _small_run(clock=1.0)
+    assert set(r.founding) == set(g.gene_trees)
+    for fam, gt in g.gene_trees.items():
+        assert len(r.founding[fam]) == len(next(iter(r.ancestral[fam].values()), r.founding[fam]))
+        stem = gt.complete.time - gt.origination
+        root_seq = r.ancestral[fam].get(f"g{gt.complete.copy}")
+        if root_seq is not None and stem > 0:
+            # not asserted equal or unequal site-by-site (a short stem may fix nothing), but the
+            # branch the phylogram reports must be exactly the stem under a rate-1 strict clock
+            written = float(r.phylograms[fam]["complete"].rsplit(":", 1)[1].rstrip(";"))
+            assert written == pytest.approx(stem, rel=1e-5)
 
 
 def test_phylogram_internal_nodes_pair_with_ancestral():

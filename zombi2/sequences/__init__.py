@@ -46,7 +46,7 @@ from ..species import Node, Tree, prune
 from .evolution import evolve_gene_tree
 from .substitution_models import SubstitutionModel, decode
 
-_WRITE_OUTPUTS = ("alignments", "ancestral", "phylograms", "species_phylogram")  # the write vocabulary
+_WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram")
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gate in :func:`simulate_sequences`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. ``ByLineage``
@@ -63,6 +63,12 @@ class SequencesResult:
       gene tree's / phylogram's Newick leaves. Empty for a family with no surviving copy.
     - ``ancestral`` — ``{family: {g<copy>: sequence}}``: the reconstructed sequence at every
       **internal** gene-tree node, keyed by its gene id (which includes the family's root gene).
+    - ``founding`` — ``{family: sequence}``: the sequence the family started with, at its
+      **origination** — the state the phylogram's root branch leads *from*. It is drawn from the
+      model's stationary frequencies and then evolves across the stem into the root gene's sequence,
+      so it is not the same string as ``ancestral[family]["g<root copy>"]`` unless the stem is empty.
+      Kept out of ``ancestral`` on purpose: those keys pair one-to-one with phylogram nodes, and the
+      origination is a point on a branch, not a node.
     - ``phylograms`` — ``{family: {"complete": newick, "extant": newick | None}}``: each gene tree with
       branch lengths in **substitutions/site** (``base × lineage-clock × Δt``) — the ground-truth tree
       behind each alignment. **Every** node is labelled by its gene id ``g<copy>``, so the tips match
@@ -76,6 +82,7 @@ class SequencesResult:
 
     alignments: dict[int, dict[str, str]]
     ancestral: dict[int, dict[str, str]]
+    founding: dict[int, str]
     phylograms: dict[int, dict[str, str | None]]
     species_phylogram: dict[str, str | None]
     seed: int | None
@@ -85,6 +92,8 @@ class SequencesResult:
 
         - ``"alignments"`` → ``sequences_alignment_fam<family>.fasta`` (skipped for empty families).
         - ``"ancestral"`` → ``sequences_ancestral_fam<family>.fasta``.
+        - ``"founding"`` → ``sequences_founding.fasta``, one record ``fam<family>`` per family: the
+          sequence each family originated with, before its stem.
         - ``"phylograms"`` → ``sequences_phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
         - ``"species_phylogram"`` → ``sequences_species_phylogram_{complete,extant}.nwk`` (subs/site).
         """
@@ -101,6 +110,9 @@ class SequencesResult:
             for fam, anc in self.ancestral.items():
                 if anc:
                     (d / f"sequences_ancestral_fam{fam}.fasta").write_text(_fasta(anc))
+        if "founding" in outputs and self.founding:
+            (d / "sequences_founding.fasta").write_text(
+                _fasta({f"fam{fam}": seq for fam, seq in sorted(self.founding.items())}))
         if "phylograms" in outputs:
             for fam, ph in self.phylograms.items():
                 (d / f"sequences_phylogram_fam{fam}_complete.nwk").write_text(ph["complete"] + "\n")
@@ -166,12 +178,18 @@ def _clock_factor(clock, species: int) -> float:
 
 def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
     """A copy of the gene tree whose node ``time`` holds the cumulative **substitutions/site** from the
-    root (``base × clock[species] × Δt`` summed along the path). Feeding it to ``GeneTree.to_newick``
-    then emits a *phylogram* (branch lengths in subs/site); and because its prune-to-extant merges
-    branches by that same cumulative measure, a suppressed branch spanning several species branches gets
-    the **sum** of its pieces for free — the exact trick the chronogram uses with time."""
+    family's **origination** (``base × clock[species] × Δt`` summed along the path). Feeding it to
+    ``GeneTree.to_newick`` then emits a *phylogram* (branch lengths in subs/site); and because its
+    prune-to-extant merges branches by that same cumulative measure, a suppressed branch spanning
+    several species branches gets the **sum** of its pieces for free — the exact trick the chronogram
+    uses with time.
+
+    Counting from origination rather than from the root is what gives the root its own branch: the
+    founding gene evolves across the stem, so the scaled root sits ``base × clock × stem`` in, not
+    at zero."""
     root = gt.complete
-    scaled_root = GeneNode(root.kind, root.species, 0.0, root.copy)
+    stem = rate_base * _clock_factor(clock, root.species) * (root.time - gt.origination)
+    scaled_root = GeneNode(root.kind, root.species, stem, root.copy)
     stack = [(root, scaled_root)]
     while stack:
         onode, snode = stack.pop()
@@ -180,20 +198,17 @@ def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
             schild = GeneNode(ochild.kind, ochild.species, snode.time + blen, ochild.copy)
             snode.children.append(schild)
             stack.append((ochild, schild))
-    # Origination 0.0, not the scaled stem: the engine draws the root sequence from the model's
-    # stationary frequencies, so no substitutions are simulated above the root. The gene tree's stem
-    # is real *time*, but on a phylogram it is zero *substitutions*, and claiming otherwise would
-    # report evolution that never happened.
-    return GeneTree(gt.family, scaled_root, 0.0)
+    return GeneTree(gt.family, scaled_root, 0.0)   # origination is the zero of the scaled measure
 
 
 def _gene_newick(root: GeneNode) -> str:
     """Newick of a (scaled) gene tree labelling **every** node — leaf and internal — by its gene id
     ``g<copy>``, so the tips match the ``alignments`` keys and the internal nodes match the
     ``ancestral`` keys (both keyed ``g<copy>``): the phylogram pairs one-to-one with the sequences.
-    Branch lengths are node-``time`` differences (substitutions/site on a scaled tree). Iterative —
-    gene trees run past CPython's recursion guard, so recursion would crash on deep trees."""
-    stack: list[list] = [[root, None, 0, []]]      # [node, parent_time, next_child, child_strings]
+    Branch lengths are node-``time`` differences (substitutions/site on a scaled tree). The root's
+    parent measure is 0 — the family's origination — so it carries the stem like every other branch.
+    Iterative — gene trees run past CPython's recursion guard, so recursion would crash on deep trees."""
+    stack: list[list] = [[root, 0.0, 0, []]]       # [node, parent_time, next_child, child_strings]
     result = ""
     while stack:
         frame = stack[-1]
@@ -202,7 +217,7 @@ def _gene_newick(root: GeneNode) -> str:
             frame[2] = ci + 1
             stack.append([node.children[ci], node.time, 0, []])
             continue
-        bl = "" if parent_time is None else f":{node.time - parent_time:.6g}"
+        bl = f":{node.time - parent_time:.6g}"
         s = f"g{node.copy}{bl}" if node.is_leaf else f"({','.join(parts)})g{node.copy}{bl}"
         stack.pop()
         if stack:
@@ -306,11 +321,14 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
         clock = {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
+    founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
     for family in sorted(gene_trees):  # sorted for reproducibility given the seed
         gt = gene_trees[family]
-        states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng)
+        states, founding_states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng,
+                                                   gt.origination)
         alignments[family], ancestral[family] = _split(gt, states, model)
+        founding[family] = decode(founding_states, model.alphabet)
         scaled = _scaled_gene_tree(gt, rate_base, clock)  # branch lengths in subs/site
         ext = scaled.extant
         phylograms[family] = {"complete": _gene_newick(scaled.complete),
@@ -321,7 +339,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
     species_phylogram = {"complete": sp_scaled.to_newick(),
                          "extant": sp_extant.to_newick() if sp_extant is not None else None}
 
-    return SequencesResult(alignments, ancestral, phylograms, species_phylogram, seed)
+    return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed)
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,

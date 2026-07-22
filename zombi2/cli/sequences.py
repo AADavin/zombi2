@@ -38,7 +38,7 @@ RATES_HELP = _rates_help(
          "(default, σ = the log-scale) or 'gamma' (σ = the coefficient of variation).")
 
 # the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import)
-_SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "species_phylogram")
+_SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "founding", "species_phylogram")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
@@ -98,7 +98,9 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write (default: alignments, phylograms). also available: "
-                        "ancestral (internal-node sequences), species_phylogram (the species tree "
+                        "ancestral (internal-node sequences), founding (each family's sequence at "
+                        "its origination, where the phylogram's root branch starts), "
+                        "species_phylogram (the species tree "
                         "scaled by the clock)")
 
 
