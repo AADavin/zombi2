@@ -63,18 +63,6 @@ g.gene_trees                    # the true gene tree of every family
 g.write("run/")                 # the event log and the copy-number profiles
 ```
 
-Every rate is written the same way — a **scope** around a base, optionally times **modifiers**,
-in the same notation from Python and from the command line:
-
-```python
-from zombi2.rates import scope, modifiers
-
-sp = species.simulate_species_tree(
-    birth = 1.0 * modifiers.OnTime({0: 1.0, 3: 0.5}),   # full rate, then half after time 3
-    death = scope.Global(0.3),                          # one tree-wide rate, not per lineage
-    total_time = 8.0, seed = 1)
-```
-
 ---
 
 ## Levels
@@ -87,37 +75,31 @@ reproducible run.
   <img alt="The four levels of evolution ZOMBI2 simulates: species, genomes and sequences in a chain, with traits branching off species" src="manual/book/figures/fig-2-1-four-levels.svg" width="330">
 </p>
 
-- **[Species trees](docs/guide/species-trees.md)** — a birth–death process with rates that can
-  shift in time, saturate with diversity or drift down the tree, plus mass extinctions,
-  incomplete sampling and fossils. Extinct lineages are kept, so the complete tree and the
-  extant one are both available.
-- **[Genomes](docs/guide/genomes.md)** — gene families under duplication, transfer, loss and
-  origination, at three resolutions: [unordered](docs/guide/genomes.md) families,
-  [ordered](docs/guide/genomes-ordered.md) chromosomes with rearrangements, and
-  [nucleotide](docs/guide/genomes-nucleotide.md) genomes where genes are blocks of DNA.
-- **[Sequences](docs/guide/sequences.md)** — nucleotide (JC69, K80, HKY85, GTR) and protein
-  substitution models run down each gene tree, with ancestral sequences at every node.
-- **[Traits](docs/guide/traits.md)** — continuous traits that diffuse, revert to an optimum or
-  shift at speciation, and discrete traits switching between states.
+- **[Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)** — a
+  birth–death process with rates that can shift in time, saturate with diversity or drift down
+  the tree, plus mass extinctions, incomplete sampling and fossils. Extinct lineages are kept,
+  so the complete tree and the extant one are both available.
+- **[Genomes](https://aadavin.github.io/zombi2/docs/guide/genomes/)** — gene families under
+  duplication, transfer, loss and origination, at three resolutions: unordered families,
+  [ordered](https://aadavin.github.io/zombi2/docs/guide/genomes-ordered/) chromosomes with
+  rearrangements, and
+  [nucleotide](https://aadavin.github.io/zombi2/docs/guide/genomes-nucleotide/) genomes where
+  genes are blocks of DNA.
+- **[Sequences](https://aadavin.github.io/zombi2/docs/guide/sequences/)** — nucleotide (JC69,
+  K80, HKY85, GTR) and protein substitution models run down each gene tree, with ancestral
+  sequences at every node.
+- **[Traits](https://aadavin.github.io/zombi2/docs/guide/traits/)** — continuous traits that
+  diffuse, revert to an optimum or shift at speciation, and discrete traits switching between
+  states.
 
 ## Combining levels
 
 A level can be **conditioned** on another — a rate reads a value some other level produced — or
 the two can be grown **jointly**, when neither can be simulated first because each drives the
 other. Both are one mechanism, `DrivenBy(source, mapping)`, on any rate. See
-[conditioning and joining](docs/guide/conditioning-and-joining.md).
+[conditioning and joining](https://aadavin.github.io/zombi2/docs/guide/conditioning-and-joining/).
 
 ---
-
-## Documentation
-
-The [documentation site](https://aadavin.github.io/zombi2/docs/) and the book-style
-[manual](manual/) are the same text: every guide page is the corresponding chapter, included
-verbatim, so the two cannot drift. Build the site locally with
-`pip install -e ".[docs]" && mkdocs serve`.
-
-Two design documents govern the rebuild: [`SPEC.md`](docs/design/SPEC.md) fixes the model and
-the vocabulary, [`MAP.md`](docs/design/MAP.md) fixes where every name lives.
 
 ## Citation
 
