@@ -238,18 +238,47 @@ g.write("out/", outputs=("events", "profiles", "gene_order",
 ```
 out/genome_events.tsv        the gene genealogy (the source of truth)
 out/profiles.tsv             family × extant-species copy counts
-out/gene_order.tsv           the observed genomes' layout, one row per gene
+out/gene_order.tsv           every node's layout, one row per gene
 out/rearrangements.tsv       inversions, transpositions, translocations
 out/chromosome_events.tsv    the chromosome network (edge list)
 ```
 
-The first three are written by default; the two logs are opt-in. `gene_order.tsv` is the ordered genome's headline output — the signed gene order of every observed leaf:
+The first three are written by default; the two logs are opt-in. `gene_order.tsv` is the ordered genome's headline output: the signed gene order of every node, one row per gene. Ancestors are included, not just the observed leaves, so node 0 below is the root and node 1 an internal branch:
 
 ```
 species  chromosome  position  strand  family  gene
-19       38          0         1       0       12
-19       38          1         1       1       14
-20       39          0         -1      4       16
+0        0           0         1       1       1
+0        0           1         -1      2       5
+1        1           0         1       1       7
+1        1           1         -1      2       8
+2        2           0         1       1       11
 ```
 
-and `chromosome_events.tsv` is the network's ground truth, its columns the edge list above — `time · kind · lineage · parents · children`, one row per event. The full list of files lives in Appendix B.
+Ancestral rows are what make the rearrangement log usable. `rearrangements.tsv` gives each inversion a start and a length on a branch; to check what it did, or to replay it, you need the genome the branch started from — that is its parent's rows here. Without them the log can only be read at the tips.
+
+`chromosome_events.tsv` is the network's ground truth, its columns the edge list above — `time · kind · lineage · parents · children`, one row per event.
+
+### Replaying a run
+
+`genome_events.tsv` records which gene copy each event created or ended, but not where on the chromosome it happened. That is deliberate: an event is about identity and descent, which is the same at every resolution, so the log is shared unchanged with the unordered core of Chapter 4. The `event_positions` output adds the coordinates alongside it:
+
+```python
+g.write("out/", outputs=("gene_order", "rearrangements", "event_positions"))
+```
+
+```
+time   kind                lineage  chromosome  start  length  family  donor  recipient  dest_position
+0.0    origination         0        0           0      1       0
+0.209  transfer_donor      2        2           0      1               2      1
+0.209  transfer_recipient  1        1           0      1               2      1
+0.345  loss                4        4           3      1
+0.644  duplication         4        4           3      1                                 4
+```
+
+Every row belongs to one branch. `lineage` names it, and `chromosome`, `start` and `length` are coordinates in that branch's genome as it stood just before the event. So you can pull out the rows for a single branch and know everything that happened to it. `dest_position` says where a duplication's copy block landed. Origination carries its `family`, because it is the only event whose gene does not come from a genome you already have.
+
+A transfer spans two branches, so it writes two rows — one on each — and both name the whole edge in `donor` and `recipient`. The `transfer_donor` row says what left; the `transfer_recipient` row says where it arrived. Pair them on time, donor and recipient.
+
+Those three files together are enough to reconstruct the whole run: start from a node's parent in `gene_order.tsv`, apply that branch's rows from `rearrangements.tsv` and `genome_event_positions.tsv` in time order, and you get the node's own rows back. Rows sharing a timestamp apply in the order written.
+
+The full list of files lives in Appendix B.

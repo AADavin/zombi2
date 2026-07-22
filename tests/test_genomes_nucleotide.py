@@ -9,6 +9,8 @@ permuted), and — with loss / duplication — that the copy-lineage log account
 numbers exactly and every copy traces back to a seed origination.
 """
 
+import collections
+
 import numpy as np
 import pytest
 
@@ -1619,3 +1621,126 @@ def test_no_chromosome_is_ever_left_without_a_gene():
                 assert c.n_genes >= 1, f"node {node_id} chromosome {c.id} lost its last gene"
                 assert c.length > 0                       # so a chromosome is never empty either
         _invariants_hold(r)
+
+
+# --- writing the outputs --------------------------------------------------------------------------
+
+_ALL_OUTPUTS = ("events", "blocks", "genes", "rearrangements", "chromosome_events")
+
+
+def _read(path):
+    lines = path.read_text().splitlines()
+    cols = lines[0].split("\t")
+    rows = [dict(zip(cols, row.split("\t"))) for row in lines[1:] if row]
+    for row in lines[1:]:
+        assert len(row.split("\t")) == len(cols), f"{path.name} is ragged: {row!r}"
+    return cols, rows
+
+
+def _written(tmp_path, **kw):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=3)
+    r = simulate_genomes_nucleotide(sp, root_length=400, inversion=1.5, inversion_length=40,
+                                    duplication=2.0, loss=1.5, transfer=1.5, origination=1.0,
+                                    seed=4, **{"transposition": 1.0, **kw})
+    r.write(tmp_path, outputs=_ALL_OUTPUTS)
+    return r
+
+
+def test_write_emits_the_selected_outputs(tmp_path):
+    _written(tmp_path)
+    assert {p.name for p in tmp_path.iterdir()} == {
+        "genome_events.tsv", "blocks.tsv", "genes.tsv", "rearrangements.tsv",
+        "chromosome_events.tsv"}
+
+
+def test_write_defaults_to_events_and_genes_but_not_blocks(tmp_path):
+    # blocks.tsv is one row per block per node and blocks are not kept maximal, so it is opt-in
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    simulate_genomes_nucleotide(sp, root_length=200, inversion=1.0, seed=1).write(tmp_path)
+    assert {p.name for p in tmp_path.iterdir()} == {"genome_events.tsv", "genes.tsv"}
+
+
+def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):
+    # the layout file must be the genome, not a summary of it: each chromosome's rows have to run
+    # end to end from 0 with no gap and no overlap, and reproduce the in-memory blocks exactly
+    r = _written(tmp_path)
+    _, rows = _read(tmp_path / "blocks.tsv")
+
+    by_chromosome = {}
+    for row in rows:
+        by_chromosome.setdefault((int(row["species"]), int(row["chromosome"])), []).append(row)
+
+    seen = set()
+    for (node, chrom_id), chrom_rows in by_chromosome.items():
+        seen.add(node)
+        chrom = next(c for c in r.genomes[node].chromosomes if c.id == chrom_id)
+        at = 0
+        for row, block in zip(chrom_rows, chrom.blocks, strict=True):
+            assert int(row["position"]) == at, f"node {node} chromosome {chrom_id} does not tile"
+            assert (int(row["source"]), int(row["start"]), int(row["end"]), int(row["strand"])) == \
+                   (block.source, block.start, block.end, block.strand)
+            assert (int(row["copy"]), int(row["gene"])) == (block.copy, block.gene)
+            at += block.end - block.start
+        assert at == chrom.length
+    assert seen == set(r.genomes), "ancestors as well as tips must be written"
+
+
+def test_written_events_account_for_every_recorded_event(tmp_path):
+    # an event can touch several blocks at once, so it writes several rows — but no event may go
+    # unwritten, and no row may be invented
+    r = _written(tmp_path)
+    _, rows = _read(tmp_path / "genome_events.tsv")
+
+    expected = collections.Counter()
+    for e in r.events:
+        kind = type(e).__name__.lower()
+        n = {"loss": len(getattr(e, "lost", ())), "duplication": len(getattr(e, "copied", ())),
+             "transfer": len(getattr(e, "transferred", ())),
+             "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
+        expected[kind] += n
+    assert collections.Counter(row["kind"] for row in rows) == expected
+    assert set(expected) == {"origination", "loss", "duplication", "transfer", "speciation"}, \
+        f"the fixture should exercise every event kind, got {sorted(expected)}"
+
+
+def test_written_genes_match_the_declared_spans(tmp_path):
+    gff_dir = tmp_path / "in"
+    gff_dir.mkdir()
+    r = _written(tmp_path, gff=_gff(gff_dir))
+    _, rows = _read(tmp_path / "genes.tsv")
+    written = {int(row["family"]): (int(row["source"]), int(row["start"]), int(row["end"]))
+               for row in rows}
+    assert written == r.gene_spans
+    named = {row["name"]: int(row["family"]) for row in rows if row["name"]}
+    assert named == r.gene_names
+    assert {int(row["family"]): int(row["strand"]) for row in rows} == r.gene_strands
+
+
+def test_genes_file_is_header_only_when_none_were_declared(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=3, seed=1)
+    simulate_genomes_nucleotide(sp, root_length=200, seed=1).write(tmp_path, outputs=("genes",))
+    assert (tmp_path / "genes.tsv").read_text() == "family\tname\tsource\tstart\tend\tstrand\n"
+
+
+def test_written_rearrangements_carry_one_row_per_kind(tmp_path):
+    r = _written(tmp_path, chromosomes=3, translocation=1.5, transposition=3.0)
+    _, rows = _read(tmp_path / "rearrangements.tsv")
+    assert len(rows) == len(r.rearrangements)
+    assert set(row["kind"] for row in rows) == {"inversion", "transposition", "translocation"}
+    for row, rec in zip(rows, r.rearrangements, strict=True):
+        assert float(row["time"]) == rec.time and int(row["lineage"]) == rec.lineage
+        assert int(row["length"]) == rec.length and int(row["start"]) == rec.start
+
+
+def test_both_resolutions_write_the_same_chromosome_network_format(tmp_path):
+    # one writer, one home: the network file must not drift between the two engines
+    from zombi2.genomes import simulate_genomes_ordered
+
+    _written(tmp_path / "nt")
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=3)
+    simulate_genomes_ordered(sp, initial_families=4, chromosomes=2, fission=0.2, seed=4).write(
+        tmp_path / "ord", outputs=("chromosome_events",))
+
+    nt_cols, _ = _read(tmp_path / "nt" / "chromosome_events.tsv")
+    ord_cols, _ = _read(tmp_path / "ord" / "chromosome_events.tsv")
+    assert nt_cols == ord_cols == ["time", "kind", "lineage", "parents", "children"]

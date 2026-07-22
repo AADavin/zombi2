@@ -163,6 +163,24 @@ def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
                                                "genome_species_tree.nwk", "genomes.log"}
 
 
+def test_genomes_ordered_writes_event_positions(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--resolution", "ordered", "--duplication", "0.3",
+               "--loss", "0.2", "--origination", "0.6", "--seed", "42", "-o", str(out),
+               "--write", "event_positions"])
+    assert rc == 0
+    rows = (out / "genome_event_positions.tsv").read_text().splitlines()
+    assert rows[0].split("\t")[:6] == ["time", "kind", "lineage", "chromosome", "start", "length"]
+    assert len(rows) > 1, "the run should have produced positioned events"
+
+
+def test_genomes_rejects_event_positions_under_unordered(tmp_path, tree_file):
+    with pytest.raises(SystemExit) as e:                         # positions need genes to have places
+        main(["genomes", "-t", str(tree_file), "--write", "event_positions",
+              "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+
+
 def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
     with pytest.raises(SystemExit) as e:
         main(["genomes", "-t", str(tree_file), "--inversion", "0.3", "-o", str(tmp_path / "g")])
@@ -173,6 +191,88 @@ def test_genomes_rejects_write_output_foreign_to_resolution(tmp_path, tree_file)
     with pytest.raises(SystemExit) as e:                         # gene_order is ordered-only
         main(["genomes", "-t", str(tree_file), "--write", "gene_order", "-o", str(tmp_path / "g")])
     assert e.value.code == 2
+
+
+def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--resolution", "nucleotide",
+               "--root-length", "600", "--genes", "3", "--inversion", "1.0",
+               "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    # the nucleotide default is events + genes; blocks is opt-in
+    assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "genes.tsv",
+                                               "genome_species_tree.nwk", "genomes.log"}
+    assert len((out / "genes.tsv").read_text().splitlines()) > 1
+
+
+def test_genomes_nucleotide_write_selects_blocks(tmp_path, tree_file):
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--resolution", "nucleotide", "--root-length", "400",
+               "--genes", "2", "--inversion", "1.0", "--seed", "1", "-o", str(out),
+               "--write", "blocks", "rearrangements"])
+    assert rc == 0
+    head = (out / "blocks.tsv").read_text().splitlines()[0].split("\t")
+    assert head == ["species", "chromosome", "position", "source", "start", "end", "strand",
+                    "copy", "gene"]
+
+
+def test_genomes_nucleotide_seeds_from_a_gff(tmp_path, tree_file):
+    gff = tmp_path / "seed.gff"
+    gff.write_text("##gff-version 3\n"
+                   "##sequence-region chrom1 1 900\n"
+                   "chrom1\tZOMBI2\tgene\t101\t200\t.\t+\t.\tID=dnaA\n"
+                   "chrom1\tZOMBI2\tgene\t401\t500\t.\t-\t.\tID=recA\n")
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--resolution", "nucleotide", "--gff", str(gff),
+               "--inversion", "1.0", "--seed", "1", "-o", str(out)])
+    assert rc == 0
+    rows = [r.split("\t") for r in (out / "genes.tsv").read_text().splitlines()[1:]]
+    assert [r[1] for r in rows] == ["dnaA", "recA"]          # names survive to the output
+    assert [r[5] for r in rows] == ["1", "-1"]               # ...and so does the coding strand
+
+
+def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
+    def run(tag):
+        out = tmp_path / tag
+        main(["genomes", "-t", str(tree_file), "--resolution", "nucleotide", "--root-length", "500",
+              "--genes", "2", "--inversion", "1.0", "--duplication", "0.4", "--seed", "7",
+              "-o", str(out), "--write", "events", "blocks"])
+        return {p.name: p.read_text() for p in out.iterdir() if p.suffix == ".tsv"}
+    assert run("a") == run("b")
+
+
+@pytest.mark.parametrize("argv, why", [
+    (["--initial-families", "5"], "nucleotide has no initial-families"),
+    (["--replacement"], "nucleotide transfers are additive"),
+    (["--loss", "0.2 * OnTime({0: 1.0, 3: 2.0})"], "nucleotide takes constant rates only"),
+    (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
+    (["--write", "gene_order"], "gene_order is an ordered output"),
+    (["--write", "profiles"], "the nucleotide resolution has no profiles"),
+])
+def test_genomes_nucleotide_rejects_foreign_options(tmp_path, tree_file, argv, why):
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", "-t", str(tree_file), "--resolution", "nucleotide",
+              "-o", str(tmp_path / "g"), *argv])
+    assert e.value.code == 2, why
+
+
+@pytest.mark.parametrize("resolution", ["unordered", "ordered"])
+def test_genomes_rejects_nucleotide_only_flags_elsewhere(tmp_path, tree_file, resolution):
+    with pytest.raises(SystemExit) as e:                     # bp knobs need a nucleotide genome
+        main(["genomes", "-t", str(tree_file), "--resolution", resolution, "--root-length", "500",
+              "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+
+
+def test_sequences_names_the_resolution_when_handed_a_nucleotide_log(tmp_path, tree_file, capsys):
+    # the two resolutions write different logs to the same filename, so the error has to say so
+    out = tmp_path / "g"
+    main(["genomes", "-t", str(tree_file), "--resolution", "nucleotide", "--root-length", "400",
+          "--genes", "2", "--seed", "1", "-o", str(out)])
+    rc = main(["sequences", "--genomes", str(out), "-o", str(tmp_path / "s"), "--model", "jc69",
+               "--seed", "1"])
+    assert rc == 1
+    assert "--resolution nucleotide log" in capsys.readouterr().err
 
 
 def test_genomes_missing_tree_is_reported_cleanly(tmp_path, capsys):
