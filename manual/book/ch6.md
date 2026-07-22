@@ -234,11 +234,13 @@ zombi2 genomes out/ --resolution nucleotide --root-length 5000
 ```
 
 ```
-out/genome_events.tsv    the copy-lineage genealogy (the source of truth)
+out/genome_events.tsv    the whole history: the copy-lineage genealogy and the
+                         rearrangements — in time order
 out/genes.tsv            where each gene sits in the root, and on which strand
 out/blocks.tsv           every node's genome as its block mosaic
+out/initial_genome.tsv   the genome the run started with
 out/gene_trees/          one Newick per family, complete and extant
-out/rearrangements.tsv   inversions, transpositions, translocations
+out/genome_<lineage>.gff · .bed   every genome's genes and blocks
 out/chromosome_events.tsv  the chromosome network's edges
 ```
 
@@ -255,6 +257,6 @@ family  name  source  start  end   strand
 
 The event log is wider than the one Chapters 4 and 5 write, because an event here is an arc rather than a gene: each row names the ancestral interval it touched, so one event that spanned several blocks writes several rows sharing a `time` and `kind`. That also means it is **not** the log `zombi2 sequences` replays — that command reads the unordered or ordered one, and says so if handed this.
 
-Its width is also why there is no `genome_event_positions.tsv` here. Chapter 5 needs that companion file because its event log is the position-blind one Chapter 4 writes, so the coordinates have to live somewhere else; here an event *is* an interval, and `source`, `start` and `end` are columns of the log itself.
+Here an event *is* an interval, so `source`, `start` and `end` are columns of the log itself. The rearrangements share that log too, under their own kinds, with `position` and `length` for their physical coordinates — ancestral and physical are different frames, so they are different columns.
 
 `rearrangements` and `chromosome_events` are the same tables as Chapter 5. Everything else stays in Python — `.trace_back(node)` for per-nucleotide ancestry, `.gene_trees` for the recovered genealogies, `.mosaic(node)` for a genome block by block. Appendix B catalogues the lot.

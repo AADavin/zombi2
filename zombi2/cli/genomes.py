@@ -35,9 +35,9 @@ RATES_HELP = _rates_help(
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _UNORDERED_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
 _ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "initial_genome", "gene_trees",
-                    "rearrangements", "chromosome_events", "event_positions")
+                    "chromosome_events")
 _NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "initial_genome", "gene_trees",
-                       "rearrangements", "chromosome_events", "gff", "bed")
+                       "chromosome_events", "gff", "bed")
 _OUTPUTS = {"unordered": _UNORDERED_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
             "nucleotide": _NUCLEOTIDE_OUTPUTS}
 
@@ -169,10 +169,13 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    default=None, metavar="PART",
                    help="which outputs to write (default: each resolution's own, which is all of "
                         "them). unordered: events, profiles, genomes, initial_genome, gene_trees. "
-                        "ordered: those with gene_order for genomes, plus rearrangements, "
-                        "chromosome_events, event_positions. nucleotide: events, genes, blocks, "
-                        "initial_genome, gene_trees, rearrangements, chromosome_events, gff, bed. "
-                        "'genomes' is every node's gene content, ancestors included, where "
+                        "ordered: those with gene_order for genomes, plus chromosome_events. "
+                        "nucleotide: events, genes, blocks, initial_genome, gene_trees, "
+                        "chromosome_events, gff, bed. "
+                        "'events' is the whole history in one time-ordered "
+                        "table — the genealogy, where each event happened, and the rearrangements, "
+                        "which used to be three files; 'genomes' is every node's gene content, "
+                        "ancestors included, where "
                         "'profiles' counts only the extant tips; 'initial_genome' is the genome the "
                         "run started with, at the start of the root branch, which belongs to no node "
                         "and so gets its own file; 'gene_trees' writes one Newick per family, "

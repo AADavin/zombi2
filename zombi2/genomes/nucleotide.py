@@ -874,12 +874,13 @@ class NucleotideGenomesResult:
 
     def write(self, directory,
               outputs=("events", "genes", "blocks", "initial_genome", "gene_trees",
-                       "rearrangements", "chromosome_events", "gff", "bed")) -> None:
+                       "chromosome_events", "gff", "bed")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
-        - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.
-          One row per **ancestral interval** an event touched, so an event that spanned several
-          blocks writes several rows sharing a ``time`` and ``kind``.
+        - ``"events"`` → ``genome_events.tsv``, the run's whole history in one time-ordered table:
+          the copy-lineage genealogy and the ancestry-neutral rearrangements. One row per
+          **ancestral interval** an event touched, so an event that spanned several blocks writes
+          several rows sharing a ``time`` and ``kind``.
         - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
           included, as for the ordered resolution's ``gene_order``). The one big file here: blocks
           are not kept maximal during a run, so a rearrangement-heavy genome carries far more of
@@ -889,8 +890,9 @@ class NucleotideGenomesResult:
         - ``"initial_genome"`` → ``initial_genome.tsv``, the block mosaic the run started with. Its
           own file, not a row in ``blocks.tsv``, because it belongs to no node: it sits at the start
           of the root branch, and every ``lineage`` in that table is a node at the end of one.
-        - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
-        - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges.
+        - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges. The
+          one log kept apart: it is a network over chromosome **ids**, with list-valued parents and
+          children, joined on a different key from everything above.
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
           genealogy per family some node still carries; the ``_extant`` file only where the family
           has a surviving copy.
@@ -906,15 +908,14 @@ class NucleotideGenomesResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(_nucleotide_events_tsv(self.events))
+            (d / "genome_events.tsv").write_text(
+                _nucleotide_events_tsv(self.events, self.rearrangements))
         if "blocks" in outputs:
             (d / "blocks.tsv").write_text(self._blocks_tsv())
         if "genes" in outputs:
             (d / "genes.tsv").write_text(self._genes_tsv())
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
-        if "rearrangements" in outputs:
-            (d / "rearrangements.tsv").write_text(_nucleotide_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "gene_trees" in outputs:
@@ -1016,27 +1017,38 @@ class NucleotideGenomesResult:
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
+#: One table for the whole history of a run: the copy-lineage genealogy and the ancestry-neutral
+#: rearrangements, interleaved by time. ``source`` / ``start`` / ``end`` are **ancestral** coordinates
+#: — which stretch of which root sequence — while ``position`` / ``length`` are **physical** ones on
+#: the chromosome named by ``chromosome``, as ``blocks.tsv`` numbers it. They are different frames,
+#: so they are different columns.
 _NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "parent", "recipient",
-                          "source", "start", "end")
+                          "source", "start", "end",
+                          "position", "length", "dest_chromosome", "dest_position", "flipped")
 
 
-def _nucleotide_events_tsv(events) -> str:
-    """The copy-lineage genealogy as TSV — one row per ancestral interval an event touched.
+def _nucleotide_events_tsv(events, rearrangements=()) -> str:
+    """The run's whole history as one time-ordered table (see :data:`_NUCLEOTIDE_EVENT_COLS`).
 
     An event here can span several blocks at once (a loss deletes an arc covering many), and each
     carries its own copy lineage and ancestral interval, so a flat table needs one row apiece. Rows
     of the same event share ``time``, ``kind`` and ``lineage``. Empty cells for the fields a kind
     does not use; a speciation re-mints a copy lineage without touching sequence, so it names only
     ``parent`` and ``copy``.
+
+    The **rearrangements** are here too, as their own kinds. They end no gene lineage, which is why
+    they used to be a separate file, but they are events on the same branches at the same clock and a
+    reader replaying one has to interleave them anyway.
     """
     rows = []
     # the columns holding a species-tree node, labelled n<id> like every other table
     node_at = {i for i, c in enumerate(_NUCLEOTIDE_EVENT_COLS) if c in ("lineage", "recipient")}
 
     def row(*cells):
-        rows.append("\t".join(
+        cells = cells + ("",) * (len(_NUCLEOTIDE_EVENT_COLS) - len(cells))
+        rows.append((cells[0], "\t".join(
             "" if c is None else (node_label(c) if i in node_at else str(c))
-            for i, c in enumerate(cells)))
+            for i, c in enumerate(cells))))
 
     for e in events:
         if isinstance(e, Origination):
@@ -1058,31 +1070,19 @@ def _nucleotide_events_tsv(events) -> str:
                 row(e.time, "speciation", e.lineage, None, child, e.parent, None, None, None, None)
         else:
             raise AssertionError(f"unhandled event {type(e).__name__}")
-    return "\n".join(["\t".join(_NUCLEOTIDE_EVENT_COLS), *rows]) + "\n"
-
-
-_NUCLEOTIDE_REARRANGEMENT_COLS = ("time", "kind", "lineage", "chromosome", "start", "length",
-                                  "dest_chromosome", "dest_position", "flipped")
-
-
-def _nucleotide_rearrangements_tsv(rearrangements) -> str:
-    """The ancestry-neutral rearrangements as TSV — one table for all three kinds, empty cells for
-    the fields a kind does not use. Coordinates are **physical** (bp along the chromosome), unlike
-    the genealogy log's ancestral ones."""
-    def row(r):
-        ln = node_label(r.lineage)
+    for r in rearrangements:                      # ancestry-neutral: no copy, no ancestral interval
         if isinstance(r, Inversion):
-            return (r.time, "inversion", ln, r.chromosome, r.start, r.length, "", "", "")
-        if isinstance(r, Transposition):
-            return (r.time, "transposition", ln, r.chromosome, r.start, r.length,
-                    "", r.dest, int(r.flipped))
-        return (r.time, "translocation", ln, r.source, r.start, r.length,
-                r.dest, "", int(r.flipped))
-    rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
-    return "\n".join(["\t".join(_NUCLEOTIDE_REARRANGEMENT_COLS), *rows]) + "\n"
+            row(r.time, "inversion", r.lineage, r.chromosome, None, None, None, None, None, None,
+                r.start, r.length, None, None, None)
+        elif isinstance(r, Transposition):
+            row(r.time, "transposition", r.lineage, r.chromosome, None, None, None, None, None, None,
+                r.start, r.length, None, r.dest, int(r.flipped))
+        else:
+            row(r.time, "translocation", r.lineage, r.source, None, None, None, None, None, None,
+                r.start, r.length, r.dest, None, int(r.flipped))
+    rows.sort(key=lambda tr: tr[0])               # one stream, in the order it happened
+    return "\n".join(["\t".join(_NUCLEOTIDE_EVENT_COLS), *[r for _t, r in rows]]) + "\n"
 
-
-# --- reading a written run back (the writers' inverse: a handoff describes itself) ----------------
 
 def _rows(text: str, cols: tuple[str, ...], what: str):
     """Parse a TSV this module wrote, checking the header. Yields one cell-list per row."""
@@ -1151,8 +1151,8 @@ def _genes_from_tsv(text: str):
     return spans, names, strands
 
 
-def _events_from_tsv(text: str) -> list:
-    """The nucleotide ``genome_events.tsv`` → the copy-lineage genealogy, the inverse of
+def _events_from_tsv(text: str) -> tuple[list, list]:
+    """The nucleotide ``genome_events.tsv`` → ``(genealogy, rearrangements)``, the inverse of
     :func:`_nucleotide_events_tsv`.
 
     An event that spanned several ancestral intervals was written as several rows, so the rows have to
@@ -1165,6 +1165,7 @@ def _events_from_tsv(text: str) -> list:
         return int(cell) if cell else None
 
     events: list = []
+    rearrangements: list = []
     pending: list = []
     key = None
 
@@ -1194,7 +1195,21 @@ def _events_from_tsv(text: str) -> list:
         key = None
 
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "genome_events.tsv"):
-        time, kind, lineage, chrom, copy, parent, recipient, source, start, end = cells
+        (time, kind, lineage, chrom, copy, parent, recipient, source, start, end,
+         *_physical) = cells
+        if kind not in ("origination", "loss", "duplication", "transfer", "speciation"):
+            flush()                                  # a rearrangement: it ends no copy lineage
+            t, ln = float(time), node_from_label(lineage)
+            at, ell, dc, dp, fl = (num(c) for c in _physical)
+            if kind == "inversion":
+                rearrangements.append(Inversion(t, ln, num(chrom), at, ell))
+            elif kind == "transposition":
+                rearrangements.append(Transposition(t, ln, num(chrom), at, ell, dp, bool(fl)))
+            elif kind == "translocation":
+                rearrangements.append(Translocation(t, ln, num(chrom), dc, at, ell, bool(fl)))
+            else:
+                raise ValueError(f"genome_events.tsv: unknown event kind {kind!r}")
+            continue
         row = (kind, float(time), node_from_label(lineage), num(chrom),
                node_from_label(recipient) if recipient else None,
                num(copy), num(parent), num(source), num(start), num(end))
@@ -1208,7 +1223,7 @@ def _events_from_tsv(text: str) -> list:
         if kind == "origination":
             flush()
     flush()
-    return events
+    return events, rearrangements
 
 
 def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
@@ -1216,8 +1231,8 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
     replay it from disk. ``tree`` is the species tree it ran on.
 
     Reads ``blocks.tsv``, ``initial_genome.tsv``, ``genome_events.tsv`` and ``genes.tsv`` — the four
-    the recovery needs. The ancestry-**neutral** logs (``rearrangements.tsv``,
-    ``chromosome_events.tsv``) are not read: they record how a genome got its layout, and the layout
+    the recovery needs. The rearrangements come back too, since they share the event table now.
+    ``chromosome_events.tsv`` is not read: it records how the karyotype got its shape, and the shape
     itself is already in ``blocks.tsv``. What comes back reconstructs and writes exactly as the
     original did; it is not for evolving further."""
     d = pathlib.Path(directory)
@@ -1232,9 +1247,10 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
             ) from None
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
+    events, rearrangements = _events_from_tsv(read("genome_events.tsv"))
     return NucleotideGenomesResult(
-        tree, _blocks_from_tsv(read("blocks.tsv")), _events_from_tsv(read("genome_events.tsv")),
-        [], [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")))
+        tree, _blocks_from_tsv(read("blocks.tsv")), events, rearrangements,
+        [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")))
 
 
 def _valid_length(length) -> int:

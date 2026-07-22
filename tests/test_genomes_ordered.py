@@ -272,9 +272,9 @@ def test_mixed_topology_per_chromosome():
 
 def test_write_emits_the_selected_outputs(tmp_path):
     _, r = _run(seed=5)
-    r.write(tmp_path, outputs=("events", "profiles", "gene_order", "rearrangements",
+    r.write(tmp_path, outputs=("events", "profiles", "gene_order",
                                "chromosome_events"))
-    for name in ("genome_events.tsv", "profiles.tsv", "gene_order.tsv", "rearrangements.tsv",
+    for name in ("genome_events.tsv", "profiles.tsv", "gene_order.tsv",
                  "chromosome_events.tsv"):
         assert (tmp_path / name).exists()
     head = (tmp_path / "gene_order.tsv").read_text().splitlines()[0]
@@ -548,14 +548,28 @@ def test_strong_invariant_holds_under_segmental_everything():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
 
 
-def test_rearrangements_tsv_has_one_table_for_all_kinds(tmp_path):
+def test_one_table_carries_the_genealogy_its_places_and_the_rearrangements(tmp_path):
+    """Three files became one. The genealogy is unchanged, each event carries the arc it acted on —
+    once, on its first row, because the arc is the event's and not each copy's — and the
+    ancestry-neutral rearrangements are interleaved by time."""
     _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3)
-    r.write(tmp_path, outputs=("rearrangements",))
-    lines = (tmp_path / "rearrangements.tsv").read_text().splitlines()
-    assert lines[0].split("\t") == ["time", "kind", "lineage", "chromosome", "start", "length",
-                                    "dest_chromosome", "dest_position", "flipped"]
-    kinds = {row.split("\t")[1] for row in lines[1:]}
-    assert kinds <= {"inversion", "transposition", "translocation"}
+    r.write(tmp_path, outputs=("events",))
+    lines = (tmp_path / "genome_events.tsv").read_text().splitlines()
+    assert lines[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent",
+                                    "recipient", "donor", "dest_lineage", "chromosome", "position",
+                                    "length", "dest_chromosome", "dest_position", "flipped"]
+    rows = [ln.split("\t") for ln in lines[1:]]
+    assert [float(x[0]) for x in rows] == sorted(float(x[0]) for x in rows)   # in the order it happened
+
+    genealogy = {"origination", "duplication", "loss", "transfer", "speciation"}
+    assert len([x for x in rows if x[1] in genealogy]) == len(r.events)
+    assert len([x for x in rows if x[1] not in genealogy]) == len(r.rearrangements)
+    assert {x[1] for x in rows} - genealogy <= {"inversion", "transposition", "translocation"}
+    # one arc per positioned event, not one per copy it touched
+    assert len([x for x in rows if x[1] in genealogy and x[10]]) == len(r.event_positions)
+    assert not [x for x in rows if x[1] == "speciation" and x[10]]     # a speciation moves nothing
+    # a rearrangement ends no gene lineage, so it names no family, copy or parent
+    assert all(x[3] == x[4] == x[5] == "" for x in rows if x[1] not in genealogy)
 
 
 # --- topology: a circular chromosome has no ends, so a run wraps past position 0 ------------------
