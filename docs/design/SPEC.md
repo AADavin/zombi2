@@ -305,6 +305,9 @@ can drift apart.
 - Book subtitle: **"Simulating the Evolution of Species, Genomes, Sequences and Traits."**
 - Trees: **complete** (keeps extinct lineages) vs **extant** (the sampled survivors); output filenames
   are frozen (`_extant.nwk` is the extant tree, kept from ZOMBI1).
+- Every node in a written tree carries a branch length, **the root included**. A forward run starts
+  from one lineage, so the root's branch is its **stem** — origin to first split — and it is real
+  simulated time in which events happen. Writing a crown-rooted `)n0;` would discard it.
 - Prose target: **≤ 4 em dashes per 1,000 words** (the `- term — gloss` bullet form and captions are
   exempt).
 

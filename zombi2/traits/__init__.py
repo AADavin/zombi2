@@ -181,8 +181,8 @@ def _trait_annotation(v) -> str:
 def _trait_newick(tree: "Tree", node_values: dict) -> str:
     """The complete tree as Newick with **every** node annotated with its trait value (a *trait
     tree*). Mirrors :meth:`zombi2.species.Tree.to_newick` — branch length ``end_time − birth_time``,
-    leaves and internals named ``n<id>``, the crown-rooted root carrying no branch length — and adds
-    the ``[&trait=…]`` comment at each node, so the exact ancestral states ride along the tree."""
+    leaves and internals named ``n<id>``, the root carrying its stem — and adds the ``[&trait=…]``
+    comment at each node, so the exact ancestral states ride along the tree."""
     def emit(i: int) -> str:
         node = tree.nodes[i]
         bl = node.end_time - node.birth_time
@@ -193,9 +193,10 @@ def _trait_newick(tree: "Tree", node_values: dict) -> str:
 
     root = tree.nodes[tree.root]
     tag = f"n{tree.root}{_trait_annotation(node_values[tree.root])}"
+    stem = root.end_time - root.birth_time
     if root.children is None:
-        return f"{tag};"
-    return f"({','.join(emit(c) for c in root.children)}){tag};"
+        return f"{tag}:{stem:.6g};"
+    return f"({','.join(emit(c) for c in root.children)}){tag}:{stem:.6g};"
 
 
 def _values_tsv(values: dict[int, object]) -> str:

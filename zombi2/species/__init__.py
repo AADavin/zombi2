@@ -82,8 +82,14 @@ class Tree:
 
     def to_newick(self) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
-        branch length is ``end_time - birth_time``; leaves are named ``n<id>``; the root carries no
-        branch length (crown-rooted)."""
+        branch length is ``end_time - birth_time`` and every node — leaves and internals — is named
+        ``n<id>``.
+
+        The root carries a branch length like any other node: its **stem**, the time from the origin
+        to the first split. A forward birth–death run starts from one lineage, so that stem is real
+        simulated time in which events happen, and writing ``)n0;`` would silently discard it — for a
+        tree whose crown comes late, a large fraction of its history. It is emitted as ``)n0:<stem>;``
+        and :func:`read_newick` reads it back."""
 
         def emit(i: int) -> str:
             node = self.nodes[i]
@@ -94,9 +100,10 @@ class Tree:
             return f"({inner})n{i}:{bl:.6g}"
 
         root = self.nodes[self.root]
+        stem = root.end_time - root.birth_time
         if root.children is None:
-            return f"n{self.root};"
-        return f"({','.join(emit(c) for c in root.children)})n{self.root};"
+            return f"n{self.root}:{stem:.6g};"
+        return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.6g};"
 
 
 _WRITE_OUTPUTS = ("complete", "extant", "events", "fossils")  # the write vocabulary the CLI reuses
@@ -255,10 +262,13 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
         ``{tip label: "extant" | "extinct"}`` map covering every tip — or a :class:`ValueError` is
         raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``.)
 
-    Two honest limits of the crown-rooted Newick convention (SPEC §8): the root's own branch length
-    is not encoded, so the reconstructed root has zero duration (the tree starts at the crown); and
-    incomplete-``sampling`` ``"unsampled"`` fate is not recorded in the ``.nwk``, so a survivor read
-    back is ``"extant"``. Both are fine for evolving genomes/traits along the tree.
+    A root branch length is read when present — ``to_newick`` writes one, so a ZOMBI tree round-trips
+    with its stem intact. External trees usually have none, and then the root gets zero duration and
+    the tree starts at its crown, which is all the file says.
+
+    One honest limit remains: incomplete-``sampling`` ``"unsampled"`` fate is not recorded in the
+    ``.nwk``, so a survivor read back is ``"extant"``. That is fine for evolving genomes/traits along
+    the tree.
 
     Only bifurcating trees are supported (an internal node with other than two children raises).
     """
