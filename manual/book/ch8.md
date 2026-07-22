@@ -149,16 +149,16 @@ The state space is a `--kind`, since it is what decides which of the other flags
 
 ```bash
 # a continuous (Brownian) trait along a species tree
-zombi2 traits --kind continuous --tree species_complete.nwk \
-    --start 0.0 --rate 1.0 --seed 1 -o my_trait
+zombi2 traits out/ --kind continuous \
+    --start 0.0 --rate 1.0 --seed 1
 
 # a discrete two-state trait
-zombi2 traits --kind discrete --tree species_complete.nwk \
-    --states marine,terrestrial --switch 0.1 --seed 1 -o my_habitat
+zombi2 traits out/ --kind discrete \
+    --states marine,terrestrial --switch 0.1 --seed 1
 
 # the same, also writing the driver file a conditioned genome run reads (Chapter 9)
-zombi2 traits --kind discrete --tree species_complete.nwk \
-    --states cave,surface --switch 0.1 --seed 1 -o my_habitat \
+zombi2 traits out/ --kind discrete \
+    --states cave,surface --switch 0.1 --seed 1 \
     --write values changes tree driver
 ```
 

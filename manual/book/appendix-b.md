@@ -37,9 +37,9 @@ files being grouped is a CLI matter, not the library's: `result.write(dir)` writ
 directory you hand it.
 
 Every command that reads a prior level takes the **run directory**, and finds the file itself, in
-either layout: `-t out/` on `zombi2 genomes` and `zombi2 traits` picks up that run's complete species
-tree, and `--genomes out/` on `zombi2 sequences` picks up its handoff files. Naming a Newick file
-directly still works, and is what you do for a tree from somewhere else.
+either layout: `zombi2 genomes out/` and `zombi2 traits out/` pick up that run's complete species
+tree, and `zombi2 sequences out/` picks up its handoff files. `--from` reads from somewhere else —
+a Newick file, or another run — which is also how you write a run separate from the one you read.
 
 Every `zombi2` **command** also writes a run log (`species.log`, `genomes.log`,
 `sequences.log`, `traits.log`): the version, the timestamp, the command line, and every resolved
@@ -103,12 +103,12 @@ The nucleotide log needs no separate positions file: its events carry ancestral 
 
 The `zombi2 genomes` **command** also writes `genome_species_tree.nwk` — the complete species tree
 canonicalised so its `n<id>` labels match the event log's `lineage` column — so `zombi2 sequences
---genomes DIR` can replay the gene genealogy from that directory alone. Like `names.tsv` (external
+sequences` can replay the gene genealogy from that directory alone. Like `names.tsv` (external
 input trees) and the `.log`, it is a CLI artifact, not a `result.write()` output.
 
 ## Sequences — `simulate_sequences`
 
-The `zombi2 sequences` command replays a prior `zombi2 genomes` output directory (`--genomes DIR`) —
+The `zombi2 sequences` command replays a prior `zombi2 genomes` run — its own run directory, or `--from` another —
 its `genome_species_tree.nwk` and `genome_events.tsv`. Gene outputs are written **one file per gene
 family** (`<f>` = family number); a family with no surviving copy writes none. Every node is labelled
 `g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the ancestral

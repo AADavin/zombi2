@@ -18,8 +18,9 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
-                                  _write_params_log, level_dir, resolve_tree)
+from zombi2.cli.framework import (_add_flat_arg, _add_from_arg, _add_params_arg, _add_run_arg,
+                                  _rate, _rates_help, _write_params_log, level_dir,
+                                  resolve_tree)
 from zombi2.cli.genomes import _read_tip_fates
 from zombi2.species import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
@@ -46,15 +47,10 @@ _DISCRETE_ONLY = (("states", None), ("switch", None), ("liability", None), ("thr
 
 
 def _add_traits_args(p: argparse.ArgumentParser) -> None:
+    _add_run_arg(p, "the trait rides the species tree it already holds")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    g.add_argument("-t", "--tree", required=True, metavar="FILE|DIR",
-                   help="the tree the trait rides: a Newick file, or a 'zombi2 species' run "
-                        "directory to take its complete tree from (-t out/ instead of -t "
-                        "out/species/species_complete.nwk). Any external tree works too; the trait "
-                        "evolves on the complete tree, extinct lineages included")
-    g.add_argument("-o", "--output", required=True, metavar="DIR", dest="output",
-                   help="output directory (created if needed)")
+    _add_from_arg(g, "the tree the trait rides — a Newick file, or another run's directory")
     g.add_argument("--kind", choices=("continuous", "discrete"), default="continuous",
                    metavar="KIND",
                    help="continuous (a real value diffusing, default) or discrete (a finite state "
@@ -137,7 +133,7 @@ def run(args, parser):
                          "--liability/--threshold (the threshold model)")
 
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else None
-    tree_path = resolve_tree(args.tree)
+    tree_path = resolve_tree(args.source or args.run)
     try:
         with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
@@ -162,8 +158,8 @@ def run(args, parser):
                                      at_speciation=args.at_speciation, seed=args.seed)
     dt = time.perf_counter() - t0
 
-    os.makedirs(args.output, exist_ok=True)
-    out = level_dir(args.output, "traits", args.flat)
+    os.makedirs(args.run, exist_ok=True)
+    out = level_dir(args.run, "traits", args.flat)
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
     result.write(out, outputs=outputs)
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on the node col)
@@ -174,7 +170,7 @@ def run(args, parser):
     n_tips = len(result.values)
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
-    print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "traits.log"),
+    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "traits.log"),
                       args, summary)
     return 0

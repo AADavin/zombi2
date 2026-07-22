@@ -147,7 +147,7 @@ def _add_params_arg(g) -> None:
                    help="a TOML parameters file whose keys are this command's long option names "
                         "(hyphens or underscores); applied as defaults, so any flag given on the "
                         "command line overrides it. A '[<command>]' table scopes one file to a "
-                        "whole pipeline. Required I/O paths (-o / -t) stay on the command line.")
+                        "whole pipeline. The run directory stays on the command line.")
 
 
 def _add_flat_arg(g) -> None:
@@ -170,17 +170,40 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     return path
 
 
-#: What `-t` resolves to inside a run directory, in the order tried: the grouped layout first, then
-#: --flat. Both name the *complete* tree — every level runs on the tree with its extinct lineages.
+def _add_run_arg(p, what: str) -> None:
+    """Add the run directory — the one positional every command takes.
+
+    A run accumulates in one directory: each level reads what the level before it left there and
+    writes its own beside it. Naming that directory once, positionally, is the whole invocation's
+    shape; ``--from`` is the exception for when the input lives somewhere else."""
+    p.add_argument("run", metavar="DIR",
+                   help=f"the run directory: {what}. Created if needed, and read from as well as "
+                        f"written to, so a pipeline names it once per command")
+
+
+def _add_from_arg(g, what: str) -> None:
+    """Add ``--from`` — where to read the previous level, when it is not the run directory."""
+    g.add_argument("--from", dest="source", default=None, metavar="PATH",
+                   help=f"read {what} from here instead of from the run directory. Use it for a "
+                        f"tree or a run that came from somewhere else, or to write a run separate "
+                        f"from the one it reads")
+
+
+#: What a species tree resolves to inside a run directory, in the order tried: the grouped layout
+#: first, then --flat. Both name the *complete* tree — every level runs on it, extinct lineages
+#: included.
 _TREE_IN_RUN = (os.path.join("species", "species_complete.nwk"), "species_complete.nwk")
+
+#: What a genomes handoff resolves to: the grouped ``genomes/`` first, then a --flat directory.
+_GENOMES_IN_RUN = ("genomes", "")
 
 
 def resolve_tree(path: str) -> str:
-    """Take ``-t`` as either a Newick file or a **run directory**, and give back the file to open.
+    """Give back the species-tree file to open, from either a Newick file or a **run directory**.
 
-    Typing out ``-t out/species/species_complete.nwk`` to feed a run its own tree is a detour through
-    a layout the command already knows; ``-t out/`` says the same thing. A path that is not a
-    directory is returned untouched, so any tree from anywhere still works."""
+    Spelling out ``out/species/species_complete.nwk`` is a detour through a layout the command
+    already knows; the run directory says the same thing. A path that is not a directory is returned
+    untouched, so any tree from anywhere still works."""
     if not os.path.isdir(path):
         return path
     for candidate in _TREE_IN_RUN:
@@ -189,8 +212,20 @@ def resolve_tree(path: str) -> str:
             return full
     raise FileNotFoundError(
         f"{path} is a directory but holds no species tree — looked for "
-        f"{' and '.join(_TREE_IN_RUN)}. Point -t at a 'zombi2 species' run directory, or at a "
-        f"Newick file directly.")
+        f"{' and '.join(_TREE_IN_RUN)}. Point it at a 'zombi2 species' run directory, or give a "
+        f"Newick file with --from.")
+
+
+def resolve_genomes(path: str) -> str:
+    """Give back the directory holding a genomes run's handoff files, in either layout — the grouped
+    run directory whose ``genomes/`` holds them, or a ``--flat`` directory holding them directly."""
+    for candidate in _GENOMES_IN_RUN:
+        full = os.path.join(path, candidate) if candidate else path
+        if os.path.exists(os.path.join(full, "genome_species_tree.nwk")):
+            return full
+    raise FileNotFoundError(
+        f"{path} holds no genomes run — looked for genome_species_tree.nwk in {path}/genomes/ and "
+        f"in {path} itself. Run 'zombi2 genomes' there first, or point --from at a run that has.")
 
 
 def _log_value(value: object) -> str:

@@ -28,8 +28,9 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.species import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
-                                  _write_params_log, level_dir)
+from zombi2.cli.framework import (_add_flat_arg, _add_from_arg, _add_params_arg, _add_run_arg,
+                                  _rate, _rates_help, _write_params_log, level_dir,
+                                  resolve_genomes)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -60,15 +61,11 @@ _KNOB_FLAG = {"kappa": "--kappa", "frequencies": "--frequencies", "gtr_rates": "
 
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
+    _add_run_arg(p, "sequences evolve down the gene trees of the genomes run it already holds")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    g.add_argument("--genomes", required=True, metavar="DIR",
-                   help="a prior 'zombi2 genomes' output directory — reads its "
-                        "genome_species_tree.nwk and genome_events.tsv and replays the gene "
-                        "genealogy (sequences evolve down the complete gene trees, lost/extinct "
-                        "lineages included)")
-    g.add_argument("-o", "--output", required=True, metavar="DIR", dest="output",
-                   help="output directory (created if needed)")
+    _add_from_arg(g, "the genomes run to replay — its genome_species_tree.nwk and "
+                     "genome_events.tsv rebuild the gene trees")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
 
@@ -132,13 +129,7 @@ def run(args, parser):
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
 
-    # --genomes takes either layout: the grouped `out/` whose files sit in `out/genomes/`, or a
-    # --flat directory holding them directly. Pointing at either is the same intent.
-    handoff = args.genomes
-    if not os.path.exists(os.path.join(handoff, "genome_species_tree.nwk")):
-        grouped = os.path.join(handoff, "genomes")
-        if os.path.exists(os.path.join(grouped, "genome_species_tree.nwk")):
-            handoff = grouped
+    handoff = resolve_genomes(args.source or args.run)
     tree_path = os.path.join(handoff, "genome_species_tree.nwk")
     events_path = os.path.join(handoff, "genome_events.tsv")
     try:
@@ -146,7 +137,7 @@ def run(args, parser):
             tree, _ = read_newick(f.read())
     except FileNotFoundError:
         raise FileNotFoundError(
-            f"{tree_path} not found — is {args.genomes} a 'zombi2 genomes' output directory? "
+            f"{tree_path} not found — is {handoff} a 'zombi2 genomes' output directory? "
             "(a genomes run writes genome_species_tree.nwk for this handoff)") from None
     try:
         with open(events_path) as f:
@@ -168,8 +159,8 @@ def run(args, parser):
                                 substitution=args.substitution, seed=args.seed)
     dt = time.perf_counter() - t0
 
-    os.makedirs(args.output, exist_ok=True)
-    out = level_dir(args.output, "sequences", args.flat)
+    os.makedirs(args.run, exist_ok=True)
+    out = level_dir(args.run, "sequences", args.flat)
     # alignments and phylograms are one file per family, so a hundred families is hundreds of files
     # each — they get a directory apiece unless --flat says otherwise
     wanted = args.write or ("alignments", "phylograms")   # SequencesResult.write's own default
@@ -187,7 +178,7 @@ def run(args, parser):
              else "strict clock")
     summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
                f"{args.length} sites, {clock}")
-    print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "sequences.log"),
+    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "sequences.log"),
                       args, summary)
     return 0

@@ -50,7 +50,8 @@ genomes.simulate_genomes_unordered(tree,
 The `source` here is the grown `TraitsResult` itself. That is the in-memory shortcut for the file: it is still conditioning, still two runs in order, but with no `write` and re-read in between. Hand it a filename instead and nothing else changes:
 
 ```python
-habitat.write("out/", outputs=("driver",))          # writes out/trait_driver.tsv
+habitat.write("out/", outputs=("driver",))          # writes out/trait_driver.tsv (a bare
+                                                    # write() puts it where you point it)
 genomes.simulate_genomes_unordered(tree,
     loss = 0.25 * mod.DrivenBy("out/trait_driver.tsv", {"cave": 4.0, "surface": 1.0}),
     duplication=0.2, origination=0.5, seed=2)
@@ -101,29 +102,29 @@ Notice too that the coupling **folds into the target level's own command**. Ther
 
 ```bash
 # 1. a species tree
-zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
+zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
 
 # 2. the driver: a habitat trait, writing the driver file
-zombi2 traits --kind discrete -t out/ \
-    --states cave,surface --switch 0.1 --seed 1 -o out/ --write values tree driver
+zombi2 traits out/ --kind discrete \
+    --states cave,surface --switch 0.1 --seed 1 --write values tree driver
 
 # 3. the target: genomes whose loss reads that trait
-zombi2 genomes -t out/ \
-    --loss "0.25 * DrivenBy('out/trait_driver.tsv', {'cave': 4.0, 'surface': 1.0})" \
-    --duplication 0.2 --origination 0.5 --seed 2 -o out/
+zombi2 genomes out/ \
+    --loss "0.25 * DrivenBy('out/traits/trait_driver.tsv', {'cave': 4.0, 'surface': 1.0})" \
+    --duplication 0.2 --origination 0.5 --seed 2
 ```
 
 Both halves of transfer take that same text: the rate with a base number in front of it, the recipient weight without one.
 
 ```bash
 # the driver: a competence trait, into its own directory
-zombi2 traits --kind discrete -t out/ \
-    --states competent,normal --switch 0.3 --seed 1 -o comp/ --write driver
+zombi2 traits comp/ --kind discrete --from out/ \
+    --states competent,normal --switch 0.3 --seed 1 --write driver
 
-zombi2 genomes -t out/ --initial-families 10 \
-    --transfer    "0.1 * DrivenBy('comp/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
-    --transfer-to "DrivenBy('comp/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
-    --seed 2 -o comp_genomes/
+zombi2 genomes comp_genomes/ --from out/ --initial-families 10 \
+    --transfer    "0.1 * DrivenBy('comp/traits/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
+    --transfer-to "DrivenBy('comp/traits/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
+    --seed 2
 ```
 
 ## Joining

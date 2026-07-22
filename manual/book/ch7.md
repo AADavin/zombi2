@@ -132,29 +132,29 @@ result = sequences.simulate_sequences(my_genomes, model=lg(), length=300, seed=1
 
 ## Usage from the CLI
 
-On the command line the genome run is handed over as a **directory**: `zombi2 sequences --genomes DIR` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them.
+On the command line the genome run is handed over as a **directory** — the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. Point `--from` at another run to read one and write somewhere else.
 
 ```bash
 # 1. genomes along a species tree (from the previous chapters)
-zombi2 genomes -t out/ \
-    --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 1 -o out/
+zombi2 genomes out/ \
+    --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 1
 
 # 2. HKY85, 1000 sites, strict clock
-zombi2 sequences --genomes out/ --model hky85 --kappa 2.0 \
-    --length 1000 --seed 1 -o seqs/
+zombi2 sequences seqs/ --from out/ --model hky85 --kappa 2.0 \
+    --length 1000 --seed 1
 
 # GTR with unequal frequencies under a relaxed clock, also writing the ancestral sequences
-zombi2 sequences --genomes out/ --model gtr \
+zombi2 sequences seqs/ --from out/ --model gtr \
     --frequencies 0.3 0.2 0.2 0.3 \
     --substitution "1.0 * ByLineage(spread=0.3)" \
-    --seed 1 -o seqs/ --write alignments phylograms ancestral species_phylogram
+    --seed 1 --write alignments phylograms ancestral species_phylogram
 ```
 
 A protein model is the same command with a different `--model`:
 
 ```bash
 # proteins under LG, 300 residues per gene
-zombi2 sequences --genomes out/ --model lg --length 300 --seed 1 -o seqs/
+zombi2 sequences seqs/ --from out/ --model lg --length 300 --seed 1
 ```
 
 Because a protein model has no parameters, passing one is an error rather than a flag that gets quietly ignored: `--model lg --kappa 2.0` stops with *"these options don't apply to --model lg: --kappa"*.

@@ -147,10 +147,10 @@ g.write("out/")                                  # the event log + profiles, on 
 
 ```bash
 # duplication–loss–origination along a species tree
-zombi2 genomes -t out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1 -o out/
+zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1
 
 # horizontal transfer biased toward close relatives, overwriting resident copies
-zombi2 genomes -t out/ --transfer 0.5 --transfer-to distance --replacement --origination 0.4 --seed 3 -o out/
+zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement --origination 0.4 --seed 3
 ```
 
 ## Outputs
@@ -186,6 +186,6 @@ Read a block of rows sharing a `lineage` and you have that lineage's genome. `fa
 
 `--write` picks which of the four to keep, and a `names.tsv` joins the `n<id>` columns back to your labels whenever you brought your own tree. Everything is derived from the event log, so writing none of them loses nothing that cannot be replayed.
 
-`-t` takes the run directory rather than the tree inside it — `-t out/` — because a run already knows where a species run keeps its complete tree. Give it a Newick file instead when the tree came from somewhere else.
+The run directory is where the species tree is read from as well as where the genomes are written, because a run already knows where a species run keeps its complete tree. `--from mytree.nwk` reads a tree from elsewhere; `--from other_run/` reads one run and writes another, which is how you get several genome replicates off one species tree.
 
 They land in `out/genomes/`, and the gene trees — one file per family per view — in `out/genomes/gene_trees/` below it, so a run of a few hundred families does not bury the rest. `--flat` writes everything straight into `out/` instead. The full list of files lives in Appendix B.
