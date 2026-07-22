@@ -84,10 +84,10 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental inversion rate (per chromosome)")
+                   help="segmental inversion rate (per copy)")
     g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
                    help="segmental transposition rate — move a run within a chromosome "
-                        "(per chromosome)")
+                        "(per copy)")
     g.add_argument("--translocation", type=_rate, default=0.0, metavar="RATE",
                    help="segmental translocation rate — move a run to another chromosome (per copy)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",

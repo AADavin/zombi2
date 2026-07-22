@@ -163,9 +163,22 @@ effective rate  =  scope(base)  ×  modifiers
 | Level | Counted per | "How fast" set by |
 |---|---|---|
 | Species | lineage | the diversification process |
-| Genomes | copy (or lineage) | the duplication / transfer / loss rates |
+| Genomes, gene tier | copy — lineage for origination | duplication / transfer / loss / inversion / transposition / translocation |
+| Genomes, chromosome tier | chromosome — lineage for origination | fission / fusion / chromosome loss / chromosome origination |
 | Sequences | site | the substitution rate (× a clock) |
 | Traits | lineage | the trait model |
+
+One rule generates that column: **an event that acts on something already there is counted per that
+thing; an event that makes something from nothing is counted per lineage.** Origination is not an
+arbitrary exception — there is no existing gene for it to be "per", and likewise no parent replicon
+for a de-novo plasmid.
+
+The rule settles the rearrangements, which act on a **run of genes** anchored at one of them: they
+are per copy, like the duplication and loss they sit beside, not per chromosome. A chromosome is
+where such a run happens to be confined, not what the event acts on — which is why a per-chromosome
+inversion rate doubles when a fission draws a line through a genome, though not one gene has changed.
+Scope answers *how many chances*; how far a single event then reaches is the extension's business,
+a separate knob.
 
 Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
 
