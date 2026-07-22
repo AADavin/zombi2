@@ -724,3 +724,66 @@ def test_wrapped_runs_stay_deterministic_given_a_seed():
     assert a.rearrangements and a.rearrangements == b.rearrangements
     assert all(a.gene_order(x) == b.gene_order(x) for x in a.genomes)
     assert a.events == b.events
+
+
+# --- scope: a rearrangement is counted per gene, not per chromosome -------------------------------
+
+def _inversions(result):
+    return sum(1 for r in result.rearrangements if isinstance(r, Inversion))
+
+
+def test_a_rearrangement_starts_at_a_gene_not_at_a_chromosome():
+    # Inversion and transposition act on a run of genes, so they are scoped per copy: the drawn
+    # gene IS the run's start. Picking a chromosome first and a position inside it would make a gene
+    # on a small replicon far likelier to be a breakpoint than a gene on a large one.
+    from zombi2.genomes import ordered
+
+    calls = {"gene": 0, "chromosome": 0}
+    real_gene, real_chrom = ordered._pick_gene, ordered._pick_chromosome
+
+    def spy_gene(*a, **k):
+        calls["gene"] += 1
+        return real_gene(*a, **k)
+
+    def spy_chrom(*a, **k):
+        calls["chromosome"] += 1
+        return real_chrom(*a, **k)
+
+    ordered._pick_gene, ordered._pick_chromosome = spy_gene, spy_chrom
+    try:
+        sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=2)
+        r = simulate_genomes_ordered(sp, inversion=0.4, transposition=0.3, chromosomes=3,
+                                     initial_families=12, seed=2)
+    finally:
+        ordered._pick_gene, ordered._pick_chromosome = real_gene, real_chrom
+    assert r.rearrangements, "the run produced no rearrangements to check"
+    assert calls["gene"] > 0
+    assert calls["chromosome"] == 0, "a rearrangement must not draw a chromosome first"
+
+
+def test_rearrangement_count_ignores_how_the_genes_are_split_into_chromosomes():
+    # The same genes carved into 1, 2 or 4 chromosomes is the same amount of DNA, so it must give the
+    # same number of inversions. Under per-chromosome scope this tripled from left to right, which is
+    # also why a fission used to double a genome's inversion rate without creating a single gene.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
+    counts = [_inversions(simulate_genomes_ordered(sp, inversion=0.05, initial_families=40,
+                                                   chromosomes=c, seed=3))
+              for c in (1, 2, 4)]
+    assert counts[0] > 0
+    assert len(set(counts)) == 1, f"chromosome number changed the inversion count: {counts}"
+
+
+def test_rearrangement_count_scales_with_gene_count():
+    # Twice the DNA, twice the chances to start a run. Averaged over seeds, doubling the genome
+    # doubles the inversions.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
+
+    def mean_at(fams):
+        runs = [_inversions(simulate_genomes_ordered(sp, inversion=0.05, initial_families=fams,
+                                                     chromosomes=1, seed=s))
+                for s in range(40)]
+        return sum(runs) / len(runs)
+
+    small, large = mean_at(20), mean_at(40)
+    assert small > 0
+    assert 1.7 < large / small < 2.3, f"expected ~2x, got {large / small:.2f} ({small} -> {large})"
