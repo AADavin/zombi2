@@ -24,10 +24,13 @@ from markdown.preprocessors import Preprocessor
 
 # `![alt](figures/fig-2-1-four-levels_print.png){width=40%}`
 #   -> `![alt](../img/fig-2-1-four-levels.svg){ width="40%" }`
-# Pandoc's `{width=40%}` is respelled rather than dropped, so the chapter keeps deciding how wide its
-# figure is: unquoted, python-markdown's attr_list leaves the braces as literal text on the page.
+# Both of the book's figure forms are build artefacts: `_print.png` for a chapter figure, and `.pdf`
+# for the ones the Makefile renders out of docs/img/. Each has an SVG behind it in docs/img/, which
+# is what the site should show. Pandoc's `{width=40%}` is respelled rather than dropped, so the
+# chapter keeps deciding how wide its figure is: unquoted, python-markdown's attr_list would leave
+# the braces as literal text on the page.
 _FIGURE = re.compile(
-    r"\]\(figures/([A-Za-z0-9_-]+)_print\.png\)"  # the print raster the book names
+    r"\]\(figures/([A-Za-z0-9_-]+?)(?:_print\.png|\.pdf)\)"  # the artefact the book names
     r"(?:\{ *width *= *([0-9.]+%?) *\})?"  # pandoc's optional width
 )
 
