@@ -12,7 +12,7 @@ and which strand it is read on. A genome with either wrong still looks exactly l
 import pytest
 
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_unordered
-from zombi2.genomes.events import node_label
+from zombi2.genomes.events import node_from_label, node_label
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
 from zombi2.species import simulate_species_tree
@@ -156,3 +156,69 @@ def test_an_unordered_run_assembles_nothing(tmp_path):
     assert r.genomes == {}
     r.write(tmp_path, outputs=("genomes",))
     assert not list(tmp_path.glob("genome_*.fasta"))
+
+
+# --- ancestral genomes -----------------------------------------------------------------------------
+
+def test_ancestral_genomes_are_the_genomes_that_were_really_there():
+    # every internal node, against the ancestry the run recorded at it — the same oracle as for the
+    # leaves, which is the claim: an ancestor you reconstruct is the one that was there.
+    genomes = _run(seed=3)
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
+    internal = {node_label(i) for i, nd in genomes.complete_tree.nodes.items()
+                if nd.children is not None}
+    assert r.ancestral_genomes and set(r.ancestral_genomes) <= internal
+    assert set(r.ancestral_genomes) & set(r.genomes) == set()      # the two halves never overlap
+    for label, chroms in r.ancestral_genomes.items():
+        assert chroms == _traced(genomes, r, node_from_label(label))
+
+
+def test_the_rebuilt_root_is_the_genome_the_gff_seeded(tmp_path):
+    # the round trip a reader cares about: declare a genome, evolve it, rebuild the ancestor from its
+    # descendants, and get back what you declared — base for base, genes where the GFF put them.
+    gff = tmp_path / "seed.gff"
+    gff.write_text("##gff-version 3\n##sequence-region c 1 3000\n"
+                   "c\tt\tgene\t201\t500\t.\t+\t.\tID=dnaA\n"
+                   "c\tt\tgene\t1001\t1300\t.\t-\t.\tID=recA\n"
+                   "c\tt\tgene\t2001\t2200\t.\t+\t.\tID=gyrB\n")
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    g = simulate_genomes_nucleotide(sp, gff=gff, inversion=2.0, inversion_length=400,
+                                    duplication=0.4, duplication_length=300, loss=0.4,
+                                    loss_length=300, seed=1)
+    root = g.complete_tree.root
+    assert not [x for x in g.rearrangements if x.lineage == root], \
+        "this seed rearranges on the root branch, so n0 is no longer the seeded genome"
+    r = simulate_sequences(g, model=jc69(), substitution=0.0, seed=1)
+
+    # what we started with: the founding blocks in root coordinate order. Drawn before any event and
+    # never seen by the recovery, so it is a reference and not a second assembly.
+    started = "".join(r.founding[i] for i in range(len(g.root_blocks)))
+    chrom = g.genomes[root].chromosomes[0]
+    assert len(started) == chrom.length
+    assert r.ancestral_genomes[node_label(root)][chrom.id] == started
+    # and the leaves have moved on, so the match above is not a run in which nothing happened
+    assert any(seq != started for chroms in r.genomes.values() for seq in chroms.values())
+
+
+def test_an_ancestor_can_be_rebuilt_even_where_the_root_branch_moved_things():
+    # n0 sits at the *end* of the root branch, so an event there leaves it already rearranged away
+    # from the seeded layout. It is still exactly what the run held, which is what is checked.
+    genomes = _run(seed=2, n_extant=8)
+    root = genomes.complete_tree.root
+    assert [x for x in genomes.rearrangements if x.lineage == root], "no root-branch event in this run"
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=2)
+    started = "".join(r.founding[i] for i in range(len(genomes.root_blocks)))
+    rebuilt = r.ancestral_genomes[node_label(root)]
+    assert rebuilt == _traced(genomes, r, root)
+    assert list(rebuilt.values()) != [started]                     # the root branch did move things
+
+
+def test_write_emits_the_ancestral_genomes_on_request(tmp_path):
+    genomes = _run(seed=6, n_extant=4)
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.2, seed=6)
+    r.write(tmp_path)                                              # not in the default set
+    assert not list(tmp_path.glob("genome_ancestral_*.fasta"))
+    r.write(tmp_path, outputs=("ancestral_genomes",))
+    for label, chroms in r.ancestral_genomes.items():
+        lines = (tmp_path / f"genome_ancestral_{label}.fasta").read_text().splitlines()
+        assert [ln for ln in lines if ln.startswith(">")] == [f">{label}_chr{c}" for c in chroms]
