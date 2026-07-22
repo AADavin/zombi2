@@ -90,6 +90,11 @@ class GenomesResult:
     #: ``{name: family id}`` for families seeded by ``families=[…]`` — the handle to a *named* family
     #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
     family_names: dict[str, int] = field(default_factory=dict)
+    #: The genome the run **started** with, at the root lineage's origination — before any event.
+    #: It is not in :attr:`genomes`, which holds a genome per *node*, and a node sits at the **end**
+    #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
+    #: whatever happened along the stem. The same reason ``GeneTree.origination`` is its own field.
+    initial_genome: tuple[GeneCopy, ...] = ()
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
@@ -117,13 +122,17 @@ class GenomesResult:
         :mod:`.gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
-    def write(self, directory, outputs=("events", "profiles", "genomes", "gene_trees")) -> None:
+    def write(self, directory,
+              outputs=("events", "profiles", "genomes", "initial_genome", "gene_trees")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
         - ``"genomes"`` → ``genomes.tsv``, every node's gene content, one row per gene copy —
           **ancestors included**, where ``profiles.tsv`` counts only the extant tips.
+        - ``"initial_genome"`` → ``initial_genome.tsv``, the genome the run started with. Its own
+          file, not a row in ``genomes.tsv``, because it belongs to no node: it sits at the start of
+          the root branch, and every ``lineage`` in that table is a node at the end of one.
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
           genealogy. A family with no surviving copy writes no ``_extant`` file.
         """
@@ -135,6 +144,8 @@ class GenomesResult:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv())
         if "genomes" in outputs:
             (d / "genomes.tsv").write_text(self._genomes_tsv())
+        if "initial_genome" in outputs:
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, d)
 
@@ -146,6 +157,14 @@ class GenomesResult:
         rows = [f"{node_label(s)}\t{c.family}\t{c.id}"
                 for s in sorted(self.genomes)
                 for c in sorted(self.genomes[s], key=lambda c: (c.family, c.id))]
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+    def _initial_genome_tsv(self) -> str:
+        """The genome the run started with — ``genomes.tsv``'s columns without ``lineage``, which is
+        the whole point: it belongs to the start of the root branch, not to a node."""
+        cols = ("family", "copy")
+        rows = [f"{c.family}\t{c.id}"
+                for c in sorted(self.initial_genome, key=lambda c: (c.family, c.id))]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
@@ -479,6 +498,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         gen[0].append(c)
         events.append(Event(t, "origination", root.id, fid, c.id))
     total_copies = len(gen[0])
+    initial_genome = tuple(gen[0])   # the run's starting genome: a snapshot before the stem runs
 
     # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
     # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
@@ -629,7 +649,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
-    return GenomesResult(tree, genomes, events, seed, family_names)
+    return GenomesResult(tree, genomes, events, seed, family_names, initial_genome)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------

@@ -263,10 +263,25 @@ def test_block_of_joins_a_gene_family_to_its_sequences():
         genomes.block_of(99999)                            # never declared
 
 
-def test_block_of_says_so_when_a_declared_gene_left_nothing_behind():
+def test_a_seeded_gene_always_has_a_block_however_hard_the_run():
+    # the initial genome carries every seeded gene and votes on the partition, so a seeded gene has a
+    # block even when it is lost in every lineage — which is the point of keeping it
     genomes = _run(seed=4, loss=3.0, n_extant=8)
+    seeded = {e.source for e in genomes.events
+              if type(e).__name__ == "Origination" and e.time == 0.0}
+    declared = [f for f, (src, _a, _b) in genomes.gene_spans.items() if src in seeded]
+    assert declared
+    for fam in declared:
+        assert genomes.root_blocks[genomes.block_of(fam)] == genomes.gene_spans[fam]
+
+
+def test_block_of_says_so_when_a_gene_left_nothing_behind():
+    # a de-novo gene born and lost on the same branch is carried by no genome in the run at all, so
+    # nothing was reconstructed for it. That is the one way a declared family has no block.
+    genomes = _run(seed=2, loss=4.0, loss_length=60, origination=3.0, origination_length=50,
+                   n_extant=8)
     gone = sorted(set(genomes.gene_spans) - set(genomes.gene_trees))
-    assert gone, "every declared gene survived in this run — pick another seed"
+    assert gone, "every declared gene left a block in this run — pick another seed"
     with pytest.raises(LookupError, match="no recovered root block"):
         genomes.block_of(gone[0])
 
@@ -321,3 +336,44 @@ def test_a_partial_loss_leaves_no_fragment_to_go_wrong():
                         assert (i, blk.copy) not in dead
     for node_id in sorted(g.genomes):                               # so every node assembles
         g.assembly(node_id)
+
+
+# --- the initial genome ----------------------------------------------------------------------------
+
+def test_the_initial_genome_is_what_the_run_was_seeded_with(tmp_path):
+    """The genome at the START of the root branch, which no node holds: the root node sits at the END
+    of it, and the stem is real simulated time. It votes on the partition like every other genome, so
+    it reconstructs exactly — no matter what the stem did."""
+    genomes = _run(seed=3, inversion=8.0, loss=2.0, n_extant=8)
+    root = genomes.complete_tree.root
+    on_stem = [x for x in genomes.rearrangements if x.lineage == root]
+    assert on_stem, "the stem was quiet in this run — pick another seed"
+
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
+    chrom = genomes.initial_genome.chromosomes[0]
+    # seeded: the genes evenly spaced on the + strand, in coordinate order, nothing yet rearranged
+    assert [b.strand for b in chrom.blocks] == [1] * len(chrom.blocks)
+    assert all(chrom.blocks[i].end == chrom.blocks[i + 1].start for i in range(len(chrom.blocks) - 1))
+    seq = r.initial_genome[chrom.id]
+    assert len(seq) == chrom.length
+    assert seq != r.ancestral_genomes[node_label(root)][chrom.id]     # the stem moved things
+
+    # every declared gene sits at exactly its declared coordinates, carrying its own founding sequence
+    for fam, (_src, a, b) in genomes.gene_spans.items():
+        assert seq[a:b] == r.founding[genomes.block_of(fam)]
+
+    r.write(tmp_path, outputs=("initial_genome",))
+    text = (tmp_path / "genome_initial.fasta").read_text()
+    assert f">initial_chr{chrom.id}\n" in text
+    assert "".join(text.split(">")[1].splitlines()[1:]) == seq
+
+
+def test_the_genome_level_writes_the_initial_mosaic_in_its_own_file(tmp_path):
+    genomes = _run(seed=3, n_extant=4)
+    genomes.write(tmp_path, outputs=("initial_genome", "blocks"))
+    rows = (tmp_path / "initial_genome.tsv").read_text().splitlines()
+    assert rows[0] == "chromosome\tposition\tsource\tstart\tend\tstrand\tcopy\tgene"
+    assert len(rows) - 1 == sum(len(c.blocks) for c in genomes.initial_genome.chromosomes)
+    # and it is not smuggled into blocks.tsv, whose every lineage is a real node
+    labels = {ln.split("\t")[0] for ln in (tmp_path / "blocks.tsv").read_text().splitlines()[1:]}
+    assert labels == {node_label(i) for i in genomes.genomes}

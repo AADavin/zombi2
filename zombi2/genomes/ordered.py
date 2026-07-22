@@ -213,6 +213,11 @@ class OrderedGenomesResult:
     #: where each gene-genealogy :class:`~zombi2.genomes.events.Event` happened — the positional
     #: companion to :attr:`events`, which is position-blind. See :class:`EventPosition`.
     event_positions: list[EventPosition] = field(default_factory=list)
+    #: The genome the run **started** with, at the root lineage's origination — before any event.
+    #: It is not in :attr:`genomes`, which holds a genome per *node*, and a node sits at the **end**
+    #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
+    #: whatever happened along the stem.
+    initial_genome: tuple[Chromosome, ...] = ()
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count`` (across all chromosomes)."""
@@ -253,14 +258,17 @@ class OrderedGenomesResult:
         return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory,
-              outputs=("events", "profiles", "gene_order", "gene_trees", "rearrangements",
-                       "chromosome_events", "event_positions")) -> None:
+              outputs=("events", "profiles", "gene_order", "initial_genome", "gene_trees",
+                       "rearrangements", "chromosome_events", "event_positions")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the gene-genealogy log (the source of truth).
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
         - ``"gene_order"`` → ``gene_order.tsv``, every node's layout (one row per gene), ancestors
           included — so a branch's rearrangements can be replayed from its parent's genome.
+        - ``"initial_genome"`` → ``initial_genome.tsv``, the layout the run started with. Its own
+          file, not a row in ``gene_order.tsv``, because it belongs to no node: it sits at the start
+          of the root branch, and every ``lineage`` in that table is a node at the end of one.
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges.
         - ``"event_positions"`` → ``genome_event_positions.tsv``, where each gene-genealogy event
@@ -277,6 +285,8 @@ class OrderedGenomesResult:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv())
         if "gene_order" in outputs:
             (d / "gene_order.tsv").write_text(self._gene_order_tsv())
+        if "initial_genome" in outputs:
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
         if "rearrangements" in outputs:
             (d / "rearrangements.tsv").write_text(_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
@@ -285,6 +295,14 @@ class OrderedGenomesResult:
             (d / "genome_event_positions.tsv").write_text(_event_positions_tsv(self.event_positions))
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, d)
+
+    def _initial_genome_tsv(self) -> str:
+        """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which
+        is the whole point: it belongs to the start of the root branch, not to a node."""
+        cols = ("chromosome", "position", "strand", "family", "copy")
+        rows = [f"{chrom.id}\t{pos}\t{g.strand}\t{g.family}\t{g.id}"
+                for chrom in self.initial_genome for pos, g in enumerate(chrom.genes)]
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
 
     def _gene_order_tsv(self) -> str:
         cols = ("lineage", "chromosome", "position", "strand", "family", "copy")
@@ -795,6 +813,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
+    # the run's starting genome: a deep snapshot, so the live genome's events never reach it
+    initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in root_chroms)
     enter(alive, gen, pos, root.id, root_chroms)
     total_copies = initial_families + len(families)
     total_chromosomes = n_chrom_seed
@@ -941,7 +961,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
 
     bar.close()
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                family_names, event_positions)
+                                family_names, event_positions, initial_genome)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

@@ -683,6 +683,13 @@ class NucleotideGenomesResult:
     #: unrelated to :attr:`Block.strand`, which records whether a stretch has been inverted since the
     #: root. The even layout declares every gene on ``+1``.
     gene_strands: dict[int, int] = field(default_factory=dict)
+    #: The genome the run **started** with — the seeded karyotype at the root lineage's origination,
+    #: before any event. It is not in :attr:`genomes`, which holds a genome per *node*, and a node
+    #: sits at the **end** of its branch: the root branch is real simulated time, so
+    #: ``genomes[root]`` is this genome plus whatever happened along the stem. It votes on the root
+    #: partition like every other genome, so it can be reconstructed too — see
+    #: :meth:`initial_assembly`.
+    initial_genome: NucleotideGenome = field(default_factory=lambda: NucleotideGenome([]))
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -765,17 +772,52 @@ class NucleotideGenomesResult:
         ``-1``\\ s, and concatenate. The sequence level does exactly that; nothing here knows about
         letters. **Every** node works — an extinct leaf and the root as readily as a surviving tip —
         which is what makes the whole history recoverable rather than only its leaves.
+        :meth:`initial_assembly` does the same for the genome the run started with.
 
         A piece is always a **whole** block, never part of one, because every node votes on where the
         partition is cut (see :func:`_root_block_partition`): this node's own breakpoints are all in
         it, so each of its blocks is a whole number of root blocks. What a block *is* cut into is one
         piece per root block it spans — and on a reversed block those come out in descending
         coordinate order, since physical order runs *down* the source."""
-        blocks = self.root_blocks
         tips = self._recover_blocks()[2]
+        blocks = self.root_blocks
+        what = node_label(node_id)
+        out = {}
+        for cid, pieces in self._pieces(self.genomes[node_id], what).items():
+            named = []
+            for (i, copy, strand) in pieces:
+                gene = tips.get((i, copy), _MISSING)
+                if gene is _MISSING or gene is None:
+                    raise AssertionError(                            # a guard — see the class docstring
+                        f"{what} carries {blocks[i]} under copy lineage {copy}, but that block's "
+                        + ("genealogy has no such copy" if gene is _MISSING
+                           else "genealogy ends that copy in a loss")
+                        + " — the event log and the genomes disagree")
+                named.append((i, gene, strand))
+            out[cid] = named
+        return out
+
+    def initial_assembly(self) -> dict[int, list[tuple[int, int]]]:
+        """:meth:`assembly` for :attr:`initial_genome`: ``{chromosome id: [(block, strand), …]}``.
+
+        No gene id here, unlike :meth:`assembly`, and that is the honest shape rather than a saving.
+        The initial genome sits at the **start** of the root branch, before any event, so each of its
+        blocks has exactly one sequence — the founding draw the sequence level records as
+        ``founding[block]`` — and there is no copy to disambiguate. A gene id would in fact be *wrong*
+        here: the one :meth:`assembly` gives is the **last** gene a copy held, and for a seed copy
+        that is at the far end of the stem. A loss on the stem can even end it, which is the same
+        thing said louder."""
+        return {cid: [(i, strand) for (i, _copy, strand) in pieces]
+                for cid, pieces in self._pieces(self.initial_genome, "the initial genome").items()}
+
+    def _pieces(self, genome: NucleotideGenome, what: str
+                ) -> dict[int, list[tuple[int, int, int]]]:
+        """The walk both assemblies share: ``{chromosome id: [(block, copy, strand), …]}`` in physical
+        order. Cutting each of the genome's blocks at the partition, which is at least as fine."""
+        blocks = self.root_blocks
         index = self._block_index()
         out: dict[int, list[tuple[int, int, int]]] = {}
-        for chrom in self.genomes[node_id].chromosomes:
+        for chrom in genome.chromosomes:
             pieces: list[tuple[int, int, int]] = []
             for b in chrom.blocks:
                 cut = []
@@ -783,21 +825,13 @@ class NucleotideGenomesResult:
                 k = bisect.bisect_left(starts, b.start)   # the partition starts a block exactly here
                 at = b.start
                 while k < len(idx) and blocks[idx[k]][1] == at < b.end:
-                    i = idx[k]
-                    gene = tips.get((i, b.copy), _MISSING)
-                    if gene is _MISSING or gene is None:
-                        raise AssertionError(                        # a guard — see the class docstring
-                            f"{node_label(node_id)} carries {blocks[i]} under copy lineage {b.copy}, "
-                            f"but that block's genealogy "
-                            + ("has no such copy" if gene is _MISSING else "ends that copy in a loss")
-                            + " — the event log and the genomes disagree")
-                    cut.append((i, gene, b.strand))
-                    at = blocks[i][2]
+                    cut.append((idx[k], b.copy, b.strand))
+                    at = blocks[idx[k]][2]
                     k += 1
                 if at != b.end:
                     raise AssertionError(                            # a guard — see the class docstring
-                        f"{node_label(node_id)} carries [{at}, {b.end}) of source {b.source}, which "
-                        "the root partition does not cover, though every node votes on it")
+                        f"{what} carries [{at}, {b.end}) of source {b.source}, which the root "
+                        "partition does not cover, though every genome in the run votes on it")
                 pieces.extend(reversed(cut) if b.strand == -1 else cut)
             out[chrom.id] = pieces
         return out
@@ -828,8 +862,8 @@ class NucleotideGenomesResult:
         return self._recover()[1]
 
     def write(self, directory,
-              outputs=("events", "genes", "blocks", "gene_trees", "rearrangements",
-                       "chromosome_events")) -> None:
+              outputs=("events", "genes", "blocks", "initial_genome", "gene_trees",
+                       "rearrangements", "chromosome_events")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.
@@ -841,6 +875,9 @@ class NucleotideGenomesResult:
           them than it has distinct ancestral runs, and this grows with their number × every node.
         - ``"genes"`` → ``genes.tsv``, the declared genes and where they sit in root coordinates.
           Header-only for a run that declared none.
+        - ``"initial_genome"`` → ``initial_genome.tsv``, the block mosaic the run started with. Its
+          own file, not a row in ``blocks.tsv``, because it belongs to no node: it sits at the start
+          of the root branch, and every ``lineage`` in that table is a node at the end of one.
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges.
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
@@ -855,6 +892,8 @@ class NucleotideGenomesResult:
             (d / "blocks.tsv").write_text(self._blocks_tsv())
         if "genes" in outputs:
             (d / "genes.tsv").write_text(self._genes_tsv())
+        if "initial_genome" in outputs:
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
         if "rearrangements" in outputs:
             (d / "rearrangements.tsv").write_text(_nucleotide_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
@@ -874,6 +913,19 @@ class NucleotideGenomesResult:
                     rows.append(f"{node_label(s)}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
                                 f"{b.copy}\t{b.gene}")
                     at += b.length
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+    def _initial_genome_tsv(self) -> str:
+        """The mosaic the run started with — ``blocks.tsv``'s columns without ``lineage``, which is
+        the whole point: it belongs to the start of the root branch, not to a node."""
+        cols = ("chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
+        rows = []
+        for c in self.initial_genome.chromosomes:
+            at = 0
+            for b in c.blocks:
+                rows.append(f"{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
+                            f"{b.copy}\t{b.gene}")
+                at += b.length
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
     def _genes_tsv(self) -> str:
@@ -1509,6 +1561,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length))
 
+    # the run's starting genome: a deep snapshot, so the live genome's events never reach it
+    initial_genome = NucleotideGenome(
+        [Chromosome(c.id, c.topology, [Block(b.source, b.start, b.end, b.strand, b.copy, b.gene)
+                                       for b in c.blocks]) for c in root_chroms])
+
     t = root.birth_time
     alive: list[int] = []                               # the live-lineage set (species._grow shape)
     gen: list[NucleotideGenome] = []
@@ -1617,7 +1674,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
             si += 1
     bar.close()
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                  gene_spans, gene_names, gene_strands)
+                                  gene_spans, gene_names, gene_strands, initial_genome)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
@@ -1657,8 +1714,8 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     """The root partition: per source, the maximal intervals bounded by the breakpoints of **every**
     node's genome, that some node still carries. Returns a sorted ``(source, start, end)`` list.
 
-    Every node votes, not only the extant leaves, and that is what makes the whole tree
-    reconstructable. Cutting at the survivors alone leaves two kinds of hole: material no survivor
+    Every genome the run holds votes — every node, and the initial genome — not only the extant
+    leaves, and that is what makes the whole tree reconstructable. Cutting at the survivors alone leaves two kinds of hole: material no survivor
     kept has no block at all, and an ancestor can hold a *fragment* of a block whose genealogy — being
     the survivors' — has no lineage for it. Counting every node closes both at once, because a node's
     own breakpoints are then all in the partition, so its every block is a whole number of root blocks.
@@ -1668,7 +1725,7 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     the end of its branch. A boundary that vanishes took its material with it."""
     bounds: dict[int, set[int]] = collections.defaultdict(set)
     spans: dict[int, set[tuple[int, int]]] = collections.defaultdict(set)
-    for genome in result.genomes.values():
+    for genome in [*result.genomes.values(), result.initial_genome]:
         for chrom in genome.chromosomes:
             for b in chrom.blocks:
                 bounds[b.source].update((b.start, b.end))

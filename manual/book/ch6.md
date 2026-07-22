@@ -131,6 +131,7 @@ The root genome is declared, in one of two ways.
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages included.
 - `.genomes` — a dict from node id to that node's `NucleotideGenome`, a list of `Chromosome`s, each a list of `Block`s.
+- `.initial_genome` — the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node. It votes on the root partition like every other genome, so `.initial_assembly()` rebuilds it too.
 - `.events` — the copy-lineage genealogy: origination, loss, duplication, transfer, speciation.
 - `.rearrangements` — the ancestry-neutral log: inversion, transposition, translocation.
 - `.chromosome_events` — the chromosome network, as in Chapter 5.
@@ -139,6 +140,7 @@ The root genome is declared, in one of two ways.
 - `.gene_trees` — one recovered gene tree per gene family, for the families that survive in at least one extant leaf.
 - `.root_blocks` — the recovered root partition: the maximal never-cut intervals that some node still carries. Cut at **every** node's breakpoints, not just the survivors', which is what lets any node's genome be rebuilt.
 - `.block_trees` — a recovered tree for **every** root block, spacer as well as gene, keyed by its index in `.root_blocks`.
+- `.initial_assembly()` — the same for `.initial_genome`, as `(block, strand)` pairs. No gene id: the initial genome predates every event, so each block has exactly one sequence there.
 - `.block_of(family)` — the block index a declared gene family occupies: the join between the two numbering schemes here, since `.gene_spans` and `.gene_trees` are keyed by family id while `.root_blocks` and `.block_trees` are keyed by block index. Both are plain integers, so mixing them up is silent; this is how you avoid it.
 - `.seed`.
 
