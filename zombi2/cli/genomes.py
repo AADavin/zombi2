@@ -31,10 +31,10 @@ RATES_HELP = _rates_help(
          "--resolution nucleotide takes constant rates only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
-_UNORDERED_OUTPUTS = ("events", "profiles")
-_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "rearrangements", "chromosome_events",
+_UNORDERED_OUTPUTS = ("events", "profiles", "genomes", "gene_trees")
+_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "gene_trees", "rearrangements", "chromosome_events",
                     "event_positions")
-_NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "rearrangements", "chromosome_events")
+_NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "gene_trees", "rearrangements", "chromosome_events")
 _OUTPUTS = {"unordered": _UNORDERED_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
             "nucleotide": _NUCLEOTIDE_OUTPUTS}
 
@@ -157,10 +157,14 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
                    default=None, metavar="PART",
-                   help="which outputs to write (default: each resolution's own). unordered: "
-                        "events, profiles. ordered: events, profiles, gene_order [+ rearrangements, "
-                        "chromosome_events, event_positions]. nucleotide: events, genes [+ blocks, "
-                        "rearrangements, chromosome_events].")
+                   help="which outputs to write (default: each resolution's own; [+ …] are "
+                        "on request). unordered: events, profiles [+ genomes, gene_trees]. "
+                        "ordered: events, profiles, gene_order [+ gene_trees, rearrangements, "
+                        "chromosome_events, event_positions]. nucleotide: events, genes "
+                        "[+ blocks, gene_trees, rearrangements, chromosome_events]. "
+                        "'genomes' is every node's gene content, ancestors included, where "
+                        "'profiles' counts only the extant tips; 'gene_trees' writes one Newick "
+                        "per family, complete and extant.")
 
 
 def _transfer_to(text: str):

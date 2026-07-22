@@ -43,10 +43,32 @@ class Event:
 
 _COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient")
 
+#: Columns holding a species-tree node, written as ``n<id>``. ``parent`` is a *gene copy*, not a
+#: lineage, so it stays a bare id.
+_NODE_COLS = frozenset({"lineage", "recipient"})
+
+
+def node_label(node_id: int | None) -> str:
+    """A species-tree node as every ZOMBI2 table writes it: ``n<id>``, the same token the Newick
+    uses and the species and trait tables already used. Empty for ``None``."""
+    return "" if node_id is None else f"n{node_id}"
+
+
+def node_from_label(cell: str) -> int:
+    """The inverse of :func:`node_label`. A bare integer is accepted too, so a log written before the
+    node columns carried their ``n`` still replays."""
+    return int(cell[1:] if cell[:1] == "n" else cell)
+
 
 def events_tsv(events: list[Event]) -> str:
     """The event log as TSV — one row per event; empty cells for the fields a kind does not use."""
-    rows = ["\t".join("" if (v := getattr(e, c)) is None else str(v) for c in _COLS) for e in events]
+    def cell(e: Event, col: str) -> str:
+        v = getattr(e, col)
+        if v is None:
+            return ""
+        return node_label(v) if col in _NODE_COLS else str(v)
+
+    rows = ["\t".join(cell(e, c) for c in _COLS) for e in events]
     return "\n".join(["\t".join(_COLS), *rows]) + "\n"
 
 
@@ -76,6 +98,7 @@ def events_from_tsv(text: str) -> list[Event]:
                              f"got {len(cells)}")
         time, kind, lineage, family, copy, parent, recipient = cells
         events.append(Event(
-            time=float(time), kind=kind, lineage=int(lineage), family=int(family), copy=int(copy),
-            parent=int(parent) if parent else None, recipient=int(recipient) if recipient else None))
+            time=float(time), kind=kind, lineage=node_from_label(lineage), family=int(family),
+            copy=int(copy), parent=int(parent) if parent else None,
+            recipient=node_from_label(recipient) if recipient else None))
     return events

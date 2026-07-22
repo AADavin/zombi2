@@ -49,6 +49,7 @@ import pathlib
 
 import pytest
 
+from zombi2.genomes.events import node_from_label
 from zombi2.cli.main import main
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.genomes.nucleotide import _CutsGene
@@ -437,7 +438,7 @@ def _read_gene_order(path):
     """``gene_order.tsv`` -> ``{node: [(family, strand), ...]}`` in genome order."""
     genomes = {}
     for r in _read_tsv(path / "gene_order.tsv"):
-        genomes.setdefault(int(r["species"]), []).append((int(r["family"]), int(r["strand"])))
+        genomes.setdefault(node_from_label(r["species"]), []).append((int(r["family"]), int(r["strand"])))
     return genomes
 
 
@@ -487,7 +488,7 @@ def _replay(steps, tree):
                 live[c] = list(genome)
 
     for r in steps:
-        t, kind, lineage = float(r["time"]), r["kind"], int(r["lineage"])
+        t, kind, lineage = float(r["time"]), r["kind"], node_from_label(r["lineage"])
         settle(t)
         # a branch that has already ended takes no more events; the engine never emits such a row
         assert lineage in live, f"event at {t} on branch {lineage}, which is not alive then"
@@ -503,9 +504,9 @@ def _replay(steps, tree):
             del g[start:start + length]
         elif kind == "transfer_donor":
             # the donor branch is unchanged; hold what left until its arriving row turns up
-            in_flight[(t, int(r["donor"]), int(r["recipient"]))] = g[start:start + length]
+            in_flight[(t, node_from_label(r["donor"]), node_from_label(r["recipient"]))] = g[start:start + length]
         elif kind == "transfer_recipient":
-            block = in_flight.pop((t, int(r["donor"]), int(r["recipient"])))
+            block = in_flight.pop((t, node_from_label(r["donor"]), node_from_label(r["recipient"])))
             assert len(block) == length, "the two rows of a transfer disagree on its length"
             g[start:start] = block                      # the block arrives at start
         elif kind == "inversion":

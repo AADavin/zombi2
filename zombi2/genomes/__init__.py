@@ -39,8 +39,8 @@ from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 
-from .events import Event, events_tsv
-from .gene_trees import GeneNode, GeneTree, gene_trees_from_events
+from .events import Event, events_tsv, node_label
+from .gene_trees import GeneNode, GeneTree, gene_trees_from_events, write_gene_trees
 from .chromosomes import ChromosomeEvent
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from .ordered import (
@@ -121,6 +121,10 @@ class GenomesResult:
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
+        - ``"genomes"`` → ``genomes.tsv``, every node's gene content, one row per gene copy —
+          **ancestors included**, where ``profiles.tsv`` counts only the extant tips.
+        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
+          genealogy. A family with no surviving copy writes no ``_extant`` file.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -128,6 +132,19 @@ class GenomesResult:
             (d / "genome_events.tsv").write_text(events_tsv(self.events))
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv())
+        if "genomes" in outputs:
+            (d / "genomes.tsv").write_text(self._genomes_tsv())
+        if "gene_trees" in outputs:
+            write_gene_trees(self.gene_trees, d)
+
+    def _genomes_tsv(self) -> str:
+        """Every node's gene content, one row per copy, in the order the genome holds them. The
+        unordered counterpart of the ordered resolution's ``gene_order.tsv`` — without a chromosome
+        or a position, because at this resolution a genome is a set, not a sequence."""
+        cols = ("species", "family", "gene")
+        rows = [f"{node_label(s)}\t{c.family}\t{c.id}"
+                for s in sorted(self.genomes) for c in self.genomes[s]]
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
 # --- the live genomes: parallel arrays under swap-remove, the ``species_tree._grow`` shape --------

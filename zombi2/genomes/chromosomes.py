@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .events import node_label
+
 
 @dataclass(frozen=True)
 class ChromosomeEvent:
@@ -37,7 +39,7 @@ def chromosome_events_tsv(chromosome_events: list[ChromosomeEvent]) -> str:
     """The chromosome network as TSV — one row per edge, the ids of a multi-ended side joined by
     ``;`` (a fusion has two parents, a fission two children). Both resolutions write this file, so
     the writer lives with the record it writes."""
-    rows = [f"{e.time}\t{e.kind}\t{e.lineage}\t{';'.join(map(str, e.parents))}\t"
+    rows = [f"{e.time}\t{e.kind}\t{node_label(e.lineage)}\t{';'.join(map(str, e.parents))}\t"
             f"{';'.join(map(str, e.children))}" for e in chromosome_events]
     return "\n".join(["\t".join(_COLS), *rows]) + "\n"
 

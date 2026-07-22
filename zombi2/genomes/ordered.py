@@ -48,8 +48,8 @@ from ..species import SpeciesResult, Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
-from .events import Event, events_tsv
-from .gene_trees import GeneTree, gene_trees_from_events
+from .events import Event, events_tsv, node_label
+from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
 
@@ -263,6 +263,8 @@ class OrderedGenomesResult:
         - ``"event_positions"`` → ``genome_event_positions.tsv``, where each gene-genealogy event
           happened. With ``gene_order`` and ``rearrangements`` this completes the replayable history:
           every event that changes a genome's layout now carries its coordinates.
+        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
+          genealogy — unchanged from the unordered resolution, position being orthogonal to it.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -278,10 +280,12 @@ class OrderedGenomesResult:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "event_positions" in outputs:
             (d / "genome_event_positions.tsv").write_text(_event_positions_tsv(self.event_positions))
+        if "gene_trees" in outputs:
+            write_gene_trees(self.gene_trees, d)
 
     def _gene_order_tsv(self) -> str:
         cols = ("species", "chromosome", "position", "strand", "family", "gene")
-        rows = [f"{s}\t{ch}\t{p}\t{st}\t{fam}\t{gid}"
+        rows = [f"{node_label(s)}\t{ch}\t{p}\t{st}\t{fam}\t{gid}"
                 for s in sorted(self.genomes)
                 for (ch, p, st, fam, gid) in self.gene_order(s)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -293,12 +297,13 @@ def _rearrangements_tsv(rearrangements) -> str:
             "dest_chromosome", "dest_position", "flipped")
 
     def row(r):
+        ln = node_label(r.lineage)
         if isinstance(r, Inversion):
-            return (r.time, "inversion", r.lineage, r.chromosome, r.start, r.length, "", "", "")
+            return (r.time, "inversion", ln, r.chromosome, r.start, r.length, "", "", "")
         if isinstance(r, Transposition):
-            return (r.time, "transposition", r.lineage, r.chromosome, r.start, r.length,
+            return (r.time, "transposition", ln, r.chromosome, r.start, r.length,
                     "", r.dest, int(r.flipped))
-        return (r.time, "translocation", r.lineage, r.source, r.start, r.length,
+        return (r.time, "translocation", ln, r.source, r.start, r.length,
                 r.dest, r.dest_position, int(r.flipped))
     rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
     return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -310,8 +315,13 @@ _POSITION_COLS = ("time", "kind", "lineage", "chromosome", "start", "length", "f
 
 def _event_positions_tsv(event_positions: list[EventPosition]) -> str:
     # the positional companion to genome_events.tsv; empty cells for fields a kind does not use
-    rows = ["\t".join("" if (v := getattr(p, c)) is None else str(v) for c in _POSITION_COLS)
-            for p in event_positions]
+    def cell(p, c):
+        v = getattr(p, c)
+        if v is None:
+            return ""
+        return node_label(v) if c in ("lineage", "donor", "recipient") else str(v)
+
+    rows = ["\t".join(cell(p, c) for c in _POSITION_COLS) for p in event_positions]
     return "\n".join(["\t".join(_POSITION_COLS), *rows]) + "\n"
 
 
