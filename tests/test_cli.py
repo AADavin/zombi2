@@ -392,7 +392,7 @@ def test_sequences_needs_the_genome_event_log(tmp_path, capsys):
 
 def test_traits_continuous_writes_values_and_tree(tmp_path, tree_file):
     out = tmp_path / "t"
-    rc = main(["traits", str(out), "--from", str(tree_file), "--rate", "1.0", "--seed", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_tree.nwk", "traits.log"}
     header, first = (out / "trait_values.tsv").read_text().splitlines()[:2]
@@ -403,7 +403,7 @@ def test_traits_continuous_writes_values_and_tree(tmp_path, tree_file):
 
 def test_traits_ou_and_threshold_run(tmp_path, tree_file):
     # OU: the same diffusion pulled to an optimum
-    assert main(["traits", str(tmp_path / "ou"), "--from", str(tree_file), "--rate", "1.0", "--reverts-to", "2", "--pull", "0.5", "--seed", "1", "--flat"]) == 0
+    assert main(["traits", "--kind", "continuous", str(tmp_path / "ou"), "--from", str(tree_file), "--rate", "1.0", "--reverts-to", "2", "--pull", "0.5", "--seed", "1", "--flat"]) == 0
     # the threshold model: a discrete state read off a continuous liability
     out = tmp_path / "th"
     assert main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "absent,present", "--liability", "1.0", "--threshold", "0.0", "--seed", "1", "--flat"]) == 0
@@ -422,7 +422,7 @@ def test_traits_discrete_writes_the_event_log_and_driver(tmp_path, tree_file):
 
 def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
     out = tmp_path / "t"
-    main(["traits", str(out), "--from", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1", "--write", "changes", "--flat"])
+    main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1", "--write", "changes", "--flat"])
     rows = (out / "trait_changes.tsv").read_text().splitlines()[1:]
     assert rows and all(r.split("\t")[1] == "on_speciation" for r in rows)   # a diffusion has no
     #                                                    along-branch events, only the split jumps
@@ -438,7 +438,7 @@ def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
 ])
 def test_traits_argument_errors_exit_2(argv, msg, tmp_path, tree_file, capsys):
     with pytest.raises(SystemExit) as e:
-        main(["traits", str(tmp_path / "t"), "--from", str(tree_file), *argv, "--flat"])
+        main(["traits", "--kind", "continuous", str(tmp_path / "t"), "--from", str(tree_file), *argv, "--flat"])
     assert e.value.code == 2
     assert msg in capsys.readouterr().err
 
@@ -453,7 +453,7 @@ def test_traits_is_deterministic_given_the_seed(tmp_path, tree_file):
 
 
 def test_traits_missing_tree_is_reported_cleanly(tmp_path, capsys):
-    rc = main(["traits", str(tmp_path / "t"), "--from", str(tmp_path / "nope.nwk"), "--rate", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(tmp_path / "t"), "--from", str(tmp_path / "nope.nwk"), "--rate", "1", "--flat"])
     assert rc == 1                                        # a clean one-line error, not a traceback
     assert "tree file not found" in capsys.readouterr().err
 
@@ -461,7 +461,7 @@ def test_traits_missing_tree_is_reported_cleanly(tmp_path, capsys):
 def test_traits_on_external_tree_writes_a_name_map(tmp_path):
     (tmp_path / "ext.nwk").write_text("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);\n")
     out = tmp_path / "t"
-    rc = main(["traits", str(out), "--from", str(tmp_path / "ext.nwk"), "--rate", "1.0", "--seed", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tmp_path / "ext.nwk"), "--rate", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
     names = dict(ln.split("\t") for ln in (out / "names.tsv").read_text().splitlines()[1:])
     assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
@@ -477,6 +477,8 @@ def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file
                                      'write = ["values", "changes"]\nseed = 7\n')
     argv = ["traits", "--params", str(tmp_path / "p.toml"), "--from", str(tree_file)]
     out = tmp_path / "a"
+    # --kind is required, but the file supplies it — that is why it is validated in run() rather
+    # than marked argparse-`required`, which no default could satisfy
     assert main(["traits", str(out), *argv[1:], "--flat"]) == 0
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_changes.tsv", "traits.log"}
     states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
@@ -632,7 +634,7 @@ def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file,
 
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "t"
-    rc = main(["traits", str(out), "--from", str(tree_file), "--rate", "1.0 * FromParent(spread=0.2)", "--seed", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * FromParent(spread=0.2)", "--seed", "1", "--flat"])
     assert rc == 0
     assert "rate\t1.0 * FromParent(spread=0.2)" in (out / "traits.log").read_text()
 
@@ -688,7 +690,7 @@ def test_each_level_writes_into_its_own_directory(tmp_path):
     tree = _tree_for(tmp_path)
     main(["genomes", str(tmp_path), "--from", tree, "--initial-families", "4", "--duplication", "0.3", "--seed", "2", "--write", "events", "profiles", "gene_trees"])
     main(["sequences", str(tmp_path), "--from", str(tmp_path), "--model", "jc69", "--length", "20", "--seed", "1"])
-    main(["traits", str(tmp_path), "--from", tree, "--rate", "1.0", "--seed", "1"])
+    main(["traits", "--kind", "continuous", str(tmp_path), "--from", tree, "--rate", "1.0", "--seed", "1"])
 
     assert (tmp_path / "species" / "species_complete.nwk").exists()
     assert (tmp_path / "genomes" / "genome_events.tsv").exists()
@@ -746,7 +748,7 @@ def test_a_run_directory_is_read_as_well_as_written(tmp_path):
     # the whole point of the positional: name the directory once and each level finds the last
     main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
     assert main(["genomes", str(tmp_path), "--initial-families", "3", "--seed", "2"]) == 0
-    assert main(["traits", str(tmp_path), "--rate", "1.0", "--seed", "1"]) == 0
+    assert main(["traits", "--kind", "continuous", str(tmp_path), "--rate", "1.0", "--seed", "1"]) == 0
     assert main(["sequences", str(tmp_path), "--model", "jc69", "--length", "20", "--seed", "1"]) == 0
     assert (tmp_path / "genomes" / "genome_events.tsv").exists()
     assert (tmp_path / "traits" / "trait_values.tsv").exists()
@@ -867,3 +869,11 @@ def test_joint_argument_errors_exit_2(argv, msg, tmp_path, capsys):
         main(["joint", str(tmp_path), *argv])
     assert e.value.code == 2
     assert msg in capsys.readouterr().err
+
+
+def test_traits_requires_an_explicit_kind(tmp_path, capsys, tree_file):
+    # the state space decides which other flags apply, so there is no default to fall back on
+    with pytest.raises(SystemExit) as e:
+        main(["traits", str(tmp_path / "t"), "--from", str(tree_file), "--rate", "1.0"])
+    assert e.value.code == 2
+    assert "--kind is required" in capsys.readouterr().err

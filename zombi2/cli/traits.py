@@ -51,10 +51,11 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     _add_params_arg(g)
     _add_from_arg(g, "the tree the trait rides — a Newick file, or another run's directory")
-    g.add_argument("--kind", choices=("continuous", "discrete"), default="continuous",
-                   metavar="KIND",
-                   help="continuous (a real value diffusing, default) or discrete (a finite state "
-                        "switching)")
+    # validated in run() rather than argparse-`required`, so a --params file can supply it
+    g.add_argument("--kind", choices=("continuous", "discrete"), default=None, metavar="KIND",
+                   help="continuous (a real value diffusing) or discrete (a finite state "
+                        "switching) — required. It is the first thing to decide, because it "
+                        "settles which of the options below apply")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
@@ -106,6 +107,10 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
 
 
 def run(args, parser):
+    if args.kind is None:
+        parser.error("--kind is required: continuous (a real value diffusing) or discrete (a finite "
+                     "state switching). It decides which of the other options apply, so there is no "
+                     "sensible default — a trait is one or the other before it is anything else")
     discrete = args.kind == "discrete"
 
     # reject the other kind's knobs, so a silently-ignored flag can't give a misleading run
