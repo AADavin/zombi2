@@ -1,18 +1,23 @@
 """``zombi2 genomes`` — evolve gene families along a species tree.
 
 ``--resolution`` picks the model: ``unordered`` (the D/T/L/O gene-family core,
-:func:`zombi2.genomes.simulate_genomes_unordered`) or ``ordered`` (genes with a position and
+:func:`zombi2.genomes.simulate_genomes_unordered`), ``ordered`` (genes with a position and
 orientation on chromosomes — segmental rearrangements and the chromosome tier,
-:func:`~zombi2.genomes.simulate_genomes_ordered`). Long options are the API keyword names, and every
-rate takes the written form (SPEC §5): a bare number on its natural scope, or the same ``scope(base)
-× modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3: 2.0})"``."""
+:func:`~zombi2.genomes.simulate_genomes_ordered`), or ``nucleotide`` (the genome as a nucleotide
+sequence of ancestry blocks, with declared indivisible genes and intergenic spacer,
+:func:`~zombi2.genomes.simulate_genomes_nucleotide`). Long options are the API keyword names, and
+every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
+``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
+2.0})"``. The nucleotide engine takes **constant rates only**, so a modifier expression is rejected
+there rather than silently ignored."""
 from __future__ import annotations
 
 import argparse
 import os
 import time
 
-from zombi2.genomes import WIRED_MODIFIERS, simulate_genomes_ordered, simulate_genomes_unordered
+from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
+                            simulate_genomes_unordered)
 from zombi2.species import read_newick
 from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
 
@@ -22,20 +27,38 @@ RATES_HELP = _rates_help(
     note="Each rate keeps its natural scope here (D/T/L per copy, origination per lineage), so "
          "there is no scope wrapper to write. DrivenBy is wired for all four gene-family rates "
          "(on --transfer it drives how often a lineage DONATES); --transfer-to takes the same "
-         "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime only.")
+         "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime only; "
+         "--resolution nucleotide takes constant rates only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _UNORDERED_OUTPUTS = ("events", "profiles")
-_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "rearrangements", "chromosome_events")
+_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "rearrangements", "chromosome_events",
+                    "event_positions")
+_NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "rearrangements", "chromosome_events")
+_OUTPUTS = {"unordered": _UNORDERED_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
+            "nucleotide": _NUCLEOTIDE_OUTPUTS}
 
-# ordered-only knobs — (attribute, default) pairs — rejected under --resolution unordered
-_ORDERED_ONLY = (
+# knobs that need a *structured* genome — (attribute, default) pairs — rejected under unordered
+_STRUCTURED_ONLY = (
     ("inversion", 0.0), ("transposition", 0.0), ("translocation", 0.0),
     ("chromosomes", 1), ("topology", "circular"),
     ("fission", 0.0), ("fusion", 0.0),
     ("chromosome_origination", 0.0), ("chromosome_loss", 0.0),
     ("inversion_probability", 0.0),
 )
+
+# knobs only the nucleotide engine has — rejected under unordered and ordered
+_NUCLEOTIDE_ONLY = (
+    ("root_length", 1000), ("genes", 0), ("gene_length", 100), ("gff", None),
+    ("trim_overlaps", False),
+    ("inversion_length", 50.0), ("transposition_length", 50.0), ("translocation_length", 50.0),
+    ("loss_length", 50.0), ("duplication_length", 50.0), ("transfer_length", 50.0),
+    ("origination_length", 50.0),
+)
+
+# knobs the nucleotide engine does not have — it seeds from a sequence, not from a family count,
+# and its transfers are always additive
+_NOT_IN_NUCLEOTIDE = (("initial_families", 0), ("replacement", False))
 
 
 def _add_genomes_args(p: argparse.ArgumentParser) -> None:
@@ -46,10 +69,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "tree; genomes evolve on the complete tree, extinct lineages included)")
     g.add_argument("-o", "--output", required=True, metavar="DIR", dest="output",
                    help="output directory (created if needed)")
-    g.add_argument("--resolution", choices=("unordered", "ordered"), default="unordered",
-                   metavar="RESOLUTION",
-                   help="unordered (gene-family counts, default) or ordered (genes positioned on "
-                        "chromosomes, with rearrangements)")
+    g.add_argument("--resolution", choices=("unordered", "ordered", "nucleotide"),
+                   default="unordered", metavar="RESOLUTION",
+                   help="unordered (gene-family counts, default), ordered (genes positioned on "
+                        "chromosomes, with rearrangements), or nucleotide (the genome as a "
+                        "sequence of ancestry blocks, with indivisible genes)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
@@ -82,7 +106,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--initial-families", type=int, default=0, metavar="N", dest="initial_families",
                    help="number of gene families present at the crown (default 0)")
 
-    g = p.add_argument_group("structured genome", "only with --resolution ordered")
+    g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
                    help="segmental inversion rate (per chromosome)")
     g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
@@ -109,11 +133,34 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    dest="inversion_probability",
                    help="probability a transposed/translocated block lands inverted (default 0)")
 
+    g = p.add_argument_group("nucleotide genome", "only with --resolution nucleotide")
+    g.add_argument("--root-length", type=int, default=1000, metavar="BP", dest="root_length",
+                   help="length in bp of each seed replicon (default 1000)")
+    g.add_argument("--genes", type=int, default=0, metavar="N",
+                   help="number of evenly-spaced genes to declare on each seed replicon (default 0 "
+                        "— an all-intergenic genome). Use --gff instead to declare real ones")
+    g.add_argument("--gene-length", type=int, default=100, metavar="BP", dest="gene_length",
+                   help="length in bp of each evenly-spaced gene (default 100)")
+    g.add_argument("--gff", metavar="FILE",
+                   help="a GFF3 declaring the seed genome's replicons and genes at exact "
+                        "coordinates — the 'start from a real genome' path (excludes --genes)")
+    g.add_argument("--trim-overlaps", action="store_true", dest="trim_overlaps",
+                   help="[--gff] shorten overlapping gene annotations instead of refusing the file")
+    for knob, what in (("inversion", "inverted"), ("transposition", "moved within a chromosome"),
+                       ("translocation", "moved to another chromosome"), ("loss", "deleted"),
+                       ("duplication", "copied in tandem"), ("transfer", "copied to a recipient"),
+                       ("origination", "laid down as new material")):
+        g.add_argument(f"--{knob}-length", type=float, default=50.0, metavar="BP",
+                       dest=f"{knob}_length",
+                       help=f"mean bp {what} per event (geometric, default 50)")
+
     g = p.add_argument_group("outputs")
-    g.add_argument("--write", nargs="+", choices=_ORDERED_OUTPUTS, default=None, metavar="PART",
-                   help="which outputs to write (default: events, profiles [+ gene_order when "
-                        "ordered]). unordered: events, profiles. ordered adds: gene_order, "
-                        "rearrangements, chromosome_events.")
+    g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
+                   default=None, metavar="PART",
+                   help="which outputs to write (default: each resolution's own). unordered: "
+                        "events, profiles. ordered: events, profiles, gene_order [+ rearrangements, "
+                        "chromosome_events, event_positions]. nucleotide: events, genes [+ blocks, "
+                        "rearrangements, chromosome_events].")
 
 
 def _transfer_to(text: str):
@@ -167,17 +214,41 @@ def _read_tip_fates(path: str) -> dict:
     return fates
 
 
-def run(args, parser):
-    # reject ordered-only knobs under the unordered resolution, so a silently-ignored flag can't
-    # give a misleading run (e.g. --inversion with --resolution unordered)
-    if args.resolution == "unordered":
-        stray = [f"--{attr.replace('_', '-')}" for attr, default in _ORDERED_ONLY
-                 if getattr(args, attr) != default]
-        if stray:
-            parser.error(f"these options need --resolution ordered: {', '.join(stray)} "
-                         "(the unordered core has no chromosomes or positions)")
+def _stray(args, knobs) -> list[str]:
+    """The flags in ``knobs`` the user actually set (their value differs from the default)."""
+    return [f"--{attr.replace('_', '-')}" for attr, default in knobs
+            if getattr(args, attr) != default]
 
-    vocab = _ORDERED_OUTPUTS if args.resolution == "ordered" else _UNORDERED_OUTPUTS
+
+def run(args, parser):
+    # a flag a resolution does not have is an error, never silently ignored — otherwise
+    # `--inversion` under unordered, or `--initial-families` under nucleotide, would quietly
+    # produce a run that is not the one asked for
+    if args.resolution == "unordered":
+        if stray := _stray(args, _STRUCTURED_ONLY):
+            parser.error(f"these options need --resolution ordered or nucleotide: "
+                         f"{', '.join(stray)} (the unordered core has no chromosomes or positions)")
+    if args.resolution != "nucleotide":
+        if stray := _stray(args, _NUCLEOTIDE_ONLY):
+            parser.error(f"these options need --resolution nucleotide: {', '.join(stray)} "
+                         f"(the {args.resolution} resolution counts genes, not base pairs)")
+    else:
+        if stray := _stray(args, _NOT_IN_NUCLEOTIDE):
+            parser.error(f"the nucleotide resolution has no {', '.join(stray)} (it is seeded from "
+                         "a sequence — see --root-length / --genes / --gff — and its transfers are "
+                         "additive)")
+        if args.gff and args.genes:
+            parser.error("pass either --gff or --genes, not both — a GFF already declares the genes")
+        # the nucleotide engine holds each rate constant, so a modifier expression would be
+        # accepted and then dropped; refuse it instead
+        modulated = [f"--{n}" for n in ("duplication", "transfer", "loss", "origination", "inversion",
+                                        "transposition", "translocation", "fission", "fusion")
+                     if not isinstance(getattr(args, n), float)]
+        if modulated:
+            parser.error(f"--resolution nucleotide takes constant rates only, but "
+                         f"{', '.join(modulated)} carries a modifier")
+
+    vocab = _OUTPUTS[args.resolution]
     if args.write:
         bad = [o for o in args.write if o not in vocab]
         if bad:
@@ -193,20 +264,31 @@ def run(args, parser):
 
     common = dict(duplication=args.duplication, transfer=args.transfer, loss=args.loss,
                   origination=args.origination, transfer_to=args.transfer_to,
-                  replacement=args.replacement, self_transfer=args.self_transfer,
-                  initial_families=args.initial_families, seed=args.seed)
+                  self_transfer=args.self_transfer, seed=args.seed)
+    structured = dict(inversion=args.inversion, transposition=args.transposition,
+                      translocation=args.translocation, chromosomes=args.chromosomes,
+                      topology=args.topology, fission=args.fission, fusion=args.fusion,
+                      chromosome_origination=args.chromosome_origination,
+                      chromosome_loss=args.chromosome_loss,
+                      inversion_probability=args.inversion_probability)
 
     t0 = time.perf_counter()
     if args.resolution == "ordered":
         result = simulate_genomes_ordered(
-            tree, inversion=args.inversion, transposition=args.transposition,
-            translocation=args.translocation, chromosomes=args.chromosomes, topology=args.topology,
-            fission=args.fission, fusion=args.fusion,
-            chromosome_origination=args.chromosome_origination,
-            chromosome_loss=args.chromosome_loss,
-            inversion_probability=args.inversion_probability, **common)
+            tree, replacement=args.replacement, initial_families=args.initial_families,
+            **structured, **common)
+    elif args.resolution == "nucleotide":
+        result = simulate_genomes_nucleotide(
+            tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
+            gff=args.gff, trim_overlaps=args.trim_overlaps,
+            inversion_length=args.inversion_length,
+            transposition_length=args.transposition_length,
+            translocation_length=args.translocation_length, loss_length=args.loss_length,
+            duplication_length=args.duplication_length, transfer_length=args.transfer_length,
+            origination_length=args.origination_length, **structured, **common)
     else:
-        result = simulate_genomes_unordered(tree, **common)
+        result = simulate_genomes_unordered(
+            tree, replacement=args.replacement, initial_families=args.initial_families, **common)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.output, exist_ok=True)
@@ -224,8 +306,14 @@ def run(args, parser):
         with open(os.path.join(args.output, "names.tsv"), "w") as f:
             f.write("\n".join(rows) + "\n")
 
-    n_families, n_species = result.profiles.shape
-    summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
+    if args.resolution == "nucleotide":         # no phyletic profiles here: the unit is a base pair
+        extant = [n.id for n in result.complete_tree.extant()]
+        bp = sum(result.genomes[s].length for s in extant)
+        summary = (f"{len(result.gene_spans)} genes and {bp} bp across {len(extant)} extant "
+                   f"genomes (nucleotide)")
+    else:
+        n_families, n_species = result.profiles.shape
+        summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
     _write_params_log(os.path.join(args.output, "genomes.log"), args, summary)
     return 0
