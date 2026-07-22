@@ -39,10 +39,15 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Event log | `genome_events.tsv` | TSV | yes | as unordered |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `species` · `chromosome` · `position` · `strand` · `family` · `gene` |
-| Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped` |
+| Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹ |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
 | Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `family` · `donor` · `recipient` · `dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
+
+¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
+`length` (how many genes it covered), counted rightwards from `start` and **wrapping past position 0 on
+a circular chromosome** — so `start + length` greater than the chromosome's gene count means the run
+crossed the origin. `dest_position` is an index into what was left after the run was excised.
 
 ## Genomes, nucleotide — `simulate_genomes_nucleotide`
 
