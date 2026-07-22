@@ -1647,7 +1647,7 @@ def test_no_chromosome_is_ever_left_without_a_gene():
 
 # --- writing the outputs --------------------------------------------------------------------------
 
-_ALL_OUTPUTS = ("events", "blocks", "genes", "rearrangements", "chromosome_events")
+_ALL_OUTPUTS = ("events", "blocks", "genes", "chromosome_events")
 
 
 def _read(path):
@@ -1671,8 +1671,7 @@ def _written(tmp_path, **kw):
 def test_write_emits_the_selected_outputs(tmp_path):
     _written(tmp_path)
     assert {p.name for p in tmp_path.iterdir()} == {
-        "genome_events.tsv", "blocks.tsv", "genes.tsv", "rearrangements.tsv",
-        "chromosome_events.tsv"}
+        "genome_events.tsv", "blocks.tsv", "genes.tsv", "chromosome_events.tsv"}
 
 
 def test_write_defaults_to_every_table(tmp_path):
@@ -1681,7 +1680,7 @@ def test_write_defaults_to_every_table(tmp_path):
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     simulate_genomes_nucleotide(sp, root_length=200, inversion=1.0, seed=1).write(tmp_path)
     written = {p.name for p in tmp_path.iterdir()}
-    assert {"genome_events.tsv", "genes.tsv", "blocks.tsv", "rearrangements.tsv",
+    assert {"genome_events.tsv", "genes.tsv", "blocks.tsv", "initial_genome.tsv",
             "chromosome_events.tsv"} <= written
     assert any(p.name.startswith("gene_tree_fam") for p in tmp_path.iterdir())
 
@@ -1724,8 +1723,10 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
              "transfer": len(getattr(e, "transferred", ())),
              "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
         expected[kind] += n
+    for r_ in r.rearrangements:                      # they share the table; count them too
+        expected[type(r_).__name__.lower()] += 1
     assert collections.Counter(row["kind"] for row in rows) == expected
-    assert set(expected) == {"origination", "loss", "duplication", "transfer", "speciation"}, \
+    assert {"origination", "loss", "duplication", "transfer", "speciation"} <= set(expected), \
         f"the fixture should exercise every event kind, got {sorted(expected)}"
 
 
@@ -1748,14 +1749,22 @@ def test_genes_file_is_header_only_when_none_were_declared(tmp_path):
     assert (tmp_path / "genes.tsv").read_text() == "family\tname\tsource\tstart\tend\tstrand\n"
 
 
-def test_written_rearrangements_carry_one_row_per_kind(tmp_path):
+def test_written_rearrangements_share_the_event_table(tmp_path):
+    """They used to be their own file. They end no gene lineage — which is why they were apart — but
+    they are events on the same branches at the same clock, and a reader replaying one has to
+    interleave them anyway. So: same table, their own kinds, and no ancestral columns."""
     r = _written(tmp_path, chromosomes=3, translocation=1.5, transposition=3.0)
-    _, rows = _read(tmp_path / "rearrangements.tsv")
-    assert len(rows) == len(r.rearrangements)
-    assert set(row["kind"] for row in rows) == {"inversion", "transposition", "translocation"}
-    for row, rec in zip(rows, r.rearrangements, strict=True):
+    assert not (tmp_path / "rearrangements.tsv").exists()
+    _, rows = _read(tmp_path / "genome_events.tsv")
+    kinds = {"inversion", "transposition", "translocation"}
+    rear = [row for row in rows if row["kind"] in kinds]
+    assert len(rear) == len(r.rearrangements) and {row["kind"] for row in rear} == kinds
+    for row, rec in zip(rear, sorted(r.rearrangements, key=lambda x: x.time), strict=True):
         assert float(row["time"]) == rec.time and node_from_label(row["lineage"]) == rec.lineage
-        assert int(row["length"]) == rec.length and int(row["start"]) == rec.start
+        assert int(row["length"]) == rec.length and int(row["position"]) == rec.start
+        # physical, not ancestral: a rearrangement moves material without changing where it came from
+        assert row["source"] == row["start"] == row["end"] == row["copy"] == ""
+    assert [float(row["time"]) for row in rows] == sorted(float(row["time"]) for row in rows)
 
 
 def test_both_resolutions_write_the_same_chromosome_network_format(tmp_path):

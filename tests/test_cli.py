@@ -174,25 +174,26 @@ def test_genomes_unordered_writes_events_and_profiles(tmp_path, tree_file):
 
 def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3", "--seed", "42", "--write", "gene_order", "rearrangements", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3", "--seed", "42", "--write", "gene_order", "events", "--flat"])
     assert rc == 0
-    assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "rearrangements.tsv",
+    assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "genome_events.tsv",
                                                "species_complete.nwk", "genomes.log"}
 
 
-def test_genomes_ordered_writes_event_positions(tmp_path, tree_file):
+def test_genomes_ordered_events_carry_where_each_one_happened(tmp_path, tree_file):
+    # the genealogy, the positions and the rearrangements are one table now, not three
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.2", "--origination", "0.6", "--seed", "42", "--write", "event_positions", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.2", "--origination", "0.6", "--inversion", "0.4", "--seed", "42", "--write", "events", "--flat"])
     assert rc == 0
-    rows = (out / "genome_event_positions.tsv").read_text().splitlines()
-    assert rows[0].split("\t")[:6] == ["time", "kind", "lineage", "chromosome", "start", "length"]
-    assert len(rows) > 1, "the run should have produced positioned events"
-
-
-def test_genomes_rejects_event_positions_under_unordered(tmp_path, tree_file):
-    with pytest.raises(SystemExit) as e:                         # positions need genes to have places
-        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--write", "event_positions", "--flat"])
-    assert e.value.code == 2
+    assert not list(out.glob("rearrangements.tsv")) and not list(out.glob("genome_event_*.tsv"))
+    rows = (out / "genome_events.tsv").read_text().splitlines()
+    cols = rows[0].split("\t")
+    assert cols == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
+                    "donor", "dest_lineage", "chromosome", "position", "length",
+                    "dest_chromosome", "dest_position", "flipped"]
+    body = [r.split("\t") for r in rows[1:]]
+    assert {r[1] for r in body} >= {"origination", "duplication", "loss", "inversion"}
+    assert [r for r in body if r[10]], "no event carries the place it happened"
 
 
 def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
@@ -219,7 +220,7 @@ def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file)
 
 def test_genomes_nucleotide_write_selects_blocks(tmp_path, tree_file):
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--inversion", "1.0", "--seed", "1", "--write", "blocks", "rearrangements", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--inversion", "1.0", "--seed", "1", "--write", "blocks", "events", "--flat"])
     assert rc == 0
     head = (out / "blocks.tsv").read_text().splitlines()[0].split("\t")
     assert head == ["lineage", "chromosome", "position", "source", "start", "end", "strand",

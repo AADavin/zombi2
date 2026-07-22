@@ -81,6 +81,12 @@ def events_from_tsv(text: str) -> list[Event]:
     if not lines:
         raise ValueError("empty genome event log — is the file empty?")
     header = lines[0].split("\t")
+    if tuple(header[:len(_COLS)]) == _COLS:
+        # the ordered resolution writes the same genealogy with each event's position beside it, and
+        # its rearrangements in the same table. The extra columns are ignored here and the
+        # rearrangement rows skipped: this reader is about identity and descent, which they do not
+        # touch. (A genome level that needs the positions reads them itself.)
+        return _parse(lines, header)
     if tuple(header) != _COLS:
         # the nucleotide resolution writes its own, wider log to the same filename — a likely
         # mistake worth naming, since the two look alike until you read the columns
@@ -90,17 +96,32 @@ def events_from_tsv(text: str) -> list[Event]:
                 "when its handoff is a nucleotide run"
                 if "source" in header and "family" not in header else "")
         raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}{hint}")
+    return _parse(lines, header)
+
+
+#: the kinds this log records about gene identity and descent. A wider table may also carry the
+#: ancestry-**neutral** rearrangements; they end no gene lineage, so they are not events here.
+_GENEALOGY = frozenset({"origination", "duplication", "loss", "transfer", "speciation"})
+
+
+def _parse(lines: list[str], header: list[str]) -> list[Event]:
+    """Read the rows by column **name**, so a table carrying more than the seven canonical columns
+    parses unchanged and only the genealogy rows come back."""
+    at = {c: i for i, c in enumerate(header)}
     events: list[Event] = []
     for lineno, raw in enumerate(lines[1:], 2):
         if not raw:                                     # tolerate a trailing blank line
             continue
         cells = raw.split("\t")
-        if len(cells) != len(_COLS):
-            raise ValueError(f"genome event log line {lineno}: expected {len(_COLS)} columns, "
+        if len(cells) != len(header):
+            raise ValueError(f"genome event log line {lineno}: expected {len(header)} columns, "
                              f"got {len(cells)}")
-        time, kind, lineage, family, copy, parent, recipient = cells
+        if cells[at["kind"]] not in _GENEALOGY:
+            continue
+        get = lambda c: cells[at[c]]                    # noqa: E731
         events.append(Event(
-            time=float(time), kind=kind, lineage=node_from_label(lineage), family=int(family),
-            copy=int(copy), parent=int(parent) if parent else None,
-            recipient=node_from_label(recipient) if recipient else None))
+            time=float(get("time")), kind=get("kind"), lineage=node_from_label(get("lineage")),
+            family=int(get("family")), copy=int(get("copy")),
+            parent=int(get("parent")) if get("parent") else None,
+            recipient=node_from_label(get("recipient")) if get("recipient") else None))
     return events

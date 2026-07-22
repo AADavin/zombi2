@@ -253,14 +253,14 @@ g.write("out/", outputs=("events", "profiles", "gene_order",
 ```
 
 ```
-out/genome_events.tsv        the gene genealogy (the source of truth)
+out/genome_events.tsv        the whole history: the genealogy, where each event
+                             happened, and the rearrangements — in time order
 out/profiles.tsv             family × extant-species copy counts
 out/gene_order.tsv           every node's layout, one row per gene
-out/rearrangements.tsv       inversions, transpositions, translocations
 out/chromosome_events.tsv    the chromosome network (edge list)
 ```
 
-The first three are written by default; the two logs are opt-in. `gene_order.tsv` is the ordered genome's headline output: the signed gene order of every node, one row per gene. Ancestors are included, not just the observed leaves, so node 0 below is the root and node 1 an internal branch:
+Everything is written by default. `gene_order.tsv` is the ordered genome's headline output: the signed gene order of every node, one row per gene. Ancestors are included, not just the observed leaves, so node 0 below is the root and node 1 an internal branch:
 
 ```
 species chromosome  position  strand  family  gene
@@ -273,7 +273,7 @@ species chromosome  position  strand  family  gene
 1       1           2         1       2       12
 ```
 
-Ancestral rows are what make the rearrangement log usable. `rearrangements.tsv` gives each inversion a start and a length on a branch; to check what it did, or to replay it, you need the genome the branch started from — that is its parent's rows here. Without them the log can only be read at the tips.
+Ancestral rows are what make the event log usable. `genome_events.tsv` gives each inversion a position and a length on a branch; to check what it did, or to replay it, you need the genome the branch started from — that is its parent's rows here. Without them the log can only be read at the tips.
 
 `chromosome_events.tsv` is the network's ground truth, its columns the edge list above — `time · kind · lineage · parents · children`, one row per event.
 
@@ -298,6 +298,6 @@ Every row belongs to one branch. `lineage` names it, and `chromosome`, `start` a
 
 A transfer spans two branches, so it writes two rows — one on each — and both name the whole edge in `donor` and `recipient`. The `transfer_donor` row says what left; the `transfer_recipient` row says where it arrived. Pair them on time, donor and recipient.
 
-Those three files together are enough to reconstruct the whole run: start from a node's parent in `gene_order.tsv`, apply that branch's rows from `rearrangements.tsv` and `genome_event_positions.tsv` in time order, and you get the node's own rows back. Rows sharing a timestamp apply in the order written.
+Two files are enough to reconstruct the whole run: start from a node's parent in `gene_order.tsv`, apply that branch's rows from `genome_events.tsv` in order, and you get the node's own rows back. The log is already in time order, and every row that moved genes carries the arc it acted on — so there is nothing to join. (There were three files until recently: the genealogy, the positions and the rearrangements. The first two described the *same events*, split by which columns they carried.)
 
 The full list of files lives in Appendix B.

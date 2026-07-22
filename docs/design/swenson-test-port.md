@@ -31,7 +31,7 @@ have to be re-derived.
 | `make_inversion_intergenic(ch, bp1, bp2, dir)` | `Chromosome.invert(start, length)` — a half-open arc, not two breakpoints and a direction |
 | `cut_and_paste` / `obtain_segment` | `_transpose` (ordered) / the transposition mutator (nucleotide) |
 | `Inversion.afterToBeforeS` / `afterToBeforeT` | `Chromosome.trace_back()` — per-nucleotide ancestral origin, root-anchored rather than per-event |
-| `Geneorder_events_per_branch/` | `genome_event_positions.tsv` + `rearrangements.tsv` |
+| `Geneorder_events_per_branch/` | `genome_events.tsv` (which carries both) |
 | `All_genomes/` | `gene_order.tsv` / `blocks.tsv`, which now carry **every node**, ancestors included |
 | `Leaves.tsv` | `species_extant.nwk` |
 
@@ -54,7 +54,8 @@ feature in its own right, not test scaffolding:
 
 1. **`gene_order.tsv` covers every node** (was extant tips only). A branch's rearrangements are
    meaningless without the genome it started from, which is its parent's row set.
-2. **`genome_event_positions.tsv`** — where each D/T/L/O event happened. The gene-genealogy log is
+2. **`genome_events.tsv`** — where each D/T/L/O event happened, beside the genealogy itself and the
+   rearrangements, all in one time-ordered table. The gene-genealogy log alone is
    position-blind on purpose (identity and descent are resolution-blind), so the coordinates go in a
    companion table, the same split ZOMBI2 already makes for `rearrangements.tsv`. A transfer writes
    one row per branch, following the fork's leaving/arriving split, except that both rows name the

@@ -34,7 +34,7 @@ Four sections, in the order they were built:
 Concept map — fork → ZOMBI2: *division* → `Block` (a run of one unbroken ancestry); *pieces* → the
 ordered block list; `ch.genes` → the gene-carrying blocks in physical order; `natural_cuts` → block
 boundaries; `Inversion.afterToBeforeT` → `trace_back()`; `Geneorder_events_per_branch/` →
-`genome_event_positions.tsv` + `rearrangements.tsv`; `All_genomes/` → `gene_order.tsv` / `blocks.tsv`.
+`genome_events.tsv` (which carries both); `All_genomes/` → `gene_order.tsv` / `blocks.tsv`.
 
 Most of this exercises the **nucleotide** resolution, which is where ZOMBI2 keeps genes, spacer and
 block ancestry — the model his gene-order tests are about. Section 3 is broader: it compares the
@@ -442,19 +442,37 @@ def _read_gene_order(path):
     return genomes
 
 
-def _read_steps(path):
-    """Every written event that moves genes, merged into one time-ordered stream.
+#: the kinds that are gene *genealogy* rather than a rearrangement, in genome_events.tsv
+_GENEALOGY = frozenset({"origination", "duplication", "loss", "transfer", "speciation"})
 
-    Rows sharing a timestamp keep the order they were written (a replacing transfer's displacements
-    precede its arrival), so the sort key carries each row's index within its own file.
+
+def _read_steps(path):
+    """Every written event that moves genes, in the order it happened.
+
+    They arrive already merged and time-ordered: ``genome_events.tsv`` carries the genealogy, the
+    rearrangements and — on each event's **first** row — the arc it acted on. So a row moves genes
+    exactly when it has a ``position``, which is what this filters on. (These used to be two files,
+    ``genome_event_positions.tsv`` and ``rearrangements.tsv``, that a reader had to interleave; the
+    fact that this replay had to do that by hand is why they were merged.)
+
+    A transfer's two sides are told apart by ``recipient``, as the genealogy does, rather than by the
+    old ``transfer_donor`` / ``transfer_recipient`` kinds.
     """
     steps = []
-    for i, r in enumerate(_read_tsv(path / "genome_event_positions.tsv")):
-        steps.append((float(r["time"]), 0, i, r))
-    for i, r in enumerate(_read_tsv(path / "rearrangements.tsv")):
-        steps.append((float(r["time"]), 1, i, r))
-    steps.sort(key=lambda s: s[:3])
-    return [r for *_, r in steps]
+    for r in _read_tsv(path / "genome_events.tsv"):
+        if not r["position"]:
+            continue
+        r = dict(r)
+        if r["kind"] == "transfer":
+            # which side this row is: the arriving copy is the one born on the recipient branch.
+            # Either way the row names both ends of the edge, so no join to its partner is needed.
+            if r["recipient"]:
+                r["kind"] = "transfer_recipient"
+            else:
+                r["kind"], r["donor"], r["recipient"] = "transfer_donor", r["lineage"], r["dest_lineage"]
+        r["start"] = r["position"]
+        steps.append(r)
+    return steps
 
 
 # --------------------------------------------------------------------------- #
@@ -530,7 +548,7 @@ def _positions_run(tmp_path, *, seed, **kw):
                   transposition=0.4, chromosomes=1, initial_families=10, seed=seed)
     params.update(kw)
     r = simulate_genomes_ordered(sp, **params)
-    r.write(tmp_path, outputs=("events", "gene_order", "rearrangements", "event_positions"))
+    r.write(tmp_path, outputs=("events", "gene_order"))
     return r
 
 
@@ -633,8 +651,8 @@ def _pipeline(root):
     assert main(["species", str(root), "--birth", "1.0", "--death", "0.3", "--n-extant", "12", "--seed", PIPELINE_SEED, "--flat"]) == 0
 
     assert main(["genomes", str(root / "g_unordered"), "--from", tree, "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--seed", PIPELINE_SEED, "--flat"]) == 0
-    assert main(["genomes", str(root / "g_ordered"), "--from", tree, "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--transfer", "0.2", "--inversion", "0.4", "--transposition", "0.3", "--chromosomes", "2", "--seed", PIPELINE_SEED, "--write", "events", "profiles", "gene_order", "rearrangements", "chromosome_events", "event_positions", "--flat"]) == 0
-    assert main(["genomes", str(root / "g_nucleotide"), "--from", tree, "--resolution", "nucleotide", "--root-length", "600", "--genes", "4", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3", "--seed", PIPELINE_SEED, "--write", "events", "genes", "blocks", "rearrangements", "--flat"]) == 0
+    assert main(["genomes", str(root / "g_ordered"), "--from", tree, "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--transfer", "0.2", "--inversion", "0.4", "--transposition", "0.3", "--chromosomes", "2", "--seed", PIPELINE_SEED, "--write", "events", "profiles", "gene_order", "chromosome_events", "--flat"]) == 0
+    assert main(["genomes", str(root / "g_nucleotide"), "--from", tree, "--resolution", "nucleotide", "--root-length", "600", "--genes", "4", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3", "--seed", PIPELINE_SEED, "--write", "events", "genes", "blocks", "--flat"]) == 0
 
     assert main(["sequences", str(root / "s"), "--from", str(root / "g_unordered"), "--model", "hky85", "--length", "150", "--seed", PIPELINE_SEED, "--write", "alignments", "phylograms", "ancestral", "species_phylogram", "--flat"]) == 0
     assert main(["traits", "--kind", "continuous", str(root / "t"), "--from", tree, "--rate", "1.0", "--seed", PIPELINE_SEED, "--flat"]) == 0
@@ -674,7 +692,7 @@ def test_the_comparison_covers_every_level(two_runs):
     # dropped from the pipeline above, the two runs would still agree — vacuously
     names = " ".join(two_runs[0])
     for expected in ("species_complete.nwk", "genome_events.tsv", "gene_order.tsv",
-                     "genome_event_positions.tsv", "blocks.tsv", "genes.tsv",
+                     "blocks.tsv", "genes.tsv",
                      "fam0.fasta", "trait_values.tsv"):
         assert expected in names, f"{expected} is missing — the pipeline is not covering that level"
 

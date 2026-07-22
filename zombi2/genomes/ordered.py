@@ -49,7 +49,7 @@ from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from ..progress import progress_bar
-from .events import Event, events_tsv, node_label
+from .events import Event, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -259,40 +259,37 @@ class OrderedGenomesResult:
 
     def write(self, directory,
               outputs=("events", "profiles", "gene_order", "initial_genome", "gene_trees",
-                       "rearrangements", "chromosome_events", "event_positions")) -> None:
+                       "chromosome_events")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
-        - ``"events"`` → ``genome_events.tsv``, the gene-genealogy log (the source of truth).
+        - ``"events"`` → ``genome_events.tsv``, the run's whole history in one time-ordered table:
+          the gene genealogy, **where** each event happened, and the ancestry-neutral
+          rearrangements. With ``gene_order`` this is enough to replay the run.
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
         - ``"gene_order"`` → ``gene_order.tsv``, every node's layout (one row per gene), ancestors
           included — so a branch's rearrangements can be replayed from its parent's genome.
         - ``"initial_genome"`` → ``initial_genome.tsv``, the layout the run started with. Its own
           file, not a row in ``gene_order.tsv``, because it belongs to no node: it sits at the start
           of the root branch, and every ``lineage`` in that table is a node at the end of one.
-        - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
-        - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges.
-        - ``"event_positions"`` → ``genome_event_positions.tsv``, where each gene-genealogy event
-          happened. With ``gene_order`` and ``rearrangements`` this completes the replayable history:
-          every event that changes a genome's layout now carries its coordinates.
+        - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges. The
+          one log kept apart: it is a network over chromosome **ids**, with list-valued parents and
+          children, joined on a different key from everything above.
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
           genealogy — unchanged from the unordered resolution, position being orthogonal to it.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(events_tsv(self.events))
+            (d / "genome_events.tsv").write_text(
+                _events_tsv(self.events, self.event_positions, self.rearrangements))
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv())
         if "gene_order" in outputs:
             (d / "gene_order.tsv").write_text(self._gene_order_tsv())
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
-        if "rearrangements" in outputs:
-            (d / "rearrangements.tsv").write_text(_rearrangements_tsv(self.rearrangements))
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
-        if "event_positions" in outputs:
-            (d / "genome_event_positions.tsv").write_text(_event_positions_tsv(self.event_positions))
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, d)
 
@@ -312,38 +309,78 @@ class OrderedGenomesResult:
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
-def _rearrangements_tsv(rearrangements) -> str:
-    # one table for all identity-preserving rearrangements; empty cells for fields a kind does not use
-    cols = ("time", "kind", "lineage", "chromosome", "start", "length",
-            "dest_chromosome", "dest_position", "flipped")
+#: One table for the whole history of a run. The genealogy — who begat whom — with **where** each
+#: event happened beside it, and the ancestry-neutral rearrangements interleaved by time. These used
+#: to be three files (``genome_events`` · ``genome_event_positions`` · ``rearrangements``), and the
+#: first two described the *same events* split by which columns they carried, so replaying a branch
+#: meant joining files. ``position`` / ``length`` are coordinates in the branch's own genome just
+#: before the event, as ``gene_order`` numbers it, and are written once per **event** — on its
+#: first row — because the arc is the event's, not each copy's. A transfer spans two branches and
+#: writes a row on each, and each names the whole edge so it stands alone: the arriving row already
+#: has ``lineage`` (where it went) and gains ``donor`` (where it came from); the departing row has
+#: ``lineage`` (where it came from) and gains ``dest_lineage`` (where it went). ``recipient`` keeps
+#: the genealogy's meaning — the branch the *new* copy is born on — and so is set on the arriving row
+#: only; it is what tells the two sides apart.
+_EVENT_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient",
+               "donor", "dest_lineage",
+               "chromosome", "position", "length", "dest_chromosome", "dest_position", "flipped")
 
-    def row(r):
-        ln = node_label(r.lineage)
+
+def _position_key(kind, lineage, family, recipient):
+    """What pairs one genealogy row with the :class:`EventPosition` of the event it belongs to.
+
+    A transfer is told apart by which side it is — the row born on the recipient carries one — rather
+    than by lineage, so a self-transfer still resolves. An origination needs its ``family`` too: the
+    seeded ones all fire at t=0 on the root branch, and nothing else separates them."""
+    if kind == "transfer":
+        kind = "transfer_donor" if recipient is None else "transfer_recipient"
+    return (kind, lineage, family if kind == "origination" else None)
+
+
+def _events_tsv(events, event_positions, rearrangements) -> str:
+    """The run's whole history as one time-ordered table (see :data:`_EVENT_COLS`)."""
+    where = {}
+    for p in event_positions:
+        where[(p.time, *_position_key(p.kind, p.lineage, p.family, None))] = p
+
+    rows: list[tuple[float, str]] = []
+    placed: set = set()
+    for e in events:
+        key = (e.time, *_position_key(e.kind, e.lineage, e.family, e.recipient))
+        p = where.get(key)
+        cells = [e.time, e.kind, node_label(e.lineage), e.family, e.copy,
+                 "" if e.parent is None else e.parent,
+                 "" if e.recipient is None else node_label(e.recipient)]
+        # a transfer's two sides each name the whole edge, so neither needs its partner's row
+        arriving = e.kind == "transfer" and e.recipient is not None
+        cells += ["" if p is None or p.donor is None or not arriving else node_label(p.donor),
+                  "" if p is None or p.recipient is None or arriving else node_label(p.recipient)]
+        # The arc belongs to the **event**, not to each copy it touched: a duplication of three genes
+        # ends three and starts six, but there is one arc. So it is written on the event's first row
+        # and left empty on the rest — filter on a non-empty `position` to get one row per event that
+        # moved genes, which is what a replay walks. A speciation moves nothing and never has one.
+        if p is not None and key not in placed:
+            placed.add(key)
+            cells += [p.chromosome, p.start, p.length, "",
+                      "" if p.dest_position is None else p.dest_position, ""]
+        else:
+            cells += ["", "", "", "", "", ""]
+        rows.append((e.time, "\t".join(str(c) for c in cells)))
+
+    for r in rearrangements:                            # ancestry-neutral: no family, copy or parent
+        head = [r.time, "", node_label(r.lineage), "", "", "", "", "", ""]
         if isinstance(r, Inversion):
-            return (r.time, "inversion", ln, r.chromosome, r.start, r.length, "", "", "")
-        if isinstance(r, Transposition):
-            return (r.time, "transposition", ln, r.chromosome, r.start, r.length,
-                    "", r.dest, int(r.flipped))
-        return (r.time, "translocation", ln, r.source, r.start, r.length,
-                r.dest, r.dest_position, int(r.flipped))
-    rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
-    return "\n".join(["\t".join(cols), *rows]) + "\n"
+            tail = ["inversion", r.chromosome, r.start, r.length, "", "", ""]
+        elif isinstance(r, Transposition):
+            tail = ["transposition", r.chromosome, r.start, r.length, "", r.dest, int(r.flipped)]
+        else:
+            tail = ["translocation", r.source, r.start, r.length, r.dest, r.dest_position,
+                    int(r.flipped)]
+        head[1] = tail[0]
+        rows.append((r.time, "\t".join(str(c) for c in head + tail[1:])))
 
-
-_POSITION_COLS = ("time", "kind", "lineage", "chromosome", "start", "length", "family",
-                  "donor", "recipient", "dest_position")
-
-
-def _event_positions_tsv(event_positions: list[EventPosition]) -> str:
-    # the positional companion to genome_events.tsv; empty cells for fields a kind does not use
-    def cell(p, c):
-        v = getattr(p, c)
-        if v is None:
-            return ""
-        return node_label(v) if c in ("lineage", "donor", "recipient") else str(v)
-
-    rows = ["\t".join(cell(p, c) for c in _POSITION_COLS) for p in event_positions]
-    return "\n".join(["\t".join(_POSITION_COLS), *rows]) + "\n"
+    rows.sort(key=lambda tr: tr[0])                     # one stream, in the order it happened
+    return "\n".join(["\t".join(_EVENT_COLS), *[r for _t, r in rows]]) + "\n"
 
 
 # --- picking, over the chromosome-nested state ----------------------------------------------------
