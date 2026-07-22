@@ -92,10 +92,10 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Event log | `genome_events.tsv` | TSV | yes | the copy-lineage genealogy — `time` · `kind` · `lineage` · `chromosome` · `copy` · `parent` · `recipient` · `source` · `start` · `end`. One row per **ancestral interval** an event touched, so an event spanning several blocks writes several rows |
-| Blocks | `blocks.tsv` | TSV | no | every node's genome as its block mosaic, ancestors included — `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. The rows of one chromosome tile it end to end from 0. Off by default: blocks are not kept maximal during a run, so this file grows with their number × every node |
+| Blocks | `blocks.tsv` | TSV | yes | every node's genome as its block mosaic, ancestors included — `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. The rows of one chromosome tile it end to end from 0. The largest file this level writes: blocks are not kept maximal during a run, so it grows with their number × every node |
 | Genes | `genes.tsv` | TSV | yes | the declared genes in root coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
-| Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations, in **physical** bp — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped` |
-| Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — same format as ordered |
+| Rearrangements | `rearrangements.tsv` | TSV | yes | inversions, transpositions and translocations, in **physical** bp — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped` |
+| Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — same format as ordered |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block) |
 
 The nucleotide log needs no separate positions file: its events carry ancestral coordinates already.

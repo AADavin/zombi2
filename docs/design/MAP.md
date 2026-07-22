@@ -33,7 +33,7 @@ zombi2/
   __init__.py          thin — no top-level re-exports (one canonical path per name)
   rates/               the cross-level rate grammar (SPEC §5): effective rate = scope(base) × modifiers
     scope.py        ✅ PerCopy · PerLineage · PerSite · PerChromosome · Global
-    modifiers.py    ✅ OnTime · OnTotalDiversity · FromParent · ByLineage · DrivenBy   (ByFamily · Markov 🔨)
+    modifiers.py    ✅ OnTime · OnTotalDiversity · FromParent · ByLineage · ByFamily · DrivenBy   (Markov 🔨)
     rate.py         ✅ Rate · as_rate       (internal plumbing; users never build a Rate directly)
     parse.py        ✅ parse_rate           (the written form → a rate spec: the CLI and --params read the same expression as Python, SPEC §5)
     distributions.py✅ Fixed · Exponential · Gamma · LogNormal · Uniform · Geometric   (value / length distributions)
