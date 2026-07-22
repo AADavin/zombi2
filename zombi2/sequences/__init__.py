@@ -45,7 +45,7 @@ from ..rates.scope import PerSite
 from ..species import Node, Tree, prune
 from ..progress import progress_bar
 from .evolution import evolve_gene_tree
-from .substitution_models import SubstitutionModel, decode
+from .substitution_models import SubstitutionModel, decode, jc69
 
 _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram")
 
@@ -251,7 +251,8 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
     return Tree(scaled, tree.root)
 
 
-def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
+def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
+                       intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        substitution=1.0, seed=None, progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
@@ -281,20 +282,59 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
     species tree, with branch lengths converted from time to substitutions/site by the same
     ``base × clock × Δt``.
     """
-    if not isinstance(genomes, GenomesResult):
+    from ..genomes import NucleotideGenomesResult
+
+    nucleotide = isinstance(genomes, NucleotideGenomesResult)
+    if not nucleotide and not isinstance(genomes, GenomesResult):
         raise TypeError(
             f"the sequence level runs on a genome run, got {type(genomes).__name__} — pass the "
-            "GenomesResult that genomes.simulate_genomes_unordered(...) returned: the whole run, "
-            "not its .gene_trees (the ordered / nucleotide results are a later slice). A sequence "
-            "lives inside a gene, but its clock rides the *species* branch that gene sits on — one "
-            "draw per lineage, shared by every family — so the run needs the species tree too."
+            "GenomesResult that genomes.simulate_genomes_unordered(...) returned, or the "
+            "NucleotideGenomesResult from simulate_genomes_nucleotide(...): the whole run, not its "
+            ".gene_trees. A sequence lives inside a gene, but its clock rides the *species* branch "
+            "that gene sits on — one draw per lineage, shared by every family — so the run needs "
+            "the species tree too."
         )
     species_tree = genomes.complete_tree
-    gene_trees = genomes.gene_trees
     if not isinstance(model, SubstitutionModel):
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
-    if isinstance(length, bool) or not isinstance(length, int) or length < 1:
-        raise ValueError(f"length must be a positive integer, got {length!r}")
+    if intergene_model is not None and not isinstance(intergene_model, SubstitutionModel):
+        raise TypeError(f"intergene_model must be a SubstitutionModel, got {intergene_model!r}")
+
+    if nucleotide:
+        # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
+        # whole genome rather than the declared loci. Each block brings its own length in bp, which
+        # is why a single `length` would contradict the coordinates the genome recorded.
+        if length is not None:
+            raise ValueError(
+                "length does not apply to a nucleotide genome run: every block carries its own "
+                "length in bp, so one number here would contradict the coordinates the genomes run "
+                "wrote. Drop it — the genome sets the lengths.")
+        if intergene_model is None:
+            intergene_model = jc69()          # flat and parameterless: the null for unconstrained DNA
+        if isinstance(intergene_speed, bool) or not isinstance(intergene_speed, (int, float)) \
+                or intergene_speed <= 0:
+            raise ValueError(f"intergene_speed must be a positive number, got {intergene_speed!r}")
+        gene_trees = genomes.block_trees
+        blocks = genomes.root_blocks
+        genic = {span: fam for fam, span in genomes.gene_spans.items()}
+        # per block: its length, whether it is genic, the model it evolves under and its speed
+        per_block = {}
+        for i, (src, a, b) in enumerate(blocks):
+            is_gene = (src, a, b) in genic
+            per_block[i] = (b - a, model if is_gene else intergene_model,
+                            1.0 if is_gene else float(intergene_speed))
+    else:
+        gene_trees = genomes.gene_trees
+        if length is None:
+            raise ValueError("length is required: the number of sites each family evolves")
+        if isinstance(length, bool) or not isinstance(length, int) or length < 1:
+            raise ValueError(f"length must be a positive integer, got {length!r}")
+        if intergene_model is not None:
+            raise ValueError(
+                "intergene_model applies to a nucleotide genome run, where blocks are genes or "
+                "spacer. An unordered or ordered run has gene families only, so there is nothing "
+                "for a second model to evolve.")
+        per_block = None
     rate = as_rate(substitution, default_scope=PerSite)
     if not isinstance(rate.scope, PerSite):
         raise ValueError(
@@ -329,11 +369,16 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
     for family in sorted(gene_trees):  # sorted for reproducibility given the seed
         bar.update()
         gt = gene_trees[family]
-        states, founding_states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng,
+        if per_block is None:
+            f_len, f_model, f_rate = length, model, rate_base
+        else:                       # a nucleotide block: its own length, and spacer runs faster
+            f_len, f_model, speed = per_block[family]
+            f_rate = rate_base * speed
+        states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
                                                    gt.origination)
-        alignments[family], ancestral[family] = _split(gt, states, model)
-        founding[family] = decode(founding_states, model.alphabet)
-        scaled = _scaled_gene_tree(gt, rate_base, clock)  # branch lengths in subs/site
+        alignments[family], ancestral[family] = _split(gt, states, f_model)
+        founding[family] = decode(founding_states, f_model.alphabet)
+        scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
         ext = scaled.extant
         phylograms[family] = {"complete": _gene_newick(scaled.complete),
                               "extant": _gene_newick(ext) if ext is not None else None}
