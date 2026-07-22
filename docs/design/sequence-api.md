@@ -224,29 +224,28 @@ event, so a copy that duplicated twice is three genes in a row, and the one a ge
 the **last** rung of that ladder. That map (`{(block, copy): gene id}`) now comes back from the
 recovery beside the trees.
 
-**Ancestral genomes too**, as `.ancestral_genomes` — the same split the sequences already make, since a
-leaf's genes are tips of their block trees and an ancestor's are internal nodes of them, so one reads
-`.alignments` and the other `.ancestral` through the same `(block, copy)` map. Two nodes are left out
-rather than returned incomplete, all for the same reason — only the surviving lineages decide where the
-blocks are cut: an **extinct leaf** (neither a tip nor an internal node, so it has no sequence
-anywhere); an **ancestor holding material no surviving lineage kept** (no block for it); and an
-**ancestor left holding a fragment** — a loss need only *overlap* a block to end that copy's lineage
-for it, so the block's tree has no lineage for the part that survives. `assembly` raises on all three.
-Extant lineages are never affected, provably: a block sits inside a surviving leaf's own block, copy ids
-belong to one branch, so a loss ending that copy would have taken part of the block with it.
+**Every node, not just the survivors.** `.ancestral_genomes` covers the ancestors *and* the extinct
+lineages, pairing with `.genomes` as `.ancestral` pairs with `.alignments` — the extant tips are the
+observable half, everything else is the history behind them. Two changes made that possible, and both
+were forced by a stress run (91 nodes, three replicons, every event kind, 128 losses) that the small
+runs could not produce:
 
-The fragment case is the "dead partial-overlap lineages" the nucleotide module already flags, and it is
-what the finer **all-node partition** would fix. It was found by scale, not by reasoning: a 91-node run
-over three replicons with every event kind on turned it up as a `KeyError` deep in the assembly, where
-the smaller runs had never produced one. In that run all 25 extant lineages and 32 of the 45 ancestors
-rebuild exactly (2.11 Mb checked base by base); the 13 that do not are the deepest nodes.
+1. **The root partition is cut at every node's breakpoints, not the extant leaves'.** Cutting from the
+   survivors alone leaves two holes: material no survivor kept has no block at all, and an ancestor can
+   hold a *fragment* of a block whose genealogy — being the survivors' — has no lineage for it (that one
+   surfaced as a `KeyError` deep in the assembly). Counting every node closes both, because a node's own
+   breakpoints are then all in the partition, so each of its blocks is a whole number of root blocks.
+   Reading each node's **final** genome is enough: a breakpoint matters only where material survives on
+   one side and not the other, and the surviving side carries it to the end of its branch.
+2. **`_split` puts the dead tips in `.ancestral`.** A copy ended by a loss, or one whose species went
+   extinct, is a node of the tree with a sequence at it. Leaving them out gave a phylogram whose tips
+   named sequences that existed nowhere, and made an extinct lineage's genome unreconstructable.
 
-**The round trip is checked.** Declare a genome in a GFF, evolve it, rebuild the root from its
-descendants at substitution rate 0: identical, base for base, to the founding blocks in root coordinate
-order — a reference drawn before any event and never seen by the recovery. One trap: the root *node*
-sits at the **end** of the root branch, so an inversion landing there before the first speciation
-correctly makes the rebuilt root differ from the seeded layout. The test asserts the root branch is
-quiet; a second one covers the case where it is not.
+Consequences worth knowing. `assembly` returns `(block, gene, strand)` — a piece is now *always* a whole
+block, so the slice fields went away with the case that needed them. A gene surviving only in lineages
+that died now gets a (complete-only) tree, where before it got none. The partition costs 1.34× the
+blocks on that stress run, and recovers the 2 738 bp no survivor kept. All 91 genomes rebuild exactly,
+3.26 Mb checked base by base.
 
 Care needed: `_recover` is pinned by the Swenson port (`tests/test_nucleotide_model_krister.py`),
 whose whole argument is that the *written files* must mean what they claim.

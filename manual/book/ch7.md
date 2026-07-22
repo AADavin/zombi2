@@ -87,7 +87,7 @@ Three of those four names are the same modifier. A reader who wants "a UCLN cloc
 `simulate_sequences` returns a **`SequencesResult`**, which carries:
 
 - `.alignments` — the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
-- `.ancestral` — the sequence at **every** node, internal and extinct alike. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates.
+- `.ancestral` — the sequence at every node that is **not** an extant tip: internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. With `.alignments` it accounts for every node of the tree exactly once, so every label in a complete phylogram names a sequence.
 - `.founding` — for each family, the sequence it began with, at its origination.
 - `.phylograms` — for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
 - `.species_phylogram` — the same conversion applied to the species tree, so the clock is visible as branch lengths.
@@ -155,17 +155,11 @@ result.ancestral_genomes["n0"]   # the same, at an internal node — a reconstru
 
 Because the whole genome is covered, the run can put the genomes back together. `.genomes` holds one entry per extant lineage: its chromosomes, each one its blocks concatenated in physical order, reverse-complemented wherever the genome carries them inverted. This is the only place ZOMBI2 emits a genome as sequence rather than as coordinates, and it is a genome with a known history — every base of it traces to a block, a tree and an event.
 
-`.ancestral_genomes` is the same at every internal node, and pairs with `.genomes` exactly as `.ancestral` pairs with `.alignments`: a leaf's genes are tips of their block trees, an ancestor's are internal nodes of them. So a run gives the ancestral genomes as well as the observed ones — reconstructed, not estimated.
+`.ancestral_genomes` is the same for every other node — the ancestors, and the lineages that went extinct — and pairs with `.genomes` exactly as `.ancestral` pairs with `.alignments`: the extant tips are the observable half, everything else is the history behind them. So a run gives you the whole tree's genomes, reconstructed rather than estimated.
 
-Some nodes are left out rather than returned incomplete, and it is worth knowing which, because the reason is the same in every case: **only the surviving lineages decide where the blocks are cut.**
+No node is left out. That is worth stating plainly, because it depends entirely on one decision: **every node votes on where the blocks are cut**, not just the surviving ones. A partition cut from the survivors alone leaves two kinds of hole — material no survivor kept has no block at all, and an ancestor can be left holding a *fragment* of a block whose genealogy, being the survivors', has no lineage for it. Counting every node closes both, because each node's own breakpoints are then in the partition, so each of its blocks is a whole number of blocks.
 
-- An **extinct leaf** is neither a tip nor an internal node of its block trees, so no sequence was ever written for it.
-- An **ancestor holding material that no surviving lineage kept** has no recovered block for it.
-- An **ancestor left holding a fragment** — a loss need only overlap a block to end that copy's lineage for it, so an ancestor can be left carrying part of a block that the block's own tree no longer has a lineage for.
-
-Asking for one of these directly raises rather than returning a genome with a hole in it. Extant lineages are never affected, and that is provable rather than lucky: a block sits inside a surviving leaf's own block, and a loss that ended its copy would have taken part of that block with it.
-
-In practice the limitation bites at the **oldest** ancestors, which have had the most time for their material to be lost somewhere along every path. In a deliberately punishing 91-node run — 39 kb over three replicons, every event kind on, 128 losses — all 25 extant lineages and 32 of the 45 ancestors were reconstructed exactly; the 13 that were not are the deepest nodes in the tree. Resolving them needs a finer partition cut at every node rather than at the survivors, which is future work.
+In a deliberately punishing 91-node run — 39 kb over three replicons, every event kind on, 128 losses, 80 transfers, chromosomes splitting and merging — all 91 genomes came back exactly: 25 extant lineages, 45 ancestors, 21 extinct lineages, 3.26 Mb compared base by base against what the run actually held. Cutting at every node instead of the survivors cost 1.34× as many blocks.
 
 The model has to be a nucleotide one, since a genome is measured in base pairs and its blocks are read on either strand. A protein model is refused.
 

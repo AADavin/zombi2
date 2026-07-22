@@ -137,7 +137,7 @@ The root genome is declared, in one of two ways.
 - `.gene_spans` — `{family: (source, start, end)}`, where each declared gene sits in root coordinates.
 - `.gene_names`, `.gene_strands` — a named gene's family id, and its coding strand, from a GFF.
 - `.gene_trees` — one recovered gene tree per gene family, for the families that survive in at least one extant leaf.
-- `.root_blocks` — the recovered root partition: the maximal never-cut intervals that survive in an extant leaf.
+- `.root_blocks` — the recovered root partition: the maximal never-cut intervals that some node still carries. Cut at **every** node's breakpoints, not just the survivors', which is what lets any node's genome be rebuilt.
 - `.block_trees` — a recovered tree for **every** root block, spacer as well as gene, keyed by its index in `.root_blocks`.
 - `.block_of(family)` — the block index a declared gene family occupies: the join between the two numbering schemes here, since `.gene_spans` and `.gene_trees` are keyed by family id while `.root_blocks` and `.block_trees` are keyed by block index. Both are plain integers, so mixing them up is silent; this is how you avoid it.
 - `.seed`.
@@ -159,7 +159,7 @@ A gene is a block that never splits, which is why it has a tree. But *no* block 
 
 That is what makes a genome rebuildable rather than a list of loci. `.assembly(node)` says how a node's genome is put together out of those blocks: for each chromosome, the pieces in physical order, each one a stretch `[start, end)` of root block `block`, carrying gene id `gene` in that block's tree, read forward (`strand` `+1`) or reverse-complemented (`-1`). Pair each piece with a sequence evolved down its block's tree and you have the genome; that is precisely what Chapter 7 does.
 
-Two things follow. A piece is usually a whole block but need not be: the partition is cut at every extant leaf's breakpoints, so a breakpoint one leaf has may fall inside another's block. And the partition is cut from the extant leaves only, so an ancestor holding material that later died out everywhere has no block for it — asking to assemble such a node raises rather than returning a genome with a hole in it.
+A piece is always a whole block. That follows from cutting the partition at **every** node's breakpoints rather than only the survivors': a node's own boundaries are then all in the partition, so each of its blocks is a whole number of root blocks — one piece each, in physical order, running down the source where the block is inverted. It also means no node is ever missing a block, so `assembly` works at an extinct lineage and at the root as readily as at a surviving tip.
 
 ## Usage from Python
 
@@ -200,7 +200,7 @@ g.mosaic(leaf)                          # that leaf's genome, block by block
 g.chromosome_events                     # the chromosome network
 ```
 
-One trap is worth naming. A gene family lost in **every** extant lineage has no surviving copy to build a tree from, so it appears in `.gene_spans` — it was declared — but **not** in `.gene_trees`. Set the deletions high enough and a good fraction of the declared genes go that way, and asking for one of them by id raises `KeyError`. Ask `.gene_trees` what it holds rather than assuming a declared family is in it.
+A gene family lost in **every** extant lineage still gets a tree — it is still history — but a complete one only: `.gene_trees[fam].extant` is `None`, and no `_extant.nwk` is written for it. Only a family deleted from every node in the tree has no tree at all, and it will still appear in `.gene_spans`, because it was declared. Ask `.gene_trees` what it holds rather than assuming a declared family is in it.
 
 The second run starts from six genes and ends with each leaf carrying between nine and twelve families: some seeded genes duplicated, one was lost in every lineage, transfer moved copies sideways, and origination added new families along the way. Every gene tree it produces is a true genealogy recovered from the copy-lineage log, exactly as at the other two resolutions.
 

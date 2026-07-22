@@ -119,11 +119,11 @@ sequences.
 |-----------|-----------------|-------|-----|------------------------|
 | Alignments | `fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model. The command puts these in `sequences/alignments/`, which is what lets the name be this short |
 | Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `sequences/phylograms/` |
-| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
+| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | the sequence at every node that is not an extant tip: internal nodes, and the tips where a copy was lost or its species died |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
 | Genomes | `genome_<lineage>.fasta` | FASTA | Python | one file per extant lineage, one record `<lineage>_chr<c>` per chromosome — the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: an unordered or ordered run has gene families, not coordinates, so there is nothing to lay out |
-| Ancestral genomes | `genome_ancestral_<lineage>.fasta` | FASTA | no | the same at every internal node — the reconstructed ancestral genomes. An extinct leaf has none (it is neither a tip nor an internal node of its block trees), nor has an ancestor holding material no surviving lineage kept |
+| Ancestral genomes | `genome_ancestral_<lineage>.fasta` | FASTA | no | the same for every other node — the reconstructed ancestral genomes, and the extinct lineages'. With the genomes above they cover the complete tree: every node, none left out |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in
