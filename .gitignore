@@ -39,10 +39,8 @@ coleman_biorxiv.pdf
 # Offline single-file docs mirror (rebuild with tools/build_docs_html.py)
 /zombi2-docs.html
 
-# Publication figure renders — regenerate with figures/scripts/*.py
-# (the scripts and the small .nwk fixtures stay tracked; docs/img/*.svg is the served copy)
-figures/**/*.png
-figures/**/*.svg
+# figures/svg/ and figures/png/ are the tracked home of every figure the manual and the site use;
+# docs/img/ holds symlinks into them. Renders are committed so neither build needs the toolchain.
 
 # Compiled analysis reports and regenerated figures
 # (run scripts, *.json results and *.tex sources stay tracked)

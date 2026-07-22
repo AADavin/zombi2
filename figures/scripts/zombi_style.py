@@ -7,7 +7,27 @@ value here once and re-run the figure scripts to restyle the entire set.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import cairosvg
 import phylustrator as ph
+
+# --- Where a figure goes --------------------------------------------------
+# One home per format, beside this file: figures/svg/ and figures/png/. Scripts call `save()`
+# rather than spelling the paths out, so moving the tree is one edit here, not one per script.
+FIG_DIR = Path(__file__).resolve().parent.parent
+DPI_SCALE = 300 / 72.0      # 300 dpi from drawsvg's 72-unit canvas
+
+
+def save(drawing, name: str) -> None:
+    """Write one figure as both `figures/svg/<name>.svg` and `figures/png/<name>.png`."""
+    svg = drawing.as_svg()
+    for sub in ("svg", "png"):
+        (FIG_DIR / sub).mkdir(parents=True, exist_ok=True)
+    (FIG_DIR / "svg" / f"{name}.svg").write_text(svg, encoding="utf-8")
+    cairosvg.svg2png(bytestring=svg.encode(), write_to=str(FIG_DIR / "png" / f"{name}.png"),
+                     scale=DPI_SCALE)
+    print(f"wrote {name}.svg and {name}.png")
 
 # --- Typography -----------------------------------------------------------
 FONT = "Helvetica"          # falls back gracefully to Arial on systems without it
@@ -39,26 +59,24 @@ ACCENT = {
     "highlight":   "#FDBF6F",   # warm sand, for clade shading
 }
 
-# --- Binary-state figures: a tasteful pale two-tone -----------------------
-# Several coevolution figures (SSE, key-innovation, punctuational genome, HiSSE,
-# cladogenetic) encode a BINARY lineage state as heavy-vs-light branches. Their
-# default is B&W (near-black heavy / grey light — kept as a `<name>_bw.svg`), but
-# a restrained COLOUR version reads more clearly on the page. The pair below is
-# deliberately pale/neutral and harmonises with the viridis ramp used elsewhere:
-# a muted teal for the "active" state (present / state-1 / carrier / fast-hidden)
-# and a warm pale taupe for the "inactive" one. Colour-blind-safe (teal vs taupe
-# differ in both hue and lightness); event markers stay solid INK per house style.
+# --- Binary-state figures: a pale two-tone --------------------------------
+# For a figure that encodes a BINARY lineage state as heavy-vs-light branches. The default is
+# black and white; this pair is for when colour reads more clearly. Pale and neutral, harmonising
+# with the viridis ramp, and colour-blind-safe — teal and taupe differ in hue and in lightness.
+# Event markers stay solid INK either way.
 STATE_ON  = "#2f7d84"      # active state: heavy branch / filled chip  (muted teal)
 STATE_OFF = "#b9b0a4"      # inactive state: light branch / open chip  (warm taupe)
 
-# --- Coupled / pathway-module figures ------------------------------------
-# Categorical palette for the pathway MODULES of the coupled chapter, where a
-# few module identities must be told apart (the STYLE.md "categorical exception").
-# Colour-blind-safe and deliberately distinct from the green/red used below for the
-# co-occur/avoid (and protected/lost) *semantics*, so the two never get confused.
+# --- Categorical identities ----------------------------------------------
+# For the STYLE.md "categorical exception": a few identities that must be told apart, where grey
+# genuinely fails. Deliberately distinct from the green/red below, which carry meaning rather than
+# identity, so the two are never confused.
 MODULE_COLORS = ["#4477AA", "#E08A3C", "#7B5EA7", "#4C9AA6"]   # blue, orange, purple, teal
-COOCCUR = "#2f8f4e"         # J>0 / partners present / kept / protected  (green)
-AVOID   = "#cc4b3c"         # J<0 / partners absent / purged / fast loss (red)
+COOCCUR = "#2f8f4e"         # partners present / kept / protected  (green)
+AVOID   = "#cc4b3c"         # partners absent / purged / fast loss (red)
+
+# Only the generators in legacy/figures/scripts/ use the three blocks above today. They stay here
+# so a figure ported back out of legacy still finds its palette.
 
 # --- Stroke weights (px) --------------------------------------------------
 BRANCH_W = 2.6

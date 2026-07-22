@@ -290,16 +290,10 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ## 7. Figure conventions
 
-- **Black and white / neutral.** No colour to distinguish levels.
-- **The four-levels layout:** vertical chain **Species → Genomes → Sequences**; **Traits** branches to
-  the side from Species, at the same height as Genomes, on a **curved** arrow. Not a diamond; do not
-  call it "the diamond". Sequences is not placed centre-bottom.
-- **Nodes:** rounded rectangles, white fill, ink outline, ink label; **plural** labels.
-- **Coupling diagrams:** dashed = a level a run always evolves on, solid = a coupling you add, a dashed
-  capsule = "grown together" (joint).
-- **No subtitles** on figures.
-- Reference figures already drawn: `manual/book/figures/fig-2-1-four-levels.svg`,
-  `.../composition.svg`, `.../composition2.svg`, and `docs/img/age_crown.svg` (crown vs stem).
+Figure style lives in **[`figures/STYLE.md`](../../figures/STYLE.md)** — the layouts, the palette
+rule, the canvas and typography scale, and where a figure's source and renders belong. It is the
+only place these are written down, so a figure has one set of rules to satisfy rather than two that
+can drift apart.
 
 ---
 
