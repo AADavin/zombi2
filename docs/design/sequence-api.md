@@ -209,12 +209,15 @@ slices, flips the `-1`s and concatenates. Nothing in the genomes level knows abo
 layout is testable on its own — expanded back to one entry per nucleotide it must equal
 `trace_back(node)`, which is how it is pinned, at every node rather than only the leaves.
 
-Two facts the first sketch had wrong. A working block is **not** a slice of one root block: the
-partition is cut at *every* extant leaf's breakpoints, so a working block spans one or more root
-blocks and is cut into a piece each — and on a `-1` block those pieces come out in descending
-coordinate order. Conversely a piece **is** always a whole block at an extant leaf (that leaf's own
-breakpoints are all in the partition); the sub-block case is real only at an ancestor, where a
-transfer can carry an unbroken run across a boundary the ancestor has.
+Two facts the first sketch had wrong, and only the **extant leaves** vote on where the partition is
+cut, which is what settles both. A working block is **not** a slice of one root block: at a leaf, that
+leaf's own breakpoints are all in the partition, so the partition is at least as fine as its blocks and
+a block spans one or more of them, cut into a piece each — every piece a *whole* block, and on a `-1`
+block they come out in descending coordinate order. The sub-block case is real only at an **ancestor**,
+and only where the ancestor has a breakpoint no survivor has: the descendants that inherited it died out
+or lost the material, while another lineage kept that stretch unbroken. (An earlier note here blamed
+transfer. It is not transfer — sub-block pieces appear just the same with transfer switched off; plain
+extinction and loss are enough.)
 
 The copy→gene-id join is what makes it work: `_emit_block_events` mints a fresh segment id at every
 event, so a copy that duplicated twice is three genes in a row, and the one a genome still carries is
