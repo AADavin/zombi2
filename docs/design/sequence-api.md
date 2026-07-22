@@ -200,7 +200,32 @@ so a single `length=` would contradict the coordinates the genomes run recorded 
 that rejects `--kappa` for `jc69`.
 
 **Output.** The per-block alignments, plus one FASTA per extant lineage with the blocks concatenated
-in genome order (`blocks.tsv` already tiles each chromosome end to end from 0).
+in genome order — `SequencesResult.genomes`, written as `genome_<lineage>.fasta`, one record per
+chromosome.
+
+**The assembly is split at the level boundary.** `NucleotideGenomesResult.assembly(node)` gives, per
+chromosome, the pieces in physical order as `(block, gene, start, end, strand)`; the sequence level
+slices, flips the `-1`s and concatenates. Nothing in the genomes level knows about letters, and the
+layout is testable on its own — expanded back to one entry per nucleotide it must equal
+`trace_back(node)`, which is how it is pinned, at every node rather than only the leaves.
+
+Two facts the first sketch had wrong. A working block is **not** a slice of one root block: the
+partition is cut at *every* extant leaf's breakpoints, so a working block spans one or more root
+blocks and is cut into a piece each — and on a `-1` block those pieces come out in descending
+coordinate order. Conversely a piece **is** always a whole block at an extant leaf (that leaf's own
+breakpoints are all in the partition); the sub-block case is real only at an ancestor, where a
+transfer can carry an unbroken run across a boundary the ancestor has.
+
+The copy→gene-id join is what makes it work: `_emit_block_events` mints a fresh segment id at every
+event, so a copy that duplicated twice is three genes in a row, and the one a genome still carries is
+the **last** rung of that ladder. That map (`{(block, copy): gene id}`) now comes back from the
+recovery beside the trees.
+
+**Extant lineages only.** The partition is cut from the extant leaves, so an ancestor holding material
+that later died out everywhere has no block for it; `assembly` raises rather than returning a genome
+with a hole. Ancestral genomes need the finer all-node partition — the refinement the nucleotide
+module already flags — plus reading `.ancestral` instead of `.alignments`, which the same
+`(block, copy)` map already points at.
 
 Care needed: `_recover` is pinned by the Swenson port (`tests/test_nucleotide_model_krister.py`),
 whose whole argument is that the *written files* must mean what they claim.

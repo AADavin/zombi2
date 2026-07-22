@@ -86,6 +86,7 @@ tree's dead partial-overlap lineages need the finer all-node partition — a lat
 
 from __future__ import annotations
 
+import bisect
 import collections
 import math
 import pathlib
@@ -686,10 +687,17 @@ class NucleotideGenomesResult:
     def ancestry(self, node_id: int) -> list[tuple[int, int]]:
         return self.genomes[node_id].ancestry()
 
-    def _recover(self) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
+    def _recover(self):
         if not hasattr(self, "_recovered"):
             self._recovered = _recover_gene_trees(self)
         return self._recovered
+
+    def _recover_blocks(self):
+        """The every-block recovery, cached: :attr:`block_trees` and :meth:`assembly` are two reads of
+        the same replay, and it is far too expensive to run twice."""
+        if not hasattr(self, "_recovered_blocks"):
+            self._recovered_blocks = _recover_gene_trees(self, every_block=True)
+        return self._recovered_blocks
 
     @property
     def root_blocks(self) -> list[tuple[int, int, int]]:
@@ -711,7 +719,77 @@ class NucleotideGenomesResult:
         but not the same ``g<id>`` leaf labels: segment ids are handed out as the recovery walks its
         targets, and walking every block numbers them differently from walking three. Use one accessor
         or the other within a piece of analysis — they are the same genealogy under different names."""
-        return _recover_gene_trees(self, every_block=True)[1]
+        return self._recover_blocks()[1]
+
+    def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int, int, int]]]:
+        """How this node's genome is built out of the recovered root blocks:
+        ``{chromosome id: [(block, gene, start, end, strand), …]}`` in **physical order**, where
+        ``block`` indexes :attr:`root_blocks`, ``gene`` is the gene id that block's tree gives this
+        node's copy (the ``g<id>`` label in :attr:`block_trees`), ``[start, end)`` is the stretch of
+        the block taken — in **block-local** coordinates — and ``strand`` is ``+1`` read forward or
+        ``-1`` reverse-complemented.
+
+        To reconstruct a genome: pair each piece with its block's evolved sequence, slice, flip the
+        ``-1``\\ s, and concatenate. The sequence level does exactly that; nothing here knows about
+        letters.
+
+        A working block need not match a root block. The partition is cut at *every* extant leaf's
+        breakpoints, so a block can span several root blocks and is then cut into one piece each; on a
+        reversed block those pieces come out in descending coordinate order, since physical order runs
+        *down* the source. At an extant leaf a piece is always a whole block — that leaf's own
+        breakpoints are all in the partition — but at an ancestor it need not be, because a transfer
+        can carry an unbroken run across a boundary the ancestor has.
+
+        The partition is cut from the **extant leaves**, so ancestral material that survives in none of
+        them has no root block and no sequence. Asking for such a node raises rather than quietly
+        returning a genome with holes in it (the finer all-node partition is a later refinement)."""
+        blocks = self.root_blocks
+        tips = self._recover_blocks()[2]
+        index = self._block_index()
+        out: dict[int, list[tuple[int, int, int, int, int]]] = {}
+        for chrom in self.genomes[node_id].chromosomes:
+            pieces: list[tuple[int, int, int, int, int]] = []
+            for b in chrom.blocks:
+                cut = []
+                starts, idx = index.get(b.source, ([], []))
+                k = bisect.bisect_right(starts, b.start) - 1
+                covered = b.start
+                while 0 <= k < len(idx) and blocks[idx[k]][1] < b.end:
+                    i = idx[k]
+                    _src, a, z = blocks[i]
+                    lo, hi = max(a, b.start), min(z, b.end)
+                    if lo < hi:
+                        if lo != covered:
+                            break                       # a gap: the material in between is unrecovered
+                        key = (i, b.copy)
+                        if key not in tips:
+                            raise ValueError(
+                                f"{node_label(node_id)} carries copy lineage {b.copy} over "
+                                f"{blocks[i]}, but that block's genealogy has no such copy — the "
+                                "event log and the genomes disagree")
+                        cut.append((i, tips[key], lo - a, hi - a, b.strand))
+                        covered = hi
+                    k += 1
+                if covered != b.end:
+                    raise ValueError(
+                        f"{node_label(node_id)} carries [{covered}, {b.end}) of source {b.source}, "
+                        "which survives in no extant leaf and so has no recovered block. Only nodes "
+                        "whose material all survives can be assembled — the extant leaves always can.")
+                pieces.extend(reversed(cut) if b.strand == -1 else cut)
+            out[chrom.id] = pieces
+        return out
+
+    def _block_index(self) -> dict[int, tuple[list[int], list[int]]]:
+        """``{source: ([block start, …], [block index, …])}`` — the root partition indexed by source
+        for lookup. It comes back sorted, so each source's starts are already ascending."""
+        if not hasattr(self, "_block_ix"):
+            ix: dict[int, tuple[list[int], list[int]]] = {}
+            for i, (src, a, _b) in enumerate(self.root_blocks):
+                starts, idx = ix.setdefault(src, ([], []))
+                starts.append(a)
+                idx.append(i)
+            self._block_ix = ix
+        return self._block_ix
 
     @property
     def gene_trees(self) -> dict[int, GeneTree]:
@@ -1571,12 +1649,18 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     return sorted(blocks)
 
 
-def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, out) -> None:
+def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, out,
+                       tip_of) -> None:
     """Replay the copy-lineage log for one root-block ``(s, [a, b))`` into per-segment events on
     ``out``. A copy lineage is a *block-copy* when it covers ``[a, b)`` in full; a duplication or a
     transfer that covers it in full begets a block-copy child (a ladder rung on its parent — the
     transfer's child on the recipient branch, a horizontal edge), a speciation re-mints it, and any
-    loss overlapping it ends it."""
+    loss overlapping it ends it.
+
+    ``tip_of[(fam, copy)]`` collects the **last** gene id each copy lineage held: an event ends a gene
+    and starts a fresh id, so a copy that duplicated twice is three genes in a row, and the one a
+    node's genome still carries is the last rung of that ladder. This is the join between the blocks
+    a genome is made of and the sequences evolved down their trees."""
     def covers(x, y):
         return x <= a and b <= y
 
@@ -1634,6 +1718,7 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
             out.append(_SegEvent(kind, fam, species[c], t, nxt, prev))       # continuation, on c's branch
             out.append(_SegEvent(kind, fam, species[cc], t, seg_in[cc], prev))  # the new copy
             prev = nxt
+        tip_of[(fam, c)] = prev                            # the gene a genome still carrying c holds
         if c in loss_of:                                   # a death (dead leaf)
             out.append(_SegEvent("loss", fam, species[c], loss_of[c], prev, None))
         elif c in specs:                                   # a bifurcation into the daughter species
@@ -1646,8 +1731,10 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
 
 def _recover_gene_trees(result, *, every_block: bool = False
-                        ) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
-    """The full recovery: the root partition, and a tree per family.
+                        ) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree],
+                                   dict[tuple[int, int], int]]:
+    """The full recovery: the root partition, a tree per family, and ``{(family, copy): gene id}`` —
+    the last gene each copy lineage held, which is what a genome still carrying that copy is made of.
 
     With genes declared we build a tree for the root-blocks that are declared genes, keyed by gene
     family id; with none declared, every root-block is a family (keyed by index). Either way the
@@ -1679,9 +1766,11 @@ def _recover_gene_trees(result, *, every_block: bool = False
         targets = list(enumerate(blocks))
 
     seg_events: list[_SegEvent] = []
+    tip_of: dict[tuple[int, int], int] = {}
     for fam, (s, a, b) in targets:
-        _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, seg_events)
-    return blocks, gene_trees_from_events(seg_events, tree)
+        _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg,
+                           seg_events, tip_of)
+    return blocks, gene_trees_from_events(seg_events, tree), tip_of
 
 
 __all__ = ["Block", "Chromosome", "NucleotideGenome", "NucleotideGenomesResult",

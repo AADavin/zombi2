@@ -138,17 +138,27 @@ The root genome is declared, in one of two ways.
 - `.gene_names`, `.gene_strands` — a named gene's family id, and its coding strand, from a GFF.
 - `.gene_trees` — one recovered gene tree per gene family, for the families that survive in at least one extant leaf.
 - `.root_blocks` — the recovered root partition: the maximal never-cut intervals that survive in an extant leaf.
+- `.block_trees` — a recovered tree for **every** root block, spacer as well as gene, keyed by its index in `.root_blocks`.
 - `.seed`.
 
-and three ways to read one node's genome, at three grains:
+and four ways to read one node's genome, at four grains:
 
 ```python
 g.mosaic(2)        # per block:      {chromosome: [(source, start, end, strand), ...]}
 g.trace_back(2)    # per nucleotide: {chromosome: [(source, position, strand), ...]}
 g.ancestry(2)      # the multiset of ancestral (source, position) it still carries
+g.assembly(2)      # per piece:      {chromosome: [(block, gene, start, end, strand), ...]}
 ```
 
 `ancestry` is the invariant worth knowing: rearrangements conserve it exactly, so an inversion-only run leaves every leaf holding a permutation of the root sequence. Loss makes it a subset, and duplication, transfer and origination add to it.
+
+## Every block has a tree, so a genome can be rebuilt
+
+A gene is a block that never splits, which is why it has a tree. But *no* block ever splits — a block is a run of one unbroken ancestry, and an event only ever cuts one in two, never merges two into one. So the recovery that builds a gene tree works on any block, and `.block_trees` runs it on all of them. The spacer between the genes gets a genealogy on exactly the same footing as the genes.
+
+That is what makes a genome rebuildable rather than a list of loci. `.assembly(node)` says how a node's genome is put together out of those blocks: for each chromosome, the pieces in physical order, each one a stretch `[start, end)` of root block `block`, carrying gene id `gene` in that block's tree, read forward (`strand` `+1`) or reverse-complemented (`-1`). Pair each piece with a sequence evolved down its block's tree and you have the genome; that is precisely what Chapter 7 does.
+
+Two things follow. A piece is usually a whole block but need not be: the partition is cut at every extant leaf's breakpoints, so a breakpoint one leaf has may fall inside another's block. And the partition is cut from the extant leaves only, so an ancestor holding material that later died out everywhere has no block for it — asking to assemble such a node raises rather than returning a genome with a hole in it.
 
 ## Usage from Python
 

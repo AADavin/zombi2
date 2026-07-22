@@ -130,6 +130,31 @@ result = sequences.simulate_sequences(my_genomes,
 result = sequences.simulate_sequences(my_genomes, model=lg(), length=300, seed=1)
 ```
 
+## Running on a nucleotide genome
+
+Hand it a **nucleotide** genome run (Chapter 6) instead and the level does more, because that run knows where everything is. Every root block evolves — the spacer as well as the genes — each at its own length in base pairs, read from the genome. So `length` does not apply and is refused: one number would contradict the coordinates the genomes run already wrote.
+
+Genes and spacer get their own models. `model` evolves the genes; `intergene_model` evolves the spacer, at `intergene_speed` times the rate — 3× by default, and `jc69` by default, which is flat and has no free parameters.
+
+```python
+from zombi2 import species, genomes, sequences
+from zombi2.sequences.substitution_models import hky85
+
+tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
+my_genomes = genomes.simulate_genomes_nucleotide(
+    tree, gff="ecoli.gff", inversion=1.0, inversion_length=5000,
+    duplication=0.3, loss=0.3, seed=1)
+
+result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
+                                      intergene_speed=3.0, substitution=0.05, seed=1)
+
+result.genomes["n5"]          # {chromosome: sequence} — a whole assembled genome
+```
+
+Because the whole genome is covered, the run can put the genomes back together. `.genomes` holds one entry per extant lineage: its chromosomes, each one its blocks concatenated in physical order, reverse-complemented wherever the genome carries them inverted. This is the only place ZOMBI2 emits a genome as sequence rather than as coordinates, and it is a genome with a known history — every base of it traces to a block, a tree and an event.
+
+Two consequences of running per block. The family number is now a **block index**, not a gene family id, so a genome of a few thousand blocks writes a few thousand alignments; and the model has to be a nucleotide one, since a genome is measured in base pairs and its blocks are read on either strand. A protein model is refused.
+
 ## Usage from the CLI
 
 On the command line the genome run is handed over as a **directory** — the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. Point `--from` at another run to read one and write somewhere else.
@@ -167,4 +192,4 @@ A run writes, by default, one **alignment** per gene family in FASTA, with the e
 
 The **clock species tree** (`clock_species_tree_complete.nwk`, and `…_extant.nwk`) comes with them: the species tree under the same conversion, and where the clock becomes visible — a fast-evolving lineage has a longer branch there than its age alone would give it. One output is written only on request: the **ancestral sequences** (`--write ancestral`) give the sequence at every internal node, which is what you need to score an ancestral-reconstruction method against the truth.
 
-Every node is labelled `g<copy>`, so a phylogram's tips match its alignment and its internal nodes match the ancestral sequences. The full list of files lives in Appendix B.
+Every node is labelled `g<copy>`, so a phylogram's tips match its alignment and its internal nodes match the ancestral sequences. A run on a nucleotide genome adds one more: `genome_<lineage>.fasta`, one file per extant lineage with one record per chromosome — the assembled genome. The full list of files lives in Appendix B.
