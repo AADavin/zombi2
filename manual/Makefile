@@ -24,7 +24,8 @@ CHAP_MDS  := ch1.md ch2.md ch3.md ch4.md ch5.md ch6.md ch7.md ch8.md ch9.md \
              appendix-a.md appendix-b.md
 CHAPTERS  := $(addprefix $(BOOK)/,$(CHAP_MDS))
 CHAP_PDFS := $(patsubst $(BOOK)/%.md,build/%.pdf,$(CHAPTERS))
-SVGS      := $(wildcard $(IMG)/*.svg)
+# fig-*.svg in docs/img/ are symlinks to chapter figures, built by the BOOK_FIGS rule below.
+SVGS      := $(filter-out $(IMG)/fig-%.svg,$(wildcard $(IMG)/*.svg))
 FIGS      := $(patsubst $(IMG)/%.svg,figures/%.pdf,$(SVGS))
 
 # Chapter figures live beside the chapters, in book/figures/, and are authored for the web:
