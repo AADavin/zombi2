@@ -106,6 +106,7 @@ One consequence is worth stating plainly: a transfer can arrive **from a lineage
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages and all.
 - `.genomes` — a dict from node to that node's genome.
+- `.initial_genome` — the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
 - `.events` — the event log: every gene event with its time and lineage — origination, duplication, transfer, loss, and the *speciations* at a split.
 - `.profiles` — the family × extant-species copy-count table.
 - `.gene_trees` — one `GeneTree` per family.

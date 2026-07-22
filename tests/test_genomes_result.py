@@ -95,3 +95,35 @@ def test_write_presence_tsv_is_binary():
 def test_profiles_is_the_public_type():
     _, g = _run(seed=1)
     assert isinstance(g.profiles, Profiles)
+
+
+# --- the initial genome ----------------------------------------------------------------------------
+
+def test_the_initial_genome_is_the_one_the_run_started_with(tmp_path):
+    """The genome at the START of the root branch. It is not genomes[root]: a node sits at the END of
+    its branch, and the root branch is real simulated time, so events happen along it."""
+    from zombi2.species import simulate_species_tree
+    from zombi2.genomes import simulate_genomes_unordered
+
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1)
+    g = simulate_genomes_unordered(sp, duplication=0.5, loss=0.5, initial_families=6, seed=1)
+    assert len(g.initial_genome) == 6                     # one copy per seeded family
+    assert sorted(c.family for c in g.initial_genome) == list(range(6))
+    root = sp.complete_tree.root
+    assert g.initial_genome != g.genomes[root], "the stem was quiet — pick another seed"
+
+    g.write(tmp_path)
+    rows = (tmp_path / "initial_genome.tsv").read_text().splitlines()
+    assert rows[0] == "family\tcopy" and len(rows) == 7    # its own file, no lineage column
+    assert "lineage" not in rows[0]
+
+
+def test_the_initial_genome_survives_a_run_that_loses_everything():
+    # the run starts with what it starts with, whatever later becomes of it
+    from zombi2.species import simulate_species_tree
+    from zombi2.genomes import simulate_genomes_unordered
+
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=3)
+    g = simulate_genomes_unordered(sp, loss=6.0, initial_families=5, seed=3)
+    assert len(g.initial_genome) == 5
+    assert sum(len(g.genomes[n.id]) for n in sp.complete_tree.extant()) < 5 * 4

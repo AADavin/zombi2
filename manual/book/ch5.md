@@ -163,6 +163,7 @@ Readers from the rearrangement and comparative-genomics literature already have 
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages included.
 - `.genomes` — a dict from node id to that node's genome, now a tuple of **`Chromosome`** objects. Each `Chromosome` has an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`).
+- `.initial_genome` — the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
 - `.events` — the gene-genealogy log, exactly as in Chapter 4 (origination, duplication, transfer, loss, speciation), from which `.gene_trees` and `.profiles` are derived unchanged. Position and orientation are *not* here; they live in the genomes and in the two logs below.
 - `.rearrangements` — the inversion / transposition / translocation log.
 - `.chromosome_events` — the chromosome network, as an edge list.

@@ -91,7 +91,7 @@ Three of those four names are the same modifier. A reader who wants "a UCLN cloc
 - `.founding` — for each family, the sequence it began with, at its origination.
 - `.phylograms` — for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
 - `.species_phylogram` — the same conversion applied to the species tree, so the clock is visible as branch lengths.
-- `.genomes`, `.ancestral_genomes` — the assembled genome of each lineage, present only when the run came from a **nucleotide** genome. See below.
+- `.genomes`, `.ancestral_genomes`, `.initial_genome` — the assembled genome of each lineage, and of the run's starting point, present only when the run came from a **nucleotide** genome. See below.
 
 As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
@@ -151,6 +151,7 @@ result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
 
 result.genomes["n5"]             # {chromosome: sequence} — a whole assembled genome
 result.ancestral_genomes["n0"]   # the same, at an internal node — a reconstructed ancestor
+result.initial_genome            # the genome the run started with, before anything happened
 ```
 
 Because the whole genome is covered, the run can put the genomes back together. `.genomes` holds one entry per extant lineage: its chromosomes, each one its blocks concatenated in physical order, reverse-complemented wherever the genome carries them inverted. This is the only place ZOMBI2 emits a genome as sequence rather than as coordinates, and it is a genome with a known history — every base of it traces to a block, a tree and an event.
@@ -158,6 +159,8 @@ Because the whole genome is covered, the run can put the genomes back together. 
 `.ancestral_genomes` is the same for every other node — the ancestors, and the lineages that went extinct — and pairs with `.genomes` exactly as `.ancestral` pairs with `.alignments`: the extant tips are the observable half, everything else is the history behind them. So a run gives you the whole tree's genomes, reconstructed rather than estimated.
 
 No node is left out. That is worth stating plainly, because it depends entirely on one decision: **every node votes on where the blocks are cut**, not just the surviving ones. A partition cut from the survivors alone leaves two kinds of hole — material no survivor kept has no block at all, and an ancestor can be left holding a *fragment* of a block whose genealogy, being the survivors', has no lineage for it. Counting every node closes both, because each node's own breakpoints are then in the partition, so each of its blocks is a whole number of blocks.
+
+One genome is not a node's, and it is the one you are most likely to want: `.initial_genome`, the genome the run **started** with. The root *node* is not it. A node sits at the end of its branch, and the root branch is real simulated time — hand in an E. coli annotation at these rates and eight inversions, a transposition, a duplication and a loss can land on the stem before anything has speciated. So `.initial_genome` is the genome you handed in, and `.ancestral_genomes["n0"]` is that genome after the stem. This is the same distinction as `.founding` against `.ancestral` for a single gene, and it is why the initial genome gets its own field and its own file.
 
 In a deliberately punishing 91-node run — 39 kb over three replicons, every event kind on, 128 losses, 80 transfers, chromosomes splitting and merging — all 91 genomes came back exactly: 25 extant lineages, 45 ancestors, 21 extinct lineages, 3.26 Mb compared base by base against what the run actually held. Cutting at every node instead of the survivors cost 1.34× as many blocks.
 
@@ -179,9 +182,9 @@ For the run above, `dnaA` is gene family 1 and root block 6. Asking for `phylogr
 
 ### The round trip
 
-The check worth doing once, because it is the claim the whole level rests on: declare a genome in a GFF, evolve it down a tree until the leaves are thoroughly rearranged, then rebuild the ancestor from the descendants and compare it with what you declared. At a substitution rate of zero nothing mutates, so the comparison is exact — and it comes out identical, base for base, with the genes at the coordinates and on the strands the GFF gave them.
+The check worth doing once, because it is the claim the whole level rests on: declare a genome in a GFF, evolve it down a tree until the leaves are thoroughly rearranged, then rebuild it from the descendants and compare with what you declared. At a substitution rate of zero nothing mutates, so the comparison is exact.
 
-One subtlety is worth knowing, because it will otherwise look like a failure. The root node sits at the **end** of the root branch, not at the origination, and the root branch is real simulated time: an inversion can land there before anything has speciated. When it does, the reconstructed root is correctly *not* the genome you declared — it is that genome after the root branch's events, which is what was actually there. This is the same stem that gives a phylogram's root a branch length.
+On real E. coli — NC_000913.3, 4,641,652 bp, 4,498 genes, a 25-node tree with 1,236 events — `.initial_genome` comes back identical, base for base, with all 4,477 annotated genes at the coordinates and on the strands the GFF gave them. Compare `.ancestral_genomes["n0"]` instead and it will usually *not* match, and correctly so: that is the genome after the stem's events, which is what was actually there. Both are exact; they are answers to different questions.
 
 ## Usage from the CLI
 

@@ -51,7 +51,7 @@ from .evolution import evolve_gene_tree
 from .substitution_models import BASES, SubstitutionModel, decode, jc69
 
 _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram",
-                  "genomes", "ancestral_genomes")
+                  "genomes", "ancestral_genomes", "initial_genome")
 
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -94,6 +94,10 @@ class SequencesResult:
     - ``ancestral_genomes`` — the same at every **other** species node: the ancestors, and the lineages
       that went extinct. It pairs with ``genomes`` exactly as ``ancestral`` pairs with ``alignments``,
       and together they cover the complete tree — every node, none left out.
+    - ``initial_genome`` — ``{chromosome id: sequence}``: the genome the run **started** with, at the
+      root lineage's origination. In neither of the two above, because it belongs to no node: the root
+      branch is real simulated time, so the root *node*'s genome is this one plus whatever happened
+      along the stem. It stands to them as ``founding`` stands to ``ancestral``.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
       **names**: ``"family"`` (a gene family id) on an unordered or ordered run, ``"block"`` (an index
@@ -111,6 +115,7 @@ class SequencesResult:
     seed: int | None
     genomes: dict[str, dict[int, str]] = field(default_factory=dict)
     ancestral_genomes: dict[str, dict[int, str]] = field(default_factory=dict)
+    initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
 
     @property
@@ -136,6 +141,7 @@ class SequencesResult:
           chromosome — the assembled genome. Nucleotide runs only; nothing is written otherwise.
         - ``"ancestral_genomes"`` → ``genome_ancestral_<lineage>.fasta``, the same for every other node
           — the reconstructed ancestral genomes, and the extinct lineages'.
+        - ``"initial_genome"`` → ``genome_initial.fasta``, the genome the run started with.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -166,7 +172,10 @@ class SequencesResult:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
         for token, prefix, genomes in (("genomes", "genome", self.genomes),
                                        ("ancestral_genomes", "genome_ancestral",
-                                        self.ancestral_genomes)):
+                                        self.ancestral_genomes),
+                                       ("initial_genome", "genome",
+                                        {"initial": self.initial_genome} if self.initial_genome
+                                        else {})):
             if token in outputs:
                 for lineage, chroms in genomes.items():
                     (d / f"{prefix}_{lineage}.fasta").write_text(
@@ -478,14 +487,23 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     # ancestral set.
     assembled: dict[str, dict[int, str]] = {}
     ancestral_genomes: dict[str, dict[int, str]] = {}
+    initial_genome: dict[int, str] = {}
     if nucleotide:
         extant = {n.id for n in species_tree.extant()}
         assembled = _assemble(genomes, sorted(extant), alignments)
         ancestral_genomes = _assemble(genomes, [i for i in sorted(species_tree.nodes)
                                                 if i not in extant], ancestral)
+        # The genome the run started with. Its blocks were all laid down at seeding, so each one's
+        # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
+        # so it is in neither map above; the same reason `founding` is not in `ancestral`.
+        for cid, pieces in genomes.initial_assembly().items():
+            initial_genome[cid] = "".join(
+                founding[block] if strand == 1 else founding[block].translate(_COMPLEMENT)[::-1]
+                for (block, strand) in pieces)
 
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
-                           assembled, ancestral_genomes, "block" if nucleotide else "family")
+                           assembled, ancestral_genomes, initial_genome,
+                           "block" if nucleotide else "family")
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,

@@ -789,3 +789,18 @@ def test_rearrangement_count_scales_with_gene_count():
     small, large = mean_at(20), mean_at(40)
     assert small > 0
     assert 1.7 < large / small < 2.3, f"expected ~2x, got {large / small:.2f} ({small} -> {large})"
+
+
+def test_the_initial_genome_is_the_layout_the_run_started_with(tmp_path):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1)
+    g = simulate_genomes_ordered(sp, duplication=0.5, loss=0.5, inversion=2.0,
+                                 initial_families=8, seed=1)
+    assert [len(c.genes) for c in g.initial_genome] == [8]
+    assert [gene.strand for c in g.initial_genome for gene in c.genes] == [1] * 8
+    root = sp.complete_tree.root
+    assert g.gene_order(root) != [(c.id, p, gn.strand, gn.family, gn.id)
+                                  for c in g.initial_genome for p, gn in enumerate(c.genes)], \
+        "the stem was quiet — pick another seed"
+    g.write(tmp_path)
+    rows = (tmp_path / "initial_genome.tsv").read_text().splitlines()
+    assert rows[0] == "chromosome\tposition\tstrand\tfamily\tcopy" and len(rows) == 9
