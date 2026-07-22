@@ -56,6 +56,12 @@ validation:
   links:
     not_found: info
 
+# The chapters are written for pandoc, whose callouts are fenced divs (`::: note`). MkDocs has no
+# such syntax and mkdocstrings claims every `::: identifier` line, so this rewrites the book's
+# callouts to admonitions before they get that far. See the module docstring.
+hooks:
+  - hooks/manual_callouts.py
+
 plugins:
   - search
   - mkdocstrings:
