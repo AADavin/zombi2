@@ -21,8 +21,12 @@ Levels
   sequences            evolve sequences down each gene tree (a prior genomes run)
   traits               evolve a trait along a species tree (continuous or discrete)
 
-The coupled (conditioned / joint) models land here as those levels are rebuilt on the clean core;
-until then they live only in the legacy code.
+Coupling
+  joint                grow a species tree and the level driving it, together (SSE and kin)
+
+A level is CONDITIONED on another by pointing a rate at what that level wrote — no separate command:
+  zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_driver.tsv', {'cave': 4.0})"
+JOINT is for when neither level can be grown first, because each drives the other.
 """
 
 

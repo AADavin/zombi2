@@ -123,6 +123,21 @@ sequences.
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
 
+## Joint — `simulate_joint` / `zombi2 joint`
+
+A joint run grows two levels at once, so it writes both, each in the format its own command would
+give it: the species files, and then the driver's — the trait's or the genomes'. There is no output
+of its own beyond the run log.
+
+| Output | File | Format | Default | Contents |
+|-----------|-----------------|-------|-----|------------------------|
+| Species tree | `species/species_complete.nwk` · `…_extant.nwk` · `species_events.tsv` | Newick, TSV | yes | the grown tree — complete, so the extinct lineages the coupling decided the fate of are kept |
+| The trait it grew | `traits/trait_values.tsv` · `trait_changes.tsv` · `trait_tree.nwk` | TSV, Newick | yes¹ | as the traits level writes them |
+| The genomes it grew | `genomes/genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `gene_trees/` | TSV, Newick | yes¹ | as the genomes level writes them |
+| Run log | `species/joint.log` | TSV | yes | the resolved parameters, as every command writes |
+
+¹ whichever driver the run used — one per run, never both.
+
 ## Traits — `simulate_continuous` / `simulate_discrete`
 
 | Output | File | Format | Default | Contents |
