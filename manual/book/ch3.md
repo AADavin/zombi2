@@ -12,6 +12,8 @@ The two rates set the tempo. Their difference fixes how fast diversity builds up
 
 You also say when to stop: grow the tree to a fixed **total time** (`total_time`), or until it reaches a fixed **number of surviving lineages** (`n_extant`). Both work.
 
+The two differ in one practical way. `n_extant` bounds the run by construction; `total_time` does not, because standing diversity grows like exp((birth − death) · t), so a rate slightly too high or a time slightly too long is the difference between a thousand lineages and ten million. A run that passes **100,000 standing lineages** therefore stops with an error rather than filling memory. Raise `max_lineages` if that is the size you want, or set it to `None` to lift the guard. It never truncates: a tree cut off at a size is no longer a sample from the process you asked for, so handing one back would be worse than not running at all.
+
 ```python
 from zombi2 import species
 # a birth–death tree of 20 surviving lineages

@@ -498,3 +498,31 @@ def test_sampling_validation():
     for bad in (0.0, 1.5, -0.1):
         with pytest.raises(ValueError):
             simulate_species_tree(birth=1.0, n_extant=10, sampling=bad, seed=1)
+
+
+# --- the runaway guard: raise, never truncate ------------------------------
+
+def test_a_runaway_time_conditioned_run_raises_rather_than_truncating():
+    # standing diversity grows like exp((birth-death)*t), so a long enough total_time has no
+    # realistic end. The guard must ERROR: a tree stopped at a size is no longer a sample from the
+    # process asked for, and returning one would be a silently biased dataset.
+    with pytest.raises(RuntimeError, match="standing lineages"):
+        simulate_species_tree(birth=1.0, death=0.2, total_time=30, seed=2)
+
+
+def test_the_guard_leaves_an_ordinary_run_alone():
+    r = simulate_species_tree(birth=1.0, death=0.2, total_time=10, seed=2)
+    assert len(r.complete_tree.extant()) > 100          # a big tree, well under the ceiling
+
+
+def test_the_guard_can_be_lowered_and_lifted():
+    with pytest.raises(RuntimeError, match="passed 50 standing lineages"):
+        simulate_species_tree(birth=1.0, death=0.2, total_time=10, seed=2, max_lineages=50)
+    r = simulate_species_tree(birth=1.0, death=0.2, total_time=10, seed=2, max_lineages=None)
+    assert len(r.complete_tree.extant()) > 100          # None removes it entirely
+
+
+def test_an_explicit_n_extant_is_never_blocked_by_the_default_guard():
+    # asking for more tips than the default ceiling is asking for them, not a runaway
+    r = simulate_species_tree(birth=1.0, death=0.2, n_extant=120_000, seed=2)
+    assert len(r.complete_tree.extant()) == 120_000
