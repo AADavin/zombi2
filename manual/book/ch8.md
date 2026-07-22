@@ -145,7 +145,7 @@ bodyplan = traits.simulate_continuous(tree,
 
 ## Usage from the CLI
 
-The state space is a `--kind`, since it is what decides which of the other flags apply:
+The state space is `--kind`, and it is required. It decides which of the other flags apply — `--rate` and the OU knobs belong to a continuous trait, `--states` and `--switch` to a discrete one — so there is no default that would not silently pick a model for you:
 
 ```bash
 # a continuous (Brownian) trait along a species tree

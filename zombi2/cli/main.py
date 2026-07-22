@@ -109,21 +109,21 @@ def main(argv: list[str] | None = None) -> int:
         sub, "traits", "evolve a trait along a species tree",
         "Evolve a trait along a species tree, with a continuous (a real value diffusing) or "
         "discrete (a finite state switching) state space.",
-        "zombi2 traits DIR [--from PATH] [--kind KIND] [options]",
+        "zombi2 traits DIR --kind (continuous | discrete) [--from PATH] [options]",
         traits._add_traits_args,
         epilog=_examples(
             "  # a continuous trait diffusing by Brownian motion (variance-rate 1.0)",
-            "  zombi2 traits out/ --rate 1.0 --seed 1",
+            "  zombi2 traits out/ --kind continuous --rate 1.0 --seed 1",
             "",
             "  # the same value pulled toward an optimum (Ornstein-Uhlenbeck)",
-            "  zombi2 traits out/ --rate 1.0 --reverts-to 2 --pull 0.5 --seed 1",
+            "  zombi2 traits out/ --kind continuous --rate 1.0 --reverts-to 2 --pull 0.5 --seed 1",
             "",
             "  # a discrete habitat flipping between two states (Mk)",
             "  zombi2 traits out/ --kind discrete "
             "--states marine,terrestrial --switch 0.1 --seed 1",
             "",
             "  # an early burst: the variance-rate starts at 4 and settles to 1 (see RATES)",
-            "  zombi2 traits out/ "
+            "  zombi2 traits out/ --kind continuous "
             "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1",
         ) + "\n\n" + traits.RATES_HELP)
 

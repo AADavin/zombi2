@@ -637,7 +637,7 @@ def _pipeline(root):
     assert main(["genomes", str(root / "g_nucleotide"), "--from", tree, "--resolution", "nucleotide", "--root-length", "600", "--genes", "4", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3", "--seed", PIPELINE_SEED, "--write", "events", "genes", "blocks", "rearrangements", "--flat"]) == 0
 
     assert main(["sequences", str(root / "s"), "--from", str(root / "g_unordered"), "--model", "hky85", "--length", "150", "--seed", PIPELINE_SEED, "--write", "alignments", "phylograms", "ancestral", "species_phylogram", "--flat"]) == 0
-    assert main(["traits", str(root / "t"), "--from", tree, "--rate", "1.0", "--seed", PIPELINE_SEED, "--flat"]) == 0
+    assert main(["traits", "--kind", "continuous", str(root / "t"), "--from", tree, "--rate", "1.0", "--seed", PIPELINE_SEED, "--flat"]) == 0
 
 
 def _artifacts(root):
