@@ -269,3 +269,58 @@ def test_block_of_says_so_when_a_declared_gene_left_nothing_behind():
     assert gone, "every declared gene survived in this run — pick another seed"
     with pytest.raises(LookupError, match="no recovered root block"):
         genomes.block_of(gone[0])
+
+
+# --- everything at once ----------------------------------------------------------------------------
+
+def _busy(seed=2, n_extant=10):
+    """A multi-chromosome run with every event kind on — the scaled-down twin of the stress run: two
+    replicons of different shapes, rearrangement, copy-number change, transfer between lineages, de
+    novo genes, and the chromosome tier splitting and merging replicons."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=n_extant, seed=seed)
+    return simulate_genomes_nucleotide(
+        sp.complete_tree, chromosomes=[(900, "circular"), (400, "linear")], genes=6, gene_length=60,
+        inversion=3.0, inversion_length=120, translocation=1.0, transposition=1.0,
+        duplication=1.5, duplication_length=100, loss=1.5, loss_length=100,
+        transfer=1.0, transfer_length=100, origination=0.3, fission=0.1, fusion=0.1, seed=seed)
+
+
+def test_every_rebuildable_genome_is_exact_under_every_event_kind():
+    g = _busy()
+    assert {type(e).__name__ for e in g.events} >= {"Duplication", "Loss", "Transfer", "Origination"}
+    assert {type(x).__name__ for x in g.rearrangements} == {"Inversion", "Translocation",
+                                                            "Transposition"}
+    assert {e.kind for e in g.chromosome_events} >= {"fission", "fusion"}
+    r = simulate_sequences(g, model=jc69(), substitution=0.0, seed=2)
+    rebuilt = {**r.genomes, **r.ancestral_genomes}
+    assert len(rebuilt) > 10
+    for label, chroms in rebuilt.items():
+        assert chroms == _traced(g, r, node_from_label(label)), label
+    # and it is not a run where every genome came out the same
+    assert len({tuple(sorted(v.items())) for v in rebuilt.values()}) == len(rebuilt)
+
+
+def test_a_fragment_left_by_a_partial_loss_is_refused_not_mangled():
+    # a loss need only *overlap* a root block to end that copy's lineage for it, so an ancestor can be
+    # left carrying a fragment the block's tree has no lineage for. There is no sequence to read, and
+    # it used to surface as a KeyError deep inside the assembly.
+    g = _busy()
+    fragments = []
+    for node_id in sorted(g.genomes):
+        try:
+            g.assembly(node_id)
+        except ValueError as e:
+            if "no lineage for the fragment" in str(e):
+                fragments.append(node_id)
+    assert fragments, "no partial-overlap loss in this run — pick another seed"
+    # never an EXTANT leaf, and that is provable rather than lucky: a root block sits inside such a
+    # leaf's own block, copy ids belong to one branch, so a loss ending that copy over that block
+    # happened on this leaf's branch and took part of the block with it — which contradicts the leaf
+    # still holding all of it. An extinct leaf has no such guarantee: it did not vote on the cuts.
+    assert not [i for i in fragments if g.complete_tree.nodes[i].fate == "extant"
+                and g.complete_tree.nodes[i].children is None]
+    for leaf in g.complete_tree.extant():                    # so the extant leaves all assemble
+        g.assembly(leaf.id)
+    r = simulate_sequences(g, model=jc69(), substitution=0.1, seed=2)
+    assert set(r.genomes) == {node_label(n.id) for n in g.complete_tree.extant()}
+    assert not ({node_label(i) for i in fragments} & set(r.ancestral_genomes))
