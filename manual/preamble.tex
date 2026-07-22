@@ -7,6 +7,45 @@
 \usepackage{booktabs}
 \usepackage{microtype}
 
+% --- Glyph coverage ---------------------------------------------------------
+% XeLaTeX drops a character it has no glyph for *silently* — it simply vanishes
+% from the PDF, leaving only a "Missing character" line in the build log. Latin
+% Modern lacks several characters the chapters use, so both places they appear
+% need covering, and they need covering differently.
+%
+% In verbatim (code blocks, the ASCII diagrams in Ch5) catcodes are frozen and no
+% macro can intervene, so the only fix is a font that genuinely has the glyphs.
+% DejaVu Sans Mono covers box drawing, Greek and the maths operators. Loaded by
+% filename so kpathsea finds it inside TeX Live, with no dependency on the
+% system font database (which on a CI runner has nothing in it).
+\setmonofont{DejaVuSansMono.ttf}[
+  BoldFont       = DejaVuSansMono-Bold.ttf,
+  ItalicFont     = DejaVuSansMono-Oblique.ttf,
+  BoldItalicFont = DejaVuSansMono-BoldOblique.ttf,
+  Scale          = MatchLowercase]
+
+% In running text the fix is a mapping to the LaTeX equivalent, which keeps the
+% body font as it is. Only characters the book actually uses are listed; to check
+% for new gaps, grep the build log for "Missing character".
+\usepackage{newunicodechar}
+\newunicodechar{σ}{\ensuremath{\sigma}}
+\newunicodechar{⁻}{\textsuperscript{\textminus}}
+
+% --- Long file names in tables ----------------------------------------------
+% Appendix B's tables carry names like `sequences_species_phylogram_complete.nwk`,
+% which LaTeX treats as one unbreakable box and pushes out past the right margin.
+% Let a line break after an underscore instead. \allowbreak, not hyphenation:
+% a hyphen inserted into a file name would be read as part of the name, which in
+% a reference table of file names is simply wrong. Pandoc writes an underscore in
+% a code span as \_, so redefining that covers every one of them.
+\let\zombitextunderscore\_
+\renewcommand{\_}{\zombitextunderscore\allowbreak}
+
+% Reference tables are dense and set narrow; a size down keeps them inside the
+% text block and is the usual typography for a table of this kind.
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\small}
+
 % Compact chapter headings — drop the ~1in of blank space the book class puts above them.
 \usepackage{titlesec}
 \titleformat{\chapter}[display]{\normalfont\huge\bfseries}%
