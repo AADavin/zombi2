@@ -38,15 +38,31 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 |---|---|---|---|---|
 | Event log | `genome_events.tsv` | TSV | yes | as unordered |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of each leaf — `species · chromosome · position · strand · family · gene` |
+| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `species · chromosome · position · strand · family · gene` |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped`¹ |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time · kind · lineage · parents · children` |
+| Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time · kind · lineage · chromosome · start · length · family · donor · recipient · dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
 | Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | as unordered |
 
 ¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
 `length` (how many genes it covered), counted rightwards from `start` and **wrapping past position 0 on
 a circular chromosome** — so `start + length` greater than the chromosome's gene count means the run
 crossed the origin. `dest_position` is an index into what was left after the run was excised.
+
+## Genomes, nucleotide — `simulate_genomes_nucleotide`
+
+From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...])`.
+
+| Output | File | Format | Default | Contents |
+|---|---|---|---|---|
+| Event log | `genome_events.tsv` | TSV | yes | the copy-lineage genealogy — `time · kind · lineage · chromosome · copy · parent · recipient · source · start · end`. One row per **ancestral interval** an event touched, so an event spanning several blocks writes several rows |
+| Blocks | `blocks.tsv` | TSV | no | every node's genome as its block mosaic, ancestors included — `species · chromosome · position · source · start · end · strand · copy · gene`. The rows of one chromosome tile it end to end from 0. Off by default: blocks are not kept maximal during a run, so this file grows with their number × every node |
+| Genes | `genes.tsv` | TSV | yes | the declared genes in root coordinates — `family · name · source · start · end · strand` (the **coding** strand). Header-only when none were declared |
+| Rearrangements | `rearrangements.tsv` | TSV | no | inversions/transpositions/translocations, in **physical** bp — `time · kind · lineage · chromosome · start · length · dest_chromosome · dest_position · flipped` |
+| Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — same format as ordered |
+| Gene trees | `.gene_trees` (`GeneTree.to_newick()`) | Newick | Python | one tree per declared gene (else per recovered root-block) |
+
+The nucleotide log needs no separate positions file: its events carry ancestral coordinates already.
 
 The `zombi2 genomes` **command** also writes `genome_species_tree.nwk` — the complete species tree
 canonicalised so its `n<id>` labels match the event log's `lineage` column — so `zombi2 sequences

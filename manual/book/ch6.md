@@ -195,25 +195,46 @@ The second run starts from six genes and ends with each leaf carrying between ni
 
 ## Usage from the CLI
 
-The nucleotide resolution is **Python-only for now**. `zombi2 genomes --resolution` accepts `unordered` and `ordered`; asking for `nucleotide` is an error rather than a silent fallback:
+The nucleotide resolution is `--resolution nucleotide`. It takes the same event rates as Chapter 5 and adds two things: how to seed the genome, and how long an event is in base pairs.
 
+```bash
+# an evenly spaced seed: 5 kb, six genes of 300 bp, with inversions averaging 400 bp
+zombi2 genomes -t out/species_complete.nwk --resolution nucleotide \
+  --root-length 5000 --genes 6 --gene-length 300 \
+  --inversion 1.0 --inversion-length 400 --duplication 0.3 --loss 0.3 --seed 1 -o out/
+
+# or start from a real genome: the GFF declares the replicons and the genes
+zombi2 genomes -t out/species_complete.nwk --resolution nucleotide \
+  --gff ecoli.gff --inversion 0.5 --loss 0.4 --loss-length 900 --seed 1 -o out/
 ```
-zombi2 genomes: error: argument --resolution: invalid choice: 'nucleotide'
-                (choose from 'unordered', 'ordered')
-```
+
+Every event kind has its own `--<event>-length`, the mean of a geometric draw in base pairs: `--inversion-length`, `--loss-length`, `--duplication-length`, `--transfer-length`, `--transposition-length`, `--translocation-length`, `--origination-length`.
+
+Two flags from the other resolutions are refused here rather than ignored, because this engine has neither: `--initial-families` (it is seeded from a sequence, not a family count) and `--replacement` (its transfers are additive). Rates must be plain numbers — the `scope(base) × modifiers` grammar of SPEC §5 is not wired at this resolution, so a modifier expression is an error rather than something quietly dropped.
 
 ## Outputs
 
-There is no `.write()` at this resolution yet, so a nucleotide run produces no files. Its results are read from the object in Python:
+```bash
+zombi2 genomes … --resolution nucleotide -o out/ --write events genes blocks
+```
 
-| Output | Accessor | Contents |
-|---|---|---|
-| Genomes | `.genomes` / `.mosaic(node)` | every node's chromosomes, block by block |
-| Per-nucleotide ancestry | `.trace_back(node)` | where every base pair came from |
-| Gene trees | `.gene_trees` | one true genealogy per gene family |
-| Gene coordinates | `.gene_spans`, `.gene_names` | where each declared gene sits in the root |
-| Event log | `.events` | origination, loss, duplication, transfer, speciation |
-| Rearrangements | `.rearrangements` | inversions, transpositions, translocations |
-| Chromosome network | `.chromosome_events` | the edge list of Chapter 5 |
+```
+out/genome_events.tsv    the copy-lineage genealogy (the source of truth)
+out/genes.tsv            where each gene sits in the root, and on which strand
+out/blocks.tsv           every node's genome as its block mosaic
+```
 
-Appendix B catalogues the files the other levels write; this resolution will join it once it gains a writer and a command.
+`events` and `genes` are written by default. `blocks` is opt-in, and deliberately: blocks are not kept maximal during a run, so a rearrangement-heavy genome carries far more of them than it has distinct ancestral runs, and the file grows with that number times every node.
+
+`genes.tsv` is the gene declaration as the run saw it, de-novo originations included:
+
+```
+family  name  source  start  end   strand
+1             0       534    834   1
+2             0       1368   1668  1
+3             0       2201   2501  1
+```
+
+The event log is wider than the one Chapters 4 and 5 write, because an event here is an arc rather than a gene: each row names the ancestral interval it touched, so one event that spanned several blocks writes several rows sharing a `time` and `kind`. That also means it is **not** the log `zombi2 sequences` replays — that command reads the unordered or ordered one, and says so if handed this.
+
+`rearrangements` and `chromosome_events` are available too, the same tables as Chapter 5. Everything else stays in Python — `.trace_back(node)` for per-nucleotide ancestry, `.gene_trees` for the recovered genealogies, `.mosaic(node)` for a genome block by block. Appendix B catalogues the lot.

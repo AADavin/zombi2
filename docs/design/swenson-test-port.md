@@ -1,112 +1,102 @@
-# Porting the Swenson test suite (`thekswenson/Zombi`) to zombi2
+# Porting the Swenson test suite (`thekswenson/Zombi`) to ZOMBI2
 
-This note records what was ported from Krister Swenson's fork test suite
-(`thekswenson/Zombi`, `root_genome` branch, `tests/`), what was **already covered** by zombi2's
-own suite, and what was **deliberately not ported** (and why). It is meant to be read alongside
-Krister's original tests so nothing valuable is silently dropped.
+What was ported from Krister Swenson's fork test suite (`thekswenson/Zombi`, `root_genome` branch,
+`tests/`), what ZOMBI2 already covered, and what was deliberately left — with reasons, so nothing
+valuable is silently dropped. Read it alongside his tests.
 
-## Why it isn't a mechanical copy
+> **History.** An earlier port was done against the *pre-reset* codebase. The clean-core rewrite
+> quarantined it in `legacy/tests/`, where it targets names that no longer exist
+> (`nucleotide_genome.SegmentRegistry`, `IdManager`, `TargetParams`). Those files are reference
+> material, not code to revive. This note describes the port against the **clean core**.
 
-The two codebases have diverged architecturally:
+## Why it is not a transcription
 
-- **The fork** is the ZOMBI‑1 lineage: a `GenomeSimulator` monolith, the `zombi T/G/S`
-  command line, `Filenames.py`, and a gene‑order model built directly on genes + intergenes
-  with its own *specific*/*total* coordinate spaces.
-- **zombi2** is a ground‑up rewrite: `species / genomes / traits / sequences` subpackages over a
-  Rust core, the `zombi2 species / genomes / sequence` CLI, and a **nucleotide/segment/block**
-  genome model (`NucleotideGenome`, `Segment`, `SegmentRegistry`, `Block`).
+- **The fork** is the ZOMBI1 lineage: a `GenomeSimulator` monolith, the `zombi T/G/S` command line,
+  `Filenames.py`, and a gene-order model of genes + intergenes with its own *specific* and *total*
+  coordinate spaces.
+- **ZOMBI2** is a ground-up rewrite: `species / genomes / sequences / traits`, the
+  `zombi2 <level>` CLI, and three genome **resolutions** — unordered ⊂ ordered ⊂ nucleotide.
 
-So a port is a **re‑expression against a different internal API**, not a transcription. The good
-news: every concept the fork tests rely on has a counterpart in zombi2 — it just lives in the
-nucleotide layer, under different names.
+So a port re-expresses each scenario against a different model. Every concept survives; the numbers
+have to be re-derived.
 
-## Concept map (fork → zombi2)
+## Concept map
 
-| Fork concept | zombi2 counterpart |
+| Fork | ZOMBI2 |
 | --- | --- |
-| *division* (maximal uncut interval) | `Block` — *"a maximal uncut interval `[start,end)` of one ancestral source"* (`nucleotide_sim.py`) |
-| *pieces* (genome as ordered divisions) | ordered `Segment` list / `NucleotideResult.leaf_mosaic()` |
-| coordinate map `Inversion.afterToBeforeS/T` | `SegmentRegistry.provenance` (`seg_id → (source, src_start, src_end)`) + `to_cells()` / `trace_back()` (root‑anchored, not per‑event) |
-| `make_inversion_intergenic(ch, bp1, bp2, dir)` | `NucleotideGenome._apply_inversion(start, length)` |
-| `cut_and_paste` / `obtain_segment` | `NucleotideGenome._apply_transposition(start, length, dest)` |
-| `init_divisions` / `natural_cuts` | segment / block boundaries (the ancestral source‑intervals) |
-| `Geneorder_events_per_branch/` files | `geneorder_events.tsv` (`--write geneorder`) — one file, one row per structural event, keyed by `branch` (plus the in‑memory `EventLog`) |
+| *division* | `Block` — a run of one unbroken ancestry (`genomes/nucleotide.py`) |
+| *pieces* | the ordered block list; `blocks.tsv` |
+| `ch.genes` (signed gene order) | the gene-carrying blocks in physical order; `gene_order.tsv` at the ordered resolution |
+| `natural_cuts` / `init_divisions` | block boundaries |
+| `make_inversion_intergenic(ch, bp1, bp2, dir)` | `Chromosome.invert(start, length)` — a half-open arc, not two breakpoints and a direction |
+| `cut_and_paste` / `obtain_segment` | `_transpose` (ordered) / the transposition mutator (nucleotide) |
+| `Inversion.afterToBeforeS` / `afterToBeforeT` | `Chromosome.trace_back()` — per-nucleotide ancestral origin, root-anchored rather than per-event |
+| `Geneorder_events_per_branch/` | `genome_event_positions.tsv` + `rearrangements.tsv` |
+| `All_genomes/` | `gene_order.tsv` / `blocks.tsv`, which now carry **every node**, ancestors included |
+| `Leaves.tsv` | `species_extant.nwk` |
 
-## Disposition of each fork test file
+## Disposition, file by file
 
-| Fork test | What it exercised | Disposition in zombi2 |
+| Fork test | What it exercised | Where it landed |
 | --- | --- | --- |
-| `test_events.py` | exact gene order / orientation / intergene lengths / coordinate maps after scripted inversions | **Ported (scenarios)** → `test_geneorder_examples.py`. Distinct scenarios kept as gene‑aware golden cases; the per‑nucleotide `afterToBeforeS/T` arithmetic is **already covered** (see below). |
-| `test_genomes.py` | `cut_and_paste`, coordinate‑exclusion (transposition mechanics) | **Ported (scenarios)** → transposition cases in `test_geneorder_examples.py`. |
-| `test_divisions.py` | `natural_cuts` / `init_divisions` boundaries after inversions | **Ported** → `test_inversion_subdivides_only_the_cut_intergene`. |
-| `test_pieces.py` | divisions/pieces after events | **Not ported** — the live assertions are a subset of the above; the file was ~80% commented‑out stubs in the fork. |
-| `test_commandline.py` | modes run + `All_genomes` vs `Genomes` crosscheck | **Already covered** by `test_cli.py` (file existence) + block/reconciliation invariants; not re‑ported. |
-| `test_randomization.py` | same seed → identical output directory (T/G/S) | **Ported** → `test_pipeline_determinism.py` (CLI, `species → genomes → sequence`). |
-| `test_geneorder_events.py` | replay per‑branch gene‑order events → reconstruct each genome | **Ported** → `test_geneorder_file_replay.py` (the file‑based replay). The in‑memory analogue also exists (`test_nucleotide_genome.py::test_mosaic_reassembles_each_leaf`), but it is *not* a substitute — see below. |
+| `test_geneorder_events.py` (4) | replay the per-branch gene-order events → reconstruct the genomes | **Ported** → `tests/test_nucleotide_model_krister.py` §2. Needed new output first — see below. |
+| `test_events.py` (26) | exact gene order / orientation / intergene lengths after a scripted event | **Ported** → `tests/test_nucleotide_model_krister.py` §1: inversion, tandem duplication, loss, transposition and origination. Its 2 transfer cases are not — see below. |
+| `test_divisions.py` (8) | `natural_cuts` / `init_divisions` boundaries after inversions | **Ported** → `test_blocks_tile_the_chromosome_and_split_only_at_the_cuts`, plus the composing-inversions case. |
+| `test_randomization.py` (5) | same seed → identical output directory | **Ported** → `tests/test_nucleotide_model_krister.py` §3, widened to the whole pipeline. |
+| `test_genomes.py` (2) | `cut_and_paste`, coordinate exclusion | **Ported** → the transposition cases in `tests/test_nucleotide_model_krister.py` §1, gene-aware where the ordered-level tests are id-only. |
+| `test_commandline.py` (5) | modes run; `All_genomes` vs `Genomes` crosscheck | **Already covered** by `test_cli.py` (files exist, per level) plus the replay test (the crosscheck's real content). |
+| `test_pieces.py` (4) | divisions/pieces after events | **Not ported** — ~80% commented-out stubs in the fork; the live assertions are a subset of `test_divisions.py`. |
 
-## What was added
+## What the port needed built first
 
-- **`tests/test_geneorder_examples.py`** (9 tests) — gene‑aware inversion and transposition
-  worked examples on the fork's `30_10.gff` / `30_6.gff` genomes, re‑seeded as gene‑annotated
-  `NucleotideGenome`s. Each asserts the exact gene order, orientation, content conservation and
-  division boundaries, **derived by hand** — correctness checks, not regression pins.
-- **`tests/test_pipeline_determinism.py`** (1 test) — the whole‑pipeline CLI analogue of
-  `test_randomization.py`: two same‑seed projects run through `species → genomes → sequence` and
-  the output directories are compared by decompressed content (gzip headers carry an mtime;
-  `.log` files record wall‑clock timing and are excluded).
+Krister's tests could not run against the clean core as it stood, so four things changed. Each is a
+feature in its own right, not test scaffolding:
 
-## What was already covered (so it was **not** duplicated)
+1. **`gene_order.tsv` covers every node** (was extant tips only). A branch's rearrangements are
+   meaningless without the genome it started from, which is its parent's row set.
+2. **`genome_event_positions.tsv`** — where each D/T/L/O event happened. The gene-genealogy log is
+   position-blind on purpose (identity and descent are resolution-blind), so the coordinates go in a
+   companion table, the same split ZOMBI2 already makes for `rearrangements.tsv`. A transfer writes
+   one row per branch, following the fork's leaving/arriving split, except that both rows name the
+   edge outright instead of being matched by timestamp.
+3. **A `write()` for the nucleotide resolution**, and `zombi2 genomes --resolution nucleotide`.
+   Before this the whole resolution was in-memory only.
+4. **The mutators split into choose and apply.** `Chromosome` already had `invert(start, length)`;
+   `duplicate`, `delete`, `originate` and `excise`/`place` now sit beside it, and the `_do_*` events
+   pick with the rng and then call them. That is what lets a test run the fork's way — all rates
+   zero, then events applied by hand — and it is one implementation, not two, so the engine runs
+   exactly the code a scripted event runs. `tests/test_nucleotide_model_krister.py` §4 pins the rng
+   draw order against a stored fixture, since that was the whole risk of the extraction.
 
-zombi2's `tests/test_nucleotide_genome.py` already stress‑tests the rearrangement geometry the
-way the fork did in bulk: random `(s, ell)` inversions / transpositions / deletions / duplications
-across 25 seeds, each checked against an **independent brute‑force array oracle**
-(`ArrayGenome`), plus content‑conservation, bijection and involution invariants, block tiling,
-mosaic reassembly, per‑block gene trees and reconciliation. Krister's *stress‑testing philosophy
-is therefore already present* — the gap those tests leave is the **gene annotation**, which is
-exactly what the new golden examples fill.
+## What was deliberately not ported
 
-## What was **not** ported, and why
+- **The fork's per-nucleotide `afterToBeforeS`/`afterToBeforeT` arithmetic** (~6 cases). Its content
+  is already proved for arbitrary inputs by the oracle in `test_genomes_nucleotide.py`, which checks
+  random inversions against an independent brute-force array. One scenario is kept
+  (`test_trace_back_maps_every_position_home`) to fix the *convention* — that is what a worked
+  example is for; the rest would add bulk, not coverage.
+- **The fork's 2 transfer worked examples.** A transfer needs a donor and a recipient alive at the
+  same instant, so scripting one means driving a global timeline, not a chromosome. The file-based
+  replay test covers transfers instead, which is the stronger check anyway.
+- **`test_pieces.py`**, which is mostly commented out upstream.
 
-- **The fine‑grained `afterToBeforeS/T` coordinate‑arithmetic examples** (~6 in `test_events.py`):
-  they assert per‑nucleotide coordinate mapping, which the random‑vs‑oracle tests already prove
-  for arbitrary inputs. Porting them verbatim adds bulk, not coverage. The *distinct scenarios*
-  they encode (wrapping arcs, enclosed genes, gene reordering) are preserved as golden cases.
-- **`test_pieces.py`**: mostly commented‑out stubs in the fork.
+## The gap that is still open
 
-## Correction: the file‑based replay *is* ported
+The file-based replay (`tests/test_nucleotide_model_krister.py` §2) holds to **one chromosome per
+genome**. The chromosome tier re-mints ids at speciation, fission and fusion, so replaying a
+multi-chromosome run additionally needs `chromosome_events.tsv` to map a parent's chromosome onto
+its daughters'. That is a separate question from whether the coordinates are right, which is what
+the test is for.
 
-An earlier revision of this note declined the file‑based `Geneorder_events_per_branch` replay
-(`test_geneorder_events.py`) on the grounds that "zombi2 does not emit a per‑branch gene‑order event
-file, so there is nothing to replay from disk", and that the in‑memory reconstruction already
-covered it. **Both halves of that were wrong, and Krister was right to push back.**
+## Running the ported tests
 
-- zombi2 *does* now emit the event log — `--write geneorder` → `geneorder_events.tsv`, one row per
-  structural event with its breakpoints, keyed by `branch`. The stated blocker is gone.
-- More importantly, the in‑memory test is **not a substitute**. zombi2's output is a set of *files*,
-  and the files are what a user inferring rearrangements actually consumes. Verifying the in‑memory
-  structures says nothing about whether the *written* breakpoints mean what they claim: a
-  coordinate‑convention slip would yield a plausible file that replays to the wrong genome, and every
-  in‑memory test would still pass.
-
-`tests/test_geneorder_file_replay.py` closes this: it reads the written `geneorder_events.tsv`,
-replays each branch's events onto the root genome with the simulator's own primitives, and asserts
-the result reproduces the written genomes (`bed/<node>.bed`). A negative control (perturbing the
-replay by a single base) confirms the test fails when the correspondence breaks, so it is not
-vacuous. Scope today is a content‑conserving run (inversion + transposition) — the
-rearrangement‑inference case; duplication / loss / transfer are the natural extension once their
-file‑level semantics are pinned down.
-
-## Notes for the merge
-
-- The new gene‑order tests call the `_apply_inversion` / `_apply_transposition` primitives —
-  matching the convention already used throughout `test_nucleotide_genome.py`. The
-  multi‑chromosome refactor (`feat/nucleotide-translocation`, merged as PR #129) gave both
-  primitives an **optional** `chrom=None` argument; the tests were re‑validated on that merged
-  code and pass **unchanged**.
-
-## Running
+The whole port lives in one file, grouped by where it came from rather than by what it tests, so it
+reads against his originals:
 
 ```
-pytest tests/test_geneorder_examples.py tests/test_pipeline_determinism.py \
-       tests/test_geneorder_file_replay.py
+pytest tests/test_nucleotide_model_krister.py
 ```
+
+Its four sections are the worked examples, the file replay, the pipeline determinism check, and the
+golden pin that made the first section possible. Regenerate that fixture deliberately with
+`python tests/test_nucleotide_model_krister.py`.
