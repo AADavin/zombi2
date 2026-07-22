@@ -45,6 +45,7 @@ from .chromosomes import ChromosomeEvent
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from .ordered import (
     Chromosome,
+    EventPosition,
     Gene,
     Inversion,
     OrderedGenomesResult,
@@ -510,5 +511,5 @@ def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=0,
 __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
            "Profiles", "GeneTree", "GeneNode", "UnorderedGenome", "unordered",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
-           "ChromosomeEvent", "Inversion", "Transposition", "Translocation",
+           "ChromosomeEvent", "Inversion", "Transposition", "Translocation", "EventPosition",
            "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome"]

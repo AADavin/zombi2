@@ -88,6 +88,7 @@ from __future__ import annotations
 
 import collections
 import math
+import pathlib
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -95,7 +96,7 @@ import numpy as np
 from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
-from .chromosomes import ChromosomeEvent
+from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .gene_trees import GeneTree, gene_trees_from_events
 from .gff import read_gff
 
@@ -345,6 +346,12 @@ class Chromosome:
             j += 1
         return 0, j
 
+    # --- the mutators, by explicit coordinates ----------------------------------------------------
+    # Each takes the arc it acts on rather than drawing it, so the ``_do_*`` events above can pick
+    # with the rng and then call one of these, and a test (or a replay of a written event log) can
+    # call the same one with coordinates in hand. There is one implementation, not two: the engine
+    # runs exactly the code a scripted event runs.
+
     def invert(self, start: int, length: int) -> None:
         """Invert the arc ``[start, start+length)``: reverse the block order and flip each strand.
         Ancestry (and every copy lineage) is unchanged; the arc endpoints stay as breakpoints."""
@@ -357,6 +364,94 @@ class Chromosome:
         for b in arc:
             b.strand = -b.strand
         self.blocks[i:j] = arc
+
+    def duplicate(self, start: int, length: int, new_copy) -> tuple | None:
+        """Copy the arc ``[start, start+length)`` **in tandem**, the copy landing immediately after it.
+
+        Each distinct copy lineage in the arc begets one fresh child (minted by ``new_copy``), so the
+        tandem copy is new material of the same ancestry. Returns the ``(parent copy, child copy,
+        source, start, end)`` record per block — what a :class:`Duplication` carries — or ``None`` if
+        the arc is empty."""
+        span = self._arc_range(start, length)
+        if span is None:
+            return None
+        i, j = span
+        arc = self.blocks[i:j]
+        child_of: dict[int, int] = {}
+        for b in arc:
+            if b.copy not in child_of:
+                child_of[b.copy] = new_copy()
+        copied = tuple((b.copy, child_of[b.copy], b.source, b.start, b.end) for b in arc)
+        self.blocks[j:j] = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy], b.gene)
+                            for b in arc]
+        return copied
+
+    def delete(self, start: int, length: int) -> tuple | None:
+        """Remove the arc ``[start, start+length)``. Returns the ``(copy, source, start, end)`` record
+        per block removed — what a :class:`Loss` carries — or ``None`` when the deletion does not
+        happen: an empty arc, a chromosome of under two nucleotides, or a cut that would strip the
+        chromosome of its last gene (a chromosome never exists without one)."""
+        if self.length < 2:
+            return None
+        span = self._arc_range(start, length)
+        if span is None:
+            return None
+        i, j = span
+        gone = self.blocks[i:j]
+        if self.n_genes and sum(1 for b in gone if b.is_gene) == self.n_genes:
+            return None
+        lost = tuple((b.copy, b.source, b.start, b.end) for b in gone)
+        self.blocks = self.blocks[:i] + self.blocks[j:]
+        return lost
+
+    def originate(self, at: int, length: int, source: int, copy: int, family: int) -> None:
+        """Lay down a new ``length``-nucleotide **gene** of its own fresh ``source`` at position
+        ``at``. Indivisible from birth, like a declared gene. Raises :class:`_CutsGene` if ``at``
+        falls inside an existing gene."""
+        self._split_at(at)
+        k = self._index_at(at)
+        self.blocks[k:k] = [Block(source, 0, length, 1, copy, family)]
+
+    def excise(self, start: int, length: int) -> list | None:
+        """Lift the arc ``[start, start+length)`` out of the chromosome and return its blocks (or
+        ``None`` for an empty arc). The other half of a transposition — see :meth:`place`."""
+        span = self._arc_range(start, length)
+        if span is None:
+            return None
+        i, j = span
+        arc = self.blocks[i:j]
+        self.blocks = self.blocks[:i] + self.blocks[j:]
+        return arc
+
+    def place(self, arc: list, at: int, flipped: bool = False) -> None:
+        """Insert ``arc`` at position ``at``, reversed and strand-flipped if ``flipped``.
+
+        ``at`` is a position in the chromosome **as it stands now** — for a transposition, that is
+        the genome *after* the arc was excised, which is shorter. Raises :class:`_CutsGene` if ``at``
+        falls inside a gene."""
+        if flipped:
+            arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
+        self._split_at(at)
+        k = self._index_at(at)
+        self.blocks[k:k] = arc
+
+    def transpose(self, start: int, length: int, dest: int, flipped: bool = False) -> bool:
+        """Move the arc ``[start, start+length)`` to ``dest``, flipped or not — :meth:`excise` then
+        :meth:`place`, with the chromosome restored if the landing is not a legal cut.
+
+        ``dest`` is a position in the **remainder**, after the arc is lifted out (the engine picks it
+        that way round, so a scripted call means the same thing an engine-drawn one does). Returns
+        whether the move happened."""
+        intact = self.blocks
+        arc = self.excise(start, length)
+        if arc is None:
+            return False
+        try:
+            self.place(arc, dest, flipped)
+        except _CutsGene:
+            self.blocks = intact                        # nowhere legal to land: undo the excision
+            raise
+        return True
 
     def mosaic(self) -> list[tuple[int, int, int, int]]:
         """The chromosome as ordered blocks — ``[(source, start, end, strand), ...]`` in physical
@@ -612,6 +707,120 @@ class NucleotideGenomesResult:
         tree."""
         return self._recover()[1]
 
+    def write(self, directory, outputs=("events", "genes")) -> None:
+        """Materialise chosen ``outputs`` to ``directory`` (created if needed):
+
+        - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.
+          One row per **ancestral interval** an event touched, so an event that spanned several
+          blocks writes several rows sharing a ``time`` and ``kind``.
+        - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
+          included, as for the ordered resolution's ``gene_order``). Off by default: blocks are not
+          kept maximal during a run, so a rearrangement-heavy genome carries far more of them than
+          it has distinct ancestral runs, and this file grows with their number × every node.
+        - ``"genes"`` → ``genes.tsv``, the declared genes and where they sit in root coordinates.
+          Header-only for a run that declared none.
+        - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
+        - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges.
+
+        Gene trees stay Python-only (:attr:`gene_trees`), as they are at the other resolutions.
+        """
+        d = pathlib.Path(directory)
+        d.mkdir(parents=True, exist_ok=True)
+        if "events" in outputs:
+            (d / "genome_events.tsv").write_text(_nucleotide_events_tsv(self.events))
+        if "blocks" in outputs:
+            (d / "blocks.tsv").write_text(self._blocks_tsv())
+        if "genes" in outputs:
+            (d / "genes.tsv").write_text(self._genes_tsv())
+        if "rearrangements" in outputs:
+            (d / "rearrangements.tsv").write_text(_nucleotide_rearrangements_tsv(self.rearrangements))
+        if "chromosome_events" in outputs:
+            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
+
+    def _blocks_tsv(self) -> str:
+        """Every node's genome, block by block. ``position`` is the block's physical offset along its
+        chromosome, so the rows of one chromosome tile it end to end from 0."""
+        cols = ("species", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
+        rows = []
+        for s in sorted(self.genomes):
+            for c in self.genomes[s].chromosomes:
+                at = 0
+                for b in c.blocks:
+                    rows.append(f"{s}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
+                                f"{b.copy}\t{b.gene}")
+                    at += b.length
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+    def _genes_tsv(self) -> str:
+        """The declared genes: family id, name (blank when unnamed), the root interval the gene
+        occupies, and the **coding** strand the GFF gave it."""
+        cols = ("family", "name", "source", "start", "end", "strand")
+        name_of = {fam: name for name, fam in self.gene_names.items()}
+        rows = [f"{fam}\t{name_of.get(fam, '')}\t{src}\t{start}\t{end}\t{self.gene_strands.get(fam, 1)}"
+                for fam, (src, start, end) in sorted(self.gene_spans.items())]
+        return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+
+_NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "parent", "recipient",
+                          "source", "start", "end")
+
+
+def _nucleotide_events_tsv(events) -> str:
+    """The copy-lineage genealogy as TSV — one row per ancestral interval an event touched.
+
+    An event here can span several blocks at once (a loss deletes an arc covering many), and each
+    carries its own copy lineage and ancestral interval, so a flat table needs one row apiece. Rows
+    of the same event share ``time``, ``kind`` and ``lineage``. Empty cells for the fields a kind
+    does not use; a speciation re-mints a copy lineage without touching sequence, so it names only
+    ``parent`` and ``copy``.
+    """
+    rows = []
+
+    def row(*cells):
+        rows.append("\t".join("" if c is None else str(c) for c in cells))
+
+    for e in events:
+        if isinstance(e, Origination):
+            row(e.time, "origination", e.lineage, e.chromosome, e.copy, None, None,
+                e.source, e.start, e.end)
+        elif isinstance(e, Loss):
+            for (copy, source, start, end) in e.lost:
+                row(e.time, "loss", e.lineage, e.chromosome, copy, None, None, source, start, end)
+        elif isinstance(e, Duplication):
+            for (parent, child, source, start, end) in e.copied:
+                row(e.time, "duplication", e.lineage, e.chromosome, child, parent, None,
+                    source, start, end)
+        elif isinstance(e, Transfer):
+            for (parent, child, source, start, end) in e.transferred:
+                row(e.time, "transfer", e.lineage, None, child, parent, e.recipient,
+                    source, start, end)
+        elif isinstance(e, Speciation):
+            for child in e.children:
+                row(e.time, "speciation", e.lineage, None, child, e.parent, None, None, None, None)
+        else:
+            raise AssertionError(f"unhandled event {type(e).__name__}")
+    return "\n".join(["\t".join(_NUCLEOTIDE_EVENT_COLS), *rows]) + "\n"
+
+
+_NUCLEOTIDE_REARRANGEMENT_COLS = ("time", "kind", "lineage", "chromosome", "start", "length",
+                                  "dest_chromosome", "dest_position", "flipped")
+
+
+def _nucleotide_rearrangements_tsv(rearrangements) -> str:
+    """The ancestry-neutral rearrangements as TSV — one table for all three kinds, empty cells for
+    the fields a kind does not use. Coordinates are **physical** (bp along the chromosome), unlike
+    the genealogy log's ancestral ones."""
+    def row(r):
+        if isinstance(r, Inversion):
+            return (r.time, "inversion", r.lineage, r.chromosome, r.start, r.length, "", "", "")
+        if isinstance(r, Transposition):
+            return (r.time, "transposition", r.lineage, r.chromosome, r.start, r.length,
+                    "", r.dest, int(r.flipped))
+        return (r.time, "translocation", r.lineage, r.source, r.start, r.length,
+                r.dest, "", int(r.flipped))
+    rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
+    return "\n".join(["\t".join(_NUCLEOTIDE_REARRANGEMENT_COLS), *rows]) + "\n"
+
 
 def _valid_length(length) -> int:
     if isinstance(length, bool) or not isinstance(length, int) or length < 1:
@@ -721,20 +930,11 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     ell = chrom._pick_arc_extent(start, duplication_length, rng)
     if ell is None:
         return 0
-    span = chrom._arc_range(start, ell)
-    if span is None:
+    copied = chrom.duplicate(start, ell, new_copy)
+    if copied is None:
         return 0
-    i, j = span
-    arc = chrom.blocks[i:j]
-    child_of: dict[int, int] = {}
-    for b in arc:
-        if b.copy not in child_of:
-            child_of[b.copy] = new_copy()
-    copied = tuple((b.copy, child_of[b.copy], b.source, b.start, b.end) for b in arc)
-    chrom.blocks[j:j] = [Block(b.source, b.start, b.end, b.strand, child_of[b.copy], b.gene)
-                         for b in arc]
     events.append(Duplication(t, node_id, chrom.id, copied))
-    return sum(b.length for b in arc)
+    return sum(end - beg for (_par, _child, _src, beg, end) in copied)
 
 
 def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, self_transfer, depth,
@@ -794,9 +994,7 @@ def _do_origination(g, node_id, t, origination_length, rng, events, new_source, 
     p = chrom._pick_legal_cut(rng)
     if p is None:
         return 0
-    chrom._split_at(p)
-    k = chrom._index_at(p)
-    chrom.blocks[k:k] = [Block(src, 0, length, 1, cp, fam)]
+    chrom.originate(p, length, src, cp, fam)
     gene_spans[fam] = (src, 0, length)                   # a de-novo gene, tracked like a declared one
     gene_strands[fam] = 1
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length))
@@ -817,17 +1015,11 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     ell = chrom._pick_arc_extent(start, loss_length, rng)
     if ell is None:
         return 0
-    span = chrom._arc_range(start, ell)
-    if span is None:
+    lost = chrom.delete(start, ell)
+    if lost is None:
         return 0
-    i, j = span
-    gone = chrom.blocks[i:j]
-    if chrom.n_genes and sum(1 for b in gone if b.is_gene) == chrom.n_genes:
-        return 0                                         # would leave the chromosome geneless: no-op
-    lost = tuple((b.copy, b.source, b.start, b.end) for b in gone)
-    chrom.blocks = chrom.blocks[:i] + chrom.blocks[j:]
     events.append(Loss(t, node_id, chrom.id, lost))
-    return -sum(b.length for b in gone)
+    return -sum(end - beg for (_cp, _src, beg, end) in lost)
 
 
 def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
@@ -900,23 +1092,16 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     ell = chrom._pick_arc_extent(start, transposition_length, rng)
     if ell is None:
         return
-    span = chrom._arc_range(start, ell)
-    if span is None:
+    intact = chrom.blocks                                # keep for rollback if there is nowhere to land
+    arc = chrom.excise(start, ell)
+    if arc is None:
         return
-    i, j = span
-    arc = chrom.blocks[i:j]
-    intact = chrom.blocks                                # keep for rollback if the landing cuts a gene
-    chrom.blocks = chrom.blocks[:i] + chrom.blocks[j:]
     flipped = bool(rng.random() < inversion_probability)
-    if flipped:
-        arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
     dest = chrom._pick_legal_cut(rng)                   # a legal spot on the remainder
     if dest is None:
         chrom.blocks = intact                            # nowhere legal to land: undo the excision
         return
-    chrom._split_at(dest)
-    k = chrom._index_at(dest)
-    chrom.blocks[k:k] = arc
+    chrom.place(arc, dest, flipped)
     rearrangements.append(Transposition(t, node_id, chrom.id, start, ell, dest, flipped))
 
 
