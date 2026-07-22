@@ -733,12 +733,18 @@ class NucleotideGenomesResult:
         ``-1``\\ s, and concatenate. The sequence level does exactly that; nothing here knows about
         letters.
 
-        A working block need not match a root block. The partition is cut at *every* extant leaf's
-        breakpoints, so a block can span several root blocks and is then cut into one piece each; on a
-        reversed block those pieces come out in descending coordinate order, since physical order runs
-        *down* the source. At an extant leaf a piece is always a whole block — that leaf's own
-        breakpoints are all in the partition — but at an ancestor it need not be, because a transfer
-        can carry an unbroken run across a boundary the ancestor has.
+        A working block need not match a root block. Only the **extant leaves** vote on where the cuts
+        go, so:
+
+        - **At a leaf**, its own breakpoints are all in the partition, which is therefore at least as
+          fine as its blocks: a block spans one or more root blocks and is cut into a piece each, every
+          piece a **whole** block.
+        - **At an ancestor**, a piece can be a *part* of a block — but only where the ancestor has a
+          breakpoint that no survivor has: the descendants that inherited it died out or lost the
+          material, while some other lineage kept it unbroken across that point.
+
+        On a reversed block the pieces come out in descending coordinate order, since physical order
+        runs *down* the source.
 
         The partition is cut from the **extant leaves**, so ancestral material that survives in none of
         them has no root block and no sequence. Asking for such a node raises rather than quietly
