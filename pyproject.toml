@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "zombi2"
 # Single-sourced from zombi2/__init__.py (__version__) via [tool.hatch.version].
 dynamic = ["version"]
-description = "A phylogenetic simulator of species trees and gene families"
+description = "Simulating the evolution of species trees, genomes, sequences and traits"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Adrián A. Davin" }]
