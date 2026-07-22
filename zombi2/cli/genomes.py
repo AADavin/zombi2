@@ -56,9 +56,16 @@ _NUCLEOTIDE_ONLY = (
     ("origination_length", 50.0),
 )
 
+# A genome the command starts with. The library function defaults to 0 — an explicit caller says what
+# it wants — but a bare `zombi2 genomes -t tree.nwk` should hand back a genome rather than 100 empty
+# ones, and origination stays 0 so nothing arrives that was not asked for. The run log records the
+# resolved value, so a run is never ambiguous about which it used.
+_DEFAULT_INITIAL_FAMILIES = 100
+
 # knobs the nucleotide engine does not have — it seeds from a sequence, not from a family count,
-# and its transfers are always additive
-_NOT_IN_NUCLEOTIDE = (("initial_families", 0), ("replacement", False))
+# and its transfers are always additive. Paired with the default, so leaving the flag alone is not
+# mistaken for setting it.
+_NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False))
 
 
 def _add_genomes_args(p: argparse.ArgumentParser) -> None:
@@ -103,8 +110,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="a transfer overwrites a homologous copy in the recipient (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
                    help="allow a lineage to transfer to itself")
-    g.add_argument("--initial-families", type=int, default=0, metavar="N", dest="initial_families",
-                   help="number of gene families present at the crown (default 0)")
+    g.add_argument("--initial-families", type=int, default=_DEFAULT_INITIAL_FAMILIES, metavar="N",
+                   dest="initial_families",
+                   help=f"number of gene families the root genome starts with (default "
+                        f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty, so every family must then "
+                        f"arrive by --origination")
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",

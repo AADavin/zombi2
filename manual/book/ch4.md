@@ -26,6 +26,8 @@ g = simulate_genomes_unordered(
 
 The root starts with `initial_families` families of one copy each, recorded as originations at the crown; from there the four rates drive everything.
 
+The two ways of stocking a genome are worth separating. `initial_families` puts families there at the start, and `origination` adds new ones as the run goes. From Python `initial_families` defaults to 0, so a caller says what it wants; from the command line `--initial-families` defaults to 100, so a bare run hands back a genome rather than a hundred empty ones. `--origination` is 0 by default either way: nothing arrives that you did not ask for. Every run's `.log` records the value it used, so a run is never ambiguous about which.
+
 ## What the rate depends on
 
 The rates follow the **same grammar as the species level** (`base` optionally wrapped in a scope, optionally multiplied by modifiers). The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want — more genes, more chances. Origination is counted **per lineage**: acquiring a wholly new family is a property of the lineage, not of any gene it already has.
