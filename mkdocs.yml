@@ -97,7 +97,7 @@ markdown_extensions:
   - tables
   - attr_list
   - md_in_html
-  # Lets docs/changelog.md pull in the repo-root CHANGELOG.md (single source of truth).
+  # Lets docs pages pull in manual/book chapters (single source of truth).
   - pymdownx.snippets:
       base_path: ["."]
       check_paths: true
