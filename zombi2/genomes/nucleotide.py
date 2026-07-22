@@ -60,22 +60,28 @@ re-mints into each daughter. The genealogy ``events`` — ``origination`` / ``lo
   equal the copies actually present in every extant leaf.
 
 Finally, the **genic layer** (``genes`` / ``gene_length``) declares some blocks to be **genes**, the
-rest **intergenes**. There is exactly **one** way an event picks its target — an *extension* — and it is
-drawn **directly from the legal arcs**, never guessed and retried: the event **nucleates at a uniform
-intergenic position**, and its far end is chosen among the positions where a breakpoint is legal (never
-strictly inside a gene), **weighted by** ``exp(-d / mean)`` — the extent distribution you asked for,
-restricted to the ends that exist. Landing spots and chromosome cuts are picked the same way. Nothing is
-clipped, nothing is snapped (snapping would inflate an extent to "whatever it takes to clear the gene"),
-and nothing is silently dropped for running out of retries. So a gene is only ever engulfed **whole**,
-never split, and each recovers as exactly one root-block with one gene tree.
+rest **intergenes**. One rule governs all of it: **a breakpoint may never fall strictly inside a gene.**
+That set of legal positions is written down once (``Chromosome._legal_cuts``) and everything reads it —
+where an event starts, where its far end lands, where an arc arrives, where a chromosome is cut. A gene
+contributes its own edge; an intergene contributes its whole interior. Every breakpoint is drawn
+**directly from that set**, never guessed and retried, with the far end weighted by ``exp(-d / mean)``:
+the extent distribution you asked for, restricted to the ends that exist. Nothing is clipped, nothing is
+snapped (snapping would inflate an extent to "whatever it takes to clear the gene"), and nothing is
+silently dropped for running out of retries. So a gene is only ever engulfed **whole**, never split, and
+each recovers as exactly one root-block with one gene tree.
+
+A consequence worth stating, because the code got it wrong for a while: a genome with **no spacer at
+all** — ten 100 bp genes in 1000 bp — is not frozen. Its gene boundaries are legal cuts like any other,
+so it inverts, duplicates, loses and transfers whole genes. The sampling used to say "nucleate in the
+spacer", which silently ate every rate when there was none.
 
 **Two consequences the guide must state plainly.** (1) Gene turnover is *emergent* and size-dependent —
 a gene changes copy number only when an event engulfs it whole, so large genes are rarely lost or
 duplicated. (2) The **realised extent is shorter than the mean you ask for**, the more so the denser the
-genome: on a 94%-genic bacterial genome, asking for 3 000 bp yields ~1 300. A long stretch that both
-begins *and* ends in a spacer often simply does not exist, and an event that would cut a gene does not
-happen. That conditioning is the model; what it must not do — and no longer does — is quietly eat the
-event *rate* along with it.
+genome: on a 94%-genic bacterial genome, asking for 3 000 bp yields ~1 300. A stretch ending exactly
+where you asked often does not exist, so the arc stops at the nearest legal breakpoint. That
+conditioning is the model; what it must not do — and no longer does — is quietly eat the event *rate*
+along with it.
 
 Because every node votes on the partition, the recovery covers the **complete** tree, not only its
 extant tips: any node's genome can be put back together (``NucleotideGenomesResult.assembly``), an
@@ -234,51 +240,54 @@ class Chromosome:
             return len(self.blocks)
         raise ValueError(f"no block boundary at physical {phys}")
 
-    def _legal_cut_spans(self) -> list[tuple[int, int]]:
-        """The physical windows where a breakpoint is legal — the intergenic blocks, endpoints included
-        (a gene's own edge is legal; only its interior is not). ``[(lo, hi), …]`` in block order."""
+    def _legal_cuts(self) -> list[tuple[int, int]]:
+        """**The** legal cut set of this chromosome: every physical position where a breakpoint may
+        fall, as inclusive ranges ``[(lo, hi), …]`` in position order.
+
+        There is one rule — *a cut may never fall strictly inside a gene* — and this is the one place
+        it is written down. Everything that needs a breakpoint reads it: where an event starts, where
+        its far end lands, where an arc arrives, where a chromosome is cut. It used to be spelled out
+        separately for each, and the copies disagreed: the ones choosing an event said "in the spacer",
+        which silently froze a genome with no spacer, while the ones landing one said "not inside a
+        gene" and were right.
+
+        So a **gene** contributes its own leading edge — one position, no more — and an **intergene**
+        contributes its whole interior. The ranges partition the set, so counting is
+        ``hi - lo + 1`` apiece. Both extremes then take care of themselves: an **empty** chromosome
+        (a de-novo replicon) still offers position 0, so material can arrive on it, and a **fully
+        genic** one still offers every boundary between its genes, so whole genes are moved about
+        rather than nothing happening at all."""
         out, pos = [], 0
         for b in self.blocks:
-            if not b.is_gene:
-                out.append((pos, pos + b.length))
+            out.append((pos, pos + b.length - 1) if not b.is_gene else (pos, pos))
             pos += b.length
+        if self.topology == "linear":
+            out.append((pos, pos))                              # the far end is a legal cut too
         return out
 
     def _pick_legal_cut(self, rng) -> int:
-        """A **uniform** position at which a breakpoint is legal — where an arc may land, or a
-        chromosome be cut, without splitting a gene.
-
-        Legal means *not strictly inside a gene*, so the candidates are every **block boundary** (a
-        gene's own edge is a legal cut) plus the **interior of every intergene**. Note both extremes
-        matter: an **empty** chromosome — what a de-novo replicon starts as — still has position 0, so
-        material can arrive on it; and a **fully genic** chromosome still has its gene boundaries, so
-        whole genes can still be moved about. Counting per block keeps this O(blocks)."""
-        marks, pos = [], 0
-        for b in self.blocks:
-            marks.append((pos, 1 if b.is_gene else b.length))   # boundary, plus an intergene's interior
-            pos += b.length
-        if self.topology == "linear":
-            marks.append((pos, 1))                              # the far end is a legal cut too
-        if not marks:
-            return 0                                            # an empty replicon: position 0 it is
-        total = sum(n for _p, n in marks)
+        """A **uniform** position from :meth:`_legal_cuts`."""
+        cuts = self._legal_cuts()
+        total = sum(hi - lo + 1 for lo, hi in cuts)
+        if not total:
+            return 0                                            # an empty ring: position 0 it is
         m = int(rng.integers(total))
-        for start, n in marks:
-            if m < n:
-                return start + m                                # m == 0 is the boundary itself
-            m -= n
+        for lo, hi in cuts:
+            if m <= hi - lo:
+                return lo + m
+            m -= hi - lo + 1
         raise AssertionError("legal-cut count out of sync with the blocks")  # unreachable
 
     def _pick_arc_extent(self, start: int, mean: float, rng) -> int | None:
         """Choose the arc's far end, forward from ``start``: an extent ``d >= 1`` whose breakpoint at
         ``start + d`` is **legal** (never strictly inside a gene), drawn with weight ``exp(-d/mean)``.
 
-        This is the extent distribution you asked for, **restricted to the ends that exist** — the same
-        law that draw-then-reject would converge to, but sampled directly, so nothing is ever wasted and
+        This is the extent distribution you asked for, **restricted to the ends that exist** — sampled
+        directly from :meth:`_legal_cuts` rather than drawn and rejected, so nothing is ever wasted and
         no event silently vanishes because its retries ran out. On a gene-dense genome the realised
-        extent therefore comes out *shorter* than ``mean``: a long stretch that both begins and ends in a
-        spacer often simply does not exist. That conditioning is the model (an event that would cut a
-        gene does not happen); what it must not do is quietly eat the event *rate* as well.
+        extent therefore comes out *shorter* than ``mean``: a long stretch ending exactly where you
+        asked often simply does not exist, so the arc stops at the nearest legal breakpoint instead.
+        That conditioning is the model; what it must not do is quietly eat the event *rate* as well.
 
         ``None`` when no legal end exists."""
         total = self.length
@@ -288,7 +297,7 @@ class Chromosome:
         limit = total - 1 if circular else total - start     # the longest arc that still fits
         if limit < 1:
             return None
-        spans = self._legal_cut_spans()
+        spans = self._legal_cuts()
         if not spans:
             return None
         if circular:                                         # the ring: the same windows one lap on
@@ -500,25 +509,27 @@ class NucleotideGenome:
             m -= c.length
         raise AssertionError("length out of sync with the chromosomes")  # unreachable
 
-    def _pick_intergenic_position(self, rng) -> tuple[Chromosome, int] | None:
-        """A uniform pick over the genome's **intergenic** nucleotides → ``(chromosome, physical
-        position)``. An event nucleates in the spacer, never inside a gene — genes are indivisible, so
-        starting inside one could only ever be redrawn away. With no genes declared every nucleotide is
-        intergenic and this is just a uniform pick. ``None`` when the genome is all gene (nowhere to
-        start)."""
-        total = sum(b.length for c in self.chromosomes for b in c.blocks if not b.is_gene)
+    def _pick_legal_cut(self, rng) -> tuple[Chromosome, int] | None:
+        """A uniform pick over the **whole genome's** legal breakpoints → ``(chromosome, physical
+        position)``. :meth:`Chromosome._legal_cuts` one scope up: it is where an event *starts*, as
+        against where one lands, and both are the same set of positions.
+
+        With no genes declared every position is legal and this is a plain uniform pick. ``None`` only
+        when there is nowhere at all — a genome with no chromosomes."""
+        cuts = [c._legal_cuts() for c in self.chromosomes]
+        counts = [sum(hi - lo + 1 for lo, hi in cc) for cc in cuts]
+        total = sum(counts)
         if total == 0:
             return None
         m = int(rng.integers(total))
-        for c in self.chromosomes:
-            pos = 0
-            for b in c.blocks:
-                if not b.is_gene:
-                    if m < b.length:
-                        return c, pos + m
-                    m -= b.length
-                pos += b.length
-        raise AssertionError("intergenic length out of sync with the blocks")  # unreachable
+        for chrom, cc, n in zip(self.chromosomes, cuts, counts):
+            if m < n:
+                for lo, hi in cc:
+                    if m <= hi - lo:
+                        return chrom, lo + m
+                    m -= hi - lo + 1
+            m -= n
+        raise AssertionError("legal-cut count out of sync with the blocks")  # unreachable
 
     def mosaic(self) -> dict[int, list[tuple[int, int, int, int]]]:
         """``{chromosome id: its block mosaic}``."""
@@ -1327,7 +1338,7 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     source coordinates). Each distinct copy lineage in the arc begets one fresh child lineage, so the
     tandem copy is a new copy of that material; the parentage is recorded as a :class:`Duplication`.
     Returns the length added (0 on a no-op)."""
-    spot = g._pick_intergenic_position(rng)
+    spot = g._pick_legal_cut(rng)
     if spot is None:
         return 0
     chrom, start = spot
@@ -1349,7 +1360,7 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     chromosome (strands travel with them). A horizontal edge in each block's gene tree. **Additive**
     — the donor keeps its copy — so it returns the recipient's length gain (0 on a no-op)."""
     donor_g = gen[kd]
-    spot = donor_g._pick_intergenic_position(rng)
+    spot = donor_g._pick_legal_cut(rng)
     if spot is None:
         return 0
     chrom, start = spot
@@ -1410,7 +1421,7 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
     deferred tier event). Records the deleted material — which copy lineage lost which arc — as a
     :class:`Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
-    spot = g._pick_intergenic_position(rng)
+    spot = g._pick_legal_cut(rng)
     if spot is None:
         return 0
     chrom, start = spot
@@ -1428,7 +1439,7 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
 
 def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
     """Invert a geometric-length arc of a length-weighted chromosome (length-neutral)."""
-    spot = g._pick_intergenic_position(rng)
+    spot = g._pick_legal_cut(rng)
     if spot is None:
         return
     chrom, pos = spot
@@ -1448,7 +1459,7 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     chromosome — it leaves at least one)."""
     if len(g.chromosomes) < 2:
         return
-    spot = g._pick_intergenic_position(rng)
+    spot = g._pick_legal_cut(rng)
     if spot is None:
         return
     source, start = spot
@@ -1487,7 +1498,7 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     the same chromosome**, landing inverted with probability ``inversion_probability``. Ancestry-neutral
     (blocks keep their source coordinates). No-op below two nucleotides (an arc leaves at least one, so
     there is a landing spot)."""
-    spot = g._pick_intergenic_position(rng)
+    spot = g._pick_legal_cut(rng)
     if spot is None:
         return
     chrom, start = spot
@@ -1723,10 +1734,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         layouts = [by_seqid[sq] for sq in seqids]
     else:
         specs = _replicon_specs(chromosomes, root_length, topology)
-        for _length, _top in specs:                  # every gene must fit, and leave intergenic room
-            if genes and genes * gene_length >= _length:
+        for _length, _top in specs:                  # the genes must fit; they need not leave a gap
+            if genes and genes * gene_length > _length:
                 raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
-                                 f"replicon with room left for intergenes")
+                                 f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
     rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
                    fission, fusion, chromosome_origination, chromosome_loss, inversion_length,

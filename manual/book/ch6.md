@@ -48,7 +48,9 @@ Both leaves still carry all three genes. In `n2` an inversion covered gene 2, wh
 
 ## Genes are never split
 
-This is the rule the whole resolution is built on. An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. It **nucleates at a random intergenic position**, and its far end is drawn from the positions where a breakpoint is actually legal, weighted toward the extent you asked for. Nothing is clipped, nothing is snapped, and no event is silently dropped.
+This is the rule the whole resolution is built on. An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal** — every block boundary, a gene's own edges included, plus the interior of every intergene — with the far end weighted toward the extent you asked for. Nothing is clipped, nothing is snapped, and no event is silently dropped.
+
+A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
 
 Two consequences follow, and both surprise people.
 
