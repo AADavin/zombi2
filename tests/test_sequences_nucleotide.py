@@ -222,3 +222,50 @@ def test_write_emits_the_ancestral_genomes_on_request(tmp_path):
     for label, chroms in r.ancestral_genomes.items():
         lines = (tmp_path / f"genome_ancestral_{label}.fasta").read_text().splitlines()
         assert [ln for ln in lines if ln.startswith(">")] == [f">{label}_chr{c}" for c in chroms]
+
+
+# --- the two numbering schemes ---------------------------------------------------------------------
+
+def test_a_nucleotide_run_names_its_files_blocks_not_families(tmp_path):
+    # the keys here are block indices, not gene family ids, and the files have to say so: a gene
+    # family id is a valid-looking int that names a different locus
+    genomes = _run(seed=6, n_extant=4)
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.2, seed=6)
+    assert r.unit == "block"
+    r.write(tmp_path, outputs=("alignments", "phylograms", "ancestral", "founding"))
+    names = {p.name for p in tmp_path.iterdir()}
+    assert not [n for n in names if "fam" in n]
+    assert "block0.fasta" in names and "phylogram_block0_complete.nwk" in names
+    assert any(n.startswith("sequences_ancestral_block") for n in names)
+    assert ">block0\n" in (tmp_path / "sequences_founding.fasta").read_text()
+
+
+def test_an_unordered_run_still_names_them_families(tmp_path):
+    sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
+    g = simulate_genomes_unordered(sp, duplication=0.2, loss=0.2, initial_families=3, seed=1)
+    r = simulate_sequences(g, model=jc69(), length=30, seed=1)
+    assert r.unit == "family"
+    r.write(tmp_path, outputs=("alignments", "phylograms"))
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "fam1.fasta" in names and "phylogram_fam0_complete.nwk" in names
+    assert not [n for n in names if n.startswith("block")]
+
+
+def test_block_of_joins_a_gene_family_to_its_sequences():
+    genomes = _run(seed=11)
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.3, seed=11)
+    fam = min(genomes.gene_trees)
+    block = genomes.block_of(fam)
+    assert genomes.root_blocks[block] == genomes.gene_spans[fam]
+    src, a, b = genomes.gene_spans[fam]
+    assert all(len(s) == b - a for s in r.alignments[block].values())
+    with pytest.raises(KeyError):
+        genomes.block_of(99999)                            # never declared
+
+
+def test_block_of_says_so_when_a_declared_gene_left_nothing_behind():
+    genomes = _run(seed=4, loss=3.0, n_extant=8)
+    gone = sorted(set(genomes.gene_spans) - set(genomes.gene_trees))
+    assert gone, "every declared gene survived in this run — pick another seed"
+    with pytest.raises(LookupError, match="no recovered root block"):
+        genomes.block_of(gone[0])

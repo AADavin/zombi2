@@ -721,6 +721,30 @@ class NucleotideGenomesResult:
         or the other within a piece of analysis — they are the same genealogy under different names."""
         return self._recover_blocks()[1]
 
+    def block_of(self, family: int) -> int:
+        """The index in :attr:`root_blocks` of the block a declared **gene family** occupies — the join
+        between the two numbering schemes this resolution has.
+
+        They are both plain ints over overlapping ranges, so mixing them up is silent: ``gene_spans``
+        and ``gene_trees`` are keyed by **gene family id**, while ``root_blocks``, ``block_trees`` and
+        everything a sequence run produces here are keyed by **block index** (every block evolves, and
+        spacer has no family). ``block_of`` is how you get from a gene to its sequences::
+
+            r.alignments[g.block_of(g.gene_names["dnaA"])]     # that gene's alignment
+
+        Raises ``KeyError`` for a family that was never declared, and ``LookupError`` for one declared
+        but surviving in no extant leaf — it has no recovered block, so there is nothing to point at.
+        The reverse lookup is one line: ``{span: fam for fam, span in g.gene_spans.items()}`` read at
+        ``root_blocks[i]``."""
+        span = self.gene_spans[family]                    # KeyError: never declared
+        try:
+            return self.root_blocks.index(span)
+        except ValueError:
+            raise LookupError(
+                f"gene family {family} spans {span} but has no recovered root block — it survives in "
+                "no extant leaf, so nothing was reconstructed for it. gene_trees leaves such a family "
+                "out for the same reason.") from None
+
     def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int, int, int]]]:
         """How this node's genome is built out of the recovered root blocks:
         ``{chromosome id: [(block, gene, start, end, strand), …]}`` in **physical order**, where

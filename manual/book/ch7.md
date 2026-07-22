@@ -159,7 +159,21 @@ Because the whole genome is covered, the run can put the genomes back together. 
 
 Two nodes are left out rather than returned incomplete. An **extinct leaf** is neither a tip nor an internal node of its block trees, so it has no sequence anywhere. And an **ancestor holding material that no surviving lineage kept** has no recovered block for it, so it would come back with a hole; asking for one directly raises instead.
 
-Two consequences of running per block. The family number is now a **block index**, not a gene family id, so a genome of a few thousand blocks writes a few thousand alignments; and the model has to be a nucleotide one, since a genome is measured in base pairs and its blocks are read on either strand. A protein model is refused.
+The model has to be a nucleotide one, since a genome is measured in base pairs and its blocks are read on either strand. A protein model is refused.
+
+### Blocks are numbered, not families
+
+This is the one thing to get right when reading a nucleotide run's output. The integer key of `.alignments`, `.ancestral`, `.founding` and `.phylograms` is a **block index** — a position in the genome run's `.root_blocks` — because every block evolves and spacer belongs to no family. Meanwhile `.gene_spans` and `.gene_trees` are keyed by **gene family id**. Two numbering schemes, both plain integers over overlapping ranges, so mixing them up returns a different locus without complaining.
+
+`block_of` is the join, and it is the only thing you should use:
+
+```python
+block = my_genomes.block_of(my_genomes.gene_names["dnaA"])
+result.alignments[block]     # dnaA's alignment
+result.phylograms[block]     # the tree it was drawn along
+```
+
+For the run above, `dnaA` is gene family 1 and root block 6. Asking for `phylograms[1]` gets you a stretch of spacer evolving at three times the rate — a plausible answer to the wrong question. `result.unit` says which scheme a result uses (`"family"` or `"block"`), and the filenames follow it: a nucleotide run writes `block6.fasta` and `phylogram_block6_complete.nwk`, never `fam`.
 
 ### The round trip
 

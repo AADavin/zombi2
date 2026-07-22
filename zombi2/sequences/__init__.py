@@ -95,6 +95,12 @@ class SequencesResult:
       left out rather than returned with a hole (as is an **extinct** leaf, which is neither a tip of
       its block trees nor an internal node of them, so it has no sequence anywhere).
     - ``seed`` — the run's seed.
+    - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
+      **names**: ``"family"`` (a gene family id) on an unordered or ordered run, ``"block"`` (an index
+      into the genome run's ``root_blocks``) on a nucleotide one, where every block evolves and spacer
+      has no family. They are different numbering schemes over the same ints, so a gene family id is
+      **not** a key here on a nucleotide run — go through
+      :meth:`~zombi2.genomes.NucleotideGenomesResult.block_of`. It is also what the filenames say.
     """
 
     alignments: dict[int, dict[str, str]]
@@ -105,16 +111,25 @@ class SequencesResult:
     seed: int | None
     genomes: dict[str, dict[int, str]] = field(default_factory=dict)
     ancestral_genomes: dict[str, dict[int, str]] = field(default_factory=dict)
+    unit: str = "family"
+
+    @property
+    def _stem(self) -> str:
+        """The filename stem for a per-unit output, so a file never claims to be a family when it is
+        a block: ``fam<n>.fasta`` against ``block<n>.fasta``."""
+        return {"family": "fam", "block": "block"}[self.unit]
 
     def write(self, directory,
               outputs=("alignments", "phylograms", "species_phylogram", "genomes")) -> None:
-        """Write chosen ``outputs`` to ``directory`` (created if needed):
+        """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
+        ``fam<family>`` on an unordered or ordered run and ``block<index>`` on a nucleotide one — the
+        integer keys mean different things, so the files say which (see :attr:`unit`):
 
-        - ``"alignments"`` → ``fam<family>.fasta`` (skipped for empty families).
-        - ``"ancestral"`` → ``sequences_ancestral_fam<family>.fasta``.
-        - ``"founding"`` → ``sequences_founding.fasta``, one record ``fam<family>`` per family: the
-          sequence each family originated with, before its stem.
-        - ``"phylograms"`` → ``phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
+        - ``"alignments"`` → ``<u>.fasta`` (skipped for empty families).
+        - ``"ancestral"`` → ``sequences_ancestral_<u>.fasta``.
+        - ``"founding"`` → ``sequences_founding.fasta``, one record ``<u>`` apiece: the sequence each
+          family originated with, before its stem.
+        - ``"phylograms"`` → ``phylogram_<u>_{complete,extant}.nwk`` (subs/site).
         - ``"species_phylogram"`` → ``clock_species_tree_{complete,extant}.nwk``: the species tree
           with its branches in substitutions/site — the molecular clock made visible.
         - ``"genomes"`` → ``genome_<lineage>.fasta``, one file per extant lineage, one record per
@@ -127,22 +142,23 @@ class SequencesResult:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        u = self._stem
         if "alignments" in outputs:
             for fam, aln in self.alignments.items():
                 if aln:
-                    (d / f"fam{fam}.fasta").write_text(_fasta(aln))
+                    (d / f"{u}{fam}.fasta").write_text(_fasta(aln))
         if "ancestral" in outputs:
             for fam, anc in self.ancestral.items():
                 if anc:
-                    (d / f"sequences_ancestral_fam{fam}.fasta").write_text(_fasta(anc))
+                    (d / f"sequences_ancestral_{u}{fam}.fasta").write_text(_fasta(anc))
         if "founding" in outputs and self.founding:
             (d / "sequences_founding.fasta").write_text(
-                _fasta({f"fam{fam}": seq for fam, seq in sorted(self.founding.items())}))
+                _fasta({f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())}))
         if "phylograms" in outputs:
             for fam, ph in self.phylograms.items():
-                (d / f"phylogram_fam{fam}_complete.nwk").write_text(ph["complete"] + "\n")
+                (d / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
                 if ph["extant"] is not None:
-                    (d / f"phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
+                    (d / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
             (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
@@ -479,7 +495,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                                       ancestral, skip_unrecoverable=True)
 
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
-                           assembled, ancestral_genomes)
+                           assembled, ancestral_genomes, "block" if nucleotide else "family")
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,
