@@ -625,7 +625,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extension=None, transposition_extension=None,
                              translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=0, families=None, family_speed=None, seed=None,
+                             initial_families=0, families=None, family_speed=None,
+                             max_family_size=None, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
@@ -720,6 +721,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     if len(set(families)) != len(families):
         raise ValueError(f"family names must be unique, got {families}")
 
+    if max_family_size is not None:
+        raise ValueError(
+            "max_family_size is wired at the unordered resolution only for now. A duplication here "
+            "copies a SEGMENT, which may span several families at once, so a per-family quota has "
+            "to decide what happens to a block that is partly over it — refusing the whole segment "
+            "and refusing part of it are different processes. Unset it, or use --resolution "
+            "unordered, where the unit is one gene and the answer is unambiguous.")
     if family_speed is not None:
         raise ValueError(
             "family_speed (per-family heterogeneity) is wired at the unordered resolution only for "

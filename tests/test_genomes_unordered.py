@@ -450,3 +450,57 @@ def test_by_family_with_driven_by_is_refused_for_now():
     with pytest.raises(ValueError, match="later slice"):
         simulate_genomes_unordered(sp, loss=0.2 * mod.ByFamily(spread=0.3),
                                    duplication=0.2 * mod.DrivenBy("x.tsv", {"a": 2.0}), seed=1)
+
+
+# --- max_family_size: a per-genome ceiling on a family's copies ------------
+
+def _biggest_family(g):
+    return max((collections.Counter(c.family for c in gen).most_common(1) or [(None, 0)])[0][1]
+               for gen in g.genomes.values() if gen)
+
+
+def test_max_family_size_binds_exactly():
+    # duplication far above loss compounds without bound; the cap is what stops it, and it stops it
+    # AT the number given rather than somewhere near it
+    sp = _tree(seed=1, n_extant=12, death=0.0)
+    for cap in (2, 5, 9):
+        g = simulate_genomes_unordered(sp, duplication=0.9, loss=0.05, initial_families=6,
+                                       max_family_size=cap, seed=2)
+        assert _biggest_family(g) == cap
+
+
+def test_max_family_size_none_lifts_the_ceiling():
+    sp = _tree(seed=1, n_extant=12, death=0.0)
+    capped = simulate_genomes_unordered(sp, duplication=0.9, loss=0.05, initial_families=6,
+                                        max_family_size=5, seed=2)
+    free = simulate_genomes_unordered(sp, duplication=0.9, loss=0.05, initial_families=6,
+                                      max_family_size=None, seed=2)
+    assert _biggest_family(free) > _biggest_family(capped)
+
+
+def test_a_float_cap_scales_with_the_tree():
+    # the point of the float form: the bound travels with the size of the run
+    from zombi2.genomes import resolve_max_family_size
+    small = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
+    big = simulate_species_tree(birth=1.0, death=0.0, n_extant=40, seed=1)
+    a = resolve_max_family_size(2.0, len(small.complete_tree.nodes))
+    b = resolve_max_family_size(2.0, len(big.complete_tree.nodes))
+    assert b > a
+    assert resolve_max_family_size(7, 999) == 7          # an int is absolute, tree size ignored
+    assert resolve_max_family_size(None, 999) is None
+
+
+def test_max_family_size_is_validated():
+    from zombi2.genomes import resolve_max_family_size
+    for bad in (0, -1, -2.0, True, "big"):
+        with pytest.raises(ValueError):
+            resolve_max_family_size(bad, 100)
+
+
+def test_the_cap_also_holds_when_a_transfer_arrives():
+    # a transfer adds a copy to the recipient, so the ceiling has to hold there too or a family
+    # could be pushed past it sideways
+    sp = _tree(seed=3, n_extant=15, death=0.0)
+    g = simulate_genomes_unordered(sp, duplication=0.4, transfer=0.6, loss=0.05,
+                                   initial_families=8, max_family_size=4, seed=1)
+    assert _biggest_family(g) <= 4

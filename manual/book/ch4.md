@@ -50,6 +50,20 @@ g = simulate_genomes_unordered(
 
 The two compose: `family_speed` for a family's overall tempo, and a `ByFamily` on one rate for extra variation particular to it. On the command line the rate keeps its written form, `--loss "0.25 * ByFamily(spread=0.6)"`.
 
+### How large a family may get
+
+Growth compounds: a duplication rate above the loss rate multiplies without bound, and with `ByFamily` some families draw a rate well above the one you typed. So a family's copies **within one genome** are capped, and the cap is on by default.
+
+```python
+max_family_size = 10.0     # the default: ten times the lineages in the complete tree
+max_family_size = 50       # an int is that number of copies, whatever the tree
+max_family_size = None     # no ceiling
+```
+
+A float scales with the run, so the same setting means the same thing on a tree of ten species and one of a thousand. An int is absolute. The ceiling holds for arrivals too, so a transfer cannot push a family past it sideways.
+
+What happens at the cap is that the family stops duplicating. That is a **declared model**, not a truncated run: refusing an event on a condition that depends only on the present state is Poisson thinning, so what you get is exactly the process whose duplication rate is zero for a family already at its quota — the same argument that makes a transfer with no eligible recipient a no-op rather than an approximation.
+
 `ByFamily` is refused on `origination`, and that is not an oversight: origination is the rate at which families are *created*, so when it is read there is no family yet to have drawn a factor for.
 
 The two ways of stocking a genome are worth separating. `initial_families` puts families there at the start, and `origination` adds new ones as the run goes. From Python `initial_families` defaults to 0, so a caller says what it wants; from the command line `--initial-families` defaults to 100, so a bare run hands back a genome rather than a hundred empty ones. `--origination` is 0 by default either way: nothing arrives that you did not ask for. Every run's `.log` records the value it used, so a run is never ambiguous about which.

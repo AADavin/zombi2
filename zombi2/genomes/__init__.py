@@ -230,8 +230,36 @@ def _lose_at(genome, j, node, t, events) -> None:
     events.append(Event(t, "loss", node.id, lost.family, lost.id))
 
 
+def resolve_max_family_size(max_family_size, n_lineages: int) -> int | None:
+    """Resolve the per-genome family cap: ``int`` is absolute, ``float`` is a multiple of the
+    lineages in the complete tree, ``None`` is no cap. Kept from ZOMBI1's ``max_family_size``."""
+    if max_family_size is None:
+        return None
+    if isinstance(max_family_size, bool) or not isinstance(max_family_size, (int, float)):
+        raise ValueError(f"max_family_size must be an int, a float or None, got {max_family_size!r}")
+    if max_family_size <= 0:
+        raise ValueError(f"max_family_size must be positive, got {max_family_size!r}")
+    if isinstance(max_family_size, float):
+        return max(1, round(max_family_size * n_lineages))
+    return max(1, int(max_family_size))
+
+
+def _at_cap(genome, family: int, cap: int | None) -> bool:
+    """Whether ``family`` already fills its quota in this genome — the condition that zeroes the
+    duplication rate, and a transfer's arrival, for that family."""
+    if cap is None:
+        return False
+    n = 0
+    for c in genome:
+        if c.family == family:
+            n += 1
+            if n >= cap:
+                return True
+    return False
+
+
 def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
-                 transfer_to, replacement, self_transfer, depth, to_traj=None) -> int:
+                 transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None) -> int:
     """The copy ``jd`` of the donor lineage ``kd`` transfers to a contemporaneous recipient lineage.
     The donor is picked by the caller (uniformly across the copy pool, or weighted by lineage when
     the transfer rate is driven), the recipient by ``transfer_to``. Returns the change in total copy
@@ -251,6 +279,8 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
     fam = src.family
     recipient = alive[kr]
     rg = gen[kr]
+    if _at_cap(rg, fam, cap):     # the recipient is full of this family: same thinning as above
+        return 0
     # the donor gene ends; two fresh copies descend from it (ZOMBI1 re-id): the continuation on the
     # donor branch and the transferred copy on the recipient branch — a horizontal edge in the gene tree.
     cont, xfer = new_copy(fam), new_copy(fam)
@@ -273,8 +303,8 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
-                               initial_families=0, families=None, family_speed=None, seed=None,
-                               progress=False) -> GenomesResult:
+                               initial_families=0, families=None, family_speed=None,
+                               max_family_size=10.0, seed=None, progress=False) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -387,6 +417,15 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
     if len(set(families)) != len(families):
         raise ValueError(f"family names must be unique, got {families}")
+
+    # A family's copies in one genome are capped. Growth compounds — a duplication rate above the
+    # loss rate multiplies without bound — so a run needs a ceiling somewhere. An int is that number
+    # of copies; a float (the default, 10.0) is that multiple of the lineages in the complete tree,
+    # so the bound travels with the size of the run. Refusing an event on a condition that depends
+    # only on the current state is Poisson thinning, so what is kept is exactly the process whose
+    # duplication rate is zero for a family already at its quota — a declared ceiling, not a
+    # truncated run. ``None`` removes it.
+    cap = resolve_max_family_size(max_family_size, len(tree.nodes))
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -535,8 +574,9 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                              if any_family else int(rng.integers(len(gen[k]))))
                     else:
                         k, j = _pick_copy(rng, gen, n)
-                    _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
-                    total_copies += 1
+                    if not _at_cap(gen[k], gen[k][j].family, cap):
+                        _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
+                        total_copies += 1
                 elif r < r_dup + r_los:
                     if w_los is not None:
                         k = _weighted_index(rng, w_los, r_los)
@@ -563,7 +603,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                         kd, jd = _pick_copy(rng, gen, n)
                     total_copies += _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
                                                  transfer_to, replacement, self_transfer, depth,
-                                                 to_traj)
+                                                 to_traj, cap)
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch
