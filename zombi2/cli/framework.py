@@ -22,7 +22,7 @@ Levels
   traits               evolve a trait along a species tree (continuous or discrete)
 
 Coupling
-  joint                grow a species tree and the level driving it, together (SSE and kin)
+  joint                grow a species tree and the level driving it, together
 
 A level is CONDITIONED on another by pointing a rate at what that level wrote — no separate command:
   zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_driver.tsv', {'cave': 4.0})"
@@ -100,7 +100,7 @@ def _rate(text: str):
 _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
-    "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree (ClaDS)"),
+    "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree"),
     "ByLineage": ("ByLineage(spread=0.3)", "one draw per lineage — the uncorrelated clock"),
     "DrivenBy": ("DrivenBy('habitat.tsv', {'aquatic': 3.0})", "the rate is driven by another level"),
 }

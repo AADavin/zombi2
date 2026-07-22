@@ -30,8 +30,9 @@ These are the conventions the rewrite settled on. They outrank anything below.
 - **Coupling diagrams:** dashed = a level a run always evolves on, solid = a coupling you add, a
   dashed capsule = "grown together" (joint).
 
-Figures already drawn to these rules, to copy from: `manual/book/figures/fig-2-1-four-levels.svg`
-and `figures/svg/age_crown.svg` (crown vs stem).
+Figures already drawn to these rules, to copy from: `manual/book/figures/fig-2-1-four-levels.svg`,
+`figures/svg/stem.svg` (origin, stem, crown) and `figures/svg/species_tree.svg` (a birth–death
+tree, survivors solid and extinct lineages dashed).
 
 ## Canvas & rendering
 - `drawsvg` canvas ~1000–1180 px wide. Make the canvas tall/wide enough that **no label
