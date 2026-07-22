@@ -49,8 +49,6 @@ analyses/**/figures/*.png
 analyses/**/figures/*.svg
 analyses/**/figs/*.png
 analyses/**/figs/*.svg
-# ...except the performance overview embedded in README.md
-!analyses/performance/figures/overview.png
 
 # LaTeX build artifacts
 *.aux
