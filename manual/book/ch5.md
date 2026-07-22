@@ -17,14 +17,14 @@ g = simulate_genomes_ordered(
 Reading one extant leaf:
 
 ```
-leaf n2, chromosome 2 (circular):  [ 0+ 1+ 2+ 2+ 2+ 3+ 4+ ]
+leaf n2, chromosome 2 (circular):  [ 0+ 1+ 3+ 3+ 4− ]
 ```
 
-Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of seven genes, in which family `2` sits in a run of three tandem copies. The gene tree of a family is unchanged from Chapter 4 — the true genealogy, read off the same event log:
+Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `3` sits in a run of two tandem copies and family `4` points backwards, left that way by an inversion. The gene tree of a family is unchanged from Chapter 4 — the true genealogy, read off the same event log:
 
 ```python
 g.gene_trees[0].to_newick("extant")
-# (g27:0.679048,g13:0.679048)speciation_n0;
+# (((g24:0.0396561,g28:0.0396561)speciation_n3:0.405992,g19:0.445648)speciation_n1:0.2334,g9:0.679048)speciation_n0;
 ```
 
 ## The karyotype
@@ -110,11 +110,11 @@ The distinction is not cosmetic. If runs on a circular chromosome stopped at pos
 
 ## Rearrangements: inversion, transposition, translocation
 
-Three further events act on a segment and reshape the order without creating or destroying genes. They are **identity-preserving** — a gene keeps its id, so nothing is written to the gene genealogy. They only reorder, and they are logged separately.
+Three further events act on a segment and reshape the order without creating or destroying genes. They are **identity-preserving** — a gene keeps its id, so nothing is written to the gene genealogy. They only reorder, and they are logged separately. All three are counted **per gene copy**: the segment starts at a gene, so every gene is a chance for one to begin.
 
-- **Inversion** *(per chromosome)* — reverse a segment in place, flipping the strand of every gene in it. The classic signed-permutation move: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin; reversal on a ring is well defined.
-- **Transposition** *(per chromosome)* — cut a segment out and reinsert it **elsewhere on the same chromosome**.
-- **Translocation** *(per gene copy)* — move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
+- **Inversion** — reverse a segment in place, flipping the strand of every gene in it. The classic signed-permutation move: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin; reversal on a ring is well defined.
+- **Transposition** — cut a segment out and reinsert it **elsewhere on the same chromosome**.
+- **Translocation** — move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
 
 A moved block — transposed or translocated — lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
 
@@ -132,14 +132,16 @@ All three land in one `rearrangements` log:
 ```
   translocation  chrom 0 [0:1]  -> chrom 1, pos 2      flipped=False
   translocation  chrom 8 [2:3]  -> chrom 6, pos 1      flipped=False
+  inversion      chrom 5 [1:2]
+  transposition  chrom 3 [1:2]  -> pos 1 (same chrom)  flipped=False
+  transposition  chrom 9 [3:5]  -> pos 2 (same chrom)  flipped=True
   inversion      chrom 5 [0:1]
-  transposition  chrom 7 [0:1]  -> pos 0 (same chrom)  flipped=False
-  transposition  chrom 6 [1:2]  -> pos 1 (same chrom)  flipped=True
+  translocation  chrom 3 [1:2]  -> chrom 5, pos 4      flipped=False
 ```
 
 Every row names its run the same way: `start` is the position the run began at, `length` is how many genes it covered, counted rightwards from `start` and wrapping past the origin on a circular chromosome. So `start + length` larger than the chromosome's gene count means the run crossed the origin. The destination of a transposition or a translocation is an index into what was left after the run was cut out, so it can never fall inside the run itself.
 
-Translocation is the one that carries a gene lineage **across** to another chromosome, which is why it is counted per gene copy, like transfer. But note what it does *not* do: the chromosomes themselves come through unchanged, so a translocation writes no edge into the chromosome network. Only a gene has moved between them.
+Translocation is the one that carries a gene lineage **across** to another chromosome. But note what it does *not* do: the chromosomes themselves come through unchanged, so a translocation writes no edge into the chromosome network. Only a gene has moved between them.
 
 ## The events, and their older names
 
@@ -261,11 +263,11 @@ The first three are written by default; the two logs are opt-in. `gene_order.tsv
 
 ```
 species chromosome  position  strand  family  gene
-0       0           0         1       0       0
-0       0           1         1       1       1
+0       0           0         -1      0       0
+0       0           1         -1      1       1
 0       0           2         1       2       2
 ...
-1       1           0         1       0       10
+1       1           0         -1      0       10
 1       1           1         1       1       11
 1       1           2         1       2       12
 ```
