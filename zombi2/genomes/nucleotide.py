@@ -863,7 +863,7 @@ class NucleotideGenomesResult:
 
     def write(self, directory,
               outputs=("events", "genes", "blocks", "initial_genome", "gene_trees",
-                       "rearrangements", "chromosome_events")) -> None:
+                       "rearrangements", "chromosome_events", "gff", "bed")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the copy-lineage genealogy — the source of truth.
@@ -883,6 +883,14 @@ class NucleotideGenomesResult:
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
           genealogy per family some node still carries; the ``_extant`` file only where the family
           has a surviving copy.
+        - ``"gff"`` → ``genome_<lineage>.gff``, that genome's **genes**, in its own coordinates: the
+          annotation to read beside the sequence level's ``genome_<lineage>.fasta``.
+        - ``"bed"`` → ``genome_<lineage>.bed``, that genome's **blocks** — every piece, spacer
+          included, named by the ancestral interval it descends from. The ancestry as a browser track.
+
+        Both name their sequences ``<lineage>_chr<c>``, exactly as the FASTA records are named, so a
+        genome and its annotation join without renaming anything. Written for every node and for the
+        initial genome, so there are two files per genome.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -900,6 +908,65 @@ class NucleotideGenomesResult:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, d)
+        for token, ext, render in (("gff", "gff", self._gff), ("bed", "bed", self._bed)):
+            if token in outputs:
+                for label, genome in self._every_genome():
+                    (d / f"genome_{label}.{ext}").write_text(render(label, genome))
+
+    def _every_genome(self):
+        """``(label, genome)`` for every genome the run holds — each node, and the initial one. The
+        labels are the ones the sequence level writes its FASTA under, so the files pair up."""
+        for node_id in sorted(self.genomes):
+            yield node_label(node_id), self.genomes[node_id]
+        yield "initial", self.initial_genome
+
+    def _laid_out(self, genome: NucleotideGenome):
+        """Walk one genome's blocks in physical order, yielding ``(chromosome, at, block)`` — ``at``
+        being the block's 0-based offset along its chromosome. The one place that walk is written."""
+        for chrom in genome.chromosomes:
+            at = 0
+            for b in chrom.blocks:
+                yield chrom, at, b
+                at += b.length
+
+    def _gff(self, label: str, genome: NucleotideGenome) -> str:
+        """One genome's **genes** as GFF3, in that genome's own coordinates.
+
+        GFF is 1-based inclusive and blocks are 0-based half-open, so a gene at ``[at, at+len)``
+        is written ``at+1 .. at+len``. The strand is the one the gene reads on **here**: its coding
+        strand from the annotation, flipped if the block carrying it has been inverted since the root.
+        That product is the point of the file — a gene that an inversion turned over says so."""
+        name_of = {fam: name for name, fam in self.gene_names.items()}
+        out = ["##gff-version 3"]
+        for chrom in genome.chromosomes:
+            out.append(f"##sequence-region {label}_chr{chrom.id} 1 {chrom.length}")
+        for n, (chrom, at, b) in enumerate(
+                (x for x in self._laid_out(genome) if x[2].is_gene), start=1):
+            strand = "+" if self.gene_strands.get(b.gene, 1) * b.strand == 1 else "-"
+            # ID is a plain per-file counter, because GFF wants one unique handle and nothing else
+            # here is: `copy` is the *block's* copy lineage, and a whole replicon is seeded as one, so
+            # every gene on it shares it until something duplicates them apart. What joins this row to
+            # the rest of the run is `family` — its gene tree, and its alignment via block_of(family).
+            named = f"Name={name_of[b.gene]};" if b.gene in name_of else ""
+            attrs = (f"ID=gene{n};{named}family={b.gene};copy={b.copy};"
+                     f"source={b.source}:{b.start}-{b.end}")
+            out.append(f"{label}_chr{chrom.id}\tZOMBI2\tgene\t{at + 1}\t{at + b.length}\t.\t"
+                       f"{strand}\t.\t{attrs}")
+        return "\n".join(out) + "\n"
+
+    def _bed(self, label: str, genome: NucleotideGenome) -> str:
+        """One genome's **blocks** as BED — every piece, spacer included. BED is 0-based half-open,
+        which is what a block already is, so the coordinates go out unchanged.
+
+        The name column is the **ancestral interval** the block descends from, which is the thing this
+        format is worth having for: laid over the genome it says which stretch came from where, and
+        two genomes' tracks line up on shared ancestry. ``strand`` is the block's orientation relative
+        to that ancestor, not a gene's coding strand (the GFF carries that)."""
+        out = []
+        for chrom, at, b in self._laid_out(genome):
+            out.append(f"{label}_chr{chrom.id}\t{at}\t{at + b.length}\t"
+                       f"{b.source}:{b.start}-{b.end}\t0\t{'+' if b.strand == 1 else '-'}")
+        return "\n".join(out) + "\n"
 
     def _blocks_tsv(self) -> str:
         """Every node's genome, block by block. ``position`` is the block's physical offset along its

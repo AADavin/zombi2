@@ -37,7 +37,7 @@ _UNORDERED_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_t
 _ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "initial_genome", "gene_trees",
                     "rearrangements", "chromosome_events", "event_positions")
 _NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "initial_genome", "gene_trees",
-                       "rearrangements", "chromosome_events")
+                       "rearrangements", "chromosome_events", "gff", "bed")
 _OUTPUTS = {"unordered": _UNORDERED_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
             "nucleotide": _NUCLEOTIDE_OUTPUTS}
 
@@ -171,12 +171,14 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "them). unordered: events, profiles, genomes, initial_genome, gene_trees. "
                         "ordered: those with gene_order for genomes, plus rearrangements, "
                         "chromosome_events, event_positions. nucleotide: events, genes, blocks, "
-                        "initial_genome, gene_trees, rearrangements, chromosome_events. "
+                        "initial_genome, gene_trees, rearrangements, chromosome_events, gff, bed. "
                         "'genomes' is every node's gene content, ancestors included, where "
                         "'profiles' counts only the extant tips; 'initial_genome' is the genome the "
                         "run started with, at the start of the root branch, which belongs to no node "
                         "and so gets its own file; 'gene_trees' writes one Newick per family, "
-                        "complete and extant.")
+                        "complete and extant; 'gff' and 'bed' annotate every genome in its own "
+                        "coordinates — the genes and the blocks respectively — named to join the "
+                        "FASTA the sequence level writes.")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 
