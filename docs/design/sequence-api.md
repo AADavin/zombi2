@@ -182,10 +182,12 @@ cannot express apart.
 **What it evolves.** Every recovered **root block**, not just the declared genes — genes *and*
 intergenic spacer — so the run reconstructs the whole genome rather than a handful of loci.
 
-**The work is building the intergenic trees, not lifting a filter.** The root partition already
-covers the whole genome (a 3-gene test genome recovers 12 root blocks). But with genes declared,
-`_recover` builds a tree only for the blocks that *are* declared genes, and says so: "skipping them is
-most of the work" (`nucleotide.py`). Those trees are always built once this lands — not opt-in.
+**The intergenic trees are built** — `NucleotideGenomesResult.block_trees`, one per recovered root
+block, spacer as well as genes. It was a small change, not the large one first scoped here: a block
+never splits, so its size is fixed and its whole genealogy is already in the event log exactly as a
+gene's is, and `_recover_gene_trees` differed between the genic and uniform cases *only* in which
+blocks it was pointed at. A gene's tree comes back with the same topology and branch lengths either
+way; the `g<id>` labels differ, because segment ids are handed out as the recovery walks its targets.
 
 **Two models, keyed on what is already recorded.** `Block.gene` is the family id for a gene and `0`
 for spacer, so no new classification is needed. Genes take `model=`; spacer takes `intergene_model=`,

@@ -698,6 +698,22 @@ class NucleotideGenomesResult:
         return self._recover()[0]
 
     @property
+    def block_trees(self) -> dict[int, GeneTree]:
+        """``{root-block index: GeneTree}`` — a tree for **every** recovered root block, spacer as
+        well as genes, keyed by its index in :attr:`root_blocks`.
+
+        :attr:`gene_trees` covers the declared genes; this covers the whole genome. A block never
+        splits, so its size is fixed and its genealogy is in the event log just as a gene's is — the
+        recovery is the same one, pointed at every block instead of a chosen few. That is what makes
+        an ancestral genome reconstructable at any node rather than only at the loci you declared.
+
+        A gene's tree here has the **same topology and branch lengths** as its :attr:`gene_trees` one,
+        but not the same ``g<id>`` leaf labels: segment ids are handed out as the recovery walks its
+        targets, and walking every block numbers them differently from walking three. Use one accessor
+        or the other within a piece of analysis — they are the same genealogy under different names."""
+        return _recover_gene_trees(self, every_block=True)[1]
+
+    @property
     def gene_trees(self) -> dict[int, GeneTree]:
         """``{family: GeneTree}`` — the recovered gene trees.
 
@@ -1629,13 +1645,18 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         # else: prev survives to an extant/extinct leaf — gene_trees_from_events tags it by species fate
 
 
-def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
-    """The full recovery: the root partition, and the gene trees.
+def _recover_gene_trees(result, *, every_block: bool = False
+                        ) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree]]:
+    """The full recovery: the root partition, and a tree per family.
 
-    With genes declared we build a tree **only** for the root-blocks that are declared genes, keyed by
-    gene family id — the intergenic blocks keep their genealogy in the log but are not worth a tree, and
-    skipping them is most of the work. With none declared, every root-block is a family (keyed by index).
-    Reuses the shared per-segment tree builder."""
+    With genes declared we build a tree for the root-blocks that are declared genes, keyed by gene
+    family id; with none declared, every root-block is a family (keyed by index). Either way the
+    per-block builder below is the same — which block it is *pointed at* is the only difference.
+
+    ``every_block`` points it at all of them: a block never splits, so its size is fixed and its whole
+    genealogy is already in the log, exactly as a gene's is. The trees come back keyed by the block's
+    index in the partition, so intergenic spacer is reconstructed on the same footing as a gene — which
+    is what lets a sequence run rebuild a whole ancestral genome rather than a handful of loci."""
     tree = result.complete_tree
     blocks = _root_block_partition(result)
     origs = [e for e in result.events if isinstance(e, Origination)]
@@ -1649,7 +1670,9 @@ def _recover_gene_trees(result) -> tuple[list[tuple[int, int, int]], dict[int, G
         counter[0] += 1
         return counter[0]
 
-    if result.gene_spans:                                # genic: one family per surviving declared gene
+    if every_block:                                      # every root-block, genic or spacer, by index
+        targets = list(enumerate(blocks))
+    elif result.gene_spans:                              # genic: one family per surviving declared gene
         family_of = {span: fam for fam, span in result.gene_spans.items()}
         targets = [(family_of[iv], iv) for iv in blocks if iv in family_of]
     else:                                                # uniform: every root-block is its own family
