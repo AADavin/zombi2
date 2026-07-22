@@ -59,8 +59,11 @@ validation:
 # The chapters are written for pandoc, whose callouts are fenced divs (`::: note`). MkDocs has no
 # such syntax and mkdocstrings claims every `::: identifier` line, so this rewrites the book's
 # callouts to admonitions before they get that far. See the module docstring.
+# Chapter figures name the book's print raster, which is a build artefact; this points them back at
+# the authored SVG in docs/img/. See the module docstring.
 hooks:
   - hooks/manual_callouts.py
+  - hooks/manual_figures.py
 
 plugins:
   - search

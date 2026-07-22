@@ -68,10 +68,7 @@ and you run whichever you need — a species tree, then genomes and/or traits al
 sequences along the resulting gene trees — composed into one seeded, reproducible run.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/four_levels_dark.svg">
-    <img alt="The four levels of evolution ZOMBI2 simulates: species trees, genomes, traits, and sequences" src="docs/img/four_levels.svg" width="460">
-  </picture>
+  <img alt="The four levels of evolution ZOMBI2 simulates: species, genomes and sequences in a chain, with traits branching off species" src="manual/book/figures/fig-2-1-four-levels.svg" width="330">
 </p>
 
 A broad library, grouped by the level it acts on. Each links to its guide.

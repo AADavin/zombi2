@@ -12,12 +12,12 @@ dataset. It is a ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi)
 
 ## The four levels
 
-Three levels form a chain, and traits branch off it:
+Species, genomes and sequences form a chain of ancestry — a genome lives on the species tree, a
+sequence inside a gene. Traits branch to the side, because a trait can ride any species tree.
 
-```
-Species → Genomes → Sequences     a genome lives on the species tree; a sequence lives inside a gene
-Species → Traits                  a trait lives on the species tree
-```
+<figure markdown="span">
+  ![The four levels of ZOMBI2](img/fig-2-1-four-levels.svg){ width="330" }
+</figure>
 
 A genome, sequence, or trait always evolves **along a species tree**. You simulate each level on its
 own, or let one **drive** another.
