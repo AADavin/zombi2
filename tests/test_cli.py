@@ -928,18 +928,21 @@ def test_sequences_runs_on_a_nucleotide_handoff_and_assembles_the_genomes(tmp_pa
     assert {p.name for p in (out / "alignments").iterdir()} and \
            all(n.startswith("block") for n in {p.name for p in (out / "alignments").iterdir()})
     genomes = sorted(n for n in names if n.startswith("genome_n"))
-    assert len(genomes) == 5                                  # one FASTA per extant lineage
+    assert len(genomes) == 9                                  # one FASTA per node of the tree
     for name in genomes:
         text = (out / name).read_text()
         assert text.startswith(">") and set("".join(text.splitlines()[1:])) <= set("ACGT")
 
 
-def test_sequences_writes_the_ancestral_and_initial_genomes_on_request(tmp_path):
-    out = _nucleotide_run(tmp_path, extra=("--write", "genomes", "ancestral_genomes",
-                                           "initial_genome"))
+def test_sequences_writes_a_genome_for_every_node_and_the_initial_one(tmp_path):
+    # all of them by default, named by whose they are: no node is a special case, and the one that
+    # belongs to no node is called "initial"
+    out = _nucleotide_run(tmp_path)
+    tree, _ = read_newick((tmp_path / "run" / "species" / "species_complete.nwk").read_text())
     names = {p.name for p in out.iterdir()}
+    assert {f"genome_n{i}.fasta" for i in tree.nodes} <= names
     assert "genome_initial.fasta" in names
-    assert len([n for n in names if n.startswith("genome_ancestral_n")]) == 4
+    assert not [n for n in names if "ancestral" in n]
     initial = "".join((out / "genome_initial.fasta").read_text().splitlines()[1:])
     assert len(initial) == 2000                               # the genome the run was seeded with
 

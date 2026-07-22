@@ -75,13 +75,13 @@ def test_inverted_stretches_come_back_reverse_complemented():
         assert r.genomes[node_label(lid)] == _traced(genomes, r, lid)
 
 
-def test_every_extant_lineage_gets_a_genome_of_the_right_length():
+def test_every_lineage_gets_a_genome_of_the_right_length():
     genomes = _run(seed=5)
     r = simulate_sequences(genomes, model=hky85(kappa=3.0), substitution=0.4, seed=5)
-    assert set(r.genomes) == {node_label(n.id) for n in genomes.complete_tree.extant()}
-    for leaf in genomes.complete_tree.extant():
-        for chrom in genomes.genomes[leaf.id].chromosomes:
-            assert len(r.genomes[node_label(leaf.id)][chrom.id]) == chrom.length
+    assert set(r.genomes) == {node_label(i) for i in genomes.complete_tree.nodes}
+    for node_id, genome in genomes.genomes.items():
+        for chrom in genome.chromosomes:
+            assert len(r.genomes[node_label(node_id)][chrom.id]) == chrom.length
 
 
 def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
@@ -111,7 +111,7 @@ def test_material_no_extant_leaf_kept_is_still_reconstructed():
     doomed = [nid for nid in sorted(genomes.genomes) if set(genomes.ancestry(nid)) - kept]
     assert doomed, "nothing died out for good in this run — pick another seed"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
-    rebuilt = {**r.genomes, **r.ancestral_genomes}
+    rebuilt = r.genomes
     for nid in doomed:
         assert rebuilt[node_label(nid)] == _traced(genomes, r, nid)
 
@@ -169,9 +169,9 @@ def test_ancestral_genomes_are_the_genomes_that_were_really_there():
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
     internal = {node_label(i) for i, nd in genomes.complete_tree.nodes.items()
                 if nd.children is not None}
-    assert r.ancestral_genomes and set(r.ancestral_genomes) <= internal
-    assert set(r.ancestral_genomes) & set(r.genomes) == set()      # the two halves never overlap
-    for label, chroms in r.ancestral_genomes.items():
+    assert internal <= set(r.genomes)                              # one map, covering every node
+    assert set(r.genomes) == {node_label(i) for i in genomes.complete_tree.nodes}
+    for label, chroms in r.genomes.items():
         assert chroms == _traced(genomes, r, node_from_label(label))
 
 
@@ -197,7 +197,7 @@ def test_the_rebuilt_root_is_the_genome_the_gff_seeded(tmp_path):
     started = "".join(r.founding[i] for i in range(len(g.root_blocks)))
     chrom = g.genomes[root].chromosomes[0]
     assert len(started) == chrom.length
-    assert r.ancestral_genomes[node_label(root)][chrom.id] == started
+    assert r.genomes[node_label(root)][chrom.id] == started
     # and the leaves have moved on, so the match above is not a run in which nothing happened
     assert any(seq != started for chroms in r.genomes.values() for seq in chroms.values())
 
@@ -210,19 +210,22 @@ def test_an_ancestor_can_be_rebuilt_even_where_the_root_branch_moved_things():
     assert [x for x in genomes.rearrangements if x.lineage == root], "no root-branch event in this run"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=2)
     started = "".join(r.founding[i] for i in range(len(genomes.root_blocks)))
-    rebuilt = r.ancestral_genomes[node_label(root)]
+    rebuilt = r.genomes[node_label(root)]
     assert rebuilt == _traced(genomes, r, root)
     assert list(rebuilt.values()) != [started]                     # the root branch did move things
 
 
-def test_write_emits_the_ancestral_genomes_on_request(tmp_path):
+def test_write_emits_a_genome_for_every_node_by_default(tmp_path):
+    # no node is a special case: an ancestor and an extinct lineage are written like a surviving tip,
+    # each named by whose genome it is
     genomes = _run(seed=6, n_extant=4)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.2, seed=6)
-    r.write(tmp_path)                                              # not in the default set
-    assert not list(tmp_path.glob("genome_ancestral_*.fasta"))
-    r.write(tmp_path, outputs=("ancestral_genomes",))
-    for label, chroms in r.ancestral_genomes.items():
-        lines = (tmp_path / f"genome_ancestral_{label}.fasta").read_text().splitlines()
+    r.write(tmp_path)
+    assert not list(tmp_path.glob("*ancestral*"))
+    assert {p.name for p in tmp_path.glob("genome_n*.fasta")} == \
+           {f"genome_{node_label(i)}.fasta" for i in genomes.complete_tree.nodes}
+    for label, chroms in r.genomes.items():
+        lines = (tmp_path / f"genome_{label}.fasta").read_text().splitlines()
         assert [ln for ln in lines if ln.startswith(">")] == [f">{label}_chr{c}" for c in chroms]
 
 
@@ -309,7 +312,7 @@ def test_every_rebuildable_genome_is_exact_under_every_event_kind():
                                                             "Transposition"}
     assert {e.kind for e in g.chromosome_events} >= {"fission", "fusion"}
     r = simulate_sequences(g, model=jc69(), substitution=0.0, seed=2)
-    rebuilt = {**r.genomes, **r.ancestral_genomes}
+    rebuilt = r.genomes
     assert len(rebuilt) > 10
     for label, chroms in rebuilt.items():
         assert chroms == _traced(g, r, node_from_label(label)), label
@@ -358,7 +361,7 @@ def test_the_initial_genome_is_what_the_run_was_seeded_with(tmp_path):
     assert all(chrom.blocks[i].end == chrom.blocks[i + 1].start for i in range(len(chrom.blocks) - 1))
     seq = r.initial_genome[chrom.id]
     assert len(seq) == chrom.length
-    assert seq != r.ancestral_genomes[node_label(root)][chrom.id]     # the stem moved things
+    assert seq != r.genomes[node_label(root)][chrom.id]     # the stem moved things
 
     # every declared gene sits at exactly its declared coordinates, carrying its own founding sequence
     for fam, (_src, a, b) in genomes.gene_spans.items():
