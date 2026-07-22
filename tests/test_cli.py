@@ -211,7 +211,7 @@ def test_genomes_nucleotide_write_selects_blocks(tmp_path, tree_file):
                "--write", "blocks", "rearrangements"])
     assert rc == 0
     head = (out / "blocks.tsv").read_text().splitlines()[0].split("\t")
-    assert head == ["species", "chromosome", "position", "source", "start", "end", "strand",
+    assert head == ["lineage", "chromosome", "position", "source", "start", "end", "strand",
                     "copy", "gene"]
 
 

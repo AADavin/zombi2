@@ -7,8 +7,10 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 (**yes**), only when you name its token (**no**), or is available in Python but has no file yet
 (**Python**).
 
-A species-tree node is written `n<id>` everywhere it appears — in the Newick, and in every `lineage`,
-`species`, `donor` and `recipient` column — so a node reads the same in any file of a run.
+A species-tree node is written `n<id>` everywhere it appears, and the column holding one is always
+called `lineage` (or `donor` / `recipient` where a row names two), so a node reads the same in any
+file of a run. A gene copy is always `copy`. In `blocks.tsv` alone, `gene` means something else — the
+genic classification of a block, `0` for spacer or the family id for a declared gene.
 
 Every `zombi2` **command** also writes a run log next to its outputs (`species.log`, `genomes.log`,
 `sequences.log`, `traits.log`): the version, the timestamp, the command line, and every resolved
@@ -33,7 +35,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 |-----------|-----------------|-------|-----|------------------------|
 | Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Genomes | `genomes.tsv` | TSV | no | every node's gene content, **ancestors included** — `species` · `family` · `gene`. One row per gene copy, where `profiles.tsv` counts only the extant tips |
+| Genomes | `genomes.tsv` | TSV | no | every node's gene content, **ancestors included** — `lineage` · `family` · `copy`. **One row per gene copy**, so a lineage holding six genes has six rows; two rows sharing a `family` are two copies of it. `copy` is the same identifier the event log uses, so a gene can be followed from the genome it sits in back to the event that made it. `profiles.tsv` is the same information counted, and only for the extant tips |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | no | each family's true genealogy. A family with no surviving copy writes no `_extant` file |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
@@ -44,7 +46,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 |-----------|-----------------|-------|-----|------------------------|
 | Event log | `genome_events.tsv` | TSV | yes | as unordered |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `species` · `chromosome` · `position` · `strand` · `family` · `gene` |
+| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `lineage` · `chromosome` · `position` · `strand` · `family` · `copy` |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹ |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
 | Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `family` · `donor` · `recipient` · `dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
@@ -62,7 +64,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Event log | `genome_events.tsv` | TSV | yes | the copy-lineage genealogy — `time` · `kind` · `lineage` · `chromosome` · `copy` · `parent` · `recipient` · `source` · `start` · `end`. One row per **ancestral interval** an event touched, so an event spanning several blocks writes several rows |
-| Blocks | `blocks.tsv` | TSV | no | every node's genome as its block mosaic, ancestors included — `species` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. The rows of one chromosome tile it end to end from 0. Off by default: blocks are not kept maximal during a run, so this file grows with their number × every node |
+| Blocks | `blocks.tsv` | TSV | no | every node's genome as its block mosaic, ancestors included — `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. The rows of one chromosome tile it end to end from 0. Off by default: blocks are not kept maximal during a run, so this file grows with their number × every node |
 | Genes | `genes.tsv` | TSV | yes | the declared genes in root coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
 | Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations, in **physical** bp — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped` |
 | Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — same format as ordered |

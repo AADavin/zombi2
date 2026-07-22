@@ -743,7 +743,7 @@ class NucleotideGenomesResult:
     def _blocks_tsv(self) -> str:
         """Every node's genome, block by block. ``position`` is the block's physical offset along its
         chromosome, so the rows of one chromosome tile it end to end from 0."""
-        cols = ("species", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
+        cols = ("lineage", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
         rows = []
         for s in sorted(self.genomes):
             for c in self.genomes[s].chromosomes:

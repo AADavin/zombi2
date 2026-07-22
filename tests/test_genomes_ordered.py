@@ -278,7 +278,7 @@ def test_write_emits_the_selected_outputs(tmp_path):
                  "chromosome_events.tsv"):
         assert (tmp_path / name).exists()
     head = (tmp_path / "gene_order.tsv").read_text().splitlines()[0]
-    assert head.split("\t") == ["species", "chromosome", "position", "strand", "family", "gene"]
+    assert head.split("\t") == ["lineage", "chromosome", "position", "strand", "family", "copy"]
 
 
 def _written_gene_order(path):

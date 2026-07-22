@@ -1669,7 +1669,7 @@ def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):
 
     by_chromosome = {}
     for row in rows:
-        by_chromosome.setdefault((node_from_label(row["species"]), int(row["chromosome"])), []).append(row)
+        by_chromosome.setdefault((node_from_label(row["lineage"]), int(row["chromosome"])), []).append(row)
 
     seen = set()
     for (node, chrom_id), chrom_rows in by_chromosome.items():
