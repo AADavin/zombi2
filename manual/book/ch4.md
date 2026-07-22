@@ -167,6 +167,19 @@ out/genomes.tsv                    every node's genes, ancestors included
 out/gene_tree_fam<f>_*.nwk         each family's genealogy, complete and extant
 ```
 
-`profiles.tsv` counts only the extant tips, so `--write genomes` is what you ask for when you want the ancestral genomes too — one row per gene copy per node, the root included. `--write gene_trees` writes a Newick per family.
+`genomes.tsv` is one row per gene copy, so a lineage carrying six genes has six rows:
+
+```
+lineage  family  copy
+n0       0       0
+n0       1       1
+n0       2       2
+n1       0       3
+n1       0       8
+```
+
+Read a block of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0` — one of them a duplicate. `copy` is the individual gene, and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
+
+`--write gene_trees` writes a Newick per family.
 
 `--write` picks which of the four to keep, and a `names.tsv` joins the `n<id>` columns back to your labels whenever you brought your own tree. Everything is derived from the event log, so writing none of them loses nothing that cannot be replayed. The full list of files lives in Appendix B.

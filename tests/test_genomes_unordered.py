@@ -330,7 +330,7 @@ def test_written_node_columns_carry_the_n_label():
         assert all(not r["copy"].startswith("n") for r in events)
         assert all(not r["parent"].startswith("n") for r in events if r["parent"])
         _, genomes = _rows(out / "genomes.tsv")
-        assert genomes and all(r["species"].startswith("n") for r in genomes)
+        assert genomes and all(r["lineage"].startswith("n") for r in genomes)
 
 
 def test_written_log_round_trips_through_the_reader():
@@ -351,7 +351,7 @@ def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
         out = pathlib.Path(d)
         g.write(out, outputs=("genomes", "profiles"))
         _, rows = _rows(out / "genomes.tsv")
-        written = {r["species"] for r in rows}
+        written = {r["lineage"] for r in rows}
         assert written == {f"n{s}" for s in g.genomes if g.genomes[s]}
         internal = {f"n{n.id}" for n in sp.complete_tree.nodes.values() if n.children is not None}
         assert written & internal, "ancestral genomes must be in there, not just the tips"

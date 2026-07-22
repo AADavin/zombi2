@@ -141,9 +141,10 @@ class GenomesResult:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
         unordered counterpart of the ordered resolution's ``gene_order.tsv`` — without a chromosome
         or a position, because at this resolution a genome is a set, not a sequence."""
-        cols = ("species", "family", "gene")
+        cols = ("lineage", "family", "copy")
         rows = [f"{node_label(s)}\t{c.family}\t{c.id}"
-                for s in sorted(self.genomes) for c in self.genomes[s]]
+                for s in sorted(self.genomes)
+                for c in sorted(self.genomes[s], key=lambda c: (c.family, c.id))]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 

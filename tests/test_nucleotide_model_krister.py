@@ -438,7 +438,7 @@ def _read_gene_order(path):
     """``gene_order.tsv`` -> ``{node: [(family, strand), ...]}`` in genome order."""
     genomes = {}
     for r in _read_tsv(path / "gene_order.tsv"):
-        genomes.setdefault(node_from_label(r["species"]), []).append((int(r["family"]), int(r["strand"])))
+        genomes.setdefault(node_from_label(r["lineage"]), []).append((int(r["family"]), int(r["strand"])))
     return genomes
 
 

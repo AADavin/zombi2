@@ -284,7 +284,7 @@ class OrderedGenomesResult:
             write_gene_trees(self.gene_trees, d)
 
     def _gene_order_tsv(self) -> str:
-        cols = ("species", "chromosome", "position", "strand", "family", "gene")
+        cols = ("lineage", "chromosome", "position", "strand", "family", "copy")
         rows = [f"{node_label(s)}\t{ch}\t{p}\t{st}\t{fam}\t{gid}"
                 for s in sorted(self.genomes)
                 for (ch, p, st, fam, gid) in self.gene_order(s)]
