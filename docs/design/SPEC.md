@@ -108,6 +108,8 @@ We describe each model by **what it does**, not by a jargon name.
 **The couplings you can condition on** (one level reads another; the driver is passed as a file):
 
 - a trait drives gene gain or loss
+- a trait drives horizontal transfer — how often a lineage donates (a rate), or which lineages
+  receive (a weight); these are two different models, not two spellings of one
 - gene content drives a trait's optimum
 - a trait drives selection (dN/dS) or clock speed on sequences
 - a sequence drives a trait — *deferred (§10)*
@@ -161,9 +163,22 @@ effective rate  =  scope(base)  ×  modifiers
 | Level | Counted per | "How fast" set by |
 |---|---|---|
 | Species | lineage | the diversification process |
-| Genomes | copy (or lineage) | the duplication / transfer / loss rates |
+| Genomes, gene tier | copy — lineage for origination | duplication / transfer / loss / inversion / transposition / translocation |
+| Genomes, chromosome tier | chromosome — lineage for origination | fission / fusion / chromosome loss / chromosome origination |
 | Sequences | site | the substitution rate (× a clock) |
 | Traits | lineage | the trait model |
+
+One rule generates that column: **an event that acts on something already there is counted per that
+thing; an event that makes something from nothing is counted per lineage.** Origination is not an
+arbitrary exception — there is no existing gene for it to be "per", and likewise no parent replicon
+for a de-novo plasmid.
+
+The rule settles the rearrangements, which act on a **run of genes** anchored at one of them: they
+are per copy, like the duplication and loss they sit beside, not per chromosome. A chromosome is
+where such a run happens to be confined, not what the event acts on — which is why a per-chromosome
+inversion rate doubles when a fission draws a line through a genome, though not one gene has changed.
+Scope answers *how many chances*; how far a single event then reaches is the extension's business,
+a separate knob.
 
 Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
 
@@ -195,6 +210,23 @@ never add a flag. (Read by `rates/parse.py`; it parses the expression, it does n
 is quietly not the model the user asked for. Each level therefore declares what it wires
 (`WIRED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed, and
 the engine's own gate may be stricter still where a rate is wired more narrowly than the level.
+
+**A driver's number is not always a rate multiplier.** `DrivenBy(source, mapping)` is the one coupling
+mechanism (§2), and the **slot** it sits in decides what the mapping's number means. In a rate it is an
+ordinary modifier: dimensionless, multiplying, changing *how fast*. In a **choice slot** it is a
+**weight**, normalised across the candidates the choice is made over, so it changes neither how fast
+nor how many — only **who**. Today the one choice slot is the genome level's `transfer_to`, the "who
+receives" of a horizontal transfer:
+
+```
+transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how much transfer
+transfer_to =       DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a weight: where it lands
+```
+
+The first changes the total amount of transfer; the second redistributes the same transfers. A choice
+slot takes the modifier **on its own**, never `base * modifier` — there is no base, because there is no
+rate. A weight of 0 means "cannot receive"; when every candidate weighs 0 the transfer cannot happen at
+all, so the event does not fire.
 
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate

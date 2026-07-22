@@ -44,7 +44,7 @@ Transfer is the one event that couples lineages, and it is what makes the unorde
 
 Three arguments shape what a transfer does:
 
-- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*: its strength means the same whether your tree is measured in years or in millions of them.
+- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*: its strength means the same whether your tree is measured in years or in millions of them. A third rule weights recipients by a trait instead, so that only competent lineages take DNA up; it is a coupling, and Chapter 9 covers it.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
 - **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Combined with `replacement=True` it is not a duplication at all: the arriving copy overwrites a paralogue in the same genome, which is gene conversion.
 

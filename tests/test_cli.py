@@ -636,6 +636,65 @@ def test_genomes_takes_a_rate_expression(tmp_path, tree_file):
     assert "loss\t0.25 * OnTime({0: 1, 2: 3})" in (out / "genomes.log").read_text()
 
 
+@pytest.fixture
+def driver_file(tmp_path, tree_file):
+    """A discrete habitat trait grown on ``tree_file`` and written as a driver segment table — the
+    file a conditioned ``DrivenBy`` names as its source."""
+    main(["traits", "--kind", "discrete", "-t", str(tree_file), "--states", "competent,normal",
+          "--switch", "0.4", "--seed", "1", "-o", str(tmp_path), "--write", "driver"])
+    return tmp_path / "trait_driver.tsv"
+
+
+def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree_file):
+    # the DONOR side: a rate, so it takes the ordinary written form and changes how much HGT happens
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--initial-families", "5",
+               "--transfer", f"0.2 * DrivenBy('{driver_file}', {{'competent': 4.0, 'normal': 1.0}})",
+               "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert f"transfer\t0.2 * DrivenBy('{driver_file}', Table({{'competent': 4, 'normal': 1}}))" \
+        in (out / "genomes.log").read_text()
+
+
+def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_file, tree_file):
+    # the RECIPIENT side: the choice slot, so the modifier is written on its own, with no base
+    out = tmp_path / "g"
+    rc = main(["genomes", "-t", str(tree_file), "--initial-families", "5", "--transfer", "0.5",
+               "--transfer-to", f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})",
+               "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert f"transfer_to\tDrivenBy('{driver_file}', Table({{'competent': 2, 'normal': 1}}))" \
+        in (out / "genomes.log").read_text()
+
+
+def test_genomes_transfer_to_rejects_a_rate_expression(tmp_path, tree_file, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", "-t", str(tree_file), "--transfer-to", "1.0 * DrivenBy('d.tsv', {'a': 2})",
+              "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+    assert "written on its own" in capsys.readouterr().err
+
+
+def test_genomes_transfer_to_names_its_rules_for_a_misspelt_one(tmp_path, tree_file, capsys):
+    # the flag lost argparse's `choices`, so it owes the reader the list itself
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", "-t", str(tree_file), "--transfer-to", "uniforn", "-o", str(tmp_path / "g")])
+    assert e.value.code == 2
+    assert "'uniform', 'distance', or a DrivenBy" in capsys.readouterr().err
+
+
+def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file, tree_file):
+    # the written form is the same text in the file as on the flag — one notation (SPEC §5)
+    (tmp_path / "p.toml").write_text(
+        f'transfer = 0.5\ninitial-families = 5\n'
+        f'transfer-to = "DrivenBy(\'{driver_file}\', {{\'competent\': 2.0, \'normal\': 1.0}})"\n')
+    out = tmp_path / "g"
+    rc = main(["genomes", "--params", str(tmp_path / "p.toml"), "-t", str(tree_file),
+               "--seed", "2", "-o", str(out)])
+    assert rc == 0
+    assert "transfer_to\tDrivenBy(" in (out / "genomes.log").read_text()
+
+
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "t"
     rc = main(["traits", "-t", str(tree_file), "--rate", "1.0 * FromParent(spread=0.2)",

@@ -11,7 +11,7 @@ import inspect
 import pytest
 
 from zombi2.rates import scope
-from zombi2.rates.distributions import Geometric
+from zombi2.rates.distributions import Fixed, Geometric
 from zombi2.rates.modifiers import OnTime
 from zombi2.species import Node, Tree, simulate_species_tree
 from zombi2.genomes import (
@@ -23,7 +23,16 @@ from zombi2.genomes import (
     simulate_genomes_ordered,
     simulate_genomes_unordered,
 )
-from zombi2.genomes.ordered import _duplicate, _fission, _fusion, _invert, _transpose, _translocate
+from zombi2.genomes.ordered import (
+    _duplicate,
+    _extent,
+    _fission,
+    _fusion,
+    _invert,
+    _lose_at,
+    _transpose,
+    _translocate,
+)
 
 
 def _tier(seed, death=0.5, n_extant=15, **kw):
@@ -127,7 +136,8 @@ def test_invert_reverses_the_span_and_flips_each_strand():
     _invert(ch, 1, 2, node, 3.0, rearr)
     assert [g.id for g in ch.genes] == [0, 2, 1, 3]        # the span reversed, ids preserved
     assert [g.strand for g in ch.genes] == [1, 1, -1, 1]   # the two inverted genes flipped strand
-    assert rearr == [Inversion(3.0, 7, 0, 1, 2)] and rearr[0].length == 2
+    assert rearr == [Inversion(3.0, 7, 0, 1, 2)]           # start 1, length 2
+    assert (rearr[0].start, rearr[0].length) == (1, 2)
 
 
 def test_no_inversions_when_the_rate_is_zero():
@@ -145,11 +155,11 @@ def test_inversions_never_remint_gene_ids():
 
 
 def test_recorded_inversions_are_well_formed():
+    # every rearrangement names its run the same way: a start position and a length in genes
     _, r = _run(seed=4)
     assert r.rearrangements
     for inv in r.rearrangements:
-        assert 0 <= inv.start <= inv.end
-        assert inv.length == inv.end - inv.start + 1
+        assert inv.start >= 0 and inv.length >= 1
 
 
 # --- the chromosome genealogy --------------------------------------------------------------------
@@ -544,3 +554,236 @@ def test_rearrangements_tsv_has_one_table_for_all_kinds(tmp_path):
                                     "dest_chromosome", "dest_position", "flipped"]
     kinds = {row.split("\t")[1] for row in lines[1:]}
     assert kinds <= {"inversion", "transposition", "translocation"}
+
+
+# --- topology: a circular chromosome has no ends, so a run wraps past position 0 ------------------
+
+def _lone_branch(total_time):
+    return Tree({0: Node(0, None, 0.0, total_time, None, "extant")}, 0)
+
+
+def _inversion_coverage(topology, n=8, mean=4.0, total_time=3000.0, seed=1):
+    """Inversions only, on one chromosome of ``n`` genes: how often each position ends up inside a
+    run. An inversion never creates or destroys a gene, so the chromosome keeps its ``n`` positions
+    all run long and the tally is comparable across them. Returns ``(result, coverage per position)``."""
+    r = simulate_genomes_ordered(_lone_branch(total_time), inversion=1.0, chromosomes=1,
+                                 topology=topology, initial_families=n,
+                                 inversion_extension=Geometric(mean=mean), seed=seed)
+    cov = [0] * n
+    for x in r.rearrangements:
+        for k in range(x.length):
+            cov[(x.start + k) % n] += 1
+    return r, cov
+
+
+def test_extent_wraps_on_a_circle_and_stops_at_the_end_of_a_line():
+    import numpy as np
+    circ = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(8)])
+    lin = Chromosome(1, "linear", [Gene(i, i, 1) for i in range(8)])
+    rng = np.random.default_rng(0)
+    big = Geometric(mean=20)
+    # from position 6 a linear run reaches the last gene and stops: at most 2 genes
+    assert all(_extent(rng, big, lin, 6) <= 2 for _ in range(50))
+    # a circular one carries on past position 0
+    assert max(_extent(rng, big, circ, 6) for _ in range(50)) > 2
+
+
+def test_a_run_never_exceeds_the_whole_chromosome():
+    # m >= n: a run cannot wrap onto itself, so it is clamped to the whole chromosome
+    import numpy as np
+    rng = np.random.default_rng(0)
+    circ = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(5)])
+    lin = Chromosome(1, "linear", [Gene(i, i, 1) for i in range(5)])
+    huge = Fixed(1000)
+    assert [_extent(rng, huge, circ, s) for s in range(5)] == [5, 5, 5, 5, 5]
+    assert [_extent(rng, huge, lin, s) for s in range(5)] == [5, 4, 3, 2, 1]
+
+
+def test_a_wrapped_inversion_reverses_the_run_across_the_origin():
+    ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(4)])
+    _invert(ch, 3, 3, Node(7, None, 0.0, 1.0, None, "extant"), 2.0, rearr := [])
+    # the run is positions 3, 0, 1 — genes 3, 0, 1 — reversed to 1, 0, 3 with strands flipped
+    assert [g.id for g in ch.genes] == [1, 0, 3, 2]
+    assert [g.strand for g in ch.genes] == [-1, -1, -1, 1]
+    # recorded in the frame the chromosome had before the event, so start + length exceeds 4 genes
+    assert rearr == [Inversion(2.0, 7, 0, 3, 3)]
+
+
+def test_a_whole_chromosome_inversion_reverses_the_ring():
+    ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(4)])
+    _invert(ch, 2, 4, Node(7, None, 0.0, 1.0, None, "extant"), 1.0, rearr := [])
+    # every gene is in the run: the whole ring reverses — the same molecule read the other way
+    assert [g.id for g in ch.genes] == [1, 0, 3, 2]
+    assert all(g.strand == -1 for g in ch.genes)
+    assert rearr == [Inversion(1.0, 7, 0, 2, 4)]
+
+
+def test_a_wrapped_duplication_keeps_the_block_together():
+    ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(4)])
+    events, positions, counter = [], [], [10]
+
+    def ng(fam, strand):
+        counter[0] += 1
+        return Gene(counter[0], fam, strand)
+    added = _duplicate(ch, 3, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, positions, ng)
+    # the run is families 3 then 0, across the origin; its tandem copy lands right behind it
+    assert added == 2 and [g.family for g in ch.genes] == [3, 0, 3, 0, 1, 2]
+    assert len(events) == 4 and all(e.kind == "duplication" for e in events)
+    # the position is recorded in the re-anchored frame, where the run starts at 0
+    assert [(p.start, p.length) for p in positions] == [(0, 2)]
+
+
+def test_a_wrapped_loss_removes_the_genes_on_both_sides_of_the_origin():
+    ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(5)])
+    events, positions = [], []
+    removed = _lose_at(ch, 4, 3, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, positions)
+    assert removed == 3 and [g.id for g in ch.genes] == [2, 3]   # genes 4, 0 and 1 went
+    assert sorted(e.copy for e in events) == [0, 1, 4]
+    assert [(p.start, p.length) for p in positions] == [(0, 3)]
+
+
+def test_a_whole_chromosome_loss_empties_it_but_leaves_the_chromosome():
+    # a run covering every gene is legal. The chromosome survives as an empty replicon, exactly as a
+    # de-novo one starts out; only chromosome_loss takes a chromosome out of the karyotype.
+    r = simulate_genomes_ordered(_lone_branch(5.0), loss=2.0, chromosomes=2, initial_families=6,
+                                 loss_extension=Fixed(50), seed=1)
+    assert len(r.genomes[0]) == 2                                # both chromosomes still there
+    assert sum(len(ch.genes) for ch in r.genomes[0]) == 0        # and both empty
+    assert sorted(e.copy for e in r.events if e.kind == "loss") == list(range(6))
+
+
+def test_a_linear_chromosome_still_clamps_at_its_end():
+    r = simulate_genomes_ordered(_lone_branch(200.0), inversion=1.0, chromosomes=1,
+                                 topology="linear", initial_families=8,
+                                 inversion_extension=Geometric(mean=6), seed=1)
+    assert r.rearrangements
+    assert all(x.start + x.length <= 8 for x in r.rearrangements)
+
+
+def test_a_circular_chromosome_really_wraps():
+    r = simulate_genomes_ordered(_lone_branch(200.0), inversion=1.0, chromosomes=1,
+                                 topology="circular", initial_families=8,
+                                 inversion_extension=Geometric(mean=6), seed=1)
+    assert any(x.start + x.length > 8 for x in r.rearrangements)  # runs cross position 0
+    assert all(x.length <= 8 for x in r.rearrangements)           # never more than the whole ring
+
+
+def test_segmental_events_cover_a_circle_evenly():
+    # Translation invariance: a ring has no special position, so every gene must be covered at the
+    # same rate. Clamping runs at the end of the gene array broke this — the first gene was covered
+    # only when a run started exactly on it, a factor of the mean extension less often than an
+    # interior gene. That asymmetry is the bug; it must be gone.
+    _, circ = _inversion_coverage("circular")
+    mean = sum(circ) / len(circ)
+    assert max(abs(c - mean) for c in circ) < 0.10 * mean
+    # a linear chromosome keeps the edge behaviour, which is real for a replicon with ends
+    _, lin = _inversion_coverage("linear")
+    assert lin[0] < 0.5 * lin[-1]
+
+
+def test_realised_extension_on_a_circle_matches_the_nominal_one():
+    # with no end to truncate them, runs on a circle realise E[min(M, n)] — everything the extension
+    # distribution asks for, short only of what the chromosome cannot hold
+    q = 1 - 1 / 4.0                                   # M ~ Geometric(mean=4); E[min(M, 8)] = sum q^k
+    expected = sum(q ** k for k in range(8))
+    r, _ = _inversion_coverage("circular")
+    realised = sum(x.length for x in r.rearrangements) / len(r.rearrangements)
+    assert abs(realised - expected) < 0.05 * expected
+    # clamping at the array end instead loses a good fraction of it
+    r2, _ = _inversion_coverage("linear")
+    short = sum(x.length for x in r2.rearrangements) / len(r2.rearrangements)
+    assert short < 0.85 * expected
+
+
+def test_the_strong_invariant_survives_wrapped_runs():
+    # runs longer than the chromosome, on circles, so most events cross the origin: the gene
+    # genealogy must still account for every surviving copy
+    exts = {f"{e}_extension": Geometric(mean=6) for e in
+            ("duplication", "loss", "transfer", "inversion", "transposition", "translocation")}
+    for seed in range(3):
+        sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
+        r = simulate_genomes_ordered(sp, duplication=0.25, loss=0.35, transfer=0.2, inversion=0.3,
+                                     transposition=0.2, translocation=0.2, chromosomes=3,
+                                     initial_families=9, inversion_probability=0.5, seed=seed,
+                                     **exts)
+        extant = {n.id for n in sp.complete_tree.extant()}
+        for fam, tree in r.gene_trees.items():
+            assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0)
+                                                      for s in extant)
+
+
+def test_wrapped_runs_stay_deterministic_given_a_seed():
+    exts = {f"{e}_extension": Geometric(mean=5) for e in
+            ("duplication", "loss", "transfer", "inversion", "transposition", "translocation")}
+    kw = dict(duplication=0.3, loss=0.35, transfer=0.2, inversion=0.4, transposition=0.3,
+              translocation=0.3, chromosomes=3, initial_families=9, topology="circular",
+              inversion_probability=0.5, seed=17, **exts)
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=17)
+    a = simulate_genomes_ordered(sp, **kw)
+    b = simulate_genomes_ordered(sp, **kw)
+    assert a.rearrangements and a.rearrangements == b.rearrangements
+    assert all(a.gene_order(x) == b.gene_order(x) for x in a.genomes)
+    assert a.events == b.events
+
+
+# --- scope: a rearrangement is counted per gene, not per chromosome -------------------------------
+
+def _inversions(result):
+    return sum(1 for r in result.rearrangements if isinstance(r, Inversion))
+
+
+def test_a_rearrangement_starts_at_a_gene_not_at_a_chromosome():
+    # Inversion and transposition act on a run of genes, so they are scoped per copy: the drawn
+    # gene IS the run's start. Picking a chromosome first and a position inside it would make a gene
+    # on a small replicon far likelier to be a breakpoint than a gene on a large one.
+    from zombi2.genomes import ordered
+
+    calls = {"gene": 0, "chromosome": 0}
+    real_gene, real_chrom = ordered._pick_gene, ordered._pick_chromosome
+
+    def spy_gene(*a, **k):
+        calls["gene"] += 1
+        return real_gene(*a, **k)
+
+    def spy_chrom(*a, **k):
+        calls["chromosome"] += 1
+        return real_chrom(*a, **k)
+
+    ordered._pick_gene, ordered._pick_chromosome = spy_gene, spy_chrom
+    try:
+        sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=2)
+        r = simulate_genomes_ordered(sp, inversion=0.4, transposition=0.3, chromosomes=3,
+                                     initial_families=12, seed=2)
+    finally:
+        ordered._pick_gene, ordered._pick_chromosome = real_gene, real_chrom
+    assert r.rearrangements, "the run produced no rearrangements to check"
+    assert calls["gene"] > 0
+    assert calls["chromosome"] == 0, "a rearrangement must not draw a chromosome first"
+
+
+def test_rearrangement_count_ignores_how_the_genes_are_split_into_chromosomes():
+    # The same genes carved into 1, 2 or 4 chromosomes is the same amount of DNA, so it must give the
+    # same number of inversions. Under per-chromosome scope this tripled from left to right, which is
+    # also why a fission used to double a genome's inversion rate without creating a single gene.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
+    counts = [_inversions(simulate_genomes_ordered(sp, inversion=0.05, initial_families=40,
+                                                   chromosomes=c, seed=3))
+              for c in (1, 2, 4)]
+    assert counts[0] > 0
+    assert len(set(counts)) == 1, f"chromosome number changed the inversion count: {counts}"
+
+
+def test_rearrangement_count_scales_with_gene_count():
+    # Twice the DNA, twice the chances to start a run. Averaged over seeds, doubling the genome
+    # doubles the inversions.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
+
+    def mean_at(fams):
+        runs = [_inversions(simulate_genomes_ordered(sp, inversion=0.05, initial_families=fams,
+                                                     chromosomes=1, seed=s))
+                for s in range(40)]
+        return sum(runs) / len(runs)
+
+    small, large = mean_at(20), mean_at(40)
+    assert small > 0
+    assert 1.7 < large / small < 2.3, f"expected ~2x, got {large / small:.2f} ({small} -> {large})"

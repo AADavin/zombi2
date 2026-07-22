@@ -25,9 +25,10 @@ from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_par
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--loss",
     note="Each rate keeps its natural scope here (D/T/L per copy, origination per lineage), so "
-         "there is no scope wrapper to write. DrivenBy is wired for --loss, --duplication and "
-         "--origination; --resolution ordered wires OnTime only; --resolution nucleotide takes "
-         "constant rates only.")
+         "there is no scope wrapper to write. DrivenBy is wired for all four gene-family rates "
+         "(on --transfer it drives how often a lineage DONATES); --transfer-to takes the same "
+         "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime only; "
+         "--resolution nucleotide takes constant rates only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _UNORDERED_OUTPUTS = ("events", "profiles")
@@ -91,10 +92,13 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="new-family origination rate (per lineage)")
 
     g = p.add_argument_group("transfer & content")
-    g.add_argument("--transfer-to", choices=("uniform", "distance"), default="uniform",
+    g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
                    help="recipient rule for a transfer: uniform (any contemporaneous lineage, "
-                        "default) or distance (closer relatives likelier)")
+                        "default), distance (closer relatives likelier), or a DrivenBy weight — "
+                        "\"DrivenBy('trait_driver.tsv', {'competent': 2.0, 'normal': 1.0})\" — "
+                        "which redistributes transfers without changing how many there are "
+                        "(unordered only)")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy in the recipient (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
@@ -104,16 +108,17 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental inversion rate (per chromosome)")
+                   help="segmental inversion rate (per copy)")
     g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
                    help="segmental transposition rate — move a run within a chromosome "
-                        "(per chromosome)")
+                        "(per copy)")
     g.add_argument("--translocation", type=_rate, default=0.0, metavar="RATE",
                    help="segmental translocation rate — move a run to another chromosome (per copy)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
                    help="number of chromosomes at the crown (default 1)")
     g.add_argument("--topology", choices=("circular", "linear"), default="circular", metavar="TOPO",
-                   help="chromosome topology (default circular)")
+                   help="chromosome topology (default circular) — a segmental run wraps past the "
+                        "origin on a circular chromosome, stops at the end on a linear one")
     g.add_argument("--fission", type=_rate, default=0.0, metavar="RATE",
                    help="chromosome fission rate — split one in two (per chromosome)")
     g.add_argument("--fusion", type=_rate, default=0.0, metavar="RATE",
@@ -156,6 +161,36 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "events, profiles. ordered: events, profiles, gene_order [+ rearrangements, "
                         "chromosome_events, event_positions]. nucleotide: events, genes [+ blocks, "
                         "rearrangements, chromosome_events].")
+
+
+def _transfer_to(text: str):
+    """The argparse ``type`` for ``--transfer-to``: the recipient rule of a transfer.
+
+    ``uniform`` and ``distance`` are the two named rules; anything else is read as the written form
+    of a ``DrivenBy`` — ``--transfer-to "DrivenBy('trait_driver.tsv', {'competent': 2.0})"`` — the
+    **choice slot** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
+    rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
+    is the one you would write in Python and nothing is evaluated.
+    """
+    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.parse import parse_rate
+
+    if text in ("uniform", "distance"):
+        return text
+    value, detail = None, ""
+    try:
+        value = parse_rate(text)
+    except ValueError as e:
+        # only quote the parser when the text was meant as an expression; for a plain misspelt rule
+        # ("uniforn") its "unknown name" reading is noise, and the flag's own list is the answer
+        detail = f"\n{e}" if "(" in text else ""
+    if not isinstance(value, DrivenBy):
+        raise argparse.ArgumentTypeError(
+            f"--transfer-to takes 'uniform', 'distance', or a DrivenBy recipient weight written on "
+            f"its own — e.g. \"DrivenBy('trait_driver.tsv', {{'competent': 2.0}})\" — got {text!r}. "
+            f"The numbers there are weights over the candidate recipients, not a rate, so there is "
+            f"no base number in front of it.{detail}")
+    return value
 
 
 def _read_tip_fates(path: str) -> dict:
