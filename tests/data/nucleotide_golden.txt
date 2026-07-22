@@ -1,18 +1,18 @@
 ## content
 node 0 chrom 0 circular 0:0-34:1:1:0 0:34-134:1:1:1 0:134-167:1:1:0 0:167-267:1:1:2 0:267-300:1:1:0 0:300-400:1:1:3
-node 1 chrom 1 circular 0:0-34:1:2:0 0:34-134:1:2:1 0:134-155:1:2:0 0:2-30:1:4:0 0:155-167:1:2:0 0:167-267:1:2:2 0:267-283:1:2:0 1:0-48:1:5:4 0:283-299:1:2:0 0:299-300:1:2:0 0:300-400:1:2:3
-node 2 chrom 3 circular 0:0-34:1:7:0 0:34-134:1:7:1 0:134-155:1:7:0 0:2-30:1:9:0 0:155-167:1:7:0 0:167-267:1:7:2 0:267-283:1:7:0 1:0-48:1:11:4 0:283-299:1:7:0 0:299-300:1:7:0 0:300-400:1:7:3
-node 3 chrom 7 circular 0:0-34:1:17:0 0:34-134:1:17:1 0:134-155:1:17:0 0:2-30:1:19:0 0:155-167:1:17:0 0:167-267:1:17:2 0:267-283:1:17:0 1:0-48:1:21:4 0:283-299:1:17:0 0:299-300:1:17:0 0:300-400:1:17:3
-node 4 chrom 8 circular 0:0-34:1:18:0 0:34-134:1:18:1 0:134-155:1:18:0 0:2-22:1:20:0 0:22-28:1:20:0 0:22-28:1:24:0 0:28-30:1:20:0 0:155-167:1:18:0 0:167-267:1:18:2 0:267-283:1:18:0 1:0-48:1:22:4 0:283-299:1:18:0 0:299-300:1:18:0 0:300-400:1:18:3
-node 5 chrom 4 circular 0:0-26:1:8:0 2:0-28:1:23:5 0:26-34:1:8:0 0:34-134:1:8:1 0:134-155:1:8:0 0:2-30:1:10:0 0:155-167:1:8:0 0:167-267:1:8:2 0:267-283:1:8:0 1:0-48:1:12:4 0:283-299:1:8:0 0:299-300:1:8:0 0:300-400:1:8:3
-node 6 chrom 2 circular 0:0-2:1:3:0 0:2-28:1:3:0 0:299-300:1:6:0 0:28-30:1:3:0 0:30-34:1:3:0 0:34-134:1:3:1 0:134-167:1:3:0 0:167-267:1:3:2 0:267-300:1:3:0 0:300-400:1:3:3
-node 7 chrom 5 circular 0:0-2:1:13:0 0:2-28:1:13:0 0:299-300:1:15:0 0:28-30:1:13:0 0:30-34:1:13:0 0:34-134:1:13:1 0:134-167:1:13:0 0:167-267:1:13:2 0:267-300:1:13:0 0:300-400:1:13:3
-node 8 chrom 6 circular 0:0-2:1:14:0 0:2-28:1:14:0 0:299-300:1:16:0 0:28-30:1:14:0 0:30-34:1:14:0 0:34-134:1:14:1 0:134-167:1:14:0 0:167-267:1:14:2 0:267-300:1:14:0 0:300-400:1:14:3
+node 1 chrom 1 circular 0:300-400:1:2:3 0:0-23:1:2:0 0:23-34:1:2:0 0:34-134:1:2:1 0:134-155:1:2:0 0:2-30:1:4:0 0:155-167:1:2:0 0:167-267:1:2:2 0:267-283:1:2:0 1:0-48:1:5:4 0:283-300:1:2:0
+node 2 chrom 3 circular 0:300-400:1:7:3 0:0-23:1:7:0 0:23-34:1:7:0 0:34-134:1:7:1 0:134-155:1:7:0 0:2-30:1:9:0 0:155-167:1:7:0 0:167-267:1:7:2 0:267-283:1:7:0 1:0-48:1:11:4 0:283-300:1:7:0
+node 3 chrom 7 circular 0:300-400:1:17:3 0:0-23:1:17:0 0:23-34:1:17:0 0:34-134:1:17:1 0:134-155:1:17:0 0:2-30:1:19:0 0:155-167:1:17:0 0:167-267:1:17:2 0:267-283:1:17:0 1:0-48:1:21:4 0:283-300:1:17:0
+node 4 chrom 8 circular 0:300-400:1:18:3 0:0-23:1:18:0 0:23-34:1:18:0 0:34-134:1:18:1 0:134-155:1:18:0 0:2-23:1:20:0 0:23-27:1:20:0 0:23-27:1:24:0 0:27-30:1:20:0 0:155-167:1:18:0 0:167-267:1:18:2 0:267-283:1:18:0 1:0-48:1:22:4 0:283-300:1:18:0
+node 5 chrom 4 circular 0:300-400:1:8:3 0:0-23:1:8:0 0:23-25:1:8:0 2:0-28:1:23:5 0:25-34:1:8:0 0:34-134:1:8:1 0:134-155:1:8:0 0:2-30:1:10:0 0:155-167:1:8:0 0:167-267:1:8:2 0:267-283:1:8:0 1:0-48:1:12:4 0:283-300:1:8:0
+node 6 chrom 2 circular 0:0-2:1:3:0 0:2-28:1:3:0 0:300-400:1:6:3 0:0-23:1:6:0 0:28-30:1:3:0 0:30-34:1:3:0 0:34-134:1:3:1 0:134-167:1:3:0 0:167-267:1:3:2 0:267-300:1:3:0 0:300-400:1:3:3
+node 7 chrom 5 circular 0:0-2:1:13:0 0:2-28:1:13:0 0:300-400:1:15:3 0:0-23:1:15:0 0:28-30:1:13:0 0:30-34:1:13:0 0:34-134:1:13:1 0:134-167:1:13:0 0:167-267:1:13:2 0:267-300:1:13:0 0:300-400:1:13:3
+node 8 chrom 6 circular 0:0-2:1:14:0 0:2-28:1:14:0 0:300-400:1:16:3 0:0-23:1:16:0 0:28-30:1:14:0 0:30-34:1:14:0 0:34-134:1:14:1 0:134-167:1:14:0 0:167-267:1:14:2 0:267-300:1:14:0 0:300-400:1:14:3
 event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=400)
 event Speciation(time=0.0, lineage=0, parent=1, children=(2, 3))
 event Transfer(time=0.12234250178234318, lineage=6, recipient=1, transferred=((3, 4, 0, 2, 30),))
 event Origination(time=0.1652275367697883, lineage=1, chromosome=1, copy=5, source=1, start=0, end=48)
-event Transfer(time=0.24387741231728, lineage=1, recipient=6, transferred=((2, 6, 0, 299, 300),))
+event Transfer(time=0.24387741231728, lineage=1, recipient=6, transferred=((2, 6, 0, 300, 400), (2, 6, 0, 0, 23)))
 event Speciation(time=0.3, lineage=1, parent=2, children=(7, 8))
 event Speciation(time=0.3, lineage=1, parent=4, children=(9, 10))
 event Speciation(time=0.3, lineage=1, parent=5, children=(11, 12))
@@ -22,7 +22,7 @@ event Speciation(time=0.6, lineage=2, parent=7, children=(17, 18))
 event Speciation(time=0.6, lineage=2, parent=9, children=(19, 20))
 event Speciation(time=0.6, lineage=2, parent=11, children=(21, 22))
 event Origination(time=0.757936677116111, lineage=5, chromosome=4, copy=23, source=2, start=0, end=28)
-event Duplication(time=0.8163654159390056, lineage=4, chromosome=8, copied=((20, 24, 0, 22, 28),))
+event Duplication(time=0.8163654159390056, lineage=4, chromosome=8, copied=((20, 24, 0, 23, 27),))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(0,))
 chromosome_event ChromosomeEvent(time=0.0, kind='speciation', lineage=0, parents=(0,), children=(1, 2))
 chromosome_event ChromosomeEvent(time=0.3, kind='speciation', lineage=1, parents=(1,), children=(3, 4))
@@ -44,18 +44,18 @@ node 3 chrom 25 circular 2:0-1:1:26:0 2:36-50:1:26:0 2:50-150:1:26:5 2:150-199:1
 node 4 chrom 22 circular 0:0-50:1:23:0 0:50-150:1:23:1 0:150-200:1:23:0 0:200-300:1:23:2
 node 4 chrom 24 circular 1:0-50:1:25:0 1:50-150:1:25:3 1:150-153:1:25:0 1:153-162:-1:25:0 1:162-200:1:25:0 1:200-300:1:25:4
 node 4 chrom 26 circular 2:0-1:1:27:0 2:36-50:1:27:0 2:50-150:1:27:5 2:150-199:1:27:0 2:1-36:1:27:0 2:199-200:1:27:0 2:200-300:1:27:6
-node 5 chrom 10 circular 0:0-16:1:11:0 1:12-17:-1:13:0 0:16-25:1:11:0 2:36-48:-1:15:0 0:25-50:1:11:0 0:50-150:1:11:1 0:150-180:1:11:0 0:180-181:-1:11:0 0:181-189:1:11:0 2:32-36:1:15:0 0:189-200:1:11:0 0:200-300:1:11:2
-node 5 chrom 12 circular 1:0-12:1:13:0 1:17-50:1:13:0 1:50-150:1:13:3 1:150-153:1:13:0 1:153-162:-1:13:0 1:162-200:1:13:0 1:200-300:1:13:4
-node 5 chrom 14 circular 2:0-1:1:15:0 2:48-50:1:15:0 2:50-150:1:15:5 2:150-164:1:15:0 2:31-32:-1:15:0 2:164-199:1:15:0 2:1-31:1:15:0 2:199-200:1:15:0 2:200-300:1:15:6
-node 6 chrom 4 circular 0:0-8:1:5:0 0:45-50:1:5:0 0:50-150:1:5:1 0:150-200:1:5:0 0:200-300:1:5:2
+node 5 chrom 10 circular 0:0-16:1:11:0 1:13-18:-1:13:0 0:16-25:1:11:0 2:36-47:-1:15:0 0:25-50:1:11:0 0:50-150:1:11:1 0:150-182:1:11:0 0:182-183:-1:11:0 0:183-189:1:11:0 2:33-36:1:15:0 2:199-200:1:15:0 0:189-200:1:11:0 0:200-300:1:11:2
+node 5 chrom 12 circular 1:0-13:1:13:0 1:18-50:1:13:0 1:50-150:1:13:3 1:150-153:1:13:0 1:153-162:-1:13:0 1:162-200:1:13:0 1:200-300:1:13:4
+node 5 chrom 14 circular 2:0-1:1:15:0 2:47-50:1:15:0 2:50-150:1:15:5 2:150-163:1:15:0 2:32-33:-1:15:0 2:163-199:1:15:0 2:1-32:1:15:0 2:200-300:1:15:6
+node 6 chrom 4 circular 0:0-8:1:5:0 0:44-50:1:5:0 0:50-150:1:5:1 0:150-200:1:5:0 0:200-300:1:5:2
 node 6 chrom 6 circular 1:0-50:1:7:0 1:50-150:1:7:3 1:150-200:1:7:0 1:200-300:1:7:4
-node 6 chrom 8 circular 2:0-13:1:9:0 0:8-45:-1:5:0 2:13-50:1:9:0 2:50-150:1:9:5 2:150-200:1:9:0 2:200-300:1:9:6
-node 7 chrom 15 circular 0:0-8:1:16:0 0:45-50:1:16:0 0:50-150:1:16:1 0:150-200:1:16:0 0:200-300:1:16:2
-node 7 chrom 17 circular 1:0-22:-1:18:0 1:200-300:-1:18:4 1:186-200:-1:18:0 1:22-50:1:18:0 1:50-150:1:18:3 1:150-186:1:18:0
-node 7 chrom 19 circular 2:0-13:1:20:0 0:8-45:-1:16:0 2:13-50:1:20:0 2:50-150:1:20:5 2:150-200:1:20:0 2:200-300:1:20:6
-node 8 chrom 16 circular 0:0-8:1:17:0 0:45-50:1:17:0 0:50-150:1:17:1 0:150-200:1:17:0 0:200-300:1:17:2
+node 6 chrom 8 circular 2:0-13:1:9:0 0:8-44:-1:5:0 2:13-50:1:9:0 2:50-150:1:9:5 2:150-200:1:9:0 2:200-300:1:9:6
+node 7 chrom 15 circular 0:0-8:1:16:0 0:44-50:1:16:0 0:50-150:1:16:1 0:150-200:1:16:0 0:200-300:1:16:2
+node 7 chrom 17 circular 1:0-22:-1:18:0 1:200-300:-1:18:4 1:185-200:-1:18:0 1:22-50:1:18:0 1:50-150:1:18:3 1:150-185:1:18:0
+node 7 chrom 19 circular 2:0-13:1:20:0 0:8-44:-1:16:0 2:13-50:1:20:0 2:50-150:1:20:5 2:150-200:1:20:0 2:200-300:1:20:6
+node 8 chrom 16 circular 0:0-8:1:17:0 0:44-50:1:17:0 0:50-150:1:17:1 0:150-200:1:17:0 0:200-300:1:17:2
 node 8 chrom 18 circular 1:0-50:1:19:0 1:50-150:1:19:3 1:150-200:1:19:0 1:200-300:1:19:4
-node 8 chrom 20 circular 2:0-13:1:21:0 0:8-45:-1:17:0 2:13-50:1:21:0 2:50-150:1:21:5 2:150-200:1:21:0 2:200-300:1:21:6
+node 8 chrom 20 circular 2:0-13:1:21:0 0:8-44:-1:17:0 2:13-50:1:21:0 2:50-150:1:21:5 2:150-200:1:21:0 2:200-300:1:21:6
 event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=300)
 event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=300)
 event Origination(time=0.0, lineage=0, chromosome=2, copy=3, source=2, start=0, end=300)
@@ -71,16 +71,16 @@ event Speciation(time=0.5, lineage=6, parent=9, children=(20, 21))
 event Speciation(time=0.6, lineage=2, parent=10, children=(22, 23))
 event Speciation(time=0.6, lineage=2, parent=12, children=(24, 25))
 event Speciation(time=0.6, lineage=2, parent=14, children=(26, 27))
-rearrangement Translocation(time=0.14165973890587105, lineage=6, source=4, dest=8, start=8, length=37, flipped=True)
+rearrangement Translocation(time=0.14165973890587105, lineage=6, source=4, dest=8, start=8, length=36, flipped=True)
 rearrangement Inversion(time=0.21848256779511216, lineage=1, chromosome=5, start=153, length=9)
 rearrangement Transposition(time=0.25258327660507496, lineage=1, chromosome=7, start=1, length=35, dest=164, flipped=False)
-rearrangement Translocation(time=0.3974687383587202, lineage=5, source=14, dest=10, start=195, length=4, flipped=False)
-rearrangement Translocation(time=0.40403159520636067, lineage=5, source=14, dest=10, start=1, length=12, flipped=True)
-rearrangement Transposition(time=0.5304029729743052, lineage=5, chromosome=14, start=182, length=1, dest=117, flipped=True)
+rearrangement Translocation(time=0.3974687383587202, lineage=5, source=14, dest=10, start=196, length=4, flipped=False)
+rearrangement Translocation(time=0.40403159520636067, lineage=5, source=14, dest=10, start=1, length=11, flipped=True)
+rearrangement Transposition(time=0.5304029729743052, lineage=5, chromosome=14, start=184, length=1, dest=117, flipped=True)
 rearrangement Transposition(time=0.6875435634982472, lineage=3, chromosome=23, start=1, length=5, dest=8, flipped=False)
-rearrangement Inversion(time=0.7156665587744324, lineage=7, chromosome=17, start=186, length=136)
-rearrangement Inversion(time=0.7745545764547098, lineage=5, chromosome=10, start=192, length=1)
-rearrangement Translocation(time=0.8660080052926502, lineage=5, source=12, dest=10, start=12, length=5, flipped=True)
+rearrangement Inversion(time=0.7156665587744324, lineage=7, chromosome=17, start=185, length=137)
+rearrangement Inversion(time=0.7745545764547098, lineage=5, chromosome=10, start=193, length=1)
+rearrangement Translocation(time=0.8660080052926502, lineage=5, source=12, dest=10, start=13, length=5, flipped=True)
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(0,))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(1,))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(2,))
@@ -150,33 +150,33 @@ node 0 chrom 2 circular 2:0-34:1:3:0 2:34-134:1:3:7 2:134-167:1:3:0 2:167-267:1:
 node 1 chrom 3 circular 0:0-34:1:4:0 0:34-134:1:4:1 0:134-167:1:4:0 0:167-267:1:4:2 0:267-300:1:4:0 0:300-400:1:4:3
 node 1 chrom 5 circular 1:0-34:1:6:0 1:34-134:1:6:4 1:134-167:1:6:0 1:167-267:1:6:5 1:267-300:1:6:0 1:300-400:1:6:6
 node 1 chrom 7 circular 2:0-34:1:8:0 2:34-134:1:8:7 2:134-167:1:8:0 2:167-267:1:8:8 2:267-300:1:8:0 2:300-400:1:8:9
-node 2 chrom 11 circular 0:0-15:1:10:0 0:4-14:1:23:0 0:15-34:1:10:0 0:34-134:1:10:1 0:134-167:1:10:0 0:167-267:1:10:2 0:267-292:1:10:0 0:292-294:1:10:0 0:292-294:1:16:0 0:294-300:1:10:0 0:300-400:1:10:3
+node 2 chrom 11 circular 0:0-15:1:10:0 0:4-34:1:23:0 0:15-34:1:10:0 0:34-134:1:10:1 0:134-167:1:10:0 0:167-267:1:10:2 0:267-293:1:10:0 0:293-295:1:10:0 0:293-295:1:16:0 0:295-300:1:10:0 0:300-400:1:10:3
 node 2 chrom 13 circular 1:0-34:1:12:0 1:34-134:1:12:4 1:134-167:1:12:0 1:167-267:1:12:5 1:267-300:1:12:0 1:300-400:1:12:6
 node 2 chrom 15 circular 2:0-34:1:14:0 2:34-134:1:14:7 2:134-136:1:14:0 2:149-167:1:14:0 2:167-267:1:14:8 2:267-286:1:14:0 2:136-149:1:14:0 2:286-300:1:14:0 2:300-400:1:14:9
-node 3 chrom 25 circular 0:0-1:1:26:0 0:10-14:1:34:0 0:15-34:1:26:0 0:34-134:1:26:1 0:134-167:1:26:0 0:167-267:1:26:2 0:267-292:1:26:0 0:292-294:1:26:0 0:292-294:1:32:0 0:294-300:1:26:0 0:1-15:1:26:0 0:4-10:1:34:0 0:300-400:1:26:3
+node 3 chrom 25 circular 0:0-1:1:26:0 0:21-34:1:34:0 0:15-34:1:26:0 0:34-134:1:26:1 0:134-167:1:26:0 0:167-267:1:26:2 0:267-293:1:26:0 0:293-295:1:26:0 0:293-295:1:32:0 0:295-300:1:26:0 0:1-15:1:26:0 0:4-21:1:34:0 0:300-400:1:26:3
 node 3 chrom 27 circular 1:0-34:1:28:0 1:34-134:1:28:4 1:134-167:1:28:0 1:167-267:1:28:5 1:267-300:1:28:0 1:300-400:1:28:6
-node 3 chrom 29 circular 2:0-22:1:30:0 0:163-166:1:36:0 2:22-34:1:30:0 2:34-134:1:30:7 2:134-136:1:30:0 2:149-167:1:30:0 2:167-267:1:30:8 2:267-286:1:30:0 2:136-149:1:30:0 2:286-300:1:30:0 2:300-400:1:30:9
-node 4 chrom 26 circular 0:0-15:1:27:0 0:4-14:1:35:0 0:15-34:1:27:0 0:34-134:1:27:1 0:134-167:1:27:0 0:167-267:1:27:2 0:267-292:1:27:0 0:292-294:1:27:0 0:292-294:1:33:0 0:294-300:1:27:0 0:300-400:1:27:3
-node 4 chrom 28 circular 1:0-4:1:29:0 1:4-28:1:29:0 1:28-34:1:29:0 1:34-134:1:29:4 1:134-166:1:29:0 5:0-47:1:40:12 1:166-167:1:29:0 1:167-267:1:29:5 1:267-277:1:29:0 2:293-297:1:37:0 2:297-300:1:37:0 2:300-400:1:37:9 2:0-8:1:37:0 2:13-15:1:31:0 1:277-300:1:29:0 1:300-400:1:29:6
-node 4 chrom 30 circular 2:0-13:1:31:0 2:15-34:1:31:0 2:34-134:1:31:7 2:134-136:1:31:0 2:149-167:1:31:0 2:167-267:1:31:8 2:267-286:1:31:0 2:136-149:1:31:0 2:286-300:1:31:0 2:300-400:1:31:9
+node 3 chrom 29 circular 2:0-22:1:30:0 0:165-167:1:36:0 0:167-267:1:36:2 0:267-274:1:36:0 2:22-34:1:30:0 2:34-134:1:30:7 2:134-136:1:30:0 2:149-167:1:30:0 2:167-267:1:30:8 2:267-286:1:30:0 2:136-149:1:30:0 2:286-300:1:30:0 2:300-400:1:30:9
+node 4 chrom 26 circular 0:0-15:1:27:0 0:4-34:1:35:0 0:15-34:1:27:0 0:34-134:1:27:1 0:134-167:1:27:0 0:167-267:1:27:2 0:267-293:1:27:0 0:293-295:1:27:0 0:293-294:1:33:0 0:294-295:1:33:0 0:295-300:1:27:0 0:300-400:1:27:3
+node 4 chrom 28 circular 1:0-34:1:29:0 1:34-134:1:29:4 1:134-166:1:29:0 5:0-47:1:40:12 1:166-167:1:29:0 1:167-267:1:29:5 1:267-277:1:29:0 2:294-297:1:37:0 2:297-300:1:37:0 2:300-400:1:37:9 2:0-8:1:37:0 1:277-278:1:29:0 2:8-10:1:31:0 1:278-300:1:29:0 1:300-400:1:29:6
+node 4 chrom 30 circular 2:0-8:1:31:0 2:10-34:1:31:0 2:34-134:1:31:7 2:134-136:1:31:0 2:149-167:1:31:0 2:167-267:1:31:8 2:267-286:1:31:0 2:136-149:1:31:0 2:286-300:1:31:0 2:300-400:1:31:9
 node 5 chrom 34 circular 2:8-34:1:15:0 2:34-134:1:15:7 2:134-155:1:15:0
-node 5 chrom 35 circular 2:0-8:1:15:0 2:155-163:1:15:0 2:164-167:1:15:0 2:167-267:1:15:8 2:267-300:1:15:0 2:300-400:1:15:9
-node 5 chrom 38 circular 1:140-162:1:13:0 1:287-300:1:13:0 1:300-400:1:13:6 0:0-4:1:11:0 2:163-164:1:15:0 0:4-14:1:11:0 0:14-15:1:11:0
-node 5 chrom 39 circular 1:162-167:1:13:0 1:167-267:1:13:5 1:267-287:1:13:0 0:19-23:1:11:0 1:134-140:1:13:0 0:15-19:1:11:0
-node 5 chrom 33 circular 1:0-34:1:13:0 1:34-134:1:13:4 0:23-34:1:11:0 0:34-134:1:11:1 0:134-163:1:11:0 0:163-166:1:11:0 0:166-167:1:11:0 0:167-267:1:11:2 0:267-276:1:11:0 0:296-300:1:11:0 0:300-400:1:11:3
-node 6 chrom 9 circular 0:15-32:1:5:0 0:4-15:1:5:0 0:149-167:1:5:0 0:167-267:1:5:2 0:267-284:1:5:0 0:32-34:1:5:0 0:34-134:1:5:1 0:134-149:1:5:0
-node 6 chrom 10 circular 0:0-4:1:5:0 0:284-300:1:5:0 0:300-400:1:5:3
+node 5 chrom 35 circular 2:0-8:1:15:0 2:155-165:1:15:0 2:167-267:1:15:8 2:267-300:1:15:0 2:300-400:1:15:9
+node 5 chrom 38 circular 1:141-161:1:13:0 1:287-300:1:13:0 1:300-400:1:13:6 0:0-4:1:11:0 0:4-6:1:11:0 2:165-167:1:15:0 0:6-17:1:11:0
+node 5 chrom 39 circular 1:161-167:1:13:0 1:167-267:1:13:5 1:267-287:1:13:0 0:21-24:1:11:0 1:134-141:1:13:0 0:17-21:1:11:0
+node 5 chrom 33 circular 1:0-34:1:13:0 1:34-134:1:13:4 0:24-34:1:11:0 0:34-134:1:11:1 0:134-165:1:11:0 0:165-167:1:11:0 0:167-267:1:11:2 0:267-274:1:11:0 0:274-277:1:11:0 0:296-300:1:11:0 0:300-400:1:11:3
+node 6 chrom 9 circular 0:15-32:1:5:0 0:5-15:1:5:0 0:149-167:1:5:0 0:167-267:1:5:2 0:267-283:1:5:0 0:32-34:1:5:0 0:34-134:1:5:1 0:134-149:1:5:0
+node 6 chrom 10 circular 0:0-5:1:5:0 0:283-300:1:5:0 0:300-400:1:5:3
 node 6 chrom 6 circular 1:0-34:1:7:0 1:34-134:1:7:4 1:134-167:1:7:0 1:167-267:1:7:5 1:267-300:1:7:0 1:300-400:1:7:6
 node 6 chrom 8 circular 2:0-34:1:9:0 2:34-134:1:9:7 2:134-167:1:9:0 2:167-267:1:9:8 2:267-300:1:9:0 2:300-400:1:9:9
-node 7 chrom 17 circular 0:15-32:1:17:0 0:4-15:1:17:0 0:149-165:1:17:0 0:165-167:1:17:0 0:167-267:1:17:2 0:267-284:1:17:0 0:32-34:1:17:0 0:34-134:1:17:1 0:134-148:1:17:0 0:148-149:1:17:0
-node 7 chrom 19 circular 0:0-4:1:17:0 0:284-293:1:17:0 3:0-42:1:25:10 0:293-300:1:17:0 0:300-400:1:17:3
+node 7 chrom 17 circular 0:15-32:1:17:0 0:5-15:1:17:0 0:149-165:1:17:0 0:165-167:1:17:0 0:167-267:1:17:2 0:267-283:1:17:0 0:32-34:1:17:0 0:34-134:1:17:1 0:134-148:1:17:0 0:148-149:1:17:0
+node 7 chrom 19 circular 0:0-5:1:17:0 0:283-292:1:17:0 3:0-42:1:25:10 0:292-300:1:17:0 0:300-400:1:17:3
 node 7 chrom 36 circular 1:148-167:1:19:0 1:167-267:1:19:5 1:267-276:1:19:0 4:0-6:1:39:11 1:276-293:1:19:0
 node 7 chrom 37 circular 1:0-34:1:19:0 1:34-134:1:19:4 1:134-148:1:19:0 1:293-300:1:19:0 1:300-400:1:19:6
-node 7 chrom 23 circular 2:293-297:1:21:0 2:297-300:1:21:0 2:300-400:1:21:9 2:0-8:1:21:0 2:8-34:1:21:0 2:34-134:1:21:7 2:134-167:1:21:0 2:167-267:1:21:8 2:267-270:1:21:0 2:270-271:1:21:0 2:270-271:1:24:0 2:271-287:1:21:0 2:287-293:1:21:0
-node 8 chrom 18 circular 0:15-32:1:18:0 0:4-15:1:18:0 0:149-153:1:18:0 0:156-157:-1:18:0 2:32-33:-1:22:0 0:153-156:-1:18:0 0:157-167:1:18:0 0:167-267:1:18:2 0:267-284:1:18:0 0:32-34:1:18:0 0:34-134:1:18:1 0:134-149:1:18:0
-node 8 chrom 20 circular 0:0-4:1:18:0 0:284-300:1:18:0 0:300-400:1:18:3
-node 8 chrom 22 circular 1:0-22:1:20:0 1:4-28:1:38:0 1:22-34:1:20:0 1:34-134:1:20:4 1:134-167:1:20:0 1:167-267:1:20:5 1:267-300:1:20:0 1:300-400:1:20:6
-node 8 chrom 24 circular 2:0-32:1:22:0 2:33-34:1:22:0 2:34-134:1:22:7 2:134-167:1:22:0 2:167-267:1:22:8 2:267-300:1:22:0 2:300-400:1:22:9
+node 7 chrom 23 circular 2:294-297:1:21:0 2:297-300:1:21:0 2:300-400:1:21:9 2:0-8:1:21:0 2:8-34:1:21:0 2:34-134:1:21:7 2:134-167:1:21:0 2:167-267:1:21:8 2:267-270:1:21:0 2:270-271:1:21:0 2:270-271:1:24:0 2:271-287:1:21:0 2:287-294:1:21:0
+node 8 chrom 18 circular 0:15-32:1:18:0 0:5-15:1:18:0 0:149-155:1:18:0 0:156-157:-1:18:0 2:33-34:-1:22:0 0:155-156:-1:18:0 0:157-167:1:18:0 0:167-267:1:18:2 0:267-283:1:18:0 0:32-34:1:18:0 0:34-134:1:18:1 0:134-149:1:18:0
+node 8 chrom 20 circular 0:0-5:1:18:0 0:283-300:1:18:0 0:300-400:1:18:3
+node 8 chrom 22 circular 1:0-22:1:20:0 0:293-294:1:38:0 1:22-34:1:20:0 1:34-134:1:20:4 1:134-167:1:20:0 1:167-267:1:20:5 1:267-300:1:20:0 1:300-400:1:20:6
+node 8 chrom 24 circular 2:0-33:1:22:0 2:34-134:1:22:7 2:134-167:1:22:0 2:167-267:1:22:8 2:267-300:1:22:0 2:300-400:1:22:9
 event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=400)
 event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=400)
 event Origination(time=0.0, lineage=0, chromosome=2, copy=3, source=2, start=0, end=400)
@@ -186,11 +186,11 @@ event Speciation(time=0.0, lineage=0, parent=3, children=(8, 9))
 event Speciation(time=0.3, lineage=1, parent=4, children=(10, 11))
 event Speciation(time=0.3, lineage=1, parent=6, children=(12, 13))
 event Speciation(time=0.3, lineage=1, parent=8, children=(14, 15))
-event Duplication(time=0.4064637481226111, lineage=2, chromosome=11, copied=((10, 16, 0, 292, 294),))
+event Duplication(time=0.4064637481226111, lineage=2, chromosome=11, copied=((10, 16, 0, 293, 295),))
 event Speciation(time=0.5, lineage=6, parent=5, children=(17, 18))
 event Speciation(time=0.5, lineage=6, parent=7, children=(19, 20))
 event Speciation(time=0.5, lineage=6, parent=9, children=(21, 22))
-event Transfer(time=0.5444817110224467, lineage=5, recipient=2, transferred=((11, 23, 0, 4, 14),))
+event Transfer(time=0.5444817110224467, lineage=5, recipient=2, transferred=((11, 23, 0, 4, 34),))
 event Duplication(time=0.5852141966863237, lineage=7, chromosome=23, copied=((21, 24, 2, 270, 271),))
 event Origination(time=0.5962455918603662, lineage=7, chromosome=19, copy=25, source=3, start=0, end=42)
 event Speciation(time=0.6, lineage=2, parent=10, children=(26, 27))
@@ -198,20 +198,20 @@ event Speciation(time=0.6, lineage=2, parent=12, children=(28, 29))
 event Speciation(time=0.6, lineage=2, parent=14, children=(30, 31))
 event Speciation(time=0.6, lineage=2, parent=16, children=(32, 33))
 event Speciation(time=0.6, lineage=2, parent=23, children=(34, 35))
-event Loss(time=0.6601913789512902, lineage=5, chromosome=31, lost=((11, 0, 276, 296),))
-event Transfer(time=0.6647253936248804, lineage=5, recipient=3, transferred=((11, 36, 0, 163, 166),))
-event Transfer(time=0.673113195797262, lineage=7, recipient=4, transferred=((21, 37, 2, 293, 297), (21, 37, 2, 297, 300), (21, 37, 2, 300, 400), (21, 37, 2, 0, 8)))
-event Transfer(time=0.876225812006874, lineage=4, recipient=8, transferred=((29, 38, 1, 4, 28),))
+event Loss(time=0.6601913789512902, lineage=5, chromosome=31, lost=((11, 0, 277, 296),))
+event Transfer(time=0.6647253936248804, lineage=5, recipient=3, transferred=((11, 36, 0, 165, 167), (11, 36, 0, 167, 267), (11, 36, 0, 267, 274)))
+event Transfer(time=0.673113195797262, lineage=7, recipient=4, transferred=((21, 37, 2, 294, 297), (21, 37, 2, 297, 300), (21, 37, 2, 300, 400), (21, 37, 2, 0, 8)))
+event Transfer(time=0.876225812006874, lineage=4, recipient=8, transferred=((33, 38, 0, 293, 294),))
 event Origination(time=0.9562215413450066, lineage=7, chromosome=36, copy=39, source=4, start=0, end=6)
 event Origination(time=0.9617049840070522, lineage=4, chromosome=28, copy=40, source=5, start=0, end=47)
-rearrangement Translocation(time=0.28840653344520356, lineage=6, source=10, dest=9, start=4, length=146, flipped=False)
+rearrangement Translocation(time=0.28840653344520356, lineage=6, source=10, dest=9, start=5, length=144, flipped=False)
 rearrangement Transposition(time=0.3459828145198848, lineage=2, chromosome=15, start=136, length=13, dest=273, flipped=False)
-rearrangement Transposition(time=0.600085951036579, lineage=3, chromosome=25, start=1, length=20, dest=292, flipped=False)
-rearrangement Translocation(time=0.6257958084268554, lineage=8, source=24, dest=18, start=32, length=1, flipped=False)
-rearrangement Inversion(time=0.7660664024680051, lineage=8, chromosome=18, start=32, length=5)
-rearrangement Transposition(time=0.8596522929555408, lineage=5, chromosome=32, start=285, length=32, dest=125, flipped=False)
-rearrangement Translocation(time=0.9300840913355015, lineage=5, source=35, dest=32, start=16, length=1, flipped=False)
-rearrangement Translocation(time=0.9943632797318008, lineage=4, source=30, dest=28, start=13, length=2, flipped=False)
+rearrangement Transposition(time=0.600085951036579, lineage=3, chromosome=25, start=1, length=31, dest=301, flipped=False)
+rearrangement Translocation(time=0.6257958084268554, lineage=8, source=24, dest=18, start=33, length=1, flipped=False)
+rearrangement Inversion(time=0.7660664024680051, lineage=8, chromosome=18, start=33, length=3)
+rearrangement Transposition(time=0.8596522929555408, lineage=5, chromosome=32, start=287, length=30, dest=126, flipped=False)
+rearrangement Translocation(time=0.9300840913355015, lineage=5, source=35, dest=32, start=18, length=2, flipped=False)
+rearrangement Translocation(time=0.9943632797318008, lineage=4, source=30, dest=28, start=8, length=2, flipped=False)
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(0,))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(1,))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(2,))

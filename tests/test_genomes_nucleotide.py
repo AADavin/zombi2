@@ -1388,7 +1388,7 @@ def test_two_chromosomes_with_the_whole_event_set():
         transposition=2.0, transposition_length=300, fission=2.0, fusion=2.0,
         chromosome_origination=1.0, chromosome_loss=0.25,
         loss=3.0, loss_length=250, duplication=3.0, duplication_length=250,
-        transfer=2.0, transfer_length=250, seed=6, **_TWO)
+        transfer=2.0, transfer_length=250, seed=1, **_TWO)
 
     kinds = collections.Counter(e.kind for e in r.chromosome_events)
     assert {"fission", "fusion", "origination", "loss", "speciation"} <= set(kinds)
@@ -1545,28 +1545,45 @@ def test_a_single_leaf_tree():
     _invariants_hold(r)
 
 
-def test_a_fully_genic_genome_cannot_rearrange(tmp_path):
-    """A genome with **no intergenic base at all** is frozen for sequence-level events.
+def test_a_fully_genic_genome_rearranges_at_its_gene_boundaries(tmp_path):
+    """A genome with **no intergenic base at all** still evolves. Every breakpoint falls on a boundary
+    between two genes, so genes are inverted, moved, duplicated and lost **whole** and none is split.
 
-    Events nucleate in the spacer (`_pick_intergenic_position`), so with zero spacer there is nowhere
-    to start and every arc event is a no-op — the genome cannot invert, lose, duplicate or transfer
-    anything, however high the rates. Only the chromosome tier, which needs no breakpoint, still runs.
-
-    This is a consequence of the model, not a crash, and it is pinned here so that any future change
-    to where events may nucleate shows up as a failure of this test rather than a silent shift."""
+    This test used to assert the opposite — that such a genome was frozen — because the sampling was
+    stricter than the rule it implements. The rule is that a cut may not fall *strictly inside* a gene;
+    a gene's own edge has always been legal, and the code that *lands* an arc always knew it. The code
+    that *chose* one said "in the spacer" instead, so with no spacer every event was a silent no-op,
+    whatever the rates. Both now read the one legal cut set."""
     path = tmp_path / "allgenic.gff"
     path.write_text("##gff-version 3\n##sequence-region c 1 600\n" +
                     "".join(f"c\t.\tgene\t{1 + 100 * i}\t{100 * (i + 1)}\t.\t+\t.\tID=g{i}\n"
                             for i in range(6)))
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     r = simulate_genomes_nucleotide(sp, gff=path, **_HOT, seed=1)
-    # no arc can nucleate, so nothing is rearranged, lost, duplicated or donated...
-    assert not r.rearrangements
-    assert not [e for e in r.events
-                if isinstance(e, (Loss, Duplication, Transfer))]
-    # ...though material can still be *added*, because a gene's own edge is a legal insertion point
-    assert all(g.length >= 600 for g in r.genomes.values())
+    assert r.rearrangements
+    assert [e for e in r.events if isinstance(e, (Loss, Duplication, Transfer))]
+    # every breakpoint is a gene boundary, so every block is exactly one declared gene and nothing
+    # was ever cut. (Genome lengths are not multiples of 100: origination mints de-novo genes of its
+    # own geometric length, and those are whole genes too.)
+    spans = set(r.gene_spans.values())
+    for g in r.genomes.values():
+        for c in g.chromosomes:
+            for b in c.blocks:
+                assert b.is_gene and (b.source, b.start, b.end) in spans
     _invariants_hold(r)
+
+
+def test_a_genome_packed_with_genes_needs_no_gap_between_them():
+    """`genes=` used to demand room for intergenes, so ten 100 bp genes in 1000 bp was refused. There
+    is no such requirement: genes may sit flush, and the run then breaks at the joins between them."""
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1)
+    r = simulate_genomes_nucleotide(sp, root_length=1000, genes=10, gene_length=100, inversion=8.0,
+                                    inversion_length=200, duplication=8.0, loss=8.0, seed=1)
+    assert not [b for c in r.initial_genome.chromosomes for b in c.blocks if not b.is_gene]
+    assert r.rearrangements and [e for e in r.events if isinstance(e, Duplication)]
+    assert all(g.length % 100 == 0 for g in r.genomes.values())
+    with pytest.raises(ValueError, match="do not fit"):        # 11 x 100 genuinely does not fit
+        simulate_genomes_nucleotide(sp, root_length=1000, genes=11, gene_length=100, seed=1)
 
 
 def test_legal_cuts_include_gene_edges_and_empty_replicons():
