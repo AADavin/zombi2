@@ -1749,3 +1749,33 @@ def test_both_resolutions_write_the_same_chromosome_network_format(tmp_path):
     nt_cols, _ = _read(tmp_path / "nt" / "chromosome_events.tsv")
     ord_cols, _ = _read(tmp_path / "ord" / "chromosome_events.tsv")
     assert nt_cols == ord_cols == ["time", "kind", "lineage", "parents", "children"]
+
+
+def test_block_trees_cover_the_whole_genome_and_agree_with_the_gene_trees(tmp_path):
+    # a block never splits, so its genealogy is in the log exactly as a gene's is: the same recovery
+    # pointed at every block reconstructs the spacer too, which is what makes a whole ancestral
+    # genome recoverable rather than a few declared loci.
+    import re
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1)
+    gff = tmp_path / "mini.gff"
+    gff.write_text("##gff-version 3\n##sequence-region c 1 3000\n"
+                   "c\tt\tgene\t1\t300\t.\t+\t.\tID=a\n"
+                   "c\tt\tgene\t601\t900\t.\t+\t.\tID=b\n"
+                   "c\tt\tgene\t1201\t1500\t.\t-\t.\tID=c\n")
+    g = simulate_genomes_nucleotide(sp, gff=gff, duplication=0.2, loss=0.2, inversion=0.3, seed=1)
+
+    assert len(g.block_trees) == len(g.root_blocks)          # every block, not just the genes
+    assert len(g.gene_trees) < len(g.block_trees)            # the spacer is the difference
+
+    # a declared gene recovers the same genealogy either way. The g<id> labels differ — segment ids
+    # are handed out as the recovery walks its targets — so compare the shape, which is the claim.
+    shape = lambda nwk: re.sub(r"g\d+", "g", nwk)            # noqa: E731
+    span_to_gene = {span: fam for fam, span in g.gene_spans.items()}
+    checked = 0
+    for i, interval in enumerate(g.root_blocks):
+        if interval in span_to_gene:
+            a = g.block_trees[i].to_newick("complete")
+            b = g.gene_trees[span_to_gene[interval]].to_newick("complete")
+            assert shape(a) == shape(b)
+            checked += 1
+    assert checked == len(g.gene_trees)
