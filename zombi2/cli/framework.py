@@ -150,6 +150,26 @@ def _add_params_arg(g) -> None:
                         "whole pipeline. Required I/O paths (-o / -t) stay on the command line.")
 
 
+def _add_flat_arg(g) -> None:
+    """Add ``--flat`` (write everything into one directory) to a subcommand's ``outputs`` group."""
+    g.add_argument("--flat", action="store_true",
+                   help="write every file straight into the output directory instead of grouping "
+                        "them by level. A run of a hundred families writes hundreds of files, so "
+                        "the grouped layout is the default; use this when another tool expects one "
+                        "flat directory")
+
+
+def level_dir(output: str, level: str, flat: bool) -> str:
+    """Where one level's files belong: ``<output>/<level>/``, or ``<output>/`` under ``--flat``.
+
+    Grouping is the CLI's business, not the engines': a ``Result.write`` writes whatever it is given
+    into the one directory it is handed, and the layout is chosen here by calling it more than once.
+    Created on the way out, so a caller can write into it immediately."""
+    path = output if flat else os.path.join(output, level)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def _log_value(value: object) -> str:
     """Render one parameter for the run log. A rate is recorded in its **written form**, so the log
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr

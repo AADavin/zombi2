@@ -12,7 +12,34 @@ called `lineage` (or `donor` / `recipient` where a row names two), so a node rea
 file of a run. A gene copy is always `copy`. In `blocks.tsv` alone, `gene` means something else — the
 genic classification of a block, `0` for spacer or the family id for a declared gene.
 
-Every `zombi2` **command** also writes a run log next to its outputs (`species.log`, `genomes.log`,
+## Where the files go
+
+A `zombi2` command groups what it writes, one directory per level, and gives the outputs that run to
+one file per gene family a directory of their own:
+
+```
+out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv
+out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genome_species_tree.nwk
+out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
+out/sequences/              sequences_founding.fasta · sequences_species_phylogram_*.nwk
+out/sequences/alignments/   sequences_alignment_fam<f>.fasta
+out/sequences/phylograms/   sequences_phylogram_fam<f>_*.nwk
+out/traits/                 trait_values.tsv · trait_tree.nwk · trait_changes.tsv
+out/logs/                   species.log · genomes.log · sequences.log · traits.log
+```
+
+Filenames keep their prefix inside their directory — `species/species_complete.nwk` — so a file
+still names itself once it has been moved or copied somewhere else.
+
+`--flat` on any command writes its files straight into the output directory instead, for a tool that
+expects one directory. The same files are written either way; only the directories differ. A run's
+files being grouped is a CLI matter, not the library's: `result.write(dir)` writes into whatever
+directory you hand it.
+
+`zombi2 sequences --genomes DIR` accepts either layout — point it at the run directory whose
+`genomes/` holds the handoff files, or at a flat directory holding them directly.
+
+Every `zombi2` **command** also writes a run log (`species.log`, `genomes.log`,
 `sequences.log`, `traits.log`): the version, the timestamp, the command line, and every resolved
 parameter. Rates are recorded in their **written form** — `birth<TAB>1.0 * OnTime({0: 1, 3: 0.3})` —
 so a line pastes straight back into the flag or a `--params` file. It is a CLI artifact, not a

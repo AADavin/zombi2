@@ -227,15 +227,15 @@ The ordered resolution is `--resolution ordered`. It adds the chromosome and seg
 
 ```bash
 # chromosomes split and merge along the tree
-zombi2 genomes -t out/species_complete.nwk --resolution ordered \
+zombi2 genomes -t out/species/species_complete.nwk --resolution ordered \
     --origination 0.5 --fission 0.05 --fusion 0.05 --chromosomes 2 --seed 1 -o out/
 
 # segmental duplications, losses and inversions on three chromosomes
-zombi2 genomes -t out/species_complete.nwk --resolution ordered \
+zombi2 genomes -t out/species/species_complete.nwk --resolution ordered \
     --duplication 0.2 --loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 1 -o out/
 
 # blocks relocate and move between chromosomes, sometimes inverting
-zombi2 genomes -t out/species_complete.nwk --resolution ordered \
+zombi2 genomes -t out/species/species_complete.nwk --resolution ordered \
     --origination 0.5 --transposition 0.2 --translocation 0.1 \
     --inversion-probability 0.5 --chromosomes 2 --seed 1 -o out/
 ```

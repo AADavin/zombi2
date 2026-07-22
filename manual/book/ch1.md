@@ -55,11 +55,23 @@ Two commands: build a species tree, then evolve gene families along it.
 zombi2 species --birth 1 --death 0.3 --n-extant 20 --seed 1 -o out/
 
 # 2. gene families along it, by duplication, transfer, loss and origination
-zombi2 genomes -t out/species_complete.nwk \
+zombi2 genomes -t out/species/species_complete.nwk \
     --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42 -o out/
 ```
 
-`out/` now holds the two trees (`species_complete.nwk`, which keeps the extinct lineages, and `species_extant.nwk`, which does not), the event log of each level (`species_events.tsv` and `genome_events.tsv`) and the matrix of gene-family copy numbers per species (`profiles.tsv`).
+`out/` now holds one directory per level:
+
+```
+out/species/    species_complete.nwk   the tree, extinct lineages kept
+                species_extant.nwk     the survivors only
+                species_events.tsv     every speciation and extinction, with its time
+out/genomes/    genome_events.tsv      every duplication, transfer, loss and origination
+                profiles.tsv           gene-family copy numbers per species
+out/logs/       species.log            what was run, and with which parameters
+                genomes.log
+```
+
+Each level keeps to its own directory, and the outputs that run to one file per gene family get a directory of their own inside it, so a run of a few hundred families stays legible. Pass `--flat` to any command and it writes everything straight into `out/` instead.
 
 Here is the same run from Python:
 

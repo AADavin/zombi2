@@ -199,12 +199,12 @@ The nucleotide resolution is `--resolution nucleotide`. It takes the same event 
 
 ```bash
 # an evenly spaced seed: 5 kb, six genes of 300 bp, with inversions averaging 400 bp
-zombi2 genomes -t out/species_complete.nwk --resolution nucleotide \
+zombi2 genomes -t out/species/species_complete.nwk --resolution nucleotide \
   --root-length 5000 --genes 6 --gene-length 300 \
   --inversion 1.0 --inversion-length 400 --duplication 0.3 --loss 0.3 --seed 1 -o out/
 
 # or start from a real genome: the GFF declares the replicons and the genes
-zombi2 genomes -t out/species_complete.nwk --resolution nucleotide \
+zombi2 genomes -t out/species/species_complete.nwk --resolution nucleotide \
   --gff ecoli.gff --inversion 0.5 --loss 0.4 --loss-length 900 --seed 1 -o out/
 ```
 

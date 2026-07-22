@@ -113,4 +113,6 @@ A run writes two Newick trees by default: the **extant** tree of survivors (`spe
 
 Both trees give the root a branch length, which many simulators leave off. A run begins with a single lineage and that lineage lives for a while before it first splits, so the root's branch is the **stem**: the time from the origin to the crown. It is ordinary simulated time — genes are gained and lost along it, traits drift along it — and a tree written without it would start at the crown and lose that history. In the complete tree the stem runs from the origin to the first speciation; in the extant tree it runs from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it.
 
-The **event log** (`species_events.tsv`) is always written: every speciation and extinction with its time. It is the ground truth the simulator exists to record. If you asked for fossils, the sampled fossil lineages are written too. The full list of files lives in Appendix B.
+The **event log** (`species_events.tsv`) is always written: every speciation and extinction with its time. It is the ground truth the simulator exists to record. If you asked for fossils, the sampled fossil lineages are written too.
+
+All three land in `out/species/`, the command grouping its files by level; `--flat` writes them straight into `out/` instead. The full list of files lives in Appendix B.

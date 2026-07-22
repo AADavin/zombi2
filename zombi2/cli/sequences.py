@@ -28,7 +28,8 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.species import read_newick
-from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
+                                  _write_params_log, level_dir)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -102,6 +103,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "its origination, where the phylogram's root branch starts), "
                         "species_phylogram (the species tree "
                         "scaled by the clock)")
+    _add_flat_arg(g)
 
 
 def _build_model(args: argparse.Namespace):
@@ -130,8 +132,15 @@ def run(args, parser):
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
 
-    tree_path = os.path.join(args.genomes, "genome_species_tree.nwk")
-    events_path = os.path.join(args.genomes, "genome_events.tsv")
+    # --genomes takes either layout: the grouped `out/` whose files sit in `out/genomes/`, or a
+    # --flat directory holding them directly. Pointing at either is the same intent.
+    handoff = args.genomes
+    if not os.path.exists(os.path.join(handoff, "genome_species_tree.nwk")):
+        grouped = os.path.join(handoff, "genomes")
+        if os.path.exists(os.path.join(grouped, "genome_species_tree.nwk")):
+            handoff = grouped
+    tree_path = os.path.join(handoff, "genome_species_tree.nwk")
+    events_path = os.path.join(handoff, "genome_events.tsv")
     try:
         with open(tree_path) as f:
             tree, _ = read_newick(f.read())
@@ -160,10 +169,15 @@ def run(args, parser):
     dt = time.perf_counter() - t0
 
     os.makedirs(args.output, exist_ok=True)
-    if args.write:
-        result.write(args.output, outputs=args.write)
-    else:
-        result.write(args.output)               # SequencesResult.write's default: alignments + phylograms
+    out = level_dir(args.output, "sequences", args.flat)
+    # alignments and phylograms are one file per family, so a hundred families is hundreds of files
+    # each — they get a directory apiece unless --flat says otherwise
+    wanted = args.write or ("alignments", "phylograms")   # SequencesResult.write's own default
+    if rest := [o for o in wanted if o not in ("alignments", "phylograms")]:
+        result.write(out, outputs=rest)
+    for per_family in ("alignments", "phylograms"):
+        if per_family in wanted:
+            result.write(level_dir(out, per_family, args.flat), outputs=(per_family,))
 
     n_families = sum(1 for aln in result.alignments.values() if aln)
     n_seqs = sum(len(aln) for aln in result.alignments.values())
@@ -174,5 +188,6 @@ def run(args, parser):
     summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
                f"{args.length} sites, {clock}")
     print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(args.output, "sequences.log"), args, summary)
+    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "sequences.log"),
+                      args, summary)
     return 0

@@ -18,7 +18,8 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import _add_params_arg, _rate, _rates_help, _write_params_log
+from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _rate, _rates_help,
+                                  _write_params_log, level_dir)
 from zombi2.cli.genomes import _read_tip_fates
 from zombi2.species import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
@@ -102,6 +103,7 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                         "values: the tip table. changes: the event log. tree: the trait tree "
                         "(annotated Newick). driver: the segment table that feeds a conditioned "
                         "run (discrete only).")
+    _add_flat_arg(g)
 
 
 def run(args, parser):
@@ -159,16 +161,18 @@ def run(args, parser):
     dt = time.perf_counter() - t0
 
     os.makedirs(args.output, exist_ok=True)
+    out = level_dir(args.output, "traits", args.flat)
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
-    result.write(args.output, outputs=outputs)
+    result.write(out, outputs=outputs)
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on the node col)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
-        with open(os.path.join(args.output, "names.tsv"), "w") as f:
+        with open(os.path.join(out, "names.tsv"), "w") as f:
             f.write("\n".join(rows) + "\n")
 
     n_tips = len(result.values)
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
     print(f"wrote {args.output}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(args.output, "traits.log"), args, summary)
+    _write_params_log(os.path.join(level_dir(args.output, "logs", args.flat), "traits.log"),
+                      args, summary)
     return 0

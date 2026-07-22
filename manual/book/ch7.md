@@ -136,7 +136,7 @@ On the command line the genome run is handed over as a **directory**: `zombi2 se
 
 ```bash
 # 1. genomes along a species tree (from the previous chapters)
-zombi2 genomes -t out/species_complete.nwk \
+zombi2 genomes -t out/species/species_complete.nwk \
     --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 1 -o out/
 
 # 2. HKY85, 1000 sites, strict clock
