@@ -21,7 +21,7 @@ one file per gene family a directory of their own:
 out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv
 out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
-out/sequences/              clock_species_tree.nwk · sequences.log
+out/sequences/              clock_species_tree_complete.nwk · sequences.log
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
 out/traits/                 trait_values.tsv · trait_tree.nwk · trait_changes.tsv · traits.log
@@ -75,9 +75,9 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Event log | `genome_events.tsv` | TSV | yes | as unordered |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `lineage` · `chromosome` · `position` · `strand` · `family` · `copy` |
-| Rearrangements | `rearrangements.tsv` | TSV | no | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹ |
-| Chromosome events | `chromosome_events.tsv` | TSV | no | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
-| Event positions | `genome_event_positions.tsv` | TSV | no | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `family` · `donor` · `recipient` · `dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
+| Rearrangements | `rearrangements.tsv` | TSV | yes | inversions, transpositions and translocations — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹ |
+| Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
+| Event positions | `genome_event_positions.tsv` | TSV | yes | where each D/T/L/O event happened, in the coordinates of the branch named by `lineage` — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `family` · `donor` · `recipient` · `dest_position`. A transfer writes two rows, one per branch (`transfer_donor`, `transfer_recipient`). With `gene_order` and `rearrangements`, enough to replay the run |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as unordered — position is orthogonal to genealogy |
 
 ¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
@@ -121,7 +121,7 @@ sequences.
 | Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `sequences/phylograms/` |
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
-| Clock species tree | `clock_species_tree.nwk` · `clock_species_tree_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
+| Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
 
 ## Traits — `simulate_continuous` / `simulate_discrete`
 

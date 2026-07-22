@@ -96,7 +96,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write (default: alignments, phylograms, "
-                        "species_phylogram — the last written as clock_species_tree.nwk, the "
+                        "species_phylogram — the last written as clock_species_tree_*.nwk, the "
                         "species tree with its branches in substitutions/site). also "
                         "available: ancestral (internal-node sequences), founding (each "
                         "family's sequence at its origination, where the phylogram's root "

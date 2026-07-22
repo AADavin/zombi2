@@ -355,7 +355,7 @@ def test_write_emits_phylogram_newick(tmp_path):
     r.write(tmp_path, outputs=("phylograms", "species_phylogram"))
     fam0 = tmp_path / "phylogram_fam0_complete.nwk"
     assert fam0.exists() and fam0.read_text().rstrip().endswith(";")
-    assert (tmp_path / "clock_species_tree.nwk").exists()
+    assert (tmp_path / "clock_species_tree_complete.nwk").exists()
 
 
 # --- validation ------------------------------------------------------------------------------------
