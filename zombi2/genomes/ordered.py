@@ -556,9 +556,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     run stops at the last gene. So on a circular chromosome every gene is covered by segmental events
     at the same rate, and the nominal mean extension is the realised one.
 
-    Scopes follow the cross-level grammar: ``duplication``/``transfer``/``loss``/``translocation`` are
-    **per copy**, ``origination``/``chromosome_origination`` **per lineage**, and
-    ``inversion``/``transposition``/``fission``/``fusion``/``chromosome_loss`` **per chromosome**. The
+    Scopes follow the cross-level grammar, which counts an event per the thing it acts on: the
+    gene-level events — ``duplication``/``transfer``/``loss`` and the rearrangements
+    ``inversion``/``transposition``/``translocation`` — are **per copy**, since each acts on a run of
+    genes that starts at one of them; the chromosome tier ``fission``/``fusion``/``chromosome_loss``
+    is **per chromosome**; and the two events that make something from nothing,
+    ``origination``/``chromosome_origination``, are **per lineage**. The
     root is seeded with ``chromosomes`` chromosomes of the given ``topology``, across which the
     ``initial_families`` founding genes are dealt **round-robin**; ``families=["toxin", …]`` additionally
     seeds **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
@@ -578,8 +581,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
-    inv = as_rate(inversion, default_scope=PerChromosome)
-    trp = as_rate(transposition, default_scope=PerChromosome)
+    inv = as_rate(inversion, default_scope=PerCopy)
+    trp = as_rate(transposition, default_scope=PerCopy)
     trl = as_rate(translocation, default_scope=PerCopy)
     fis = as_rate(fission, default_scope=PerChromosome)
     fus = as_rate(fusion, default_scope=PerChromosome)
@@ -590,7 +593,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # them rather than silently mis-scale (see the unordered engine for the reasoning).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage),
-                              ("inversion", inv, PerChromosome), ("transposition", trp, PerChromosome),
+                              ("inversion", inv, PerCopy), ("transposition", trp, PerCopy),
                               ("translocation", trl, PerCopy), ("fission", fis, PerChromosome),
                               ("fusion", fus, PerChromosome), ("chromosome_loss", clo, PerChromosome),
                               ("chromosome_origination", cor, PerLineage)):
@@ -694,8 +697,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         r_org = org.effective(**ctx)                                    # per lineage
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)
         r_tra = tra.effective(**ctx) if can_xfer else 0.0
-        r_inv = inv.effective(**ctx) if n else 0.0                      # per chromosome; needs a gene
-        r_trp = trp.effective(**ctx) if n else 0.0                      # per chromosome; needs a gene
+        r_inv = inv.effective(**ctx) if n else 0.0                      # per copy (the run's start)
+        r_trp = trp.effective(**ctx) if n else 0.0                      # per copy (the run's start)
         r_trl = trl.effective(**ctx) if n else 0.0                      # per copy; needs >=2 chromosomes
         r_fis = fis.effective(**ctx) if c else 0.0                      # per chromosome (the tier)
         r_fus = fus.effective(**ctx) if c else 0.0
@@ -743,19 +746,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                  new_gene, transfer_to, replacement, self_transfer, depth)
                 elif r < b_inv:
-                    k, ci = _pick_chromosome(rng, gen, c)
+                    k, ci, i0 = _pick_gene(rng, gen, n)   # the run starts at a gene, so: per copy
                     chrom = gen[k][ci]
-                    if chrom.genes:  # an empty chromosome has nothing to rearrange (a no-op; rare)
-                        i0 = int(rng.integers(len(chrom.genes)))
-                        _invert(chrom, i0, _extent(rng, inv_ext, chrom, i0),
-                                tree.nodes[alive[k]], t, rearrangements)
+                    _invert(chrom, i0, _extent(rng, inv_ext, chrom, i0),
+                            tree.nodes[alive[k]], t, rearrangements)
                 elif r < b_trp:
-                    k, ci = _pick_chromosome(rng, gen, c)
+                    k, ci, i0 = _pick_gene(rng, gen, n)
                     chrom = gen[k][ci]
-                    if chrom.genes:
-                        i0 = int(rng.integers(len(chrom.genes)))
-                        _transpose(chrom, i0, _extent(rng, trp_ext, chrom, i0),
-                                   tree.nodes[alive[k]], t, rearrangements, rng, inversion_probability)
+                    _transpose(chrom, i0, _extent(rng, trp_ext, chrom, i0),
+                               tree.nodes[alive[k]], t, rearrangements, rng, inversion_probability)
                 elif r < b_trl:
                     k, ci, j = _pick_gene(rng, gen, n)
                     m = _extent(rng, trl_ext, gen[k][ci], j)

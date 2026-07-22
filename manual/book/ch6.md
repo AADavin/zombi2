@@ -93,7 +93,7 @@ Transposed and translocated arcs land inverted with probability `inversion_proba
 
 The first three events leave ancestry untouched and are recorded in `.rearrangements`; the last four change it and are recorded in `.events`, which is the log the gene trees are recovered from.
 
-**One thing genuinely differs from the earlier chapters: these rates are per lineage, not per copy.** The rate says how often a lineage does the thing; the extent says how much DNA it touches. A per-nucleotide rate would count size twice — a bigger genome would get proportionally more events, each still spanning an extent — and the churn would grow without bound with genome length. Per lineage keeps the event count flat as the genome grows; the same tree at `inversion=5.0`, with the genome a hundred times longer each row, gives:
+**One thing genuinely differs from the earlier chapters: these rates are per lineage, not per copy.** The rate says how often a lineage does the thing; the extent says how much DNA it touches. Chapter 5 counts the same events per gene, because a gene is a unit you can count chances on: a genome of 4 000 genes offers 4 000 places for a run to start. A nucleotide is not that unit. Counting per base pair would multiply the event count by the length of the genome, so the rate you type would need a string of leading zeros to mean anything — and how many zeros would depend on how long the genome happened to grow. Per lineage keeps the number you type readable and the event count flat as the genome grows; the same tree at `inversion=5.0`, with the genome a hundred times longer each row, gives:
 
 ```
    10 000 bp  ->  77 inversions
