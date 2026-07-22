@@ -101,7 +101,7 @@ from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ..progress import progress_bar
-from .events import node_label
+from .events import node_from_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_gff
 
@@ -1002,6 +1002,161 @@ def _nucleotide_rearrangements_tsv(rearrangements) -> str:
                 r.dest, "", int(r.flipped))
     rows = ["\t".join(str(v) for v in row(r)) for r in rearrangements]
     return "\n".join(["\t".join(_NUCLEOTIDE_REARRANGEMENT_COLS), *rows]) + "\n"
+
+
+# --- reading a written run back (the writers' inverse: a handoff describes itself) ----------------
+
+def _rows(text: str, cols: tuple[str, ...], what: str):
+    """Parse a TSV this module wrote, checking the header. Yields one cell-list per row."""
+    lines = text.splitlines()
+    if not lines:
+        raise ValueError(f"empty {what} — is the file empty?")
+    header = tuple(lines[0].split("\t"))
+    if header != cols:
+        raise ValueError(f"unexpected {what} columns {list(header)}; expected {list(cols)}")
+    for lineno, raw in enumerate(lines[1:], 2):
+        if not raw:                                      # tolerate a trailing blank line
+            continue
+        cells = raw.split("\t")
+        if len(cells) != len(cols):
+            raise ValueError(f"{what} line {lineno}: expected {len(cols)} columns, got {len(cells)}")
+        yield cells
+
+
+def _karyotype(rows) -> NucleotideGenome:
+    """Group ``(chromosome id, topology-less block fields)`` rows into one karyotype, in file order."""
+    chroms: dict[int, list[Block]] = {}
+    for (cid, source, start, end, strand, copy, gene) in rows:
+        chroms.setdefault(cid, []).append(Block(source, start, end, strand, copy, gene))
+    # Topology is not in blocks.tsv and the recovery never reads it — every event that needs it has
+    # already happened. "circular" is the honest placeholder; a replayed run is for reading, not
+    # for evolving further.
+    return NucleotideGenome([Chromosome(cid, "circular", blocks) for cid, blocks in chroms.items()])
+
+
+def _blocks_from_tsv(text: str) -> dict[int, NucleotideGenome]:
+    """``blocks.tsv`` → ``{node id: NucleotideGenome}``. ``position`` is redundant (the rows tile each
+    chromosome in order) and is checked rather than used, so a hand-edited file fails loudly."""
+    per_node: dict[int, list] = {}
+    at: dict[tuple[int, int], int] = {}
+    cols = ("lineage", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
+    for cells in _rows(text, cols, "blocks.tsv"):
+        node = node_from_label(cells[0])
+        cid, position = int(cells[1]), int(cells[2])
+        source, start, end, strand, copy, gene = (int(c) for c in cells[3:])
+        if at.get((node, cid), 0) != position:
+            raise ValueError(f"blocks.tsv: chromosome {cid} of {cells[0]} does not tile — expected "
+                             f"position {at.get((node, cid), 0)}, got {position}")
+        at[(node, cid)] = position + (end - start)
+        per_node.setdefault(node, []).append((cid, source, start, end, strand, copy, gene))
+    return {node: _karyotype(rows) for node, rows in per_node.items()}
+
+
+def _initial_genome_from_tsv(text: str) -> NucleotideGenome:
+    """``initial_genome.tsv`` → the genome the run started with. No ``lineage`` column: it is not a
+    node's (see :attr:`NucleotideGenomesResult.initial_genome`)."""
+    cols = ("chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
+    return _karyotype([(int(c[0]), *(int(x) for x in c[2:])) for c in
+                       _rows(text, cols, "initial_genome.tsv")])
+
+
+def _genes_from_tsv(text: str):
+    """``genes.tsv`` → ``(gene_spans, gene_names, gene_strands)``."""
+    spans, names, strands = {}, {}, {}
+    for (fam, name, source, start, end, strand) in _rows(
+            text, ("family", "name", "source", "start", "end", "strand"), "genes.tsv"):
+        f = int(fam)
+        spans[f] = (int(source), int(start), int(end))
+        strands[f] = int(strand)
+        if name:
+            names[name] = f
+    return spans, names, strands
+
+
+def _events_from_tsv(text: str) -> list:
+    """The nucleotide ``genome_events.tsv`` → the copy-lineage genealogy, the inverse of
+    :func:`_nucleotide_events_tsv`.
+
+    An event that spanned several ancestral intervals was written as several rows, so the rows have to
+    be regrouped. What identifies one event differs by kind, and getting it wrong merges two events or
+    splits one: a **speciation** writes one row per daughter and every copy re-minted at a node shares
+    its time and lineage, so the *parent copy* is what tells two apart; a **loss** / **duplication** /
+    **transfer** writes one row per interval, and those rows differ in parent copy but share the
+    event's time, lineage, chromosome and recipient; an **origination** is always a single row."""
+    def num(cell):
+        return int(cell) if cell else None
+
+    events: list = []
+    pending: list = []
+    key = None
+
+    def flush():
+        nonlocal key
+        if not pending:
+            return
+        kind, time, lineage, chrom, recipient = pending[0][:5]
+        if kind == "origination":
+            (_k, _t, _l, _c, _r, copy, _p, src, start, end) = pending[0]
+            events.append(Origination(time, lineage, chrom, copy, src, start, end))
+        elif kind == "loss":
+            events.append(Loss(time, lineage, chrom,
+                               tuple((c, s, a, b) for (*_h, c, _p, s, a, b) in pending)))
+        elif kind == "duplication":
+            events.append(Duplication(time, lineage, chrom,
+                                      tuple((p, c, s, a, b) for (*_h, c, p, s, a, b) in pending)))
+        elif kind == "transfer":
+            events.append(Transfer(time, lineage, recipient,
+                                   tuple((p, c, s, a, b) for (*_h, c, p, s, a, b) in pending)))
+        elif kind == "speciation":
+            events.append(Speciation(time, lineage, pending[0][6],
+                                     tuple(row[5] for row in pending)))
+        else:
+            raise ValueError(f"genome_events.tsv: unknown event kind {kind!r}")
+        pending.clear()
+        key = None
+
+    for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "genome_events.tsv"):
+        time, kind, lineage, chrom, copy, parent, recipient, source, start, end = cells
+        row = (kind, float(time), node_from_label(lineage), num(chrom),
+               node_from_label(recipient) if recipient else None,
+               num(copy), num(parent), num(source), num(start), num(end))
+        # what makes this row part of the *same* event as the last one
+        row_key = (None if kind == "origination" else
+                   (*row[:3], row[6]) if kind == "speciation" else row[:5])
+        if pending and row_key != key:
+            flush()
+        pending.append(row)
+        key = row_key
+        if kind == "origination":
+            flush()
+    flush()
+    return events
+
+
+def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
+    """Rebuild a :class:`NucleotideGenomesResult` from the files a run wrote, so a later level can
+    replay it from disk. ``tree`` is the species tree it ran on.
+
+    Reads ``blocks.tsv``, ``initial_genome.tsv``, ``genome_events.tsv`` and ``genes.tsv`` — the four
+    the recovery needs. The ancestry-**neutral** logs (``rearrangements.tsv``,
+    ``chromosome_events.tsv``) are not read: they record how a genome got its layout, and the layout
+    itself is already in ``blocks.tsv``. What comes back reconstructs and writes exactly as the
+    original did; it is not for evolving further."""
+    d = pathlib.Path(directory)
+
+    def read(name):
+        try:
+            return (d / name).read_text()
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"{d / name} not found — re-run 'zombi2 genomes --resolution nucleotide' with "
+                f"{name.split('.')[0]!r} in --write, or leave --write off to get everything"
+            ) from None
+
+    spans, names, strands = _genes_from_tsv(read("genes.tsv"))
+    return NucleotideGenomesResult(
+        tree, _blocks_from_tsv(read("blocks.tsv")), _events_from_tsv(read("genome_events.tsv")),
+        [], [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")))
 
 
 def _valid_length(length) -> int:

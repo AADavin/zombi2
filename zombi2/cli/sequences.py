@@ -22,6 +22,7 @@ import time
 
 from zombi2.genomes import GenomesResult
 from zombi2.genomes.events import events_from_tsv
+from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage
 from zombi2.sequences import WIRED_MODIFIERS, simulate_sequences
 from zombi2.sequences.substitution_models import (
@@ -39,12 +40,18 @@ RATES_HELP = _rates_help(
          "per species lineage, shared across gene families. spread is σ; dist is 'lognormal' "
          "(default, σ = the log-scale) or 'gamma' (σ = the coefficient of variation).")
 
-# the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import)
-_SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "founding", "species_phylogram")
+# the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import).
+# The last three exist only for a nucleotide handoff, which is the only run with coordinates to lay
+# a genome out in; asking for one otherwise writes nothing rather than failing.
+_SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "founding", "species_phylogram",
+                     "genomes", "ancestral_genomes", "initial_genome")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
 _NUCLEOTIDE_MODELS = ("jc69", "k80", "hky85", "gtr")
+#: the nucleotide constructors by name, for --intergene-model (which takes no parameters of its own:
+#: the spacer's job is to be the unconstrained null, and a second set of knobs would only blur that)
+_NUCLEOTIDE_CTORS = {"jc69": jc69, "k80": k80, "hky85": hky85, "gtr": gtr}
 _PROTEIN_MODELS = {"poisson": poisson, "jtt": jtt, "dayhoff": dayhoff, "wag": wag, "lg": lg}
 
 # which physical parameters each model reads; a knob given for a model that does not take it is
@@ -76,8 +83,18 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "k80 (--kappa), hky85 (--kappa, --frequencies), gtr (--gtr-rates, "
                         "--frequencies). protein (20 states): poisson (equal rates), jtt, dayhoff, "
                         "wag, lg — empirical matrices, no parameters to give")
-    g.add_argument("--length", type=int, default=1000, metavar="N",
-                   help="alignment length in sites — residues under a protein model (default 1000)")
+    g.add_argument("--length", type=int, default=None, metavar="N",
+                   help="alignment length in sites — residues under a protein model (default 1000). "
+                        "Not for a nucleotide genome run: there every block carries its own length "
+                        "in bp, so giving one here is an error rather than something ignored")
+    g.add_argument("--intergene-model", default=None, metavar="MODEL", dest="intergene_model",
+                   choices=_NUCLEOTIDE_MODELS,
+                   help="[nucleotide runs] the model the spacer between genes evolves under "
+                        "(default jc69 — flat, no free parameters). Genes take --model")
+    g.add_argument("--intergene-speed", type=float, default=3.0, metavar="X",
+                   dest="intergene_speed",
+                   help="[nucleotide runs] how much faster the spacer evolves than the genes, as a "
+                        "multiple of the substitution rate (default 3.0)")
     g.add_argument("--kappa", type=float, default=None, metavar="K",
                    help="[k80, hky85] transition/transversion ratio (default 2.0)")
     g.add_argument("--frequencies", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
@@ -97,10 +114,13 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write (default: alignments, phylograms, "
                         "species_phylogram — the last written as clock_species_tree_*.nwk, the "
-                        "species tree with its branches in substitutions/site). also "
-                        "available: ancestral (internal-node sequences), founding (each "
-                        "family's sequence at its origination, where the phylogram's root "
-                        "branch starts)")
+                        "species tree with its branches in substitutions/site — and, on a "
+                        "nucleotide run, genomes: one assembled FASTA per extant lineage. also "
+                        "available: ancestral (the sequence at every node that is not an extant "
+                        "tip), founding (each family's sequence at its origination, where the "
+                        "phylogram's root branch starts), ancestral_genomes (the ancestors' and "
+                        "extinct lineages' assembled genomes) and initial_genome (the genome the "
+                        "run started with). The last three genome outputs need a nucleotide run")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 
@@ -132,34 +152,54 @@ def run(args, parser):
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
 
     handoff, tree_path = resolve_genomes(args.source or args.run)
-    events_path = os.path.join(handoff, "genome_events.tsv")
     with open(tree_path) as f:
         tree, _ = read_newick(f.read())
-    try:
-        with open(events_path) as f:
-            events = events_from_tsv(f.read())
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            f"{events_path} not found — re-run 'zombi2 genomes' with 'events' in --write so the "
-            "gene genealogy can be replayed") from None
 
-    # Rebuild the genome run's spine from disk: its gene trees derive from (events, tree), and the
-    # species tree drives the species phylogram. The sequence engine reads only .complete_tree and
-    # .gene_trees, so an empty `genomes` map is the honest minimal shell (never escapes this run).
-    genome_run = GenomesResult(complete_tree=tree, genomes={}, events=events, seed=None)
+    # Which resolution wrote this handoff? blocks.tsv is the nucleotide resolution's and no other's,
+    # so the run says what it is rather than needing a flag repeated from the genomes command.
+    nucleotide = os.path.exists(os.path.join(handoff, "blocks.tsv"))
+    if nucleotide:
+        # Rebuild the whole run: at this resolution the sequences evolve down a tree per *block*, and
+        # the blocks come from the genomes themselves, not from the event log alone.
+        genome_run = read_nucleotide_genomes(handoff, tree)
+        if args.length is not None:
+            parser.error("--length does not apply to a nucleotide genome run: every block carries "
+                         "its own length in bp, so one number here would contradict the coordinates "
+                         "the genomes run wrote. Drop it — the genome sets the lengths.")
+        extra = dict(intergene_speed=args.intergene_speed)
+        if args.intergene_model is not None:
+            extra["intergene_model"] = _NUCLEOTIDE_CTORS[args.intergene_model]()
+    else:
+        events_path = os.path.join(handoff, "genome_events.tsv")
+        try:
+            with open(events_path) as f:
+                events = events_from_tsv(f.read())
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"{events_path} not found — re-run 'zombi2 genomes' with 'events' in --write so the "
+                "gene genealogy can be replayed") from None
+        # The genome run's spine from disk: its gene trees derive from (events, tree), and the species
+        # tree drives the species phylogram. The sequence engine reads only .complete_tree and
+        # .gene_trees, so an empty `genomes` map is the honest minimal shell (it never escapes here).
+        genome_run = GenomesResult(complete_tree=tree, genomes={}, events=events, seed=None)
+        for flag, value in (("--intergene-model", args.intergene_model),):
+            if value is not None:
+                parser.error(f"{flag} applies to a nucleotide genome run, where blocks are genes or "
+                             "spacer. This handoff has gene families only, so there is nothing for a "
+                             "second model to evolve.")
+        extra = dict(length=1000 if args.length is None else args.length)
 
     model = _build_model(args)
 
     t0 = time.perf_counter()
-    result = simulate_sequences(genome_run, model=model, length=args.length,
-                                substitution=args.substitution, seed=args.seed,
-                                progress=not args.quiet)
+    result = simulate_sequences(genome_run, model=model, substitution=args.substitution,
+                                seed=args.seed, progress=not args.quiet, **extra)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "sequences", args.flat)
-    # alignments and phylograms are one file per family, so a hundred families is hundreds of files
-    # each — they get a directory apiece unless --flat says otherwise
+    # alignments and phylograms are one file per family — per *block* on a nucleotide run, where a
+    # real genome has thousands — so they get a directory apiece unless --flat says otherwise
     wanted = tuple(args.write) if args.write else default_outputs(result)
     if rest := [o for o in wanted if o not in ("alignments", "phylograms")]:
         result.write(out, outputs=rest)
@@ -173,8 +213,15 @@ def run(args, parser):
     clocks = [m for m in getattr(args.substitution, "modifiers", ()) if isinstance(m, ByLineage)]
     clock = (f"{clocks[0].dist} lineage clock, spread {clocks[0].spread:g}" if clocks
              else "strict clock")
-    summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
-               f"{args.length} sites, {clock}")
+    if nucleotide:
+        bp = sum(len(seq) for chroms in result.genomes.values() for seq in chroms.values())
+        spacer = args.intergene_model or "jc69"
+        summary = (f"{n_seqs} sequences across {n_families} blocks, {bp:,} bp assembled into "
+                   f"{len(result.genomes)} extant genomes, {model.name} genes / {spacer} spacer at "
+                   f"{args.intergene_speed:g}x, {clock}")
+    else:
+        summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
+                   f"{extra['length']} sites, {clock}")
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     _write_params_log(os.path.join(out, "sequences.log"),
                       args, summary)
