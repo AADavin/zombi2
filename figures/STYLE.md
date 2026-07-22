@@ -1,9 +1,16 @@
 # ZOMBI2 figure house style
 
-The agreed style for every manual figure. The reference implementations are
-`fig_diversity_dependent.py`, `fig_species_tree_events.py`, `fig_gene_tree.py`,
-`fig_clads.py`, `fig_mass_extinction.py`, `fig_trait_ou.py`. Shared constants live in
+The agreed style for every manual figure. Shared constants live in
 `figures/scripts/zombi_style.py`.
+
+The reference implementations — `fig_diversity_dependent.py`, `fig_species_tree_events.py`,
+`fig_gene_tree.py`, `fig_clads.py`, `fig_mass_extinction.py`, `fig_trait_ou.py` — are in
+`legacy/figures/scripts/`, along with every other generator whose figure the rewritten manual no
+longer uses. They are still the reference for *how to draw*; read them there.
+
+**SPEC §7 governs.** It fixes the conventions the rewrite settled on — black and white, no
+subtitles, node shapes, the four-levels layout. Where this file disagrees with it, SPEC wins and
+this file is the fossil.
 
 ## Canvas & rendering
 - `drawsvg` canvas ~1000–1180 px wide. Make the canvas tall/wide enough that **no label
@@ -49,7 +56,7 @@ The agreed style for every manual figure. The reference implementations are
 
 ## Tree aesthetics (Adrián's cross-cutting rule)
 Trees should look like one another across the whole manual — **wide and dense**, like the
-trait trees of Chapters 12–13 (`fig_trait_ou.py` is the reference). Never tall-and-narrow.
+trait trees (`fig_trait_ou.py` is the reference). Never tall-and-narrow.
 
 - **Aspect ratio: landscape, ~1.5–1.7:1** (wider than tall). If a `species_style` height grows
   with the tip count, **cap it** (`height=min(820, k·n_leaves + c)`) so more tips make the tree
