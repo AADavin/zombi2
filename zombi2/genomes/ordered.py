@@ -48,6 +48,7 @@ from ..species import SpeciesResult, Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
+from ..progress import progress_bar
 from .events import Event, events_tsv, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
@@ -622,7 +623,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extension=None, transposition_extension=None,
                              translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=0, families=None, seed=None) -> OrderedGenomesResult:
+                             initial_families=0, families=None, seed=None,
+                             progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
 
@@ -781,8 +783,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     total_copies = initial_families + len(families)
     total_chromosomes = n_chrom_seed
 
+    bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
+        bar.to(si)
         n = total_copies
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
@@ -919,6 +923,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
+    bar.close()
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                 family_names, event_positions)
 

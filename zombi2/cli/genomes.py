@@ -19,7 +19,7 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
 from zombi2.species import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_from_arg, _add_params_arg, _add_run_arg,
+from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
                                   _rate, _rates_help, _write_params_log, level_dir,
                                   resolve_tree)
 
@@ -175,6 +175,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "'profiles' counts only the extant tips; 'gene_trees' writes one Newick "
                         "per family, complete and extant.")
     _add_flat_arg(g)
+    _add_quiet_arg(g)
 
 
 def _transfer_to(text: str):
@@ -291,7 +292,7 @@ def run(args, parser):
     if args.resolution == "ordered":
         result = simulate_genomes_ordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            **structured, **common)
+            progress=not args.quiet, **structured, **common)
     elif args.resolution == "nucleotide":
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
@@ -300,10 +301,12 @@ def run(args, parser):
             transposition_length=args.transposition_length,
             translocation_length=args.translocation_length, loss_length=args.loss_length,
             duplication_length=args.duplication_length, transfer_length=args.transfer_length,
-            origination_length=args.origination_length, **structured, **common)
+            origination_length=args.origination_length, progress=not args.quiet,
+            **structured, **common)
     else:
         result = simulate_genomes_unordered(
-            tree, replacement=args.replacement, initial_families=args.initial_families, **common)
+            tree, replacement=args.replacement, initial_families=args.initial_families,
+            progress=not args.quiet, **common)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
@@ -318,11 +321,15 @@ def run(args, parser):
             result.write(out, outputs=rest)
         if "gene_trees" in wanted:
             result.write(level_dir(out, "gene_trees", args.flat), outputs=("gene_trees",))
-    # the tree the events are indexed against, canonicalised to n<id> labels so its ids match the
-    # event log's `lineage` column — this makes the run self-describing and lets `zombi2 sequences
-    # --genomes DIR` rebuild the gene trees (from genome_events.tsv + this tree) with no other input.
-    with open(os.path.join(out, "genome_species_tree.nwk"), "w") as f:
-        f.write(result.complete_tree.to_newick() + "\n")
+    # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
+    # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
+    # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where
+    # a species run keeps one rather than under a second name for the same thing.
+    species_dir = level_dir(args.run, "species", args.flat)
+    canonical = os.path.join(species_dir, "species_complete.nwk")
+    if not os.path.exists(canonical):
+        with open(canonical, "w") as f:
+            f.write(result.complete_tree.to_newick() + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(out, "names.tsv"), "w") as f:
@@ -337,6 +344,6 @@ def run(args, parser):
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "genomes.log"),
+    _write_params_log(os.path.join(out, "genomes.log"),
                       args, summary)
     return 0

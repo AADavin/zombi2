@@ -19,13 +19,12 @@ one file per gene family a directory of their own:
 
 ```
 out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv
-out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genome_species_tree.nwk
+out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
 out/sequences/              sequences_founding.fasta · sequences_species_phylogram_*.nwk
-out/sequences/alignments/   sequences_alignment_fam<f>.fasta
-out/sequences/phylograms/   sequences_phylogram_fam<f>_*.nwk
-out/traits/                 trait_values.tsv · trait_tree.nwk · trait_changes.tsv
-out/logs/                   species.log · genomes.log · sequences.log · traits.log
+out/sequences/alignments/   fam<f>.fasta
+out/sequences/phylograms/   phylogram_fam<f>_*.nwk
+out/traits/                 trait_values.tsv · trait_tree.nwk · trait_changes.tsv · traits.log
 ```
 
 Filenames keep their prefix inside their directory — `species/species_complete.nwk` — so a file
@@ -101,23 +100,25 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 
 The nucleotide log needs no separate positions file: its events carry ancestral coordinates already.
 
-The `zombi2 genomes` **command** also writes `genome_species_tree.nwk` — the complete species tree
-canonicalised so its `n<id>` labels match the event log's `lineage` column — so `zombi2 sequences
-sequences` can replay the gene genealogy from that directory alone. Like `names.tsv` (external
-input trees) and the `.log`, it is a CLI artifact, not a `result.write()` output.
+The events index against the species tree canonicalised so its `n<id>` labels match the `lineage`
+column, so a genomes run needs that exact tree to be replayable. A run grown by `zombi2 species`
+already has it; a run whose tree came from `--from` gets a copy written to its own
+`species/species_complete.nwk`, rather than a second file under another name. Either way `zombi2
+sequences` can replay the gene genealogy from the run directory alone. Like `names.tsv` (external
+input trees) and the `.log`, that copy is a CLI artifact, not a `result.write()` output.
 
 ## Sequences — `simulate_sequences`
 
 The `zombi2 sequences` command replays a prior `zombi2 genomes` run — its own run directory, or `--from` another —
-its `genome_species_tree.nwk` and `genome_events.tsv`. Gene outputs are written **one file per gene
+its species tree and its `genome_events.tsv`. Gene outputs are written **one file per gene
 family** (`<f>` = family number); a family with no surviving copy writes none. Every node is labelled
 `g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the ancestral
 sequences.
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Alignments | `sequences_alignment_fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model |
-| Phylograms | `sequences_phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along |
+| Alignments | `fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model. The command puts these in `sequences/alignments/`, which is what lets the name be this short |
+| Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `sequences/phylograms/` |
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Species phylogram | `sequences_species_phylogram_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | no | the species tree scaled by the molecular clock |

@@ -43,6 +43,7 @@ from ..rates.modifiers import ByLineage
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
 from ..species import Node, Tree, prune
+from ..progress import progress_bar
 from .evolution import evolve_gene_tree
 from .substitution_models import SubstitutionModel, decode
 
@@ -90,11 +91,11 @@ class SequencesResult:
     def write(self, directory, outputs=("alignments", "phylograms")) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed):
 
-        - ``"alignments"`` → ``sequences_alignment_fam<family>.fasta`` (skipped for empty families).
+        - ``"alignments"`` → ``fam<family>.fasta`` (skipped for empty families).
         - ``"ancestral"`` → ``sequences_ancestral_fam<family>.fasta``.
         - ``"founding"`` → ``sequences_founding.fasta``, one record ``fam<family>`` per family: the
           sequence each family originated with, before its stem.
-        - ``"phylograms"`` → ``sequences_phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
+        - ``"phylograms"`` → ``phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
         - ``"species_phylogram"`` → ``sequences_species_phylogram_{complete,extant}.nwk`` (subs/site).
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
@@ -105,7 +106,7 @@ class SequencesResult:
         if "alignments" in outputs:
             for fam, aln in self.alignments.items():
                 if aln:
-                    (d / f"sequences_alignment_fam{fam}.fasta").write_text(_fasta(aln))
+                    (d / f"fam{fam}.fasta").write_text(_fasta(aln))
         if "ancestral" in outputs:
             for fam, anc in self.ancestral.items():
                 if anc:
@@ -115,9 +116,9 @@ class SequencesResult:
                 _fasta({f"fam{fam}": seq for fam, seq in sorted(self.founding.items())}))
         if "phylograms" in outputs:
             for fam, ph in self.phylograms.items():
-                (d / f"sequences_phylogram_fam{fam}_complete.nwk").write_text(ph["complete"] + "\n")
+                (d / f"phylogram_fam{fam}_complete.nwk").write_text(ph["complete"] + "\n")
                 if ph["extant"] is not None:
-                    (d / f"sequences_phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
+                    (d / f"phylogram_fam{fam}_extant.nwk").write_text(ph["extant"] + "\n")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
             (d / "sequences_species_phylogram_complete.nwk").write_text(sp["complete"] + "\n")
@@ -250,7 +251,7 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
 
 
 def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
-                       substitution=1.0, seed=None) -> SequencesResult:
+                       substitution=1.0, seed=None, progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
     ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.GenomesResult` that
@@ -323,7 +324,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
+    bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
     for family in sorted(gene_trees):  # sorted for reproducibility given the seed
+        bar.update()
         gt = gene_trees[family]
         states, founding_states = evolve_gene_tree(gt.complete, model, length, rate_base, clock, rng,
                                                    gt.origination)
@@ -333,6 +336,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int,
         ext = scaled.extant
         phylograms[family] = {"complete": _gene_newick(scaled.complete),
                               "extant": _gene_newick(ext) if ext is not None else None}
+
+    bar.close()
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")

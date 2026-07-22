@@ -97,6 +97,7 @@ from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
+from ..progress import progress_bar
 from .events import node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_gff
@@ -1245,7 +1246,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 origination_length=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
-                                gff=None, trim_overlaps=False, seed=None) -> NucleotideGenomesResult:
+                                gff=None, trim_overlaps=False, seed=None,
+                                progress=False) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
     The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its own source: an int
@@ -1394,8 +1396,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     total_length = sum(c.length for c in root_chroms)
     total_chromosomes = len(root_chroms)
 
+    bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
+        bar.to(si)
         length, count, nlin = total_length, total_chromosomes, len(alive)
         can_xfer = nlin >= 2 or self_transfer
         r_inv = rates.inversion * nlin                  # every extension event is PER LINEAGE:
@@ -1490,6 +1494,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     total_length += cg.length
                     total_chromosomes += len(cg.chromosomes)
             si += 1
+    bar.close()
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                   gene_spans, gene_names, gene_strands)
 

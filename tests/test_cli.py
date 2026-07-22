@@ -141,9 +141,10 @@ def test_genomes_unordered_writes_events_and_profiles(tmp_path, tree_file):
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--duplication", "0.2", "--transfer", "0.1", "--loss", "0.25", "--origination", "0.5", "--seed", "42", "--flat"])
     assert rc == 0
-    # genome_species_tree.nwk is the always-written handoff tree for `zombi2 sequences --genomes`
+    # a genomes run written to its own directory carries the tree it evolved along, so it stays
+    # replayable without the species run beside it
     assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "profiles.tsv",
-                                               "genome_species_tree.nwk", "genomes.log"}
+                                               "species_complete.nwk", "genomes.log"}
 
 
 def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
@@ -151,7 +152,7 @@ def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3", "--seed", "42", "--write", "gene_order", "rearrangements", "--flat"])
     assert rc == 0
     assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "rearrangements.tsv",
-                                               "genome_species_tree.nwk", "genomes.log"}
+                                               "species_complete.nwk", "genomes.log"}
 
 
 def test_genomes_ordered_writes_event_positions(tmp_path, tree_file):
@@ -187,7 +188,7 @@ def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file)
     assert rc == 0
     # the nucleotide default is events + genes; blocks is opt-in
     assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "genes.tsv",
-                                               "genome_species_tree.nwk", "genomes.log"}
+                                               "species_complete.nwk", "genomes.log"}
     assert len((out / "genes.tsv").read_text().splitlines()) > 1
 
 
@@ -305,8 +306,8 @@ def test_sequences_writes_alignments_and_phylograms_by_default(tmp_path, genomes
     names = {p.name for p in out.iterdir()}
     assert "sequences.log" in names
     # the default write set is alignments + phylograms; ancestral / species_phylogram are opt-in
-    assert any(n.startswith("sequences_alignment_fam") for n in names)
-    assert any(n.startswith("sequences_phylogram_fam") for n in names)
+    assert any(n.startswith("fam") for n in names)
+    assert any(n.startswith("phylogram_fam") for n in names)
     assert not any(n.startswith("sequences_ancestral_fam") for n in names)
     assert not any(n.startswith("sequences_species_phylogram") for n in names)
 
@@ -319,7 +320,7 @@ def test_sequences_write_selects_ancestral_and_species_phylogram(tmp_path, genom
     # the species phylogram is produced only because the CLI hands the engine the species tree
     assert "sequences_species_phylogram_complete.nwk" in names
     assert any(n.startswith("sequences_ancestral_fam") for n in names)
-    assert not any(n.startswith("sequences_alignment_fam") for n in names)   # not requested
+    assert not any(n.startswith("fam") for n in names)   # not requested
 
 
 def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
@@ -344,7 +345,7 @@ def test_sequences_protein_models_write_amino_acid_alignments(tmp_path, genomes_
     out = tmp_path / model
     rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", model, "--length", "60", "--seed", "1", "--flat"])
     assert rc == 0
-    fasta = next(p for p in out.iterdir() if p.name.startswith("sequences_alignment_fam"))
+    fasta = next(p for p in out.iterdir() if p.name.startswith("fam"))
     residues = set("".join(ln for ln in fasta.read_text().splitlines() if not ln.startswith(">")))
     assert residues <= set(AMINO_ACIDS) and not residues <= set("ACGT")
 
@@ -382,7 +383,7 @@ def test_sequences_needs_the_genome_event_log(tmp_path, capsys):
     main(["genomes", str(gdir), "--from", str(tmp_path / "species_complete.nwk"), "--duplication", "0.2", "--seed", "1", "--write", "profiles", "--flat"])
     rc = main(["sequences", str(tmp_path / "s"), "--from", str(gdir), "--model", "jc69", "--flat"])
     assert rc == 1
-    assert "genome_events.tsv not found" in capsys.readouterr().err
+    assert "holds no genomes run" in capsys.readouterr().err
 
 
 # ── traits ──────────────────────────────────────────────────────────────────────────
@@ -503,8 +504,8 @@ def test_params_file_scopes_by_command_table(tmp_path):
     sp, gn = tmp_path / "sp", tmp_path / "gn"
     main(["species", str(sp), "--params", str(tmp_path / "pipeline.toml"), "--seed", "1", "--flat"])
     main(["genomes", str(gn), "--params", str(tmp_path / "pipeline.toml"), "--from", str(sp / "species_complete.nwk"), "--seed", "1", "--flat"])
-    assert {p.name for p in gn.iterdir()} == {"profiles.tsv", "genome_species_tree.nwk",
-                                              "genomes.log"}   # write=["profiles"] (+ handoff tree)
+    assert {p.name for p in gn.iterdir()} == {"profiles.tsv",
+                                              "species_complete.nwk", "genomes.log"}
 
 
 def test_params_unknown_key_errors(tmp_path):
@@ -694,9 +695,10 @@ def test_each_level_writes_into_its_own_directory(tmp_path):
     assert list((tmp_path / "genomes" / "gene_trees").glob("gene_tree_fam*.nwk"))
     assert list((tmp_path / "sequences" / "alignments").glob("*.fasta"))
     assert list((tmp_path / "sequences" / "phylograms").glob("*.nwk"))
-    # every run log lands together
-    assert {p.name for p in (tmp_path / "logs").iterdir()} == {
-        "species.log", "genomes.log", "sequences.log", "traits.log"}
+    # each run log sits with the level that wrote it
+    for level, log in (("species", "species.log"), ("genomes", "genomes.log"),
+                       ("sequences", "sequences.log"), ("traits", "traits.log")):
+        assert (tmp_path / level / log).exists()
     # and nothing loose at the top
     assert not [p for p in tmp_path.iterdir() if p.is_file()]
 
@@ -708,7 +710,8 @@ def test_flat_puts_everything_in_one_directory(tmp_path):
     main(["genomes", str(tmp_path), "--from", tree, "--initial-families", "4", "--duplication", "0.3", "--seed", "2", "--flat", "--write", "events", "gene_trees"])
     assert (tmp_path / "genome_events.tsv").exists()
     assert list(tmp_path.glob("gene_tree_fam*.nwk"))            # not in a subdirectory
-    assert not (tmp_path / "genomes").exists() and not (tmp_path / "logs").exists()
+    assert not (tmp_path / "genomes").exists()
+    assert (tmp_path / "genomes.log").exists()          # the log is loose too under --flat
 
 
 def test_sequences_handoff_takes_either_layout(tmp_path):
@@ -723,7 +726,7 @@ def test_sequences_handoff_takes_either_layout(tmp_path):
     main(["species", str(flat), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1", "--flat"])
     main(["genomes", str(flat), "--from", str(flat / "species_complete.nwk"), "--initial-families", "3", "--duplication", "0.3", "--seed", "2", "--flat"])
     assert main(["sequences", str(flat), "--from", str(flat), "--model", "jc69", "--length", "20", "--seed", "1", "--flat"]) == 0
-    assert list(flat.glob("sequences_alignment_fam*.fasta"))
+    assert list(flat.glob("fam*.fasta"))
 
 
 def test_the_two_layouts_write_the_same_files(tmp_path):
