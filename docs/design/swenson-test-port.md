@@ -39,11 +39,11 @@ have to be re-derived.
 
 | Fork test | What it exercised | Where it landed |
 | --- | --- | --- |
-| `test_geneorder_events.py` (4) | replay the per-branch gene-order events → reconstruct the genomes | **Ported** → `tests/test_krister_suite.py` §2. Needed new output first — see below. |
-| `test_events.py` (26) | exact gene order / orientation / intergene lengths after a scripted event | **Ported** → `tests/test_krister_suite.py` §1: inversion, tandem duplication, loss, transposition and origination. Its 2 transfer cases are not — see below. |
+| `test_geneorder_events.py` (4) | replay the per-branch gene-order events → reconstruct the genomes | **Ported** → `tests/test_nucleotide_model_krister.py` §2. Needed new output first — see below. |
+| `test_events.py` (26) | exact gene order / orientation / intergene lengths after a scripted event | **Ported** → `tests/test_nucleotide_model_krister.py` §1: inversion, tandem duplication, loss, transposition and origination. Its 2 transfer cases are not — see below. |
 | `test_divisions.py` (8) | `natural_cuts` / `init_divisions` boundaries after inversions | **Ported** → `test_blocks_tile_the_chromosome_and_split_only_at_the_cuts`, plus the composing-inversions case. |
-| `test_randomization.py` (5) | same seed → identical output directory | **Ported** → `tests/test_krister_suite.py` §3, widened to the whole pipeline. |
-| `test_genomes.py` (2) | `cut_and_paste`, coordinate exclusion | **Ported** → the transposition cases in `tests/test_krister_suite.py` §1, gene-aware where the ordered-level tests are id-only. |
+| `test_randomization.py` (5) | same seed → identical output directory | **Ported** → `tests/test_nucleotide_model_krister.py` §3, widened to the whole pipeline. |
+| `test_genomes.py` (2) | `cut_and_paste`, coordinate exclusion | **Ported** → the transposition cases in `tests/test_nucleotide_model_krister.py` §1, gene-aware where the ordered-level tests are id-only. |
 | `test_commandline.py` (5) | modes run; `All_genomes` vs `Genomes` crosscheck | **Already covered** by `test_cli.py` (files exist, per level) plus the replay test (the crosscheck's real content). |
 | `test_pieces.py` (4) | divisions/pieces after events | **Not ported** — ~80% commented-out stubs in the fork; the live assertions are a subset of `test_divisions.py`. |
 
@@ -65,7 +65,7 @@ feature in its own right, not test scaffolding:
    `duplicate`, `delete`, `originate` and `excise`/`place` now sit beside it, and the `_do_*` events
    pick with the rng and then call them. That is what lets a test run the fork's way — all rates
    zero, then events applied by hand — and it is one implementation, not two, so the engine runs
-   exactly the code a scripted event runs. `tests/test_krister_suite.py` §4 pins the rng
+   exactly the code a scripted event runs. `tests/test_nucleotide_model_krister.py` §4 pins the rng
    draw order against a stored fixture, since that was the whole risk of the extraction.
 
 ## What was deliberately not ported
@@ -82,7 +82,7 @@ feature in its own right, not test scaffolding:
 
 ## The gap that is still open
 
-The file-based replay (`tests/test_krister_suite.py` §2) holds to **one chromosome per
+The file-based replay (`tests/test_nucleotide_model_krister.py` §2) holds to **one chromosome per
 genome**. The chromosome tier re-mints ids at speciation, fission and fusion, so replaying a
 multi-chromosome run additionally needs `chromosome_events.tsv` to map a parent's chromosome onto
 its daughters'. That is a separate question from whether the coordinates are right, which is what
@@ -94,9 +94,9 @@ The whole port lives in one file, grouped by where it came from rather than by w
 reads against his originals:
 
 ```
-pytest tests/test_krister_suite.py
+pytest tests/test_nucleotide_model_krister.py
 ```
 
 Its four sections are the worked examples, the file replay, the pipeline determinism check, and the
 golden pin that made the first section possible. Regenerate that fixture deliberately with
-`python tests/test_krister_suite.py`.
+`python tests/test_nucleotide_model_krister.py`.

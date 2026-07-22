@@ -1,9 +1,14 @@
-"""Krister Swenson's test suite, ported to ZOMBI2.
+"""The nucleotide genome model, tested with Krister Swenson's suite.
 
-This is the whole of the port in one place: everything that came out of Krister Swenson's fork
-(`thekswenson/Zombi`, `root_genome` branch) and the discussion around it. Grouped by where it came
-from rather than by what it tests, so it can be read against his originals and handed to him as one
-file; `docs/design/swenson-test-port.md` tabulates each of his test files and where it landed.
+**These tests were designed by Krister Swenson for ZOMBI1** — for his fork of it,
+`thekswenson/Zombi` (`root_genome` branch, `tests/`), built for gene-order work — and are ported
+here at his suggestion. They are kept together, grouped by where they came from rather than by what
+they test, so this file reads against his originals and can be handed to him whole. He wrote the
+scenarios; the coordinates are re-derived, because ZOMBI2 is a rewrite rather than a descendant and
+the two models express the same ideas differently (see the concept map below).
+
+`docs/design/swenson-test-port.md` tabulates each of his test files, where it landed, and what was
+deliberately not ported.
 
 His argument, which is the one that shapes all of this: **ZOMBI2's output is a set of files, and
 the files are what a reader consumes.** Verifying the in-memory structures says nothing about
@@ -31,9 +36,13 @@ ordered block list; `ch.genes` → the gene-carrying blocks in physical order; `
 boundaries; `Inversion.afterToBeforeT` → `trace_back()`; `Geneorder_events_per_branch/` →
 `genome_event_positions.tsv` + `rearrangements.tsv`; `All_genomes/` → `gene_order.tsv` / `blocks.tsv`.
 
+Most of this exercises the **nucleotide** resolution, which is where ZOMBI2 keeps genes, spacer and
+block ancestry — the model his gene-order tests are about. Section 3 is broader: it compares the
+whole CLI pipeline, because that is what his `test_randomization.py` did.
+
 Regenerate the golden fixture (deliberately — never to make a red test green):
 
-    python tests/test_krister_suite.py
+    python tests/test_nucleotide_model_krister.py
 """
 
 import pathlib
@@ -49,8 +58,11 @@ from zombi2.species import read_newick, simulate_species_tree
 # ==================================================================================================
 # 1. WORKED EXAMPLES
 #
-# From test_events.py, test_genomes.py, test_divisions.py — hand-derived gene-order
-# outcomes. Every expected value is re-derived in ZOMBI2's coordinates, not transcribed.
+# Krister Swenson's, from ZOMBI1: test_events.py, test_genomes.py, test_divisions.py.
+# He hand-verified each outcome on two tiny genomes of his own (30_6.gff, 30_10.gff),
+# which are rebuilt here as GFF fixtures. The scenarios are his; every expected value is
+# re-derived in ZOMBI2's coordinates rather than transcribed, since the two models
+# parameterise an event differently.
 # ==================================================================================================
 
 #: the fork's fixtures: (total bp, gene length, gene count). 30_6 = 5 genes of 3 bp with 3 bp
@@ -407,8 +419,9 @@ def test_an_originated_gene_is_indivisible_like_a_declared_one(tmp_path):
 # ==================================================================================================
 # 2. FILE REPLAY
 #
-# From test_geneorder_events.py (checkEventsAgainstGenomes) — the written event files
-# must replay to the written genomes.
+# Krister Swenson's, from ZOMBI1: test_geneorder_events.py (checkEventsAgainstGenomes).
+# The written event files must replay to the written genomes. The best test in his suite,
+# and the one that required ZOMBI2 to grow three output features before it could run.
 # ==================================================================================================
 
 # --------------------------------------------------------------------------- #
@@ -606,8 +619,8 @@ def test_every_gene_content_event_has_a_position(tmp_path):
 # ==================================================================================================
 # 3. PIPELINE DETERMINISM
 #
-# From test_randomization.py — same seed, same output, widened from one mode to the
-# whole pipeline compared as bytes.
+# Krister Swenson's, from ZOMBI1: test_randomization.py. Same seed, same output —
+# widened here from one mode to the whole pipeline, compared byte for byte.
 # ==================================================================================================
 
 PIPELINE_SEED = "20"
@@ -703,8 +716,10 @@ def test_excluding_the_run_logs_is_justified_and_narrow(tmp_path):
 # ==================================================================================================
 # 4. THE GOLDEN PIN
 #
-# Not Krister's: the safety net for splitting the mutators into choose and apply, which
-# is what made the scripted worked examples above possible.
+# NOT Krister's — this one is ZOMBI2's own. It is the safety net for splitting the
+# nucleotide mutators into a choosing half and an applying half, which is what let
+# section 1 script a duplication or a loss at all. Kept here because it exists only
+# because of that port, and it is what makes those tests safe to trust.
 # ==================================================================================================
 
 GOLDEN = pathlib.Path(__file__).parent / "data" / "nucleotide_golden.txt"
