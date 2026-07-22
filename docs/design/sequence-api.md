@@ -224,11 +224,20 @@ event, so a copy that duplicated twice is three genes in a row, and the one a ge
 the **last** rung of that ladder. That map (`{(block, copy): gene id}`) now comes back from the
 recovery beside the trees.
 
-**Extant lineages only.** The partition is cut from the extant leaves, so an ancestor holding material
-that later died out everywhere has no block for it; `assembly` raises rather than returning a genome
-with a hole. Ancestral genomes need the finer all-node partition — the refinement the nucleotide
-module already flags — plus reading `.ancestral` instead of `.alignments`, which the same
-`(block, copy)` map already points at.
+**Ancestral genomes too**, as `.ancestral_genomes` — the same split the sequences already make, since a
+leaf's genes are tips of their block trees and an ancestor's are internal nodes of them, so one reads
+`.alignments` and the other `.ancestral` through the same `(block, copy)` map. Two nodes are left out
+rather than returned incomplete: an **extinct leaf** (neither a tip nor an internal node, so it has no
+sequence anywhere) and an **ancestor holding material no surviving lineage kept** (the partition is cut
+from the extant leaves, so there is no block for it — `assembly` raises when asked directly). Covering
+the second would need the finer all-node partition the nucleotide module already flags.
+
+**The round trip is checked.** Declare a genome in a GFF, evolve it, rebuild the root from its
+descendants at substitution rate 0: identical, base for base, to the founding blocks in root coordinate
+order — a reference drawn before any event and never seen by the recovery. One trap: the root *node*
+sits at the **end** of the root branch, so an inversion landing there before the first speciation
+correctly makes the rebuilt root differ from the seeded layout. The test asserts the root branch is
+quiet; a second one covers the case where it is not.
 
 Care needed: `_recover` is pinned by the Swenson port (`tests/test_nucleotide_model_krister.py`),
 whose whole argument is that the *written files* must mean what they claim.
