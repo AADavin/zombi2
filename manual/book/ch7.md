@@ -165,6 +165,6 @@ The clock keeps its written form on the command line, exactly as in Python — `
 
 A run writes, by default, one **alignment** per gene family in FASTA, with the extant gene copies as the aligned rows, and the **phylograms** those sequences were drawn along — each family's gene tree in Newick, with branch lengths in substitutions per site rather than time, so the ground-truth tree behind every alignment is kept beside it.
 
-Two more outputs are written on request. The **ancestral sequences** (`--write ancestral`) give the sequence at every internal node, which is what you need to score an ancestral-reconstruction method against the truth. The **species phylogram** (`--write species_phylogram`) is the species tree under the same conversion, and it is where the clock becomes visible: a fast-evolving lineage has a longer branch there than its age alone would give it.
+The **clock species tree** (`clock_species_tree.nwk`) comes with them: the species tree under the same conversion, and where the clock becomes visible — a fast-evolving lineage has a longer branch there than its age alone would give it. One output is written only on request: the **ancestral sequences** (`--write ancestral`) give the sequence at every internal node, which is what you need to score an ancestral-reconstruction method against the truth.
 
 Every node is labelled `g<copy>`, so a phylogram's tips match its alignment and its internal nodes match the ancestral sequences. The full list of files lives in Appendix B.

@@ -252,7 +252,7 @@ class OrderedGenomesResult:
         from the (position-blind) event log exactly as for the unordered core. See :mod:`.gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
-    def write(self, directory, outputs=("events", "profiles", "gene_order")) -> None:
+    def write(self, directory, outputs=("events", "profiles", "gene_order", "gene_trees")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the gene-genealogy log (the source of truth).

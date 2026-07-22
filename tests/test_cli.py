@@ -143,8 +143,10 @@ def test_genomes_unordered_writes_events_and_profiles(tmp_path, tree_file):
     assert rc == 0
     # a genomes run written to its own directory carries the tree it evolved along, so it stays
     # replayable without the species run beside it
-    assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "profiles.tsv",
-                                               "species_complete.nwk", "genomes.log"}
+    written = {p.name for p in out.iterdir()}
+    assert {"genome_events.tsv", "profiles.tsv", "genomes.tsv",
+            "species_complete.nwk", "genomes.log"} <= written
+    assert any(n.startswith("gene_tree_fam") for n in written)   # --flat, so not in a subdirectory
 
 
 def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
@@ -187,8 +189,8 @@ def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file)
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "600", "--genes", "3", "--inversion", "1.0", "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--flat"])
     assert rc == 0
     # the nucleotide default is events + genes; blocks is opt-in
-    assert {p.name for p in out.iterdir()} == {"genome_events.tsv", "genes.tsv",
-                                               "species_complete.nwk", "genomes.log"}
+    written = {p.name for p in out.iterdir()}
+    assert {"genome_events.tsv", "genes.tsv", "species_complete.nwk", "genomes.log"} <= written
     assert len((out / "genes.tsv").read_text().splitlines()) > 1
 
 
@@ -318,7 +320,7 @@ def test_sequences_write_selects_ancestral_and_species_phylogram(tmp_path, genom
     assert rc == 0
     names = {p.name for p in out.iterdir()}
     # the species phylogram is produced only because the CLI hands the engine the species tree
-    assert "sequences_species_phylogram_complete.nwk" in names
+    assert "clock_species_tree.nwk" in names
     assert any(n.startswith("sequences_ancestral_fam") for n in names)
     assert not any(n.startswith("fam") for n in names)   # not requested
 

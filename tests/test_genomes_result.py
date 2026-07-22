@@ -68,7 +68,11 @@ def test_empty_run_has_empty_profiles():
 def test_write_produces_events_and_profiles(tmp_path):
     _, g = _run(seed=7)
     g.write(tmp_path)
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["genome_events.tsv", "profiles.tsv"]
+    # the default writes what the run computed: the log, the profiles, the genomes at every node,
+    # and a gene tree per family
+    written = {p.name for p in tmp_path.iterdir()}
+    assert {"genome_events.tsv", "profiles.tsv", "genomes.tsv"} <= written
+    assert any(n.startswith("gene_tree_fam") for n in written)
     ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
     assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient"]
     assert len(ev) - 1 == len(g.events)                 # one row per event

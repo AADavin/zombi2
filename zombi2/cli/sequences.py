@@ -29,7 +29,7 @@ from zombi2.sequences.substitution_models import (
 )
 from zombi2.species import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, level_dir,
+                                  _rate, _rates_help, _write_params_log, default_outputs, level_dir,
                                   resolve_genomes)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
@@ -95,11 +95,12 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
-                   help="which outputs to write (default: alignments, phylograms). also available: "
-                        "ancestral (internal-node sequences), founding (each family's sequence at "
-                        "its origination, where the phylogram's root branch starts), "
-                        "species_phylogram (the species tree "
-                        "scaled by the clock)")
+                   help="which outputs to write (default: alignments, phylograms, "
+                        "species_phylogram — the last written as clock_species_tree.nwk, the "
+                        "species tree with its branches in substitutions/site). also "
+                        "available: ancestral (internal-node sequences), founding (each "
+                        "family's sequence at its origination, where the phylogram's root "
+                        "branch starts)")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 
@@ -159,7 +160,7 @@ def run(args, parser):
     out = level_dir(args.run, "sequences", args.flat)
     # alignments and phylograms are one file per family, so a hundred families is hundreds of files
     # each — they get a directory apiece unless --flat says otherwise
-    wanted = args.write or ("alignments", "phylograms")   # SequencesResult.write's own default
+    wanted = tuple(args.write) if args.write else default_outputs(result)
     if rest := [o for o in wanted if o not in ("alignments", "phylograms")]:
         result.write(out, outputs=rest)
     for per_family in ("alignments", "phylograms"):

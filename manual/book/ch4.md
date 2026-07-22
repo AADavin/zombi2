@@ -155,14 +155,14 @@ zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement --origin
 
 ## Outputs
 
-By default a run writes the event log and the profiles:
+A run writes the event log and the profiles:
 
 ```
 out/genome_events.tsv    the gene genealogy (the source of truth)
 out/profiles.tsv         family × extant-species copy counts
 ```
 
-Two more are written on request, because both are large and most runs do not need them:
+Two more come with them, one row per gene copy and one Newick per family:
 
 ```
 out/genomes.tsv                    every node's genes, ancestors included
@@ -184,7 +184,7 @@ Read a block of rows sharing a `lineage` and you have that lineage's genome. `fa
 
 `--write gene_trees` writes a Newick per family.
 
-`--write` picks which of the four to keep, and a `names.tsv` joins the `n<id>` columns back to your labels whenever you brought your own tree. Everything is derived from the event log, so writing none of them loses nothing that cannot be replayed.
+All four are written by default; `--write` picks a subset, and a `names.tsv` joins the `n<id>` columns back to your labels whenever you brought your own tree. Everything is derived from the event log, so writing none of them loses nothing that cannot be replayed.
 
 The run directory is where the species tree is read from as well as where the genomes are written, because a run already knows where a species run keeps its complete tree. `--from mytree.nwk` reads a tree from elsewhere; `--from other_run/` reads one run and writes another, which is how you get several genome replicates off one species tree.
 
