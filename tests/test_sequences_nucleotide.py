@@ -92,26 +92,26 @@ def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
     for leaf in genomes.complete_tree.extant():
         genome = r.genomes[node_label(leaf.id)]
         for cid, pieces in genomes.assembly(leaf.id).items():
-            for (block, gene, start, end, _strand) in pieces:
+            for (block, gene, _strand) in pieces:
+                if block not in genic:
+                    continue
                 seq = r.alignments[block][f"g{gene}"]
-                if block not in genic or (start, end) != (0, len(seq)):
-                    continue                              # a gene taken whole, which is the only way
                 assert seq in genome[cid] or seq.translate(COMPLEMENT)[::-1] in genome[cid]
                 checked += 1
     assert checked, "the run left no gene in any leaf — pick another seed"
 
 
-def test_material_no_extant_leaf_kept_cannot_be_assembled():
-    # the root partition is cut from the extant leaves, so an ancestor holding material that later died
-    # out everywhere has no block for it. Say so rather than return a genome with a hole in it.
+def test_material_no_extant_leaf_kept_is_still_reconstructed():
+    # the partition is cut at every node, not at the survivors, so a lineage holding material that
+    # later died out everywhere still has blocks for it — and a genome, exact like any other
     genomes = _run(seed=4, loss=3.0, n_extant=8)
     kept = {sp for n in genomes.complete_tree.extant() for sp in genomes.ancestry(n.id)}
     doomed = [nid for nid in sorted(genomes.genomes) if set(genomes.ancestry(nid)) - kept]
     assert doomed, "nothing died out for good in this run — pick another seed"
-    with pytest.raises(ValueError, match="survives in no extant leaf"):
-        genomes.assembly(doomed[0])
-    for leaf in genomes.complete_tree.extant():           # an extant leaf always can be assembled
-        genomes.assembly(leaf.id)
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
+    rebuilt = {**r.genomes, **r.ancestral_genomes}
+    for nid in doomed:
+        assert rebuilt[node_label(nid)] == _traced(genomes, r, nid)
 
 
 # --- every block evolves, at its own length --------------------------------------------------------
@@ -300,27 +300,24 @@ def test_every_rebuildable_genome_is_exact_under_every_event_kind():
     assert len({tuple(sorted(v.items())) for v in rebuilt.values()}) == len(rebuilt)
 
 
-def test_a_fragment_left_by_a_partial_loss_is_refused_not_mangled():
-    # a loss need only *overlap* a root block to end that copy's lineage for it, so an ancestor can be
-    # left carrying a fragment the block's tree has no lineage for. There is no sequence to read, and
-    # it used to surface as a KeyError deep inside the assembly.
+def test_a_partial_loss_leaves_no_fragment_to_go_wrong():
+    # A loss need only *overlap* a block to end that copy's lineage for it. When the partition was cut
+    # from the survivors alone, that left ancestors holding a fragment of a block whose genealogy had
+    # no lineage for it — no sequence to read, and a KeyError deep in the assembly. Cutting at every
+    # node removes the fragment itself: a loss's own endpoints are breakpoints, so it always covers a
+    # whole number of blocks, and a copy is only ever ended for blocks it really lost.
     g = _busy()
-    fragments = []
-    for node_id in sorted(g.genomes):
-        try:
-            g.assembly(node_id)
-        except ValueError as e:
-            if "no lineage for the fragment" in str(e):
-                fragments.append(node_id)
-    assert fragments, "no partial-overlap loss in this run — pick another seed"
-    # never an EXTANT leaf, and that is provable rather than lucky: a root block sits inside such a
-    # leaf's own block, copy ids belong to one branch, so a loss ending that copy over that block
-    # happened on this leaf's branch and took part of the block with it — which contradicts the leaf
-    # still holding all of it. An extinct leaf has no such guarantee: it did not vote on the cuts.
-    assert not [i for i in fragments if g.complete_tree.nodes[i].fate == "extant"
-                and g.complete_tree.nodes[i].children is None]
-    for leaf in g.complete_tree.extant():                    # so the extant leaves all assemble
-        g.assembly(leaf.id)
-    r = simulate_sequences(g, model=jc69(), substitution=0.1, seed=2)
-    assert set(r.genomes) == {node_label(n.id) for n in g.complete_tree.extant()}
-    assert not ({node_label(i) for i in fragments} & set(r.ancestral_genomes))
+    tips = g._recover_blocks()[2]
+    dead = {key for key, gene in tips.items() if gene is None}
+    assert dead, "no copy was ended by a loss in this run — pick another seed"
+    # the invariant: no node still carrying a block is one of those. A copy's blocks are disjoint in
+    # source coordinates, so if a node still holds all of a block under copy c, no loss of c can have
+    # taken any of it — and it holds *all* of it, because the node voted on the cuts.
+    for node_id, genome in g.genomes.items():
+        for chrom in genome.chromosomes:
+            for blk in chrom.blocks:
+                for i, (s, a, b) in enumerate(g.root_blocks):
+                    if s == blk.source and blk.start <= a and b <= blk.end:
+                        assert (i, blk.copy) not in dead
+    for node_id in sorted(g.genomes):                               # so every node assembles
+        g.assembly(node_id)

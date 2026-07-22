@@ -159,13 +159,13 @@ def test_hky85_transition_bias_makes_diverged_tips_still_reflect_frequencies():
 # --- a family with no surviving copy ---------------------------------------------------------------
 
 def test_family_with_no_extant_copy_has_empty_alignment_but_full_ancestral():
-    # the root gene (id 0) speciates, but both daughters are lost → no extant tip, yet the root is a
-    # real internal node with a reconstructed sequence
+    # the root gene (id 0) speciates, but both daughters are lost → nothing observable, yet all three
+    # are real nodes of the tree with a reconstructed sequence apiece, the two dead tips included
     root = GeneNode("speciation", 0, 1.0, 0)
     root.children = [GeneNode("loss", 0, 2.0, 1), GeneNode("loss", 0, 2.0, 2)]
     r = simulate_sequences(_run({0: GeneTree(0, root, 0.0)}), model=jc69(), length=10, seed=1)
     assert r.alignments[0] == {}
-    assert set(r.ancestral[0]) == {"g0"}               # the root gene still gets a sequence
+    assert set(r.ancestral[0]) == {"g0", "g1", "g2"}
 
 
 # --- integration: species → genomes → sequences ----------------------------------------------------
@@ -179,10 +179,11 @@ def test_a_real_genome_run_is_covered_node_for_node():
     assert set(r.alignments) == set(g.gene_trees) == set(r.ancestral)       # one entry per family
     for fam, gt in g.gene_trees.items():
         nodes = list(_iter_nodes(gt.complete))
-        n_internal = sum(1 for n in nodes if not n.is_leaf)
         n_extant = sum(1 for n in nodes if n.is_leaf and n.kind == "extant")
-        assert len(r.ancestral[fam]) == n_internal
         assert len(r.alignments[fam]) == n_extant
+        # everything that is not an extant tip: internal nodes and the tips where a copy or its
+        # species died. Together they account for every node in the tree, exactly once.
+        assert len(r.ancestral[fam]) == len(nodes) - n_extant
         for seq in list(r.alignments[fam].values()) + list(r.ancestral[fam].values()):
             assert len(seq) == 300
 
@@ -312,12 +313,16 @@ def test_the_founding_sequence_evolves_across_the_stem():
             assert written == pytest.approx(stem, rel=1e-5)
 
 
-def test_phylogram_internal_nodes_pair_with_ancestral():
-    # every internal node in the complete phylogram is labelled by its gene id, matching an ancestral key
+def test_every_phylogram_node_has_a_sequence():
+    # the complete phylogram labels every node by its gene id, and every one of those names a
+    # sequence: the extant tips in the alignment, all the rest — internal nodes and dead tips
+    # alike — in the ancestral set. No label points at nothing.
     g, r = _small_run()
     for fam in g.gene_trees:
         internal = set(re.findall(r"\)(g\d+)", r.phylograms[fam]["complete"]))
-        assert internal == set(r.ancestral[fam])
+        assert internal <= set(r.ancestral[fam])
+        labelled = set(re.findall(r"(g\d+)", r.phylograms[fam]["complete"]))
+        assert labelled == set(r.ancestral[fam]) | set(r.alignments[fam])
 
 
 def test_phylogram_extant_leaves_match_the_alignment():

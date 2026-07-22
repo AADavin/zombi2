@@ -53,8 +53,8 @@ re-mints into each daughter. The genealogy ``events`` — ``origination`` / ``lo
 ``transfer`` / ``speciation`` — carry these copy ids, and the recovery reads them:
 
 - **The gene-tree recovery** (``result.root_blocks`` / ``result.gene_trees``) — the **root partition**
-  (cut each source at the union of extant-leaf breakpoints, keep the intervals that survive in a leaf:
-  each is a maximal never-cut interval = one gene family) and, per block, the copy-lineage log replayed
+  (cut each source at the union of **every node's** breakpoints, keep the intervals some node still
+  carries: each is a maximal never-cut interval = one gene family) and, per block, the copy-lineage log replayed
   into one gene tree (a duplication is a ladder, a transfer a horizontal edge, a speciation a
   bifurcation), reusing the shared per-segment builder. Validated end to end: the recovered extant tips
   equal the copies actually present in every extant leaf.
@@ -77,11 +77,13 @@ begins *and* ends in a spacer often simply does not exist, and an event that wou
 happen. That conditioning is the model; what it must not do — and no longer does — is quietly eat the
 event *rate* along with it.
 
+Because every node votes on the partition, the recovery covers the **complete** tree, not only its
+extant tips: any node's genome can be put back together (``NucleotideGenomesResult.assembly``), an
+extinct lineage and the root as readily as a survivor.
+
 Deferred to later slices: homologous *replacement* transfer (only additive for now); indels;
-pseudogenization (``gene → intergene``); declaring genes from a GFF / distribution file; BED / FASTA
-output; and the opt-in per-copy dial (size-blind, settable per-gene turnover — a *second* selection
-method, deliberately kept out). (The recovery above builds the *extant* tree exactly; the *complete*
-tree's dead partial-overlap lineages need the finer all-node partition — a later refinement.)
+pseudogenization (``gene → intergene``); BED output; and the opt-in per-copy dial (size-blind,
+settable per-gene turnover — a *second* selection method, deliberately kept out).
 """
 
 from __future__ import annotations
@@ -137,6 +139,10 @@ class Block:
     def is_gene(self) -> bool:
         """Whether this block is a declared gene (indivisible) rather than intergenic spacer."""
         return self.gene != 0
+
+
+#: sentinel for "no entry", so ``None`` can mean the distinct "the copy died here"
+_MISSING = object()
 
 
 class _CutsGene(Exception):
@@ -702,7 +708,10 @@ class NucleotideGenomesResult:
     @property
     def root_blocks(self) -> list[tuple[int, int, int]]:
         """The recovered **root partition**: ``(source, start, end)`` for each maximal never-cut
-        interval that survives in an extant leaf — one per :attr:`gene_trees` family (by index)."""
+        interval that some node still carries — one per :attr:`block_trees` entry (by index).
+
+        Cut at the breakpoints of **every** node's genome, not only the extant leaves', which is what
+        lets any node be reconstructed (:meth:`assembly`) rather than the survivors alone."""
         return self._recover()[0]
 
     @property
@@ -733,7 +742,7 @@ class NucleotideGenomesResult:
             r.alignments[g.block_of(g.gene_names["dnaA"])]     # that gene's alignment
 
         Raises ``KeyError`` for a family that was never declared, and ``LookupError`` for one declared
-        but surviving in no extant leaf — it has no recovered block, so there is nothing to point at.
+        but surviving nowhere at all — it has no recovered block, so there is nothing to point at.
         The reverse lookup is one line: ``{span: fam for fam, span in g.gene_spans.items()}`` read at
         ``root_blocks[i]``."""
         span = self.gene_spans[family]                    # KeyError: never declared
@@ -741,78 +750,54 @@ class NucleotideGenomesResult:
             return self.root_blocks.index(span)
         except ValueError:
             raise LookupError(
-                f"gene family {family} spans {span} but has no recovered root block — it survives in "
-                "no extant leaf, so nothing was reconstructed for it. gene_trees leaves such a family "
-                "out for the same reason.") from None
+                f"gene family {family} spans {span} but has no recovered root block — no node in the "
+                "tree still carries it, so nothing was reconstructed for it. gene_trees leaves such a "
+                "family out for the same reason.") from None
 
-    def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int, int, int]]]:
+    def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int]]]:
         """How this node's genome is built out of the recovered root blocks:
-        ``{chromosome id: [(block, gene, start, end, strand), …]}`` in **physical order**, where
-        ``block`` indexes :attr:`root_blocks`, ``gene`` is the gene id that block's tree gives this
-        node's copy (the ``g<id>`` label in :attr:`block_trees`), ``[start, end)`` is the stretch of
-        the block taken — in **block-local** coordinates — and ``strand`` is ``+1`` read forward or
-        ``-1`` reverse-complemented.
+        ``{chromosome id: [(block, gene, strand), …]}`` in **physical order**, where ``block`` indexes
+        :attr:`root_blocks`, ``gene`` is the gene id that block's tree gives this node's copy (the
+        ``g<id>`` label in :attr:`block_trees`), and ``strand`` is ``+1`` read forward or ``-1``
+        reverse-complemented.
 
-        To reconstruct a genome: pair each piece with its block's evolved sequence, slice, flip the
+        To reconstruct a genome: pair each piece with its block's evolved sequence, flip the
         ``-1``\\ s, and concatenate. The sequence level does exactly that; nothing here knows about
-        letters.
+        letters. **Every** node works — an extinct leaf and the root as readily as a surviving tip —
+        which is what makes the whole history recoverable rather than only its leaves.
 
-        A working block need not match a root block. Only the **extant leaves** vote on where the cuts
-        go, so:
-
-        - **At a leaf**, its own breakpoints are all in the partition, which is therefore at least as
-          fine as its blocks: a block spans one or more root blocks and is cut into a piece each, every
-          piece a **whole** block.
-        - **At an ancestor**, a piece can be a *part* of a block — but only where the ancestor has a
-          breakpoint that no survivor has: the descendants that inherited it died out or lost the
-          material, while some other lineage kept it unbroken across that point.
-
-        On a reversed block the pieces come out in descending coordinate order, since physical order
-        runs *down* the source.
-
-        The partition is cut from the **extant leaves**, so ancestral material that survives in none of
-        them has no root block and no sequence. Asking for such a node raises rather than quietly
-        returning a genome with holes in it (the finer all-node partition is a later refinement)."""
+        A piece is always a **whole** block, never part of one, because every node votes on where the
+        partition is cut (see :func:`_root_block_partition`): this node's own breakpoints are all in
+        it, so each of its blocks is a whole number of root blocks. What a block *is* cut into is one
+        piece per root block it spans — and on a reversed block those come out in descending
+        coordinate order, since physical order runs *down* the source."""
         blocks = self.root_blocks
         tips = self._recover_blocks()[2]
         index = self._block_index()
-        out: dict[int, list[tuple[int, int, int, int, int]]] = {}
+        out: dict[int, list[tuple[int, int, int]]] = {}
         for chrom in self.genomes[node_id].chromosomes:
-            pieces: list[tuple[int, int, int, int, int]] = []
+            pieces: list[tuple[int, int, int]] = []
             for b in chrom.blocks:
                 cut = []
                 starts, idx = index.get(b.source, ([], []))
-                k = bisect.bisect_right(starts, b.start) - 1
-                covered = b.start
-                while 0 <= k < len(idx) and blocks[idx[k]][1] < b.end:
+                k = bisect.bisect_left(starts, b.start)   # the partition starts a block exactly here
+                at = b.start
+                while k < len(idx) and blocks[idx[k]][1] == at < b.end:
                     i = idx[k]
-                    _src, a, z = blocks[i]
-                    lo, hi = max(a, b.start), min(z, b.end)
-                    if lo < hi:
-                        if lo != covered:
-                            break                       # a gap: the material in between is unrecovered
-                        key = (i, b.copy)
-                        if key not in tips:
-                            raise ValueError(
-                                f"{node_label(node_id)} carries copy lineage {b.copy} over "
-                                f"{blocks[i]}, but that block's genealogy has no such copy — the "
-                                "event log and the genomes disagree")
-                        if tips[key] is None:
-                            raise ValueError(
-                                f"{node_label(node_id)} carries [{lo}, {hi}) of block {blocks[i]} "
-                                f"under copy lineage {b.copy}, but a loss ended that copy over this "
-                                "block, so its tree has no lineage for the fragment left behind. "
-                                "Resolving these dead partial-overlap lineages needs the finer "
-                                "all-node partition; the extant leaves are never affected, because "
-                                "the partition is cut from them.")
-                        cut.append((i, tips[key], lo - a, hi - a, b.strand))
-                        covered = hi
+                    gene = tips.get((i, b.copy), _MISSING)
+                    if gene is _MISSING or gene is None:
+                        raise AssertionError(                        # a guard — see the class docstring
+                            f"{node_label(node_id)} carries {blocks[i]} under copy lineage {b.copy}, "
+                            f"but that block's genealogy "
+                            + ("has no such copy" if gene is _MISSING else "ends that copy in a loss")
+                            + " — the event log and the genomes disagree")
+                    cut.append((i, gene, b.strand))
+                    at = blocks[i][2]
                     k += 1
-                if covered != b.end:
-                    raise ValueError(
-                        f"{node_label(node_id)} carries [{covered}, {b.end}) of source {b.source}, "
-                        "which survives in no extant leaf and so has no recovered block. Only nodes "
-                        "whose material all survives can be assembled — the extant leaves always can.")
+                if at != b.end:
+                    raise AssertionError(                            # a guard — see the class docstring
+                        f"{node_label(node_id)} carries [{at}, {b.end}) of source {b.source}, which "
+                        "the root partition does not cover, though every node votes on it")
                 pieces.extend(reversed(cut) if b.strand == -1 else cut)
             out[chrom.id] = pieces
         return out
@@ -837,8 +822,9 @@ class NucleotideGenomesResult:
         :attr:`gene_spans`); the intergenic root-blocks keep their block ancestry in the log but are not
         built into trees. With **no genes declared** the whole genome is one big intergene, so every
         recovered root-block is a family in its own right and the key is its index in
-        :attr:`root_blocks`. A declared gene that survives in no extant leaf has no root-block and so no
-        tree."""
+        :attr:`root_blocks`. Every node votes on the partition, so a gene surviving only in lineages
+        that died still gets a tree — a complete one, with no extant tree to go with it. Only a gene
+        lost from *every* node has no root-block and no tree."""
         return self._recover()[1]
 
     def write(self, directory,
@@ -858,7 +844,8 @@ class NucleotideGenomesResult:
         - ``"rearrangements"`` → ``rearrangements.tsv``, the inversion/transposition/translocation log.
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome network's edges.
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
-          genealogy per family that survives in at least one extant leaf.
+          genealogy per family some node still carries; the ``_extant`` file only where the family
+          has a surviving copy.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -1635,13 +1622,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
 #
-# A gene tree per *root-block*: the coarsest interval of a source that is never cut in any extant leaf
+# A gene tree per *root-block*: the coarsest interval of a source that is never cut in any node
 # and survives there. Within such a block every copy is un-cut in every leaf that carries it (a cut
 # would be an observable breakpoint, which would have split the block), so all its copies share one
 # genealogy. The recovery has two moves:
 #
-#   1. the **root partition** — cut each source at the union of extant-leaf breakpoints and keep the
-#      intervals some extant leaf still covers (the surviving material);
+#   1. the **root partition** — cut each source at the union of every node's breakpoints and keep the
+#      intervals some node still covers (the material that exists anywhere);
 #   2. per block, replay the copy-lineage log restricted to that block into the **per-segment** model
 #      the shared ``gene_trees_from_events`` reads (every event ends a segment and starts fresh ids),
 #      so a duplication is a ladder (parent continues + child) and a speciation a bifurcation.
@@ -1667,13 +1654,22 @@ class _SegEvent:
 
 
 def _root_block_partition(result) -> list[tuple[int, int, int]]:
-    """The root partition: per source, the maximal intervals bounded by extant-leaf breakpoints that
-    survive in some extant leaf. Returns a sorted list of ``(source, start, end)`` root-blocks."""
-    leaves = [n.id for n in result.complete_tree.extant()]
+    """The root partition: per source, the maximal intervals bounded by the breakpoints of **every**
+    node's genome, that some node still carries. Returns a sorted ``(source, start, end)`` list.
+
+    Every node votes, not only the extant leaves, and that is what makes the whole tree
+    reconstructable. Cutting at the survivors alone leaves two kinds of hole: material no survivor
+    kept has no block at all, and an ancestor can hold a *fragment* of a block whose genealogy — being
+    the survivors' — has no lineage for it. Counting every node closes both at once, because a node's
+    own breakpoints are then all in the partition, so its every block is a whole number of root blocks.
+
+    Reading the **final** genome at each node is enough: a breakpoint matters only where material
+    survives on one side of it and not the other, and the surviving side carries that breakpoint to
+    the end of its branch. A boundary that vanishes took its material with it."""
     bounds: dict[int, set[int]] = collections.defaultdict(set)
     spans: dict[int, set[tuple[int, int]]] = collections.defaultdict(set)
-    for lid in leaves:
-        for chrom in result.genomes[lid].chromosomes:
+    for genome in result.genomes.values():
+        for chrom in genome.chromosomes:
             for b in chrom.blocks:
                 bounds[b.source].update((b.start, b.end))
                 spans[b.source].add((b.start, b.end))
@@ -1682,7 +1678,7 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
         cuts = sorted(bounds[source])
         covers = spans[source]
         for a, c in zip(cuts, cuts[1:]):
-            if any(x <= a and c <= y for (x, y) in covers):   # some leaf still carries [a, c)
+            if any(x <= a and c <= y for (x, y) in covers):   # some node still carries [a, c)
                 blocks.append((source, a, c))
     return sorted(blocks)
 
@@ -1756,10 +1752,10 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
             out.append(_SegEvent(kind, fam, species[c], t, nxt, prev))       # continuation, on c's branch
             out.append(_SegEvent(kind, fam, species[cc], t, seg_in[cc], prev))  # the new copy
             prev = nxt
-        # The gene a genome still carrying c holds. ``None`` when a loss ended c over this block: the
-        # loss need only *overlap* the block, so a node can still carry a **fragment** of it while the
-        # block's tree has no lineage for that fragment — nothing to read a sequence from. It cannot
-        # happen at an extant leaf, whose own breakpoints are all in the partition.
+        # The gene a genome still carrying c holds. ``None`` when a loss ended c over this block —
+        # and then no node carries that block under c at all, since a copy's blocks are disjoint in
+        # source coordinates and every node's breakpoints are in the partition. Recorded rather than
+        # dropped so the assembly's guard can tell "died here" from "never existed".
         tip_of[(fam, c)] = None if c in loss_of else prev
         if c in loss_of:                                   # a death (dead leaf)
             out.append(_SegEvent("loss", fam, species[c], loss_of[c], prev, None))

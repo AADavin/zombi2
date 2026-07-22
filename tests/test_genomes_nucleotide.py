@@ -1456,13 +1456,17 @@ def test_extinct_lineages_evolve_donate_and_are_pruned():
                  and e.lineage in dead and e.recipient not in dead]
     assert from_dead
 
-    # what lived only on doomed lineages is not observable, so it gets no gene tree
+    # what lived only on doomed lineages is not observable — but it is still history, so it still
+    # gets a tree (every node votes on the partition), one with no extant tip to show for it
     in_extant = {b.gene for lid in extant for c in r.genomes[lid].chromosomes
                  for b in c.blocks if b.is_gene}
     in_dead = {b.gene for d in dead for c in r.genomes[d].chromosomes for b in c.blocks if b.is_gene}
     only_dead = in_dead - in_extant
     assert only_dead                                          # some gene really did die with them
-    assert not (only_dead & set(r.gene_trees))                # ...and none of those has a tree
+    assert only_dead <= set(r.gene_trees)
+    for fam in only_dead:
+        assert r.gene_trees[fam].extant is None               # ...and none of them is observable
+        assert r.gene_trees[fam].to_newick("complete").endswith(";")
 
     # the complete tree keeps the dead; the extant tree prunes to survivors only
     assert any(t.kind == "extinct" for gt in r.gene_trees.values() for t in _tips(gt.complete))
@@ -1788,39 +1792,45 @@ def _expand(result, node_id):
     out = {}
     for cid, pieces in result.assembly(node_id).items():
         seq = []
-        for (i, _gene, start, end, strand) in pieces:
-            src, a, _z = blocks[i]
-            span = range(a + start, a + end)
+        for (i, _gene, strand) in pieces:
+            src, a, z = blocks[i]
+            span = range(a, z)
             seq.extend((src, p, strand) for p in (span if strand == 1 else reversed(span)))
         out[cid] = seq
     return out
 
 
 def test_assembly_tiles_every_node_exactly_as_its_trace_back():
-    # assembly() says which stretch of which recovered block each piece of a genome is; expanding that
-    # back to one entry per nucleotide has to give the per-nucleotide ancestry the genome already
-    # records. Nucleotide for nucleotide, at every node — this is what a reconstructed genome rests on.
+    # assembly() says which recovered block each piece of a genome is; expanding that back to one entry
+    # per nucleotide has to give the per-nucleotide ancestry the genome already records. Nucleotide for
+    # nucleotide, at EVERY node — this is what a reconstructed genome rests on.
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
     g = simulate_genomes_nucleotide(sp, inversion=3.0, inversion_length=80, loss=0.4, loss_length=40,
                                     duplication=0.4, duplication_length=40, transfer=0.6,
                                     transfer_length=60, root_length=600, genes=3, gene_length=90,
                                     seed=4)
-    partial = checked = refused = 0
-    for node_id in sorted(g.genomes):
-        try:
-            layout = g.assembly(node_id)
-        except ValueError:            # an ancestor whose material no survivor kept, or a fragment a
-            refused += 1              # partial loss left behind: refused, and never an extant leaf
-            assert g.complete_tree.nodes[node_id].fate != "extant"
-            continue
+    for node_id in sorted(g.genomes):                    # no node is skipped and none refuses
         assert _expand(g, node_id) == g.trace_back(node_id)
-        checked += 1
-        for pieces in layout.values():
-            for (i, _gene, start, end, _strand) in pieces:
-                _src, a, z = g.root_blocks[i]
-                partial += (start, end) != (0, z - a)
-    assert checked > len(g.complete_tree.extant()), "only the leaves were checked"
-    # a leaf's own breakpoints are all in the partition, so every piece of a *leaf* is a whole block;
-    # an ancestor's need not be — where it has a breakpoint no survivor kept, the partition cuts
-    # inside its block and the piece is a stretch of one. Both happen in this run.
-    assert partial, "no piece was a stretch of a block — the sub-block path went untested"
+    assert len(g.genomes) > len(g.complete_tree.extant()), "the tree has no ancestors to check"
+
+
+def test_the_partition_is_at_least_as_fine_as_every_nodes_blocks():
+    # the invariant the whole reconstruction rests on: because every node votes on where the cuts go,
+    # each of its blocks is a whole number of root blocks — never a fragment of one. That is what makes
+    # a piece always a whole block, and what a partition cut from the survivors alone cannot give.
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(sp, inversion=3.0, inversion_length=80, loss=1.5, loss_length=60,
+                                    duplication=0.6, duplication_length=40, transfer=0.6,
+                                    transfer_length=60, root_length=600, genes=3, gene_length=90,
+                                    seed=4)
+    cuts = collections.defaultdict(set)
+    for src, a, b in g.root_blocks:
+        cuts[src].update((a, b))
+    spans = 0
+    for node_id, genome in g.genomes.items():
+        for chrom in genome.chromosomes:
+            for blk in chrom.blocks:
+                assert blk.start in cuts[blk.source] and blk.end in cuts[blk.source]
+                spans += sum(1 for (s, a, b) in g.root_blocks
+                             if s == blk.source and blk.start <= a and b <= blk.end) > 1
+    assert spans, "no block spanned several root blocks — the multi-piece path went untested"

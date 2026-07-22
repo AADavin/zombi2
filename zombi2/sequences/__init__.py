@@ -26,7 +26,7 @@ The result is a :class:`SequencesResult` bundle mirroring the other levels (``re
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
 tree scaled the same way — the molecular clock made visible), ``.genomes`` and
-``.ancestral_genomes`` (each lineage's whole genome, assembled — a **nucleotide** run only), and
+``.ancestral_genomes`` (every node's whole genome, assembled — a **nucleotide** run only), and
 ``.seed``. Genuine substitution
 ``.events`` are the deferred opt-in ``record=`` slice, not the default spine (a substitution log is not
 compact the way the speciation / D-T-L-O logs are).
@@ -69,8 +69,10 @@ class SequencesResult:
     - ``alignments`` — ``{family: {g<copy>: sequence}}``: the observable gene alignment, one entry per
       **extant** gene-tree tip, keyed by its (unique, per-segment) gene id — the same labels as the
       gene tree's / phylogram's Newick leaves. Empty for a family with no surviving copy.
-    - ``ancestral`` — ``{family: {g<copy>: sequence}}``: the reconstructed sequence at every
-      **internal** gene-tree node, keyed by its gene id (which includes the family's root gene).
+    - ``ancestral`` — ``{family: {g<copy>: sequence}}``: the true sequence at every node that is **not**
+      an extant tip — internal nodes (the family's root gene included) and the dead tips, where a copy
+      was lost or its species went extinct. With ``alignments`` it accounts for every node of the tree
+      exactly once, so every label in the complete phylogram names a sequence.
     - ``founding`` — ``{family: sequence}``: the sequence the family started with, at its
       **origination** — the state the phylogram's root branch leads *from*. It is drawn from the
       model's stationary frequencies and then evolves across the stem into the root gene's sequence,
@@ -89,11 +91,9 @@ class SequencesResult:
       genome, its blocks concatenated in physical order (reverse-complemented where the genome carries
       them inverted). Only a **nucleotide** genome run has one — an unordered or ordered run has gene
       families, not coordinates, so there is no genome to lay out and this is empty.
-    - ``ancestral_genomes`` — the same, at every **internal** species node: the ancestral genomes, each
-      reconstructed from its blocks. It pairs with ``genomes`` exactly as ``ancestral`` pairs with
-      ``alignments``. An ancestor holding material that no extant leaf kept has no block for it, and is
-      left out rather than returned with a hole (as is an **extinct** leaf, which is neither a tip of
-      its block trees nor an internal node of them, so it has no sequence anywhere).
+    - ``ancestral_genomes`` — the same at every **other** species node: the ancestors, and the lineages
+      that went extinct. It pairs with ``genomes`` exactly as ``ancestral`` pairs with ``alignments``,
+      and together they cover the complete tree — every node, none left out.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
       **names**: ``"family"`` (a gene family id) on an unordered or ordered run, ``"block"`` (an index
@@ -134,8 +134,8 @@ class SequencesResult:
           with its branches in substitutions/site — the molecular clock made visible.
         - ``"genomes"`` → ``genome_<lineage>.fasta``, one file per extant lineage, one record per
           chromosome — the assembled genome. Nucleotide runs only; nothing is written otherwise.
-        - ``"ancestral_genomes"`` → ``genome_ancestral_<lineage>.fasta``, the same at every internal
-          node — the reconstructed ancestral genomes.
+        - ``"ancestral_genomes"`` → ``genome_ancestral_<lineage>.fasta``, the same for every other node
+          — the reconstructed ancestral genomes, and the extinct lineages'.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -173,34 +173,23 @@ class SequencesResult:
                         _fasta({f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()}))
 
 
-def _assemble(genomes, node_ids, sequences: dict[int, dict[str, str]], *,
-              skip_unrecoverable: bool) -> dict[str, dict[int, str]]:
+def _assemble(genomes, node_ids, sequences: dict[int, dict[str, str]]) -> dict[str, dict[int, str]]:
     """The genome of each node in ``node_ids``, its blocks concatenated in physical order.
 
     The genome level says *what* to concatenate — ``assembly(node)`` gives, per chromosome, the pieces
-    in order as ``(root block, gene id, start, end, strand)`` — and this puts the letters in, reading
-    each from ``sequences`` (the alignments for a leaf, the ancestral sequences for an internal node).
-    A piece is a stretch ``[start, end)`` of its block's evolved sequence, read reverse-complemented
-    where the genome carries it inverted. Get either wrong and the genome still looks like a genome,
-    which is why the tests check it nucleotide by nucleotide against the run's own trace-back.
-
-    ``skip_unrecoverable`` leaves out a node holding material no extant leaf kept — there is no block
-    for it and so no sequence. That happens only at an **ancestor**; an extant leaf can always be
-    assembled, so a failure there is a bug and is left to raise."""
+    in order as ``(root block, gene id, strand)`` — and this puts the letters in, reading each from
+    ``sequences``: the alignments for an extant tip, the ancestral set for every other node. A piece is
+    one block's evolved sequence, read reverse-complemented where the genome carries it inverted. Get
+    the order or the strand wrong and the genome still looks like a genome, which is why the tests
+    check it nucleotide by nucleotide against the run's own trace-back."""
     out: dict[str, dict[int, str]] = {}
     for node_id in node_ids:
-        try:
-            layout = genomes.assembly(node_id)
-        except ValueError:
-            if not skip_unrecoverable:
-                raise
-            continue
         chroms: dict[int, str] = {}
-        for cid, pieces in layout.items():
+        for cid, pieces in genomes.assembly(node_id).items():
             parts = []
-            for (block, gene, start, end, strand) in pieces:
-                piece = sequences[block][f"g{gene}"][start:end]
-                parts.append(piece if strand == 1 else piece.translate(_COMPLEMENT)[::-1])
+            for (block, gene, strand) in pieces:
+                seq = sequences[block][f"g{gene}"]
+                parts.append(seq if strand == 1 else seq.translate(_COMPLEMENT)[::-1])
             chroms[cid] = "".join(parts)
         out[node_label(node_id)] = chroms
     return out
@@ -217,21 +206,23 @@ def _fasta(records: dict[str, str], width: int = 70) -> str:
 
 def _split(gene_tree, states_by_id: dict[int, np.ndarray],
            model: SubstitutionModel) -> tuple[dict[str, str], dict[str, str]]:
-    """Label one family's evolved nodes by their **gene id** and split them into the extant-tip
-    alignment and the internal-node ancestral set. Gene ids are per-segment (each node has a unique
-    ``copy``), so ``g<copy>`` uniquely names every node and — for the tips — matches the gene tree's
-    and phylogram's Newick leaves, pairing the alignment with its tree."""
+    """Label one family's evolved nodes by their **gene id** and split them into the **observable**
+    half — the extant tips — and everything else. Gene ids are per-segment (each node has a unique
+    ``copy``), so ``g<copy>`` uniquely names every node and matches the gene tree's and phylogram's
+    Newick labels, pairing the sequences with their tree.
+
+    Everything else is internal nodes *and* the dead tips: a copy that a loss ended, and one whose
+    species went extinct. Both are nodes of the tree with a sequence at them, so leaving them out
+    would give a phylogram whose tips name sequences that exist nowhere — and would make an extinct
+    lineage's genome unreconstructable."""
     alignment: dict[str, str] = {}
     ancestral: dict[str, str] = {}
     stack = [gene_tree.complete]
     while stack:
         node = stack.pop()
         seq = decode(states_by_id[id(node)], model.alphabet)
-        if node.is_leaf:
-            if node.kind == "extant":
-                alignment[f"g{node.copy}"] = seq
-        else:
-            ancestral[f"g{node.copy}"] = seq
+        observable = node.is_leaf and node.kind == "extant"
+        (alignment if observable else ancestral)[f"g{node.copy}"] = seq
         stack.extend(node.children)
     return alignment, ancestral
 
@@ -361,7 +352,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
     ``intergene_model`` (default ``jc69``) the spacer, at ``intergene_speed`` times the rate (default
     ``3.0``). Because the whole genome is covered, the run also **puts the genomes back together**:
-    ``.genomes`` holds each extant lineage's chromosomes, blocks concatenated in physical order.
+    ``.genomes`` holds each extant lineage's chromosomes, blocks concatenated in physical order, and
+    ``.ancestral_genomes`` every other node's — the complete tree, reconstructed.
 
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
     species tree, with branch lengths converted from time to substitutions/site by the same
@@ -480,19 +472,17 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),
                          "extant": sp_extant.to_newick() if sp_extant is not None else None}
-    # A nucleotide run evolved every block, so the genomes can be put back together — at the extant
-    # tips from the alignments, and at the internal nodes from the ancestral sequences. The split is
-    # the same one the sequences already make: a leaf's genes are tips of their block trees, an
-    # ancestor's are internal nodes of them. (An extinct leaf is neither, so it has no genome.)
+    # A nucleotide run evolved every block, so **every** node's genome can be put back together. The
+    # split is the same one the sequences already make: the extant tips are the observable half and
+    # read the alignments, everything else — ancestors and the lineages that died — reads the
+    # ancestral set.
     assembled: dict[str, dict[int, str]] = {}
     ancestral_genomes: dict[str, dict[int, str]] = {}
     if nucleotide:
-        nodes = species_tree.nodes
-        assembled = _assemble(genomes, sorted(n.id for n in species_tree.extant()), alignments,
-                              skip_unrecoverable=False)
-        ancestral_genomes = _assemble(genomes,
-                                      [i for i in sorted(nodes) if nodes[i].children is not None],
-                                      ancestral, skip_unrecoverable=True)
+        extant = {n.id for n in species_tree.extant()}
+        assembled = _assemble(genomes, sorted(extant), alignments)
+        ancestral_genomes = _assemble(genomes, [i for i in sorted(species_tree.nodes)
+                                                if i not in extant], ancestral)
 
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
                            assembled, ancestral_genomes, "block" if nucleotide else "family")
