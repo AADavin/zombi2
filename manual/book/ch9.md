@@ -171,7 +171,28 @@ The three live sources in full:
 
 Give one driver per run, `trait=` or `genome=`, not both, and drive `birth`, `death`, or both with it.
 
-Stop the run at a size with `n_extant=` or at an age with `total_time=`, exactly as in Chapter 3, and give one or the other. What comes back is a `JointResult` carrying **both** grown levels: `.species` always, and then either `.trait` or `.genome`, the same result objects the standalone commands return. They share one `complete_tree`, because there was only ever one tree — the one they grew between them. Joint runs are Python-only for now; the conditioned half of the chapter is the part that has a command line.
+Stop the run at a size with `n_extant=` or at an age with `total_time=`, exactly as in Chapter 3, and give one or the other. What comes back is a `JointResult` carrying **both** grown levels: `.species` always, and then either `.trait` or `.genome`, the same result objects the standalone commands return. They share one `complete_tree`, because there was only ever one tree — the one they grew between them.
+
+### Usage from the CLI
+
+Conditioning folds into the target level's own command, as above. Joining cannot: there is no level to run first, so it has its own command, `zombi2 joint`. The driver is named in the rate exactly as in Python — `DrivenBy('trait', …)` rather than a path, because it names a level being grown rather than a file already written — and the flags that build the driver are the ones you would pass to `zombi2 traits` or `zombi2 genomes`.
+
+```bash
+# BiSSE: 'large' lineages speciate three times as fast as 'small' ones
+zombi2 joint out/ --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" --death 0.2 \
+    --states small,large --switch 0.3 --n-extant 100 --seed 1
+
+# state-dependent extinction too, by driving --death as well
+zombi2 joint out/ --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" \
+    --death "0.2 * DrivenBy('trait', {'small': 2.0, 'large': 1.0})" \
+    --states small,large --switch 0.3 --n-extant 100 --seed 1
+
+# gene content drives it: carrying the 'toxin' family triples the speciation rate
+zombi2 joint out/ --birth "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})" \
+    --origination 0.2 --loss 0.1 --families toxin --n-extant 60 --seed 1
+```
+
+One driver per run. `--states` builds the trait driver; the gene-content flags build the genome one; giving flags from both is an error rather than a silent choice between them.
 
 ### Not everything that looks like a connection is one
 

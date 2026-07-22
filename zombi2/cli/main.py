@@ -12,14 +12,14 @@ import argparse
 import sys
 
 from zombi2 import __version__
-from zombi2.cli import genomes, sequences, species, traits
+from zombi2.cli import genomes, joint, sequences, species, traits
 from zombi2.cli.framework import (
     _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
 )
 
 #: command name -> handler; the single source of dispatch
 _RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.run,
-        "traits": traits.run}
+        "traits": traits.run, "joint": joint.run}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -126,6 +126,31 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 traits out/ "
             "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1",
         ) + "\n\n" + traits.RATES_HELP)
+
+    _add_subcommand(
+        sub, "joint", "grow a species tree and the level driving it, together",
+        "Grow a species tree and the level that drives its diversification in one pass, for when "
+        "neither can be simulated first because each depends on the other. The driver is named in "
+        "the rate — DrivenBy('trait', ...) or DrivenBy('genomes:<name>', ...) — and is a live level, "
+        "not a file.",
+        "zombi2 joint DIR --birth RATE (--n-extant N | --total-time T) [driver] [options]",
+        joint._add_joint_args,
+        epilog=_examples(
+            "  # BiSSE: a two-state trait where 'large' lineages speciate three times as fast",
+            "  zombi2 joint out/ --birth \"1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})\" "
+            "--death 0.2 \\",
+            "      --states small,large --switch 0.3 --n-extant 100 --seed 1",
+            "",
+            "  # state-dependent extinction too: 'small' lineages also die faster",
+            "  zombi2 joint out/ --birth \"1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})\" \\",
+            "      --death \"0.2 * DrivenBy('trait', {'small': 2.0, 'large': 1.0})\" \\",
+            "      --states small,large --switch 0.3 --n-extant 100 --seed 1",
+            "",
+            "  # gene content drives it: carrying the 'toxin' family triples the speciation rate",
+            "  zombi2 joint out/ --birth \"1.0 * DrivenBy('genomes:toxin', "
+            "{'present': 3.0, 'absent': 1.0})\" \\",
+            "      --origination 0.2 --loss 0.1 --families toxin --n-extant 60 --seed 1",
+        ) + "\n\n" + joint.RATES_HELP)
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run

@@ -812,3 +812,58 @@ def test_the_directory_and_the_file_give_the_same_run(tmp_path):
           "--initial-families", "4", "--duplication", "0.3", "--seed", "9"])
     assert (a / "genomes" / "genome_events.tsv").read_text() == \
            (b / "genomes" / "genome_events.tsv").read_text()
+
+
+# ── zombi2 joint ────────────────────────────────────────────────────────────────────────────
+
+def test_joint_trait_driver_writes_both_levels(tmp_path):
+    # BiSSE: the trait drives which lineages speciate, so neither level can be grown first
+    rc = main(["joint", str(tmp_path),
+               "--birth", "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})", "--death", "0.2",
+               "--states", "small,large", "--switch", "0.3", "--n-extant", "30", "--seed", "1"])
+    assert rc == 0
+    assert (tmp_path / "species" / "species_complete.nwk").exists()
+    # the trait is written the way `zombi2 traits` writes it, not TraitsResult.write's bare default
+    assert {p.name for p in (tmp_path / "traits").iterdir()} == {
+        "trait_values.tsv", "trait_changes.tsv", "trait_tree.nwk"}
+    states = {ln.split("\t")[1] for ln in
+              (tmp_path / "traits" / "trait_values.tsv").read_text().splitlines()[1:]}
+    assert states <= {"small", "large"}
+
+
+def test_joint_genome_driver_nests_its_gene_trees(tmp_path):
+    rc = main(["joint", str(tmp_path),
+               "--birth", "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})",
+               "--origination", "0.2", "--loss", "0.1", "--families", "toxin",
+               "--n-extant", "20", "--seed", "1"])
+    assert rc == 0
+    written = {p.name for p in (tmp_path / "genomes").iterdir()}
+    assert {"genome_events.tsv", "profiles.tsv", "genomes.tsv"} <= written
+    # gene trees get their own directory here too, as they do under `zombi2 genomes`
+    assert list((tmp_path / "genomes" / "gene_trees").glob("gene_tree_fam*.nwk"))
+
+
+def test_joint_is_deterministic_given_the_seed(tmp_path):
+    argv = ["--birth", "1.0 * DrivenBy('trait', {'a': 1.0, 'b': 2.0})",
+            "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "5"]
+    for name in ("x", "y"):
+        main(["joint", str(tmp_path / name), *argv])
+    assert (tmp_path / "x" / "species" / "species_complete.nwk").read_text() == \
+           (tmp_path / "y" / "species" / "species_complete.nwk").read_text()
+
+
+@pytest.mark.parametrize("argv, msg", [
+    (["--birth", "1.0", "--n-extant", "10"], "needs a driver"),
+    (["--birth", "1.0", "--states", "a,b", "--origination", "0.2", "--n-extant", "10"],
+     "give one driver"),
+    (["--birth", "1.0", "--origination", "0.2", "--switch", "0.3", "--n-extant", "10"],
+     "need --states"),
+    (["--birth", "1.0", "--states", "a", "--n-extant", "10"], "at least two"),
+    (["--states", "a,b", "--n-extant", "10"], "--birth is required"),
+    (["--birth", "1.0", "--states", "a,b"], "exactly one stop condition"),
+])
+def test_joint_argument_errors_exit_2(argv, msg, tmp_path, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["joint", str(tmp_path), *argv])
+    assert e.value.code == 2
+    assert msg in capsys.readouterr().err
