@@ -125,9 +125,11 @@ sequences.
 | Genomes | `genome_<lineage>.fasta` | FASTA | Python | one file per extant lineage, one record `<lineage>_chr<c>` per chromosome — the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: an unordered or ordered run has gene families, not coordinates, so there is nothing to lay out |
 | Ancestral genomes | `genome_ancestral_<lineage>.fasta` | FASTA | no | the same at every internal node — the reconstructed ancestral genomes. An extinct leaf has none (it is neither a tip nor an internal node of its block trees), nor has an ancestor holding material no surviving lineage kept |
 
-On a **nucleotide** genome run the family number `<f>` is a **root block**, not a declared gene: every
-block evolves, spacer as well as gene, so a genome of *b* blocks writes *b* alignments and *b*
-phylograms. That is what makes the genomes assemblable. `zombi2 sequences` runs on an unordered
+On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
+writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in
+those filenames is then a **root block index**, not a gene family id, and the files say so: `block6.fasta`
+and `phylogram_block6_complete.nwk` in place of `fam6.…`. The two numbering schemes are different, so go
+from a gene to its block with `genomes.block_of(family)` (Ch7). `zombi2 sequences` runs on an unordered
 genome run, so the nucleotide resolution is reached from Python (Ch6).
 
 ## Joint — `simulate_joint` / `zombi2 joint`

@@ -139,6 +139,7 @@ The root genome is declared, in one of two ways.
 - `.gene_trees` — one recovered gene tree per gene family, for the families that survive in at least one extant leaf.
 - `.root_blocks` — the recovered root partition: the maximal never-cut intervals that survive in an extant leaf.
 - `.block_trees` — a recovered tree for **every** root block, spacer as well as gene, keyed by its index in `.root_blocks`.
+- `.block_of(family)` — the block index a declared gene family occupies: the join between the two numbering schemes here, since `.gene_spans` and `.gene_trees` are keyed by family id while `.root_blocks` and `.block_trees` are keyed by block index. Both are plain integers, so mixing them up is silent; this is how you avoid it.
 - `.seed`.
 
 and four ways to read one node's genome, at four grains:
