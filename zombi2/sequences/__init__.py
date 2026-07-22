@@ -25,7 +25,8 @@ The result is a :class:`SequencesResult` bundle mirroring the other levels (``re
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
-tree scaled the same way — the molecular clock made visible), and ``.seed``. Genuine substitution
+tree scaled the same way — the molecular clock made visible), ``.genomes`` (each extant lineage's
+whole genome, assembled — a **nucleotide** run only), and ``.seed``. Genuine substitution
 ``.events`` are the deferred opt-in ``record=`` slice, not the default spine (a substitution log is not
 compact the way the speciation / D-T-L-O logs are).
 """
@@ -33,11 +34,12 @@ compact the way the speciation / D-T-L-O logs are).
 from __future__ import annotations
 
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from ..genomes import GenomesResult
+from ..genomes.events import node_label
 from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.modifiers import ByLineage
 from ..rates.rate import as_rate
@@ -45,9 +47,13 @@ from ..rates.scope import PerSite
 from ..species import Node, Tree, prune
 from ..progress import progress_bar
 from .evolution import evolve_gene_tree
-from .substitution_models import SubstitutionModel, decode, jc69
+from .substitution_models import BASES, SubstitutionModel, decode, jc69
 
-_WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram")
+_WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram",
+                  "genomes")
+
+#: complement of each base, for reading a block laid down on the reverse strand
+_COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gate in :func:`simulate_sequences`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. ``ByLineage``
@@ -78,6 +84,10 @@ class SequencesResult:
     - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``: the **species tree**
       with branch lengths in substitutions/site — the molecular clock made visible (which lineages ran
       hot / cold). Always present: a run always comes from a genome run, which carries its tree.
+    - ``genomes`` — ``{lineage: {chromosome id: sequence}}``: each **extant** lineage's assembled
+      genome, its blocks concatenated in physical order (reverse-complemented where the genome carries
+      them inverted). Only a **nucleotide** genome run has one — an unordered or ordered run has gene
+      families, not coordinates, so there is no genome to lay out and this is empty.
     - ``seed`` — the run's seed.
     """
 
@@ -87,8 +97,10 @@ class SequencesResult:
     phylograms: dict[int, dict[str, str | None]]
     species_phylogram: dict[str, str | None]
     seed: int | None
+    genomes: dict[str, dict[int, str]] = field(default_factory=dict)
 
-    def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram")) -> None:
+    def write(self, directory,
+              outputs=("alignments", "phylograms", "species_phylogram", "genomes")) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"alignments"`` → ``fam<family>.fasta`` (skipped for empty families).
@@ -98,6 +110,8 @@ class SequencesResult:
         - ``"phylograms"`` → ``phylogram_fam<family>_{complete,extant}.nwk`` (subs/site).
         - ``"species_phylogram"`` → ``clock_species_tree_{complete,extant}.nwk``: the species tree
           with its branches in substitutions/site — the molecular clock made visible.
+        - ``"genomes"`` → ``genome_<lineage>.fasta``, one file per extant lineage, one record per
+          chromosome — the assembled genome. Nucleotide runs only; nothing is written otherwise.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -125,6 +139,31 @@ class SequencesResult:
             (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
             if sp["extant"] is not None:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
+        if "genomes" in outputs:
+            for lineage, chroms in self.genomes.items():
+                (d / f"genome_{lineage}.fasta").write_text(
+                    _fasta({f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()}))
+
+
+def _assemble(genomes, alignments: dict[int, dict[str, str]]) -> dict[str, dict[int, str]]:
+    """Each extant lineage's genome, its blocks concatenated in physical order.
+
+    The genome level says *what* to concatenate — ``assembly(node)`` gives, per chromosome, the pieces
+    in order as ``(root block, gene id, start, end, strand)`` — and this puts the letters in. A piece is
+    a stretch ``[start, end)`` of its block's evolved sequence, read reverse-complemented where the
+    genome carries it inverted. Get either wrong and the genome still looks like a genome, which is why
+    the tests check it nucleotide by nucleotide against the run's own trace-back."""
+    out: dict[str, dict[int, str]] = {}
+    for leaf in genomes.complete_tree.extant():
+        chroms: dict[int, str] = {}
+        for cid, pieces in genomes.assembly(leaf.id).items():
+            parts = []
+            for (block, gene, start, end, strand) in pieces:
+                piece = alignments[block][f"g{gene}"][start:end]
+                parts.append(piece if strand == 1 else piece.translate(_COMPLEMENT)[::-1])
+            chroms[cid] = "".join(parts)
+        out[node_label(leaf.id)] = chroms
+    return out
 
 
 def _fasta(records: dict[str, str], width: int = 70) -> str:
@@ -278,6 +317,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     (the ``FromParent`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
     non-``PerSite`` scope is a later slice and raises.
 
+    On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
+    own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
+    ``intergene_model`` (default ``jc69``) the spacer, at ``intergene_speed`` times the rate (default
+    ``3.0``). Because the whole genome is covered, the run also **puts the genomes back together**:
+    ``.genomes`` holds each extant lineage's chromosomes, blocks concatenated in physical order.
+
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
     species tree, with branch lengths converted from time to substitutions/site by the same
     ``base × clock × Δt``.
@@ -309,6 +354,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                 "length does not apply to a nucleotide genome run: every block carries its own "
                 "length in bp, so one number here would contradict the coordinates the genomes run "
                 "wrote. Drop it — the genome sets the lengths.")
+        for name, m in (("model", model), ("intergene_model", intergene_model)):
+            if m is not None and m.alphabet != BASES:
+                raise ValueError(
+                    f"{name}={m.name} is a protein model, but a nucleotide genome is measured in base "
+                    "pairs and its blocks are read on either strand — amino acids have no complement "
+                    "to read back. Use a nucleotide model (jc69 / k80 / hky85 / gtr).")
         if intergene_model is None:
             intergene_model = jc69()          # flat and parameterless: the null for unconstrained DNA
         if isinstance(intergene_speed, bool) or not isinstance(intergene_speed, (int, float)) \
@@ -389,8 +440,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),
                          "extant": sp_extant.to_newick() if sp_extant is not None else None}
+    # a nucleotide run evolved every block, so the genomes can be put back together
+    assembled = _assemble(genomes, alignments) if nucleotide else {}
 
-    return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed)
+    return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
+                           assembled)
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,

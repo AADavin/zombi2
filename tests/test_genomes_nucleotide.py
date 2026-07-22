@@ -1779,3 +1779,40 @@ def test_block_trees_cover_the_whole_genome_and_agree_with_the_gene_trees(tmp_pa
             assert shape(a) == shape(b)
             checked += 1
     assert checked == len(g.gene_trees)
+
+
+def _expand(result, node_id):
+    """The assembly spelled back out as ``{chromosome: [(source, position, strand), …]}`` — one entry
+    per nucleotide, the same shape ``trace_back`` returns. A ``-1`` piece is read down its source."""
+    blocks = result.root_blocks
+    out = {}
+    for cid, pieces in result.assembly(node_id).items():
+        seq = []
+        for (i, _gene, start, end, strand) in pieces:
+            src, a, _z = blocks[i]
+            span = range(a + start, a + end)
+            seq.extend((src, p, strand) for p in (span if strand == 1 else reversed(span)))
+        out[cid] = seq
+    return out
+
+
+def test_assembly_tiles_every_node_exactly_as_its_trace_back():
+    # assembly() says which stretch of which recovered block each piece of a genome is; expanding that
+    # back to one entry per nucleotide has to give the per-nucleotide ancestry the genome already
+    # records. Nucleotide for nucleotide, at every node — this is what a reconstructed genome rests on.
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(sp, inversion=3.0, inversion_length=80, loss=0.4, loss_length=40,
+                                    duplication=0.4, duplication_length=40, transfer=0.6,
+                                    transfer_length=60, root_length=600, genes=3, gene_length=90,
+                                    seed=4)
+    partial = 0
+    for node_id in sorted(g.genomes):
+        assert _expand(g, node_id) == g.trace_back(node_id)
+        for pieces in g.assembly(node_id).values():
+            for (i, _gene, start, end, _strand) in pieces:
+                _src, a, z = g.root_blocks[i]
+                partial += (start, end) != (0, z - a)
+    # a leaf's own breakpoints are all in the partition, so every piece of a *leaf* is a whole block;
+    # an ancestor's need not be — a transfer can carry an unbroken run across a boundary the ancestor
+    # has, so the partition cuts inside its block and the piece is a stretch of one. Both happen here.
+    assert partial, "no piece was a stretch of a block — the sub-block path went untested"

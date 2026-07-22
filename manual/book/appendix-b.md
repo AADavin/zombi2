@@ -122,6 +122,12 @@ sequences.
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | reconstructed sequence at every internal node |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
+| Genomes | `genome_<lineage>.fasta` | FASTA | Python | one file per extant lineage, one record `<lineage>_chr<c>` per chromosome — the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: an unordered or ordered run has gene families, not coordinates, so there is nothing to lay out |
+
+On a **nucleotide** genome run the family number `<f>` is a **root block**, not a declared gene: every
+block evolves, spacer as well as gene, so a genome of *b* blocks writes *b* alignments and *b*
+phylograms. That is what makes the genomes assemblable. `zombi2 sequences` runs on an unordered
+genome run, so the nucleotide resolution is reached from Python (Ch6).
 
 ## Joint — `simulate_joint` / `zombi2 joint`
 
