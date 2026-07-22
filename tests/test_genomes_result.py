@@ -74,7 +74,8 @@ def test_write_produces_events_and_profiles(tmp_path):
     assert {"genome_events.tsv", "profiles.tsv", "genomes.tsv"} <= written
     assert any(n.startswith("gene_tree_fam") for n in written)
     ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
-    assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient"]
+    assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
+                                 "donor"]
     assert len(ev) - 1 == len(g.events)                 # one row per event
     pr = (tmp_path / "profiles.tsv").read_text().splitlines()
     assert len(pr) - 1 == len(g.profiles.families)      # one row per family
@@ -127,3 +128,39 @@ def test_the_initial_genome_survives_a_run_that_loses_everything():
     g = simulate_genomes_unordered(sp, loss=6.0, initial_families=5, seed=3)
     assert len(g.initial_genome) == 5
     assert sum(len(g.genomes[n.id]) for n in sp.complete_tree.extant()) < 5 * 4
+
+
+def test_a_transfer_names_both_ends_of_its_edge_on_every_row():
+    """A transfer is an edge between two branches, and each of its two rows names both. Without
+    `donor` the arriving row said only where the copy landed — twice over, since `lineage` and
+    `recipient` are the same branch there — so reading who donated to whom meant pairing the rows on
+    (time, parent). It is also what makes a self-transfer visible: donor == recipient."""
+    from zombi2.species import simulate_species_tree
+    from zombi2.genomes import simulate_genomes_unordered
+
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=4)
+    r = simulate_genomes_unordered(sp, initial_families=8, transfer=1.0, seed=4)
+    transfers = [e for e in r.events if e.kind == "transfer"]
+    assert transfers
+    for e in transfers:
+        assert e.donor is not None                       # on both rows, arriving and departing
+        assert e.lineage in (e.donor, e.recipient)
+        if e.recipient is None:                          # the donor's own continuation
+            assert e.lineage == e.donor
+        else:                                            # the copy that arrived
+            assert e.lineage == e.recipient
+    assert all(e.donor is None for e in r.events if e.kind != "transfer")
+
+
+def test_self_transfers_are_readable_from_one_row():
+    from zombi2.genomes._transfer import Distance
+    from zombi2.species import simulate_species_tree
+    from zombi2.genomes import simulate_genomes_unordered
+
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=4)
+    r = simulate_genomes_unordered(sp, initial_families=8, transfer=1.0, self_transfer=True,
+                                   transfer_to=Distance(decay=10.0), seed=4)
+    arrived = [e for e in r.events if e.kind == "transfer" and e.recipient is not None]
+    selfies = [e for e in arrived if e.donor == e.recipient]
+    assert selfies, "a steep distance decay with self_transfer should give plenty of self-transfers"
+    assert len(selfies) < len(arrived), "and not all of them"

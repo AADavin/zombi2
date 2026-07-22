@@ -26,7 +26,11 @@ class Event:
       continuation and the new copy — two rows, same ``parent``), both on ``lineage``.
     - ``"transfer"`` — the donor gene ``parent`` ends; ``copy`` is one of its two descendants: the
       continuation on the donor ``lineage``, or the transferred copy on the ``recipient`` lineage (a
-      horizontal edge). Two rows, same ``parent``.
+      horizontal edge). Two rows, same ``parent``, and **both name ``donor``** — the branch the
+      material left. Without it the arriving row said only where the copy landed (twice over:
+      ``lineage`` and ``recipient`` are the same branch there), so reading who donated to whom meant
+      pairing the two rows on ``(time, parent)``. A transfer is an edge; each of its rows names both
+      ends.
     - ``"speciation"`` — the gene ``parent`` ends at a split; ``copy`` is its descendant in daughter
       species ``lineage`` (one row per daughter — two, same ``parent``).
     - ``"loss"`` — the gene ``copy`` ends with no descendant (``parent`` ``None``).
@@ -39,13 +43,16 @@ class Event:
     copy: int  # the copy born (origination / duplication / transfer) or removed (loss)
     parent: int | None = None  # duplication & transfer: the source copy (which survives)
     recipient: int | None = None  # transfer only: the species lineage the new copy is born on
+    #: transfer only: the species lineage the material left. Set on **both** rows, so either names
+    #: the whole edge; on the donor's own row it repeats ``lineage``, which is the price of that.
+    donor: int | None = None
 
 
-_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient")
+_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor")
 
 #: Columns holding a species-tree node, written as ``n<id>``. ``parent`` is a *gene copy*, not a
 #: lineage, so it stays a bare id.
-_NODE_COLS = frozenset({"lineage", "recipient"})
+_NODE_COLS = frozenset({"lineage", "recipient", "donor"})
 
 
 def node_label(node_id: int | None) -> str:
@@ -123,5 +130,6 @@ def _parse(lines: list[str], header: list[str]) -> list[Event]:
             time=float(get("time")), kind=get("kind"), lineage=node_from_label(get("lineage")),
             family=int(get("family")), copy=int(get("copy")),
             parent=int(get("parent")) if get("parent") else None,
-            recipient=node_from_label(get("recipient")) if get("recipient") else None))
+            recipient=node_from_label(get("recipient")) if get("recipient") else None,
+            donor=node_from_label(get("donor")) if get("donor") else None))
     return events
