@@ -86,8 +86,9 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("both kinds")
     g.add_argument("--start", default=None, metavar="VALUE",
-                   help="the value at time 0 — a number when --kind continuous (default 0), a state "
-                        "label when --kind discrete (default: the first state)")
+                   help="the value at time 0 — a number when --kind continuous (default 0), a "
+                        "state label when --kind discrete (default: one of --states drawn "
+                        "uniformly, so the root state varies with --seed)")
     g.add_argument("--at-speciation", type=float, default=None, metavar="X",
                    dest="at_speciation",
                    help="add a change at each speciation node: the jump width (Normal(0, X)) when "
