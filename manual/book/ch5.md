@@ -24,7 +24,7 @@ Each gene is written as its family with the strand as `+` or `−` (the strand i
 
 ```python
 g.gene_trees[0].to_newick("extant")
-# (((g24:0.0396561,g28:0.0396561)speciation_n3:0.405992,g19:0.445648)speciation_n1:0.2334,g9:0.679048)speciation_n0;
+# (((g24:0.0396561,g28:0.0396561)speciation_n3:0.405992,g19:0.445648)speciation_n1:0.2334,g9:0.679048)speciation_n0:0.118056;
 ```
 
 ## The karyotype

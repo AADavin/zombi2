@@ -56,7 +56,7 @@ def _one_branch(t_tip: float, families: int = 1):
     def tree(f):
         root = GeneNode("speciation", 0, 0.0, 0)
         root.children = [GeneNode("extant", 1, t_tip, 1), GeneNode("extant", 2, t_tip, 2)]
-        return GeneTree(f, root)
+        return GeneTree(f, root, 0.0)
     return _genome_run({f: tree(f) for f in range(families)}, t_split=0.0, t_now=t_tip)
 
 

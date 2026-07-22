@@ -1,5 +1,7 @@
 """Tests for gene trees — each family's true genealogy inside the complete tree (zombi2.genomes)."""
 
+import pytest
+
 from zombi2.species import Node, Tree, simulate_species_tree
 from zombi2.genomes import GeneTree, simulate_genomes_unordered
 
@@ -51,6 +53,36 @@ def test_root_is_the_founding_gene():
     for fam, tree in g.gene_trees.items():
         origin_copy = next(e.copy for e in g.events if e.kind == "origination" and e.family == fam)
         assert tree.complete.copy == origin_copy
+
+
+def test_origination_is_the_exact_event_time_and_starts_the_root_branch():
+    # A GeneNode records when it *ended*, so the founding gene's start is the one time the tree
+    # cannot derive. It comes straight off the origination event — bit-for-bit, not rounded — and is
+    # where the root's branch begins, so the stem is not silently dropped from the Newick.
+    _, g = _run(seed=4)
+    for fam, tree in g.gene_trees.items():
+        event_time = next(e.time for e in g.events if e.kind == "origination" and e.family == fam)
+        assert tree.origination == event_time                    # exact, no tolerance
+
+        stem = tree.complete.time - tree.origination
+        assert stem >= 0.0
+        written = float(tree.to_newick("complete").rsplit(":", 1)[1].rstrip(";"))
+        assert written == pytest.approx(stem, rel=1e-5)
+
+        # the extant root may have had ancestors suppressed; its branch still starts at origination
+        if tree.extant is not None:
+            extant_stem = float(tree.to_newick("extant").rsplit(":", 1)[1].rstrip(";"))
+            assert extant_stem == pytest.approx(tree.extant.time - tree.origination, rel=1e-5)
+
+
+def test_a_family_that_never_splits_is_one_node_with_its_lifespan():
+    # the degenerate tree: a lone gene, written as its own branch rather than a bare bald label
+    _, g = _run(seed=4)
+    singles = [t for t in g.gene_trees.values() if t.complete.is_leaf]
+    if not singles:                                              # seed-dependent; skip if none arose
+        pytest.skip("no single-gene family under this seed")
+    t = singles[0]
+    assert t.to_newick("complete") == f"g{t.complete.copy}:{t.complete.time - t.origination:.6g};"
 
 
 # --- the key cross-check: gene tree agrees with the profiles ---------------
