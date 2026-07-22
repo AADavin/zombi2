@@ -29,7 +29,7 @@ g.gene_trees[0].to_newick("extant")
 
 ## The karyotype
 
-A genome is seeded with a **karyotype**: `chromosomes=N` chromosomes, each with a `topology` — `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is a label: it does not change how any event behaves.
+A genome is seeded with a **karyotype**: `chromosomes=N` chromosomes, each with a `topology` — `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is not just a label: it decides where a segmental event stops, which the section on segments below takes up.
 
 ## Chromosomes split, merge, appear and die
 
@@ -81,26 +81,38 @@ How long a segment? Its length — the **extension** — is drawn per event from
 ```python
 from zombi2.rates.distributions import Geometric
 
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=10)
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=27)
 g = simulate_genomes_ordered(
     tree, duplication=0.35, loss=0.3,
     duplication_extension=Geometric(mean=3),      # duplications copy ~3 adjacent genes at once
-    chromosomes=1, initial_families=5, seed=10)
+    chromosomes=1, initial_families=5, seed=27)
 ```
 
 ```
-leaf n1:  [ 0+ 1+ 3+ 4+ 1+ 3+ 4+ ]
-                └───────┘ └───────┘
-                the block 1 3 4, duplicated as a unit and landed in tandem
+leaf n2:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
+            └────┘ └────┘
+            the block 4 1, duplicated as a unit and landed in tandem
 ```
 
-The block `1 3 4` appears twice: a single segmental duplication copied those three adjacent genes together. (Family `2` is absent — it was lost along the way.) A duplication puts its copy **in tandem**, immediately after the original run; a transferred block arrives together on the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extension.
+The block `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent — it was lost earlier, which is what left `4` and `1` next to each other.) A duplication puts its copy **in tandem**, immediately after the original run; a transferred block arrives together on the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extension.
+
+## Circular chromosomes have no ends
+
+A segment runs rightwards from the gene it starts on. Where it stops is set by the chromosome's `topology`. On a **linear** chromosome the run stops at the last gene. On a **circular** one there is no last gene, so the run carries on past the first: on a ring the first gene and the last are neighbours.
+
+That is what the example above shows. Family `0` was lost early, leaving the chromosome `1 2 3 4 4`; the duplicated block was the trailing `4` together with the leading `1`, a run across the origin.
+
+A run that crosses the origin re-anchors the chromosome: position 0 moves so that the run sits at the front. Nothing biological changes, because on a circle position 0 is an index and not a feature of the molecule. That is why the leaf above starts at family `4` rather than at family `1`.
+
+A run is never longer than the chromosome. If the extension distribution asks for more genes than there are, the run is the whole chromosome. A loss then empties it. The empty chromosome stays in the karyotype (only `chromosome_loss` removes one), exactly as a de-novo replicon starts out empty. An inversion reverses the whole ring, which is the same molecule read the other way round.
+
+The distinction is not cosmetic. If runs on a circular chromosome stopped at position 0, every run that started near the end would be cut short. The genes around the origin would be duplicated, lost and moved less often than the rest, and blocks would come out shorter than the extension you asked for. Wrapping removes both effects. On a linear chromosome both are kept, because a linear replicon really does have ends.
 
 ## Rearrangements: inversion, transposition, translocation
 
 Three further events act on a segment and reshape the order without creating or destroying genes. They are **identity-preserving** — a gene keeps its id, so nothing is written to the gene genealogy. They only reorder, and they are logged separately.
 
-- **Inversion** *(per chromosome)* — reverse a segment in place, flipping the strand of every gene in it. The classic signed-permutation move: `+2 +3 +4` becomes `−4 −3 −2`.
+- **Inversion** *(per chromosome)* — reverse a segment in place, flipping the strand of every gene in it. The classic signed-permutation move: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin; reversal on a ring is well defined.
 - **Transposition** *(per chromosome)* — cut a segment out and reinsert it **elsewhere on the same chromosome**.
 - **Translocation** *(per gene copy)* — move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
 
@@ -124,6 +136,8 @@ All three land in one `rearrangements` log:
   transposition  chrom 7 [0:1]  -> pos 0 (same chrom)  flipped=False
   transposition  chrom 6 [1:2]  -> pos 1 (same chrom)  flipped=True
 ```
+
+Every row names its run the same way: `start` is the position the run began at, `length` is how many genes it covered, counted rightwards from `start` and wrapping past the origin on a circular chromosome. So `start + length` larger than the chromosome's gene count means the run crossed the origin. The destination of a transposition or a translocation is an index into what was left after the run was cut out, so it can never fall inside the run itself.
 
 Translocation is the one that carries a gene lineage **across** to another chromosome, which is why it is counted per gene copy, like transfer. But note what it does *not* do: the chromosomes themselves come through unchanged, so a translocation writes no edge into the chromosome network. Only a gene has moved between them.
 
@@ -247,9 +261,9 @@ The first three are written by default; the two logs are opt-in. `gene_order.tsv
 
 ```
 species  chromosome  position  strand  family  gene
-19       38          0         1       0       12
-19       38          1         1       1       14
-20       39          0         -1      4       16
+21       21          8         1       8       218
+21       21          9         -1      9       219
+27       27          0         1       0       270
 ```
 
 and `chromosome_events.tsv` is the network's ground truth, its columns the edge list above — `time · kind · lineage · parents · children`, one row per event. The full list of files lives in Appendix B.

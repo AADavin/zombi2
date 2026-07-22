@@ -93,7 +93,8 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
                    help="number of chromosomes at the crown (default 1)")
     g.add_argument("--topology", choices=("circular", "linear"), default="circular", metavar="TOPO",
-                   help="chromosome topology (default circular)")
+                   help="chromosome topology (default circular) — a segmental run wraps past the "
+                        "origin on a circular chromosome, stops at the end on a linear one")
     g.add_argument("--fission", type=_rate, default=0.0, metavar="RATE",
                    help="chromosome fission rate — split one in two (per chromosome)")
     g.add_argument("--fusion", type=_rate, default=0.0, metavar="RATE",
