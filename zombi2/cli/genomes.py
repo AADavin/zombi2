@@ -104,9 +104,10 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental inversion rate (per copy)")
+                   help="segmental inversion rate (per chromosome)")
     g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental transposition rate — move a run within a chromosome (per copy)")
+                   help="segmental transposition rate — move a run within a chromosome "
+                        "(per chromosome)")
     g.add_argument("--translocation", type=_rate, default=0.0, metavar="RATE",
                    help="segmental translocation rate — move a run to another chromosome (per copy)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
@@ -114,13 +115,15 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--topology", choices=("circular", "linear"), default="circular", metavar="TOPO",
                    help="chromosome topology (default circular)")
     g.add_argument("--fission", type=_rate, default=0.0, metavar="RATE",
-                   help="chromosome fission rate")
+                   help="chromosome fission rate — split one in two (per chromosome)")
     g.add_argument("--fusion", type=_rate, default=0.0, metavar="RATE",
-                   help="chromosome fusion rate")
+                   help="chromosome fusion rate — merge two into one (per chromosome)")
     g.add_argument("--chromosome-origination", type=_rate, default=0.0, metavar="RATE",
-                   dest="chromosome_origination", help="new-chromosome origination rate")
+                   dest="chromosome_origination",
+                   help="new-chromosome origination rate — a de-novo plasmid (per lineage)")
     g.add_argument("--chromosome-loss", type=_rate, default=0.0, metavar="RATE",
-                   dest="chromosome_loss", help="whole-chromosome loss rate")
+                   dest="chromosome_loss",
+                   help="whole-chromosome loss rate, never the last one (per chromosome)")
     g.add_argument("--inversion-probability", type=float, default=0.0, metavar="P",
                    dest="inversion_probability",
                    help="probability a transposed/translocated block lands inverted (default 0)")

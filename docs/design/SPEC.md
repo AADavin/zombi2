@@ -5,8 +5,7 @@
 This document is the single source of truth for how ZOMBI2 is organised, what it may and may not do,
 and the exact words used to describe it. When any other file — code, docstring, CLI help, manual
 chapter, design doc, README — disagrees with this document, that other file is a **fossil** and must be
-changed to match. It reflects decisions ratified with Adrián in July 2026 (tracked in
-`manual/revision/dashboard.yml`).
+changed to match. It reflects decisions ratified with Adrián in July 2026.
 
 It **supersedes** these earlier design docs, which encode the old lexicon: `coevolve-grammar.md`,
 `opportunity.md`, `opportunity-knob.md`, `rate-vocabulary.md`, `rate-modifiers.md`, and the coupling
@@ -267,7 +266,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 - **Coupling diagrams:** dashed = a level a run always evolves on, solid = a coupling you add, a dashed
   capsule = "grown together" (joint).
 - **No subtitles** on figures.
-- Reference figures already drawn: `manual/revision/figures/fig-2-1-four-levels.svg`,
+- Reference figures already drawn: `manual/book/figures/fig-2-1-four-levels.svg`,
   `.../composition.svg`, `.../composition2.svg`, and `docs/img/age_crown.svg` (crown vs stem).
 
 ---
@@ -287,13 +286,17 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ## 9. The book
 
-Eleven chapters + two appendices (section detail in `manual/revision/proposed-index.md`):
+Nine chapters + two appendices, one file each in `manual/book/` (`ch1.md` … `ch9.md`,
+`appendix-a.md`, `appendix-b.md`):
 
-- **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2 · 3 Getting started
-- **II The four levels** — 4 Species trees · 5 Genomes I: Unordered · 6 Genomes II: Structured ·
-  7 Sequence evolution · 8 Trait evolution
-- **III Coupling the levels** — 9 Conditioning · 10 Joint models · 11 Null models
+- **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2
+- **II The four levels** — 3 Species trees · 4 Genomes I: Unordered · 5 Genomes II: Ordered ·
+  6 Genomes III: Nucleotide · 7 Sequence evolution · 8 Trait evolution
+- **III Coupling the levels** — 9 Conditioning and joining (nulls close the chapter)
 - **Appendix A** Gillespie · **Appendix B** Output files
+
+The three genome chapters are the **resolution** ladder of §4 — unordered ⊂ ordered ⊂ nucleotide —
+one chapter per rung.
 
 Every Part II (level) chapter ends the same way: **The objects → Usage from Python → Usage from the
 CLI → Outputs.** Concept chapters (1, 2) and Part III are essays.
@@ -340,5 +343,5 @@ Fossils to fix; why a fresh reader must not trust the code over this document.
 
 ---
 
-*When you finish an alignment task, update §12 and `manual/revision/dashboard.yml`. When a convention
-genuinely needs to change, change it HERE first, then propagate.*
+*When you finish an alignment task, update §12. When a convention genuinely needs to change, change it
+HERE first, then propagate.*
