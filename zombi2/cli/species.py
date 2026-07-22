@@ -11,7 +11,7 @@ import os
 import time
 
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _add_run_arg, _rate,
+from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_params_arg, _add_run_arg, _rate,
                                   _rates_help, _write_params_log, level_dir)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
@@ -59,6 +59,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                    help=f"which outputs to write (default all applicable): "
                         f"{', '.join(_WRITE_OUTPUTS)}. Files are prefixed 'species_'.")
     _add_flat_arg(g)
+    _add_quiet_arg(g)
 
 
 def run(args, parser):
@@ -75,7 +76,8 @@ def run(args, parser):
     t0 = time.perf_counter()
     result = simulate_species_tree(
         birth=args.birth, death=args.death, n_extant=args.n_extant, total_time=args.total_time,
-        mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed)
+        mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed,
+        progress=not args.quiet)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
@@ -93,6 +95,6 @@ def run(args, parser):
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "species.log"),
+    _write_params_log(os.path.join(out, "species.log"),
                       args, summary)
     return 0

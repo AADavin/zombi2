@@ -65,13 +65,13 @@ zombi2 genomes out/ \
 out/species/    species_complete.nwk   the tree, extinct lineages kept
                 species_extant.nwk     the survivors only
                 species_events.tsv     every speciation and extinction, with its time
+                species.log            what was run, and with which parameters
 out/genomes/    genome_events.tsv      every duplication, transfer, loss and origination
                 profiles.tsv           gene-family copy numbers per species
-out/logs/       species.log            what was run, and with which parameters
                 genomes.log
 ```
 
-Each level keeps to its own directory, and the outputs that run to one file per gene family get a directory of their own inside it, so a run of a few hundred families stays legible. Pass `--flat` to any command and it writes everything straight into `out/` instead.
+Each level keeps to its own directory, its run log included, and the outputs that run to one file per gene family get a directory of their own inside it, so a run of a few hundred families stays legible. Pass `--flat` to any command and it writes everything straight into `out/` instead, and `--quiet` turns off the progress bar a command shows while it works.
 
 Here is the same run from Python:
 

@@ -30,7 +30,7 @@ with known ground truth for phylogenetic and comparative methods.
 pip install zombi2
 ```
 
-Pure Python, NumPy the only dependency — no build step and no compiler.
+Pure Python — NumPy and tqdm, no build step and no compiler.
 
 ---
 

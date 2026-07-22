@@ -11,11 +11,14 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Adrián A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
-# The clean core is pure Python (numpy only). The compiled Rust engine (zombi2_core) and the
-# TOML params reader belong to quarantined code (legacy/); they return, pinned, when the Rust
-# stage and the params feature are rebuilt on the clean core. See docs/design/MAP.md.
+# The clean core is pure Python. numpy does the arithmetic; tqdm draws the progress bar the
+# commands show while they work, and is optional at runtime — zombi2.progress falls back to a
+# silent no-op without it, so a run behaves the same either way. The compiled Rust engine
+# (zombi2_core) and the TOML params reader belong to quarantined code (legacy/); they return,
+# pinned, when the Rust stage and the params feature are rebuilt on the clean core. See MAP.md.
 dependencies = [
     "numpy>=1.24",
+    "tqdm>=4.60",
 ]
 license = "MIT"
 license-files = ["LICENSE"]

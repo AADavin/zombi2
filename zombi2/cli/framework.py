@@ -159,6 +159,13 @@ def _add_flat_arg(g) -> None:
                         "flat directory")
 
 
+def _add_quiet_arg(g) -> None:
+    """Add ``--quiet`` — no progress bar, for a log file or a batch of runs."""
+    g.add_argument("--quiet", action="store_true",
+                   help="no progress bar. A command shows one while it works, which is noise in a "
+                        "log file or a script running hundreds of replicates")
+
+
 def level_dir(output: str, level: str, flat: bool) -> str:
     """Where one level's files belong: ``<output>/<level>/``, or ``<output>/`` under ``--flat``.
 
@@ -216,16 +223,19 @@ def resolve_tree(path: str) -> str:
         f"Newick file with --from.")
 
 
-def resolve_genomes(path: str) -> str:
-    """Give back the directory holding a genomes run's handoff files, in either layout — the grouped
-    run directory whose ``genomes/`` holds them, or a ``--flat`` directory holding them directly."""
+def resolve_genomes(path: str) -> tuple[str, str]:
+    """Give back ``(events directory, species-tree file)`` for a genomes run, in either layout.
+
+    A genomes run is identified by its event log; the tree the events index against is the species
+    tree of the same run, which `zombi2 genomes` guarantees is there — it writes the canonicalised
+    one itself when its tree came from elsewhere."""
     for candidate in _GENOMES_IN_RUN:
         full = os.path.join(path, candidate) if candidate else path
-        if os.path.exists(os.path.join(full, "genome_species_tree.nwk")):
-            return full
+        if os.path.exists(os.path.join(full, "genome_events.tsv")):
+            return full, resolve_tree(path)
     raise FileNotFoundError(
-        f"{path} holds no genomes run — looked for genome_species_tree.nwk in {path}/genomes/ and "
-        f"in {path} itself. Run 'zombi2 genomes' there first, or point --from at a run that has.")
+        f"{path} holds no genomes run — looked for genome_events.tsv in {path}/genomes/ and in "
+        f"{path} itself. Run 'zombi2 genomes' there first, or point --from at a run that has.")
 
 
 def _log_value(value: object) -> str:

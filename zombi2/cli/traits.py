@@ -18,7 +18,7 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import (_add_flat_arg, _add_from_arg, _add_params_arg, _add_run_arg,
+from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
                                   _rate, _rates_help, _write_params_log, level_dir,
                                   resolve_tree)
 from zombi2.cli.genomes import _read_tip_fates
@@ -101,6 +101,7 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                         "(annotated Newick). driver: the segment table that feeds a conditioned "
                         "run (discrete only).")
     _add_flat_arg(g)
+    _add_quiet_arg(g)
 
 
 def run(args, parser):
@@ -144,7 +145,8 @@ def run(args, parser):
     if discrete:
         result = simulate_discrete(tree, states=states, switch=args.switch, start=args.start,
                                    liability=args.liability, threshold=args.threshold,
-                                   at_speciation=args.at_speciation, seed=args.seed)
+                                   at_speciation=args.at_speciation, seed=args.seed,
+                                   progress=not args.quiet)
     else:
         if args.start is None:
             start = 0.0
@@ -155,7 +157,8 @@ def run(args, parser):
                 parser.error(f"--start must be a number when --kind continuous, got {args.start!r}")
         result = simulate_continuous(tree, start=start, rate=args.rate,
                                      reverts_to=args.reverts_to, pull=args.pull,
-                                     at_speciation=args.at_speciation, seed=args.seed)
+                                     at_speciation=args.at_speciation, seed=args.seed,
+                                     progress=not args.quiet)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
@@ -171,6 +174,6 @@ def run(args, parser):
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.run, "logs", args.flat), "traits.log"),
+    _write_params_log(os.path.join(out, "traits.log"),
                       args, summary)
     return 0

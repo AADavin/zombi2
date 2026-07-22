@@ -39,6 +39,7 @@ from ..species import SpeciesResult, Tree
 from ._live import enter, retire
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 
+from ..progress import progress_bar
 from .events import Event, events_tsv, node_label
 from .gene_trees import GeneNode, GeneTree, gene_trees_from_events, write_gene_trees
 from .chromosomes import ChromosomeEvent
@@ -256,7 +257,8 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
-                               initial_families=0, families=None, seed=None) -> GenomesResult:
+                               initial_families=0, families=None, seed=None,
+                               progress=False) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -415,8 +417,12 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     to_traj = resolved[to_mod.key] if to_mod is not None else None
     any_driven = bool(rate_keys)
 
+    # the species tree's schedule is the run's spine: one entry per speciation/extinction, so how
+    # far through it we are is how far through the tree the genomes have got
+    bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
+        bar.to(si)
         n = total_copies
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "time": t}
@@ -517,6 +523,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
+    bar.close()
     return GenomesResult(tree, genomes, events, seed, family_names)
 
 

@@ -675,7 +675,7 @@ def test_the_comparison_covers_every_level(two_runs):
     names = " ".join(two_runs[0])
     for expected in ("species_complete.nwk", "genome_events.tsv", "gene_order.tsv",
                      "genome_event_positions.tsv", "blocks.tsv", "genes.tsv",
-                     "sequences_alignment", "trait_values.tsv"):
+                     "fam0.fasta", "trait_values.tsv"):
         assert expected in names, f"{expected} is missing — the pipeline is not covering that level"
 
 

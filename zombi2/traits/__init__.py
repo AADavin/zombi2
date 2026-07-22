@@ -67,6 +67,7 @@ from functools import cached_property
 import numpy as np
 
 from ..rates.modifiers import OnTotalDiversity, FromParent, OnTime
+from ..progress import track
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult, Tree
@@ -270,11 +271,14 @@ def _history_from_events(tree: "Tree", node_values: dict, events: list) -> dict:
     return history
 
 
-def _preorder(tree: Tree) -> list[int]:
+def _preorder(tree: Tree, progress: bool = False):
     """Node ids in an order that visits every node **after its parent** (a valid preorder). The
     forward engine always gives a child a higher id than its parent, so ascending id order suffices
-    — the same monotonic-id fact ``genomes.prune`` relies on in reverse. No recursion needed."""
-    return sorted(tree.nodes)
+    — the same monotonic-id fact ``genomes.prune`` relies on in reverse. No recursion needed.
+
+    Every trait engine walks the tree exactly this way, so ``progress`` is wired here once rather
+    than around each of their loops."""
+    return track(sorted(tree.nodes), "traits", unit="node", enabled=progress)
 
 
 class _LTT:
@@ -381,7 +385,8 @@ def _correlation_matrix(traits: list, correlation) -> np.ndarray:
     return R
 
 
-def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed) -> TraitsResult:
+def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed,
+                      progress=False) -> TraitsResult:
     """Multi-optimum OU — the optimum shifts by **regime**, a discrete stochastic map painted on the
     *same* tree (typically a :func:`simulate_discrete` run). Along each branch the value follows OU
     toward the current regime's optimum, integrated **exactly** across the regime's ``(state,
@@ -417,7 +422,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
 
     rng = np.random.default_rng(seed)
     node_values: dict[int, float] = {}
-    for i in _preorder(tree):
+    for i in _preorder(tree, progress):
         node = tree.nodes[i]
         x = float(start) if node.parent is None else node_values[node.parent]
         for regime, dt in regimes.history[i]:  # integrate OU piece-by-piece across the regime segments
@@ -429,7 +434,8 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
     return TraitsResult(tree, node_values, [], seed)  # correlated / regimes: no along-branch event log
 
 
-def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_speciation, seed) -> TraitsResult:
+def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_speciation, seed,
+                         progress=False) -> TraitsResult:
     """Correlated continuous traits in **one call** (the joint rule inside a level). ``start`` and
     ``rate`` are dicts over the same trait names; the branch increment is drawn from ``MVN(0, Σ·dt)``
     with ``Σ = D R D`` (``D = diag(σ_i)``, ``R`` from ``correlation``), so at a tip the correlation
@@ -475,7 +481,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
 
     rng = np.random.default_rng(seed)
     node_values: dict[int, dict] = {}
-    for i in _preorder(tree):
+    for i in _preorder(tree, progress):
         node = tree.nodes[i]
         x = start_vec if node.parent is None else np.array([node_values[node.parent][t] for t in traits])
         dt = node.end_time - node.birth_time
@@ -486,7 +492,8 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
 
 
 def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None,
-                        correlation=None, at_speciation=None, regimes=None, seed=None) -> TraitsResult:
+                        correlation=None, at_speciation=None, regimes=None, seed=None,
+                        progress=False) -> TraitsResult:
     """Evolve a continuous trait down a tree and return a :class:`TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
     (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
@@ -534,9 +541,11 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     if regimes is not None:
-        return _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed)
+        return _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed,
+                                 progress)
     if isinstance(start, dict) or isinstance(rate, dict) or correlation is not None:
-        return _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_speciation, seed)
+        return _simulate_correlated(tree, start, rate, reverts_to, pull, correlation,
+                                    at_speciation, seed, progress)
     if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start):
         raise ValueError(f"start must be a finite number, got {start!r}")
     r = as_rate(rate, default_scope=PerLineage)
@@ -592,7 +601,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     node_values: dict[int, float] = {}
     events: list[Change] = []  # on-speciation jumps only (a diffusion has no along-branch events)
     inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
-    for i in _preorder(tree):
+    for i in _preorder(tree, progress):
         node = tree.nodes[i]
         # the root starts from `start` at t=0; every other node from its parent's end value (parent
         # < i, already set). One uniform rule: node_values[i] is the trait at node i's end_time.
@@ -740,7 +749,8 @@ def _threshold_cuts(states: list, threshold) -> np.ndarray:
     return thr
 
 
-def _simulate_threshold(tree, states, liability, threshold, start, correlation, seed) -> TraitsResult:
+def _simulate_threshold(tree, states, liability, threshold, start, correlation, seed,
+                        progress=False) -> TraitsResult:
     """The Wright–Felsenstein **threshold** model — a discrete state read off an underlying continuous
     Brownian liability: the liability diffuses (convention B), and the observed state is which
     ``threshold``-cut interval it lands in. With ``liability`` a dict + ``correlation``, several traits'
@@ -766,7 +776,7 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
         start_vec = _threshold_start_vec(start, traits)
         k = len(traits)
         liab: dict[int, np.ndarray] = {}
-        for i in _preorder(tree):
+        for i in _preorder(tree, progress):
             node = tree.nodes[i]
             x = start_vec if node.parent is None else liab[node.parent]
             dt = node.end_time - node.birth_time
@@ -778,7 +788,7 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
         sig2 = _liability_sigma2(liability, None)
         start_liab = 0.0 if start is None else _finite(start, "start")
         liab_s: dict[int, float] = {}
-        for i in _preorder(tree):
+        for i in _preorder(tree, progress):
             node = tree.nodes[i]
             x = start_liab if node.parent is None else liab_s[node.parent]
             dt = node.end_time - node.birth_time
@@ -790,7 +800,8 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
 
 
 def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, threshold=None,
-                      correlation=None, at_speciation=None, seed=None) -> TraitsResult:
+                      correlation=None, at_speciation=None, seed=None,
+                      progress=False) -> TraitsResult:
     """Evolve a discrete-state trait down a tree and return a :class:`TraitsResult`. Two mechanisms:
 
     - **Mk** (``switch=``) — a continuous-time Markov chain over the ``states``, simulated **exactly**
@@ -823,7 +834,8 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
             raise ValueError("give switch= (an Mk trait) OR liability=/threshold= (a threshold trait), not both")
         if at_speciation is not None:
             raise ValueError("at_speciation is not wired for threshold traits yet — it applies to Mk (switch=) traits")
-        return _simulate_threshold(tree, states, liability, threshold, start, correlation, seed)
+        return _simulate_threshold(tree, states, liability, threshold, start, correlation, seed,
+                                   progress)
     if correlation is not None:
         raise ValueError("correlation= on a discrete trait needs the threshold model — give liability= and threshold=")
     if switch is None:
@@ -847,7 +859,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
 
     node_values: dict[int, object] = {}
     events: list[Change] = []  # the source of truth (like the genome level); history derives from it
-    for i in _preorder(tree):
+    for i in _preorder(tree, progress):
         node = tree.nodes[i]
         # the root starts from `start` at t=0 and evolves over its own branch; every other node from
         # its parent's end state (parent < i, already set) — the same convention-B walk as continuous.
