@@ -36,6 +36,9 @@ Birth and death are modified independently. Give both a `FromParent` and each li
 
 ## Other models
 
+
+CLAUDE, INCLUDE FIGURE FROM LEGACY (ADAPT IF NEEDED)
+
 A few models do not fit the modifier framework. ZOMBI2 provides one: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3. It is a pulse rather than a steady rate, so it is its own argument.
 
 ## A summary of models
@@ -54,6 +57,8 @@ Two more choices decide not how the tree grows, but how much of it you get to se
 Real datasets are incomplete, but by default you see every surviving species. **`sampling`** keeps a fraction of the extant tips, chosen at random, so `sampling=0.5` gives you half. It thins a tree that has already grown, so it costs nothing.
 
 **`fossils`** does the opposite: it recovers some of the lineages that died. Fossils are picked up along the branches of the complete tree at a rate you set, so `fossils=0.1` scatters fossil observations through the tree's history. They are a side output — the sampled lineages and their ages, reported alongside the trees. A fossil does not remove its lineage, and it does not appear in the extant tree.
+
+CLAUDE, ADAPT FIGURE FROM LEGACY
 
 ```python
 # see only half the survivors

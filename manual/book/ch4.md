@@ -13,7 +13,7 @@ An unordered genome evolves by four kinds of event, applied to every lineage as 
 - **Loss** — a gene copy is deleted; a family that loses its last copy is gone from that lineage.
 - **Origination** — a brand-new family appears in a lineage, with one copy.
 
-You give ZOMBI2 a rate for each, and it plays the events out along the tree, starting from the root genome and letting speciation hand a lineage's genome down to both its children. Out comes the genome of *every* lineage in the tree together with the event log that produced it.
+You give ZOMBI2 a rate for each, and it plays the events out along the tree, starting from the initial genome and letting speciation hand a lineage's genome down to both its children. Out comes the genome of *every* lineage in the tree together with the event log that produced it.
 
 ```python
 from zombi2 import species
@@ -60,13 +60,7 @@ max_family_size = 50       # an int is that number of copies, whatever the tree
 max_family_size = None     # no ceiling
 ```
 
-A float scales with the run, so the same setting means the same thing on a tree of ten species and one of a thousand. An int is absolute. The ceiling holds for arrivals too, so a transfer cannot push a family past it sideways.
-
-What happens at the cap is that the family stops duplicating. That is a **declared model**, not a truncated run: refusing an event on a condition that depends only on the present state is Poisson thinning, so what you get is exactly the process whose duplication rate is zero for a family already at its quota — the same argument that makes a transfer with no eligible recipient a no-op rather than an approximation.
-
-`ByFamily` is refused on `origination`, and that is not an oversight: origination is the rate at which families are *created*, so when it is read there is no family yet to have drawn a factor for.
-
-The two ways of stocking a genome are worth separating. `initial_families` puts families there at the start, and `origination` adds new ones as the run goes. From Python `initial_families` defaults to 0, so a caller says what it wants; from the command line `--initial-families` defaults to 100, so a bare run hands back a genome rather than a hundred empty ones. `--origination` is 0 by default either way: nothing arrives that you did not ask for. Every run's `.log` records the value it used, so a run is never ambiguous about which.
+A float scales with the run, so the same setting means the same thing on a tree of ten species and one of a thousand. An int is absolute. The ceiling holds for arrivals too, so a transfer cannot push a family past it sideways. What happens at the cap is that the family stops duplicating.
 
 ## What the rate depends on
 
@@ -86,9 +80,9 @@ Transfer is the one event that couples lineages, and it is what makes the unorde
 
 Three arguments shape what a transfer does:
 
-- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*: its strength means the same whether your tree is measured in years or in millions of them. A third rule weights recipients by a trait instead, so that only competent lineages take DNA up; it is a coupling, and Chapter 9 covers it.
+- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
-- **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Combined with `replacement=True` it is not a duplication at all: the arriving copy overwrites a paralogue in the same genome, which is gene conversion.
+- **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. 
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=7)
@@ -144,7 +138,7 @@ gt.to_newick("complete")             # ... or the whole genealogy
 gt.origination                       # when the family began
 ```
 
-The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination and the founding gene then lives for a while before its first duplication, transfer or speciation, and that wait is the root's branch: the family's stem. It matters most for a family that originates late, whose whole history is short. A gene that originated and never split at all is a one-node tree, written as its own lifespan — `g55:0.263097;`.
+The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination and the founding gene then lives for a while before its first duplication, transfer or speciation, and that wait is the root's branch: the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan — `g55:0.263097;`.
 
 ## Usage from Python
 
@@ -221,12 +215,5 @@ n1       0       3
 n1       0       8
 ```
 
-Read a block of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0` — one of them a duplicate. `copy` is the individual gene, and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
+Read a list of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0`, one of them a duplicate. `copy` is the individual gene, and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
 
-`--write gene_trees` writes a Newick per family.
-
-All four are written by default; `--write` picks a subset, and a `names.tsv` joins the `n<id>` columns back to your labels whenever you brought your own tree. Everything is derived from the event log, so writing none of them loses nothing that cannot be replayed.
-
-The run directory is where the species tree is read from as well as where the genomes are written, because a run already knows where a species run keeps its complete tree. `--from mytree.nwk` reads a tree from elsewhere; `--from other_run/` reads one run and writes another, which is how you get several genome replicates off one species tree.
-
-They land in `out/genomes/`, and the gene trees — one file per family per view — in `out/genomes/gene_trees/` below it, so a run of a few hundred families does not bury the rest. `--flat` writes everything straight into `out/` instead. The full list of files lives in Appendix B.
