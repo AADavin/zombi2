@@ -203,14 +203,18 @@ def run(args, parser):
 
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "sequences", args.flat)
-    # alignments and phylograms are one file per family — per *block* on a nucleotide run, where a
-    # real genome has thousands — so they get a directory apiece unless --flat says otherwise
+    # the many-files-per-run outputs get a directory apiece (unless --flat): alignments and
+    # phylograms are one file per family — per *block* on a nucleotide run, where a real genome has
+    # thousands — and the assembled genome FASTAs are one per node. `initial_genome` is a single
+    # file, but it is a whole-genome FASTA like the rest, so it lands in genomes/ with them.
     wanted = tuple(args.write) if args.write else default_outputs(result)
-    if rest := [o for o in wanted if o not in ("alignments", "phylograms")]:
+    own_dir = {"alignments": "alignments", "phylograms": "phylograms",
+               "genomes": "genomes", "initial_genome": "genomes"}
+    if rest := [o for o in wanted if o not in own_dir]:
         result.write(out, outputs=rest)
-    for per_family in ("alignments", "phylograms"):
-        if per_family in wanted:
-            result.write(level_dir(out, per_family, args.flat), outputs=(per_family,))
+    for token, sub in own_dir.items():
+        if token in wanted:
+            result.write(level_dir(out, sub, args.flat), outputs=(token,))
 
     n_families = sum(1 for aln in result.alignments.values() if aln)
     n_seqs = sum(len(aln) for aln in result.alignments.values())

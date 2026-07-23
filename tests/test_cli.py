@@ -1053,13 +1053,14 @@ def test_sequences_runs_on_a_nucleotide_handoff_and_assembles_the_genomes(tmp_pa
     # the handoff says what it is — blocks.tsv is the nucleotide resolution's and no other's — so
     # nothing has to be repeated from the genomes command
     out = _nucleotide_run(tmp_path)
-    names = {p.name for p in out.iterdir()}
-    assert {p.name for p in (out / "alignments").iterdir()} and \
-           all(n.startswith("block") for n in {p.name for p in (out / "alignments").iterdir()})
-    genomes = sorted(n for n in names if n.startswith("genome_n"))
+    aln = {p.name for p in (out / "alignments").iterdir()}
+    assert aln and all(n.startswith("block") for n in aln)    # per-block, in its own subfolder
+    gdir = out / "genomes"                                    # the assembled genomes, grouped
+    genomes = sorted(p.name for p in gdir.glob("genome_n*.fasta"))
     assert len(genomes) == 9                                  # one FASTA per node of the tree
+    assert not [p for p in out.iterdir() if p.name.startswith("genome_n")]   # none left flat
     for name in genomes:
-        text = (out / name).read_text()
+        text = (gdir / name).read_text()
         assert text.startswith(">") and set("".join(text.splitlines()[1:])) <= set("ACGT")
 
 
@@ -1068,11 +1069,12 @@ def test_sequences_writes_a_genome_for_every_node_and_the_initial_one(tmp_path):
     # belongs to no node is called "initial"
     out = _nucleotide_run(tmp_path)
     tree, _ = read_newick((tmp_path / "run" / "species" / "species_complete.nwk").read_text())
-    names = {p.name for p in out.iterdir()}
+    gdir = out / "genomes"
+    names = {p.name for p in gdir.iterdir()}
     assert {f"genome_n{i}.fasta" for i in tree.nodes} <= names
-    assert "genome_initial.fasta" in names
+    assert "genome_initial.fasta" in names                    # the initial genome joins them here
     assert not [n for n in names if "ancestral" in n]
-    initial = "".join((out / "genome_initial.fasta").read_text().splitlines()[1:])
+    initial = "".join((gdir / "genome_initial.fasta").read_text().splitlines()[1:])
     assert len(initial) == 2000                               # the genome the run was seeded with
 
 
@@ -1088,7 +1090,7 @@ def test_sequences_matches_the_python_api_on_a_nucleotide_run(tmp_path):
                                     inversion_length=250, duplication=1.0, loss=1.0, seed=3)
     r = simulate_sequences(g, model=hky85(kappa=3.0), substitution=0.05, seed=3)
     for lineage, chroms in r.genomes.items():
-        text = (out / f"genome_{lineage}.fasta").read_text()
+        text = (out / "genomes" / f"genome_{lineage}.fasta").read_text()
         assert "".join(text.splitlines()[1:]) == "".join(chroms.values())
 
 

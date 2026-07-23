@@ -309,13 +309,16 @@ def run(args, parser):
 
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
-    # gene trees are one file per family per view, so a hundred families is hundreds of files —
-    # they get their own directory unless --flat says otherwise, whether asked for or defaulted
+    # the many-files-per-run outputs each get their own subdirectory (unless --flat): gene trees are
+    # one Newick per family, and gff/bed are one file per node — a hundred families or nodes is a
+    # hundred files, which would bury the handful of TSVs otherwise
+    grouped = ("gene_trees", "gff", "bed")
     wanted = tuple(args.write) if args.write else default_outputs(result)
-    if rest := [o for o in wanted if o != "gene_trees"]:
+    if rest := [o for o in wanted if o not in grouped]:
         result.write(out, outputs=rest)
-    if "gene_trees" in wanted:
-        result.write(level_dir(out, "gene_trees", args.flat), outputs=("gene_trees",))
+    for sub in grouped:
+        if sub in wanted:
+            result.write(level_dir(out, sub, args.flat), outputs=(sub,))
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
     # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where
