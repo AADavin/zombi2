@@ -18,10 +18,6 @@ lineage carries. Each level runs on its own, conditioned on another, or jointly 
 every run records the true history behind the dataset. Use it to generate benchmark datasets
 with known ground truth for phylogenetic and comparative methods.
 
-> **Rebuild in progress.** ZOMBI2 is being rebuilt as a clean core grown from a single
-> specification, one level at a time. Everything documented below is built and tested; the
-> older code it is being grown out of is quarantined in [`legacy/`](legacy/), not importable.
-
 ---
 
 ## Install
