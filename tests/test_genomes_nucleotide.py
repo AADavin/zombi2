@@ -1719,6 +1719,8 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     expected = collections.Counter()
     for e in r.events:
         kind = type(e).__name__.lower()
+        if kind == "origination":                    # the initial genome is 'seed', not 'origination'
+            kind = "seed" if e.seed else "origination"
         n = {"loss": len(getattr(e, "lost", ())), "duplication": len(getattr(e, "copied", ())),
              "transfer": len(getattr(e, "transferred", ())),
              "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
@@ -1726,7 +1728,7 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     for r_ in r.rearrangements:                      # they share the table; count them too
         expected[type(r_).__name__.lower()] += 1
     assert collections.Counter(row["kind"] for row in rows) == expected
-    assert {"origination", "loss", "duplication", "transfer", "speciation"} <= set(expected), \
+    assert {"seed", "origination", "loss", "duplication", "transfer", "speciation"} <= set(expected), \
         f"the fixture should exercise every event kind, got {sorted(expected)}"
 
 
