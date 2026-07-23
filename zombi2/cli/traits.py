@@ -19,9 +19,8 @@ import os
 import time
 
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, level_dir,
-                                  resolve_tree)
-from zombi2.cli.genomes import _read_tip_fates
+                                  _rate, _rates_help, _read_tip_fates, _write_params_log, level_dir,
+                                  resolve_tree, sibling_fates)
 from zombi2.species import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
 
@@ -140,8 +139,10 @@ def run(args, parser):
             parser.error("--kind discrete needs --switch (the Mk model) or "
                          "--liability/--threshold (the threshold model)")
 
-    tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else None
     tree_path = resolve_tree(args.source or args.run)
+    # an explicit --tip-fates wins; otherwise pick up the run's own species_fates.tsv so extinct and
+    # unsampled tips are read from the record rather than guessed from tip depth
+    tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else sibling_fates(tree_path)
     try:
         with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)

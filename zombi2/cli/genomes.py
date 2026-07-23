@@ -20,8 +20,8 @@ from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simula
                             simulate_genomes_unordered)
 from zombi2.species import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, default_outputs, level_dir,
-                                  resolve_tree)
+                                  _rate, _rates_help, _read_tip_fates, _write_params_log, default_outputs,
+                                  level_dir, resolve_tree, sibling_fates)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -222,31 +222,6 @@ def _transfer_to(text: str):
     return value
 
 
-def _read_tip_fates(path: str) -> dict:
-    """Parse a ``--tip-fates`` file into ``{tip_name: fate}``: one
-    ``tip_name<TAB>extant|extinct|unsampled`` row per tip (whitespace also accepted; blank lines and
-    ``#`` comments skipped). This is the same shape ``species_fates.tsv`` is written in, so that output
-    feeds straight back in — its ``lineage<TAB>fate`` header row is recognised and skipped. The values
-    are checked against the tree by :func:`~zombi2.species.read_newick`."""
-    fates = {}
-    try:
-        with open(path) as f:
-            for lineno, raw in enumerate(f, 1):
-                line = raw.strip()
-                if not line or line.startswith("#"):
-                    continue
-                parts = line.split("\t") if "\t" in line else line.split()
-                if parts == ["lineage", "fate"]:
-                    continue  # the species_fates.tsv header, so that file is a valid --tip-fates input
-                if len(parts) != 2:
-                    raise ValueError(f"{path}:{lineno}: expected 'tip_name<TAB>extant|extinct|unsampled', "
-                                     f"got {raw.rstrip()!r}")
-                fates[parts[0]] = parts[1]
-    except FileNotFoundError:
-        raise FileNotFoundError(f"tip-fates file not found: {path}") from None
-    return fates
-
-
 def _stray(args, knobs) -> list[str]:
     """The flags in ``knobs`` the user actually set (their value differs from the default)."""
     return [f"--{attr.replace('_', '-')}" for attr, default in knobs
@@ -291,8 +266,10 @@ def run(args, parser):
             parser.error(f"--write {' '.join(bad)} not available for --resolution "
                          f"{args.resolution}; choose from: {', '.join(vocab)}")
 
-    tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else None
     tree_path = resolve_tree(args.source or args.run)
+    # an explicit --tip-fates wins; otherwise pick up the run's own species_fates.tsv so extinct and
+    # unsampled tips are read from the record rather than guessed from tip depth
+    tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else sibling_fates(tree_path)
     try:
         with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
@@ -348,6 +325,12 @@ def run(args, parser):
     if not os.path.exists(canonical):
         with open(canonical, "w") as f:
             f.write(result.complete_tree.to_newick() + "\n")
+        # write the fate table beside the canonical tree too, so a later level on this run reads each
+        # tip's fate from the record instead of guessing it from depth (matching a species run's output)
+        fate_rows = ["lineage\tfate"] + [f"n{n.id}\t{n.fate}"
+                                         for n in sorted(result.complete_tree.leaves(), key=lambda x: x.id)]
+        with open(os.path.join(species_dir, "species_fates.tsv"), "w") as f:
+            f.write("\n".join(fate_rows) + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(out, "names.tsv"), "w") as f:
