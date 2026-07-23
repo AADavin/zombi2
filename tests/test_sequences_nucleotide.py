@@ -1,7 +1,7 @@
 """Sequences on a **nucleotide** genome: every root block evolves — spacer as well as genes — and the
 evolved blocks are put back together into one genome per extant lineage.
 
-The load-bearing test is :func:`test_assembled_genome_is_the_root_sequence_permuted`. With the
+The load-bearing test is :func:`test_assembled_genome_is_the_initial_sequence_permuted`. With the
 substitution rate at zero nothing mutates, so every copy of a block still carries the block's founding
 sequence, and a leaf's genome must equal the **root sequence read through its own trace-back** — the
 per-nucleotide ancestry the genome level already records, computed here without touching the assembly.
@@ -56,7 +56,7 @@ def _traced(genomes, sequences, node_id):
 
 # --- the assembly ----------------------------------------------------------------------------------
 
-def test_assembled_genome_is_the_root_sequence_permuted():
+def test_assembled_genome_is_the_initial_sequence_permuted():
     genomes = _run(seed=3)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
     for leaf in genomes.complete_tree.extant():
@@ -442,7 +442,7 @@ def _seeded(tmp_path, root_seq, *, seed=4, **kw):
 def _ref_through_root(genomes, node_id):
     """Each chromosome of ``node_id`` spelled out from the SUPPLIED root sequence, read through the
     genome's own trace-back (reverse-complemented on the minus strand). Never touches the assembly."""
-    rs = genomes.root_sequence
+    rs = genomes.initial_sequence
     return {cid: "".join(rs[s][p] if st == 1 else rs[s][p].translate(COMPLEMENT)
                          for (s, p, st) in trace)
             for cid, trace in genomes.trace_back(node_id).items()}
@@ -456,7 +456,7 @@ def test_a_seeded_run_descends_from_the_supplied_fasta(tmp_path):
     for node_id in genomes.genomes:
         assert r.genomes[node_label(node_id)] == _ref_through_root(genomes, node_id)
     chrom = genomes.initial_genome.chromosomes[0]
-    assert r.initial_genome[chrom.id] == genomes.root_sequence[0]        # the input, exactly
+    assert r.initial_genome[chrom.id] == genomes.initial_sequence[0]        # the input, exactly
 
 
 def test_the_initial_genome_is_the_input_even_with_a_busy_stem(tmp_path):
@@ -486,7 +486,7 @@ def test_a_de_novo_gene_falls_back_to_the_model(tmp_path):
     # origination mints a fresh source with no supplied DNA, so its block draws from the model — the
     # seeded sources stay exact, the de-novo one is whatever the model gives
     genomes = _seeded(tmp_path, "A" * 100, seed=3, origination=2.0, origination_length=20)
-    denovo = {i for i, (src, _a, _b) in enumerate(genomes.root_blocks) if src not in genomes.root_sequence}
+    denovo = {i for i, (src, _a, _b) in enumerate(genomes.root_blocks) if src not in genomes.initial_sequence}
     assert denovo, "no de-novo source in this run — pick another seed"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
     # a de-novo block is not forced to A; a seeded block is exactly A
@@ -516,14 +516,14 @@ def test_fasta_needs_a_gff(tmp_path):
         simulate_genomes_nucleotide(sp, fasta=tmp_path / "g.fasta", root_length=100, seed=1)
 
 
-def test_the_root_sequence_survives_the_write_read_handoff(tmp_path):
+def test_the_initial_sequence_survives_the_write_read_handoff(tmp_path):
     from zombi2.genomes.nucleotide import read_nucleotide_genomes
 
     genomes = _seeded(tmp_path, "".join("ACGT"[i % 4] for i in range(100)))
     genomes.write(tmp_path / "run")
-    assert (tmp_path / "run" / "root_sequence.fasta").exists()
+    assert (tmp_path / "run" / "initial_sequence.fasta").exists()
     back = read_nucleotide_genomes(tmp_path / "run", genomes.complete_tree)
-    assert back.root_sequence == genomes.root_sequence
+    assert back.initial_sequence == genomes.initial_sequence
     # and the sequence level, run from the reloaded handoff, founds from the same DNA
     a = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
     b = simulate_sequences(back, model=jc69(), substitution=0.0, seed=4)

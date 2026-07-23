@@ -204,8 +204,8 @@ def decode(states: np.ndarray, alphabet: str = BASES) -> str:
 
 
 def encode(seq: str, alphabet: str = BASES) -> np.ndarray:
-    """The inverse of :func:`decode`: a string over ``alphabet`` to its integer states. Used to seed a
-    run from a real ``fasta=`` — the supplied DNA becomes a block's founding states. A character not in
+    """The inverse of :func:`decode`: a string over ``alphabet`` to its integer states. Used to found a
+    run's blocks from a real ``fasta=`` — the supplied DNA becomes a block's founding states. A character not in
     ``alphabet`` raises (the FASTA reader already rejects non-``ACGT``, so this is a second guard)."""
     index = {c: i for i, c in enumerate(alphabet)}
     try:
