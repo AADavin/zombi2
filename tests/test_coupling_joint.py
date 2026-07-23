@@ -159,3 +159,12 @@ def test_fromparent_rejected():
     with pytest.raises(ValueError, match="FromParent"):
         joint.simulate_joint(birth=1.0 * mod.FromParent(spread=0.2) * mod.DrivenBy("trait", {"a": 2.0}),
                        trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
+
+
+def test_mapping_matching_no_trait_state_is_refused():
+    # a driving mapping whose states are none of the trait's would leave every lineage at the default
+    # factor — a silently uncoupled run — so it is refused rather than run as if it were coupled
+    with pytest.raises(ValueError, match="match none of the driver's states"):
+        joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"tiny": 2.0}),   # trait is small/large
+                       death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),
+                       n_extant=10, seed=1)

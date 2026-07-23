@@ -44,6 +44,11 @@ class DriverTrajectory:
             self._starts[node_id] = [s for s, _ in ordered]
             self._states[node_id] = [v for _, v in ordered]
 
+    def states(self) -> set:
+        """Every state the driver actually takes, anywhere on the tree — what a discrete mapping's
+        keys are checked against, so a mapping that names none of them can be caught."""
+        return {s for states in self._states.values() for s in states}
+
     def value(self, node_id: int, time: float) -> object:
         """The driver's state on lineage ``node_id`` at ``time`` — the segment whose start is the
         latest at or before ``time`` (right-continuous: at a switch instant the new state applies)."""
@@ -167,6 +172,29 @@ def driver_from_result(result) -> DriverTrajectory:
     return DriverTrajectory(segments)
 
 
+def check_mapping_fires(mapping, available_states, *, source_label: str) -> None:
+    """Raise if a **discrete** (:class:`~zombi2.rates.mapping.Table`) mapping names none of the states
+    the driver can actually take. Such a mapping leaves every lineage at the table's default factor —
+    a rate that is never touched — so the run is the fully *uncoupled* model while the log records it as
+    driven. That is almost always a typo or a stale / mismatched driver file, so it is refused.
+
+    At least **one** named state must occur; a mapping may still list a state this particular
+    realisation never reached (a legitimate partial mapping), so only an *empty* overlap is an error.
+    Continuous mappings (Curve / Scalar) apply to every value and have nothing to mismatch."""
+    from .mapping import Table
+
+    if not isinstance(mapping, Table):
+        return
+    named = set(mapping.per_state)
+    have = {str(s) for s in available_states}
+    if not (named & have):
+        raise ValueError(
+            f"DrivenBy on {source_label}: the mapping's states {sorted(named)} match none of the "
+            f"driver's states {sorted(have)}, so the coupling would silently do nothing — every "
+            f"lineage falls to the default factor and the rate is never driven. Check for a typo in "
+            f"the state names, or a stale or mismatched driver file.")
+
+
 def resolve_driver(source, tree) -> DriverTrajectory:
     """Resolve a conditioned ``DrivenBy`` ``source`` into a :class:`DriverTrajectory` — a **filename**
     (str) via :func:`load_driver` (replayed against ``tree``, the target run's own species tree), or an
@@ -178,4 +206,5 @@ def resolve_driver(source, tree) -> DriverTrajectory:
     return driver_from_result(source)
 
 
-__all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver"]
+__all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver",
+           "check_mapping_fires"]

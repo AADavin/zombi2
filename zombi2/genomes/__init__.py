@@ -517,8 +517,14 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         by_key.setdefault(to_mod.key, to_mod.source)
     resolved = {}
     if by_key:
-        from ..rates.driver import resolve_driver
+        from ..rates.driver import check_mapping_fires, resolve_driver
         resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        # a mapping whose states never occur in the driver leaves every lineage at the default factor,
+        # so the rate is never driven and the run is secretly the uncoupled model — refuse it here,
+        # naming the driver, rather than let it pass as a coupled run
+        for m in (*dup_mods, *los_mods, *org_mods, *tra_mods, *( (to_mod,) if to_mod else () )):
+            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
+            check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
     # a driven transfer_to changes no rate — the weights are evaluated when a transfer fires, so the
     # recipient driver deliberately stays OUT of trajs (no per-lineage rate weights, no extra horizon
     # breakpoints for it). Only the rate drivers make the loop per-lineage.
