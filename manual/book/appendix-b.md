@@ -14,8 +14,9 @@ genic classification of a block, `0` for spacer or the family id for a declared 
 
 ## Where the files go
 
-A `zombi2` command groups what it writes, one directory per level, and gives the outputs that run to
-one file per gene family a directory of their own:
+A `zombi2` command groups what it writes, one directory per level, and gives every many-files-per-run
+output — one per gene family, or one per node — a directory of its own, so the level directory holds
+only its handful of tables and logs:
 
 ```
 out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv · species_fates.tsv
