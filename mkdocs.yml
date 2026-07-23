@@ -121,6 +121,7 @@ nav:
       - Trait evolution: guide/traits.md
       - Conditioning and joining: guide/conditioning-and-joining.md
   - Reference:
+      - API reference: reference/api.md
       - Rates and the Gillespie algorithm: reference/rates-and-gillespie.md
       - Output files: reference/output-files.md
       - Tools: reference/tools.md
