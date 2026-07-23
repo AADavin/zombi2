@@ -45,6 +45,16 @@ retired from the repo to `ZOMBI2_LEGACY/rust/` and is not part of the build or t
 - The core needs **no build step** (pure Python).
 - PDF/manual toolchain: `xelatex` at `/Library/TeX/texbin`, `pandoc` + `rsvg-convert` on PATH.
 
+## Analyses
+
+`analyses/<study>/` holds **self-contained validation studies** built on the shipped API — each its own
+scripts, data, figures, and `REPORT.md`, regenerating deterministically from fixed seeds (see
+[`analyses/README.md`](analyses/README.md)). A study calls the level packages directly (no top-level
+shortcuts). When it needs a capability the clean core does not ship as a public API — e.g. RED's
+estimator, which MAP marks 📦 — it carries a **local, faithful port** inside its own folder rather than
+un-quarantining the package `tools/`: the core stays lean, the study stays reproducible. Distinct from
+`examples/`, which are ready-to-run *pipelines* (a `parameters/<name>.toml` + the CLI), not studies.
+
 ## The manual
 
 The book lives in `manual/book/`, one file per chapter: `ch1.md` … `ch9.md`, plus `appendix-a.md`
