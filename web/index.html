@@ -285,7 +285,6 @@
       <div class="nav-controls">
         <nav class="nav-links" id="navlinks">
           <a href="#install">Install</a>
-          <a href="#performance">Performance</a>
           <a href="#cite">Cite</a>
           <a class="ext" href="https://github.com/AADavin/zombi2">GitHub</a>
           <a class="nav-cta" href="#install">Get started</a>
@@ -427,25 +426,6 @@ genomes = z.simulate_genomes(
 print(genomes.profiles.matrix)
 genomes.write(<span class="s">"out/"</span>)
 </pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== PERFORMANCE ===================== -->
-    <section class="section" id="performance">
-      <div class="wrap">
-        <p class="eyebrow">Performance</p>
-        <h2>Built on a native Rust engine</h2>
-        <p class="section-intro">The core models run on compiled Rust and scale to millions of tips on a laptop, with deterministic, seeded results.</p>
-        <div class="stats">
-          <div class="stat">
-            <div class="big"><em>≈580×</em> faster</div>
-            <p>Genome simulation vs. ZOMBI 1 at 1,000 tips (41&nbsp;s → 71&nbsp;ms).</p>
-          </div>
-          <div class="stat">
-            <div class="big"><em>1M</em> tips · 6&nbsp;s</div>
-            <p>A backward species tree of one million tips (3M in ~18&nbsp;s).</p>
-          </div>
         </div>
       </div>
     </section>

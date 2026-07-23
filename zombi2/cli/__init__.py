@@ -11,8 +11,6 @@ The CLI is grown from the clean core, one level at a time, exactly like the pack
 
 Each subcommand's long options **are** the API keyword names (one word per concept across the API,
 the CLI, and a ``--params`` file), and rates are bare numbers using their natural scope — the
-``scope(base) × modifiers`` richness (SPEC §5) stays in the Python API for now. The remaining
-levels (sequences, coupling) land here as they are rebuilt; until then their old commands live
-only in ``legacy/``.
+``scope(base) × modifiers`` richness (SPEC §5) is written in full form on the rate flags.
 """
 from __future__ import annotations

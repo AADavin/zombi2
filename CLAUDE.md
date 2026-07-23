@@ -8,13 +8,13 @@
   Figure style is not here: it lives in [`figures/STYLE.md`](figures/STYLE.md), which also says
   where a figure's script, SVG and PNG belong.
 - **[`docs/design/MAP.md`](docs/design/MAP.md)** — the **files and the names** (every module, every public
-  name, its one canonical home; the clean core vs the `legacy/` quarantine; the rebuild order).
+  name, its one canonical home).
 
-ZOMBI2 is being rebuilt as a **clean core grown from SPEC**, not a migration. The old codebase is being
-**quarantined** in `legacy/` at the repo root (read-only, not importable); features are ported out of it
-deliberately, one level at a time, renamed to MAP. The active tree is just the clean core. When code
-disagrees with SPEC or MAP, the code is the **fossil** and must be aligned. Principle: **concepts → code →
-chapter** (fix the code before documenting new behaviour).
+ZOMBI2 is a **clean core grown from SPEC**. The old codebase and the (stage-2) Rust engine used to live
+in `legacy/` and `rust/` inside the repo; both have been **moved out** to a sibling `ZOMBI2_LEGACY/`
+folder — the repo is now just the clean core. When code disagrees with SPEC or MAP, the code is the
+**fossil** and must be aligned. Principle: **concepts → code → chapter** (fix the code before
+documenting new behaviour).
 
 Do not reintroduce the old lexicon. If a convention genuinely needs to change, change SPEC.md (words) or
 MAP.md (shape) **first**, then propagate.
@@ -35,21 +35,21 @@ ZOMBI2 is a phylogenetic simulator (Python library + CLI) that simulates four le
 species trees, genomes, sequences, traits — independently, conditioned, or jointly, and records the
 true history behind every dataset. Author: Adrián Davín.
 
-The clean core is **pure Python**: nothing in `zombi2/` imports the Rust extension. A Rust engine is
-stage 2 of the rebuild; today only `legacy/` binds to it.
+The core is **pure Python**: nothing in `zombi2/` imports a compiled extension, and `pip install`
+needs no build step (hatchling). A Rust engine (`zombi2_core`) was an early experiment; it has been
+retired from the repo to `ZOMBI2_LEGACY/rust/` and is not part of the build or the releases.
 
 ## Run environment
 
 - Python: `/Users/aadria/miniconda3/bin/python` (3.12). Bare `python`/`zombi2` are not on PATH.
-- The clean core needs **no build step**. If `rust/` ever gets wired into `zombi2/`, rebuild after any
-  `rust/` change: `maturin build --release -m rust/Cargo.toml` then force-reinstall.
+- The core needs **no build step** (pure Python).
 - PDF/manual toolchain: `xelatex` at `/Library/TeX/texbin`, `pandoc` + `rsvg-convert` on PATH.
 
 ## The manual
 
 The book lives in `manual/book/`, one file per chapter: `ch1.md` … `ch9.md`, plus `appendix-a.md`
-(the Gillespie algorithm) and `appendix-b.md` (output files). SPEC is the constitution; the manual is
-its exposition.
+(the Gillespie algorithm), `appendix-b.md` (output files) and `appendix-c.md` (the `zombi2 tools`
+read-back commands). SPEC is the constitution; the manual is its exposition.
 
 Ch4–Ch6 are the genome **resolution** ladder — unordered ⊂ ordered ⊂ nucleotide — one chapter per rung.
 Every level chapter closes the same way: **The objects → Usage from Python → Usage from the CLI →
@@ -62,7 +62,7 @@ Two rules learned the hard way:
   genuinely partial, say so plainly, and delete the caveat the moment it stops being true.
 
 Every chapter is published to the docs site as a snippet include — Ch1–Ch9 under `docs/guide/`, the
-two appendices under `docs/reference/`. Renaming a chapter file breaks those includes and CI's
+appendices under `docs/reference/`. Renaming a chapter file breaks those includes and CI's
 `mkdocs --strict` will catch it.
 
 Work happens on a branch in an isolated worktree, not the shared main checkout.

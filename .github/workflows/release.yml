@@ -1,17 +1,19 @@
 name: Release
 
-# Builds distributions for both packages that make up ZOMBI2:
-#   * zombi2_core -- the compiled Rust engine, one abi3 wheel per platform
-#     (CPython 3.10+) built with maturin, plus an sdist source fallback.
-#   * zombi2 -- the pure-Python front end, a single wheel + sdist.
+# Builds and publishes the ZOMBI2 distribution:
+#   * zombi2 -- the pure-Python package, a single wheel + sdist (hatchling).
 #
 # Publishing uses PyPI Trusted Publishing (OIDC) -- no stored API token. It is
 # GATED so nothing goes out by accident:
 #   * PyPI  -- only when a GitHub Release is published.
 #   * TestPyPI -- only on a manual run with the `testpypi` box ticked.
-# See docs/publishing.md for the one-time PyPI setup (each project needs a
-# trusted publisher pointing at this workflow). Until that is configured the
-# publish jobs fail safely at the OIDC step and nothing is uploaded.
+# See docs/publishing.md for the one-time PyPI setup (a trusted publisher
+# pointing at this workflow). Until that is configured the publish jobs fail
+# safely at the OIDC step and nothing is uploaded.
+#
+# (The compiled Rust engine zombi2_core lived here too; it has been retired
+# from the repository, so its build/publish jobs are gone. The clean core is
+# pure Python and does not depend on it.)
 
 on:
   release:
@@ -26,64 +28,6 @@ on:
 permissions: {}
 
 jobs:
-  core-wheels:
-    name: core wheel (${{ matrix.platform.target }})
-    runs-on: ${{ matrix.platform.runner }}
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - { runner: ubuntu-latest, target: x86_64, manylinux: auto }
-          - { runner: ubuntu-latest, target: aarch64, manylinux: auto }
-          # Both macOS wheels build on the Apple Silicon runner: arm64 natively
-          # and x86_64 cross-compiled. GitHub's Intel macos-13 runners are being
-          # retired and queue indefinitely, which used to stall the whole matrix.
-          - { runner: macos-14, target: aarch64 }
-          - { runner: macos-14, target: x86_64 }
-          - { runner: windows-latest, target: x64 }
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      # abi3-py310 (see rust/Cargo.toml) makes this one stable-ABI wheel per
-      # platform, usable on CPython 3.10 and newer.
-      - name: Build the abi3 wheel
-        uses: PyO3/maturin-action@v1
-        with:
-          working-directory: rust
-          target: ${{ matrix.platform.target }}
-          manylinux: ${{ matrix.platform.manylinux || 'auto' }}
-          args: --release --out dist
-          sccache: "true"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-core-${{ matrix.platform.runner }}-${{ matrix.platform.target }}
-          path: rust/dist/*.whl
-
-  core-sdist:
-    name: core sdist
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build the sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          working-directory: rust
-          command: sdist
-          args: --out dist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-core-sdist
-          path: rust/dist/*.tar.gz
-
   zombi2-dist:
     name: zombi2 wheel + sdist
     runs-on: ubuntu-latest
@@ -94,8 +38,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      # zombi2 is pure Python (hatchling), so it builds without numpy, the
-      # Rust toolchain, or zombi2_core -- those are runtime dependencies only.
+      # zombi2 is pure Python (hatchling), so it builds without numpy or a
+      # compiled engine -- those are runtime dependencies only.
       - name: Build
         run: |
           python -m pip install --upgrade build
@@ -107,40 +51,10 @@ jobs:
 
   # ---- publishing (gated, Trusted Publishing / OIDC) ---------------------
 
-  # Each package publishes from its own job with its own GitHub Environment.
-  # PyPI Trusted Publishing keys on (owner, repo, workflow, environment), and a
-  # *pending* publisher must be unique on those four fields -- so two
-  # not-yet-created projects cannot share one environment. Hence:
-  #   zombi2      -> environments `testpypi` / `pypi`
-  #   zombi2_core -> environments `testpypi-core` / `pypi-core`
-  # The zombi2 jobs wait on the core job so the exactly-pinned engine is
-  # already on the index before the front end that depends on it.
-
-  publish-testpypi-core:
-    name: publish zombi2_core to TestPyPI
-    if: github.event_name == 'workflow_dispatch' && inputs.testpypi
-    needs: [core-wheels, core-sdist]
-    runs-on: ubuntu-latest
-    environment: testpypi-core
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: dist-core-*
-          path: dist-core
-          merge-multiple: true
-      - name: Publish zombi2_core
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist-core
-          repository-url: https://test.pypi.org/legacy/
-          attestations: false
-
   publish-testpypi-zombi2:
     name: publish zombi2 to TestPyPI
     if: github.event_name == 'workflow_dispatch' && inputs.testpypi
-    needs: [zombi2-dist, publish-testpypi-core]
+    needs: [zombi2-dist]
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -157,29 +71,10 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           attestations: false
 
-  publish-pypi-core:
-    name: publish zombi2_core to PyPI
-    if: github.event_name == 'release'
-    needs: [core-wheels, core-sdist]
-    runs-on: ubuntu-latest
-    environment: pypi-core
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: dist-core-*
-          path: dist-core
-          merge-multiple: true
-      - name: Publish zombi2_core
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist-core
-
   publish-pypi-zombi2:
     name: publish zombi2 to PyPI
     if: github.event_name == 'release'
-    needs: [zombi2-dist, publish-pypi-core]
+    needs: [zombi2-dist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

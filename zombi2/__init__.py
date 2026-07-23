@@ -9,9 +9,9 @@ level's package (see ``docs/design/MAP.md``). ::
     from zombi2.genomes import simulate_genomes_unordered
     from zombi2.rates import scope, modifiers
 
-ZOMBI2 is being rebuilt as a **clean core grown from** ``docs/design/SPEC.md``; the old
-code is quarantined under ``legacy/`` at the repo root, read-only, not importable. The
-active tree is the clean core: ``zombi2.rates`` · ``zombi2.species`` · ``zombi2.genomes``.
+ZOMBI2 is a **clean core grown from** ``docs/design/SPEC.md`` — pure Python, one concept
+per name across the API, the CLI and a ``--params`` file: ``zombi2.rates`` · ``zombi2.species`` ·
+``zombi2.genomes`` · ``zombi2.sequences`` · ``zombi2.traits`` · ``zombi2.coupling``.
 """
 
 from __future__ import annotations

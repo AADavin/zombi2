@@ -1,4 +1,0 @@
-results/
-.snakemake/
-__pycache__/
-*.pyc
