@@ -131,15 +131,15 @@
 <path d="M1191.4227726195043,863.8 L1197.6227726195043,870.0 L1191.4227726195043,876.2 L1185.2227726195042,870.0 Z" fill="#1a1a1a" stroke="white" stroke-width="1.1" />
 <path d="M1219.6064724822331,395.8 L1225.8064724822332,402.0 L1219.6064724822331,408.2 L1213.406472482233,402.0 Z" fill="#1a1a1a" stroke="white" stroke-width="1.1" />
 <path d="M1262.3618196110926,443.8 L1268.5618196110927,450.0 L1262.3618196110926,456.2 L1256.1618196110926,450.0 Z" fill="#1a1a1a" stroke="white" stroke-width="1.1" />
-<path d="M40,96 L80,96" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="98" y="96" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">sampled species (in your data)</text>
-<path d="M40,136.7 L80,136.7" stroke="#1a1a1a" stroke-width="2.0" stroke-dasharray="6,5" stroke-linecap="butt" />
-<circle cx="80" cy="136.7" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
-<text x="98" y="136.7" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">unsampled - alive today, not sampled</text>
-<path d="M40,177.39999999999998 L80,177.39999999999998" stroke="#1a1a1a" stroke-width="2.0" stroke-dasharray="6,5" stroke-linecap="butt" />
-<text x="98" y="177.39999999999998" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">extinct - died before the present</text>
-<path d="M60,211.89999999999998 L66.2,218.09999999999997 L60,224.29999999999995 L53.8,218.09999999999997 Z" fill="#1a1a1a" stroke="white" stroke-width="1.1" />
-<text x="98" y="218.09999999999997" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">fossil - a dated sample on a branch</text>
+<path d="M40,759.9 L80,759.9" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
+<text x="98" y="759.9" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">sampled species (in your data)</text>
+<path d="M40,800.6 L80,800.6" stroke="#1a1a1a" stroke-width="2.0" stroke-dasharray="6,5" stroke-linecap="butt" />
+<circle cx="80" cy="800.6" r="4.6" fill="white" stroke="#1a1a1a" stroke-width="2.0" />
+<text x="98" y="800.6" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">unsampled - alive today, not sampled</text>
+<path d="M40,841.3000000000001 L80,841.3000000000001" stroke="#1a1a1a" stroke-width="2.0" stroke-dasharray="6,5" stroke-linecap="butt" />
+<text x="98" y="841.3000000000001" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">extinct - died before the present</text>
+<path d="M60,875.8000000000001 L66.2,882.0000000000001 L60,888.2000000000002 L53.8,882.0000000000001 Z" fill="#1a1a1a" stroke="white" stroke-width="1.1" />
+<text x="98" y="882.0000000000001" font-size="22" font-family="Helvetica" text-anchor="start" dominant-baseline="central" fill="#1a1a1a">fossil - a dated sample on a branch</text>
 <path d="M116.0,926.0 L116.0,932.0" stroke="#1a1a1a" stroke-width="1.2" />
 <text x="116.0" y="952.0" font-size="22" font-family="Helvetica" text-anchor="middle" fill="#8a8a8a">0</text>
 <path d="M412.0,926.0 L412.0,932.0" stroke="#1a1a1a" stroke-width="1.2" />
