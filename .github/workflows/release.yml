@@ -194,40 +194,6 @@ jobs:
         with:
           packages-dir: dist-zombi2
 
-  # Build the PDF manual (Pandoc -> XeLaTeX) and attach it to the GitHub Release,
-  # so releases/latest/download/zombi2-manual.pdf always tracks the newest release.
-  # Independent of the wheel/PyPI jobs; runs on workflow_dispatch too (build-only)
-  # so the build can be validated without a release.
-  manual:
-    name: manual PDF
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install XeLaTeX and librsvg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            librsvg2-bin lmodern \
-            texlive-xetex texlive-latex-recommended texlive-latex-extra \
-            texlive-fonts-recommended texlive-fonts-extra texlive-plain-generic
-      - name: Install a recent Pandoc (Ubuntu's apt pandoc is too old for --syntax-highlighting)
-        run: |
-          ver=$(curl -fsSL https://api.github.com/repos/jgm/pandoc/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-          curl -fsSL "https://github.com/jgm/pandoc/releases/download/${ver}/pandoc-${ver}-1-amd64.deb" -o /tmp/pandoc.deb
-          sudo dpkg -i /tmp/pandoc.deb
-          pandoc --version | head -1
-      - name: Build the manual
-        run: make -C manual manual
-      - uses: actions/upload-artifact@v4
-        with:
-          name: zombi2-manual
-          path: manual/build/zombi2-manual.pdf
-      - name: Attach the manual to the release
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
-            manual/build/zombi2-manual.pdf --clobber
+  # The PDF manual is no longer attached to releases: it is built and published once, at
+  # /zombi2-manual.pdf on the site, by pages.yml (which tracks main). One living manual beats two
+  # that can disagree — the release-pinned copy only moved on a release and drifted behind the book.
