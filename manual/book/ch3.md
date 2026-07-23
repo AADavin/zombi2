@@ -36,9 +36,6 @@ Birth and death are modified independently. Give both a `FromParent` and each li
 
 ## Other models
 
-
-CLAUDE, INCLUDE FIGURE FROM LEGACY (ADAPT IF NEEDED)
-
 A few models do not fit the modifier framework. ZOMBI2 provides one: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of the lineages alive at time 3. It is a pulse rather than a steady rate, so it is its own argument.
 
 ![A mass extinction as a survival pulse. The tree grows under a constant birth–death process until, at one instant, a fraction of the standing lineages die together — the cohort of dots along the vertical wall. Survivors are solid and extinct lineages dashed. The lineages-through-time curve below shares the time axis and shows the diversity crash at the pulse and the recovery after it. This tree was grown with `mass_extinctions=[(2.5, 0.75)]`.](figures/mass_extinction.pdf){width=100%}
@@ -61,8 +58,6 @@ Real datasets are incomplete, but by default you see every surviving species. **
 **`fossils`** does the opposite: it recovers lineages from the past. Fossils are picked up along **every** branch of the complete tree at a rate you set — a surviving lineage's branch as readily as an extinct one — so `fossils=0.1` scatters dated samples through the tree's history. They are a side output — the sampled lineages and their ages, reported alongside the trees. A fossil does not remove its lineage, and it does not appear in the extant tree.
 
 ![Sampling and fossils, the two ways a dataset falls short of the whole tree. A single complete tree shows every lineage's fate. Sampled species reach the present as solid lines and are the data you keep. Lineages alive today but not sampled reach the present as dashed lines ending in an open ring. Lineages that went extinct are dashed and stop where they died. Fossils are dated samples recovered along any branch of the complete tree, a surviving lineage's branch as readily as an extinct one, shown as black diamonds. The data is the solid tips together with the diamonds; the dashed lineages are never observed. This tree was grown with `sampling=0.6, fossils=0.15`.](figures/sampling_fossils.pdf){width=100%}
-
-CLAUDE, ADAPT FIGURE FROM LEGACY
 
 ```python
 # see only half the survivors
