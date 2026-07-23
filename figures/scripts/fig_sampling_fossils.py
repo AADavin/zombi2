@@ -132,9 +132,10 @@ def render() -> None:
     for nid, t in result.fossils:                    # fossils, scattered along the branches
         _diamond(d, X(t), Y(nid), 6.2)
 
-    # legend: a single vertical column, top-left, clear of the crown
-    lx, ly = 40, 96
+    # legend: a single vertical column, bottom-left, clear of the tree
     row = FS_LABEL * 1.85
+    lx = 40
+    ly = max(ys) - 3 * row          # anchor the four-row block at the bottom-left
 
     def label(y, txt):
         d.append(draw.Text(txt, FS_LABEL, lx + 58, y, font_family=FONT, text_anchor="start",
