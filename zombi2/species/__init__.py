@@ -224,6 +224,34 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
 _ZOMBI_LABEL = re.compile(r"^n(\d+)$")  # the id-bearing label to_newick writes on every node
 
 
+def _assign_fates_from_map(leaves: list[Node], labels: dict[int, str],
+                           tip_fates: dict[str, str], *, source: str) -> None:
+    """Set each leaf's fate from ``tip_fates`` (``{label: fate}``), joined to the leaves through
+    ``labels`` (``{leaf id: label}``). Every leaf must be uniquely labelled and covered, and every
+    value must be ``extant`` / ``extinct`` / ``unsampled``; anything off raises, naming ``source`` (the
+    map it came from) so the message points at the right file. Used for both a ZOMBI tree keyed by its
+    ``n<id>`` labels and an external tree keyed by the user's labels."""
+    labelled = [labels.get(n.id) for n in leaves]  # every tip must be uniquely named to map a fate
+    if any(lbl is None for lbl in labelled):
+        raise ValueError(f"every tip must be named to declare its fate with {source}, but the "
+                         "tree has unlabelled tips")
+    if len(set(labelled)) != len(labelled):
+        dups = sorted({lbl for lbl in labelled if labelled.count(lbl) > 1})
+        raise ValueError(f"tip labels must be unique to map fates; repeated: {', '.join(dups)}")
+    fates = {k: str(v).lower() for k, v in tip_fates.items()}
+    missing = sorted(set(labelled) - set(fates))
+    unknown = sorted(set(fates) - set(labelled))
+    if missing:
+        raise ValueError(f"{source} is missing a fate for: {', '.join(missing)}")
+    if unknown:
+        raise ValueError(f"{source} names tips not in the tree: {', '.join(unknown)}")
+    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct", "unsampled")})
+    if bad:
+        raise ValueError(f"tip fates must be 'extant', 'extinct' or 'unsampled', got: {', '.join(bad)}")
+    for n in leaves:
+        n.fate = fates[labels[n.id]]
+
+
 def _assign_external_fates(leaves: list[Node], names: dict[int, str],
                            tip_fates: dict[str, str] | None, gap: float) -> None:
     """Set the fate on the tips of a **non-ultrametric** external tree from a user-supplied
@@ -235,26 +263,8 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
         raise ValueError(
             f"input tree is not ultrametric (tip depths differ by {gap:.3g}); ZOMBI can't tell "
             "extinct lineages from early samples — declare each tip's fate with --tip-fates FILE "
-            "(a 'tip_name<TAB>extant|extinct' row per tip)")
-    labels = [names.get(n.id) for n in leaves]  # every tip must be uniquely named to map a fate
-    if any(lbl is None for lbl in labels):
-        raise ValueError("every tip must be named to declare its fate with --tip-fates, but the "
-                         "tree has unlabelled tips")
-    if len(set(labels)) != len(labels):
-        dups = sorted({lbl for lbl in labels if labels.count(lbl) > 1})
-        raise ValueError(f"tip labels must be unique to map fates; repeated: {', '.join(dups)}")
-    fates = {k: str(v).lower() for k, v in tip_fates.items()}
-    missing = sorted(set(labels) - set(fates))
-    unknown = sorted(set(fates) - set(labels))
-    if missing:
-        raise ValueError(f"--tip-fates is missing a fate for: {', '.join(missing)}")
-    if unknown:
-        raise ValueError(f"--tip-fates names tips not in the tree: {', '.join(unknown)}")
-    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct", "unsampled")})
-    if bad:
-        raise ValueError(f"tip fates must be 'extant', 'extinct' or 'unsampled', got: {', '.join(bad)}")
-    for n in leaves:
-        n.fate = fates[names[n.id]]
+            "(a 'tip_name<TAB>extant|extinct|unsampled' row per tip)")
+    _assign_fates_from_map(leaves, names, tip_fates, source="--tip-fates")
 
 
 def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tuple[Tree, dict[int, str]]:
@@ -266,8 +276,10 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
     told apart by the labels:
 
     - a **ZOMBI complete tree** (every node — internal ones too — is ``n<id>``, as ``to_newick``
-      writes it): the ids come from the labels, and a leaf is ``"extinct"`` if it ends before the
-      tree's greatest depth, else ``"extant"``. The name-map is empty (the labels *are* the ids).
+      writes it): the ids come from the labels, and the name-map is empty (the labels *are* the ids).
+      Fate comes from ``tip_fates`` when given — the run's ``species_fates.tsv``, keyed by the same
+      ``n<id>`` — which is authoritative; without it a leaf is ``"extinct"`` if it ends before the
+      tree's greatest depth, else ``"extant"`` (a fallback that cannot recover an ``"unsampled"`` tip).
     - any **external tree** (leaves named freely, internal nodes usually unlabelled): fresh ids are
       minted in traversal order (root 0, parents before children), the original labels are returned as
       the **name-map** (``{minted id: user label}``), and fates depend on whether the tree is
@@ -284,9 +296,9 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
     with its stem intact. External trees usually have none, and then the root gets zero duration and
     the tree starts at its crown, which is all the file says.
 
-    One honest limit remains: incomplete-``sampling`` ``"unsampled"`` fate is not recorded in the
-    ``.nwk``, so a survivor read back is ``"extant"``. That is fine for evolving genomes/traits along
-    the tree.
+    The ``.nwk`` records only branch lengths, so ``"unsampled"`` fate cannot be read from it alone —
+    pass ``tip_fates`` (the run's ``species_fates.tsv``) to recover it; without one a survivor reads
+    back ``"extant"``, which is still fine for evolving genomes/traits along the tree.
 
     Only bifurcating trees are supported (an internal node with other than two children raises).
     """
@@ -424,10 +436,19 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
     leaves = [n for n in nodes.values() if n.children is None]
 
     if all_labelled:
-        # a ZOMBI complete tree: a tip is extinct if it ends before the present (the greatest
-        # end_time). The tolerance is depth-relative — ``to_newick`` prints 6 significant figures,
-        # whose rounding accumulates to ~5e-6·height along a root-to-tip path, so a tip at the
-        # present can fall a few ×1e-5·height short of the max, far below any real extinction gap.
+        if tip_fates is not None:
+            # the run's own species_fates.tsv (or a --tip-fates file) states each tip's fate directly,
+            # keyed by the same n<id> the tree carries. It is authoritative: depth cannot tell an
+            # unsampled survivor from an extant one (both sit at the present), nor an extinct tip that
+            # died just before the present, so when it is given we use it rather than guess.
+            _assign_fates_from_map(leaves, {n.id: f"n{n.id}" for n in leaves}, tip_fates,
+                                   source="tip fates")
+            return Tree(nodes, root_id), names
+        # no fate table: a tip is extinct if it ends before the present (the greatest end_time). The
+        # tolerance is depth-relative — ``to_newick`` prints 6 significant figures, whose rounding
+        # accumulates to ~5e-6·height along a root-to-tip path, so a tip at the present can fall a few
+        # ×1e-5·height short of the max, far below any real extinction gap. This cannot recover an
+        # unsampled tip (it sits at the present, so it reads back extant) — pass the fate table for that.
         present = max(n.end_time for n in nodes.values())
         tol = max(1e-9, 1e-4 * present)
         for n in leaves:

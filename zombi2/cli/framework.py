@@ -238,6 +238,39 @@ def resolve_tree(path: str) -> str:
         f"Newick file with --from.")
 
 
+def _read_tip_fates(path: str) -> dict:
+    """Parse a ``--tip-fates`` file into ``{tip_name: fate}``: one
+    ``tip_name<TAB>extant|extinct|unsampled`` row per tip (whitespace also accepted; blank lines and
+    ``#`` comments skipped). This is the same shape ``species_fates.tsv`` is written in, so that output
+    feeds straight back in — its ``lineage<TAB>fate`` header row is recognised and skipped. The values
+    are checked against the tree by :func:`~zombi2.species.read_newick`."""
+    fates = {}
+    try:
+        with open(path) as f:
+            for lineno, raw in enumerate(f, 1):
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("\t") if "\t" in line else line.split()
+                if parts == ["lineage", "fate"]:
+                    continue  # the species_fates.tsv header, so that file is a valid --tip-fates input
+                if len(parts) != 2:
+                    raise ValueError(f"{path}:{lineno}: expected 'tip_name<TAB>extant|extinct|unsampled', "
+                                     f"got {raw.rstrip()!r}")
+                fates[parts[0]] = parts[1]
+    except FileNotFoundError:
+        raise FileNotFoundError(f"tip-fates file not found: {path}") from None
+    return fates
+
+
+def sibling_fates(tree_path: str) -> dict | None:
+    """The ``species_fates.tsv`` a species run writes next to its tree, parsed, or ``None`` if absent.
+    Lets a downstream level read each tip's fate from the run — telling extinct and unsampled tips
+    apart — instead of guessing it from tip depth. A user's explicit ``--tip-fates`` overrides this."""
+    cand = os.path.join(os.path.dirname(tree_path), "species_fates.tsv")
+    return _read_tip_fates(cand) if os.path.exists(cand) else None
+
+
 def resolve_genomes(path: str) -> tuple[str, str]:
     """Give back ``(events directory, species-tree file)`` for a genomes run, in either layout.
 
