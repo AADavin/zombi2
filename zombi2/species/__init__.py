@@ -504,7 +504,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     of 1 and picks uniformly, exactly as before.
 
     ``pulses`` are scheduled mass extinctions as ``(time, survival)`` pairs sorted by time (time runs
-    forward from the crown): at each instant every standing lineage is kept with probability
+    forward from the origin): at each instant every standing lineage is kept with probability
     ``survival`` and otherwise becomes an extinct leaf. They sit at a point on the timeline, so the
     caller passes them only when ``total_time`` is set."""
     nodes: dict[int, Node] = {}
@@ -654,7 +654,8 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
 
 def _mass_extinction_pulses(mass_extinctions, total_time: float | None) -> list[tuple[float, float]]:
     """Turn user ``(time, fraction_lost)`` pulses into the engine's ``(time, survival)`` pairs,
-    sorted by time. Time runs **forward from the crown**, so ``(3.0, 0.75)`` = at time 3.0, 75% of
+    sorted by time. Time runs **forward from the origin** (t=0, the initial lineage), so
+    ``(3.0, 0.75)`` = at time 3.0, 75% of
     the standing lineages die (survival 0.25). Empty when none are given. A pulse sits at a point on
     the timeline, so it needs a fixed end — ``total_time`` set — and must fall inside ``(0, total_time)``."""
     if not mass_extinctions:
@@ -726,7 +727,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     conditioned. Deterministic given ``seed``.
 
     ``mass_extinctions`` is a list of ``(time, fraction_lost)`` pulses — e.g. ``[(3.0, 0.75)]`` culls
-    75% of the lineages alive at time 3.0 (time runs forward from the crown). It is a point-in-time
+    75% of the lineages alive at time 3.0 (time runs forward from the origin, t=0). It is a point-in-time
     intervention on the process (not a rate) placed on the timeline, so it needs a fixed end:
     give ``total_time`` (not ``n_extant``), with each time strictly inside ``(0, total_time)``.
 
