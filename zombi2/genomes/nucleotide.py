@@ -112,7 +112,7 @@ from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff
 
 
-@dataclass
+@dataclass(slots=True)
 class Block:
     """A run of one unbroken ancestry: the half-open interval ``[start, end)`` on ``source`` this run
     descends from (``start < end`` always), read forward (``strand`` ``+1``) or reverse-complemented
@@ -547,7 +547,7 @@ class NucleotideGenome:
 
 # --- the tree wiring (inversions along the species tree; a multi-chromosome, identity-bearing karyotype)
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Inversion:
     """A recorded nucleotide inversion: on species branch ``lineage`` at ``time``, the arc
     ``[start, start+length)`` of chromosome ``chromosome`` was reversed. Ancestry is unchanged, so it
@@ -560,7 +560,7 @@ class Inversion:
     length: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Translocation:
     """A recorded nucleotide translocation: on branch ``lineage`` at ``time``, the arc
     ``[start, start+length)`` of chromosome ``source`` was moved to chromosome ``dest`` (a different
@@ -577,7 +577,7 @@ class Translocation:
     flipped: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Transposition:
     """A recorded nucleotide transposition: on branch ``lineage`` at ``time``, the arc
     ``[start, start+length)`` of chromosome ``chromosome`` was excised and reinserted **elsewhere on
@@ -594,7 +594,7 @@ class Transposition:
     flipped: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Origination:
     """A recorded **birth of a copy lineage** — the root of a gene tree. At ``time`` on branch
     ``lineage`` new material was laid down on chromosome ``chromosome`` as copy lineage ``copy``,
@@ -617,7 +617,7 @@ class Origination:
     seed: bool = False
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Loss:
     """A recorded nucleotide loss — an ancestry-**changing** event (a death), so it belongs to the
     genealogy log, not the rearrangements. On branch ``lineage`` at ``time`` an arc of chromosome
@@ -631,7 +631,7 @@ class Loss:
     lost: tuple[tuple[int, int, int, int], ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Duplication:
     """A recorded nucleotide duplication — an ancestry-**changing** event (a birth). On branch
     ``lineage`` at ``time`` an arc of chromosome ``chromosome`` was copied in **tandem**; ``copied``
@@ -645,7 +645,7 @@ class Duplication:
     copied: tuple[tuple[int, int, int, int, int], ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Transfer:
     """A recorded nucleotide transfer — an ancestry-**changing** *birth* that couples two
     contemporaneous lineages, so it is a **horizontal** edge in a block's gene tree. At ``time`` an arc
@@ -660,7 +660,7 @@ class Transfer:
     transferred: tuple[tuple[int, int, int, int, int], ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Speciation:
     """A recorded **copy-lineage speciation** — parallel to the chromosome network's speciation edge
     but at gene-tree granularity. At ``time`` on branch ``lineage`` (the parent node) copy lineage
@@ -1996,7 +1996,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
 # breakpoint that did not survive, so its child is dead and irrelevant to the extant tree.
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _SegEvent:
     """One per-segment event in the model :func:`gene_trees_from_events` reads: ``kind`` is
     ``origination`` (a root) / ``duplication`` / ``transfer`` / ``speciation`` (a parent segment ends →
