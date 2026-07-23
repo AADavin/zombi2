@@ -1,6 +1,6 @@
 """``zombi2 joint`` — grow a species tree and the level that drives it, together.
 
-**Conditioning** runs one level and then reads it: a trait run writes ``trait_driver.tsv``, and a
+**Conditioning** runs one level and then reads it: a trait run writes ``trait_events.tsv``, and a
 later genome run makes its loss rate read that file. It works because the driver can be finished
 first. **Joining** is for when it cannot — when the trait drives which lineages speciate, the tree
 and the trait each depend on the other at every instant, and neither exists before the other. The two

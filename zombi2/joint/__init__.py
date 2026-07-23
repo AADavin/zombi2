@@ -83,11 +83,11 @@ class JointResult:
     def write(self, directory) -> None:
         """Write both levels to ``directory``: the species files (``species_complete.nwk`` /
         ``species_extant.nwk`` / ``species_events.tsv``) and the driver level's — for a trait,
-        ``trait_values.tsv`` / ``trait_changes.tsv`` / ``trait_tree.nwk``; for a genome,
+        ``trait_values.tsv`` / ``trait_events.tsv`` / ``trait_tree.nwk``; for a genome,
         ``genome_events.tsv`` / ``profiles.tsv``."""
         self.species.write(directory, outputs=("complete", "extant", "events"))
         if self.trait is not None:
-            self.trait.write(directory, outputs=("values", "changes", "tree"))
+            self.trait.write(directory, outputs=("values", "events", "tree"))
         if self.genome is not None:
             self.genome.write(directory, outputs=("events", "profiles"))
 

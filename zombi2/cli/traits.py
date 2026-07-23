@@ -31,15 +31,14 @@ RATES_HELP = _rates_help(
     note="These bend a continuous trait's variance-rate (--rate). The discrete switching rate "
          "(--switch) and the liability rate (--liability) are bare numbers this slice.")
 
-# the write vocabularies, mirroring TraitsResult.write ("driver" is discrete-only: it replays the
-# stochastic character map, which a diffusion has no equivalent of)
-_CONTINUOUS_OUTPUTS = ("values", "changes", "tree")
-_DISCRETE_OUTPUTS = ("values", "changes", "tree", "driver")
+# the write vocabularies, mirroring TraitsResult.write. The event log IS the conditioning file now
+# (a driven run replays it against the tree), so there is no separate driver output.
+_CONTINUOUS_OUTPUTS = ("values", "events", "tree")
+_DISCRETE_OUTPUTS = ("values", "events", "tree")
 
-# what each kind writes when --write is not given ("driver" stays opt-in: it exists to feed a
-# conditioned coupling run, not to describe this one)
+# what each kind writes when --write is not given
 _CONTINUOUS_DEFAULT = ("values", "tree")
-_DISCRETE_DEFAULT = ("values", "changes", "tree")
+_DISCRETE_DEFAULT = ("values", "events", "tree")
 
 # kind-specific knobs — (attribute, default) pairs — rejected under the other kind
 _CONTINUOUS_ONLY = (("rate", 1.0), ("reverts_to", None), ("pull", None))
@@ -98,10 +97,11 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_DISCRETE_OUTPUTS, default=None, metavar="PART",
-                   help="which outputs to write (default: values, tree [+ changes when discrete]). "
-                        "values: the tip table. changes: the event log. tree: the trait tree "
-                        "(annotated Newick). driver: the segment table that feeds a conditioned "
-                        "run (discrete only).")
+                   help="which outputs to write (default: values, tree [+ events when discrete]). "
+                        "values: the tip table. events: the event log — a root row giving the "
+                        "initial state then every switch; this is also the file a conditioned "
+                        "genome/sequence run reads with DrivenBy('trait_events.tsv', ...). tree: "
+                        "the trait tree (annotated Newick).")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 

@@ -159,7 +159,7 @@ zombi2 traits out/ --kind discrete \
 # the same, also writing the driver file a conditioned genome run reads (Chapter 9)
 zombi2 traits out/ --kind discrete \
     --states cave,surface --switch 0.1 --seed 1 \
-    --write values changes tree driver
+    --write values events tree
 ```
 
 The trait evolves on the **complete** tree, extinct lineages included, so `species_complete.nwk` is the file to hand it. An external tree works too; if it is not ultrametric you must declare each tip's fate with `--tip-fates`, because ZOMBI will not guess which early-ending tips are extinct.
@@ -168,4 +168,4 @@ The trait evolves on the **complete** tree, extinct lineages included, so `speci
 
 A run writes the **trait values** at the extant tips (`trait_values.tsv`, the observable comparative-data vector) and the **trait tree** (`trait_tree.nwk`, the complete tree with every node annotated `[&trait=…]`, which opens in FigTree or iTOL). Because the value at every node comes from the same process that produced the tips, that annotated tree carries the *exact* ancestral states, not a reconstruction.
 
-For a discrete trait the command also writes the **change log** (`trait_changes.tsv`, the realized transitions with their times), the ground truth against which an ancestral-state or stochastic-mapping method would be scored. One further output is written only on request: the **driver file** (`trait_driver.tsv`, `--write driver`), which cuts each branch into the constant stretches of the stochastic character map. That is the file a conditioned genome run reads to let a trait drive its rates, and it is the bridge into the next chapter. The full list of files lives in Appendix B.
+For a discrete trait the command also writes the **event log** (`trait_events.tsv`): a `root` row giving the state at t=0, then every realized transition with its time — the ground truth against which an ancestral-state or stochastic-mapping method would be scored. That one file is *also* what a conditioned genome run reads to let a trait drive its rates: given the shared tree, the root state plus the switches reconstruct the trait on every lineage at every instant, so no separate driver file is needed. It is the bridge into the next chapter. The full list of files lives in Appendix B.

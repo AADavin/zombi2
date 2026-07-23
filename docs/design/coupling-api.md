@@ -38,13 +38,13 @@ the driver can be simulated on its own and handed over:
 - **Conditioned** — the driver **can** be grown first, so `source` is a **file**. Two commands, ordered.
   ```python
   habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.1, seed=1)
-  habitat.write("out", outputs=("driver",))                      # → out/trait_driver.tsv
+  habitat.write("out", outputs=("events",))                      # → out/trait_events.tsv
   genomes.simulate_genomes_unordered(tree,
-      loss = 0.25 * mod.DrivenBy("out/trait_driver.tsv",
+      loss = 0.25 * mod.DrivenBy("out/trait_events.tsv",
                                  {"aquatic": 3.0, "terrestrial": 1.0}), seed=2)
   ```
   (The driver is written through the standard `write(dir, outputs=(...))` spine, like every level's
-  outputs; the file it produces is `trait_driver.tsv`, a per-branch `node · start · end · state` segment
+  outputs; the file it produces is `trait_events.tsv`, the trait event log (a `root` row then the switches), which a driven run replays against the shared tree — a per-branch `node · start · end · state` segment
   table — exact even when a discrete driver switches mid-branch.)
 
   **In-memory shortcut.** In a single Python session you can skip the file and pass the grown result

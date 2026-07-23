@@ -67,7 +67,7 @@ def test_joint_writes_both_levels(tmp_path):
     res = _bisse(n_extant=80, seed=2)
     res.write(tmp_path)
     for f in ("species_complete.nwk", "species_extant.nwk", "species_events.tsv",
-              "trait_values.tsv", "trait_changes.tsv", "trait_tree.nwk"):
+              "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk"):
         assert (tmp_path / f).exists(), f"missing {f}"
 
 
