@@ -598,9 +598,14 @@ class Transposition:
 class Origination:
     """A recorded **birth of a copy lineage** — the root of a gene tree. At ``time`` on branch
     ``lineage`` new material was laid down on chromosome ``chromosome`` as copy lineage ``copy``,
-    covering the ancestral interval ``[start, end)`` on ``source``. Either a **seed** replicon (one per
-    root replicon, on the root branch) or a **de-novo** origination (a fresh source arising mid-tree);
-    the gene-tree recovery reads each as the root of its family."""
+    covering the ancestral interval ``[start, end)`` on ``source``.
+
+    ``seed`` tells the two roots apart. A **seed** origination (``seed=True``) lays down the initial
+    genome at the crown — one per root replicon — and is what the run *starts* with, not something it
+    *did*; it is written with kind ``"seed"`` so counting ``"origination"`` in the log gives the
+    de-novo births alone (what the ``origination`` rate controls). A **de-novo** origination
+    (``seed=False``) is a fresh source arising mid-tree. The gene-tree recovery reads either as the
+    root of its family."""
 
     time: float
     lineage: int
@@ -609,6 +614,7 @@ class Origination:
     source: int
     start: int
     end: int
+    seed: bool = False
 
 
 @dataclass(frozen=True)
@@ -1066,8 +1072,8 @@ def _nucleotide_events_tsv(events, rearrangements=()) -> str:
 
     for e in events:
         if isinstance(e, Origination):
-            row(e.time, "origination", e.lineage, e.chromosome, e.copy, None, None,
-                e.source, e.start, e.end)
+            row(e.time, "seed" if e.seed else "origination", e.lineage, e.chromosome, e.copy,
+                None, None, e.source, e.start, e.end)
         elif isinstance(e, Loss):
             for (copy, source, start, end) in e.lost:
                 row(e.time, "loss", e.lineage, e.chromosome, copy, None, None, source, start, end)
@@ -1188,9 +1194,9 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
         if not pending:
             return
         kind, time, lineage, chrom, recipient = pending[0][:5]
-        if kind == "origination":
+        if kind in ("origination", "seed"):
             (_k, _t, _l, _c, _r, copy, _p, src, start, end) = pending[0]
-            events.append(Origination(time, lineage, chrom, copy, src, start, end))
+            events.append(Origination(time, lineage, chrom, copy, src, start, end, seed=kind == "seed"))
         elif kind == "loss":
             events.append(Loss(time, lineage, chrom,
                                tuple((c, s, a, b) for (*_h, c, _p, s, a, b) in pending)))
@@ -1211,7 +1217,7 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "genome_events.tsv"):
         (time, kind, lineage, chrom, copy, parent, recipient, source, start, end,
          *_physical) = cells
-        if kind not in ("origination", "loss", "duplication", "transfer", "speciation"):
+        if kind not in ("origination", "seed", "loss", "duplication", "transfer", "speciation"):
             flush()                                  # a rearrangement: it ends no copy lineage
             t, ln = float(time), node_from_label(lineage)
             at, ell, dc, dp, fl = (num(c) for c in _physical)
@@ -1228,13 +1234,13 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
                node_from_label(recipient) if recipient else None,
                num(copy), num(parent), num(source), num(start), num(end))
         # what makes this row part of the *same* event as the last one
-        row_key = (None if kind == "origination" else
+        row_key = (None if kind in ("origination", "seed") else
                    (*row[:3], row[6]) if kind == "speciation" else row[:5])
         if pending and row_key != key:
             flush()
         pending.append(row)
         key = row_key
-        if kind == "origination":
+        if kind in ("origination", "seed"):
             flush()
     flush()
     return events, rearrangements
@@ -1845,7 +1851,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                                              gene_spans, gene_names,
                                                              gene_strands)))
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
-        events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length))
+        events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length, seed=True))
 
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     initial_genome = NucleotideGenome(
