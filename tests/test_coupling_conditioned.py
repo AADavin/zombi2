@@ -197,6 +197,30 @@ def test_zero_factor_lineages_never_lose(tmp_path):
             assert fams == parent_fams, f"lo lineage n{i} changed vs parent: {fams} != {parent_fams}"
 
 
+def test_mapping_matching_no_driver_state_is_refused(tmp_path):
+    # a mapping whose keys occur nowhere in the driver would leave every lineage at the default factor
+    # — a silently uncoupled run — so it must be refused, not run as if it were coupled
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
+    driver = tmp_path / "habitat.tsv"
+    _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
+    with pytest.raises(ValueError, match="match none of the driver's states"):
+        genomes.simulate_genomes_unordered(
+            tree, loss=0.25 * mod.DrivenBy(str(driver), {"cave": 4.0}),  # 'cave' is never a driver state
+            initial_families=6, seed=3)
+
+
+def test_partial_mapping_with_one_matching_state_still_runs(tmp_path):
+    # ≥1 overlap is enough: a mapping may name a state this realisation never reached, as long as at
+    # least one of its states does occur — that is a legitimate partial mapping, not a mistake
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
+    driver = tmp_path / "habitat.tsv"
+    _write_driver(driver, tree, {i: "lo" for i in tree.nodes})   # only 'lo' ever occurs
+    res = genomes.simulate_genomes_unordered(
+        tree, loss=0.25 * mod.DrivenBy(str(driver), {"lo": 2.0, "hi": 9.0}),  # 'hi' listed but absent
+        initial_families=6, seed=3)
+    assert res.events is not None                                # it ran; the absent 'hi' key is fine
+
+
 def test_driven_loss_is_deterministic(tmp_path):
     tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=5).complete_tree
     state_of = {i: ("hi" if i % 2 else "lo") for i in tree.nodes}
