@@ -200,6 +200,21 @@ def test_write_is_selective(tmp_path):
     assert {p.name for p in tmp_path.iterdir()} == {"species_extant.nwk", "species_events.tsv"}  # only what was asked
 
 
+def test_write_records_tip_fates(tmp_path):
+    # the tip-fate table is one row per tip, resolved on the same n<id> that keys every other file,
+    # so a downstream level can build the extant set from fate instead of guessing from tip depth
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=20, sampling=0.5, seed=5)
+    r.write(tmp_path)
+    lines = (tmp_path / "species_fates.tsv").read_text().splitlines()
+    assert lines[0] == "lineage\tfate"
+    fates = dict(ln.split("\t") for ln in lines[1:])
+    tips = {f"n{n.id}": n.fate for n in r.complete_tree.leaves()}
+    assert fates == tips                                          # every tip, its exact fate
+    assert set(fates.values()) <= {"extant", "extinct", "unsampled"}
+    # the table's extant rows are exactly the observed survivors
+    assert sum(f == "extant" for f in fates.values()) == r.n_extant
+
+
 def test_write_rejects_unknown_output(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1)
     with pytest.raises(ValueError, match="unknown write outputs"):
@@ -212,10 +227,13 @@ def test_extant_tree_is_deterministic():
     assert a.extant_tree.to_newick() == b.extant_tree.to_newick()
 
 
-def test_dead_tree_has_no_extant_tree():
-    r = simulate_species_tree(birth=0.1, death=10.0, total_time=5.0, seed=1)
-    assert r.n_extant == 0
-    assert r.extant_tree is None
+def test_extinct_time_run_is_refused():
+    # a time-conditioned run is not conditioned on survival, so with death ≫ birth it reaches the
+    # present with nothing alive. That tree has no extant tips: the extant tree would be None and
+    # every downstream level would mistake the last-dying tip for a survivor, so the engine refuses
+    # it outright rather than hand back a tree with no present.
+    with pytest.raises(RuntimeError, match="went extinct"):
+        simulate_species_tree(birth=0.1, death=10.0, total_time=5.0, seed=1)
 
 
 # --- FromParent (clade drift): rates drift down the tree, picking is rate-weighted ---
@@ -323,17 +341,27 @@ def test_clade_drift_is_more_imbalanced_than_yule():
 def test_mass_extinction_culls_diversity():
     import statistics
     seeds = range(30)
-    no_pulse = [simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, seed=s).n_extant for s in seeds]
-    culled = [simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(3.0, 0.9)], seed=s).n_extant
+
+    def survivors(**kw):
+        # a time run is not conditioned on survival: a seed that goes fully extinct is refused, which
+        # for this diversity statistic counts as zero survivors
+        try:
+            return simulate_species_tree(**kw).n_extant
+        except RuntimeError:
+            return 0
+
+    no_pulse = [survivors(birth=1.0, death=0.2, total_time=5.0, seed=s) for s in seeds]
+    culled = [survivors(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(3.0, 0.9)], seed=s)
               for s in seeds]
     # a 90% cull at time 3.0 leaves far fewer survivors even after some regrowth to the present
     assert statistics.mean(culled) < 0.5 * statistics.mean(no_pulse)
 
 
 def test_total_mass_extinction_wipes_the_tree():
-    r = simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(2.5, 1.0)], seed=1)
-    assert r.n_extant == 0            # fraction lost = 1.0 kills every standing lineage
-    assert r.extant_tree is None
+    # fraction lost = 1.0 kills every standing lineage at the pulse, leaving nothing to regrow, so
+    # the run reaches the present empty — which the engine refuses (see test_extinct_time_run_is_refused)
+    with pytest.raises(RuntimeError, match="went extinct"):
+        simulate_species_tree(birth=1.0, death=0.2, total_time=5.0, mass_extinctions=[(2.5, 1.0)], seed=1)
 
 
 def test_mass_extinction_deaths_land_at_the_pulse_instant():
@@ -359,7 +387,8 @@ def test_zero_fraction_pulse_kills_nobody():
 
 
 def test_mass_extinction_is_deterministic():
-    kw = dict(birth=1.0, death=0.3, total_time=5.0, mass_extinctions=[(2.0, 0.6)], seed=7)
+    # seed 2 survives the pulse to the present (seed 7 went fully extinct and is now refused)
+    kw = dict(birth=1.0, death=0.3, total_time=5.0, mass_extinctions=[(2.0, 0.6)], seed=2)
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
