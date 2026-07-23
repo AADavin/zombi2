@@ -4,17 +4,11 @@
 
 Evolutionary biology infers the past from what survives into the present: a gene tree from an alignment, a rate of gene loss from a set of genomes, an ancestral body size from the sizes of living species. The true history is gone, so there is nothing to check the answer against.
 
-Simulation is the way around this. You choose a model, run it forward in time, and get a dataset whose history you already know: which lineages went extinct, which gene was transferred and when, what the sequence at each internal node was. Run a method on that dataset and you can measure how much of the history it recovers. This is how phylogenetic methods are tested, calibrated and compared.
-
-A simulator is only useful for this if it says what it did. ZOMBI2 writes the full event log of every run, in the order the events fired, and records the state at every internal node of the tree, not just at the tips. The ground truth is part of the output.
+Simulation is the way around this. You create a dataset whose history you already know: which lineages went extinct, which gene was transferred and when, what the sequence at each internal node was. Run a method on that dataset and you can measure how much of the history it recovers. This is how phylogenetic methods are tested, calibrated and compared.
 
 ## What ZOMBI2 is
 
-ZOMBI2 simulates four levels of evolution: **Species**, **Genomes**, **Sequences** and **Traits**. One program covers all four. You can run a single level, run several in sequence, or let one level drive another.
-
-It comes as a Python library and as a command-line tool. Both drive the same engine and take the same parameters, so a run can be written either way.
-
-The engine is fast. A birth–death tree with 100,000 surviving species takes about a second on a laptop, so the size of a simulation is rarely a constraint.
+ZOMBI2 simulates four levels of evolution: **Species**, **Genomes**, **Sequences** and **Traits**. You can run a single level, run several in sequence, or let one level drive another. It comes as a Python library and as a command-line tool. Both drive the same engine and take the same parameters, so a run can be written either way. 
 
 ## What it can do
 
@@ -86,7 +80,5 @@ gen = genomes.simulate_genomes_unordered(sp.complete_tree,
 sp.write("out/")
 gen.write("out/")
 ```
-
-Each CLI flag is the Python argument of the same name, hyphenated, and `.write()` does what the run directory does. In a session you can also read a result straight off, without writing anything: `gen.profiles` is the copy-number matrix, and `gen.gene_trees` gives each gene family's true gene tree.
 
 The next chapter, *A tour of ZOMBI2*, lays out the four levels, the three ways they can relate, how every rate is written, and the vocabulary the rest of the book uses.

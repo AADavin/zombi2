@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="760" height="720" viewBox="0 0 760 720">
+<defs>
+</defs>
+<rect x="0" y="0" width="760" height="720" fill="white" />
+<circle cx="380.0" cy="354.0" r="205" stroke="#8a8a8a" stroke-width="1.4" fill="none" stroke-dasharray="2,5" />
+<path d="M 406.76 150.75 A 205 205 0 0 1 535.88 220.86" stroke="#2b2b2b" stroke-width="42" fill="none" stroke-linecap="butt" />
+<path d="M565.0299832917215,265.7452251542995 L560.7941223810633,199.58723202901555 L510.9723235149493,242.13906815560915 Z" fill="#2b2b2b" />
+<text x="532.824165596043" y="143.65558146251365" font-size="22" font-family="Helvetica" fill="#1a1a1a" font-weight="bold" text-anchor="middle" dominant-baseline="central">0</text>
+<path d="M 581.57 316.64 A 205 205 0 0 1 554.79 461.11" stroke="#575757" stroke-width="42" fill="none" stroke-linecap="butt" />
+<path d="M521.1126880172195,502.701746057519 L582.723725476829,478.229258746864 L526.8587419083489,443.995152786675 Z" fill="#575757" />
+<text x="627.27469423674" y="434.3444185374863" font-size="22" font-family="Helvetica" fill="#1a1a1a" font-weight="bold" text-anchor="middle" dominant-baseline="central">1</text>
+<path d="M 477.82 534.16 A 205 205 0 0 1 332.14 553.34" stroke="#838383" stroke-width="42" fill="none" stroke-linecap="butt" />
+<path d="M282.1824541467803,534.157508095703 L324.49603028961997,585.1906722737516 L339.79137052945885,521.4809950892959 Z" fill="#838383" />
+<text x="380.00000000000006" y="614.0" font-size="22" font-family="Helvetica" fill="#1a1a1a" font-weight="bold" text-anchor="middle" dominant-baseline="central">3</text>
+<path d="M 238.89 502.70 A 205 205 0 0 1 175.63 370.08" stroke="#838383" stroke-width="42" fill="none" stroke-linecap="butt" />
+<path d="M178.4327439493893,316.6417172741098 L142.9729347316115,372.65443460025233 L208.29095843780604,367.513794648164 Z" fill="#838383" />
+<text x="132.72530576326008" y="434.3444185374864" font-size="22" font-family="Helvetica" fill="#1a1a1a" font-weight="bold" text-anchor="middle" dominant-baseline="central">3</text>
+<path d="M 353.24 150.75 A 205 205 0 0 0 224.12 220.86" stroke="#afafaf" stroke-width="42" fill="none" stroke-linecap="butt" />
+<path d="M194.97001670827854,265.74522515429953 L199.20587761893668,199.5872320290155 L249.02767648505068,242.13906815560912 Z" fill="#afafaf" />
+<text x="227.1758344039569" y="143.65558146251368" font-size="22" font-family="Helvetica" fill="#1a1a1a" font-weight="bold" text-anchor="middle" dominant-baseline="central">4</text>
+</svg>
