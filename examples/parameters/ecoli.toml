@@ -1,0 +1,60 @@
+# ecoli.toml — a species tree + full E. coli genome + DNA, in one pipeline file.
+#
+# Run these three commands FROM THE examples/ FOLDER (paths below are relative to it):
+#
+#   cd examples
+#   zombi2 species   ecoli_run/ --params parameters/ecoli.toml   # 20-tip dated tree
+#   zombi2 genomes   ecoli_run/ --params parameters/ecoli.toml   # full E. coli genome
+#   zombi2 sequences ecoli_run/ --params parameters/ecoli.toml   # DNA down each gene tree
+#
+# Keys are the CLI long-option names (hyphens or underscores both work). A key
+# outside any table is shared by every command; each [table] scopes keys to one
+# command and overrides the shared base.
+
+seed = 42                       # shared: every level uses the same RNG seed
+
+# ---------------------------------------------------------------------------
+[species]                       # a dated species tree, 20 surviving tips
+birth     = 1.0                 # speciation rate (per lineage)
+death     = 0.3                 # extinction rate (per lineage)
+n-extant  = 20                  # grow until 20 extant lineages
+
+# ---------------------------------------------------------------------------
+[genomes]                       # the full genome, starting from real E. coli
+resolution = "nucleotide"       # the whole genome as a coordinate axis of DNA
+gff        = "data/ecoli.gff"   # E. coli K-12 MG1655 as the initial genome
+fasta      = "data/ecoli.fna"   # the real MG1655 DNA, so real letters descend to the tips
+trim-overlaps = true            # the real annotation has a few overlapping genes; shorten them
+
+# EVENT RATES — all per lineage, per unit of branch time (nucleotide resolution).
+# The tree is ~20 time units with mean branch ~0.5, so these fire many events
+# each; turn them down for a calmer run, up for a busier one.
+duplication = 1.0               # an arc copied in tandem
+loss        = 1.0               # an arc deleted
+transfer    = 0.5               # an arc copied into another contemporaneous lineage
+origination = 0.5               # a brand-new gene laid down de novo
+inversion   = 5.0               # an arc reversed (cheap and very visible)
+transposition = 1.0             # an arc moved within its chromosome
+translocation = 0.5             # an arc moved to another chromosome
+
+# CHROMOSOME TIER — fission/fusion/loss are per chromosome, origination per lineage.
+# Kept low: E. coli starts as one chromosome, and these reshape the karyotype.
+chromosome-origination = 0.1    # a de-novo plasmid appears
+fission = 0.05                  # one chromosome splits in two
+fusion  = 0.05                  # two chromosomes merge
+
+# EVENT EXTENTS — mean bp per event (geometric). Bumped up from the 50 bp default
+# so the rearrangements are chunky enough to see against a 4.6 Mbp genome.
+inversion-length    = 20000
+loss-length         = 5000
+duplication-length  = 10000
+transposition-length = 20000
+translocation-length = 20000
+transfer-length     = 10000
+origination-length  = 5000
+
+# ---------------------------------------------------------------------------
+[sequences]                     # DNA down each gene tree
+model  = "hky85"                # substitution model in genes
+intergene-model = "jc69"        # model the spacer between genes evolves under
+intergene-speed = 3.0           # how much faster the spacer evolves than the genes
