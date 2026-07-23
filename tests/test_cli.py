@@ -33,6 +33,22 @@ def test_read_newick_round_trips_a_complete_tree():
         max(n.end_time for n in t.nodes.values()), rel=1e-5)
 
 
+def test_read_newick_zombi_tree_honours_an_authoritative_fate_table():
+    # a ZOMBI tree records only branch lengths, so depth cannot tell an unsampled survivor (it sits at
+    # the present) from an extant one. When the run's species_fates.tsv is passed, it is authoritative:
+    # here a present-day survivor is declared unsampled and must come back unsampled, not extant.
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=4)
+    survivors = [n.id for n in r.complete_tree.extant()]
+    fates = {f"n{i}": "extant" for i in survivors}
+    fates[f"n{survivors[0]}"] = "unsampled"                       # override one survivor
+    for n in r.complete_tree.extinct():
+        fates[f"n{n.id}"] = "extinct"
+    back, _ = read_newick(r.complete_tree.to_newick(), tip_fates=fates)
+    assert back.nodes[survivors[0]].fate == "unsampled"          # the table won, not the depth-guess
+    assert len(back.extant()) == len(survivors) - 1              # the unsampled one is no longer extant
+    assert len(back.unsampled()) == 1
+
+
 def test_read_newick_ultrametric_external_tree_is_all_extant_with_a_name_map():
     # ultrametric (every tip at depth 2) → every tip extant, and the user's labels come back mapped
     t, names = read_newick("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);")
@@ -74,6 +90,30 @@ def test_species_fates_file_is_a_valid_tip_fates_input(tmp_path):
     assert "lineage" not in parsed                               # the header row did not leak in as a tip
     assert "unsampled" in set(parsed.values())                   # sampling<1 produced unsampled tips, kept
     assert parsed == {f"n{n.id}": n.fate for n in r.complete_tree.leaves()}
+
+
+def test_genomes_reads_the_runs_fate_table_so_unsampled_tips_are_not_extant(tmp_path, capsys):
+    # the sampling handoff bug: without the fate table, genomes reads the tree by depth and counts every
+    # survivor extant (extant + unsampled); consuming species_fates.tsv, it builds only the sampled ones
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1.0", "--death", "0.4", "--n-extant", "20",
+          "--sampling", "0.5", "--seed", "7"])
+    fates = (run / "species" / "species_fates.tsv").read_text().splitlines()[1:]
+    n_extant = sum(ln.endswith("\textant") for ln in fates)
+    assert 0 < n_extant < 20                                     # sampling really thinned the survivors
+    capsys.readouterr()
+    main(["genomes", str(run), "--duplication", "0.1", "--loss", "0.1", "--origination", "0.5",
+          "--seed", "1"])
+    out = capsys.readouterr().out
+    assert f"{n_extant} extant genomes" in out                   # the sampled survivors, not all 20
+
+    # and with the table removed, it falls back to the depth-guess and over-counts (the old behaviour)
+    (run / "species" / "species_fates.tsv").unlink()
+    import shutil
+    shutil.rmtree(run / "genomes")
+    main(["genomes", str(run), "--duplication", "0.1", "--loss", "0.1", "--origination", "0.5",
+          "--seed", "1"])
+    assert "20 extant genomes" in capsys.readouterr().out
 
 
 def test_unsampled_is_an_accepted_external_tip_fate():
@@ -197,7 +237,7 @@ def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3", "--seed", "42", "--write", "gene_order", "events", "--flat"])
     assert rc == 0
     assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "genome_events.tsv",
-                                               "species_complete.nwk", "genomes.log"}
+                                               "species_complete.nwk", "species_fates.tsv", "genomes.log"}
 
 
 def test_genomes_ordered_events_carry_where_each_one_happened(tmp_path, tree_file):
@@ -560,7 +600,7 @@ def test_params_file_scopes_by_command_table(tmp_path):
     main(["species", str(sp), "--params", str(tmp_path / "pipeline.toml"), "--seed", "1", "--flat"])
     main(["genomes", str(gn), "--params", str(tmp_path / "pipeline.toml"), "--from", str(sp / "species_complete.nwk"), "--seed", "1", "--flat"])
     assert {p.name for p in gn.iterdir()} == {"profiles.tsv",
-                                              "species_complete.nwk", "genomes.log"}
+                                              "species_complete.nwk", "species_fates.tsv", "genomes.log"}
 
 
 def test_params_unknown_key_errors(tmp_path):
