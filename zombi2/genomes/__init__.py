@@ -36,7 +36,7 @@ from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
-from ._live import enter, retire
+from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 
 from ..progress import progress_bar
@@ -321,6 +321,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
     return delta
 
 
+@without_cyclic_gc
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
                                initial_families=0, families=None, family_speed=None,
