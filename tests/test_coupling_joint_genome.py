@@ -146,8 +146,8 @@ def test_exactly_one_driver():
             genome=genomes.unordered(origination=0.1), n_extant=10, seed=1)  # both
 
 
-def test_unseeded_named_family_rejected():
-    with pytest.raises(ValueError, match="not.*seeded"):
+def test_undeclared_named_family_rejected():
+    with pytest.raises(ValueError, match="not.*declared"):
         joint.simulate_joint(
             birth=1.0 * mod.DrivenBy("genomes:toxin", {"present": 2.0, "absent": 1.0}),
             genome=genomes.unordered(origination=0.1),   # no families=["toxin"]

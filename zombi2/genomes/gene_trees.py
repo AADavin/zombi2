@@ -50,7 +50,7 @@ class GeneTree:
     nodes suppressed), or ``None`` if the family left no extant gene. ``to_newick`` serialises either.
 
     ``origination`` is when the family was founded — the exact time of its origination event, or the
-    root lineage's start for a family seeded by ``initial_families``. A :class:`GeneNode` records when
+    root lineage's start for a family declared by ``initial_families``. A :class:`GeneNode` records when
     it *ended*, so this is the one time the tree cannot derive: it is where the root's branch begins."""
 
     family: int
@@ -174,7 +174,7 @@ def _prune_to_extant(root: GeneNode) -> GeneNode | None:
 
 def _to_newick(root: GeneNode, annotate: bool, origination: float) -> str:
     """Serialise iteratively (gene trees run deeper than CPython's C-stack recursion guard). The root
-    is seeded with ``origination`` as its parent time, so it gets a branch length like every other
+    is given ``origination`` as its parent time, so it gets a branch length like every other
     node instead of the bare label that would drop the family's stem."""
     stack: list[list] = [[root, origination, 0, []]]       # [node, parent_time, next_child, child_strings]
     result = ""

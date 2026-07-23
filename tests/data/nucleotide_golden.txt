@@ -8,10 +8,10 @@ node 5 chrom 4 circular 0:300-400:1:8:3 0:0-23:1:8:0 0:23-25:1:8:0 2:0-28:1:23:5
 node 6 chrom 2 circular 0:0-2:1:3:0 0:2-28:1:3:0 0:300-400:1:6:3 0:0-23:1:6:0 0:28-30:1:3:0 0:30-34:1:3:0 0:34-134:1:3:1 0:134-167:1:3:0 0:167-267:1:3:2 0:267-300:1:3:0 0:300-400:1:3:3
 node 7 chrom 5 circular 0:0-2:1:13:0 0:2-28:1:13:0 0:300-400:1:15:3 0:0-23:1:15:0 0:28-30:1:13:0 0:30-34:1:13:0 0:34-134:1:13:1 0:134-167:1:13:0 0:167-267:1:13:2 0:267-300:1:13:0 0:300-400:1:13:3
 node 8 chrom 6 circular 0:0-2:1:14:0 0:2-28:1:14:0 0:300-400:1:16:3 0:0-23:1:16:0 0:28-30:1:14:0 0:30-34:1:14:0 0:34-134:1:14:1 0:134-167:1:14:0 0:167-267:1:14:2 0:267-300:1:14:0 0:300-400:1:14:3
-event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=400, seed=True)
+event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=400, initial=True)
 event Speciation(time=0.0, lineage=0, parent=1, children=(2, 3))
 event Transfer(time=0.12234250178234318, lineage=6, recipient=1, transferred=((3, 4, 0, 2, 30),))
-event Origination(time=0.1652275367697883, lineage=1, chromosome=1, copy=5, source=1, start=0, end=48, seed=False)
+event Origination(time=0.1652275367697883, lineage=1, chromosome=1, copy=5, source=1, start=0, end=48, initial=False)
 event Transfer(time=0.24387741231728, lineage=1, recipient=6, transferred=((2, 6, 0, 300, 400), (2, 6, 0, 0, 23)))
 event Speciation(time=0.3, lineage=1, parent=2, children=(7, 8))
 event Speciation(time=0.3, lineage=1, parent=4, children=(9, 10))
@@ -21,7 +21,7 @@ event Speciation(time=0.5, lineage=6, parent=6, children=(15, 16))
 event Speciation(time=0.6, lineage=2, parent=7, children=(17, 18))
 event Speciation(time=0.6, lineage=2, parent=9, children=(19, 20))
 event Speciation(time=0.6, lineage=2, parent=11, children=(21, 22))
-event Origination(time=0.757936677116111, lineage=5, chromosome=4, copy=23, source=2, start=0, end=28, seed=False)
+event Origination(time=0.757936677116111, lineage=5, chromosome=4, copy=23, source=2, start=0, end=28, initial=False)
 event Duplication(time=0.8163654159390056, lineage=4, chromosome=8, copied=((20, 24, 0, 23, 27),))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(0,))
 chromosome_event ChromosomeEvent(time=0.0, kind='speciation', lineage=0, parents=(0,), children=(1, 2))
@@ -56,9 +56,9 @@ node 7 chrom 19 circular 2:0-13:1:20:0 0:8-44:-1:16:0 2:13-50:1:20:0 2:50-150:1:
 node 8 chrom 16 circular 0:0-8:1:17:0 0:44-50:1:17:0 0:50-150:1:17:1 0:150-200:1:17:0 0:200-300:1:17:2
 node 8 chrom 18 circular 1:0-50:1:19:0 1:50-150:1:19:3 1:150-200:1:19:0 1:200-300:1:19:4
 node 8 chrom 20 circular 2:0-13:1:21:0 0:8-44:-1:17:0 2:13-50:1:21:0 2:50-150:1:21:5 2:150-200:1:21:0 2:200-300:1:21:6
-event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=300, seed=True)
-event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=300, seed=True)
-event Origination(time=0.0, lineage=0, chromosome=2, copy=3, source=2, start=0, end=300, seed=True)
+event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=300, initial=True)
+event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=300, initial=True)
+event Origination(time=0.0, lineage=0, chromosome=2, copy=3, source=2, start=0, end=300, initial=True)
 event Speciation(time=0.0, lineage=0, parent=1, children=(4, 5))
 event Speciation(time=0.0, lineage=0, parent=2, children=(6, 7))
 event Speciation(time=0.0, lineage=0, parent=3, children=(8, 9))
@@ -115,8 +115,8 @@ node 6 chrom 12 circular 1:0-50:1:6:0 1:50-150:1:6:3 1:150-200:1:6:0 1:200-300:1
 node 7 chrom 13 circular 1:0-50:1:13:0 1:50-150:1:13:3 1:150-200:1:13:0 1:200-300:1:13:4 0:0-15:1:11:0 0:15-49:1:11:0 0:49-50:1:11:0 0:50-150:1:11:1 0:150-200:1:11:0 0:200-300:1:11:2
 node 8 chrom 22 circular 1:30-50:1:14:0 1:50-150:1:14:3 1:150-200:1:14:0 1:200-300:1:14:4 0:0-15:1:12:0 0:15-49:1:12:0 0:49-50:1:12:0 0:50-150:1:12:1 0:150-171:1:12:0
 node 8 chrom 23 circular 1:0-2:1:14:0 1:2-16:1:14:0 1:16-30:1:14:0 0:171-200:1:12:0 0:200-300:1:12:2
-event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=300, seed=True)
-event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=300, seed=True)
+event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=300, initial=True)
+event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=300, initial=True)
 event Speciation(time=0.0, lineage=0, parent=1, children=(3, 4))
 event Speciation(time=0.0, lineage=0, parent=2, children=(5, 6))
 event Speciation(time=0.3, lineage=1, parent=3, children=(7, 8))
@@ -126,7 +126,7 @@ event Speciation(time=0.5, lineage=6, parent=6, children=(13, 14))
 event Speciation(time=0.6, lineage=2, parent=7, children=(15, 16))
 event Speciation(time=0.6, lineage=2, parent=9, children=(17, 18))
 event Loss(time=0.6631746708464443, lineage=5, chromosome=7, lost=((8, 0, 0, 50), (8, 0, 50, 150), (8, 0, 150, 200), (8, 0, 200, 300)))
-event Origination(time=0.8888195412036884, lineage=3, chromosome=24, copy=19, source=2, start=0, end=8, seed=False)
+event Origination(time=0.8888195412036884, lineage=3, chromosome=24, copy=19, source=2, start=0, end=8, initial=False)
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(0,))
 chromosome_event ChromosomeEvent(time=0.0, kind='origination', lineage=0, parents=(), children=(1,))
 chromosome_event ChromosomeEvent(time=0.0, kind='speciation', lineage=0, parents=(0,), children=(2, 3))
@@ -177,9 +177,9 @@ node 8 chrom 18 circular 0:15-32:1:18:0 0:5-15:1:18:0 0:149-155:1:18:0 0:156-157
 node 8 chrom 20 circular 0:0-5:1:18:0 0:283-300:1:18:0 0:300-400:1:18:3
 node 8 chrom 22 circular 1:0-22:1:20:0 0:293-294:1:38:0 1:22-34:1:20:0 1:34-134:1:20:4 1:134-167:1:20:0 1:167-267:1:20:5 1:267-300:1:20:0 1:300-400:1:20:6
 node 8 chrom 24 circular 2:0-33:1:22:0 2:34-134:1:22:7 2:134-167:1:22:0 2:167-267:1:22:8 2:267-300:1:22:0 2:300-400:1:22:9
-event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=400, seed=True)
-event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=400, seed=True)
-event Origination(time=0.0, lineage=0, chromosome=2, copy=3, source=2, start=0, end=400, seed=True)
+event Origination(time=0.0, lineage=0, chromosome=0, copy=1, source=0, start=0, end=400, initial=True)
+event Origination(time=0.0, lineage=0, chromosome=1, copy=2, source=1, start=0, end=400, initial=True)
+event Origination(time=0.0, lineage=0, chromosome=2, copy=3, source=2, start=0, end=400, initial=True)
 event Speciation(time=0.0, lineage=0, parent=1, children=(4, 5))
 event Speciation(time=0.0, lineage=0, parent=2, children=(6, 7))
 event Speciation(time=0.0, lineage=0, parent=3, children=(8, 9))
@@ -192,7 +192,7 @@ event Speciation(time=0.5, lineage=6, parent=7, children=(19, 20))
 event Speciation(time=0.5, lineage=6, parent=9, children=(21, 22))
 event Transfer(time=0.5444817110224467, lineage=5, recipient=2, transferred=((11, 23, 0, 4, 34),))
 event Duplication(time=0.5852141966863237, lineage=7, chromosome=23, copied=((21, 24, 2, 270, 271),))
-event Origination(time=0.5962455918603662, lineage=7, chromosome=19, copy=25, source=3, start=0, end=42, seed=False)
+event Origination(time=0.5962455918603662, lineage=7, chromosome=19, copy=25, source=3, start=0, end=42, initial=False)
 event Speciation(time=0.6, lineage=2, parent=10, children=(26, 27))
 event Speciation(time=0.6, lineage=2, parent=12, children=(28, 29))
 event Speciation(time=0.6, lineage=2, parent=14, children=(30, 31))
@@ -202,8 +202,8 @@ event Loss(time=0.6601913789512902, lineage=5, chromosome=31, lost=((11, 0, 277,
 event Transfer(time=0.6647253936248804, lineage=5, recipient=3, transferred=((11, 36, 0, 165, 167), (11, 36, 0, 167, 267), (11, 36, 0, 267, 274)))
 event Transfer(time=0.673113195797262, lineage=7, recipient=4, transferred=((21, 37, 2, 294, 297), (21, 37, 2, 297, 300), (21, 37, 2, 300, 400), (21, 37, 2, 0, 8)))
 event Transfer(time=0.876225812006874, lineage=4, recipient=8, transferred=((33, 38, 0, 293, 294),))
-event Origination(time=0.9562215413450066, lineage=7, chromosome=36, copy=39, source=4, start=0, end=6, seed=False)
-event Origination(time=0.9617049840070522, lineage=4, chromosome=28, copy=40, source=5, start=0, end=47, seed=False)
+event Origination(time=0.9562215413450066, lineage=7, chromosome=36, copy=39, source=4, start=0, end=6, initial=False)
+event Origination(time=0.9617049840070522, lineage=4, chromosome=28, copy=40, source=5, start=0, end=47, initial=False)
 rearrangement Translocation(time=0.28840653344520356, lineage=6, source=10, dest=9, start=5, length=144, flipped=False)
 rearrangement Transposition(time=0.3459828145198848, lineage=2, chromosome=15, start=136, length=13, dest=273, flipped=False)
 rearrangement Transposition(time=0.600085951036579, lineage=3, chromosome=25, start=1, length=31, dest=301, flipped=False)

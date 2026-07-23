@@ -368,7 +368,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
       state-dependent λ *and* μ.
     - ``genome = genomes.unordered(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
       read as the total gene count ``mod.DrivenBy("genomes:count", curve)`` or the presence of a named
-      family ``mod.DrivenBy("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (seed it with
+      family ``mod.DrivenBy("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
       ``families=["toxin"]``).
 
     ::
@@ -442,7 +442,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 if name not in genome.families:
                     raise ValueError(
                         f'DrivenBy("{s}", ...) names family {name!r}, but genomes.unordered was not '
-                        f"seeded with it — add families=[…, {name!r}]."
+                        f"declared with it — add families=[…, {name!r}]."
                     )
                 continue
             raise ValueError(
