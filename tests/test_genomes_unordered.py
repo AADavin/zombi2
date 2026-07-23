@@ -146,7 +146,7 @@ def test_family_counts_matches_the_genome():
 
 def test_empty_run_has_no_events_or_content():
     sp = _tree(seed=1)
-    g = simulate_genomes_unordered(sp, seed=1)                            # no families, no rates
+    g = simulate_genomes_unordered(sp, initial_families=0, seed=1)                            # no families, no rates
     assert g.events == []
     assert all(genome == () for genome in g.genomes.values())
 

@@ -1101,3 +1101,143 @@ def test_sequences_rejects_length_and_an_intergene_model_where_they_do_not_apply
           "--seed", "1", "--quiet"])
     with pytest.raises(SystemExit):                            # no spacer in a gene-family run
         main(["sequences", run, "--model", "jc69", "--intergene-model", "jc69", "--quiet"])
+
+
+# ── zombi2 tools format (homology tables) ────────────────────────────────────────────
+
+def _dtl_run(tmp_path, *, name="run", extra=()):
+    """A species + genomes run with all of duplication/transfer/loss, so its gene trees carry every
+    kind of internal node. Returns the run directory."""
+    run = tmp_path / name
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "12", "--seed", "3",
+          "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.4", "--transfer", "0.3", "--loss", "0.25",
+          "--origination", "0.6", "--seed", "7", "--quiet", *extra])
+    return run
+
+
+def _check_table(text):
+    """A homology TSV is a square, symmetric O/P/X grid with a dashed diagonal and matching headers."""
+    lines = text.rstrip("\n").split("\n")
+    headers = lines[0].split("\t")
+    assert headers[0] == ""                                     # the blank corner cell
+    labels = headers[1:]
+    rows = [ln.split("\t") for ln in lines[1:]]
+    assert [r[0] for r in rows] == labels                      # row labels equal the column labels
+    grid = [r[1:] for r in rows]
+    n = len(labels)
+    assert all(len(r) == n for r in grid)                      # square
+    assert all(grid[i][i] == "-" for i in range(n))            # dashed diagonal
+    assert all(grid[i][j] == grid[j][i] for i in range(n) for j in range(n))   # symmetric
+    off = {grid[i][j] for i in range(n) for j in range(n) if i != j}
+    assert off <= {"O", "P", "X"}
+    return labels, grid
+
+
+def test_tools_format_writes_homology_tables(tmp_path, capsys):
+    run = _dtl_run(tmp_path)
+    assert main(["tools", "format", str(run)]) == 0
+    hdir = run / "genomes" / "homology"
+    tables = sorted(hdir.glob("homology_fam*.tsv"))
+    assert tables, "no homology tables written"
+    # one table per family that has an extant gene tree (exactly the families with an _extant.nwk)
+    table_fams = {p.stem.removeprefix("homology_fam") for p in tables}
+    extant_fams = {p.name.split("_")[2].removeprefix("fam")
+                   for p in (run / "genomes" / "gene_trees").glob("*_extant.nwk")}
+    assert table_fams == extant_fams
+    letters = set()
+    for t in tables:
+        _, grid = _check_table(t.read_text())
+        letters |= {c for row in grid for c in row}
+    assert {"O", "P"} <= letters                               # this DTL run exercises real relations
+    assert "wrote" in capsys.readouterr().out
+
+
+def test_tools_format_flat_writes_into_the_run_directory(tmp_path):
+    run = _dtl_run(tmp_path)
+    assert main(["tools", "format", str(run), "--flat"]) == 0
+    assert (run / "homology_fam0.tsv").exists()                # straight in, no homology/ subdir
+    assert not (run / "genomes" / "homology").exists()
+
+
+def test_tools_format_reads_another_run_with_from(tmp_path):
+    src = _dtl_run(tmp_path, name="src")
+    dest = tmp_path / "analysis"
+    assert main(["tools", "format", str(dest), "--from", str(src)]) == 0
+    assert sorted((dest / "genomes" / "homology").glob("homology_fam*.tsv"))
+    assert not (src / "genomes" / "homology").exists()         # the source run is left untouched
+
+
+def test_tools_format_matches_the_python_api(tmp_path):
+    # the CLI is a shell over the library: each table it writes must equal the classifier applied to
+    # the gene trees rebuilt from the run's own recorded history (its species tree + event log).
+    from zombi2.genomes.events import events_from_tsv
+    from zombi2.genomes.gene_trees import gene_trees_from_events
+    from zombi2.tools.homology import homology_tsv
+
+    run = _dtl_run(tmp_path)
+    main(["tools", "format", str(run)])
+    tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text())
+    events = events_from_tsv((run / "genomes" / "genome_events.tsv").read_text())
+    trees = gene_trees_from_events(events, tree)
+    written = 0
+    for fam, gt in trees.items():
+        if gt.extant is None:
+            continue
+        on_disk = (run / "genomes" / "homology" / f"homology_fam{fam}.tsv").read_text()
+        assert on_disk == homology_tsv(gt.extant)
+        written += 1
+    assert written == len(list((run / "genomes" / "homology").glob("*.tsv")))
+
+
+def test_tools_format_on_a_directory_without_a_run_errors_cleanly(tmp_path, capsys):
+    (tmp_path / "empty").mkdir()
+    assert main(["tools", "format", str(tmp_path / "empty")]) == 1
+    assert "holds no genomes run" in capsys.readouterr().err
+
+
+def test_tools_format_rejects_an_unknown_format(tmp_path):
+    run = _dtl_run(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["tools", "format", str(run), "--format", "bogus"])
+
+
+def _nucleotide_gene_run(tmp_path, *, name="nucrun"):
+    """A nucleotide genomes run WITH declared genes, its duplication/transfer segments long enough to
+    span a whole gene (so some families gain paralogs/xenologs). Returns the run directory."""
+    run = tmp_path / name
+    main(["species", str(run), "--birth", "1", "--death", "0.2", "--n-extant", "6", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "4000", "--genes", "6",
+          "--gene-length", "200", "--duplication", "1.0", "--transfer", "0.8", "--loss", "0.3",
+          "--duplication-length", "260", "--transfer-length", "260", "--seed", "1", "--quiet"])
+    return run
+
+
+def test_tools_format_on_a_nucleotide_run_writes_one_table_per_declared_gene(tmp_path):
+    from zombi2.genomes.nucleotide import read_nucleotide_genomes
+    from zombi2.tools.homology import homology_tsv
+
+    run = _nucleotide_gene_run(tmp_path)
+    assert main(["tools", "format", str(run)]) == 0
+    tables = sorted((run / "genomes" / "homology").glob("homology_fam*.tsv"))
+    tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text())
+    genome = read_nucleotide_genomes(run / "genomes", tree)
+    # one table per DECLARED gene some node still carries — never the intergenic spacer
+    declared = {f for f, gt in genome.gene_trees.items() if gt.extant is not None}
+    assert {int(p.stem.removeprefix("homology_fam")) for p in tables} == declared
+    assert declared <= set(genome.gene_spans)                  # every keyed family is a declared gene
+    for p in tables:
+        fam = int(p.stem.removeprefix("homology_fam"))
+        _check_table(p.read_text())
+        assert p.read_text() == homology_tsv(genome.gene_trees[fam].extant)
+
+
+def test_tools_format_refuses_a_nucleotide_run_with_no_declared_genes(tmp_path, capsys):
+    run = tmp_path / "spacer"
+    main(["species", str(run), "--birth", "1", "--death", "0.2", "--n-extant", "5", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "2000",
+          "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--quiet"])       # no --genes
+    assert main(["tools", "format", str(run)]) == 1
+    assert "declared no genes" in capsys.readouterr().err

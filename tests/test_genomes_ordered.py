@@ -311,7 +311,7 @@ def test_gene_order_is_written_for_every_node_not_only_the_tips(tmp_path):
 
 def test_empty_run_has_chromosomes_but_no_genes():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
-    r = simulate_genomes_ordered(sp, chromosomes=3, seed=1)   # no families, no events
+    r = simulate_genomes_ordered(sp, chromosomes=3, initial_families=0, seed=1)   # no families, no events
     assert r.events == [] and r.rearrangements == []
     assert all(len(chroms) == 3 and sum(len(ch.genes) for ch in chroms) == 0
                for chroms in r.genomes.values())

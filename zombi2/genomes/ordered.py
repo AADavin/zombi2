@@ -684,7 +684,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extension=None, transposition_extension=None,
                              translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=0, families=None, family_speed=None,
+                             initial_families=100, families=None, family_speed=None,
                              max_family_size=None, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a

@@ -318,14 +318,14 @@ can drift apart.
 
 ## 9. The book
 
-Nine chapters + two appendices, one file each in `manual/book/` (`ch1.md` … `ch9.md`,
-`appendix-a.md`, `appendix-b.md`):
+Nine chapters + three appendices, one file each in `manual/book/` (`ch1.md` … `ch9.md`,
+`appendix-a.md`, `appendix-b.md`, `appendix-c.md`):
 
 - **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2
 - **II The four levels** — 3 Species trees · 4 Genomes I: Unordered · 5 Genomes II: Ordered ·
   6 Genomes III: Nucleotide · 7 Sequence evolution · 8 Trait evolution
 - **III Coupling the levels** — 9 Conditioning and joining (nulls close the chapter)
-- **Appendix A** Gillespie · **Appendix B** Output files
+- **Appendix A** Gillespie · **Appendix B** Output files · **Appendix C** Tools
 
 The three genome chapters are the **resolution** ladder of §4 — unordered ⊂ ordered ⊂ nucleotide —
 one chapter per rung.
