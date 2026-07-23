@@ -103,7 +103,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..species import SpeciesResult, Tree
-from ._live import enter, retire
+from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ..progress import progress_bar
@@ -1687,6 +1687,7 @@ def _speciate(node, g, new_chrom_id, new_copy, events, chromosome_events):
     return {c: NucleotideGenome(starts[c]) for c in node.children}
 
 
+@without_cyclic_gc
 def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, translocation=0.0,
                                 translocation_length=50.0, transposition=0.0, transposition_length=50.0,
                                 inversion_probability=0.0, loss=0.0, loss_length=50.0, duplication=0.0,
