@@ -193,8 +193,14 @@ def lg() -> SubstitutionModel:
 
 def decode(states: np.ndarray, alphabet: str = BASES) -> str:
     """Map an array of integer states back to a string over ``alphabet`` — ``ACGT`` by default, or
-    :data:`AMINO_ACIDS` for a protein model (callers pass ``model.alphabet``)."""
-    return "".join(alphabet[i] for i in np.asarray(states))
+    :data:`AMINO_ACIDS` for a protein model (callers pass ``model.alphabet``).
+
+    ``states`` are indices into ``alphabet``, so the whole array is one numpy gather into an ASCII
+    lookup table — ``lut[states]`` — read out in a single ``.tobytes().decode()`` rather than one
+    Python step per site. This is called once per node of every gene tree, so the per-site loop it
+    replaces was the dominant cost of a sequence run; the result is byte-for-byte the same string."""
+    lut = np.frombuffer(alphabet.encode("ascii"), dtype=np.uint8)
+    return lut[np.asarray(states)].tobytes().decode("ascii")
 
 
 __all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr",
