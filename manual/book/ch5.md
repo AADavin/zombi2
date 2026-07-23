@@ -117,8 +117,6 @@ g = simulate_genomes_ordered(
 
 ## The `OrderedGenomesResult` object
 
-I THINK THIS NEEDS AN UPDATE. DOES ORDERED GENOMES STILL STORE REARRANGEMENTS? IF YES, DISCUSS WITH ME
-
 `simulate_genomes_ordered` returns an **`OrderedGenomesResult`**, the ordered counterpart of `GenomesResult` — the same spine, with the structured extras:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages included.
