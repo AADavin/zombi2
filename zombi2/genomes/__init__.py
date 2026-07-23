@@ -517,7 +517,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     resolved = {}
     if by_key:
         from ..rates.driver import resolve_driver
-        resolved = {key: resolve_driver(src) for key, src in by_key.items()}
+        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
     # a driven transfer_to changes no rate — the weights are evaluated when a transfer fires, so the
     # recipient driver deliberately stays OUT of trajs (no per-lineage rate weights, no extra horizon
     # breakpoints for it). Only the rate drivers make the loop per-lineage.

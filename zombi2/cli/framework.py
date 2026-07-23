@@ -25,7 +25,7 @@ Coupling
   joint                grow a species tree and the level driving it, together
 
 A level is CONDITIONED on another by pointing a rate at what that level wrote — no separate command:
-  zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_driver.tsv', {'cave': 4.0})"
+  zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0})"
 JOINT is for when neither level can be grown first, because each drives the other.
 """
 

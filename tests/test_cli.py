@@ -438,20 +438,24 @@ def test_traits_ou_and_threshold_run(tmp_path, tree_file):
     assert states <= {"absent", "present"}
 
 
-def test_traits_discrete_writes_the_event_log_and_driver(tmp_path, tree_file):
+def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):
     out = tmp_path / "t"
-    rc = main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "marine,terrestrial", "--switch", "0.3", "--start", "marine", "--seed", "1", "--write", "values", "changes", "tree", "driver", "--flat"])
+    rc = main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "marine,terrestrial", "--switch", "0.3", "--start", "marine", "--seed", "1", "--write", "values", "events", "tree", "--flat"])
     assert rc == 0
-    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_changes.tsv",
-                                               "trait_tree.nwk", "trait_driver.tsv", "traits.log"}
-    assert (out / "trait_changes.tsv").read_text().splitlines()[0] == "time\tkind\tlineage\tfrom\tto"
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_events.tsv",
+                                               "trait_tree.nwk", "traits.log"}
+    lines = (out / "trait_events.tsv").read_text().splitlines()
+    assert lines[0] == "time\tkind\tlineage\tfrom\tto"
+    assert lines[1].split("\t")[1] == "root"          # the origin row, the conditioning file's anchor
 
 
 def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
     out = tmp_path / "t"
-    main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1", "--write", "changes", "--flat"])
-    rows = (out / "trait_changes.tsv").read_text().splitlines()[1:]
-    assert rows and all(r.split("\t")[1] == "on_speciation" for r in rows)   # a diffusion has no
+    main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1", "--write", "events", "--flat"])
+    rows = (out / "trait_events.tsv").read_text().splitlines()[1:]
+    kinds = [r.split("\t")[1] for r in rows]
+    assert kinds[0] == "root"                                                 # the origin, then jumps
+    assert kinds[1:] and all(k == "on_speciation" for k in kinds[1:])         # a diffusion has no
     #                                                    along-branch events, only the split jumps
 
 
@@ -460,7 +464,7 @@ def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
     (["--switch", "0.1"], "--kind discrete"),                       # discrete knob, continuous run
     (["--kind", "discrete", "--switch", "0.1"], "--states"),        # discrete without a state space
     (["--kind", "discrete", "--states", "a,b"], "--switch"),        # discrete without a model
-    (["--write", "driver"], "not available for --kind continuous"),  # driver is discrete-only
+    (["--write", "bogus"], "invalid choice"),                       # not a write token
     (["--start", "marine"], "must be a number"),                    # a label on a continuous trait
 ])
 def test_traits_argument_errors_exit_2(argv, msg, tmp_path, tree_file, capsys):
@@ -501,13 +505,13 @@ def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file
     # a [traits] table scopes one file to this command (so one file can drive a whole pipeline)
     (tmp_path / "p.toml").write_text('[traits]\nkind = "discrete"\n'
                                      'states = "marine,terrestrial"\nswitch = 0.15\n'
-                                     'write = ["values", "changes"]\nseed = 7\n')
+                                     'write = ["values", "events"]\nseed = 7\n')
     argv = ["traits", "--params", str(tmp_path / "p.toml"), "--from", str(tree_file)]
     out = tmp_path / "a"
     # --kind is required, but the file supplies it — that is why it is validated in run() rather
     # than marked argparse-`required`, which no default could satisfy
     assert main(["traits", str(out), *argv[1:], "--flat"]) == 0
-    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_changes.tsv", "traits.log"}
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_events.tsv", "traits.log"}
     states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
     assert states <= {"marine", "terrestrial"}          # the file's states reached the engine
 
@@ -609,10 +613,10 @@ def test_genomes_takes_a_rate_expression(tmp_path, tree_file):
 
 @pytest.fixture
 def driver_file(tmp_path, tree_file):
-    """A discrete habitat trait grown on ``tree_file`` and written as a driver segment table — the
-    file a conditioned ``DrivenBy`` names as its source."""
-    main(["traits", str(tmp_path), "--kind", "discrete", "--from", str(tree_file), "--states", "competent,normal", "--switch", "0.4", "--seed", "1", "--write", "driver", "--flat"])
-    return tmp_path / "trait_driver.tsv"
+    """A discrete habitat trait grown on ``tree_file`` and written as its event log — the file a
+    conditioned ``DrivenBy`` names as its source and replays against the shared tree."""
+    main(["traits", str(tmp_path), "--kind", "discrete", "--from", str(tree_file), "--states", "competent,normal", "--switch", "0.4", "--seed", "1", "--write", "events", "--flat"])
+    return tmp_path / "trait_events.tsv"
 
 
 def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree_file):
@@ -845,7 +849,7 @@ def test_the_directory_and_the_file_give_the_same_run(tmp_path):
 
 # ── zombi2 joint ────────────────────────────────────────────────────────────────────────────
 
-def test_joint_trait_driver_writes_both_levels(tmp_path):
+def test_joint_trait_writes_both_levels(tmp_path):
     # BiSSE: the trait drives which lineages speciate, so neither level can be grown first
     rc = main(["joint", str(tmp_path),
                "--birth", "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})", "--death", "0.2",
@@ -854,7 +858,7 @@ def test_joint_trait_driver_writes_both_levels(tmp_path):
     assert (tmp_path / "species" / "species_complete.nwk").exists()
     # the trait is written the way `zombi2 traits` writes it, not TraitsResult.write's bare default
     assert {p.name for p in (tmp_path / "traits").iterdir()} == {
-        "trait_values.tsv", "trait_changes.tsv", "trait_tree.nwk"}
+        "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk"}
     states = {ln.split("\t")[1] for ln in
               (tmp_path / "traits" / "trait_values.tsv").read_text().splitlines()[1:]}
     assert states <= {"small", "large"}

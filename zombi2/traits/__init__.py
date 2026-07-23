@@ -77,7 +77,7 @@ from ..species import SpeciesResult, Tree
 #: trait's variance-rate; the discrete switching rate is a bare number this slice.
 WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity)
 
-_WRITE_OUTPUTS = ("values", "changes", "tree", "driver")  # write vocabulary; "changes" = discrete transitions
+_WRITE_OUTPUTS = ("values", "events", "tree")  # write vocabulary; "events" = the trait event log
 
 
 @dataclass(frozen=True)
@@ -85,9 +85,12 @@ class Change:
     """A realized trait change — one entry of the event log, the trait twin of the genome level's
     :class:`~zombi2.genomes.Event`. On lineage ``lineage`` at ``time`` (crown-forward, the species-tree
     clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"on_branch"`` — a switch
-    *along* a branch (an Mk transition) — or ``"on_speciation"`` — a jump *at* a speciation node (from
+    *along* a branch (an Mk transition) — ``"on_speciation"`` — a jump *at* a speciation node (from
     ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
-    values)."""
+    values) — or ``"root"``, one synthetic entry at the crown giving the **initial state** the run
+    started in (``from_state`` ``None``, ``time`` the root's ``birth_time``). That row is what lets the
+    log stand on its own: the tree plus the root state plus the switches determines the trait on every
+    lineage at every instant, so no separate driver file is needed."""
 
     time: float
     kind: str
@@ -136,15 +139,17 @@ class TraitsResult:
 
     def write(self, directory, outputs=("values",)) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
-        ``trait_values.tsv`` (the ``node<TAB>trait`` table over the extant tips); ``"changes"`` →
-        ``trait_changes.tsv``, the event log (``time · kind · lineage · from · to``; header-only for a
-        plain continuous trait, whose diffusion has no along-branch events); ``"tree"`` →
-        ``trait_tree.nwk``, the complete tree as Newick with **every** node
-        annotated ``[&trait=…]`` (a *trait tree*, carrying the exact ancestral values; opens in
-        FigTree / iTOL); ``"driver"`` → ``trait_driver.tsv``, the **driver file** for conditioning
-        (``node · start · end · state``, one row per constant stretch of a lineage's branch) that a
-        genome/sequence run reads through ``mod.DrivenBy("trait_driver.tsv", …)`` — a **discrete**
-        trait only, whose exact stochastic character map cuts each branch into constant segments."""
+        ``trait_values.tsv`` (the ``node<TAB>trait`` table over the extant tips); ``"events"`` →
+        ``trait_events.tsv``, the event log (``time · kind · lineage · from · to``) — one ``root`` row
+        at the crown giving the initial state, then every switch in time order; ``"tree"`` →
+        ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
+        (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
+
+        ``trait_events.tsv`` is also the **conditioning file**: a genome / sequence run drives a rate
+        with ``mod.DrivenBy("trait_events.tsv", …)``, replaying it against the shared tree. A
+        **discrete** trait's log reconstructs its state on every lineage exactly (that is what the
+        ``root`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
+        from events, so it carries only the ``root`` row and any on-speciation jumps."""
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
@@ -152,18 +157,10 @@ class TraitsResult:
         d.mkdir(parents=True, exist_ok=True)
         if "values" in outputs:
             (d / "trait_values.tsv").write_text(_values_tsv(self.values))
-        if "changes" in outputs:
-            (d / "trait_changes.tsv").write_text(_changes_tsv(self.events))
+        if "events" in outputs:
+            (d / "trait_events.tsv").write_text(_events_tsv(self.events))
         if "tree" in outputs:
             (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n")
-        if "driver" in outputs:
-            if self.history is None:
-                raise ValueError(
-                    "the 'driver' output is a conditioning file for a DISCRETE trait (its stochastic "
-                    f"character map cuts each branch into segments); this trait is {self.kind!r}, which "
-                    "has no map. Driving a rate with a continuous trait is a later slice."
-                )
-            (d / "trait_driver.tsv").write_text(_driver_tsv(self.complete_tree, self.history))
 
 
 def _fmt(v) -> str:
@@ -216,32 +213,18 @@ def _values_tsv(values: dict[int, object]) -> str:
     return "\n".join(rows) + "\n"
 
 
-def _changes_tsv(changes: list[Change]) -> str:
-    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = on_branch /
-    on_speciation), one row per change in time order — the trait twin of ``genome_events.tsv``."""
+def _events_tsv(changes: list[Change]) -> str:
+    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = root / on_branch /
+    on_speciation), the ``root`` row first, then the switches in time order — the trait twin of
+    ``genome_events.tsv``, and the conditioning file a driven run replays.
+
+    Times are written at **full float precision** (``repr``), not rounded: a driven run steps its
+    Gillespie exactly at each switch, so a rounded time would make the file-driven run diverge from the
+    in-memory one. The ``root`` row's ``from`` is empty."""
     rows = ["time\tkind\tlineage\tfrom\tto"]
     for c in changes:
-        rows.append(f"{c.time:.6g}\t{c.kind}\tn{c.lineage}\t{_fmt(c.from_state)}\t{_fmt(c.to_state)}")
-    return "\n".join(rows) + "\n"
-
-
-def _driver_tsv(tree: "Tree", history: dict) -> str:
-    """The **driver file** for conditioning — the discrete stochastic character map flattened to a
-    ``node<TAB>start<TAB>end<TAB>state`` segment table, one row per constant stretch of a lineage's
-    branch (a branch with no switch is one row). Times are crown-forward (the species-tree clock);
-    each node's segments run from its ``birth_time``, so a genome/sequence run reading this back
-    (:func:`zombi2.rates.driver.load_driver`) knows the driver on every lineage at every instant. Tips
-    are named ``n<id>`` to match the join key (the shared species node id)."""
-    rows = ["node\tstart\tend\tstate"]
-    for i in sorted(tree.nodes):
-        t = tree.nodes[i].birth_time
-        for state, dur in history[i]:
-            # the state is written as str() to match Table's string-form lookup exactly (so an
-            # int-labelled trait round-trips); times use FULL float precision (repr) so the round-trip
-            # is lossless — a run driven by the file matches one driven by the in-memory result exactly
-            # (the switch times drive the engine's Gillespie horizon, not just display).
-            rows.append(f"n{i}\t{t!r}\t{(t + dur)!r}\t{state!s}")
-            t += dur
+        frm = "" if c.from_state is None else _fmt(c.from_state)   # the root row leads from nothing
+        rows.append(f"{c.time!r}\t{c.kind}\tn{c.lineage}\t{frm}\t{_fmt(c.to_state)}")
     return "\n".join(rows) + "\n"
 
 
@@ -253,6 +236,8 @@ def _history_from_events(tree: "Tree", node_values: dict, events: list) -> dict:
     ana: dict[int, list] = {i: [] for i in tree.nodes}
     clado_to: dict[int, object] = {}
     for e in events:
+        if e.kind == "root":
+            continue                               # the origin marker; node_values covers it here
         if e.kind == "on_speciation":
             clado_to[e.lineage] = e.to_state
         else:
@@ -599,7 +584,10 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     rng = np.random.default_rng(seed)
     ltt = _LTT(tree) if has_diversity else None  # the standing-diversity curve, when σ² reads it
     node_values: dict[int, float] = {}
-    events: list[Change] = []  # on-speciation jumps only (a diffusion has no along-branch events)
+    root = tree.nodes[tree.root]
+    # the initial value at t=0 — the origin the log reconstructs from (SPEC §2). A diffusion cannot be
+    # rebuilt from events, but the row keeps the file's shape uniform across trait kinds.
+    events: list[Change] = [Change(root.birth_time, "root", tree.root, None, float(start))]
     inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
     for i in _preorder(tree, progress):
         node = tree.nodes[i]
@@ -858,7 +846,10 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         )
 
     node_values: dict[int, object] = {}
-    events: list[Change] = []  # the source of truth (like the genome level); history derives from it
+    root = tree.nodes[tree.root]
+    # the initial state at t=0 — the origin the log reconstructs from: tree + this + the switches give
+    # the driver on every lineage, so the event log is the conditioning file (no separate driver).
+    events: list[Change] = [Change(root.birth_time, "root", tree.root, None, states[start_i])]
     for i in _preorder(tree, progress):
         node = tree.nodes[i]
         # the root starts from `start` at t=0 and evolves over its own branch; every other node from

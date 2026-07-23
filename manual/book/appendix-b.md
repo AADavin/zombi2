@@ -24,7 +24,7 @@ out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
 out/sequences/              clock_species_tree_complete.nwk · sequences.log
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
-out/traits/                 trait_values.tsv · trait_tree.nwk · trait_changes.tsv · traits.log
+out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv · traits.log
 ```
 
 Filenames keep their prefix inside their directory — `species/species_complete.nwk` — so a file
@@ -141,7 +141,7 @@ of its own beyond the run log.
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Species tree | `species/species_complete.nwk` · `…_extant.nwk` · `species_events.tsv` | Newick, TSV | yes | the grown tree — complete, so the extinct lineages the coupling decided the fate of are kept |
-| The trait it grew | `traits/trait_values.tsv` · `trait_changes.tsv` · `trait_tree.nwk` | TSV, Newick | yes¹ | as the traits level writes them |
+| The trait it grew | `traits/trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` | TSV, Newick | yes¹ | as the traits level writes them |
 | The genomes it grew | `genomes/genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `gene_trees/` | TSV, Newick | yes¹ | as the genomes level writes them |
 | Run log | `species/joint.log` | TSV | yes | the resolved parameters, as every command writes |
 
@@ -152,9 +152,8 @@ of its own beyond the run log.
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Values | `trait_values.tsv` | TSV | yes | value at each extant tip — `node` · `trait` |
-| Changes | `trait_changes.tsv` | TSV | no | realized changes — `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `on_branch` or `on_speciation` (a continuous trait diffuses, so it logs only its `at_speciation` jumps: header-only without them) |
+| Events | `trait_events.tsv` | TSV | yes (discrete) | the trait's whole history — a `root` row giving the state at t=0, then every switch: `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `root` · `on_branch` · `on_speciation`. Times are full precision (they drive a conditioned run's Gillespie). **This is also the conditioning file**: a genome/sequence run drives a rate with `mod.DrivenBy("trait_events.tsv", …)`, replaying it against the shared tree. A continuous trait carries only the `root` row and any `at_speciation` jumps (a diffusion can't be rebuilt from events) |
 | Trait tree | `trait_tree.nwk` | Newick | no | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL) |
-| Driver | `trait_driver.tsv` | TSV | no | the conditioning driver file a genome/sequence run reads via `mod.DrivenBy(...)` (a discrete trait only) |
 
 ## Coupling — no new files
 

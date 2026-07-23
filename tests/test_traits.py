@@ -97,10 +97,13 @@ def test_values_are_the_extant_tips():
     assert all(r.values[i] == r.node_values[i] for i in extant)
 
 
-def test_continuous_events_are_empty():
+def test_continuous_events_are_only_the_root_marker():
     sp = _tree(seed=8)
     r = simulate_continuous(sp, rate=0.5, seed=1)
-    assert r.events == []           # a continuous trait has no instantaneous events
+    # a diffusion has no along-branch events; the one row is the origin marker (state at t=0), which
+    # every trait log now carries so it defines where the run started
+    assert [e.kind for e in r.events] == ["root"]
+    assert r.events[0].lineage == sp.complete_tree.root and r.events[0].from_state is None
     assert r.kind == "continuous"
     assert r.history is None
 
@@ -506,7 +509,8 @@ def test_discrete_zero_switch_is_constant():
     sp = _tree(seed=3, death=0.5)
     r = simulate_discrete(sp, states=["x", "y"], switch=0.0, start="x", seed=1)
     assert all(v == "x" for v in r.node_values.values())   # no rate → never leaves the start state
-    assert r.events == []                                  # and no transitions
+    assert [e.kind for e in r.events] == ["root"]          # only the origin marker, no transitions
+    assert r.events[0].to_state == "x"
     assert all(len(segs) == 1 for segs in r.history.values())
 
 
@@ -531,12 +535,14 @@ def test_discrete_history_segments_sum_to_branch_length():
 def test_discrete_events_track_the_stochastic_map():
     sp = _tree(seed=6)
     r = simulate_discrete(sp, states=["a", "b", "c"], switch=0.8, start="a", seed=3)
-    # one event per jump between consecutive segments, across all branches
+    # one event per jump between consecutive segments, across all branches (excluding the origin row)
     n_jumps = sum(len(segs) - 1 for segs in r.history.values())
-    assert len(r.events) == n_jumps and n_jumps > 0
-    assert all(isinstance(e, Change) and e.from_state != e.to_state for e in r.events)
-    assert r.events == sorted(r.events, key=lambda e: e.time)      # time-ordered
-    for e in r.events:                                             # each change sits on its branch
+    switches = [e for e in r.events if e.kind != "root"]
+    assert len(switches) == n_jumps and n_jumps > 0
+    assert all(isinstance(e, Change) and e.from_state != e.to_state for e in switches)
+    assert r.events == sorted(r.events, key=lambda e: e.time)      # time-ordered, root at t=0 first
+    assert r.events[0].kind == "root"
+    for e in switches:                                            # each change sits on its branch
         node = sp.complete_tree.nodes[e.lineage]
         assert node.birth_time <= e.time <= node.end_time + 1e-9
 
@@ -595,11 +601,12 @@ def test_discrete_start_none_draws_uniformly():
 def test_discrete_write(tmp_path):
     sp = _tree(seed=8)
     r = simulate_discrete(sp, states=["lo", "hi"], switch=0.6, start="lo", seed=1)
-    r.write(tmp_path, outputs=["values", "changes"])
+    r.write(tmp_path, outputs=["values", "events"])
     vals = (tmp_path / "trait_values.tsv").read_text().splitlines()
     assert vals[0] == "node\ttrait" and set(line.split("\t")[1] for line in vals[1:]) <= {"lo", "hi"}
-    changes = (tmp_path / "trait_changes.tsv").read_text().splitlines()
-    assert changes[0] == "time\tkind\tlineage\tfrom\tto" and len(changes) - 1 == len(r.events)
+    ev = (tmp_path / "trait_events.tsv").read_text().splitlines()
+    assert ev[0] == "time\tkind\tlineage\tfrom\tto" and len(ev) - 1 == len(r.events)
+    assert ev[1].split("\t")[1] == "root"                          # the origin row comes first
 
 
 def test_discrete_validation():
@@ -922,14 +929,16 @@ def test_write_trait_tree(tmp_path):
 def test_events_log_records_speciation_changes():
     # on-speciation jumps/shifts now live in the event log (kind="on_speciation"); a plain run has none
     tree = _corr_tree()
-    assert simulate_continuous(tree, rate=1.0, seed=1).events == []            # pure BM: no events
-    jumps = simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=1)
-    assert jumps.events and all(e.kind == "on_speciation" for e in jumps.events)
-    e = jumps.events[0]
-    assert isinstance(e.from_state, float) and isinstance(e.to_state, float)    # pre/post values
-    d = simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.4, seed=2)
-    assert {e.kind for e in d.events} == {"on_branch", "on_speciation"}          # both in the log
-    assert all(e.from_state != e.to_state for e in d.events)
+    plain = [e for e in simulate_continuous(tree, rate=1.0, seed=1).events if e.kind != "root"]
+    assert plain == []                                                         # pure BM: no switches
+    jumps = [e for e in simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=1).events
+             if e.kind != "root"]
+    assert jumps and all(e.kind == "on_speciation" for e in jumps)
+    assert isinstance(jumps[0].from_state, float) and isinstance(jumps[0].to_state, float)
+    d = [e for e in simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.4,
+                                      seed=2).events if e.kind != "root"]
+    assert {e.kind for e in d} == {"on_branch", "on_speciation"}                 # both in the log
+    assert all(e.from_state != e.to_state for e in d)
 
 
 def test_events_are_time_sorted():

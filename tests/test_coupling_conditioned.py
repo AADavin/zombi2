@@ -135,28 +135,36 @@ def test_driver_trajectory_lookup():
 def test_driver_file_round_trip(tmp_path):
     tree = simulate_species_tree(birth=1.0, total_time=1.2, seed=7).complete_tree
     hab = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=1.5, seed=1)
-    hab.write(tmp_path, outputs=("driver",))
-    traj = load_driver(tmp_path / "trait_driver.tsv")
+    hab.write(tmp_path, outputs=("events",))
+    traj = load_driver(tmp_path / "trait_events.tsv", tree)   # the log, replayed against the tree
     # the reconstructed trajectory agrees with the trait's own node values at each node's end time
     for i, node in tree.nodes.items():
         assert traj.value(i, node.end_time - 1e-9) == hab.node_values[i]
 
 
-def test_driver_write_requires_discrete(tmp_path):
+def test_a_continuous_log_is_only_its_origin(tmp_path):
+    # a diffusion cannot be reconstructed from events, so its log carries only the root marker — there
+    # is no discrete map to drive a rate with (driving on a continuous trait is a later slice anyway)
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=2).complete_tree
     cont = traits.simulate_continuous(tree, rate=1.0, seed=1)
-    with pytest.raises(ValueError):
-        cont.write(tmp_path, outputs=("driver",))       # a diffusion has no stochastic map
+    cont.write(tmp_path, outputs=("events",))
+    lines = (tmp_path / "trait_events.tsv").read_text().splitlines()
+    assert len(lines) == 2 and lines[1].split("\t")[1] == "root"
 
 
 # --- end-to-end conditioned coupling: a trait drives gene loss ------------------------------------
 
 def _write_driver(path, tree, state_of):
-    """Write a one-segment-per-branch driver file assigning ``state_of[node]`` to each lineage."""
-    rows = ["node\tstart\tend\tstate"]
+    """Write a trait **event log** assigning ``state_of[node]`` to each lineage for its whole branch:
+    a ``root`` row for the crown, then one ``on_speciation`` row per other node fixing its start state
+    (no ``on_branch`` switches, so every branch is constant). Replayed against ``tree`` this rebuilds
+    exactly ``state_of`` — the format a conditioned run reads now."""
+    root = tree.root
+    rows = ["time\tkind\tlineage\tfrom\tto",
+            f"{tree.nodes[root].birth_time!r}\troot\tn{root}\t\t{state_of[root]}"]
     for i in sorted(tree.nodes):
-        node = tree.nodes[i]
-        rows.append(f"n{i}\t{node.birth_time:.6g}\t{node.end_time:.6g}\t{state_of[i]}")
+        if i != root:
+            rows.append(f"{tree.nodes[i].birth_time!r}\ton_speciation\tn{i}\t\t{state_of[i]}")
     path.write_text("\n".join(rows) + "\n")
 
 
@@ -208,10 +216,10 @@ def test_end_to_end_trait_drives_loss(tmp_path):
     lineages in the low-loss state."""
     tree = simulate_species_tree(birth=1.1, total_time=3.0, seed=3).complete_tree
     hab = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.5, seed=1)
-    hab.write(tmp_path, outputs=("driver",))
+    hab.write(tmp_path, outputs=("events",))
     res = genomes.simulate_genomes_unordered(
         tree,
-        loss=0.15 * mod.DrivenBy(str(tmp_path / "trait_driver.tsv"),
+        loss=0.15 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"),
                                  {"cave": 6.0, "surface": 1.0}),
         origination=0.2, initial_families=5, seed=2,
     )
@@ -227,16 +235,16 @@ def test_int_state_trait_drives_loss_end_to_end(tmp_path):
     loss through the file round-trip, not silently no-op. State 1 loses fast, state 0 never loses."""
     tree = simulate_species_tree(birth=1.1, total_time=2.5, seed=6).complete_tree
     trait = traits.simulate_discrete(tree, states=[0, 1], switch=0.5, seed=1)
-    trait.write(tmp_path, outputs=("driver",))
+    trait.write(tmp_path, outputs=("events",))
     res = genomes.simulate_genomes_unordered(
         tree,
-        loss=0.3 * mod.DrivenBy(str(tmp_path / "trait_driver.tsv"), {0: 0.0, 1: 30.0}),
+        loss=0.3 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), {0: 0.0, 1: 30.0}),
         initial_families=5, seed=2,
     )
     losses = [e for e in res.events if e.kind == "loss"]
     assert losses, "the int-keyed mapping must actually bite (not silently default to 1.0)"
     # every loss is on a state-1 branch (state 0 has loss factor exactly 0)
-    driver = load_driver(tmp_path / "trait_driver.tsv")
+    driver = load_driver(tmp_path / "trait_events.tsv", tree)
     assert all(driver.value(e.lineage, e.time) == "1" for e in losses)
 
 
@@ -251,10 +259,10 @@ def test_drivenby_accepts_traits_result_object(tmp_path):
               origination=0.2, initial_families=8, seed=2)
     by_object = genomes.simulate_genomes_unordered(tree, **kw)
 
-    habitat.write(tmp_path, outputs=("driver",))
+    habitat.write(tmp_path, outputs=("events",))
     by_file = genomes.simulate_genomes_unordered(
         tree,
-        loss=0.5 * mod.DrivenBy(str(tmp_path / "trait_driver.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
+        loss=0.5 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
         origination=0.2, initial_families=8, seed=2)
     key = lambda r: [(e.time, e.kind, e.lineage, e.copy) for e in r.events]
     assert key(by_object) == key(by_file)
@@ -325,17 +333,22 @@ def test_driven_transfer_picks_the_donor(tmp_path):
 
 def test_driven_transfer_changes_how_much_transfer_happens(tmp_path):
     """A driven transfer rate scales the amount of HGT: a flat factor of 3 gives about 3× the
-    transfers. ``replacement`` holds the copy pool fixed so the count is linear in the rate."""
-    tree = simulate_species_tree(birth=1.1, total_time=2.0, seed=8).complete_tree
-    driver = tmp_path / "flat.tsv"
-    _write_driver(driver, tree, {i: "any" for i in tree.nodes})
-    kw = dict(replacement=True, initial_families=8, seed=4)
-    plain = genomes.simulate_genomes_unordered(tree, transfer=0.2, **kw)
-    driven = genomes.simulate_genomes_unordered(
-        tree, transfer=0.2 * mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
-    n_plain = sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
-    n_driven = sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
-    assert 2.5 < n_driven / n_plain < 3.5
+    transfers. ``replacement`` holds the copy pool fixed so the count is linear in the rate. Pooled
+    over seeds rather than trusting one: a driver switch is a Gillespie horizon, and how many an
+    individual run hits is an rng-path detail that shifts the single-seed count without touching the
+    rate — the mean is what the factor governs."""
+    n_plain = n_driven = 0
+    for seed in range(20):
+        tree = simulate_species_tree(birth=1.1, total_time=2.0, seed=seed).complete_tree
+        driver = tmp_path / f"flat{seed}.tsv"
+        _write_driver(driver, tree, {i: "any" for i in tree.nodes})
+        kw = dict(replacement=True, initial_families=8, seed=seed)
+        plain = genomes.simulate_genomes_unordered(tree, transfer=0.2, **kw)
+        driven = genomes.simulate_genomes_unordered(
+            tree, transfer=0.2 * mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
+        n_plain += sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
+        n_driven += sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
+    assert 2.7 < n_driven / n_plain < 3.3
 
 
 def test_driven_transfer_is_deterministic(tmp_path):

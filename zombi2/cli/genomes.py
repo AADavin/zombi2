@@ -103,7 +103,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    metavar="RULE", dest="transfer_to",
                    help="recipient rule for a transfer: uniform (any contemporaneous lineage, "
                         "default), distance (closer relatives likelier), or a DrivenBy weight — "
-                        "\"DrivenBy('trait_driver.tsv', {'competent': 2.0, 'normal': 1.0})\" — "
+                        "\"DrivenBy('trait_events.tsv', {'competent': 2.0, 'normal': 1.0})\" — "
                         "which redistributes transfers without changing how many there are "
                         "(unordered only)")
     g.add_argument("--replacement", action="store_true",
@@ -190,7 +190,7 @@ def _transfer_to(text: str):
     """The argparse ``type`` for ``--transfer-to``: the recipient rule of a transfer.
 
     ``uniform`` and ``distance`` are the two named rules; anything else is read as the written form
-    of a ``DrivenBy`` — ``--transfer-to "DrivenBy('trait_driver.tsv', {'competent': 2.0})"`` — the
+    of a ``DrivenBy`` — ``--transfer-to "DrivenBy('trait_events.tsv', {'competent': 2.0})"`` — the
     **choice slot** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
     rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
     is the one you would write in Python and nothing is evaluated.
@@ -210,7 +210,7 @@ def _transfer_to(text: str):
     if not isinstance(value, DrivenBy):
         raise argparse.ArgumentTypeError(
             f"--transfer-to takes 'uniform', 'distance', or a DrivenBy recipient weight written on "
-            f"its own — e.g. \"DrivenBy('trait_driver.tsv', {{'competent': 2.0}})\" — got {text!r}. "
+            f"its own — e.g. \"DrivenBy('trait_events.tsv', {{'competent': 2.0}})\" — got {text!r}. "
             f"The numbers there are weights over the candidate recipients, not a rate, so there is "
             f"no base number in front of it.{detail}")
     return value

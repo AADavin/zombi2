@@ -8,16 +8,16 @@ the target engine queries as it walks the (already-grown) tree. (Conditioning ne
 own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
 ``zombi2.joint``.)
 
-The driver file is a **segment table** (``trait_driver.tsv``, written by
-:meth:`zombi2.traits.TraitsResult.write` with ``outputs=("driver",)``): one row per constant
-stretch of a lineage's branch, ``node · start · end · state``. A discrete driver switches
-*mid-branch*, so the table is the exact stochastic character map, not one value per branch —
-:class:`DriverTrajectory` answers both *what is the driver on this lineage now?*
-(:meth:`~DriverTrajectory.value`) and *when does it next change?*
-(:meth:`~DriverTrajectory.next_change`, so the target's Gillespie steps at each switch).
+The driver file is the trait **event log** (``trait_events.tsv``, written by
+:meth:`zombi2.traits.TraitsResult.write` with ``outputs=("events",)``): a ``root`` row giving the
+initial state, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
+complete tree the target now runs on, so replaying the log **against that tree** rebuilds each
+lineage's branch as constant stretches (a discrete driver switches *mid-branch*, so this is the exact
+stochastic character map, not one value per branch). :class:`DriverTrajectory` then answers both
+*what is the driver on this lineage now?* (:meth:`~DriverTrajectory.value`) and *when does it next
+change?* (:meth:`~DriverTrajectory.next_change`, so the target's Gillespie steps at each switch).
 
-The join key is the **species node id** — the driver ran on the same complete tree the target now
-runs on, so ``node n7`` in the file is lineage 7 in the target run.
+The join key is the **species node id**: ``node n7`` in the log is lineage 7 in the target run.
 """
 
 from __future__ import annotations
@@ -68,32 +68,77 @@ class DriverTrajectory:
         return starts[i] if i < len(starts) else math.inf
 
 
-def load_driver(path) -> DriverTrajectory:
-    """Read a driver **segment table** (``node · start · end · state``, tab-separated, one header
-    row) into a :class:`DriverTrajectory`. Node ids are written ``n<id>`` (matching every other
-    ZOMBI2 tip label) and read back to the integer lineage id. States are kept as written (a
-    discrete label such as ``aquatic``). This is the file :class:`~zombi2.rates.modifiers.DrivenBy`
-    names as its ``source`` when the driver was grown first (conditioning)."""
+def load_driver(path, tree) -> DriverTrajectory:
+    """Read a trait **event log** (``trait_events.tsv``: ``time · kind · lineage · from · to``, a
+    ``root`` row then the switches) and **replay it against ``tree``** into a :class:`DriverTrajectory`.
+
+    The log alone is not enough — a switch says *when* the state changed, not what each branch started
+    in — so the tree supplies branch birth/end times and the topology, and the reconstruction walks
+    parent-before-child: the root begins in the ``root`` row's state, every other lineage in its own
+    ``on_speciation`` state if it has one else its parent's ending state, and ``on_branch`` rows cut
+    the branch into constant stretches. This is the same tree the target level runs on, so ``node n7``
+    in the log is lineage 7 here. (``tree`` is the run's own species tree, always in hand where a
+    conditioned rate is resolved.)"""
     text = pathlib.Path(path).read_text()
     rows = [line for line in text.splitlines() if line.strip()]
     if not rows:
         raise ValueError(f"driver file {str(path)!r} is empty")
     header = rows[0].split("\t")
-    expected = ["node", "start", "end", "state"]
+    expected = ["time", "kind", "lineage", "from", "to"]
     if header != expected:
         raise ValueError(
-            f"driver file {str(path)!r} must have header {expected}, got {header} — write it with "
-            f"TraitsResult.write(dir, outputs=('driver',))."
+            f"driver file {str(path)!r} must be a trait event log with header {expected}, got "
+            f"{header} — write it with TraitsResult.write(dir, outputs=('events',)). (The old "
+            "node·start·end·state driver table was retired: the event log is the driver now.)"
         )
-    segments: dict[int, list[tuple[float, object]]] = {}
+    root_state = None
+    clado: dict[int, object] = {}                       # lineage -> its on-speciation start state
+    switches: dict[int, list[tuple[float, object]]] = {}   # lineage -> [(time, to_state), …]
     for line in rows[1:]:
         parts = line.split("\t")
-        if len(parts) != 4:
-            raise ValueError(f"driver file {str(path)!r} row is not 4 columns: {line!r}")
-        node_s, start_s, _end_s, state = parts
+        if len(parts) != 5:
+            raise ValueError(f"driver file {str(path)!r} row is not 5 columns: {line!r}")
+        time_s, kind, node_s, _from, to = parts
         node_id = int(node_s[1:]) if node_s.startswith("n") else int(node_s)
-        segments.setdefault(node_id, []).append((float(start_s), state))
-    return DriverTrajectory(segments)
+        if kind == "root":
+            root_state = to
+        elif kind == "on_speciation":
+            clado[node_id] = to
+        else:
+            switches.setdefault(node_id, []).append((float(time_s), to))
+    if root_state is None:
+        raise ValueError(
+            f"driver file {str(path)!r} has no 'root' row, so the initial state is unknown and the "
+            "trajectory cannot be reconstructed. Re-write it with a current ZOMBI2."
+        )
+    return DriverTrajectory(_replay(tree, root_state, clado, switches))
+
+
+def _replay(tree, root_state, clado, switches) -> dict[int, list[tuple[float, object]]]:
+    """Rebuild each lineage's constant stretches ``{node: [(start_time, state), …]}`` from the tree and
+    the parsed log. Parent before child, so a lineage can read its parent's ending state."""
+    segments: dict[int, list[tuple[float, object]]] = {}
+    end_state: dict[int, object] = {}
+    stack = [tree.root]
+    while stack:                                        # pre-order: a parent is popped before its kids
+        i = stack.pop()
+        node = tree.nodes[i]
+        if node.parent is None:
+            start = root_state
+        elif i in clado:
+            start = clado[i]
+        else:
+            start = end_state[node.parent]
+        segs, t, state = [], node.birth_time, start
+        for when, to in sorted(switches.get(i, ())):
+            segs.append((t, state))
+            t, state = when, to
+        segs.append((t, state))
+        segments[i] = segs
+        end_state[i] = state
+        if node.children is not None:
+            stack.extend(node.children)
+    return segments
 
 
 def driver_from_result(result) -> DriverTrajectory:
@@ -122,13 +167,14 @@ def driver_from_result(result) -> DriverTrajectory:
     return DriverTrajectory(segments)
 
 
-def resolve_driver(source) -> DriverTrajectory:
+def resolve_driver(source, tree) -> DriverTrajectory:
     """Resolve a conditioned ``DrivenBy`` ``source`` into a :class:`DriverTrajectory` — a **filename**
-    (str) via :func:`load_driver`, or an **in-memory** discrete trait result via
-    :func:`driver_from_result`. Both are conditioning (the driver grown first); the object form just
-    spares you the ``write``/read step in a single session."""
+    (str) via :func:`load_driver` (replayed against ``tree``, the target run's own species tree), or an
+    **in-memory** discrete trait result via :func:`driver_from_result` (which carries its own tree).
+    Both are conditioning (the driver grown first); the object form just spares you the ``write``/read
+    step in a single session."""
     if isinstance(source, str):
-        return load_driver(source)
+        return load_driver(source, tree)
     return driver_from_result(source)
 
 

@@ -21,7 +21,7 @@ So the whole chapter turns on one question:
 If yes, it is **conditioning**: two runs, and the coupling's `source` is a file. If no, it is **joining**: one run, and the `source` is the name of a level growing beside it. Underneath, both are the same single mechanism — a modifier, `mod.DrivenBy` — and only the `source` differs.
 
 ```python
-loss  = 0.25 * mod.DrivenBy("trait_driver.tsv", {"cave": 4.0, "surface": 1.0})   # conditioned
+loss  = 0.25 * mod.DrivenBy("trait_events.tsv", {"cave": 4.0, "surface": 1.0})   # conditioned
 birth = 1.0  * mod.DrivenBy("trait",            {"small": 1.0, "large": 2.0})    # joint
 ```
 
@@ -50,10 +50,10 @@ genomes.simulate_genomes_unordered(tree,
 The `source` here is the grown `TraitsResult` itself. That is the in-memory shortcut for the file: it is still conditioning, still two runs in order, but with no `write` and re-read in between. Hand it a filename instead and nothing else changes:
 
 ```python
-habitat.write("out/", outputs=("driver",))          # writes out/trait_driver.tsv (a bare
+habitat.write("out/", outputs=("events",))          # writes out/trait_events.tsv (a bare
                                                     # write() puts it where you point it)
 genomes.simulate_genomes_unordered(tree,
-    loss = 0.25 * mod.DrivenBy("out/trait_driver.tsv", {"cave": 4.0, "surface": 1.0}),
+    loss = 0.25 * mod.DrivenBy("out/trait_events.tsv", {"cave": 4.0, "surface": 1.0}),
     duplication=0.2, origination=0.5, seed=2)
 ```
 
@@ -64,9 +64,9 @@ That is the whole of conditioning today, and it fits in two rows:
 | a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the rates of an unordered genome run | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
 | a discrete trait | `transfer_to` — which lineage a transfer lands on | `transfer_to = mod.DrivenBy(source, {…})` | Table |
 
-`source` in both rows is the grown `TraitsResult`, or the path to the `trait_driver.tsv` it wrote.
+`source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
 
-The driver file is the one from Chapter 8: a discrete trait's stochastic character map, cut into the constant stretches of each branch. That segmentation is what lets the genome engine step its Gillespie at every switch, so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The coupling is exact, not a per-branch average.
+The driver file is the trait event log from Chapter 8: a `root` row for the state at t=0, then every switch with its time. Replayed against the shared species tree, that rebuilds each branch's constant stretches, which is what lets the genome engine step its Gillespie at every switch — so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The coupling is exact, not a per-branch average.
 
 ### Two ways a trait can drive transfer
 
@@ -104,13 +104,13 @@ Notice too that the coupling **folds into the target level's own command**. Ther
 # 1. a species tree
 zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
 
-# 2. the driver: a habitat trait, writing the driver file
+# 2. the driver: a habitat trait, writing its event log
 zombi2 traits out/ --kind discrete \
-    --states cave,surface --switch 0.1 --seed 1 --write values tree driver
+    --states cave,surface --switch 0.1 --seed 1 --write values tree events
 
 # 3. the target: genomes whose loss reads that trait
 zombi2 genomes out/ \
-    --loss "0.25 * DrivenBy('out/traits/trait_driver.tsv', {'cave': 4.0, 'surface': 1.0})" \
+    --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})" \
     --duplication 0.2 --origination 0.5 --seed 2
 ```
 
@@ -119,11 +119,11 @@ Both halves of transfer take that same text: the rate with a base number in fron
 ```bash
 # the driver: a competence trait, into its own directory
 zombi2 traits comp/ --kind discrete --from out/ \
-    --states competent,normal --switch 0.3 --seed 1 --write driver
+    --states competent,normal --switch 0.3 --seed 1 --write events
 
 zombi2 genomes comp_genomes/ --from out/ --initial-families 10 \
-    --transfer    "0.1 * DrivenBy('comp/traits/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
-    --transfer-to "DrivenBy('comp/traits/trait_driver.tsv', {'competent': 3.0, 'normal': 1.0})" \
+    --transfer    "0.1 * DrivenBy('comp/traits/trait_events.tsv', {'competent': 3.0, 'normal': 1.0})" \
+    --transfer-to "DrivenBy('comp/traits/trait_events.tsv', {'competent': 3.0, 'normal': 1.0})" \
     --seed 2
 ```
 
@@ -209,4 +209,4 @@ The state-dependent models arrive under a wall of acronyms, and a reader who wan
 
 ## Outputs
 
-A conditioned run writes what any ordinary level run writes — its genome or trait output — plus the **driver file** that fed it, so the pairing that produced the pattern is kept on disk alongside the result. A joint run writes **both** levels from one call: the grown species tree (`species_complete.nwk`, `species_extant.nwk`, `species_events.tsv`) together with the trait it grew (`trait_values.tsv`, `trait_changes.tsv`, `trait_tree.nwk`) or the genomes it grew (`genome_events.tsv`, `profiles.tsv`), each in the format it would have had from its own command. Because a joint run grows the tree, the tree it writes is a *complete* tree in the sense of Chapter 3, with the extinct lineages that shaped the trait or gene distribution still in place — which matters here more than anywhere, since those are exactly the lineages whose fate the coupling decided. The full list of files lives in Appendix B.
+A conditioned run writes what any ordinary level run writes — its genome or trait output — plus the trait **event log** that fed it (`trait_events.tsv`), so the pairing that produced the pattern is kept on disk alongside the result. A joint run writes **both** levels from one call: the grown species tree (`species_complete.nwk`, `species_extant.nwk`, `species_events.tsv`) together with the trait it grew (`trait_values.tsv`, `trait_events.tsv`, `trait_tree.nwk`) or the genomes it grew (`genome_events.tsv`, `profiles.tsv`), each in the format it would have had from its own command. Because a joint run grows the tree, the tree it writes is a *complete* tree in the sense of Chapter 3, with the extinct lineages that shaped the trait or gene distribution still in place — which matters here more than anywhere, since those are exactly the lineages whose fate the coupling decided. The full list of files lives in Appendix B.
