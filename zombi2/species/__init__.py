@@ -226,10 +226,11 @@ _ZOMBI_LABEL = re.compile(r"^n(\d+)$")  # the id-bearing label to_newick writes 
 
 def _assign_external_fates(leaves: list[Node], names: dict[int, str],
                            tip_fates: dict[str, str] | None, gap: float) -> None:
-    """Set extant/extinct on the tips of a **non-ultrametric** external tree from a user-supplied
-    ``tip_fates`` (``{tip label: "extant" | "extinct"}``). ZOMBI will not infer a tip's fate from its
-    depth here (a shallow tip could be extinct *or* an early sample), so a missing or mismatched map
-    raises rather than guesses."""
+    """Set the fate on the tips of a **non-ultrametric** external tree from a user-supplied
+    ``tip_fates`` (``{tip label: "extant" | "extinct" | "unsampled"}`` — the same vocabulary a species
+    run writes to ``species_fates.tsv``). ZOMBI will not infer a tip's fate from its depth here (a
+    shallow tip could be extinct *or* an early sample), so a missing or mismatched map raises rather
+    than guesses."""
     if tip_fates is None:
         raise ValueError(
             f"input tree is not ultrametric (tip depths differ by {gap:.3g}); ZOMBI can't tell "
@@ -249,9 +250,9 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
         raise ValueError(f"--tip-fates is missing a fate for: {', '.join(missing)}")
     if unknown:
         raise ValueError(f"--tip-fates names tips not in the tree: {', '.join(unknown)}")
-    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct")})
+    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct", "unsampled")})
     if bad:
-        raise ValueError(f"tip fates must be 'extant' or 'extinct', got: {', '.join(bad)}")
+        raise ValueError(f"tip fates must be 'extant', 'extinct' or 'unsampled', got: {', '.join(bad)}")
     for n in leaves:
         n.fate = fates[names[n.id]]
 
@@ -275,8 +276,9 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
       - **ultrametric** → the tips are contemporaneous, so **every tip is ``"extant"``** (observed);
       - **not ultrametric** → the differing tip depths could mean extinct lineages *or* early
         samples, which ZOMBI cannot tell apart, so it **refuses to guess**: pass ``tip_fates`` — a
-        ``{tip label: "extant" | "extinct"}`` map covering every tip — or a :class:`ValueError` is
-        raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``.)
+        ``{tip label: "extant" | "extinct" | "unsampled"}`` map covering every tip — or a
+        :class:`ValueError` is raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``, which
+        reads the same format a species run writes to ``species_fates.tsv``.)
 
     A root branch length is read when present — ``to_newick`` writes one, so a ZOMBI tree round-trips
     with its stem intact. External trees usually have none, and then the root gets zero duration and

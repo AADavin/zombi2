@@ -58,9 +58,10 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
-                   help="[external non-ultrametric trees] a TSV 'tip_name<TAB>extant|extinct' "
+                   help="[external non-ultrametric trees] a TSV 'tip_name<TAB>extant|extinct|unsampled' "
                         "declaring each tip's fate; required when the input tree is not ultrametric "
-                        "(ZOMBI won't guess extinct lineages from early-sampled tips)")
+                        "(ZOMBI won't guess extinct lineages from early-sampled tips). A species run's "
+                        "own species_fates.tsv is in this format and can be passed directly.")
 
     g = p.add_argument_group("continuous trait", "only with --kind continuous")
     g.add_argument("--rate", type=_rate, default=1.0, metavar="RATE",
