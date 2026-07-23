@@ -77,7 +77,9 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="RNG seed for reproducibility")
 
     g = p.add_argument_group("substitution model", "the menu — one --model, its parameters below")
-    g.add_argument("--model", required=True, metavar="MODEL",
+    # validated in run() (not argparse-`required`) so a --params file can supply it — a required
+    # argument is never satisfied by a default, which is what --params sets.
+    g.add_argument("--model", default=None, metavar="MODEL",
                    choices=(*_NUCLEOTIDE_MODELS, *_PROTEIN_MODELS),
                    help="substitution model. nucleotide (4 states, ACGT): jc69 (equal rates), "
                         "k80 (--kappa), hky85 (--kappa, --frequencies), gtr (--gtr-rates, "
@@ -143,6 +145,9 @@ def _build_model(args: argparse.Namespace):
 
 
 def run(args, parser):
+    # validated here (not as argparse `required`) so a --params file can supply it
+    if args.model is None:
+        parser.error("--model is required (give it on the command line or in --params)")
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
     allowed = set(_MODEL_KNOBS[args.model])
