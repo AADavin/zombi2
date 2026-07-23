@@ -150,8 +150,10 @@ def _add_params_arg(g) -> None:
     g.add_argument("--params", metavar="FILE",
                    help="a TOML parameters file whose keys are this command's long option names "
                         "(hyphens or underscores); applied as defaults, so any flag given on the "
-                        "command line overrides it. A '[<command>]' table scopes one file to a "
-                        "whole pipeline. The run directory stays on the command line.")
+                        "command line overrides it. A '[<command>]' table scopes keys to one command, "
+                        "so one file can serve a whole pipeline; top-level keys outside any table are "
+                        "a shared base for every command, which its table overrides. The run "
+                        "directory stays on the command line.")
 
 
 def _add_flat_arg(g) -> None:
@@ -343,25 +345,40 @@ def _apply_params_file(sub, argv) -> None:
     if subp is None or not any(a.dest == "params" for a in subp._actions):
         return
     path = None
-    for i, tok in enumerate(tokens[1:], 1):
+    for i, tok in enumerate(tokens[1:], 1):        # last --params wins, matching argparse and the log
         if tok == "--params" and i + 1 < len(tokens):
             path = tokens[i + 1]
-            break
-        if tok.startswith("--params="):
+        elif tok.startswith("--params="):
             path = tok.split("=", 1)[1]
-            break
     if path is None:
         return
     from zombi2.cli._params import load_params_file
     action_by_dest = {a.dest: a for a in subp._actions}
     try:
-        overrides = load_params_file(path, set(action_by_dest), tokens[0])
-    except (OSError, ValueError) as e:              # missing file, TOML error, or unknown key
+        overrides = load_params_file(path, set(action_by_dest), tokens[0], set(sub.choices))
+    except (OSError, ValueError) as e:              # missing file, TOML error, or unknown key/section
         subp.error(str(e))
-    # a variable-length option (nargs '+'/'*', e.g. --write) is a list on the command line; accept a
-    # bare scalar in the file and wrap it, so `write = "events"` works like `--write events`.
+    given = {opt for tok in tokens for opt in [tok.split("=", 1)[0]]}  # option strings on the CLI
     for dest, val in list(overrides.items()):
         action = action_by_dest.get(dest)
-        if action is not None and action.nargs in ("+", "*") and not isinstance(val, list):
-            overrides[dest] = [val]
+        if action is None:
+            continue
+        # a variable-length option (nargs '+'/'*', e.g. --write) is a list on the command line; accept
+        # a bare scalar in the file and wrap it, so `write = "events"` works like `--write events`.
+        if action.nargs in ("+", "*") and not isinstance(val, list):
+            overrides[dest] = val = [val]
+        # an 'append' option (e.g. --mass-extinction) appends to its default, so a params default plus
+        # a command-line flag would concatenate rather than override; when the flag is on the command
+        # line, drop the params default so the command line alone is used.
+        if isinstance(action, argparse._AppendAction) and given.intersection(action.option_strings):
+            del overrides[dest]
+            continue
+        # a params value bypasses argparse's `choices=` check (that runs on command-line tokens, not on
+        # defaults), so validate it here rather than let a bad value crash deep in the command. A
+        # variable-length option holds a list, each element of which must be a valid choice.
+        if action.choices is not None:
+            bad = [v for v in (val if isinstance(val, list) else [val]) if v not in action.choices]
+            if bad:
+                subp.error(f"argument {action.option_strings[-1]}: invalid choice {bad[0]!r} in "
+                           f"--params (choose from {', '.join(map(str, action.choices))})")
     subp.set_defaults(**overrides)
