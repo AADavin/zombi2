@@ -610,6 +610,68 @@ def test_params_unknown_key_errors(tmp_path):
     assert e.value.code == 2
 
 
+def test_params_mistyped_section_errors(tmp_path, capsys):
+    # a typo'd [table] must not be silently dropped (which would run every rate at its default)
+    (tmp_path / "typo.toml").write_text("[speces]\nbirth = 1.0\nn-extant = 10\n")
+    with pytest.raises(SystemExit):
+        main(["species", str(tmp_path / "o"), "--params", str(tmp_path / "typo.toml"), "--seed", "1", "--flat"])
+    err = capsys.readouterr().err
+    assert "unknown section" in err and "[speces]" in err
+
+
+def test_params_top_level_key_broadcasts_under_a_table(tmp_path):
+    # a top-level scalar is a shared base for every command; a [command] table overrides on conflict
+    (tmp_path / "p.toml").write_text("seed = 99\n[species]\nbirth = 1.0\nn-extant = 8\n")
+    out = tmp_path / "o"
+    main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--flat"])
+    assert "seed\t99" in (out / "species.log").read_text()      # the shared seed was applied, not dropped
+
+
+def test_params_command_table_overrides_the_shared_base(tmp_path):
+    # on conflict the [command] table wins over a top-level key of the same name
+    (tmp_path / "p.toml").write_text("seed = 1\nn-extant = 5\n[species]\nbirth = 1.0\nn-extant = 12\n")
+    out = tmp_path / "o"
+    main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--flat"])
+    log = (out / "species.log").read_text()
+    assert "n_extant\t12" in log and "seed\t1" in log
+
+
+def test_params_append_option_is_overridden_by_the_command_line(tmp_path):
+    # --mass-extinction is an 'append' action: a params default plus a CLI flag must NOT concatenate
+    (tmp_path / "p.toml").write_text(
+        "[species]\nbirth = 1.0\ntotal-time = 5.0\nmass-extinction = [[2.0, 0.9]]\n")
+    out = tmp_path / "o"
+    main(["species", str(out), "--params", str(tmp_path / "p.toml"),
+          "--mass-extinction", "3.0", "0.1", "--seed", "3", "--flat"])
+    log = (out / "species.log").read_text()
+    assert "mass_extinction\t[[3.0, 0.1]]" in log              # only the command line's pulse, not both
+
+
+def test_params_last_of_two_files_wins(tmp_path):
+    # two --params: the last file's values are used (and it is the one the log names)
+    (tmp_path / "a.toml").write_text("[species]\nbirth = 1.0\nn-extant = 5\n")
+    (tmp_path / "b.toml").write_text("[species]\nbirth = 1.0\nn-extant = 40\n")
+    out = tmp_path / "o"
+    main(["species", str(out), "--params", str(tmp_path / "a.toml"),
+          "--params", str(tmp_path / "b.toml"), "--seed", "1", "--flat"])
+    assert "n_extant\t40" in (out / "species.log").read_text()
+
+
+def test_params_invalid_choice_errors_cleanly(tmp_path, genomes_dir):
+    # a bad choices= value in --params must be a clean error, not a KeyError deep in the command
+    (tmp_path / "bad.toml").write_text('[genomes]\nresolution = "unordred"\nduplication = 0.1\n')
+    with pytest.raises(SystemExit):
+        main(["genomes", str(tmp_path / "o"), "--from", str(genomes_dir / "species_complete.nwk"),
+              "--params", str(tmp_path / "bad.toml"), "--seed", "1", "--flat"])
+
+
+def test_params_can_supply_the_sequences_model(tmp_path, genomes_dir):
+    # --model is not argparse-required, so a --params file can supply it (like --birth on species)
+    (tmp_path / "seq.toml").write_text('[sequences]\nmodel = "hky85"\nlength = 200\n')
+    main(["sequences", str(genomes_dir), "--params", str(tmp_path / "seq.toml"), "--seed", "1"])
+    assert (genomes_dir / "sequences" / "sequences.log").exists()
+
+
 # ── rates in their written form (SPEC §5) ───────────────────────────────────────────
 #
 # Every rate flag takes the same expression the Python API takes, so there is one notation for a
