@@ -107,7 +107,7 @@ class Tree:
         return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.6g};"
 
 
-_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils")  # the write vocabulary the CLI reuses
+_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils", "fates")  # the write vocabulary the CLI reuses
 
 
 @dataclass
@@ -139,7 +139,16 @@ class SpeciesResult:
         """Write outputs to ``directory``, each file prefixed ``species_``; ``outputs`` selects which
         (default = all applicable): ``"complete"`` → ``species_complete.nwk``, ``"extant"`` →
         ``species_extant.nwk`` (if any survived), ``"events"`` → ``species_events.tsv`` (the
-        always-recorded true history), ``"fossils"`` → ``species_fossils.tsv`` (if any recovered)."""
+        always-recorded true history), ``"fossils"`` → ``species_fossils.tsv`` (if any recovered),
+        ``"fates"`` → ``species_fates.tsv`` (each tip's resolved fate).
+
+        ``species_fates.tsv`` is the tip-fate table: one ``lineage<TAB>fate`` row per tip, with fate
+        one of ``extant`` / ``extinct`` / ``unsampled``. Fate is resolved once, at the end of the run,
+        on the same stable ``n<id>`` that keys every other file, so it never renames anything — it is
+        a materialised view of information the run already holds. It exists because the ``.nwk`` records
+        only branch lengths, from which a reader cannot tell an extinct tip from a survivor that sits at
+        the present; this table says so directly, so a downstream level can build the extant set from
+        fate rather than guessing from tip depth."""
         if outputs is None:
             outputs = _WRITE_OUTPUTS
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
@@ -160,6 +169,12 @@ class SpeciesResult:
         if "fossils" in outputs and self.fossils:
             rows = ["lineage\ttime"] + [f"n{i}\t{t:.6g}" for i, t in self.fossils]
             (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n")
+        if "fates" in outputs:
+            # one row per tip (extant / extinct / unsampled); internal nodes are always speciations
+            rows = ["lineage\tfate"]
+            for n in sorted(self.complete_tree.leaves(), key=lambda nd: nd.id):
+                rows.append(f"n{n.id}\t{n.fate}")
+            (d / "species_fates.tsv").write_text("\n".join(rows) + "\n")
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -747,6 +762,16 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     if total_time is not None:
         tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress,
                              max_lineages)
+        # A time-conditioned run is not conditioned on survival, so with death ≥ birth it can reach
+        # total_time with nothing alive. An empty tree is not a sample anyone can use — the extant
+        # tree is None and every downstream level would otherwise mistake the last-dying tip for a
+        # survivor — so refuse it here rather than hand back a tree with no present.
+        if not any(nd.fate == "extant" for nd in tree.nodes.values()):
+            raise RuntimeError(
+                f"the run went extinct before total_time={total_time:g}: no lineage is alive at the "
+                f"present, so there is nothing to grow a genome, sequence or trait along. With death "
+                f"close to or above birth, total extinction is likely — lower death, shorten "
+                f"total_time, or use n_extant=... (which is conditioned on survival).")
         return _finish(tree, events)
 
     for _ in range(_MAX_ATTEMPTS):
