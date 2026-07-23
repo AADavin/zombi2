@@ -1746,6 +1746,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                         ("transfer", transfer), ("origination", origination), ("fission", fission),
                         ("fusion", fusion), ("chromosome_origination", chromosome_origination),
                         ("chromosome_loss", chromosome_loss)):
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+            # a Rate expression (OnTime / DrivenBy / ByFamily). The nucleotide engine holds rates
+            # constant, so it cannot honour one — say so, rather than crashing on `rate < 0` below.
+            raise ValueError(
+                f"{label} carries a rate modifier, but the nucleotide genome engine takes constant "
+                "rates only — a skyline (OnTime) or a conditioned/driven rate (DrivenBy) is not wired "
+                "here. Driving a nucleotide rate with a trait is a later slice (see the conditioning "
+                "chapter). Pass a plain number.")
         if rate < 0:
             raise ValueError(f"{label} must be >= 0, got {rate}")
     for label, mean in (("inversion_length", inversion_length),
