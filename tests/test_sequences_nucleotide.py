@@ -422,3 +422,109 @@ def test_reading_back_regroups_multi_row_events_correctly(tmp_path):
     assert max(at_one_node.values()) > 1, "no node re-minted several copies — pick another seed"
     g.write(tmp_path)
     assert read_nucleotide_genomes(tmp_path, g.complete_tree).events == g.events
+
+
+# --- seeding the root from a real FASTA -------------------------------------------------------------
+
+def _seeded(tmp_path, root_seq, *, seed=4, **kw):
+    """A nucleotide run whose 3 genes sit on a single replicon of ``len(root_seq)`` bp, seeded with
+    ``root_seq`` as the root DNA."""
+    (tmp_path / "g.gff").write_text(
+        f"##gff-version 3\n##sequence-region c 1 {len(root_seq)}\n"
+        "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\nc\tt\tgene\t61\t90\t.\t-\t.\tID=b\n")
+    (tmp_path / "g.fasta").write_text(f">c\n{root_seq}\n")
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=seed)
+    params = dict(inversion=2.0, inversion_length=20, duplication=0.6, loss=0.6, transfer=0.6, seed=seed)
+    params.update(kw)
+    return simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "g.fasta", **params)
+
+
+def _ref_through_root(genomes, node_id):
+    """Each chromosome of ``node_id`` spelled out from the SUPPLIED root sequence, read through the
+    genome's own trace-back (reverse-complemented on the minus strand). Never touches the assembly."""
+    rs = genomes.root_sequence
+    return {cid: "".join(rs[s][p] if st == 1 else rs[s][p].translate(COMPLEMENT)
+                         for (s, p, st) in trace)
+            for cid, trace in genomes.trace_back(node_id).items()}
+
+
+def test_a_seeded_run_descends_from_the_supplied_fasta(tmp_path):
+    # the whole point: at rate 0 every genome in the run — leaf, ancestor, initial — is the DNA we
+    # handed in, permuted and reverse-complemented by its own history. Base for base.
+    genomes = _seeded(tmp_path, "".join("ACGT"[i % 4] for i in range(100)))
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
+    for node_id in genomes.genomes:
+        assert r.genomes[node_label(node_id)] == _ref_through_root(genomes, node_id)
+    chrom = genomes.initial_genome.chromosomes[0]
+    assert r.initial_genome[chrom.id] == genomes.root_sequence[0]        # the input, exactly
+
+
+def test_the_initial_genome_is_the_input_even_with_a_busy_stem(tmp_path):
+    # the root NODE evolves down the stem, but the INITIAL genome is what we supplied, unchanged, at
+    # any substitution rate — the sequence level founds it from the FASTA, before anything happens
+    seq = "".join("ACGT"[(i * 7) % 4] for i in range(120))
+    genomes = _seeded(tmp_path, seq, seed=2, inversion=6.0)
+    r = simulate_sequences(genomes, model=hky85(kappa=3.0), substitution=0.3, seed=2)
+    assert r.initial_genome[genomes.initial_genome.chromosomes[0].id] == seq
+    leaf = next(iter(genomes.complete_tree.extant()))
+    assert r.genomes[node_label(leaf.id)] != _ref_through_root(genomes, leaf.id)   # it diverged
+
+
+def test_a_homopolymer_inverts_to_its_complement(tmp_path):
+    # all-A, so any difference from A in a leaf is a reverse-complemented (inverted) stretch, not a
+    # substitution: at rate 0 a leaf is all A and T, and only A and T
+    genomes = _seeded(tmp_path, "A" * 100, seed=4, inversion=6.0)
+    leaves = [n.id for n in genomes.complete_tree.extant()]
+    assert any(b.strand == -1 for lid in leaves
+               for c in genomes.genomes[lid].chromosomes for b in c.blocks)
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
+    letters = {ch for lid in leaves for seq in r.genomes[node_label(lid)].values() for ch in seq}
+    assert letters == {"A", "T"}
+
+
+def test_a_de_novo_gene_falls_back_to_the_model(tmp_path):
+    # origination mints a fresh source with no supplied DNA, so its block draws from the model — the
+    # seeded sources stay exact, the de-novo one is whatever the model gives
+    genomes = _seeded(tmp_path, "A" * 100, seed=3, origination=2.0, origination_length=20)
+    denovo = {i for i, (src, _a, _b) in enumerate(genomes.root_blocks) if src not in genomes.root_sequence}
+    assert denovo, "no de-novo source in this run — pick another seed"
+    r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
+    # a de-novo block is not forced to A; a seeded block is exactly A
+    seeded = {i for i in range(len(genomes.root_blocks)) if i not in denovo}
+    assert all(set(r.founding[i]) <= {"A"} for i in seeded)
+
+
+def test_fasta_length_and_seqid_must_match_the_gff(tmp_path):
+    (tmp_path / "g.gff").write_text("##gff-version 3\n##sequence-region c 1 100\n"
+                                    "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\n")
+    sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
+    (tmp_path / "short.fasta").write_text(">c\n" + "A" * 90 + "\n")
+    with pytest.raises(ValueError, match="100 bp in the GFF but 90"):
+        simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "short.fasta", seed=1)
+    (tmp_path / "wrongid.fasta").write_text(">other\n" + "A" * 100 + "\n")
+    with pytest.raises(ValueError, match="do not match the GFF"):
+        simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "wrongid.fasta", seed=1)
+    (tmp_path / "bad.fasta").write_text(">c\n" + "A" * 99 + "N\n")
+    with pytest.raises(ValueError, match="non-ACGT"):
+        simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "bad.fasta", seed=1)
+
+
+def test_fasta_needs_a_gff(tmp_path):
+    sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
+    (tmp_path / "g.fasta").write_text(">c\n" + "A" * 100 + "\n")
+    with pytest.raises(ValueError, match="fasta= needs gff="):
+        simulate_genomes_nucleotide(sp, fasta=tmp_path / "g.fasta", root_length=100, seed=1)
+
+
+def test_the_root_sequence_survives_the_write_read_handoff(tmp_path):
+    from zombi2.genomes.nucleotide import read_nucleotide_genomes
+
+    genomes = _seeded(tmp_path, "".join("ACGT"[i % 4] for i in range(100)))
+    genomes.write(tmp_path / "run")
+    assert (tmp_path / "run" / "root_sequence.fasta").exists()
+    back = read_nucleotide_genomes(tmp_path / "run", genomes.complete_tree)
+    assert back.root_sequence == genomes.root_sequence
+    # and the sequence level, run from the reloaded handoff, founds from the same DNA
+    a = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
+    b = simulate_sequences(back, model=jc69(), substitution=0.0, seed=4)
+    assert a.initial_genome == b.initial_genome

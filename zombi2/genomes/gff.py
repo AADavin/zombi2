@@ -133,4 +133,44 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
     return lengths, genes
 
 
-__all__ = ["GffGene", "read_gff", "trim_overlapping_genes"]
+def read_fasta(source) -> dict[str, str]:
+    """Read ``source`` (a path or an iterable of lines) into ``{seqid: sequence}`` — the root DNA a
+    nucleotide genome run is seeded with, paired with the GFF that lays its genes out.
+
+    A record is a ``>seqid`` header (the id is its first whitespace-delimited token, matching a GFF
+    ``##sequence-region``) followed by sequence lines, which are concatenated and upper-cased. Bases
+    are validated as ``ACGT`` here — the one place letters enter, so a stray character fails loudly
+    rather than surfacing as an evolved-sequence bug later."""
+    if isinstance(source, (str, pathlib.Path)):
+        lines = pathlib.Path(source).read_text().splitlines()
+    else:
+        lines = list(source)
+    records: dict[str, list[str]] = {}
+    seqid = None
+    for n, raw in enumerate(lines, 1):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(">"):
+            seqid = line[1:].split()[0]
+            if seqid in records:
+                raise ValueError(f"FASTA: sequence-region {seqid!r} appears twice")
+            records[seqid] = []
+        elif seqid is None:
+            raise ValueError(f"FASTA line {n}: sequence before any '>' header: {raw!r}")
+        else:
+            records[seqid].append(line.upper())
+    if not records:
+        raise ValueError("the FASTA has no records")
+    out = {}
+    for sq, parts in records.items():
+        seq = "".join(parts)
+        bad = set(seq) - set("ACGT")
+        if bad:
+            raise ValueError(f"FASTA {sq!r} has non-ACGT characters {sorted(bad)} — a nucleotide "
+                             "genome is seeded with DNA (ambiguity codes and gaps are not supported)")
+        out[sq] = seq
+    return out
+
+
+__all__ = ["GffGene", "read_gff", "read_fasta", "trim_overlapping_genes"]

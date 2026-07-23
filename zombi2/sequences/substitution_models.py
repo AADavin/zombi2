@@ -203,5 +203,16 @@ def decode(states: np.ndarray, alphabet: str = BASES) -> str:
     return lut[np.asarray(states)].tobytes().decode("ascii")
 
 
+def encode(seq: str, alphabet: str = BASES) -> np.ndarray:
+    """The inverse of :func:`decode`: a string over ``alphabet`` to its integer states. Used to seed a
+    run from a real ``fasta=`` — the supplied DNA becomes a block's founding states. A character not in
+    ``alphabet`` raises (the FASTA reader already rejects non-``ACGT``, so this is a second guard)."""
+    index = {c: i for i, c in enumerate(alphabet)}
+    try:
+        return np.fromiter((index[c] for c in seq), dtype=np.int8, count=len(seq))
+    except KeyError as e:
+        raise ValueError(f"sequence has {e.args[0]!r}, not in the model's alphabet {alphabet!r}") from None
+
+
 __all__ = ["SubstitutionModel", "jc69", "k80", "hky85", "gtr",
-           "poisson", "jtt", "dayhoff", "wag", "lg", "decode", "BASES", "AMINO_ACIDS"]
+           "poisson", "jtt", "dayhoff", "wag", "lg", "decode", "encode", "BASES", "AMINO_ACIDS"]

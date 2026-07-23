@@ -192,15 +192,30 @@ result.phylograms[block]     # the tree it was drawn along
 
 For the run above, `dnaA` is gene family 1 and root block 6. Asking for `phylograms[1]` gets you a stretch of spacer evolving at three times the rate — a plausible answer to the wrong question. `result.unit` says which scheme a result uses (`"family"` or `"block"`), and the filenames follow it: a nucleotide run writes `block6.fasta` and `phylogram_block6_complete.nwk`, never `fam`.
 
+### Starting from a real sequence
+
+So far the founding sequence of each block is *drawn* — from the model's frequencies, random ACGT. Hand the genomes run a **FASTA** alongside the GFF and it starts from the sequence you supply instead:
+
+```python
+my_genomes = genomes.simulate_genomes_nucleotide(
+    tree, gff="ecoli.gff", fasta="ecoli.fasta",     # layout AND letters
+    inversion=1.0, loss=0.3, seed=1)
+result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0), substitution=0.05, seed=1)
+```
+
+The FASTA has one `>seqid` record per GFF `##sequence-region`, each exactly its declared length. Every block is then founded from the real DNA at its own root coordinates, so an assembled genome descends from exactly what you gave — no longer a random start, but a real chromosome evolving. A gene that origination invents mid-run has no supplied DNA (it did not exist at the root), so its block still draws from the model; everything seeded stays exact.
+
 ### The round trip
 
-The check worth doing once, because it is the claim the whole level rests on: declare a genome in a GFF, evolve it down a tree until the leaves are thoroughly rearranged, then rebuild it from the descendants and compare with what you declared. At a substitution rate of zero nothing mutates, so the comparison is exact.
+The check worth doing once, because it is the claim the whole level rests on: hand in a genome, evolve it down a tree until the leaves are thoroughly rearranged, then rebuild it and compare with what you handed in. At a substitution rate of zero nothing mutates, so the comparison is exact.
 
-On real E. coli — NC_000913.3, 4,641,652 bp, 4,498 genes, a 25-node tree with 1,236 events — `.initial_genome` comes back identical, base for base, with all 4,477 annotated genes at the coordinates and on the strands the GFF gave them. Compare `.genomes["n0"]` instead and it will usually *not* match, and correctly so: that is the genome after the stem's events, which is what was actually there. Both are exact; they are answers to different questions.
+On real E. coli — NC_000913.3, 4,641,652 bp, ~4,500 genes — seed with its FASTA, evolve a run with inversions, duplications, losses and transfers, and `.initial_genome` comes back **identical, base for base**, with all 4,477 annotated genes at their coordinates carrying their own DNA — in a few seconds. Compare `.genomes["n0"]` instead and it will usually *not* match, and correctly so: that is the genome after the stem's events, which is what was actually there. Both are exact; they answer different questions.
+
+One subtlety worth seeing: seed an *all-A* genome and a leaf comes back with **T**s in it, even at rate zero. That is not a bug and not a substitution — a run of A on the plus strand reads as a run of T on the minus strand, so an inverted stretch of a homopolymer flips A↔T. The sequence descends from the input exactly; a homopolymer just is not the same read backwards.
 
 ## Usage from the CLI
 
-On the command line the genome run is handed over as a **directory** — the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. Point `--from` at another run to read one and write somewhere else.
+On the command line the genome run is handed over as a **directory** — the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. A nucleotide run seeded with `--fasta` also hands its root DNA across (in `root_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. Point `--from` at another run to read one and write somewhere else.
 
 ```bash
 # 1. genomes along a species tree (from the previous chapters)

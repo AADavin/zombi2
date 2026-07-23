@@ -109,7 +109,7 @@ from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ..progress import progress_bar
 from .events import node_from_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
-from .gff import read_gff
+from .gff import read_fasta, read_gff
 
 
 @dataclass
@@ -701,6 +701,13 @@ class NucleotideGenomesResult:
     #: partition like every other genome, so it can be reconstructed too — see
     #: :meth:`initial_assembly`.
     initial_genome: NucleotideGenome = field(default_factory=lambda: NucleotideGenome([]))
+    #: ``{source: DNA}`` — the **root sequence** the run was seeded with, one entry per seeded replicon,
+    #: from ``fasta=`` paired with ``gff=``. Empty when no FASTA was given (then the sequence level
+    #: draws the founding sequence from the model instead). A *de-novo* originated source is never
+    #: here: it arose mid-run, so nothing was supplied for it. The letters live here, not in
+    #: :attr:`genomes` (which is pure ancestry) — the sequence level reads them as each block's
+    #: founding sequence, and an assembled genome then descends from exactly this input.
+    root_sequence: dict[int, str] = field(default_factory=dict)
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -873,8 +880,8 @@ class NucleotideGenomesResult:
         return self._recover()[1]
 
     def write(self, directory,
-              outputs=("events", "genes", "blocks", "initial_genome", "gene_trees",
-                       "chromosome_events", "gff", "bed")) -> None:
+              outputs=("events", "genes", "blocks", "initial_genome", "root_sequence",
+                       "gene_trees", "chromosome_events", "gff", "bed")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the run's whole history in one time-ordered table:
@@ -896,6 +903,9 @@ class NucleotideGenomesResult:
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
           genealogy per family some node still carries; the ``_extant`` file only where the family
           has a surviving copy.
+        - ``"root_sequence"`` → ``root_sequence.fasta``, the seed DNA the run was given (``fasta=``),
+          one ``>source<n>`` record per replicon. Written only when a FASTA was supplied — it is what
+          lets a separate ``zombi2 sequences`` run found its blocks from the real sequence.
         - ``"gff"`` → ``genome_<lineage>.gff``, that genome's **genes**, in its own coordinates: the
           annotation to read beside the sequence level's ``genome_<lineage>.fasta``.
         - ``"bed"`` → ``genome_<lineage>.bed``, that genome's **blocks** — every piece, spacer
@@ -920,6 +930,10 @@ class NucleotideGenomesResult:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, d)
+        if "root_sequence" in outputs and self.root_sequence:
+            (d / "root_sequence.fasta").write_text(
+                "".join(f">source{src}\n{self.root_sequence[src]}\n"
+                        for src in sorted(self.root_sequence)))
         for token, ext, render in (("gff", "gff", self._gff), ("bed", "bed", self._bed)):
             if token in outputs:
                 for label, genome in self._every_genome():
@@ -1231,7 +1245,8 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
     replay it from disk. ``tree`` is the species tree it ran on.
 
     Reads ``blocks.tsv``, ``initial_genome.tsv``, ``genome_events.tsv`` and ``genes.tsv`` — the four
-    the recovery needs. The rearrangements come back too, since they share the event table now.
+    the recovery needs — and ``root_sequence.fasta`` if present, so a run seeded from real DNA still
+    founds its blocks from it. The rearrangements come back too, since they share the event table now.
     ``chromosome_events.tsv`` is not read: it records how the karyotype got its shape, and the shape
     itself is already in ``blocks.tsv``. What comes back reconstructs and writes exactly as the
     original did; it is not for evolving further."""
@@ -1248,9 +1263,15 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
     events, rearrangements = _events_from_tsv(read("genome_events.tsv"))
+    root_sequence: dict[int, str] = {}
+    fpath = d / "root_sequence.fasta"
+    if fpath.exists():                               # a run seeded from real DNA; keyed by source id
+        for sq, seq in read_fasta(fpath).items():
+            root_sequence[int(sq[len("source"):] if sq.startswith("source") else sq)] = seq
     return NucleotideGenomesResult(
         tree, _blocks_from_tsv(read("blocks.tsv")), events, rearrangements,
-        [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")))
+        [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")),
+        root_sequence)
 
 
 def _valid_length(length) -> int:
@@ -1668,7 +1689,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 origination_length=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
-                                gff=None, trim_overlaps=False, seed=None,
+                                gff=None, fasta=None, trim_overlaps=False, seed=None,
                                 progress=False) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
@@ -1738,6 +1759,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         raise ValueError(f"genes must be a non-negative integer, got {genes!r}")
     if genes and (isinstance(gene_length, bool) or not isinstance(gene_length, int) or gene_length < 1):
         raise ValueError(f"gene_length must be a positive integer, got {gene_length!r}")
+    root_sequence: dict[int, str] = {}               # {source: root DNA}, empty unless a FASTA is given
     if gff is not None:                              # declared from a GFF: exact coordinates and names
         if genes:
             raise ValueError("pass either gff= or genes=, not both — a GFF already declares the genes")
@@ -1748,7 +1770,22 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
             by_seqid[gene.seqid].append((gene.start, gene.end, gene.strand, gene.name))
         specs = [(_valid_length(lengths[sq]), topology) for sq in seqids]
         layouts = [by_seqid[sq] for sq in seqids]
+        if fasta is not None:                        # the root DNA, one record per replicon, by seqid
+            seqs = read_fasta(fasta)
+            if set(seqs) != set(seqids):
+                raise ValueError(
+                    f"the FASTA's records {sorted(seqs)} do not match the GFF's replicons "
+                    f"{seqids} — every ##sequence-region needs exactly one > record, same id")
+            for i, sq in enumerate(seqids):
+                if len(seqs[sq]) != lengths[sq]:
+                    raise ValueError(
+                        f"replicon {sq!r} is {lengths[sq]} bp in the GFF but {len(seqs[sq])} bp in "
+                        "the FASTA — the sequence must be exactly as long as its sequence-region")
+                root_sequence[i] = seqs[sq]
     else:
+        if fasta is not None:
+            raise ValueError("fasta= needs gff=: the FASTA's records are matched to the GFF's "
+                             "replicons by id, so there is nothing to seed without one")
         specs = _replicon_specs(chromosomes, root_length, topology)
         for _length, _top in specs:                  # the genes must fit; they need not leave a gap
             if genes and genes * gene_length > _length:
@@ -1923,7 +1960,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
             si += 1
     bar.close()
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                  gene_spans, gene_names, gene_strands, initial_genome)
+                                  gene_spans, gene_names, gene_strands, initial_genome, root_sequence)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------

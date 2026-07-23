@@ -18,7 +18,7 @@ gets ``substitution · Δt`` substitutions/site — the **strict clock**), optio
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it
 (``SPEC §5``, the by-lineage rate modifier). The other clocks (``FromParent`` drift, ``Markov`` hops),
-the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, real-genome-at-root, and the
+the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, and the
 ``record=`` memory dial are named later slices; each is a pure addition.
 
 The result is a :class:`SequencesResult` bundle mirroring the other levels (``result-api.md``):
@@ -48,7 +48,7 @@ from ..rates.scope import PerSite
 from ..species import Node, Tree, prune
 from ..progress import progress_bar
 from .evolution import evolve_gene_tree
-from .substitution_models import BASES, SubstitutionModel, decode, jc69
+from .substitution_models import BASES, SubstitutionModel, decode, encode, jc69
 
 _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram",
                   "genomes", "initial_genome")
@@ -412,6 +412,22 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             is_gene = (src, a, b) in genic
             per_block[i] = (b - a, model if is_gene else intergene_model,
                             1.0 if is_gene else float(intergene_speed))
+        # Seeded from a real FASTA: a block's founding sequence is the supplied DNA at its own root
+        # coordinates, encoded to states, rather than a stationary draw. A de-novo source is not in
+        # root_sequence (it arose mid-run), so its blocks still draw from the model. `None` per block
+        # ⇒ draw, exactly as before, so an unseeded run is unchanged.
+        founding_seed: dict[int, "np.ndarray | None"] = {}
+        for i, (src, a, b) in enumerate(blocks):
+            root = genomes.root_sequence.get(src)
+            if root is None:
+                founding_seed[i] = None
+                continue
+            f_model = model if (src, a, b) in genic else intergene_model
+            if f_model.alphabet != BASES:
+                raise ValueError(
+                    f"the run was seeded from a FASTA (DNA), but {f_model.name} is a protein model — "
+                    "a nucleotide root sequence cannot found an amino-acid alignment")
+            founding_seed[i] = encode(root[a:b], f_model.alphabet)
     else:
         gene_trees = genomes.gene_trees
         if length is None:
@@ -463,8 +479,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         else:                       # a nucleotide block: its own length, and spacer runs faster
             f_len, f_model, speed = per_block[family]
             f_rate = rate_base * speed
+        seed_states = None if per_block is None else founding_seed[family]
         states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
-                                                   gt.origination)
+                                                   gt.origination, founding=seed_states)
         alignments[family], ancestral[family] = _split(gt, states, f_model)
         founding[family] = decode(founding_states, f_model.alphabet)
         scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site

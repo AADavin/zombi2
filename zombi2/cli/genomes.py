@@ -157,6 +157,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "coordinates — the 'start from a real genome' path (excludes --genes)")
     g.add_argument("--trim-overlaps", action="store_true", dest="trim_overlaps",
                    help="[--gff] shorten overlapping gene annotations instead of refusing the file")
+    g.add_argument("--fasta", metavar="FILE",
+                   help="[--gff] the seed genome's DNA — one >seqid record per GFF ##sequence-region, "
+                        "each exactly its declared length. The sequence level then founds every block "
+                        "from this DNA, so an assembled genome descends from exactly what you supply; "
+                        "without it the run is pure ancestry and letters come from the model")
     for knob, what in (("inversion", "inverted"), ("transposition", "moved within a chromosome"),
                        ("translocation", "moved to another chromosome"), ("loss", "deleted"),
                        ("duplication", "copied in tandem"), ("transfer", "copied to a recipient"),
@@ -267,6 +272,9 @@ def run(args, parser):
                          "additive)")
         if args.gff and args.genes:
             parser.error("pass either --gff or --genes, not both — a GFF already declares the genes")
+        if args.fasta and not args.gff:
+            parser.error("--fasta needs --gff: the FASTA's records are matched to the GFF's "
+                         "replicons by id, so there is nothing to seed without one")
         # the nucleotide engine holds each rate constant, so a modifier expression would be
         # accepted and then dropped; refuse it instead
         modulated = [f"--{n}" for n in ("duplication", "transfer", "loss", "origination", "inversion",
@@ -309,7 +317,7 @@ def run(args, parser):
     elif args.resolution == "nucleotide":
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
-            gff=args.gff, trim_overlaps=args.trim_overlaps,
+            gff=args.gff, fasta=args.fasta, trim_overlaps=args.trim_overlaps,
             inversion_length=args.inversion_length,
             transposition_length=args.transposition_length,
             translocation_length=args.translocation_length, loss_length=args.loss_length,
