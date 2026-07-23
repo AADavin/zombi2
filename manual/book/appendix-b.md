@@ -18,7 +18,7 @@ A `zombi2` command groups what it writes, one directory per level, and gives the
 one file per gene family a directory of their own:
 
 ```
-out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv
+out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv · species_fates.tsv
 out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
 out/sequences/              clock_species_tree_complete.nwk · sequences.log
@@ -53,6 +53,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Complete tree | `species_complete.nwk` | Newick | yes | every lineage, including extinct and unsampled |
 | Extant tree | `species_extant.nwk` | Newick | yes | only the sampled survivors |
 | Event log | `species_events.tsv` | TSV | yes | every speciation/extinction — `time` · `kind` · `lineage` · `children` |
+| Tip fates | `species_fates.tsv` | TSV | yes | each tip's resolved fate — `lineage` · `fate` (`extant` / `extinct` / `unsampled`) |
 | Fossils | `species_fossils.tsv` | TSV | yes¹ | sampled fossil lineages — `lineage` · `time` |
 
 ¹ written only if fossil sampling recovered any.
