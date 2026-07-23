@@ -58,7 +58,7 @@ def test_profiles_is_cached():
 
 def test_empty_run_has_empty_profiles():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1)
-    g = simulate_genomes_unordered(sp, seed=1)          # no families, no rates
+    g = simulate_genomes_unordered(sp, initial_families=0, seed=1)          # no families, no rates
     assert g.profiles.families == ()
     assert g.profiles.matrix.shape == (0, 10)           # no families, still the 10 extant columns
 

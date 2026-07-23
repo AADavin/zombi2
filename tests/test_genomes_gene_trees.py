@@ -167,7 +167,7 @@ def test_deterministic_given_seed():
 
 def test_empty_run_has_no_gene_trees():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1)
-    g = simulate_genomes_unordered(sp, seed=1)       # no families
+    g = simulate_genomes_unordered(sp, initial_families=0, seed=1)       # no families
     assert g.gene_trees == {}
 
 

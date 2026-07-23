@@ -13,14 +13,14 @@ import re
 import sys
 
 from zombi2 import __version__
-from zombi2.cli import genomes, joint, sequences, species, traits
+from zombi2.cli import genomes, joint, sequences, species, tools, traits
 from zombi2.cli.framework import (
     _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
 )
 
 #: command name -> handler; the single source of dispatch
 _RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.run,
-        "traits": traits.run, "joint": joint.run}
+        "traits": traits.run, "joint": joint.run, "tools": tools.run}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -152,6 +152,16 @@ def main(argv: list[str] | None = None) -> int:
             "{'present': 3.0, 'absent': 1.0})\" \\",
             "      --origination 0.2 --loss 0.1 --families toxin --n-extant 60 --seed 1",
         ) + "\n\n" + joint.RATES_HELP)
+
+    _add_subcommand(
+        sub, "tools", "analyses that read a finished run (homology tables, …)",
+        tools._TOOLS_DESCRIPTION,
+        "zombi2 tools <tool> DIR [options]",
+        tools._add_tools_args,
+        epilog=_examples(
+            "  # O/P/X homology tables (ortholog / paralog / xenolog) for a genomes run",
+            "  zombi2 tools format out/",
+        ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
     args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
