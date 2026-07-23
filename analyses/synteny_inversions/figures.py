@@ -92,7 +92,6 @@ def fig_observables(ests):
                    label="real genomes")
         au.set_title(c["name"], fontsize=12.5, style="italic")
         au.set_ylim(0, 1.02); au.set_xlim(left=0)
-        ab.scatter(Bs, Bs * 0 + 0, alpha=0)  # keep autoscale sane
         ab.scatter(Ds, Bs, s=42, color=c["color"], alpha=0.55, edgecolors="none", zorder=2)
         ab.scatter(Dr, Br, s=44, facecolors="white", edgecolors=INK, linewidths=1.3, zorder=3)
         ab.set_yscale("log"); ab.set_xlim(left=0)
