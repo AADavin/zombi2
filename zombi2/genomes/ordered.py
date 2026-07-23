@@ -46,7 +46,7 @@ from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..species import SpeciesResult, Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
-from ._live import enter, retire
+from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from ..progress import progress_bar
 from .events import Event, node_label
@@ -675,6 +675,7 @@ def _topologies(chromosomes, topology) -> list[str]:
 
 # --- the engine -----------------------------------------------------------------------------------
 
+@without_cyclic_gc
 def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                              inversion=0.0, transposition=0.0, translocation=0.0,
                              chromosomes=1, topology="circular",
