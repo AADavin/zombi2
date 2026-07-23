@@ -1947,3 +1947,16 @@ def test_a_gff_we_wrote_reads_back_through_our_own_gff_reader(tmp_path):
     assert lengths == {f"initial_chr{chrom.id}": chrom.length}
     declared = sorted((a, b) for (_src, a, b) in g.gene_spans.values())
     assert sorted((gene.start, gene.end) for gene in genes) == declared
+
+
+def test_a_driven_or_skyline_rate_is_refused_cleanly():
+    """The nucleotide engine holds rates constant, so a rate modifier (DrivenBy conditioning, an
+    OnTime skyline) is refused with a clear message — not the raw TypeError that `rate < 0` used to
+    throw on a Rate object. Trait-driven inversion lives here but is not wired (see Chapter 9)."""
+    from zombi2.rates import modifiers as mod
+    sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
+    for expr in (2.0 * mod.DrivenBy("trait_events.tsv", {"a": 2.0}), 2.0 * mod.OnTime({0: 1.0})):
+        with pytest.raises(ValueError, match="constant rates only"):
+            simulate_genomes_nucleotide(sp, root_length=200, inversion=expr, seed=1)
+    # a plain number is of course fine
+    assert simulate_genomes_nucleotide(sp, root_length=200, inversion=2.0, seed=1).genomes
