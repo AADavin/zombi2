@@ -21,6 +21,7 @@ one file per gene family a directory of their own:
 out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv · species_fates.tsv
 out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
+out/genomes/homology/       homology_fam<f>.tsv                          (zombi2 tools format)
 out/sequences/              clock_species_tree_complete.nwk · sequences.log
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
@@ -163,8 +164,5 @@ Coupling adds no formats. A **conditioned** run writes the target level's files 
 it read (above), keeping the pairing on disk; a **joint** run writes **both** levels, each in its own
 format.
 
-## Tools
-
-The scoring and reconciliation commands (tree-distance, reconciliation-accuracy, the undated simulator,
-the ALE likelihood) are quarantined during the clean-core rebuild; their files are documented here as
-each returns.
+The `zombi2 tools` commands write their own files — the homology matrix and the reconciliation/scoring
+outputs — catalogued in Appendix C.

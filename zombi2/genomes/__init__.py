@@ -324,7 +324,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 @without_cyclic_gc
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
-                               initial_families=0, families=None, family_speed=None,
+                               initial_families=100, families=None, family_speed=None,
                                max_family_size=10.0, seed=None, progress=False) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
@@ -695,7 +695,7 @@ class UnorderedGenome:
         return dup, los, org
 
 
-def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=0,
+def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,
               families=None) -> UnorderedGenome:
     """An unordered-genome **process spec** — :class:`UnorderedGenome`, unexecuted — for a joint model
     to grow with the tree its gene content drives (``joint.simulate_joint(genome=genomes.unordered(
