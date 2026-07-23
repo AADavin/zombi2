@@ -107,7 +107,7 @@ class Tree:
         return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.6g};"
 
 
-_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils")  # the write vocabulary the CLI reuses
+_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils", "fates")  # the write vocabulary the CLI reuses
 
 
 @dataclass
@@ -139,7 +139,16 @@ class SpeciesResult:
         """Write outputs to ``directory``, each file prefixed ``species_``; ``outputs`` selects which
         (default = all applicable): ``"complete"`` → ``species_complete.nwk``, ``"extant"`` →
         ``species_extant.nwk`` (if any survived), ``"events"`` → ``species_events.tsv`` (the
-        always-recorded true history), ``"fossils"`` → ``species_fossils.tsv`` (if any recovered)."""
+        always-recorded true history), ``"fossils"`` → ``species_fossils.tsv`` (if any recovered),
+        ``"fates"`` → ``species_fates.tsv`` (each tip's resolved fate).
+
+        ``species_fates.tsv`` is the tip-fate table: one ``lineage<TAB>fate`` row per tip, with fate
+        one of ``extant`` / ``extinct`` / ``unsampled``. Fate is resolved once, at the end of the run,
+        on the same stable ``n<id>`` that keys every other file, so it never renames anything — it is
+        a materialised view of information the run already holds. It exists because the ``.nwk`` records
+        only branch lengths, from which a reader cannot tell an extinct tip from a survivor that sits at
+        the present; this table says so directly, so a downstream level can build the extant set from
+        fate rather than guessing from tip depth."""
         if outputs is None:
             outputs = _WRITE_OUTPUTS
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
@@ -160,6 +169,12 @@ class SpeciesResult:
         if "fossils" in outputs and self.fossils:
             rows = ["lineage\ttime"] + [f"n{i}\t{t:.6g}" for i, t in self.fossils]
             (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n")
+        if "fates" in outputs:
+            # one row per tip (extant / extinct / unsampled); internal nodes are always speciations
+            rows = ["lineage\tfate"]
+            for n in sorted(self.complete_tree.leaves(), key=lambda nd: nd.id):
+                rows.append(f"n{n.id}\t{n.fate}")
+            (d / "species_fates.tsv").write_text("\n".join(rows) + "\n")
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -211,10 +226,11 @@ _ZOMBI_LABEL = re.compile(r"^n(\d+)$")  # the id-bearing label to_newick writes 
 
 def _assign_external_fates(leaves: list[Node], names: dict[int, str],
                            tip_fates: dict[str, str] | None, gap: float) -> None:
-    """Set extant/extinct on the tips of a **non-ultrametric** external tree from a user-supplied
-    ``tip_fates`` (``{tip label: "extant" | "extinct"}``). ZOMBI will not infer a tip's fate from its
-    depth here (a shallow tip could be extinct *or* an early sample), so a missing or mismatched map
-    raises rather than guesses."""
+    """Set the fate on the tips of a **non-ultrametric** external tree from a user-supplied
+    ``tip_fates`` (``{tip label: "extant" | "extinct" | "unsampled"}`` — the same vocabulary a species
+    run writes to ``species_fates.tsv``). ZOMBI will not infer a tip's fate from its depth here (a
+    shallow tip could be extinct *or* an early sample), so a missing or mismatched map raises rather
+    than guesses."""
     if tip_fates is None:
         raise ValueError(
             f"input tree is not ultrametric (tip depths differ by {gap:.3g}); ZOMBI can't tell "
@@ -234,9 +250,9 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
         raise ValueError(f"--tip-fates is missing a fate for: {', '.join(missing)}")
     if unknown:
         raise ValueError(f"--tip-fates names tips not in the tree: {', '.join(unknown)}")
-    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct")})
+    bad = sorted({v for v in fates.values() if v not in ("extant", "extinct", "unsampled")})
     if bad:
-        raise ValueError(f"tip fates must be 'extant' or 'extinct', got: {', '.join(bad)}")
+        raise ValueError(f"tip fates must be 'extant', 'extinct' or 'unsampled', got: {', '.join(bad)}")
     for n in leaves:
         n.fate = fates[names[n.id]]
 
@@ -260,8 +276,9 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
       - **ultrametric** → the tips are contemporaneous, so **every tip is ``"extant"``** (observed);
       - **not ultrametric** → the differing tip depths could mean extinct lineages *or* early
         samples, which ZOMBI cannot tell apart, so it **refuses to guess**: pass ``tip_fates`` — a
-        ``{tip label: "extant" | "extinct"}`` map covering every tip — or a :class:`ValueError` is
-        raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``.)
+        ``{tip label: "extant" | "extinct" | "unsampled"}`` map covering every tip — or a
+        :class:`ValueError` is raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``, which
+        reads the same format a species run writes to ``species_fates.tsv``.)
 
     A root branch length is read when present — ``to_newick`` writes one, so a ZOMBI tree round-trips
     with its stem intact. External trees usually have none, and then the root gets zero duration and
@@ -747,6 +764,16 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     if total_time is not None:
         tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress,
                              max_lineages)
+        # A time-conditioned run is not conditioned on survival, so with death ≥ birth it can reach
+        # total_time with nothing alive. An empty tree is not a sample anyone can use — the extant
+        # tree is None and every downstream level would otherwise mistake the last-dying tip for a
+        # survivor — so refuse it here rather than hand back a tree with no present.
+        if not any(nd.fate == "extant" for nd in tree.nodes.values()):
+            raise RuntimeError(
+                f"the run went extinct before total_time={total_time:g}: no lineage is alive at the "
+                f"present, so there is nothing to grow a genome, sequence or trait along. With death "
+                f"close to or above birth, total extinction is likely — lower death, shorten "
+                f"total_time, or use n_extant=... (which is conditioned on survival).")
         return _finish(tree, events)
 
     for _ in range(_MAX_ATTEMPTS):

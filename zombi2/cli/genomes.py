@@ -84,9 +84,10 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
-                   help="[external non-ultrametric trees] a TSV 'tip_name<TAB>extant|extinct' "
+                   help="[external non-ultrametric trees] a TSV 'tip_name<TAB>extant|extinct|unsampled' "
                         "declaring each tip's fate; required when the input tree is not ultrametric "
-                        "(ZOMBI won't guess extinct lineages from early-sampled tips)")
+                        "(ZOMBI won't guess extinct lineages from early-sampled tips). A species run's "
+                        "own species_fates.tsv is in this format and can be passed directly.")
 
     g = p.add_argument_group("gene-family events (D/T/L/O)", "rates on their natural scope — see RATES below")
     g.add_argument("--duplication", type=_rate, default=0.0, metavar="RATE",
@@ -217,9 +218,11 @@ def _transfer_to(text: str):
 
 
 def _read_tip_fates(path: str) -> dict:
-    """Parse a ``--tip-fates`` file into ``{tip_name: fate}``: one ``tip_name<TAB>extant|extinct``
-    row per tip (whitespace also accepted; blank lines and ``#`` comments skipped). The values are
-    checked against the tree by :func:`~zombi2.species.read_newick`."""
+    """Parse a ``--tip-fates`` file into ``{tip_name: fate}``: one
+    ``tip_name<TAB>extant|extinct|unsampled`` row per tip (whitespace also accepted; blank lines and
+    ``#`` comments skipped). This is the same shape ``species_fates.tsv`` is written in, so that output
+    feeds straight back in — its ``lineage<TAB>fate`` header row is recognised and skipped. The values
+    are checked against the tree by :func:`~zombi2.species.read_newick`."""
     fates = {}
     try:
         with open(path) as f:
@@ -228,8 +231,10 @@ def _read_tip_fates(path: str) -> dict:
                 if not line or line.startswith("#"):
                     continue
                 parts = line.split("\t") if "\t" in line else line.split()
+                if parts == ["lineage", "fate"]:
+                    continue  # the species_fates.tsv header, so that file is a valid --tip-fates input
                 if len(parts) != 2:
-                    raise ValueError(f"{path}:{lineno}: expected 'tip_name<TAB>extant|extinct', "
+                    raise ValueError(f"{path}:{lineno}: expected 'tip_name<TAB>extant|extinct|unsampled', "
                                      f"got {raw.rstrip()!r}")
                 fates[parts[0]] = parts[1]
     except FileNotFoundError:

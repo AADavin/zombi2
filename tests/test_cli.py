@@ -64,6 +64,26 @@ def test_read_newick_tip_fates_are_validated(fates, msg):
         read_newick("((a:1,b:1):1,c:1.5);", tip_fates=fates)
 
 
+def test_species_fates_file_is_a_valid_tip_fates_input(tmp_path):
+    # a species run's own species_fates.tsv is written in the --tip-fates format, so it feeds straight
+    # back in: the 'lineage<TAB>fate' header is skipped and the 'unsampled' value is kept
+    from zombi2.cli.genomes import _read_tip_fates
+    r = simulate_species_tree(birth=1.0, death=0.4, n_extant=12, sampling=0.5, seed=5)
+    r.write(tmp_path)
+    parsed = _read_tip_fates(str(tmp_path / "species_fates.tsv"))
+    assert "lineage" not in parsed                               # the header row did not leak in as a tip
+    assert "unsampled" in set(parsed.values())                   # sampling<1 produced unsampled tips, kept
+    assert parsed == {f"n{n.id}": n.fate for n in r.complete_tree.leaves()}
+
+
+def test_unsampled_is_an_accepted_external_tip_fate():
+    # 'unsampled' (a survivor not observed) is a legal fate for an external tree too, not just ZOMBI's own
+    t, names = read_newick("((a:1,b:1):1,c:1.5);",
+                           tip_fates={"a": "extant", "b": "unsampled", "c": "extinct"})
+    fate = {names[n.id]: n.fate for n in t.nodes.values() if n.children is None}
+    assert fate == {"a": "extant", "b": "unsampled", "c": "extinct"}
+
+
 def test_read_newick_output_feeds_the_genomes_engine():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=5)
     back, _ = read_newick(r.complete_tree.to_newick())
@@ -560,9 +580,11 @@ def test_params_unknown_key_errors(tmp_path):
 def test_species_takes_a_rate_expression_and_it_bends_the_tree(tmp_path):
     # a skyline that collapses speciation at t=2 must give a smaller tree than the flat rate,
     # i.e. the modifier reached the engine rather than being parsed and dropped
+    # seed 2 survives both flat and skyline to the present (the collapsed skyline rate can otherwise
+    # let a run go fully extinct, which is now refused)
     flat, skyline = tmp_path / "flat", tmp_path / "sky"
-    main(["species", str(flat), "--birth", "1.0", "--death", "0.2", "--total-time", "6", "--seed", "4", "--flat"])
-    main(["species", str(skyline), "--birth", "1.0 * OnTime({0: 1.0, 2: 0.05})", "--death", "0.2", "--total-time", "6", "--seed", "4", "--flat"])
+    main(["species", str(flat), "--birth", "1.0", "--death", "0.2", "--total-time", "6", "--seed", "2", "--flat"])
+    main(["species", str(skyline), "--birth", "1.0 * OnTime({0: 1.0, 2: 0.05})", "--death", "0.2", "--total-time", "6", "--seed", "2", "--flat"])
     n = {d: len(read_newick((d / "species_complete.nwk").read_text())[0].nodes)
          for d in (flat, skyline)}
     assert n[skyline] < n[flat]
