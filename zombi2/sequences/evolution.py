@@ -29,7 +29,8 @@ from .substitution_models import SubstitutionModel
 
 def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: float,
                      clock: "dict[int, float] | None", rng: np.random.Generator,
-                     origination: float) -> tuple[dict[int, np.ndarray], np.ndarray]:
+                     origination: float,
+                     founding: "np.ndarray | None" = None) -> tuple[dict[int, np.ndarray], np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
     :class:`~zombi2.genomes.gene_trees.GeneNode`), starting at ``origination``.
 
@@ -47,10 +48,20 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     the moment it originates, and its founding gene evolves across the stem before whatever event ends
     it. Drawing the root's own sequence from the stationary frequencies instead would leave that
     stretch of the gene's life un-evolved, and give the phylogram a root branch nothing happened on.
+
+    ``founding`` supplies the sequence the family began with (integer states, ``length`` long) instead
+    of drawing it from the stationary frequencies — how a run seeded from a real ``fasta=`` starts each
+    block from the supplied DNA. It still evolves across the stem; at rate 0 it survives unchanged,
+    which is what makes the assembled root genome equal the input.
     """
     pi = model.stationary
     k = model.k
-    founding_states = rng.choice(k, size=length, p=pi).astype(np.int8)
+    if founding is None:
+        founding_states = rng.choice(k, size=length, p=pi).astype(np.int8)
+    else:
+        founding_states = np.asarray(founding, dtype=np.int8)
+        if founding_states.shape != (length,):
+            raise ValueError(f"founding sequence is {founding_states.shape}, expected ({length},)")
     out: dict[int, np.ndarray] = {}
     pcache: dict[float, np.ndarray] = {}
 

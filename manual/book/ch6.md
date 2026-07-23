@@ -218,9 +218,10 @@ zombi2 genomes out/ --resolution nucleotide \
   --root-length 5000 --genes 6 --gene-length 300 \
   --inversion 1.0 --inversion-length 400 --duplication 0.3 --loss 0.3 --seed 1
 
-# or start from a real genome: the GFF declares the replicons and the genes
+# or start from a real genome: the GFF declares the replicons and the genes,
+# and a paired FASTA supplies the actual DNA those coordinates hold
 zombi2 genomes out/ --resolution nucleotide \
-  --gff ecoli.gff --inversion 0.5 --loss 0.4 --loss-length 900 --seed 1
+  --gff ecoli.gff --fasta ecoli.fasta --inversion 0.5 --loss 0.4 --loss-length 900 --seed 1
 ```
 
 Every event kind has its own `--<event>-length`, the mean of a geometric draw in base pairs: `--inversion-length`, `--loss-length`, `--duplication-length`, `--transfer-length`, `--transposition-length`, `--translocation-length`, `--origination-length`.
