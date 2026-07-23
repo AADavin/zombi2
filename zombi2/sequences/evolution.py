@@ -50,7 +50,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     stretch of the gene's life un-evolved, and give the phylogram a root branch nothing happened on.
 
     ``founding`` supplies the sequence the family began with (integer states, ``length`` long) instead
-    of drawing it from the stationary frequencies — how a run seeded from a real ``fasta=`` starts each
+    of drawing it from the stationary frequencies — how a run founded from a real ``fasta=`` starts each
     block from the supplied DNA. It still evolves across the stem; at rate 0 it survives unchanged,
     which is what makes the assembled root genome equal the input.
     """

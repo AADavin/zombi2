@@ -189,7 +189,7 @@ def test_heterogeneous_seeding_sizes_and_shapes():
     assert {c.blocks[0].source for c in chroms} == {0, 1, 2}
 
 
-def test_every_node_carries_the_whole_root_sequence_permuted():
+def test_every_node_carries_the_whole_initial_sequence_permuted():
     # the strong invariant across chromosomes: inheritance copies ancestry, inversion changes none
     specs = [(100, "circular"), (40, "circular"), (25, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=3)
@@ -1719,8 +1719,8 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     expected = collections.Counter()
     for e in r.events:
         kind = type(e).__name__.lower()
-        if kind == "origination":                    # the initial genome is 'seed', not 'origination'
-            kind = "seed" if e.seed else "origination"
+        if kind == "origination":                    # the initial genome is 'initial', not 'origination'
+            kind = "initial" if e.initial else "origination"
         n = {"loss": len(getattr(e, "lost", ())), "duplication": len(getattr(e, "copied", ())),
              "transfer": len(getattr(e, "transferred", ())),
              "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
@@ -1728,7 +1728,7 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     for r_ in r.rearrangements:                      # they share the table; count them too
         expected[type(r_).__name__.lower()] += 1
     assert collections.Counter(row["kind"] for row in rows) == expected
-    assert {"seed", "origination", "loss", "duplication", "transfer", "speciation"} <= set(expected), \
+    assert {"initial", "origination", "loss", "duplication", "transfer", "speciation"} <= set(expected), \
         f"the fixture should exercise every event kind, got {sorted(expected)}"
 
 

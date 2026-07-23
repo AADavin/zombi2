@@ -87,7 +87,7 @@ class GenomesResult:
     genomes: dict[int, tuple[GeneCopy, ...]]
     events: list[Event]
     seed: int | None
-    #: ``{name: family id}`` for families seeded by ``families=[…]`` — the handle to a *named* family
+    #: ``{name: family id}`` for families declared by ``families=[…]`` — the handle to a *named* family
     #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
     family_names: dict[str, int] = field(default_factory=dict)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
@@ -101,10 +101,10 @@ class GenomesResult:
         return collections.Counter(c.family for c in self.genomes[node_id])
 
     def has_family(self, node_id: int, name: str) -> bool:
-        """Whether the named family ``name`` (seeded via ``families=``) is present — has ≥ 1 copy — in
+        """Whether the named family ``name`` (declared via ``families=``) is present — has ≥ 1 copy — in
         the genome at ``node_id``. The presence signal a joint ``DrivenBy("genomes:<name>", …)`` reads."""
         if name not in self.family_names:
-            raise KeyError(f"no named family {name!r}; seeded families are {sorted(self.family_names)}")
+            raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
         return any(c.family == fid for c in self.genomes[node_id])
 
@@ -342,7 +342,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     by another level; see below). ``replacement=True`` overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
-    as originations at the crown. ``families=["toxin", …]`` additionally seeds **named** families —
+    as originations at the crown. ``families=["toxin", …]`` additionally declares **named** families —
     each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
     ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
@@ -490,7 +490,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     genomes: dict[int, tuple[GeneCopy, ...]] = {}
     events: list[Event] = []
     enter(alive, gen, pos, root.id, [])
-    for _ in range(initial_families):  # seed the crown as originations at t = root.birth_time
+    for _ in range(initial_families):  # lay down the crown as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
     family_names: dict[str, int] = {}  # named families: a minted id per name (so GeneCopy.family stays int)
     for name in families:

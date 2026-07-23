@@ -32,7 +32,7 @@ slowly). Built so far:
   *within* its own (transposition), optionally inverted (probability ``inversion_probability``). Both
   keep source coordinates, so they are *rearrangements*, not network edges.
 
-Those are all **ancestry-neutral** (the strong invariant: every node carries the whole root sequence,
+Those are all **ancestry-neutral** (the strong invariant: every node carries the whole initial sequence,
 permuted). The ancestry-**changing** events are here too:
 
 - **Loss** — an arc deleted (per lineage, never emptying a chromosome). A death, in the ``events``
@@ -600,11 +600,11 @@ class Origination:
     ``lineage`` new material was laid down on chromosome ``chromosome`` as copy lineage ``copy``,
     covering the ancestral interval ``[start, end)`` on ``source``.
 
-    ``seed`` tells the two roots apart. A **seed** origination (``seed=True``) lays down the initial
-    genome at the crown — one per root replicon — and is what the run *starts* with, not something it
-    *did*; it is written with kind ``"seed"`` so counting ``"origination"`` in the log gives the
-    de-novo births alone (what the ``origination`` rate controls). A **de-novo** origination
-    (``seed=False``) is a fresh source arising mid-tree. The gene-tree recovery reads either as the
+    ``initial`` tells the two roots apart. An **initial** origination (``initial=True``) lays down the
+    initial genome at time 0 — one per initial replicon — and is what the run *starts* with, not
+    something it *did*; it is written with kind ``"initial"`` so counting ``"origination"`` in the log
+    gives the de-novo births alone (what the ``origination`` rate controls). A **de-novo** origination
+    (``initial=False``) is a fresh source arising mid-tree. The gene-tree recovery reads either as the
     root of its family."""
 
     time: float
@@ -614,7 +614,7 @@ class Origination:
     source: int
     start: int
     end: int
-    seed: bool = False
+    initial: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -700,20 +700,20 @@ class NucleotideGenomesResult:
     #: unrelated to :attr:`Block.strand`, which records whether a stretch has been inverted since the
     #: root. The even layout declares every gene on ``+1``.
     gene_strands: dict[int, int] = field(default_factory=dict)
-    #: The genome the run **started** with — the seeded karyotype at the root lineage's origination,
+    #: The genome the run **started** with — the initial karyotype, laid down at the start of the root branch,
     #: before any event. It is not in :attr:`genomes`, which holds a genome per *node*, and a node
     #: sits at the **end** of its branch: the root branch is real simulated time, so
     #: ``genomes[root]`` is this genome plus whatever happened along the stem. It votes on the root
     #: partition like every other genome, so it can be reconstructed too — see
     #: :meth:`initial_assembly`.
     initial_genome: NucleotideGenome = field(default_factory=lambda: NucleotideGenome([]))
-    #: ``{source: DNA}`` — the **root sequence** the run was seeded with, one entry per seeded replicon,
+    #: ``{source: DNA}`` — the **initial sequence** the run was given, one entry per initial replicon,
     #: from ``fasta=`` paired with ``gff=``. Empty when no FASTA was given (then the sequence level
     #: draws the founding sequence from the model instead). A *de-novo* originated source is never
     #: here: it arose mid-run, so nothing was supplied for it. The letters live here, not in
     #: :attr:`genomes` (which is pure ancestry) — the sequence level reads them as each block's
     #: founding sequence, and an assembled genome then descends from exactly this input.
-    root_sequence: dict[int, str] = field(default_factory=dict)
+    initial_sequence: dict[int, str] = field(default_factory=dict)
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -828,7 +828,7 @@ class NucleotideGenomesResult:
         The initial genome sits at the **start** of the root branch, before any event, so each of its
         blocks has exactly one sequence — the founding draw the sequence level records as
         ``founding[block]`` — and there is no copy to disambiguate. A gene id would in fact be *wrong*
-        here: the one :meth:`assembly` gives is the **last** gene a copy held, and for a seed copy
+        here: the one :meth:`assembly` gives is the **last** gene a copy held, and for an initial copy
         that is at the far end of the stem. A loss on the stem can even end it, which is the same
         thing said louder."""
         return {cid: [(i, strand) for (i, _copy, strand) in pieces]
@@ -886,7 +886,7 @@ class NucleotideGenomesResult:
         return self._recover()[1]
 
     def write(self, directory,
-              outputs=("events", "genes", "blocks", "initial_genome", "root_sequence",
+              outputs=("events", "genes", "blocks", "initial_genome", "initial_sequence",
                        "gene_trees", "chromosome_events", "gff", "bed")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -909,7 +909,7 @@ class NucleotideGenomesResult:
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, one recovered
           genealogy per family some node still carries; the ``_extant`` file only where the family
           has a surviving copy.
-        - ``"root_sequence"`` → ``root_sequence.fasta``, the seed DNA the run was given (``fasta=``),
+        - ``"initial_sequence"`` → ``initial_sequence.fasta``, the initial DNA the run was given (``fasta=``),
           one ``>source<n>`` record per replicon. Written only when a FASTA was supplied — it is what
           lets a separate ``zombi2 sequences`` run found its blocks from the real sequence.
         - ``"gff"`` → ``genome_<lineage>.gff``, that genome's **genes**, in its own coordinates: the
@@ -936,10 +936,10 @@ class NucleotideGenomesResult:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, d)
-        if "root_sequence" in outputs and self.root_sequence:
-            (d / "root_sequence.fasta").write_text(
-                "".join(f">source{src}\n{self.root_sequence[src]}\n"
-                        for src in sorted(self.root_sequence)))
+        if "initial_sequence" in outputs and self.initial_sequence:
+            (d / "initial_sequence.fasta").write_text(
+                "".join(f">source{src}\n{self.initial_sequence[src]}\n"
+                        for src in sorted(self.initial_sequence)))
         for token, ext, render in (("gff", "gff", self._gff), ("bed", "bed", self._bed)):
             if token in outputs:
                 for label, genome in self._every_genome():
@@ -976,7 +976,7 @@ class NucleotideGenomesResult:
                 (x for x in self._laid_out(genome) if x[2].is_gene), start=1):
             strand = "+" if self.gene_strands.get(b.gene, 1) * b.strand == 1 else "-"
             # ID is a plain per-file counter, because GFF wants one unique handle and nothing else
-            # here is: `copy` is the *block's* copy lineage, and a whole replicon is seeded as one, so
+            # here is: `copy` is the *block's* copy lineage, and a whole replicon is laid down as one, so
             # every gene on it shares it until something duplicates them apart. What joins this row to
             # the rest of the run is `family` — its gene tree, and its alignment via block_of(family).
             named = f"Name={name_of[b.gene]};" if b.gene in name_of else ""
@@ -1039,7 +1039,7 @@ class NucleotideGenomesResult:
 
 #: One table for the whole history of a run: the copy-lineage genealogy and the ancestry-neutral
 #: rearrangements, interleaved by time. ``source`` / ``start`` / ``end`` are **ancestral** coordinates
-#: — which stretch of which root sequence — while ``position`` / ``length`` are **physical** ones on
+#: — which stretch of which source — while ``position`` / ``length`` are **physical** ones on
 #: the chromosome named by ``chromosome``, as ``blocks.tsv`` numbers it. They are different frames,
 #: so they are different columns.
 _NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "parent", "recipient",
@@ -1072,7 +1072,7 @@ def _nucleotide_events_tsv(events, rearrangements=()) -> str:
 
     for e in events:
         if isinstance(e, Origination):
-            row(e.time, "seed" if e.seed else "origination", e.lineage, e.chromosome, e.copy,
+            row(e.time, "initial" if e.initial else "origination", e.lineage, e.chromosome, e.copy,
                 None, None, e.source, e.start, e.end)
         elif isinstance(e, Loss):
             for (copy, source, start, end) in e.lost:
@@ -1194,9 +1194,9 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
         if not pending:
             return
         kind, time, lineage, chrom, recipient = pending[0][:5]
-        if kind in ("origination", "seed"):
+        if kind in ("origination", "initial"):
             (_k, _t, _l, _c, _r, copy, _p, src, start, end) = pending[0]
-            events.append(Origination(time, lineage, chrom, copy, src, start, end, seed=kind == "seed"))
+            events.append(Origination(time, lineage, chrom, copy, src, start, end, initial=kind == "initial"))
         elif kind == "loss":
             events.append(Loss(time, lineage, chrom,
                                tuple((c, s, a, b) for (*_h, c, _p, s, a, b) in pending)))
@@ -1217,7 +1217,7 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "genome_events.tsv"):
         (time, kind, lineage, chrom, copy, parent, recipient, source, start, end,
          *_physical) = cells
-        if kind not in ("origination", "seed", "loss", "duplication", "transfer", "speciation"):
+        if kind not in ("origination", "initial", "loss", "duplication", "transfer", "speciation"):
             flush()                                  # a rearrangement: it ends no copy lineage
             t, ln = float(time), node_from_label(lineage)
             at, ell, dc, dp, fl = (num(c) for c in _physical)
@@ -1234,13 +1234,13 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
                node_from_label(recipient) if recipient else None,
                num(copy), num(parent), num(source), num(start), num(end))
         # what makes this row part of the *same* event as the last one
-        row_key = (None if kind in ("origination", "seed") else
+        row_key = (None if kind in ("origination", "initial") else
                    (*row[:3], row[6]) if kind == "speciation" else row[:5])
         if pending and row_key != key:
             flush()
         pending.append(row)
         key = row_key
-        if kind in ("origination", "seed"):
+        if kind in ("origination", "initial"):
             flush()
     flush()
     return events, rearrangements
@@ -1251,7 +1251,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
     replay it from disk. ``tree`` is the species tree it ran on.
 
     Reads ``blocks.tsv``, ``initial_genome.tsv``, ``genome_events.tsv`` and ``genes.tsv`` — the four
-    the recovery needs — and ``root_sequence.fasta`` if present, so a run seeded from real DNA still
+    the recovery needs — and ``initial_sequence.fasta`` if present, so a run given real DNA still
     founds its blocks from it. The rearrangements come back too, since they share the event table now.
     ``chromosome_events.tsv`` is not read: it records how the karyotype got its shape, and the shape
     itself is already in ``blocks.tsv``. What comes back reconstructs and writes exactly as the
@@ -1269,15 +1269,15 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
     events, rearrangements = _events_from_tsv(read("genome_events.tsv"))
-    root_sequence: dict[int, str] = {}
-    fpath = d / "root_sequence.fasta"
-    if fpath.exists():                               # a run seeded from real DNA; keyed by source id
+    initial_sequence: dict[int, str] = {}
+    fpath = d / "initial_sequence.fasta"
+    if fpath.exists():                               # a run given real DNA; keyed by source id
         for sq, seq in read_fasta(fpath).items():
-            root_sequence[int(sq[len("source"):] if sq.startswith("source") else sq)] = seq
+            initial_sequence[int(sq[len("source"):] if sq.startswith("source") else sq)] = seq
     return NucleotideGenomesResult(
         tree, _blocks_from_tsv(read("blocks.tsv")), events, rearrangements,
         [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")),
-        root_sequence)
+        initial_sequence)
 
 
 def _valid_length(length) -> int:
@@ -1288,7 +1288,7 @@ def _valid_length(length) -> int:
 
 def _replicon_specs(chromosomes, root_length, topology) -> list[tuple[int, str]]:
     """Resolve the ``chromosomes`` argument to a list of ``(length, topology)`` replicon specs. An int
-    ``N`` seeds ``N`` equal replicons of ``root_length`` and ``topology``; a list gives heterogeneous
+    ``N`` gives ``N`` equal replicons of ``root_length`` and ``topology``; a list gives heterogeneous
     replicons of different **sizes and shapes**, e.g. ``[(1000, "circular"), (50, "linear")]``."""
     if isinstance(chromosomes, bool) or isinstance(chromosomes, int):
         if isinstance(chromosomes, bool) or chromosomes < 1:
@@ -1315,11 +1315,11 @@ def _even_gene_intervals(length, genes, gene_length) -> list[tuple[int, int, int
     return out
 
 
-def _seed_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names,
+def _initial_blocks(source, length, cp, intervals, new_family, gene_spans, gene_names,
                  gene_strands) -> list[Block]:
-    """Lay one seed replicon of ``length`` down as its blocks: the declared genes at ``intervals``
+    """Lay one initial replicon of ``length`` down as its blocks: the declared genes at ``intervals``
     (0-based half-open, sorted, non-overlapping) and **intergene** everywhere else — the alternating
-    chain. Every block shares the replicon's seed copy lineage ``cp`` (they are one copy of one
+    chain. Every block shares the replicon's initial copy lineage ``cp`` (they are one copy of one
     replicon); each **gene** additionally gets a fresh **family** id, which is what makes it indivisible
     and gives it a gene tree, and is recorded in ``gene_spans``, ``gene_strands`` (its **coding**
     strand) and ``gene_names`` (when it is named).
@@ -1329,8 +1329,8 @@ def _seed_blocks(source, length, cp, intervals, new_family, gene_spans, gene_nam
         if start > at:
             blocks.append(Block(source, at, start, 1, cp))       # intergene before this gene
         fam = new_family()
-        # NB: every seed block is strand +1. `Block.strand` is orientation *relative to the ancestral
-        # source*, and at the root the genome IS its own source — nothing is inverted yet. A gene's
+        # NB: every initial block is strand +1. `Block.strand` is orientation *relative to the ancestral
+        # source*, and at the start the genome IS its own source — nothing is inverted yet. A gene's
         # coding strand from the GFF is a different thing entirely (which strand carries the ORF), a
         # constant property of the family, so it is recorded separately.
         blocks.append(Block(source, start, end, 1, cp, fam))
@@ -1700,7 +1700,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                 progress=False) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
-    The root is seeded with a **karyotype** — ``chromosomes`` replicons, each its own source: an int
+    The run starts from a **karyotype** — ``chromosomes`` replicons, each its own source: an int
     ``N`` gives ``N`` equal replicons of ``root_length``/``topology``, or pass a list of ``(length,
     topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's
     karyotype at speciation, with **every chromosome re-minted** (the chromosome network), and evolves:
@@ -1737,7 +1737,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     much it touches, so a bigger genome does not get proportionally more events; the chromosome tier is
     per chromosome), so a transfer
     couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
-    of the root sequence (each ancestral position at most once, monotonically down every path);
+    of the initial sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
     additive for now; homologous *replacement* transfer is a later refinement.)"""
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
@@ -1774,7 +1774,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         raise ValueError(f"genes must be a non-negative integer, got {genes!r}")
     if genes and (isinstance(gene_length, bool) or not isinstance(gene_length, int) or gene_length < 1):
         raise ValueError(f"gene_length must be a positive integer, got {gene_length!r}")
-    root_sequence: dict[int, str] = {}               # {source: root DNA}, empty unless a FASTA is given
+    initial_sequence: dict[int, str] = {}               # {source: initial DNA}, empty unless a FASTA is given
     if gff is not None:                              # declared from a GFF: exact coordinates and names
         if genes:
             raise ValueError("pass either gff= or genes=, not both — a GFF already declares the genes")
@@ -1785,7 +1785,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
             by_seqid[gene.seqid].append((gene.start, gene.end, gene.strand, gene.name))
         specs = [(_valid_length(lengths[sq]), topology) for sq in seqids]
         layouts = [by_seqid[sq] for sq in seqids]
-        if fasta is not None:                        # the root DNA, one record per replicon, by seqid
+        if fasta is not None:                        # the initial DNA, one record per replicon, by seqid
             seqs = read_fasta(fasta)
             if set(seqs) != set(seqids):
                 raise ValueError(
@@ -1796,11 +1796,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                     raise ValueError(
                         f"replicon {sq!r} is {lengths[sq]} bp in the GFF but {len(seqs[sq])} bp in "
                         "the FASTA — the sequence must be exactly as long as its sequence-region")
-                root_sequence[i] = seqs[sq]
+                initial_sequence[i] = seqs[sq]
     else:
         if fasta is not None:
             raise ValueError("fasta= needs gff=: the FASTA's records are matched to the GFF's "
-                             "replicons by id, so there is nothing to seed without one")
+                             "replicons by id, so there is nothing to lay down without one")
         specs = _replicon_specs(chromosomes, root_length, topology)
         for _length, _top in specs:                  # the genes must fit; they need not leave a gap
             if genes and genes * gene_length > _length:
@@ -1816,7 +1816,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     rng = np.random.default_rng(seed)
     chrom_counter = 0
     copy_counter = 0
-    source_counter = len(specs)                          # de-novo sources continue past the seed sources
+    source_counter = len(specs)                          # de-novo sources continue past the initial sources
 
     def new_chrom_id() -> int:
         nonlocal chrom_counter
@@ -1849,31 +1849,31 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     root = tree.nodes[tree.root]
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)   # (end_time, node) in time order
 
-    root_chroms = []
+    initial_chroms = []
     gene_spans: dict[int, tuple[int, int, int]] = {}
     gene_names: dict[str, int] = {}
     gene_strands: dict[int, int] = {}
     for source, ((length, top), intervals) in enumerate(zip(specs, layouts)):  # one source per replicon
         cid = new_chrom_id()
-        cp = new_copy()                                 # ...and one seed copy lineage per replicon
-        root_chroms.append(Chromosome(cid, top, _seed_blocks(source, length, cp, intervals, new_family,
+        cp = new_copy()                                 # ...and one initial copy lineage per replicon
+        initial_chroms.append(Chromosome(cid, top, _initial_blocks(source, length, cp, intervals, new_family,
                                                              gene_spans, gene_names,
                                                              gene_strands)))
         chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
-        events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length, seed=True))
+        events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length, initial=True))
 
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     initial_genome = NucleotideGenome(
         [Chromosome(c.id, c.topology, [Block(b.source, b.start, b.end, b.strand, b.copy, b.gene)
-                                       for b in c.blocks]) for c in root_chroms])
+                                       for b in c.blocks]) for c in initial_chroms])
 
     t = root.birth_time
     alive: list[int] = []                               # the live-lineage set (species._grow shape)
     gen: list[NucleotideGenome] = []
     pos: dict[int, int] = {}
-    enter(alive, gen, pos, root.id, NucleotideGenome(root_chroms))
-    total_length = sum(c.length for c in root_chroms)
-    total_chromosomes = len(root_chroms)
+    enter(alive, gen, pos, root.id, NucleotideGenome(initial_chroms))
+    total_length = sum(c.length for c in initial_chroms)
+    total_chromosomes = len(initial_chroms)
 
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
@@ -1975,7 +1975,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
             si += 1
     bar.close()
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                  gene_spans, gene_names, gene_strands, initial_genome, root_sequence)
+                                  gene_spans, gene_names, gene_strands, initial_genome, initial_sequence)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
