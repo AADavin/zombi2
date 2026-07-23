@@ -1,10 +1,10 @@
-"""Reading a **GFF** — declaring the genes of a seed genome.
+"""Reading a **GFF** — declaring the genes of an initial genome.
 
-The nucleotide engine can be seeded from a GFF3 instead of an evenly-spaced layout: each ``gene``
+The nucleotide engine can be declared from a GFF3 instead of an evenly-spaced layout: each ``gene``
 feature becomes a **declared, indivisible gene** at exactly those coordinates, and whatever lies
 between genes becomes **intergene**. That is the "start from a real genome" path.
 
-Only what the seeding needs is read:
+Only what declaring the genes needs is read:
 
 - ``##sequence-region <seqid> <start> <end>`` — one **replicon** and its extent. When a GFF omits it,
   the replicon is taken to end at its last gene.
@@ -12,7 +12,7 @@ Only what the seeding needs is read:
 
 GFF is **1-based inclusive**; blocks are **0-based half-open**, so coordinates are converted on the way
 in (``start-1``, ``end``). ``strand`` becomes ``+1`` / ``-1`` (``.`` reads as ``+1``), so a gene declared
-on the minus strand is seeded reverse-complemented. The gene's name is its ``ID`` attribute (else
+on the minus strand is laid down reverse-complemented. The gene's name is its ``ID`` attribute (else
 ``Name``, else a generated ``seqid:start-end``).
 """
 
@@ -135,7 +135,7 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
 
 def read_fasta(source) -> dict[str, str]:
     """Read ``source`` (a path or an iterable of lines) into ``{seqid: sequence}`` — the root DNA a
-    nucleotide genome run is seeded with, paired with the GFF that lays its genes out.
+    nucleotide genome run starts from, paired with the GFF that lays its genes out.
 
     A record is a ``>seqid`` header (the id is its first whitespace-delimited token, matching a GFF
     ``##sequence-region``) followed by sequence lines, which are concatenated and upper-cased. Bases
@@ -168,7 +168,7 @@ def read_fasta(source) -> dict[str, str]:
         bad = set(seq) - set("ACGT")
         if bad:
             raise ValueError(f"FASTA {sq!r} has non-ACGT characters {sorted(bad)} — a nucleotide "
-                             "genome is seeded with DNA (ambiguity codes and gaps are not supported)")
+                             "genome is given DNA (ambiguity codes and gaps are not supported)")
         out[sq] = seq
     return out
 

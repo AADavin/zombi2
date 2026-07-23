@@ -345,7 +345,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     ``wag`` · ``lg``; its alphabet is what the sequences are written in (``ACGT`` or the 20 amino
     acids). ``length`` is the number of sites. ``substitution`` is the per-site substitution
     rate (default ``1.0``): a branch of ``Δt`` time accrues ``substitution · Δt`` substitutions/site.
-    The root sequence of each family is drawn from the model's stationary frequencies. Deterministic
+    The founding sequence of each family is drawn from the model's stationary frequencies. Deterministic
     given ``seed``.
 
     ``substitution`` may carry a **lineage clock**: ``1.0 * mod.ByLineage(spread=)`` draws one i.i.d.
@@ -412,21 +412,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             is_gene = (src, a, b) in genic
             per_block[i] = (b - a, model if is_gene else intergene_model,
                             1.0 if is_gene else float(intergene_speed))
-        # Seeded from a real FASTA: a block's founding sequence is the supplied DNA at its own root
+        # Founded from a real FASTA: a block's founding sequence is the supplied DNA at its own root
         # coordinates, encoded to states, rather than a stationary draw. A de-novo source is not in
-        # root_sequence (it arose mid-run), so its blocks still draw from the model. `None` per block
-        # ⇒ draw, exactly as before, so an unseeded run is unchanged.
+        # initial_sequence (it arose mid-run), so its blocks still draw from the model. `None` per block
+        # ⇒ draw, exactly as before, so a run without one is unchanged.
         founding_seed: dict[int, "np.ndarray | None"] = {}
         for i, (src, a, b) in enumerate(blocks):
-            root = genomes.root_sequence.get(src)
+            root = genomes.initial_sequence.get(src)
             if root is None:
                 founding_seed[i] = None
                 continue
             f_model = model if (src, a, b) in genic else intergene_model
             if f_model.alphabet != BASES:
                 raise ValueError(
-                    f"the run was seeded from a FASTA (DNA), but {f_model.name} is a protein model — "
-                    "a nucleotide root sequence cannot found an amino-acid alignment")
+                    f"the run was founded from a FASTA (DNA), but {f_model.name} is a protein model — "
+                    "a nucleotide sequence cannot found an amino-acid alignment")
             founding_seed[i] = encode(root[a:b], f_model.alphabet)
     else:
         gene_trees = genomes.gene_trees
@@ -505,7 +505,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         assembled = _assemble(genomes, sorted(extant), alignments)
         assembled.update(_assemble(genomes, [i for i in sorted(species_tree.nodes)
                                              if i not in extant], ancestral))
-        # The genome the run started with. Its blocks were all laid down at seeding, so each one's
+        # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
         # so it is in neither map above; the same reason `founding` is not in `ancestral`.
         for cid, pieces in genomes.initial_assembly().items():

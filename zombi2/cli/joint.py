@@ -82,7 +82,7 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--initial-families", type=int, default=0, metavar="N", dest="initial_families",
                    help="gene families the root genome starts with (default 0)")
     g.add_argument("--families", metavar="A,B,...", default=None,
-                   help="named families to seed, comma-separated — a name is what "
+                   help="named families to declare, comma-separated — a name is what "
                         "DrivenBy('genomes:<name>', …) reads")
 
     g = p.add_argument_group("outputs")

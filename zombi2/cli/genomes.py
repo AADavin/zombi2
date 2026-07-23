@@ -65,7 +65,7 @@ _NUCLEOTIDE_ONLY = (
 # resolved value, so a run is never ambiguous about which it used.
 _DEFAULT_INITIAL_FAMILIES = 100
 
-# knobs the nucleotide engine does not have — it seeds from a sequence, not from a family count,
+# knobs the nucleotide engine does not have — it starts from a sequence, not from a family count,
 # and its transfers are always additive. Paired with the default, so leaving the flag alone is not
 # mistaken for setting it.
 _NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False))
@@ -146,19 +146,19 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("nucleotide genome", "only with --resolution nucleotide")
     g.add_argument("--root-length", type=int, default=1000, metavar="BP", dest="root_length",
-                   help="length in bp of each seed replicon (default 1000)")
+                   help="length in bp of each initial replicon (default 1000)")
     g.add_argument("--genes", type=int, default=0, metavar="N",
-                   help="number of evenly-spaced genes to declare on each seed replicon (default 0 "
+                   help="number of evenly-spaced genes to declare on each initial replicon (default 0 "
                         "— an all-intergenic genome). Use --gff instead to declare real ones")
     g.add_argument("--gene-length", type=int, default=100, metavar="BP", dest="gene_length",
                    help="length in bp of each evenly-spaced gene (default 100)")
     g.add_argument("--gff", metavar="FILE",
-                   help="a GFF3 declaring the seed genome's replicons and genes at exact "
+                   help="a GFF3 declaring the initial genome's replicons and genes at exact "
                         "coordinates — the 'start from a real genome' path (excludes --genes)")
     g.add_argument("--trim-overlaps", action="store_true", dest="trim_overlaps",
                    help="[--gff] shorten overlapping gene annotations instead of refusing the file")
     g.add_argument("--fasta", metavar="FILE",
-                   help="[--gff] the seed genome's DNA — one >seqid record per GFF ##sequence-region, "
+                   help="[--gff] the initial genome's DNA — one >seqid record per GFF ##sequence-region, "
                         "each exactly its declared length. The sequence level then founds every block "
                         "from this DNA, so an assembled genome descends from exactly what you supply; "
                         "without it the run is pure ancestry and letters come from the model")
@@ -242,14 +242,14 @@ def run(args, parser):
                          f"(the {args.resolution} resolution counts genes, not base pairs)")
     else:
         if stray := _stray(args, _NOT_IN_NUCLEOTIDE):
-            parser.error(f"the nucleotide resolution has no {', '.join(stray)} (it is seeded from "
+            parser.error(f"the nucleotide resolution has no {', '.join(stray)} (it is founded from "
                          "a sequence — see --root-length / --genes / --gff — and its transfers are "
                          "additive)")
         if args.gff and args.genes:
             parser.error("pass either --gff or --genes, not both — a GFF already declares the genes")
         if args.fasta and not args.gff:
             parser.error("--fasta needs --gff: the FASTA's records are matched to the GFF's "
-                         "replicons by id, so there is nothing to seed without one")
+                         "replicons by id, so there is nothing to lay down without one")
         # the nucleotide engine holds each rate constant, so a modifier expression would be
         # accepted and then dropped; refuse it instead
         modulated = [f"--{n}" for n in ("duplication", "transfer", "loss", "origination", "inversion",

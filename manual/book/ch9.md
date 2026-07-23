@@ -157,7 +157,7 @@ joint.simulate_joint(
 
 Driving `death` with the same modifier makes extinction state-dependent too, and a birth *and* death that both read the trait is the model the literature calls BiSSE — with more than two states, MuSSE.
 
-**Gene content drives speciation** — `P(Species, Genomes)`. The presence of a key gene, a toxin or a transporter, lifts a lineage's speciation rate, and the genome and the tree grow together. The genome enters as a process spec in the same way, and the family whose presence does the driving has to be seeded at the root:
+**Gene content drives speciation** — `P(Species, Genomes)`. The presence of a key gene, a toxin or a transporter, lifts a lineage's speciation rate, and the genome and the tree grow together. The genome enters as a process spec in the same way, and the family whose presence does the driving has to be declared in the initial genome:
 
 ```python
 joint.simulate_joint(

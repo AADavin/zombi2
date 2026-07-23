@@ -20,7 +20,7 @@ so they live in the ``rearrangements`` log, not the gene genealogy.
 Chromosomes carry a genuine **identity** — a chromosome id re-minted at every event that reshapes it —
 so ``chromosome_events`` is the true reticulating **chromosome network**: fission (a bifurcation),
 fusion (the reticulation), chromosome origination (a de-novo replicon) and chromosome loss, rooted at
-the seed and de-novo originations, recorded as an edge list (its ground truth — a network is a graph,
+the initial and de-novo originations, recorded as an edge list (its ground truth — a network is a graph,
 not eNewick; see ``chromosome-network.md``).
 
 It is the genome twin of the unordered core and shares its spine: one forward Gillespie over the
@@ -208,7 +208,7 @@ class OrderedGenomesResult:
     rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
-    #: ``{name: family id}`` for families seeded by ``families=[…]`` — the handle to a *named* family.
+    #: ``{name: family id}`` for families declared by ``families=[…]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
     #: where each gene-genealogy :class:`~zombi2.genomes.events.Event` happened — the positional
     #: companion to :attr:`events`, which is position-blind. See :class:`EventPosition`.
@@ -224,10 +224,10 @@ class OrderedGenomesResult:
         return collections.Counter(g.family for chrom in self.genomes[node_id] for g in chrom.genes)
 
     def has_family(self, node_id: int, name: str) -> bool:
-        """Whether the named family ``name`` (seeded via ``families=``) has ≥ 1 copy in the genome at
+        """Whether the named family ``name`` (declared via ``families=``) has ≥ 1 copy in the genome at
         ``node_id`` (across all chromosomes)."""
         if name not in self.family_names:
-            raise KeyError(f"no named family {name!r}; seeded families are {sorted(self.family_names)}")
+            raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
         return any(g.family == fid for chrom in self.genomes[node_id] for g in chrom.genes)
 
@@ -331,7 +331,7 @@ def _position_key(kind, lineage, family, recipient):
 
     A transfer is told apart by which side it is — the row born on the recipient carries one — rather
     than by lineage, so a self-transfer still resolves. An origination needs its ``family`` too: the
-    seeded ones all fire at t=0 on the root branch, and nothing else separates them."""
+    initial ones all fire at t=0 on the root branch, and nothing else separates them."""
     if kind == "transfer":
         kind = "transfer_donor" if recipient is None else "transfer_recipient"
     return (kind, lineage, family if kind == "origination" else None)
@@ -652,10 +652,10 @@ def _chromosome_lose(genome, ci, node, t, events, positions, chromosome_events) 
     return (-1, -len(lost.genes))
 
 
-# --- seeding + validation -------------------------------------------------------------------------
+# --- initial genome + validation -------------------------------------------------------------------------
 
 def _topologies(chromosomes, topology) -> list[str]:
-    """Resolve the ``topology`` argument to one label per seeded chromosome."""
+    """Resolve the ``topology`` argument to one label per initial chromosome."""
     if isinstance(chromosomes, bool) or not isinstance(chromosomes, int) or chromosomes < 1:
         raise ValueError(f"chromosomes must be a positive integer, got {chromosomes!r}")
     if isinstance(topology, str):
@@ -712,9 +712,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     genes that starts at one of them; the chromosome tier ``fission``/``fusion``/``chromosome_loss``
     is **per chromosome**; and the two events that make something from nothing,
     ``origination``/``chromosome_origination``, are **per lineage**. The
-    root is seeded with ``chromosomes`` chromosomes of the given ``topology``, across which the
+    run starts with ``chromosomes`` chromosomes of the given ``topology``, across which the
     ``initial_families`` founding genes are dealt **round-robin**; ``families=["toxin", …]`` additionally
-    seeds **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
+    declares **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
     "toxin")``), as in the unordered core; ``transfer_to`` / ``replacement`` / ``self_transfer`` behave
     as in the unordered core.
 
@@ -722,11 +722,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     reticulation), ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
     chromosome and its genes die; never the genome's last). Chromosomes carry identity — re-minted at
     every event that reshapes them — so ``chromosome_events`` is the true reticulating chromosome
-    genealogy, rooted at the seed and de-novo originations. Deterministic given ``seed``.
+    genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     labels = _topologies(chromosomes, topology)
-    n_chrom_seed = chromosomes
+    n_initial_chrom = chromosomes
     dup = as_rate(duplication, default_scope=PerCopy)
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)
@@ -830,17 +830,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     rearrangements: list[Inversion | Transposition | Translocation] = []
     chromosome_events: list[ChromosomeEvent] = []
 
-    root_chroms = []
-    for label in labels:  # seed the root karyotype; each seeded chromosome is a network root
+    initial_chroms = []
+    for label in labels:  # lay down the initial karyotype; each initial chromosome is a network root
         cid = new_chromosome()
-        root_chroms.append(Chromosome(cid, label, []))
+        initial_chroms.append(Chromosome(cid, label, []))
         chromosome_events.append(ChromosomeEvent(t, "origination", root.id, (), (cid,)))
-    # the crown seeding is logged like any other origination — each founding gene appended in turn —
+    # the crown's initial genome is logged like any other origination — each founding gene appended in turn —
     # so the position table is total over gene-content events and a replay of the root branch can
     # start from an empty karyotype (every other branch starts from its parent's gene_order rows)
     for i in range(initial_families):  # deal the founding genes round-robin across the chromosomes
         fam = new_family()
-        chrom = root_chroms[i % n_chrom_seed]
+        chrom = initial_chroms[i % n_initial_chrom]
         chrom.genes.append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
@@ -849,16 +849,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     for j, name in enumerate(families):
         fam = new_family()
         family_names[name] = fam
-        chrom = root_chroms[(initial_families + j) % n_chrom_seed]
+        chrom = initial_chroms[(initial_families + j) % n_initial_chrom]
         chrom.genes.append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
-    initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in root_chroms)
-    enter(alive, gen, pos, root.id, root_chroms)
+    initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
+    enter(alive, gen, pos, root.id, initial_chroms)
     total_copies = initial_families + len(families)
-    total_chromosomes = n_chrom_seed
+    total_chromosomes = n_initial_chrom
 
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0

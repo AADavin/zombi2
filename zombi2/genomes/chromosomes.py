@@ -18,7 +18,7 @@ from .events import node_label
 class ChromosomeEvent:
     """One edge of the **chromosome genealogy** — a chromosome lineage's birth, split, merge, or
     death, fired on species branch ``lineage`` at ``time``. ``parents`` → ``children`` are chromosome
-    ids and the arity names the event: ``"origination"`` (``()`` → one child: a seed or de-novo
+    ids and the arity names the event: ``"origination"`` (``()`` → one child: an initial or de-novo
     replicon, a **root**), ``"speciation"`` and ``"fission"`` (one parent → two children, a
     **bifurcation**), ``"fusion"`` (two parents → one child, the **reticulation** — in-degree 2, what
     makes this a network and not a tree), ``"loss"`` (one parent → ``()``, a **leaf**). The edge list
