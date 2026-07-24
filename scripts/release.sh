@@ -70,6 +70,25 @@ git rev-parse "$TAG" >/dev/null 2>&1 && die "tag $TAG already exists"
 [[ -f CHANGELOG.md ]] || die "CHANGELOG.md not found"
 grep -q '^## \[Unreleased\]' CHANGELOG.md || die "CHANGELOG.md has no '## [Unreleased]' section"
 
+# Nothing to release if [Unreleased] is empty — check this BEFORE mutating any file (step 1 bumps
+# the version, step 2 rolls the CHANGELOG). The old order checked after mutating, so a stopped
+# release left the version bumped and the CHANGELOG half-rolled in the working tree.
+UNRELEASED="$("$PY" - <<'PY'
+import pathlib
+grab, body = False, []
+for ln in pathlib.Path("CHANGELOG.md").read_text().splitlines():
+    if ln.strip() == "## [Unreleased]":
+        grab = True
+        continue
+    if grab and ln.startswith("## ["):   # next section: the [Unreleased] body has ended
+        break
+    if grab:
+        body.append(ln)
+print("\n".join(body).strip())
+PY
+)"
+[[ -n "$UNRELEASED" ]] || die "the [Unreleased] section is empty — nothing to release. Draft it from the merged PRs with scripts/changelog-draft.sh, curate the prose, then re-run."
+
 echo "ZOMBI2 release  $CURRENT -> $VERSION   (tag $TAG, $DATE)"
 echo "  · set __version__ in zombi2/__init__.py"
 echo "  · roll CHANGELOG [Unreleased] -> [$VERSION] - $DATE"
