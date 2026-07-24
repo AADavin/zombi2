@@ -237,3 +237,16 @@ n1       0       8
 
 Read a list of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0`, one of them a duplicate. `copy` is the individual gene, and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
 
+## Evolving families in parallel
+
+Because families are independent — a transfer moves a copy between lineages, but no event ever mixes two families — a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
+
+```python
+g = simulate_genomes_unordered(tree, duplication=0.2, loss=0.25, origination=0.5,
+                               initial_families=1000, seed=1, parallel=8)   # 8 workers
+```
+
+`parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
+
+The gain is real but modest, and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful of workers there is little more to win. It pays off on a large run — many families, or high rates — and is a loss on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
+

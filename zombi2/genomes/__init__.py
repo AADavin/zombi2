@@ -328,7 +328,8 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
                                initial_families=100, families=None, family_speed=None,
-                               max_family_size=10.0, seed=None, progress=False) -> GenomesResult:
+                               max_family_size=10.0, seed=None, parallel=False,
+                               progress=False) -> GenomesResult:
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -369,6 +370,18 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
     candidate weighs 0 the transfer does not happen (see :func:`_do_transfer`). The two couplings are
     independent and may be used together or apart.
+
+    ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
+    process — the families are independent (a transfer roams a copy across lineages but never mixes two
+    families), so it enumerates every family's origination first and then evolves each on its own. It is
+    worker-count invariant (each family draws from its own stream spawned off ``seed``) but gives a
+    different-though-equally-valid draw than the serial default for a given seed. ``False`` (default)
+    runs the serial loop; ``True`` uses every core; an ``int`` sets the worker count. A **driven** rate
+    or ``transfer_to`` (``DrivenBy``) has no per-family engine yet — the run announces this and falls
+    back to the serial loop. The gain is real but modest (a merge over the whole event log stays
+    serial), so a handful of workers is the sweet spot; unlike the sequences level it does not scale far.
+    Because it spawns processes, a calling script must guard its entry with ``if __name__ ==
+    "__main__":`` (the ``zombi2`` CLI already does).
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     dup = as_rate(duplication, default_scope=PerCopy)
@@ -459,6 +472,20 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     # duplication rate is zero for a family already at its quota — a declared ceiling, not a
     # truncated run. ``None`` removes it.
     cap = resolve_max_family_size(max_family_size, len(tree.nodes))
+
+    # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
+    # process (SPEC-style — serial by default). It handles everything but a driven rate / recipient,
+    # for which it prints why and returns None so this serial reference loop runs unchanged (decision A:
+    # the default path never changes). Everything above is shared validation, so bad input still raises.
+    if parallel:
+        from ._perfamily import run_parallel_unordered
+        result = run_parallel_unordered(
+            tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
+            replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
+            families=families, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
+            progress=progress)
+        if result is not None:
+            return result
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
