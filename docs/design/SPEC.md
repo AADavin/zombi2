@@ -51,14 +51,11 @@ probability-factorisation notation, where `P(B | A)` reads "B simulated given A"
 The load-bearing rule: **every factor you can write on its own is a run you can do on its own.** When
 two factors collapse into one term, so do their runs.
 
-- **Independent** — the two levels do not read each other. "Independent" means independent *of each
-  other*, not of the tree.
-- **Conditioned** — one level reads the other: a parameter of the second stops being a number you type
-  and takes its value from the first. Because the first can be simulated and then held fixed, it is two
-  ordinary runs in order, the driver passed to the second as a file.
-- **Joint** — neither level can be simulated first, because each depends on the other as it unfolds, so
-  one run produces both. When the coupling reaches back into the species tree, the tree itself becomes
-  an **output** rather than an input, and crosses the bar: `P(Species, Traits)`.
+- **Independent** — neither reads the other (independent *of each other*, not of the tree).
+- **Conditioned** — one reads the other; the driver can be grown first and held fixed, so it is two runs
+  in order, the driver passed as a file.
+- **Joint** — neither can go first, so one run makes both; when the coupling feeds back into the species
+  tree, the tree becomes an **output** and crosses the bar (`P(Species, Traits)`).
 
 **A coupling is a parameter that reads its value from another level instead of being a number you
 type.**
@@ -79,21 +76,14 @@ one level lives on the other or they sit on separate branches:
 | Traits – Sequences | yes (a trait drives a sequence; the reverse is deferred) | deferred (§10) |
 | Species – Sequences | no | no — too far apart to connect |
 
-The plain rules:
+The generating rule: a pair can be **conditioned** only on separate branches (Genomes–Traits,
+Traits–Sequences); it can be **joined** either by a level feeding back into its own tree (Species–Genomes,
+Species–Traits, tree grown as an output) or by two separate-branch levels driving each other
+(Genomes–Traits). Species and Sequences are too far apart to connect.
 
-- A pair can be **conditioned** only when neither level lives on the other, that is, when they sit on
-  separate branches: Genomes–Traits and Traits–Sequences.
-- A pair can be **joined** in one of two ways: a level feeds back into the tree it lives on (Species–
-  Genomes or Species–Traits, where the tree is then grown as an output), or two levels on separate
-  branches drive each other (Genomes–Traits).
-- Species and Sequences are too far apart to connect at all.
-
-Two consequences worth stating plainly:
-
-- **Every conditioning involves Traits**, because traits are the only level off the main chain, so they
-  are one end of every separate-branch pair.
-- **Joining does not need traits.** Gene content driving speciation joins Species and Genomes with no
-  trait in sight.
+Two consequences: **every conditioning involves Traits** (the only off-chain level, so one end of every
+separate-branch pair), while **joining does not** — gene content driving speciation joins Species and
+Genomes with no trait.
 
 ---
 
@@ -124,11 +114,9 @@ section headings and prose describe each model by what it does; the acronyms nev
 The class names remain in the code as the field's search terms.
 
 **Every level chapter carries one bridge table** — "literature model → what it does → how to get it in
-ZOMBI2" — as the single place the acronyms are collected, for readers who arrive already thinking in the
-literature's vocabulary. The names live in that table, never in the section headings or the organising
-structure. (Example, for species trees: Yule → pure birth → birth–death with extinction = 0; ClaDS →
-rates drift as lineages split → rate depends on ancestry; BiSSE → a trait drives speciation → a joint
-model.)
+ZOMBI2" — the single place the acronyms are collected, never in headings or structure. (Species trees,
+e.g.: Yule → pure birth → birth–death with extinction = 0; ClaDS → rates drift as lineages split → rate
+depends on ancestry; BiSSE → a trait drives speciation → a joint model.)
 
 **Not everything that looks like a connection is one.** A trait that jumps at speciation, or a genome
 that changes only at splits, is just reading the tree it already lives on. That is an option of the
@@ -178,11 +166,10 @@ a separate knob.
 
 Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
 
-**How a rate is written (same at every level):** a rate is an optional **scope wrapper** around a base
-number, optionally times **modifiers**. The scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`, `Global(1.0)`
-— `Global` capitalised, since `global` is a Python keyword); modifiers multiply (`0.2 * ByFamily(...)`,
-`1.0 * OnTotalDiversity(cap=100)`). The bare number uses the rate's natural scope, so the common case is just
-`birth=1.0`. There is **no `per=` argument** — the scope lives on the rate, so it can be set per rate.
+**How a rate is written (same at every level):** the scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`,
+`Global(1.0)` — `Global` capitalised, since `global` is a Python keyword) and modifiers multiply
+(`0.2 * ByFamily(...)`, `1.0 * OnTotalDiversity(cap=100)`); a bare number uses the rate's natural scope,
+so the common case is just `birth=1.0`. There is **no `per=` argument** — the scope lives on each rate.
 Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
 `time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
 with "per".
