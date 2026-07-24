@@ -139,9 +139,9 @@ python figures.py        # Figures 1-4 from results.json
 
 The GTDB archaeal reference tree ships with the recipe (`data/ar53.tree`); refresh it with
 `curl -fsSL -o data/ar53.tree https://data.gtdb.ecogenomic.org/releases/latest/ar53.tree`. The relaxed
-clock is ZOMBI2's `zombi2.sequences` `ByLineage` modifier. The RED estimator is a faithful port of the
-retired `zombi2.tools.relative_evolutionary_divergence` to the clean-core tree (`red.py`); it reproduces
-the exact-on-ultrametric invariant to machine precision. Every number here regenerates from fixed seeds.
+clock is ZOMBI2's `zombi2.sequences` `ByLineage` modifier. The RED estimator is the shipped
+`zombi2.tree.relative_evolutionary_divergence` (also on the CLI as `zombi2 tools tree --red`), which is
+exact on an ultrametric tree to machine precision. Every number here regenerates from fixed seeds.
 
 ## References
 

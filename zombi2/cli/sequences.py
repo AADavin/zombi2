@@ -28,7 +28,7 @@ from zombi2.sequences import WIRED_MODIFIERS, simulate_sequences
 from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
                                   _rate, _rates_help, _write_params_log, default_outputs, level_dir,
                                   resolve_genomes)

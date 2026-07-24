@@ -44,7 +44,8 @@ from ..rates.distributions import Geometric, as_distribution
 from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
-from ..species import SpeciesResult, Tree
+from ..species import SpeciesResult
+from ..tree import Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index

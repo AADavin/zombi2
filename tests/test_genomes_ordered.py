@@ -14,7 +14,8 @@ from zombi2.genomes.events import node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
 from zombi2.rates.modifiers import OnTime
-from zombi2.species import Node, Tree, simulate_species_tree
+from zombi2.species import simulate_species_tree
+from zombi2.tree import Node, Tree
 from zombi2.genomes import (
     Chromosome,
     Gene,
