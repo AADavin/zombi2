@@ -1,0 +1,29 @@
+{
+  "name": "Kluyveromyces+Eremothecium",
+  "rate_at_reference_length": 0.000456051,
+  "reference_length": 4.0,
+  "inversion": {
+    "median": 0.0002309619,
+    "q05": 0.000138655,
+    "q95": 0.0009005057
+  },
+  "mean_length": {
+    "median": 16.0,
+    "q05": 2.0,
+    "q95": 256.0
+  },
+  "best_cell": {
+    "inversion": 0.0002737844,
+    "mean_length": 16.0,
+    "dist": 0.13147251232177645
+  },
+  "n_core": 2593,
+  "K": 6,
+  "G": 5000,
+  "bins": [
+    0.0,
+    40.0,
+    120.0,
+    200.0
+  ]
+}
