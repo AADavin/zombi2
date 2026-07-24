@@ -87,7 +87,7 @@ Level by level, each with its chapter written alongside:
    even layout), the same event set in base pairs, its own outputs and `--resolution nucleotide`
    (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide). Its rates are still constants: the
    `scope × modifiers` grammar 🔨 is not wired there.
-3. **Sequences** ✅ — substitution models + the relaxed lineage clock (`ByLineage`) on the gene trees.
+3. **Sequences** ✅ — substitution models + both lineage clocks on the gene trees: `ByLineage` (uncorrelated / relaxed) and `FromParent` (autocorrelated, drifting parent→child down the species tree).
 4. **Traits** ✅ — the continuous / discrete overlay models on the species tree.
 5. **Coupling** — the one mechanism `mod.DrivenBy(source, mapping)` (SPEC §2–4). **Conditioned** ✅
    (source = a file: `rates/driver.py` + the target level runs it — e.g. genome loss driven by a trait;
