@@ -156,14 +156,14 @@ class SequencesResult:
         if "alignments" in outputs:
             for fam, aln in self.alignments.items():
                 if aln:
-                    (d / f"{u}{fam}.fasta").write_text(_fasta(aln))
+                    _write_fasta(d / f"{u}{fam}.fasta", aln)
         if "ancestral" in outputs:
             for fam, anc in self.ancestral.items():
                 if anc:
-                    (d / f"sequences_ancestral_{u}{fam}.fasta").write_text(_fasta(anc))
+                    _write_fasta(d / f"sequences_ancestral_{u}{fam}.fasta", anc)
         if "founding" in outputs and self.founding:
-            (d / "sequences_founding.fasta").write_text(
-                _fasta({f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())}))
+            _write_fasta(d / "sequences_founding.fasta",
+                         {f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())})
         if "phylograms" in outputs:
             for fam, ph in self.phylograms.items():
                 (d / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
@@ -180,8 +180,8 @@ class SequencesResult:
                                 {"initial": self.initial_genome} if self.initial_genome else {})):
             if token in outputs:
                 for lineage, chroms in genomes.items():
-                    (d / f"genome_{lineage}.fasta").write_text(
-                        _fasta({f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()}))
+                    _write_fasta(d / f"genome_{lineage}.fasta",
+                                 {f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()})
 
 
 class _AssembledGenomes(Mapping):
@@ -233,13 +233,20 @@ class _AssembledGenomes(Mapping):
         return len(self._layouts)
 
 
-def _fasta(records: dict[str, str], width: int = 70) -> str:
-    """Serialise ``{name: sequence}`` to FASTA text (sequences wrapped at ``width`` columns)."""
-    lines: list[str] = []
-    for name, seq in records.items():
-        lines.append(f">{name}")
-        lines.extend(seq[i:i + width] for i in range(0, len(seq), width))
-    return "\n".join(lines) + "\n"
+def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
+    """Write ``{name: sequence}`` to ``path`` as FASTA (sequences wrapped at ``width`` columns),
+    streaming one record at a time straight to the file so a whole-genome sequence is never first
+    copied into one big string (nor a list of every wrapped line). Byte-for-byte what building the
+    text and writing it produced — including the lone ``"\\n"`` an empty record set wrote."""
+    with open(path, "w") as f:
+        if not records:
+            f.write("\n")                       # the degenerate case "\n".join([]) + "\n" produced
+            return
+        for name, seq in records.items():
+            f.write(f">{name}\n")
+            # writelines drains the generator in C — as fast as a joined string but without ever
+            # holding the whole wrapped genome (nor a list of its lines) in memory at once.
+            f.writelines(f"{seq[i:i + width]}\n" for i in range(0, len(seq), width))
 
 
 def _split(gene_tree, states_by_id: dict[int, np.ndarray],
@@ -253,15 +260,25 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
     species went extinct. Both are nodes of the tree with a sequence at them, so leaving them out
     would give a phylogram whose tips name sequences that exist nowhere — and would make an extinct
     lineage's genome unreconstructable."""
-    alignment: dict[str, str] = {}
-    ancestral: dict[str, str] = {}
+    nodes = []
     stack = [gene_tree.complete]
     while stack:
         node = stack.pop()
-        seq = decode(states_by_id[id(node)], model.alphabet)
+        nodes.append(node)
+        stack.extend(node.children)
+    # Decode every node in one gather + one ASCII decode rather than one call per node: all of a
+    # block's nodes share its length, so their states stack into a single (n_nodes, length) array
+    # whose flat decode is the node strings back to back — sliced out below. Byte-identical to
+    # decoding each node on its own, but it pays the numpy/ASCII-decode overhead once, not per node.
+    stacked = np.stack([states_by_id[id(n)] for n in nodes])
+    flat = decode(stacked, model.alphabet)
+    length = stacked.shape[1]
+    alignment: dict[str, str] = {}
+    ancestral: dict[str, str] = {}
+    for i, node in enumerate(nodes):
+        seq = flat[i * length:(i + 1) * length]
         observable = node.is_leaf and node.kind == "extant"
         (alignment if observable else ancestral)[f"g{node.copy}"] = seq
-        stack.extend(node.children)
     return alignment, ancestral
 
 

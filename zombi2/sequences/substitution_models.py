@@ -205,7 +205,11 @@ def decode(states: np.ndarray, alphabet: str = BASES) -> str:
     lookup table — ``lut[states]`` — read out in a single ``.tobytes().decode()`` rather than one
     Python step per site. This is called once per node of every gene tree, so the per-site loop it
     replaces was the dominant cost of a sequence run; the result is byte-for-byte the same string. The
-    lookup table itself is cached per alphabet (:data:`_DECODE_LUT`), built once instead of per call."""
+    lookup table itself is cached per alphabet (:data:`_DECODE_LUT`), built once instead of per call.
+
+    ``states`` may be multi-dimensional: a 2-D ``(rows, length)`` array decodes to the rows' strings
+    concatenated back to back (row-major), which lets a caller decode a whole gene tree's nodes in one
+    gather + one ASCII decode and slice the fixed-length rows out — see :func:`_split`."""
     lut = _DECODE_LUT.get(alphabet)
     if lut is None:
         lut = np.frombuffer(alphabet.encode("ascii"), dtype=np.uint8)
