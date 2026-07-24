@@ -38,16 +38,17 @@ from .._parallel import resolve_workers
 from ..progress import progress_bar
 from ..rates.modifiers import ByFamily, DrivenBy
 from ._live import enter, retire
-from ._transfer import mean_root_to_tip, recipient_index
+from ._transfer import Clades, mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, Event, event_rows, node_label
 from .gene_trees import gene_trees_from_events, write_gene_trees
 
 
 def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
     """A one-line reason the parallel engine cannot run this configuration (so it falls back to the
-    serial loop, loudly), or ``None`` when it can. The one gap is **driven** rates / recipients:
-    ``DrivenBy`` makes the process per-lineage (weighted by a trait on each branch), which this engine
-    does not do yet. Everything else the unordered engine accepts is covered."""
+    serial loop, loudly), or ``None`` when it can. The gaps are per-lineage recipient weightings the
+    per-family workers do not thread: a **driven** rate / recipient (``DrivenBy`` weights by a trait on
+    each branch) and a **clade** recipient (``Clades`` weights by each lineage's subtree membership).
+    Everything else the unordered engine accepts is covered."""
     for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los), ("origination", org)):
         if any(isinstance(m, DrivenBy) for m in rate.modifiers):
             return (f"{label} is driven by another level (DrivenBy) — the parallel engine does not do "
@@ -55,6 +56,9 @@ def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
     if isinstance(transfer_to, DrivenBy):
         return ("transfer_to is driven by another level (DrivenBy) — the parallel engine does not do "
                 "driven recipient weights yet")
+    if isinstance(transfer_to, Clades):
+        return ("transfer_to weights by named clades (Clades) — the parallel engine does not thread "
+                "per-lineage clade membership yet")
     return None
 
 
