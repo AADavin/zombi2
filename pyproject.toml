@@ -53,7 +53,7 @@ reconparser = ["pandas>=2.0.0"]
 # executor plugin is only needed to run on a cluster.
 bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 
-# The `zombi2` CLI is grown from the clean core (see docs/design/MAP.md), one level at a time. It
+# The `zombi2` CLI is grown from the clean core, one level at a time. It
 # currently exposes the four built levels — `species`, `genomes`, `sequences`, `traits`; the coupled
 # commands land as they are rebuilt (the old ones stay quarantined in legacy/ until then).
 [project.scripts]

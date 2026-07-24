@@ -2,22 +2,14 @@
 
 ## Read this first
 
-**Before changing any code, docs, CLI, or manual chapter, read both:**
+**Before changing any code, docs, CLI, or manual chapter, read:**
+
 - **[`docs/design/SPEC.md`](docs/design/SPEC.md)** — the **model and the words** (the four levels, the
   independent / conditioned / joint framework, the rate grammar, the canonical vocabulary).
-  Figure style is not here: it lives in [`figures/STYLE.md`](figures/STYLE.md), which also says
-  where a figure's script, SVG and PNG belong.
-- **[`docs/design/MAP.md`](docs/design/MAP.md)** — the **files and the names** (every module, every public
-  name, its one canonical home).
 
-ZOMBI2 is a **clean core grown from SPEC**. The old codebase and the (stage-2) Rust engine used to live
-in `legacy/` and `rust/` inside the repo; both have been **moved out** to a sibling `ZOMBI2_LEGACY/`
-folder — the repo is now just the clean core. When code disagrees with SPEC or MAP, the code is the
-**fossil** and must be aligned. Principle: **concepts → code → chapter** (fix the code before
-documenting new behaviour).
-
-Do not reintroduce the old lexicon. If a convention genuinely needs to change, change SPEC.md (words) or
-MAP.md (shape) **first**, then propagate.
+**Any change to the code must stay consistent with what is already written** — with the structure and
+decisions derivable from the code and the manual themselves. When in doubt, defer to Adrián A. Davín,
+who has the last word.
 
 ## Output files — keep the cheatsheet in sync
 
@@ -29,16 +21,6 @@ format, a changed default, new columns, or a new Python-only accessor like `.gen
 table in the same change.** The table's columns are Output · File · Format · Default (yes / no /
 Python) · Contents.
 
-## Project
-
-ZOMBI2 is a phylogenetic simulator (Python library + CLI) that simulates four levels of evolution —
-species trees, genomes, sequences, traits — independently, conditioned, or jointly, and records the
-true history behind every dataset. Author: Adrián Davín.
-
-The core is **pure Python**: nothing in `zombi2/` imports a compiled extension, and `pip install`
-needs no build step (hatchling). A Rust engine (`zombi2_core`) was an early experiment; it has been
-retired from the repo to `ZOMBI2_LEGACY/rust/` and is not part of the build or the releases.
-
 ## Run environment
 
 - Python: `/Users/aadria/miniconda3/bin/python` (3.12). Bare `python`/`zombi2` are not on PATH.
@@ -49,30 +31,19 @@ retired from the repo to `ZOMBI2_LEGACY/rust/` and is not part of the build or t
 
 `analyses/<study>/` holds **self-contained validation studies** built on the shipped API — each its own
 scripts, data, figures, and `REPORT.md`, regenerating deterministically from fixed seeds (see
-[`analyses/README.md`](analyses/README.md)). A study calls the level packages directly (no top-level
-shortcuts). When it needs a capability the clean core does not ship as a public API — e.g. RED's
-estimator, which MAP marks 📦 — it carries a **local, faithful port** inside its own folder rather than
-un-quarantining the package `tools/`: the core stays lean, the study stays reproducible. Distinct from
-`examples/`, which are ready-to-run *pipelines* (a `parameters/<name>.toml` + the CLI), not studies.
+[`analyses/README.md`](analyses/README.md)). 
 
 ## The manual
 
 The book lives in `manual/book/`, one file per chapter: `ch1.md` … `ch9.md`, plus `appendix-a.md`
 (the Gillespie algorithm), `appendix-b.md` (output files) and `appendix-c.md` (the `zombi2 tools`
-read-back commands). SPEC is the constitution; the manual is its exposition.
-
-Ch4–Ch6 are the genome **resolution** ladder — unordered ⊂ ordered ⊂ nucleotide — one chapter per rung.
-Every level chapter closes the same way: **The objects → Usage from Python → Usage from the CLI →
-Outputs.** Ch1, Ch2 and Ch9 are essays and are exempt.
+read-back commands). 
 
 Two rules learned the hard way:
-- **Run every example before trusting a chapter.** They drift behind the code in both directions —
-  flags get invented, and shipped features get described as forthcoming.
+- **Run every example before trusting a chapter.** 
 - **Document only what ships.** Cut an unbuilt model rather than marking it "not yet". Where a level is
   genuinely partial, say so plainly, and delete the caveat the moment it stops being true.
 
 Every chapter is published to the docs site as a snippet include — Ch1–Ch9 under `docs/guide/`, the
 appendices under `docs/reference/`. Renaming a chapter file breaks those includes and CI's
 `mkdocs --strict` will catch it.
-
-Work happens on a branch in an isolated worktree, not the shared main checkout.

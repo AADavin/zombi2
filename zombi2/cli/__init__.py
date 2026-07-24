@@ -1,7 +1,6 @@
 """The ``zombi2`` command line — one subcommand per level, mirroring the Python API.
 
-The CLI is grown from the clean core, one level at a time, exactly like the packages it wraps
-(see ``docs/design/MAP.md``). Today it exposes the three built levels:
+The CLI is grown from the clean core, one level at a time, exactly like the packages it wraps. Today it exposes the three built levels:
 
 - ``zombi2 species``  → :func:`zombi2.species.simulate_species_tree`
 - ``zombi2 genomes``  → :func:`zombi2.genomes.simulate_genomes_unordered` /
