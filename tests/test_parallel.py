@@ -182,6 +182,22 @@ def test_genomes_parallel_falls_back_on_driven_rate(species_for_genomes, capsys)
     assert _gen_fingerprint(par) == _gen_fingerprint(serial)
 
 
+def test_genomes_parallel_falls_back_on_clades(species_for_genomes, capsys):
+    # a Clades recipient weight needs per-lineage clade membership the per-family workers do not thread
+    # yet, so the run must announce the fallback and return the *serial* result unchanged.
+    from zombi2.genomes import Between, Clades
+    sp = species_for_genomes
+    kid = sp.complete_tree.nodes[sp.complete_tree.root].children
+    kw = dict(transfer=0.4, loss=0.3, origination=0.2, initial_families=25, seed=5,
+              transfer_to=Clades({"A": kid[0], "B": kid[1]},
+                                 Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
+    par = simulate_genomes_unordered(sp, parallel=4, **kw)
+    note = capsys.readouterr().out
+    assert "not applied" in note and "clades" in note.lower()
+    serial = simulate_genomes_unordered(sp, **kw)
+    assert _gen_fingerprint(par) == _gen_fingerprint(serial)
+
+
 def test_genomes_parallel_true_uses_all_cores(species_for_genomes):
     # parallel=True (every core) must agree with an explicit worker count — same spawned streams.
     kw = dict(duplication=0.4, loss=0.3, origination=0.2, initial_families=15, seed=5)

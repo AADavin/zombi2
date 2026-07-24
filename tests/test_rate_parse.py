@@ -74,6 +74,12 @@ def test_a_driver_reads_as_a_coupling():
     assert r == 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
 
 
+def test_a_between_kernel_reads_as_a_choice_slot_weight():
+    from zombi2.rates.mapping import Between
+    r = parse_rate("DrivenBy('habitat.tsv', Between({('marine', 'soil'): 3.0, ('soil', 'marine'): 3.0}))")
+    assert r == mod.DrivenBy("habitat.tsv", Between({("marine", "soil"): 3.0, ("soil", "marine"): 3.0}))
+
+
 # --- it parses; it never evaluates ---------------------------------------
 
 @pytest.mark.parametrize("text", [
