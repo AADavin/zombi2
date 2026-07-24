@@ -1,4 +1,4 @@
-"""Substitution models — the **menu** (``sequence-api.md``).
+"""Substitution models — the **menu**.
 
 A substitution model is the *chemistry* of a sequence: a ``K×K`` rate matrix ``Q`` (normalised to
 one expected substitution per site per unit branch length) and its stationary frequencies ``π``.

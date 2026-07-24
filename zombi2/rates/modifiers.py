@@ -185,8 +185,8 @@ class ByLineage(Modifier):
     ``"gamma"`` (σ = the coefficient of variation) — the two agree to first order in σ.
 
     At the sequence level this is the lineage clock: the engine draws one value per **species lineage**
-    (via :meth:`draw`) and shares it across every gene family passing through that lineage
-    (``sequence-api.md``). It is the lineage-twin of the genome level's ``ByFamily`` — the same
+    (via :meth:`draw`) and shares it across every gene family passing through that lineage.
+    It is the lineage-twin of the genome level's ``ByFamily`` — the same
     i.i.d.-heterogeneity idea, by lineage instead of by family. (A fully per-gene-tree-branch clock is
     the deferred ``ByBranch``.)
     """
@@ -224,7 +224,7 @@ class ByFamily(Modifier):
     spreads the families out without moving the average one off the base rate. ``dist`` is
     ``"lognormal"`` (default; σ = the log-scale) or ``"gamma"`` (σ = the coefficient of variation).
 
-    **Where you put it decides what varies together** (``genome-api.md``). On a single rate, that rate
+    **Where you put it decides what varies together**. On a single rate, that rate
     varies by family on its own::
 
         loss = 0.25 * mod.ByFamily(spread=0.5)      # a family that loses fast is not thereby
@@ -268,7 +268,7 @@ class ByFamily(Modifier):
 
 
 class DrivenBy(Modifier):
-    """The rate is **driven by another level** — the one coupling mechanism (SPEC §2, ``coupling-api.md``).
+    """The rate is **driven by another level** — the one coupling mechanism (SPEC §2).
 
     A coupling is Ch2's definition made literal: *a parameter that reads its value from another
     level instead of a number you type*. ``DrivenBy`` reads the driver's value on each lineage and
