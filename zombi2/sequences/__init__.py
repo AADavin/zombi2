@@ -16,10 +16,11 @@ gene trees would run, but silently without either, so they are rejected.
 ``substitution`` is a per-site rate (a bare number, default ``1.0``: a gene-tree branch of ``Δt`` time
 gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
-i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it
-(``SPEC §5``, the by-lineage rate modifier). The other clocks (``FromParent`` drift, ``Markov`` hops),
-the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, and the
-``record=`` memory dial are named later slices; each is a pure addition.
+i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
+``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
+parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). The rest
+(``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, and the
+``record=`` memory dial) are named later slices; each is a pure addition.
 
 The result is a :class:`SequencesResult` bundle mirroring the other levels (``result-api.md``):
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
@@ -42,7 +43,7 @@ import numpy as np
 from ..genomes import GenomesResult
 from ..genomes.events import node_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..rates.modifiers import ByLineage
+from ..rates.modifiers import ByLineage, FromParent
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -57,9 +58,10 @@ _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gate in :func:`simulate_sequences`
-#: and by the CLI's help, so a modifier is never advertised without being implemented. ``ByLineage``
-#: on the substitution rate *is* the uncorrelated ("relaxed") lineage clock.
-WIRED_MODIFIERS = (ByLineage,)
+#: and by the CLI's help, so a modifier is never advertised without being implemented. On the
+#: substitution rate these are the two lineage clocks: ``ByLineage`` the uncorrelated ("relaxed")
+#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species tree).
+WIRED_MODIFIERS = (ByLineage, FromParent)
 
 
 @dataclass
@@ -248,6 +250,19 @@ def _all_species(gene_trees) -> list[int]:
     return sorted(ids)
 
 
+def _preorder(tree) -> list[int]:
+    """Species-tree node ids, parent before child — the order the autocorrelated clock descends."""
+    order: list[int] = []
+    stack = [tree.root]
+    while stack:
+        i = stack.pop()
+        order.append(i)
+        kids = tree.nodes[i].children
+        if kids is not None:
+            stack.extend(kids)
+    return order
+
+
 def _clock_factor(clock, species: int) -> float:
     """The lineage clock on a species branch — 1.0 under the strict clock (``clock is None``) or for a
     branch no gene passed through (so none was drawn for it)."""
@@ -348,11 +363,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     The founding sequence of each family is drawn from the model's stationary frequencies. Deterministic
     given ``seed``.
 
-    ``substitution`` may carry a **lineage clock**: ``1.0 * mod.ByLineage(spread=)`` draws one i.i.d.
-    rate multiplier per species lineage (**shared across families**, drawn once before evolving) and
-    rescales each gene-tree branch by the clock of the species branch it sits on. Any other modifier
-    (the ``FromParent`` / ``Markov`` clocks, the ``ByFamily`` per-family speed, ``+Γ``) or a
-    non-``PerSite`` scope is a later slice and raises.
+    ``substitution`` may carry a **lineage clock** — one factor per species branch, shared across
+    families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
+    branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
+    i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
+    parent→child down the species tree). Any other modifier (the ``Markov`` clock, the ``ByFamily``
+    per-family speed, ``+Γ``) or a non-``PerSite`` scope is a later slice and raises.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
@@ -448,23 +464,30 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         )
     clock_mod = None
     if rate.modifiers:
-        if len(rate.modifiers) == 1 and isinstance(rate.modifiers[0], ByLineage):
+        if len(rate.modifiers) == 1 and isinstance(rate.modifiers[0], (ByLineage, FromParent)):
             clock_mod = rate.modifiers[0]
         else:
             offenders = ", ".join(sorted({type(m).__name__ for m in rate.modifiers
-                                          if not isinstance(m, ByLineage)}) or ["a second ByLineage"])
+                                          if not isinstance(m, (ByLineage, FromParent))})
+                                  or ["a second clock"])
             raise ValueError(
-                f"substitution carries {offenders}, but this slice wires only a single ByLineage clock "
-                "(the uncorrelated lineage clock) — the FromParent / Markov clocks, the ByFamily "
-                "per-family speed, and +Γ across-site heterogeneity are later slices."
+                f"substitution carries {offenders}, but this slice wires a single lineage clock — one "
+                "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock, the "
+                "ByFamily per-family speed, and +Γ across-site heterogeneity are later slices."
             )
     rate_base = rate.base
 
     rng = np.random.default_rng(seed)
-    # the lineage clock: one i.i.d. draw per species branch, drawn once here and shared by every
-    # family (so a hot species runs hot for all its genes). None ⇒ the strict clock (factor 1).
+    # the lineage clock: one factor per species branch, computed once here and shared by every family
+    # (so a hot species runs hot for all its genes). None ⇒ the strict clock (factor 1). ByLineage draws
+    # each branch i.i.d.; FromParent drifts the factor parent→child down the species tree (autocorrelated).
     clock = None
-    if clock_mod is not None:
+    if isinstance(clock_mod, FromParent):
+        clock = {}
+        for i in _preorder(species_tree):                       # parent before child
+            p = species_tree.nodes[i].parent
+            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
+    elif clock_mod is not None:
         clock = {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}

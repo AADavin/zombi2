@@ -242,16 +242,37 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
     assert std < 0.02      # shared clock ⇒ ~0.006 sampling noise; a per-family clock would be far larger
 
 
-def test_bylineage_rejects_other_and_multiple_modifiers():
+def test_sequence_clock_rejects_multiple_or_unwired_modifiers():
     run = _pair_run(1.0, 2.0)
-    with pytest.raises(ValueError):                 # FromParent clock — a later slice
-        simulate_sequences(run, model=jc69(), length=10, substitution=1.0 * mod.FromParent(spread=0.3))
-    with pytest.raises(ValueError):                 # two ByLineage — only a single clock is wired
+    with pytest.raises(ValueError):                 # two clocks — only a single lineage clock is wired
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=1.0 * mod.FromParent(spread=0.3) * mod.ByLineage(spread=0.2))
+    with pytest.raises(ValueError):                 # two ByLineage
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError):                 # ByLineage × OnTime — mixed modifiers
+    with pytest.raises(ValueError):                 # ByLineage × OnTime — a non-clock modifier
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.OnTime({0: 1.0}))
+
+
+# --- the lineage clock (FromParent): the autocorrelated clock ---------------------------------------
+
+def test_fromparent_perturbs_the_output_and_stays_valid():
+    run = _pair_run(1.0, 2.0)
+    strict = simulate_sequences(run, model=jc69(), length=300, seed=5)
+    clocked = simulate_sequences(run, model=jc69(), length=300,
+                                 substitution=1.0 * mod.FromParent(spread=0.5), seed=5)
+    assert clocked.alignments != strict.alignments          # the clock rescales branch lengths
+    for seq in _seqs(clocked):
+        assert len(seq) == 300 and set(seq) <= set("ACGT")
+
+
+def test_fromparent_is_deterministic():
+    run = _pair_run(1.0, 2.0)
+    spec = 1.0 * mod.FromParent(spread=0.4)
+    a = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
+    b = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
+    assert a.alignments == b.alignments and a.ancestral == b.ancestral
 
 
 # --- phylograms: the gene / species trees in substitutions/site -------------------------------------

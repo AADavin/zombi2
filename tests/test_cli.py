@@ -816,13 +816,14 @@ def test_params_file_rate_expression_matches_the_flag(tmp_path):
 
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
     # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
-    for command, present, absent in [("species", "FromParent", "ByLineage"),
-                                     ("sequences", "ByLineage", "FromParent")]:
+    for command, present, absent in [
+            ("species", ["FromParent"], ["ByLineage"]),
+            ("sequences", ["ByLineage", "FromParent"], ["OnTotalDiversity"])]:  # both clocks wired
         with pytest.raises(SystemExit):
             main([command, "--help", "--flat"])
         out = capsys.readouterr().out
         block = out[out.index("RATES"):]
-        assert present in block and absent not in block
+        assert all(p in block for p in present) and all(a not in block for a in absent)
 
 
 # ── top-level dispatch ──────────────────────────────────────────────────────────────
