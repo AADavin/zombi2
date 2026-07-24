@@ -170,7 +170,8 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
     _assign_fates_from_map(leaves, names, tip_fates, source="--tip-fates")
 
 
-def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tuple[Tree, dict[int, str]]:
+def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
+                assume_extant: bool = False) -> tuple[Tree, dict[int, str]]:
     """Parse a Newick string into a complete :class:`Tree` and a name-map ``{id: user label}``.
 
     This is how the CLI loads a species tree back for the downstream levels. Branch lengths are read
@@ -338,6 +339,14 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
             n.fate = "speciation"
     leaves = [n for n in nodes.values() if n.children is None]
 
+    if assume_extant:
+        # geometric callers (the tree transforms, treedist) don't use fate: take every tip as extant
+        # and keep the branch lengths exactly as read — no ultrametric check, no snap. This is how a
+        # non-ultrametric input (an inferred phylogram, a rounding-noisy dated tree) loads for them.
+        for n in leaves:
+            n.fate = "extant"
+        return Tree(nodes, root_id), names
+
     if all_labelled:
         if tip_fates is not None:
             # the run's own species_fates.tsv (or a --tip-fates file) states each tip's fate directly,
@@ -362,12 +371,13 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
     # differing depths could be extinctions or early samples, which we refuse to guess (SPEC decision).
     depths = [n.end_time for n in leaves]  # root sits at 0, so a tip's depth is its end_time
     height = max(depths)
-    if max(depths) - min(depths) <= max(1e-12, 1e-6 * height):  # ultrametric
+    gap = max(depths) - min(depths)
+    if gap <= max(1e-12, 1e-6 * height):  # ultrametric
         for n in leaves:
             n.fate = "extant"
         return Tree(nodes, root_id), names
 
-    _assign_external_fates(leaves, names, tip_fates, max(depths) - min(depths))
+    _assign_external_fates(leaves, names, tip_fates, gap)
     return Tree(nodes, root_id), names
 
 

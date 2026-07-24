@@ -124,3 +124,57 @@ def test_distance_detects_a_topology_difference():
 def test_distance_raises_on_different_leaf_sets():
     with pytest.raises(ValueError, match="different leaf sets"):
         T.distance(_tree(n=10, seed=1), _tree(n=12, seed=2))
+
+
+# ── CLI: zombi2 tools tree / treedist ────────────────────────────────────────────────────
+from zombi2.cli.main import main  # noqa: E402
+
+
+def _write(tmp_path, name, newick):
+    p = tmp_path / name
+    p.write_text(newick)
+    return str(p)
+
+
+def test_cli_tree_prune_writes_the_extant_tree_to_stdout(tmp_path, capsys):
+    r = species.simulate_species_tree(birth=1.0, death=0.5, n_extant=8, seed=2)
+    f = _write(tmp_path, "complete.nwk", r.complete_tree.to_newick())
+    assert main(["tools", "tree", f, "--prune"]) == 0
+    out = capsys.readouterr().out
+    n_tips = out.count(":") - out.count(")")  # rough, but extant < complete tip count
+    assert out.strip().endswith(";") and 0 < n_tips
+
+
+def test_cli_tree_round_makes_a_noisy_tree_ultrametric(tmp_path, capsys):
+    f = _write(tmp_path, "dated.nwk", "((a:1.0,b:1.0):0.5,(c:0.80001,d:0.79999):0.7);")
+    assert main(["tools", "tree", f, "--round"]) == 0
+    out = capsys.readouterr().out
+    tree, _ = T.read_newick(out, assume_extant=True)
+    d = [T._depths(tree)[i] for i, n in tree.nodes.items() if n.children is None]
+    assert max(d) - min(d) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_cli_tree_red_values_emits_a_table(tmp_path, capsys):
+    r = species.simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
+    f = _write(tmp_path, "t.nwk", r.extant_tree.to_newick())
+    assert main(["tools", "tree", f, "--red", "--values"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("node\tRED")
+    assert "\t0" in out                                     # the root is RED 0
+
+
+def test_cli_tree_requires_exactly_one_action(tmp_path):
+    f = _write(tmp_path, "t.nwk", "((a:1,b:1):1,(c:1,d:1):1);")
+    with pytest.raises(SystemExit):                          # argparse: no action given
+        main(["tools", "tree", f])
+
+
+def test_cli_treedist_self_is_zero_and_mismatch_errors(tmp_path, capsys):
+    r = species.simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=3)
+    f = _write(tmp_path, "t.nwk", r.extant_tree.to_newick())
+    assert main(["tools", "treedist", f, f, "--metric", "all"]) == 0
+    out = capsys.readouterr().out
+    assert "rf\t0" in out and "branch-score\t0" in out
+    other = _write(tmp_path, "other.nwk", "((a:1,b:1):1,(c:1,d:1):1);")
+    with pytest.raises(SystemExit):
+        main(["tools", "treedist", f, other, "--metric", "rf"])

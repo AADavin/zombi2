@@ -45,7 +45,7 @@ zombi2/
   sequences/         ✅ simulate_sequences → SequencesResult
   traits/            ✅ simulate_continuous · simulate_discrete → TraitsResult ;  discrete(...) process spec (for joint)
   joint/             ✅ simulate_joint → JointResult   (the FUSE engine; SPEC §2–4). Conditioned needs no engine — it folds into the target level via DrivenBy + rates/driver.py. "Coupling" is the concept (SPEC/manual), not a package.
-  tools/             ~  read-back analyses on a finished run (the levels simulate; the tools re-express). `homology` ✅ — the true ortholog/paralog/xenolog matrix per gene tree (the event at each leaf pair's MRCA). The rest (reconciliation, treedist, recon-accuracy, red, …) 📦
+  tools/             ~  read-back analyses on a finished run (the levels simulate; the tools re-express). `homology` ✅ — the true ortholog/paralog/xenolog matrix per gene tree (the event at each leaf pair's MRCA). (RED and tree distance are not here — they live in `zombi2.tree`, exposed on the CLI as `tools tree --red` / `tools treedist`.) The rest (reconciliation, recon-accuracy, …) 📦
   cli/               ✅ species · genomes · sequences · traits · joint · tools (clean, one flag per API keyword, rates in the written form)
 ```
 (The old codebase is no longer in the repo — it lives in the sibling `../ZOMBI2_LEGACY/`; nothing under
