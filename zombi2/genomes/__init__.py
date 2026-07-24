@@ -354,7 +354,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     (``traits.simulate_discrete(...).write(dir, outputs=("driver",))``). A driven rate is then
     *per-lineage*: it is summed over the living lineages (each with its own copy count and driver
     value), the affected lineage is drawn weighted by its rate, and the Gillespie steps at every
-    mid-branch switch of the driver (SPEC §2, ``coupling-api.md``). For ``transfer`` the affected
+    mid-branch switch of the driver (SPEC §2). For ``transfer`` the affected
     lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
     **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is

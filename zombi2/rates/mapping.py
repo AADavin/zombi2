@@ -1,5 +1,5 @@
 """The mapping of a :class:`~zombi2.rates.modifiers.DrivenBy` coupling — how a driver
-level's value becomes a rate multiplier (SPEC §2, ``coupling-api.md``).
+level's value becomes a rate multiplier (SPEC §2).
 
 A coupling is *a rate that reads its value from another level*. The ``DrivenBy`` modifier
 reads the driver's value on a lineage; the **mapping** turns that value into the

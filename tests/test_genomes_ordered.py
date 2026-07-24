@@ -89,7 +89,7 @@ def test_initial_families_dealt_round_robin_across_chromosomes():
 
 
 def test_shared_params_are_a_subset_of_the_ordered_signature():
-    # the layering contract (genome-api.md): unordered ⊂ ordered, only the extra args differ
+    # the layering contract: unordered ⊂ ordered, only the extra args differ
     shared = set(inspect.signature(simulate_genomes_unordered).parameters) - {"tree"}
     ordered = set(inspect.signature(simulate_genomes_ordered).parameters) - {"tree"}
     assert shared <= ordered                                 # unordered ⊂ ordered: nothing dropped
