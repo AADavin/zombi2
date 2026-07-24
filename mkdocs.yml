@@ -9,8 +9,8 @@ docs_dir: docs
 exclude_docs: |
   *.tex
   *.bib
-  # design/ holds SPEC.md, MAP.md and the api design docs — repo references (see CLAUDE.md),
-  # not published site pages; keep them out of the build.
+  # design/ holds SPEC.md — a repo reference (see CLAUDE.md),
+  # not a published site page; keep it out of the build.
   design/
 
 # The header title/logo links back to the main website (these docs are a /docs/ subsite).

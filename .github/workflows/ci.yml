@@ -28,8 +28,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      # The clean core is pure Python (numpy only) — the Rust engine returns as a later stage
-      # (docs/design/MAP.md), and this job rebuilds it then.
+      # The clean core is pure Python (numpy only) — a plain editable install, no build step.
       - name: Install ZOMBI2 (with dev extras)
         run: pip install -e ".[dev]"
 

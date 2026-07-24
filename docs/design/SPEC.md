@@ -1,14 +1,9 @@
 # ZOMBI2 — Model & Vocabulary Specification
 
-**Status: AUTHORITATIVE. Read this before changing code, docs, the CLI, or the manual.**
-
 This document is the single source of truth for how ZOMBI2 is organised, what it may and may not do,
 and the exact words used to describe it. When any other file — code, docstring, CLI help, manual
 chapter, design doc, README — disagrees with this document, that other file is a **fossil** and must be
-changed to match. It reflects decisions ratified with Adrián in July 2026.
-
-Principle throughout: **concepts → code → chapter.** Never document behaviour the code does not have;
-fix the code first. §12 lists the known gaps between this spec and today's code.
+changed to match. 
 
 ---
 
@@ -32,7 +27,7 @@ Species → Traits                   (a trait lives on the species tree)
 
 These "lives-on" connections are always present; they are **not** couplings you add. Because a sequence
 lives inside a gene, it sees the species tree only through its gene tree, so its notation conditions on
-Genomes, not Species. The rule: on the bar, write only the level's immediate parent.
+Genomes, not Species.
 
 ---
 
@@ -57,9 +52,6 @@ two factors collapse into one term, so do their runs.
 - **Joint** — neither can go first, so one run makes both; when the coupling feeds back into the species
   tree, the tree becomes an **output** and crosses the bar (`P(Species, Traits)`).
 
-**A coupling is a parameter that reads its value from another level instead of being a number you
-type.**
-
 ---
 
 ## 3. Which pairs can be conditioned or joined
@@ -71,9 +63,9 @@ one level lives on the other or they sit on separate branches:
 |---|---|---|
 | Species – Genomes | no (a genome lives on the species tree) | yes — gene content drives speciation (tree grown) |
 | Species – Traits | no (a trait lives on the species tree) | yes — a trait drives speciation (tree grown) |
-| Genomes – Sequences | no (a sequence lives inside a gene) | in principle yes, deferred (§10) |
+| Genomes – Sequences | no (a sequence lives inside a gene) | in principle yes, deferred |
 | Genomes – Traits | yes, either direction | yes — the two drive each other |
-| Traits – Sequences | yes (a trait drives a sequence; the reverse is deferred) | deferred (§10) |
+| Traits – Sequences | yes (a trait drives a sequence; the reverse is deferred) | no |
 | Species – Sequences | no | no — too far apart to connect |
 
 The generating rule: a pair can be **conditioned** only on separate branches (Genomes–Traits,
@@ -81,24 +73,9 @@ Traits–Sequences); it can be **joined** either by a level feeding back into it
 Species–Traits, tree grown as an output) or by two separate-branch levels driving each other
 (Genomes–Traits). Species and Sequences are too far apart to connect.
 
-Two consequences: **every conditioning involves Traits** (the only off-chain level, so one end of every
-separate-branch pair), while **joining does not** — gene content driving speciation joins Species and
-Genomes with no trait.
-
 ---
 
-## 4. The models
-
-We describe each model by **what it does**, not by a jargon name.
-
-**The couplings you can condition on** (one level reads another; the driver is passed as a file):
-
-- a trait drives gene gain or loss
-- a trait drives horizontal transfer — how often a lineage donates (a rate), or which lineages
-  receive (a weight); these are two different models, not two spellings of one
-- gene content drives a trait's optimum
-- a trait drives selection (dN/dS) or clock speed on sequences
-- a sequence drives a trait — *deferred (§10)*
+## 4. Joint models and naming
 
 **The models that must be simulated jointly** (one run produces both levels):
 
@@ -112,16 +89,6 @@ The literature calls these models by acronyms (BiSSE, MuSSE, QuaSSE, HiSSE, ClaS
 co-diversification, trait–gene feedback). **Those names are deprecated as structure, not hidden:**
 section headings and prose describe each model by what it does; the acronyms never organise a chapter.
 The class names remain in the code as the field's search terms.
-
-**Every level chapter carries one bridge table** — "literature model → what it does → how to get it in
-ZOMBI2" — the single place the acronyms are collected, never in headings or structure. (Species trees,
-e.g.: Yule → pure birth → birth–death with extinction = 0; ClaDS → rates drift as lineages split → rate
-depends on ancestry; BiSSE → a trait drives speciation → a joint model.)
-
-**Not everything that looks like a connection is one.** A trait that jumps at speciation, or a genome
-that changes only at splits, is just reading the tree it already lives on. That is an option of the
-level's own model, not a link to another level, so it belongs in that level's chapter, not among the
-couplings.
 
 ---
 
@@ -157,14 +124,7 @@ thing; an event that makes something from nothing is counted per lineage.** Orig
 arbitrary exception — there is no existing gene for it to be "per", and likewise no parent replicon
 for a de-novo plasmid.
 
-The rule settles the rearrangements, which act on a **run of genes** anchored at one of them: they
-are per copy, like the duplication and loss they sit beside, not per chromosome. A chromosome is
-where such a run happens to be confined, not what the event acts on — which is why a per-chromosome
-inversion rate doubles when a fission draws a line through a genome, though not one gene has changed.
-Scope answers *how many chances*; how far a single event then reaches is the extension's business,
-a separate knob.
-
-Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
+Time is imposed by the species tree, at the beginning of the **stem**.
 
 **How a rate is written (same at every level):** the scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`,
 `Global(1.0)` — `Global` capitalised, since `global` is a Python keyword) and modifiers multiply
@@ -232,15 +192,9 @@ switching is `Markov` (a mechanism name, no preposition), and any future preposi
 named likewise; **outside the grammar** — a modifier multiplies *one* rate, so a value-level process
 (the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier.
 
-**Planned (parked, not yet active).** Every `On` covariate should share the same `Table` / `Curve` /
-`Scalar` response `DrivenBy` takes — so `OnTotalDiversity(mapping)`, etc., making `DrivenBy` just
-`On<another level>`. Constraint: the Gillespie integrates the rate between breakpoints, so the factor
-must stay **piecewise-constant** — automatic for a covariate that changes only at events, but not for
-continuous time, so `OnTime` stays a *step* schedule. Write up after the coupling level lands.
-
 ---
 
-## 6. Canonical vocabulary (and the fossils it replaces)
+## 6. Canonical vocabulary 
 
 Left column is correct; right column is a fossil to purge.
 
@@ -263,16 +217,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ---
 
-## 7. Figure conventions
-
-Figure style lives in **[`figures/STYLE.md`](../../figures/STYLE.md)** — the layouts, the palette
-rule, the canvas and typography scale, and where a figure's source and renders belong. It is the
-only place these are written down, so a figure has one set of rules to satisfy rather than two that
-can drift apart.
-
----
-
-## 8. Naming and branding
+## 7. Naming and branding
 
 - The tool is **ZOMBI2** (already consistent; do not change to "Zombi2"). The package/CLI token is
   lowercase `zombi2`.
@@ -286,53 +231,4 @@ can drift apart.
   runs from the origin to the first split; for a gene tree, from the family's **origination** to the
   founding gene's first event; for a **phylogram**, it is that same stem in substitutions, because
   the founding sequence is drawn at origination and evolves across the stem like any other branch.
-- Prose target: **≤ 4 em dashes per 1,000 words** (the `- term — gloss` bullet form and captions are
-  exempt).
 
----
-
-## 9. The book
-
-Nine chapters + three appendices, one file each in `manual/book/` (`ch1.md` … `ch9.md`,
-`appendix-a.md`, `appendix-b.md`, `appendix-c.md`):
-
-- **I Getting started** — 1 Introduction · 2 A tour of ZOMBI2
-- **II The four levels** — 3 Species trees · 4 Genomes I: Unordered · 5 Genomes II: Ordered ·
-  6 Genomes III: Nucleotide · 7 Sequence evolution · 8 Trait evolution
-- **III Coupling the levels** — 9 Conditioning and joining (nulls close the chapter)
-- **Appendix A** Gillespie · **Appendix B** Output files · **Appendix C** Tools
-
-The three genome chapters are the **resolution** ladder of §4 — unordered ⊂ ordered ⊂ nucleotide —
-one chapter per rung.
-
-Every Part II (level) chapter ends the same way: **The objects → Usage from Python → Usage from the
-CLI → Outputs.** Concept chapters (1, 2) and Part III are essays.
-
----
-
-## 10. Deferred / experimental
-
-Sequences are **target-only** in v1: nothing drives *out* of Sequences yet. The couplings that need a
-driving sequence — a sequence driving gene loss, a sequence driving a trait — are real but deferred to
-`experimental` (they need mid-branch sub-stepping instead of the whole-branch substitution step). State
-the hole plainly; do not pretend it is closed.
-
----
-
-## 11. Still to settle (in context)
-
-- **The kinds of thing a level run is built from** — the distinction between the generative model, what
-  you observe (sampling), and how a single event resolves — is agreed in principle but its exposition is
-  to be worked out in the **Species Trees chapter**, in context, before it is fixed here.
-
----
-
-## 12. Known divergences (code vs. this spec)
-
-None currently open — the code matches this document. When an alignment task leaves a gap, record it
-here, so a fresh reader does not trust the code over the spec.
-
----
-
-*When you finish an alignment task, update §12. When a convention genuinely needs to change, change it
-HERE first, then propagate.*

@@ -1,7 +1,7 @@
 """ZOMBI2 — simulating the evolution of species, genomes, sequences and traits.
 
 There are **no top-level re-exports**: one canonical path per name, reached through each
-level's package (see ``docs/design/MAP.md``). ::
+level's package. ::
 
     from zombi2 import species
     result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
