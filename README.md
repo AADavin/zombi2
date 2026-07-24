@@ -1,5 +1,5 @@
 <h1>
-  ZOMBI2&nbsp;<img src="assets/logo.svg" alt="ZOMBI2 logo" height="32" align="absmiddle">
+  ZOMBI2&nbsp;<img src="assets/logo.svg" alt="ZOMBI2 logo" height="45" align="absmiddle">
 </h1>
 
 **[🌐 Website](https://aadavin.github.io/zombi2/)** · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)
@@ -62,7 +62,7 @@ evolves along a species tree, so you run whichever you need, composed into one s
 reproducible run.
 
 <p align="center">
-  <img alt="The four levels of evolution ZOMBI2 simulates: species, genomes and sequences in a chain, with traits branching off species" src="manual/book/figures/fig-2-1-four-levels.svg" width="330">
+  <img alt="The four levels of evolution ZOMBI2 simulates: species, genomes and sequences in a chain, with traits branching off species" src="manual/book/figures/fig-2-1-four-levels.svg" width="450">
 </p>
 
 - **[Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)** — a
