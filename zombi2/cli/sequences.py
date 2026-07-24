@@ -223,7 +223,11 @@ def run(args, parser):
     clock = (f"{clocks[0].dist} lineage clock, spread {clocks[0].spread:g}" if clocks
              else "strict clock")
     if nucleotide:
-        bp = sum(len(seq) for chroms in result.genomes.values() for seq in chroms.values())
+        # the assembled genome of a node is exactly as long as its block layout (substitution keeps
+        # length), so total bp comes from the genome run without assembling every node's sequence —
+        # which, since `result.genomes` is now assembled lazily, would otherwise build them all just
+        # to sum their lengths.
+        bp = sum(g.length for g in genome_run.genomes.values())
         spacer = args.intergene_model or "jc69"
         summary = (f"{n_seqs} sequences across {n_families} blocks, {bp:,} bp assembled into "
                    f"{len(result.genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
