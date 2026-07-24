@@ -51,17 +51,14 @@ probability-factorisation notation, where `P(B | A)` reads "B simulated given A"
 The load-bearing rule: **every factor you can write on its own is a run you can do on its own.** When
 two factors collapse into one term, so do their runs.
 
-- **Independent** — the two levels do not read each other. "Independent" means independent *of each
-  other*, not of the tree.
-- **Conditioned** — one level reads the other: a parameter of the second stops being a number you type
-  and takes its value from the first. Because the first can be simulated and then held fixed, it is two
-  ordinary runs in order, the driver passed to the second as a file.
-- **Joint** — neither level can be simulated first, because each depends on the other as it unfolds, so
-  one run produces both. When the coupling reaches back into the species tree, the tree itself becomes
-  an **output** rather than an input, and crosses the bar: `P(Species, Traits)`.
+- **Independent** — neither reads the other (independent *of each other*, not of the tree).
+- **Conditioned** — one reads the other; the driver can be grown first and held fixed, so it is two runs
+  in order, the driver passed as a file.
+- **Joint** — neither can go first, so one run makes both; when the coupling feeds back into the species
+  tree, the tree becomes an **output** and crosses the bar (`P(Species, Traits)`).
 
 **A coupling is a parameter that reads its value from another level instead of being a number you
-type.** That one sentence is the whole idea.
+type.**
 
 ---
 
@@ -79,21 +76,14 @@ one level lives on the other or they sit on separate branches:
 | Traits – Sequences | yes (a trait drives a sequence; the reverse is deferred) | deferred (§10) |
 | Species – Sequences | no | no — too far apart to connect |
 
-The plain rules:
+The generating rule: a pair can be **conditioned** only on separate branches (Genomes–Traits,
+Traits–Sequences); it can be **joined** either by a level feeding back into its own tree (Species–Genomes,
+Species–Traits, tree grown as an output) or by two separate-branch levels driving each other
+(Genomes–Traits). Species and Sequences are too far apart to connect.
 
-- A pair can be **conditioned** only when neither level lives on the other, that is, when they sit on
-  separate branches: Genomes–Traits and Traits–Sequences.
-- A pair can be **joined** in one of two ways: a level feeds back into the tree it lives on (Species–
-  Genomes or Species–Traits, where the tree is then grown as an output), or two levels on separate
-  branches drive each other (Genomes–Traits).
-- Species and Sequences are too far apart to connect at all.
-
-Two consequences worth stating plainly:
-
-- **Every conditioning involves Traits**, because traits are the only level off the main chain, so they
-  are one end of every separate-branch pair.
-- **Joining does not need traits.** Gene content driving speciation joins Species and Genomes with no
-  trait in sight.
+Two consequences: **every conditioning involves Traits** (the only off-chain level, so one end of every
+separate-branch pair), while **joining does not** — gene content driving speciation joins Species and
+Genomes with no trait.
 
 ---
 
@@ -124,11 +114,9 @@ section headings and prose describe each model by what it does; the acronyms nev
 The class names remain in the code as the field's search terms.
 
 **Every level chapter carries one bridge table** — "literature model → what it does → how to get it in
-ZOMBI2" — as the single place the acronyms are collected, for readers who arrive already thinking in the
-literature's vocabulary. The names live in that table, never in the section headings or the organising
-structure. (Example, for species trees: Yule → pure birth → birth–death with extinction = 0; ClaDS →
-rates drift as lineages split → rate depends on ancestry; BiSSE → a trait drives speciation → a joint
-model. This is the reconciliation of "deprecate the zoo" with "help the literature-literate reader".)
+ZOMBI2" — the single place the acronyms are collected, never in headings or structure. (Species trees,
+e.g.: Yule → pure birth → birth–death with extinction = 0; ClaDS → rates drift as lineages split → rate
+depends on ancestry; BiSSE → a trait drives speciation → a joint model.)
 
 **Not everything that looks like a connection is one.** A trait that jumps at speciation, or a genome
 that changes only at splits, is just reading the tree it already lives on. That is an option of the
@@ -178,11 +166,10 @@ a separate knob.
 
 Time is imposed by the species tree, measured from the **crown** by default or the **stem**.
 
-**How a rate is written (same at every level):** a rate is an optional **scope wrapper** around a base
-number, optionally times **modifiers**. The scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`, `Global(1.0)`
-— `Global` capitalised, since `global` is a Python keyword); modifiers multiply (`0.2 * ByFamily(...)`,
-`1.0 * OnTotalDiversity(cap=100)`). The bare number uses the rate's natural scope, so the common case is just
-`birth=1.0`. There is **no `per=` argument** — the scope lives on the rate, so it can be set per rate.
+**How a rate is written (same at every level):** the scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`,
+`Global(1.0)` — `Global` capitalised, since `global` is a Python keyword) and modifiers multiply
+(`0.2 * ByFamily(...)`, `1.0 * OnTotalDiversity(cap=100)`); a bare number uses the rate's natural scope,
+so the common case is just `birth=1.0`. There is **no `per=` argument** — the scope lives on each rate.
 Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
 `time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
 with "per".
@@ -245,18 +232,11 @@ switching is `Markov` (a mechanism name, no preposition), and any future preposi
 named likewise; **outside the grammar** — a modifier multiplies *one* rate, so a value-level process
 (the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier.
 
-**Planned unification — the `On` family shares one response (parked 2026-07-20, not yet active).**
-An `On` modifier is, by its own definition, *a covariate + a response*: a measured quantity mapped to a
-factor. That response is the **same `Table` / `Curve` / `Scalar` vocabulary** the coupling modifier
-`DrivenBy` already takes (`zombi2/rates/mapping.py`) — so every covariate modifier is really
-`On<covariate>(response)`, and `DrivenBy` is just `On<another level>` with the response left open.
-The covariate modifiers should therefore *share* that response: `OnTotalDiversity` would take a mapping
-(its linear-to-`cap` becoming the default preset), etc. The one constraint is **exactness** — the
-event-level Gillespie integrates the rate between breakpoints, so the factor must stay
-**piecewise-constant**. That is automatic when the covariate itself only changes at events (standing
-diversity; a discrete driver), but **not** for continuous time — so `OnTime` must stay a *step*
-schedule (a smooth time-response needs Poisson thinning, a separate slice). Decided direction; to be
-written into this section and propagated **after the coupling level lands**.
+**Planned (parked, not yet active).** Every `On` covariate should share the same `Table` / `Curve` /
+`Scalar` response `DrivenBy` takes — so `OnTotalDiversity(mapping)`, etc., making `DrivenBy` just
+`On<another level>`. Constraint: the Gillespie integrates the rate between breakpoints, so the factor
+must stay **piecewise-constant** — automatic for a covariate that changes only at events, but not for
+continuous time, so `OnTime` stays a *step* schedule. Write up after the coupling level lands.
 
 ---
 
@@ -347,26 +327,10 @@ the hole plainly; do not pretend it is closed.
 
 ---
 
-## 12. Known divergences (the code does not yet match this spec)
+## 12. Known divergences (code vs. this spec)
 
-Fossils to fix; why a fresh reader must not trust the code over this document.
-
-- **`zombi2/coevolve/` still exists** (command + package). It is to be renamed; keep a deprecated alias
-  for one release.
-- **`grammar.py`'s solver is dead code** (`CouplingGraph`, `solve_plan`, `make_null`) — its own
-  docstring says nothing consults it. Delete the dead layer; **keep `is_fused`** (it correctly computes
-  "must be simulated jointly") and the live vocabulary (`Scalar/Table/Curve/Jump`).
-- **`per="site"` is documented but raises `ValueError`**; `--rate-per` vs `--per` disagree between
-  subcommands; `--rate-model shared` maps to `--rate-per copy`. ~~Align the rate CLI to §5.~~ *Done for
-  the clean core (2026-07-21): every rate flag takes the one written form above. The fossil is now
-  `legacy/` only.*
-- **The CLI still says `genes:` where the spec says `genomes:`.**
-- **The old lexicon is live in user-facing surfaces**: "diamond" ships in `zombi2 sequences --help` and
-  in a rendered figure title; "propensity"/"opportunity"/"tier" appear in the manual/docs; two different
-  level orders both occur (the spec order is Species, Genomes, Sequences, Traits).
-- **`simulate_sequences` does not exist** at the top level, while the other three levels have their verb.
-- **The driver-as-a-file inputs are half-built** (`--trait-file` exists; the gene-driven equivalent does
-  not). Build these before documenting conditioning as a two-command workflow.
+None currently open — the code matches this document. When an alignment task leaves a gap, record it
+here, so a fresh reader does not trust the code over the spec.
 
 ---
 
