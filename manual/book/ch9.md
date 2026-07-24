@@ -62,7 +62,7 @@ That is the whole of conditioning today, and it fits in two rows:
 | The driver | What it drives | Written like this | Mapping |
 |---|---|---|---|
 | a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the rates of an unordered genome run | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
-| a discrete trait | `transfer_to` — which lineage a transfer lands on | `transfer_to = mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | `transfer_to` — which lineage a transfer lands on | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
 
 `source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
 
@@ -93,6 +93,26 @@ genomes.simulate_genomes_unordered(tree,
     transfer_to =       mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0}),
     initial_families=10, seed=2)
 ```
+
+#### The recipient weight can read the donor too
+
+The `transfer_to` above reads the driver on the *recipient* only. So it can say "competent lineages take DNA up more often", but not "genes move between two states and not within them" — the weight on a candidate does not know who is donating. A **`Between`** kernel closes that gap. In place of one factor per recipient state, it gives a weight per ordered **(donor state, recipient state)** pair, and the engine reads the driver on the donor as well as the candidate:
+
+```python
+from zombi2.rates.mapping import Between
+
+habitat = traits.simulate_discrete(tree, states=["marine", "soil"], switch=0.3, seed=1)
+
+genomes.simulate_genomes_unordered(tree,
+    transfer    = 0.5,
+    transfer_to = mod.DrivenBy(habitat, Between({("marine", "marine"): 1.0,
+                                                 ("soil",   "soil"):   1.0}, default=0.0)),
+    initial_families=10, seed=2)
+```
+
+Every transfer now stays within one habitat: a marine donor can only reach a marine recipient, a soil donor only a soil one, because every cross-habitat pair weighs 0. The numbers are weights, read exactly as before — normalised over the candidates, so they redistribute transfers without changing how many happen. `default` (1.0) is the weight of any pair you leave out, so `Between({("marine", "soil"): 3.0})` *enriches* one direction against a baseline rather than forbidding the rest; `default=0.0` is the "only the flows I name" idiom. A `Between` is a recipient weight, never a rate: driving a rate with one is refused, because a rate has no donor to condition on.
+
+This is the trait-driven twin of Chapter 4's `Clades`. There the groups are clades — a fact about the tree — so no coupling is involved; here they are an evolved trait, so it is. Same kernel, same steering; only where the groups come from differs.
 
 Combining a driven `transfer_to` with the `"distance"` rule of Chapter 4 is not supported: `transfer_to` takes one rule.
 
