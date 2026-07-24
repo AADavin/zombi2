@@ -27,7 +27,10 @@ from __future__ import annotations
 import bisect
 import heapq
 import math
+import os
+import shutil
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -36,7 +39,8 @@ from ..progress import progress_bar
 from ..rates.modifiers import ByFamily, DrivenBy
 from ._live import enter, retire
 from ._transfer import mean_root_to_tip, recipient_index
-from .events import Event
+from .events import EVENTS_HEADER, Event, event_rows, node_label
+from .gene_trees import gene_trees_from_events, write_gene_trees
 
 
 def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
@@ -111,6 +115,17 @@ def _enumerate_families(tree, org, initial_families, families_named, rng):
 
 # --- Pass 2: evolve one family down the tree (a worker) -------------------------------------------
 
+# Each family owns a copy-id range ``[fid << SHIFT, (fid+1) << SHIFT)``, so a worker mints
+# **globally-unique** ids as ``base + local`` with no coordination and no post-hoc offset — the merge
+# and the streamed shards simply concatenate. 2^30 leaves room for a billion copies in one family
+# (never approached); ids are Python ints, so a large ``fid`` never overflows.
+_COPY_ID_SHIFT = 30
+
+
+def _copy_base(fid: int) -> int:
+    return fid << _COPY_ID_SHIFT
+
+
 # Shared read-only state, shipped once per worker by the initializer (never re-pickled per family).
 _CTX: dict = {}
 
@@ -133,13 +148,13 @@ def _family_mults(rng, family_speed, fam_by):
     return out
 
 
-def _evolve_family(task):
-    """Evolve family ``fid`` from its origination down the tree; return its events, per-node genome
-    snapshots and the number of copies it minted (for the merge's id offset). Mirrors the global loop's
-    inner event handling, scoped to this family's footprint (the lineages it occupies)."""
+def _evolve_one(fid, birth_lineage, birth_time, seedseq):
+    """Evolve one family from its origination down the tree; return ``(events, node_genomes)``. Copy
+    ids are ``(fid << SHIFT) + local`` — globally unique, so the caller (the merge, or a streamed
+    shard) concatenates without rewriting. Mirrors the global loop's inner event handling, scoped to
+    this family's footprint (the lineages it occupies). Reads the shared inputs from :data:`_CTX`."""
     from . import GeneCopy, _at_cap, _duplicate, _lose_at, _pick_copy   # package helpers; no cycle
 
-    fid, birth_lineage, birth_time, seedseq = task
     c = _CTX
     tree, dup, tra, los = c["tree"], c["dup"], c["tra"], c["los"]
     transfer_to, replacement, self_transfer = c["transfer_to"], c["replacement"], c["self_transfer"]
@@ -154,11 +169,14 @@ def _evolve_family(task):
 
     events: list[Event] = []
     node_genomes: dict[int, list] = {}
+    base = _copy_base(fid)
     counter = 0
 
     def new_copy(family: int) -> "GeneCopy":
         nonlocal counter
-        gc = GeneCopy(counter, family)
+        if counter >= (1 << _COPY_ID_SHIFT):                # a billion copies in one family — unreachable
+            raise OverflowError(f"family {fid} exceeded {1 << _COPY_ID_SHIFT} copies; raise _COPY_ID_SHIFT")
+        gc = GeneCopy(base + counter, family)
         counter += 1
         return gc
 
@@ -264,7 +282,14 @@ def _evolve_family(task):
         else:
             t = horizon                                     # a skyline or transfer-window breakpoint
 
-    return fid, events, node_genomes, counter
+    return events, node_genomes
+
+
+def _evolve_family(task):
+    """Collect-mode worker: evolve one family and hand its log back for the in-memory merge."""
+    fid, birth_lineage, birth_time, seedseq = task
+    events, node_genomes = _evolve_one(fid, birth_lineage, birth_time, seedseq)
+    return fid, events, node_genomes
 
 
 def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events, new_copy,
@@ -316,22 +341,114 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
     return delta
 
 
-# --- the public entry: run the two passes and assemble a GenomesResult ----------------------------
+# --- output vocabulary for a streamed run (the files match GenomesResult.write) -------------------
+
+#: the outputs a streamed run can produce and their top-level filenames — the same names the in-memory
+#: ``GenomesResult.write`` uses. Gene trees are the exception: one Newick pair per family under a
+#: ``gene_trees/`` subdirectory, so a million families do not land as two million files in the run root.
+_STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
+_STREAM_FILENAMES = {"events": "genome_events.tsv", "profiles": "profiles.tsv",
+                     "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv"}
+_DEFAULT_STREAM_OUTPUTS = _STREAM_OUTPUTS
+
+#: families per streamed chunk — **fixed**, independent of the worker count, so a chunk is a contiguous
+#: family-id range and the shards concatenate in a deterministic order: a streamed run's files are
+#: byte-identical for any number of workers. A million families is ~4000 chunks, plenty to fill the cores.
+_STREAM_CHUNK = 256
+
+
+@dataclass(frozen=True)
+class StreamedRun:
+    """A genome run written **straight to disk**, family by family — what ``stream_to=`` returns, for a
+    scale where a whole :class:`~zombi2.genomes.GenomesResult` would not fit in memory. Thin by design:
+    the outputs *are* the files and the disk is the handoff (the sequences level reads them back), so
+    this carries where they are and how big the run was, not the run itself."""
+
+    directory: str
+    seed: "int | None"
+    n_families: int
+    n_events: int
+    outputs: tuple
+
+    def path(self, output: str) -> str:
+        """The path of a written top-level file — e.g. ``path("events")`` → ``…/genome_events.tsv``.
+        Gene trees are not a single file; they live one pair per family under ``gene_trees/``."""
+        if output not in _STREAM_FILENAMES:
+            raise KeyError(f"{output!r} is not a top-level streamed file (gene trees are under "
+                           f"gene_trees/); files are {sorted(_STREAM_FILENAMES)}")
+        return os.path.join(self.directory, _STREAM_FILENAMES[output])
+
+
+def _stream_chunk(task):
+    """Streaming worker: evolve a contiguous chunk of families and write as it goes — a per-chunk shard
+    for each row output (events / genomes / profiles) and one Newick pair per family for the gene trees.
+    Nothing run-sized is held; the parent concatenates the shards afterwards. Returns
+    ``(chunk_index, n_families, n_events)``."""
+    chunk_index, family_list = task
+    tree, s = _CTX["tree"], _CTX["stream"]
+    out_dir, outputs, extant_ids, shard_dir = s["out_dir"], s["outputs"], s["extant_ids"], s["shard_dir"]
+    want = {name: name in outputs for name in ("events", "genomes", "profiles", "gene_trees")}
+    trees_dir = os.path.join(out_dir, "gene_trees")
+
+    files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w")
+             for name in ("events", "genomes", "profiles") if want[name]}
+    n_events = 0
+    try:
+        for (fid, lineage, birth_time, seedseq) in family_list:
+            events, node_genomes = _evolve_one(fid, lineage, birth_time, seedseq)
+            n_events += len(events)
+            if want["events"]:
+                f = files["events"]
+                for row in event_rows(events):
+                    f.write(row); f.write("\n")
+            if want["genomes"]:
+                f = files["genomes"]
+                for node_id, copies in node_genomes.items():
+                    label = node_label(node_id)
+                    for cp in copies:
+                        f.write(f"{label}\t{cp.family}\t{cp.id}\n")
+            if want["profiles"]:
+                counts = [len(node_genomes.get(sp, ())) for sp in extant_ids]
+                if any(counts):                             # a family absent from every extant tip: no row
+                    files["profiles"].write(f"{fid}\t" + "\t".join(map(str, counts)) + "\n")
+            if want["gene_trees"]:
+                write_gene_trees(gene_trees_from_events(events, tree), trees_dir)
+    finally:
+        for f in files.values():
+            f.close()
+    return chunk_index, len(family_list), n_events
+
+
+# --- the public entry: two passes, then either an in-memory merge or a stream to disk -------------
 
 def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
                            initial_families, families, family_speed, cap, seed, parallel,
-                           progress):
-    """Run the per-family engine, or return ``None`` to signal a loud fallback to the serial loop.
+                           progress, stream_to=None, outputs=None):
+    """Run the per-family engine. Returns a :class:`~zombi2.genomes.GenomesResult` (the in-memory
+    merge), or a :class:`StreamedRun` when ``stream_to`` is a directory — each family written straight
+    to disk, for a scale a whole result would not hold. Returns ``None`` (a loud fallback to the serial
+    loop) only for the in-memory path: a driven rate has no per-family engine, and a streamed run
+    **raises** rather than silently pulling the whole thing back into memory.
 
-    Returns a fully-assembled :class:`~zombi2.genomes.GenomesResult` on success. Everything but the
-    per-family *simulation* — validation, the result type, the id scheme — matches the serial engine,
-    so the run is a drop-in swap that only differs in its (equally valid) random draw."""
+    Copy ids are global from the start (``fid << SHIFT`` + local), so the merge and the streamed shards
+    both just concatenate — no id rewrite, no run-sized bottleneck beyond the (serial) in-memory merge
+    the streaming path exists to avoid."""
     from . import GeneCopy, GenomesResult
 
     reason = _unsupported_reason(dup, tra, los, org, transfer_to)
     if reason is not None:
+        if stream_to is not None:
+            raise ValueError(
+                f"a streamed run cannot handle this: {reason}. Streaming needs the per-family engine "
+                "(families written independently); run without the driver, or drop stream_to to fall "
+                "back to the serial in-memory engine.")
         print(f"note: --parallel not applied — {reason}; running serially instead")
         return None
+    if stream_to is not None:
+        outputs = tuple(outputs) if outputs is not None else _DEFAULT_STREAM_OUTPUTS
+        unknown = [o for o in outputs if o not in _STREAM_OUTPUTS]
+        if unknown:
+            raise ValueError(f"unknown stream outputs {unknown}; choose from {list(_STREAM_OUTPUTS)}")
 
     workers = resolve_workers(parallel)
     depth = mean_root_to_tip(tree)
@@ -347,6 +464,7 @@ def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement
         tree, org, initial_families, families, np.random.default_rng(root_ss.spawn(1)[0]))
     n_families = len(families_meta)
     family_seeds = root_ss.spawn(n_families) if n_families else []
+    per_family = [(fid, lin, bt, family_seeds[k]) for k, (fid, lin, bt) in enumerate(families_meta)]
 
     # the contemporaneous-lineage machinery, precomputed once and shared: sorted birth / death times
     # (two pointers give the set alive at any t) and the times can_xfer (≥2 lineages alive) flips.
@@ -361,53 +479,99 @@ def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement
         "cross2": _cross2_times(tree),
     }
 
-    tasks = [(fid, lin, bt, family_seeds[k]) for k, (fid, lin, bt) in enumerate(families_meta)]
+    if stream_to is not None:
+        return _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families,
+                              families, str(stream_to), outputs, progress)
 
-    # Pass 2: evolve each family. Inline for a small run (the pool's spawn + IPC would cost more than it
-    # saves); one process per family otherwise. Same streams, so the two give byte-identical results.
+    # In-memory: evolve each family, then merge. Inline for a small run (the pool's spawn + IPC would
+    # cost more than it saves); one process per family otherwise. Same streams either way.
     results = []
     bar = progress_bar(max(1, n_families), "genomes", unit="family", enabled=progress)
     if workers > 1 and n_families >= 2:
         w = min(workers, n_families)
         with ProcessPoolExecutor(max_workers=w, initializer=_init_worker, initargs=(ctx,)) as ex:
-            for out in ex.map(_evolve_family, tasks, chunksize=max(1, n_families // (w * 8))):
+            for out in ex.map(_evolve_family, per_family, chunksize=max(1, n_families // (w * 8))):
                 results.append(out); bar.update()
     else:
         _init_worker(ctx)
-        for task in tasks:
+        for task in per_family:
             results.append(_evolve_family(task)); bar.update()
     bar.close()
 
-    # Merge: give each family a disjoint copy-id range (local id + offset), then stitch the per-family
-    # event logs and node snapshots into one run. Every node of the tree appears, empty where no family
-    # reached it. `lineage` / `donor` / `recipient` are node ids and stay put; only `copy` / `parent` move.
-    results.sort(key=lambda r: r[0])                        # by family id, for a deterministic offset
-    offset: dict[int, int] = {}
-    running = 0
-    for fid, _events, _ng, count in results:
-        offset[fid] = running
-        running += count
-
+    # The merge is now a concatenation: copy ids are already globally unique, so the per-family logs and
+    # node snapshots stitch together with no rewrite. Every node appears, empty where no family reached it.
     events: list[Event] = []
     genomes: dict[int, list] = {i: [] for i in tree.nodes}
-    for fid, fam_events, node_genomes, _count in results:
-        off = offset[fid]
-        for e in fam_events:
-            events.append(Event(e.time, e.kind, e.lineage, e.family, e.copy + off,
-                                parent=None if e.parent is None else e.parent + off,
-                                recipient=e.recipient, donor=e.donor))
+    for _fid, fam_events, node_genomes in results:
+        events.extend(fam_events)
         for node_id, copies in node_genomes.items():
-            genomes[node_id].extend(GeneCopy(c.id + off, c.family) for c in copies)
+            genomes[node_id].extend(copies)
     events.sort(key=lambda e: e.time)                      # a chronological log, like the serial one
     genomes_final = {i: tuple(g) for i, g in genomes.items()}
 
-    # the genome the run started with: every initial and named family's founding gene (local id 0),
+    # the genome the run started with: every initial and named family's founding gene (its base id),
     # before the stem — the snapshot the serial engine takes as `initial_genome`.
     n_seeded = initial_families + len(families)
-    initial_genome = tuple(GeneCopy(offset[fid], fid)
-                           for fid in range(n_seeded) if fid in offset)
-
+    initial_genome = tuple(GeneCopy(_copy_base(fid), fid) for fid in range(n_seeded))
     return GenomesResult(tree, genomes_final, events, seed, named, initial_genome)
+
+
+def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, families,
+                   out_dir, outputs, progress):
+    """The streaming half of :func:`run_parallel_unordered`: fixed contiguous chunks written to
+    per-chunk shards, concatenated in chunk order (so the files are byte-identical for any worker
+    count), then the shards removed. Returns a :class:`StreamedRun`."""
+    os.makedirs(out_dir, exist_ok=True)
+    shard_dir = os.path.join(out_dir, "_shards")
+    os.makedirs(shard_dir, exist_ok=True)
+    extant_ids = sorted(n.id for n in tree.extant())
+    ctx["stream"] = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
+                     "shard_dir": shard_dir}
+
+    chunks = [per_family[i:i + _STREAM_CHUNK] for i in range(0, n_families, _STREAM_CHUNK)]
+    tasks = list(enumerate(chunks))
+    n_chunks = len(chunks)
+    total_events = 0
+    bar = progress_bar(max(1, n_chunks), "genomes", unit="chunk", enabled=progress)
+    if workers > 1 and n_chunks >= 2:
+        w = min(workers, n_chunks)
+        with ProcessPoolExecutor(max_workers=w, initializer=_init_worker, initargs=(ctx,)) as ex:
+            for (_ci, _nfam, nev) in ex.map(_stream_chunk, tasks):
+                total_events += nev; bar.update()
+    else:
+        _init_worker(ctx)
+        for task in tasks:
+            _ci, _nfam, nev = _stream_chunk(task)
+            total_events += nev; bar.update()
+    bar.close()
+
+    _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, families)
+    return StreamedRun(out_dir, seed, n_families, total_events, tuple(outputs))
+
+
+def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, families):
+    """Stitch the per-chunk shards into the run's files — the header once, then every shard in chunk
+    order (pure I/O, never a run-sized allocation) — write ``initial_genome.tsv`` from the seeded
+    families' base ids, and drop the shard directory."""
+    headers = {"events": EVENTS_HEADER,
+               "genomes": "lineage\tfamily\tcopy",
+               "profiles": "family\t" + "\t".join(f"n{s}" for s in extant_ids)}
+    for name, header in headers.items():
+        if name in outputs:
+            with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w") as out:
+                out.write(header + "\n")
+                for ci in range(n_chunks):
+                    shard = os.path.join(shard_dir, f"{name}_{ci}.tsv")
+                    if os.path.exists(shard):
+                        with open(shard) as sf:
+                            shutil.copyfileobj(sf, out)
+    if "initial_genome" in outputs:
+        n_seeded = initial_families + len(families)
+        with open(os.path.join(out_dir, _STREAM_FILENAMES["initial_genome"]), "w") as out:
+            out.write("family\tcopy\n")
+            for fid in range(n_seeded):
+                out.write(f"{fid}\t{_copy_base(fid)}\n")
+    shutil.rmtree(shard_dir, ignore_errors=True)
 
 
 def _cross2_times(tree) -> list[float]:
