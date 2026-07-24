@@ -4,8 +4,8 @@ All notable changes to ZOMBI2 are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). While the project is pre-1.0, a **minor**
 bump (0.x.0) carries new features or breaking changes and a **patch** bump (0.x.y) carries fixes.
 
-A release is cut with `scripts/release.sh X.Y.Z`, which moves the entries below from `[Unreleased]`
-into a dated version section.
+A release is cut with `scripts/release.sh patch|minor|major` (the version is computed, not typed),
+which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
