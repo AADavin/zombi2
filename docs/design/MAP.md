@@ -10,9 +10,9 @@ Read `SPEC.md` first (the model), then this (the shape). Two principles througho
 
 - **One canonical path per name** — no top-level re-exports, no aliases, so nothing drifts. Reach
   everything through its level package (`from zombi2 import species`, `from zombi2.rates import scope`).
-- **Concepts → code → chapter**, and this map is the **as-built truth**: where an older design doc
-  disagrees, this map is right — the built engine uses
-  `n_extant` / `total_time`, and time is always **forward from the crown** (SPEC §5).
+- **Concepts → code → chapter**, and this map is the **as-built truth**: where code, a docstring, or a
+  chapter disagrees, this map is right — the built engine uses `n_extant` / `total_time`, and time is
+  always **forward from the crown** (SPEC §5).
 
 ---
 
@@ -21,8 +21,8 @@ Read `SPEC.md` first (the model), then this (the shape). Two principles througho
 The rewrite is a **clean core grown from `SPEC.md`**, not a migration of the old codebase. Everything not
 yet rebuilt is **kept out of the clean core**, read-only, in the sibling **`../ZOMBI2_LEGACY/`** (the old
 codebase, moved out of the repo — not importable, not wired to anything). Features are ported **in** from
-there deliberately, one level at a time, renamed to this map — never carried, never re-imported. That is
-what keeps the active tree small enough to hold in one head, and in one context window.
+there deliberately, one level at a time, renamed to this map — never carried, never re-imported. That
+keeps the active tree small enough to hold in one head.
 
 Legend:  ✅ built · 🔨 to build · 📦 not in the clean core (reference in the sibling `../ZOMBI2_LEGACY/`)
 
@@ -48,14 +48,9 @@ zombi2/
   tools/             ~  read-back analyses on a finished run (the levels simulate; the tools re-express). `homology` ✅ — the true ortholog/paralog/xenolog matrix per gene tree (the event at each leaf pair's MRCA). (RED and tree distance are not here — they live in `zombi2.tree`, exposed on the CLI as `tools tree --red` / `tools treedist`.) The rest (reconciliation, recon-accuracy, …) 📦
   cli/               ✅ species · genomes · sequences · traits · joint · tools (clean, one flag per API keyword, rates in the written form)
 ```
-(The old codebase is no longer in the repo — it lives in the sibling `../ZOMBI2_LEGACY/`; nothing under
-`zombi2/` imports it.)
-
-The cross-level primitives live in **`zombi2.rates`** (scope, modifiers, rate, distributions) because the
-rate grammar is one thing shared by all four levels. The **`Tree`** and its toolkit live in
-**`zombi2.tree`** — every level rides on the shared dated tree (the species engine and `read_newick`
-produce it; genomes, sequences and traits consume it), so the datatype and everything you do to a tree
-share one home (`from zombi2 import tree`).
+The cross-level primitives live in **`zombi2.rates`** (the rate grammar shared by all four levels) and
+**`zombi2.tree`** (the dated tree every level rides on — the species engine and `read_newick` produce
+it; genomes, sequences and traits consume it).
 
 ## The names (as built)
 

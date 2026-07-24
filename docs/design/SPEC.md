@@ -61,7 +61,7 @@ two factors collapse into one term, so do their runs.
   an **output** rather than an input, and crosses the bar: `P(Species, Traits)`.
 
 **A coupling is a parameter that reads its value from another level instead of being a number you
-type.** That one sentence is the whole idea.
+type.**
 
 ---
 
@@ -128,7 +128,7 @@ ZOMBI2" — as the single place the acronyms are collected, for readers who arri
 literature's vocabulary. The names live in that table, never in the section headings or the organising
 structure. (Example, for species trees: Yule → pure birth → birth–death with extinction = 0; ClaDS →
 rates drift as lineages split → rate depends on ancestry; BiSSE → a trait drives speciation → a joint
-model. This is the reconciliation of "deprecate the zoo" with "help the literature-literate reader".)
+model.)
 
 **Not everything that looks like a connection is one.** A trait that jumps at speciation, or a genome
 that changes only at splits, is just reading the tree it already lives on. That is an option of the
@@ -245,18 +245,11 @@ switching is `Markov` (a mechanism name, no preposition), and any future preposi
 named likewise; **outside the grammar** — a modifier multiplies *one* rate, so a value-level process
 (the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier.
 
-**Planned unification — the `On` family shares one response (parked 2026-07-20, not yet active).**
-An `On` modifier is, by its own definition, *a covariate + a response*: a measured quantity mapped to a
-factor. That response is the **same `Table` / `Curve` / `Scalar` vocabulary** the coupling modifier
-`DrivenBy` already takes (`zombi2/rates/mapping.py`) — so every covariate modifier is really
-`On<covariate>(response)`, and `DrivenBy` is just `On<another level>` with the response left open.
-The covariate modifiers should therefore *share* that response: `OnTotalDiversity` would take a mapping
-(its linear-to-`cap` becoming the default preset), etc. The one constraint is **exactness** — the
-event-level Gillespie integrates the rate between breakpoints, so the factor must stay
-**piecewise-constant**. That is automatic when the covariate itself only changes at events (standing
-diversity; a discrete driver), but **not** for continuous time — so `OnTime` must stay a *step*
-schedule (a smooth time-response needs Poisson thinning, a separate slice). Decided direction; to be
-written into this section and propagated **after the coupling level lands**.
+**Planned (parked, not yet active).** Every `On` covariate should share the same `Table` / `Curve` /
+`Scalar` response `DrivenBy` takes — so `OnTotalDiversity(mapping)`, etc., making `DrivenBy` just
+`On<another level>`. Constraint: the Gillespie integrates the rate between breakpoints, so the factor
+must stay **piecewise-constant** — automatic for a covariate that changes only at events, but not for
+continuous time, so `OnTime` stays a *step* schedule. Write up after the coupling level lands.
 
 ---
 
@@ -347,26 +340,10 @@ the hole plainly; do not pretend it is closed.
 
 ---
 
-## 12. Known divergences (the code does not yet match this spec)
+## 12. Known divergences (code vs. this spec)
 
-Fossils to fix; why a fresh reader must not trust the code over this document.
-
-- **`zombi2/coevolve/` still exists** (command + package). It is to be renamed; keep a deprecated alias
-  for one release.
-- **`grammar.py`'s solver is dead code** (`CouplingGraph`, `solve_plan`, `make_null`) — its own
-  docstring says nothing consults it. Delete the dead layer; **keep `is_fused`** (it correctly computes
-  "must be simulated jointly") and the live vocabulary (`Scalar/Table/Curve/Jump`).
-- **`per="site"` is documented but raises `ValueError`**; `--rate-per` vs `--per` disagree between
-  subcommands; `--rate-model shared` maps to `--rate-per copy`. ~~Align the rate CLI to §5.~~ *Done for
-  the clean core (2026-07-21): every rate flag takes the one written form above. The fossil is now
-  `legacy/` only.*
-- **The CLI still says `genes:` where the spec says `genomes:`.**
-- **The old lexicon is live in user-facing surfaces**: "diamond" ships in `zombi2 sequences --help` and
-  in a rendered figure title; "propensity"/"opportunity"/"tier" appear in the manual/docs; two different
-  level orders both occur (the spec order is Species, Genomes, Sequences, Traits).
-- **`simulate_sequences` does not exist** at the top level, while the other three levels have their verb.
-- **The driver-as-a-file inputs are half-built** (`--trait-file` exists; the gene-driven equivalent does
-  not). Build these before documenting conditioning as a two-command workflow.
+None currently open — the code matches this document. When an alignment task leaves a gap, record it
+here, so a fresh reader does not trust the code over the spec.
 
 ---
 
