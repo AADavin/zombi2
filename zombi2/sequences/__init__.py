@@ -36,6 +36,7 @@ compact the way the speciation / D-T-L-O logs are).
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -115,7 +116,9 @@ class SequencesResult:
     phylograms: dict[int, dict[str, str | None]]
     species_phylogram: dict[str, str | None]
     seed: int | None
-    genomes: dict[str, dict[int, str]] = field(default_factory=dict)
+    # A nucleotide run's genomes are assembled lazily (see :class:`_AssembledGenomes`) so they do not
+    # all sit in memory at once; the shape a caller sees is unchanged — ``{lineage: {chromosome: seq}}``.
+    genomes: "Mapping[str, dict[int, str]]" = field(default_factory=dict)
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
 
@@ -153,14 +156,14 @@ class SequencesResult:
         if "alignments" in outputs:
             for fam, aln in self.alignments.items():
                 if aln:
-                    (d / f"{u}{fam}.fasta").write_text(_fasta(aln))
+                    _write_fasta(d / f"{u}{fam}.fasta", aln)
         if "ancestral" in outputs:
             for fam, anc in self.ancestral.items():
                 if anc:
-                    (d / f"sequences_ancestral_{u}{fam}.fasta").write_text(_fasta(anc))
+                    _write_fasta(d / f"sequences_ancestral_{u}{fam}.fasta", anc)
         if "founding" in outputs and self.founding:
-            (d / "sequences_founding.fasta").write_text(
-                _fasta({f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())}))
+            _write_fasta(d / "sequences_founding.fasta",
+                         {f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())})
         if "phylograms" in outputs:
             for fam, ph in self.phylograms.items():
                 (d / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
@@ -177,39 +180,73 @@ class SequencesResult:
                                 {"initial": self.initial_genome} if self.initial_genome else {})):
             if token in outputs:
                 for lineage, chroms in genomes.items():
-                    (d / f"genome_{lineage}.fasta").write_text(
-                        _fasta({f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()}))
+                    _write_fasta(d / f"genome_{lineage}.fasta",
+                                 {f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()})
 
 
-def _assemble(genomes, node_ids, sequences: dict[int, dict[str, str]]) -> dict[str, dict[int, str]]:
-    """The genome of each node in ``node_ids``, its blocks concatenated in physical order.
+class _AssembledGenomes(Mapping):
+    """Every node's genome, assembled **on demand** rather than all held at once.
 
-    The genome level says *what* to concatenate — ``assembly(node)`` gives, per chromosome, the pieces
-    in order as ``(root block, gene id, strand)`` — and this puts the letters in, reading each from
-    ``sequences``: the alignments for an extant tip, the ancestral set for every other node. A piece is
-    one block's evolved sequence, read reverse-complemented where the genome carries it inverted. Get
-    the order or the strand wrong and the genome still looks like a genome, which is why the tests
-    check it nucleotide by nucleotide against the run's own trace-back."""
-    out: dict[str, dict[int, str]] = {}
-    for node_id in node_ids:
+    A nucleotide run reconstructs a whole genome for every node of the tree — hundreds of megabases
+    across a real genome times a real tree. Materialising them all at once would roughly double the
+    run's peak memory, on top of the per-block ``alignments``/``ancestral`` where the very same letters
+    already live. So this keeps only the cheap **layout** per node —
+    ``{chromosome id: [(block, gene, strand), …]}`` from
+    :meth:`~zombi2.genomes.NucleotideGenomesResult.assembly` — and concatenates a node's blocks into
+    its genome string only when that node is asked for. Iterating (as :meth:`SequencesResult.write`
+    does) then builds one node's genome, writes it, and lets it go before the next, so the assembled
+    genomes never all coexist.
+
+    The genome level says *what* to concatenate; this puts the letters in, reading each block from the
+    ``alignments`` of an extant tip or the ``ancestral`` set of every other node — reverse-complemented
+    where the genome carries it inverted. It is a read-only mapping of exactly the documented shape
+    ``{lineage: {chromosome id: sequence}}``: indexing, ``.items()``, ``len`` and ``in`` all behave as
+    a dict does — only *when* each string is built has changed. Get the order or the strand wrong and
+    the genome still looks like a genome, which is why the tests check it nucleotide by nucleotide
+    against the run's own trace-back."""
+
+    __slots__ = ("_layouts", "_alignments", "_ancestral", "_extant")
+
+    def __init__(self, layouts: dict[str, dict[int, list]], alignments, ancestral,
+                 extant_labels: set[str]) -> None:
+        self._layouts = layouts                 # {label: {cid: [(block, gene, strand), …]}}
+        self._alignments = alignments
+        self._ancestral = ancestral
+        self._extant = extant_labels            # labels whose blocks read from `alignments`
+
+    def __getitem__(self, label: str) -> dict[int, str]:
+        pieces_by_cid = self._layouts[label]    # KeyError on an unknown label, exactly like a dict
+        src = self._alignments if label in self._extant else self._ancestral
         chroms: dict[int, str] = {}
-        for cid, pieces in genomes.assembly(node_id).items():
+        for cid, pieces in pieces_by_cid.items():
             parts = []
             for (block, gene, strand) in pieces:
-                seq = sequences[block][f"g{gene}"]
+                seq = src[block][f"g{gene}"]
                 parts.append(seq if strand == 1 else seq.translate(_COMPLEMENT)[::-1])
             chroms[cid] = "".join(parts)
-        out[node_label(node_id)] = chroms
-    return out
+        return chroms
+
+    def __iter__(self):
+        return iter(self._layouts)
+
+    def __len__(self) -> int:
+        return len(self._layouts)
 
 
-def _fasta(records: dict[str, str], width: int = 70) -> str:
-    """Serialise ``{name: sequence}`` to FASTA text (sequences wrapped at ``width`` columns)."""
-    lines: list[str] = []
-    for name, seq in records.items():
-        lines.append(f">{name}")
-        lines.extend(seq[i:i + width] for i in range(0, len(seq), width))
-    return "\n".join(lines) + "\n"
+def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
+    """Write ``{name: sequence}`` to ``path`` as FASTA (sequences wrapped at ``width`` columns),
+    streaming one record at a time straight to the file so a whole-genome sequence is never first
+    copied into one big string (nor a list of every wrapped line). Byte-for-byte what building the
+    text and writing it produced — including the lone ``"\\n"`` an empty record set wrote."""
+    with open(path, "w") as f:
+        if not records:
+            f.write("\n")                       # the degenerate case "\n".join([]) + "\n" produced
+            return
+        for name, seq in records.items():
+            f.write(f">{name}\n")
+            # writelines drains the generator in C — as fast as a joined string but without ever
+            # holding the whole wrapped genome (nor a list of its lines) in memory at once.
+            f.writelines(f"{seq[i:i + width]}\n" for i in range(0, len(seq), width))
 
 
 def _split(gene_tree, states_by_id: dict[int, np.ndarray],
@@ -223,15 +260,25 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
     species went extinct. Both are nodes of the tree with a sequence at them, so leaving them out
     would give a phylogram whose tips name sequences that exist nowhere — and would make an extinct
     lineage's genome unreconstructable."""
-    alignment: dict[str, str] = {}
-    ancestral: dict[str, str] = {}
+    nodes = []
     stack = [gene_tree.complete]
     while stack:
         node = stack.pop()
-        seq = decode(states_by_id[id(node)], model.alphabet)
+        nodes.append(node)
+        stack.extend(node.children)
+    # Decode every node in one gather + one ASCII decode rather than one call per node: all of a
+    # block's nodes share its length, so their states stack into a single (n_nodes, length) array
+    # whose flat decode is the node strings back to back — sliced out below. Byte-identical to
+    # decoding each node on its own, but it pays the numpy/ASCII-decode overhead once, not per node.
+    stacked = np.stack([states_by_id[id(n)] for n in nodes])
+    flat = decode(stacked, model.alphabet)
+    length = stacked.shape[1]
+    alignment: dict[str, str] = {}
+    ancestral: dict[str, str] = {}
+    for i, node in enumerate(nodes):
+        seq = flat[i * length:(i + 1) * length]
         observable = node.is_leaf and node.kind == "extant"
         (alignment if observable else ancestral)[f"g{node.copy}"] = seq
-        stack.extend(node.children)
     return alignment, ancestral
 
 
@@ -267,6 +314,24 @@ def _clock_factor(clock, species: int) -> float:
     """The lineage clock on a species branch — 1.0 under the strict clock (``clock is None``) or for a
     branch no gene passed through (so none was drawn for it)."""
     return 1.0 if clock is None else clock.get(species, 1.0)
+
+
+def _draw_clock(clock_mod, species_tree, gene_trees, rng) -> "dict[int, float] | None":
+    """The lineage clock: one factor per species branch, drawn once and shared by every family (a hot
+    species runs hot for all its genes). ``None`` ⇒ the strict clock (factor 1). ``ByLineage`` draws
+    each branch i.i.d.; ``FromParent`` drifts the factor parent→child down the species tree
+    (autocorrelated). Factored out so the serial loop and the parallel engine draw it the same way —
+    each just hands in its own ``rng`` (the serial run's shared generator, or a stream spawned for the
+    clock so the parallel engine is worker-count invariant)."""
+    if isinstance(clock_mod, FromParent):
+        clock: dict[int, float] = {}
+        for i in _preorder(species_tree):                       # parent before child
+            p = species_tree.nodes[i].parent
+            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
+        return clock
+    if clock_mod is not None:
+        return {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
+    return None
 
 
 def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
@@ -344,7 +409,7 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
 
 def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
-                       substitution=1.0, seed=None, progress=False) -> SequencesResult:
+                       substitution=1.0, seed=None, parallel=False, progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
     ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.GenomesResult` that
@@ -380,6 +445,18 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
     species tree, with branch lengths converted from time to substitutions/site by the same
     ``base × clock × Δt``.
+
+    ``parallel`` opts into evolving the gene trees **concurrently** — one gene tree per worker
+    process, which is where a run's time goes when the sequences are long or a nucleotide genome has
+    thousands of blocks. ``False`` (the default) runs the serial engine above. ``True`` uses every
+    core; a positive ``int`` sets the worker count. It is a **separate engine**: each family draws
+    from its own RNG stream (spawned from ``seed``), so every worker count returns the *same* bytes,
+    but that realisation differs from the serial one for a given seed — parallel is a speed choice,
+    made once, not a drop-in for the default. Threads would not help here (numpy releases the GIL too
+    little for these array sizes), so this is process-backed and only pays off above a work threshold.
+    Because it spawns processes, a script that calls it with ``parallel`` set must guard its entry with
+    ``if __name__ == "__main__":`` (the standard multiprocessing requirement); the ``zombi2`` CLI
+    already does, so ``--parallel`` there needs nothing extra.
     """
     from ..genomes import NucleotideGenomesResult
 
@@ -477,42 +554,54 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             )
     rate_base = rate.base
 
-    rng = np.random.default_rng(seed)
-    # the lineage clock: one factor per species branch, computed once here and shared by every family
-    # (so a hot species runs hot for all its genes). None ⇒ the strict clock (factor 1). ByLineage draws
-    # each branch i.i.d.; FromParent drifts the factor parent→child down the species tree (autocorrelated).
-    clock = None
-    if isinstance(clock_mod, FromParent):
-        clock = {}
-        for i in _preorder(species_tree):                       # parent before child
-            p = species_tree.nodes[i].parent
-            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
-    elif clock_mod is not None:
-        clock = {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
-    bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
-    for family in sorted(gene_trees):  # sorted for reproducibility given the seed
-        bar.update()
-        gt = gene_trees[family]
-        if per_block is None:
-            f_len, f_model, f_rate = length, model, rate_base
-        else:                       # a nucleotide block: its own length, and spacer runs faster
-            f_len, f_model, speed = per_block[family]
-            f_rate = rate_base * speed
-        seed_states = None if per_block is None else founding_seed[family]
-        states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
-                                                   gt.origination, founding=seed_states)
-        alignments[family], ancestral[family] = _split(gt, states, f_model)
-        founding[family] = decode(founding_states, f_model.alphabet)
-        scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
-        ext = scaled.extant
-        phylograms[family] = {"complete": _gene_newick(scaled.complete),
-                              "extant": _gene_newick(ext) if ext is not None else None}
-
-    bar.close()
+    if not parallel:
+        # Serial reference engine — the default, left exactly as it was. One shared generator draws the
+        # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
+        # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
+        rng = np.random.default_rng(seed)
+        clock = _draw_clock(clock_mod, species_tree, gene_trees, rng)
+        # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
+        # recur across blocks (a block passing straight through a species branch reuses its length), so a
+        # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
+        # Keyed by model identity — genes and spacer are different models and must not share a cache.
+        cdf_caches: dict[int, dict[float, np.ndarray]] = {}
+        bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
+        for family in sorted(gene_trees):  # sorted for reproducibility given the seed
+            bar.update()
+            gt = gene_trees[family]
+            if per_block is None:
+                f_len, f_model, f_rate = length, model, rate_base
+            else:                       # a nucleotide block: its own length, and spacer runs faster
+                f_len, f_model, speed = per_block[family]
+                f_rate = rate_base * speed
+            seed_states = None if per_block is None else founding_seed[family]
+            cache = cdf_caches.setdefault(id(f_model), {})
+            states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
+                                                       gt.origination, founding=seed_states,
+                                                       cdf_cache=cache)
+            alignments[family], ancestral[family] = _split(gt, states, f_model)
+            founding[family] = decode(founding_states, f_model.alphabet)
+            scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
+            ext = scaled.extant
+            phylograms[family] = {"complete": _gene_newick(scaled.complete),
+                                  "extant": _gene_newick(ext) if ext is not None else None}
+        bar.close()
+    else:
+        # Parallel engine (opt-in): one gene tree per process, each under its own spawned RNG stream, so
+        # any worker count is bit-identical to any other. The clock is a shared read-only draw, so it is
+        # taken once here from a reserved stream (index 0) and shipped to every worker.
+        from .._parallel import resolve_workers
+        from ._parallel import evolve_families
+        workers = resolve_workers(parallel)
+        spawned = np.random.SeedSequence(seed).spawn(1 + len(gene_trees))
+        clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
+        alignments, ancestral, founding, phylograms = evolve_families(
+            gene_trees, per_block, model, intergene_model, length, rate_base, clock,
+            founding_seed if nucleotide else None, spawned[1:], workers, progress)
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
@@ -520,14 +609,22 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                          "extant": sp_extant.to_newick() if sp_extant is not None else None}
     # A nucleotide run evolved every block, so **every** node's genome can be put back together —
     # one map, as at the genome level. Which sequences each node reads is the split the level already
-    # makes: an extant tip's genes are tips of their block trees, everything else's are not.
-    assembled: dict[str, dict[int, str]] = {}
+    # makes: an extant tip's genes are tips of their block trees, everything else's are not. The
+    # concatenation is deferred to read-time (see :class:`_AssembledGenomes`): only the cheap per-node
+    # layout is captured now, so hundreds of megabases of genome do not all sit in memory beside the
+    # per-block sequences they are built from.
+    assembled: "Mapping[str, dict[int, str]]" = {}
     initial_genome: dict[int, str] = {}
     if nucleotide:
-        extant = {n.id for n in species_tree.extant()}
-        assembled = _assemble(genomes, sorted(extant), alignments)
-        assembled.update(_assemble(genomes, [i for i in sorted(species_tree.nodes)
-                                             if i not in extant], ancestral))
+        # Capture the layouts in the same order the eager build used — extant nodes (read from
+        # `alignments`) sorted first, then the rest (read from `ancestral`) — so the map iterates,
+        # and `write` emits its files, in exactly the previous order.
+        extant_ids = sorted(n.id for n in species_tree.extant())
+        extant_id_set = set(extant_ids)
+        extant_labels = {node_label(i) for i in extant_ids}
+        ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
+        layouts = {node_label(i): genomes.assembly(i) for i in ordered_ids}
+        assembled = _AssembledGenomes(layouts, alignments, ancestral, extant_labels)
         # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
         # so it is in neither map above; the same reason `founding` is not in `ancestral`.

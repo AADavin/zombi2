@@ -80,7 +80,7 @@ Transfer is the one event that couples lineages, and it is what makes the unorde
 
 Three arguments shape what a transfer does:
 
-- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*.
+- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*. `Clades(...)` weights recipients by **named clades of the tree** — see below.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
 - **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. 
 
@@ -93,6 +93,26 @@ g = simulate_genomes_unordered(
 ```
 
 One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct**. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace.
+
+### Transfer between named clades
+
+`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself — "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade — by a few of its tips (the clade is the subtree below their MRCA) or by a node id — and give a `Between` kernel: a weight for each ordered **(donor clade, recipient clade)** pair.
+
+```python
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_unordered, Clades, Between
+
+sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+# genes flow only BETWEEN clade A and clade B — never within either, never to the rest
+g = simulate_genomes_unordered(
+    sp, transfer=1.0, initial_families=20, seed=2,
+    transfer_to=Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]},
+                       Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
+```
+
+The kernel is the new part. Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as at the end of Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
+
+A clade here is a fact about the *tree* — which lineage sits in which subtree — so `Clades` reads the tree directly, needs no extra file, and is a sibling of `"distance"`, not a coupling. When the groups are instead an evolved property — a habitat, an ecological guild — the same donor-and-recipient steering is a coupling, written `transfer_to = DrivenBy(trait, Between({...}))`; that is Chapter 9.
 
 ## The `GenomesResult` object
 
@@ -216,4 +236,25 @@ n1       0       8
 ```
 
 Read a list of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0`, one of them a duplicate. `copy` is the individual gene, and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
+
+## Evolving families in parallel
+
+Because families are independent — a transfer moves a copy between lineages, but no event ever mixes two families — a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
+
+```python
+g = simulate_genomes_unordered(tree, duplication=0.2, loss=0.25, origination=0.5,
+                               initial_families=1000, seed=1, parallel=8)   # 8 workers
+```
+
+`parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
+
+The gain is real but modest, and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful of workers there is little more to win. It pays off on a large run — many families, or high rates — and is a loss on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
+
+When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family straight to a directory as it finishes and hands back a light path handle instead of a `GenomesResult`, so memory stays flat however many families you run (a run that fills 2 GB held in memory streams in about 40 MB). Pick the files you want with `outputs=`, exactly as `.write` takes them, and read them back as you would any run — the disk is the handoff to the sequence level. On the command line it is `--stream`.
+
+```python
+run = simulate_genomes_unordered(tree, origination=2.0, initial_families=5000, seed=1,
+                                 parallel=8, stream_to="out/", outputs=("events", "profiles"))
+run.path("events")            # out/genome_events.tsv — the log, ready to replay
+```
 

@@ -30,7 +30,9 @@ from .substitution_models import SubstitutionModel
 def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: float,
                      clock: "dict[int, float] | None", rng: np.random.Generator,
                      origination: float,
-                     founding: "np.ndarray | None" = None) -> tuple[dict[int, np.ndarray], np.ndarray]:
+                     founding: "np.ndarray | None" = None,
+                     cdf_cache: "dict[float, np.ndarray] | None" = None
+                     ) -> tuple[dict[int, np.ndarray], np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
     :class:`~zombi2.genomes.gene_trees.GeneNode`), starting at ``origination``.
 
@@ -53,6 +55,13 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     of drawing it from the stationary frequencies — how a run founded from a real ``fasta=`` starts each
     block from the supplied DNA. It still evolves across the stem; at rate 0 it survives unchanged,
     which is what makes the assembled root genome equal the input.
+
+    ``cdf_cache`` memoises the per-branch-length transition CDF (see :func:`_cdf_for`). It is keyed by
+    branch length alone, so it must hold matrices for **one** model; the caller passes one cache per
+    model and shares it across every block that model evolves. Branch lengths recur massively across
+    blocks — a block passing straight through a species branch reuses that branch's length — so a
+    run-wide cache computes a few hundred matrices where a per-block cache recomputes tens of thousands.
+    ``None`` makes a fresh local cache (a standalone call is then self-contained).
     """
     pi = model.stationary
     k = model.k
@@ -63,7 +72,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
         if founding_states.shape != (length,):
             raise ValueError(f"founding sequence is {founding_states.shape}, expected ({length},)")
     out: dict[int, np.ndarray] = {}
-    pcache: dict[float, np.ndarray] = {}
+    cache = {} if cdf_cache is None else cdf_cache
 
     # Iterative pre-order. Each stack frame carries the parent's end time and states so a node's own
     # states are sampled when it is popped (strict pre-order rng consumption); children are pushed
@@ -73,30 +82,33 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
         node, parent_time, parent_states = stack.pop()
         factor = 1.0 if clock is None else clock.get(node.species, 1.0)
         bl = rate_base * factor * (node.time - parent_time)
-        states = parent_states if bl <= 0.0 else _sample(parent_states, _p_for(pcache, model, bl), rng)
+        states = parent_states if bl <= 0.0 else _sample(parent_states, _cdf_for(cache, model, bl), rng)
         out[id(node)] = states
         for child in reversed(node.children):
             stack.append((child, node.time, states))
     return out, founding_states
 
 
-def _p_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:
-    """``P(bl)``, cached by branch length rounded to 12 decimals (identical lengths reuse one matrix)."""
+def _cdf_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:
+    """The transition **CDF** over branch length ``bl`` — ``P(bl)`` cumulated along each row, cached by
+    branch length rounded to 12 decimals (identical lengths reuse one matrix). Caching the *cumulated*
+    matrix, not ``P`` itself, means :func:`_sample` never recomputes the cumsum: it is the same for
+    every node on a branch of this length, so it is built once here and reused for all of them."""
     key = round(float(bl), 12)
-    P = cache.get(key)
-    if P is None:
-        P = model.p_matrix(key)
-        cache[key] = P
-    return P
+    cum = cache.get(key)
+    if cum is None:
+        cum = model.p_matrix(key).cumsum(1)
+        # P rows are clipped, not renormalised, so a row's final cumulative can land a hair below 1.0
+        # (~1e-15). Pin it to 1.0 so a maximal draw can't slip past every threshold and make the
+        # ``argmax`` in _sample silently return state 0.
+        cum[:, -1] = 1.0
+        cache[key] = cum
+    return cum
 
 
-def _sample(parent_states: np.ndarray, P: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Draw each site's child state from ``P[parent_state]`` (vectorised over sites)."""
-    cum = P.cumsum(1)
-    # P rows are clipped, not renormalised, so a row's final cumulative can land a hair below 1.0
-    # (~1e-15). Pin it to 1.0 so a maximal draw can't slip past every threshold and make ``argmax``
-    # silently return state 0. ``cum`` is a fresh array, so mutating it is safe.
-    cum[:, -1] = 1.0
+def _sample(parent_states: np.ndarray, cum: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Draw each site's child state from the transition CDF ``cum[parent_state]`` (vectorised over
+    sites). ``cum`` is the row-cumulated, 1.0-pinned transition matrix from :func:`_cdf_for`."""
     r = rng.random(parent_states.shape[0])
     return (r[:, None] < cum[parent_states]).argmax(1).astype(np.int8)
 

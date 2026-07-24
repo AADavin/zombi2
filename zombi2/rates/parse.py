@@ -41,6 +41,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_modifiers, n) for n in _modifiers.__all__ if n != "Modifier"},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
+    "Between": _mapping.Between,  # the choice-slot kernel: DrivenBy(source, Between({(a, b): w}))
 }
 
 #: the optional Python qualifiers — ``mod.OnTime(...)`` / ``scope.Global(...)`` read as themselves

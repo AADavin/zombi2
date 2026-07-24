@@ -89,8 +89,12 @@ def test_initial_families_dealt_round_robin_across_chromosomes():
 
 
 def test_shared_params_are_a_subset_of_the_ordered_signature():
-    # the layering contract: unordered ⊂ ordered, only the extra args differ
-    shared = set(inspect.signature(simulate_genomes_unordered).parameters) - {"tree"}
+    # the layering contract: unordered ⊂ ordered, only the extra args differ. `parallel` / `stream_to` /
+    # `outputs` are the documented exceptions — the per-family engine (and its streaming form) is
+    # unordered-only, because per-family parallelism needs the families to be independent, and the
+    # ordered resolution couples them by position (an inversion or translocation spans several families).
+    shared = (set(inspect.signature(simulate_genomes_unordered).parameters)
+              - {"tree", "parallel", "stream_to", "outputs"})
     ordered = set(inspect.signature(simulate_genomes_ordered).parameters) - {"tree"}
     assert shared <= ordered                                 # unordered ⊂ ordered: nothing dropped
     assert ordered - shared == {                            # ordered's own additions:

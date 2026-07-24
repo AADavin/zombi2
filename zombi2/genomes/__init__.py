@@ -32,13 +32,14 @@ from functools import cached_property
 
 import numpy as np
 
+from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult
 from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
-from ._transfer import Distance, mean_root_to_tip, recipient_index
+from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
 
 from ..progress import progress_bar
 from .events import Event, events_tsv, node_label
@@ -56,6 +57,7 @@ from .ordered import (
     simulate_genomes_ordered,
 )
 from .profiles import Profiles, profiles_from_genomes
+from ._perfamily import StreamedRun
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
@@ -279,7 +281,8 @@ def _at_cap(genome, family: int, cap: int | None) -> bool:
 
 
 def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
-                 transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None) -> int:
+                 transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None,
+                 groups=None) -> int:
     """The copy ``jd`` of the donor lineage ``kd`` transfers to a contemporaneous recipient lineage.
     The donor is picked by the caller (uniformly across the copy pool, or weighted by lineage when
     the transfer rate is driven), the recipient by ``transfer_to``. Returns the change in total copy
@@ -292,7 +295,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
     exactly the process whose transfer rate is zero while no recipient is eligible."""
     donor = alive[kd]
     cand = [k for k in range(len(alive)) if self_transfer or k != kd]
-    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj)
+    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
     if kr is None:                                     # every candidate weighs 0 — no-op (see above)
         return 0
     src = gen[kd][jd]
@@ -326,7 +329,8 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
                                initial_families=100, families=None, family_speed=None,
-                               max_family_size=10.0, seed=None, progress=False) -> GenomesResult:
+                               max_family_size=10.0, seed=None, parallel=False, stream_to=None,
+                               outputs=None, progress=False) -> "GenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -339,8 +343,10 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     **per copy**, ``origination`` **per lineage**. When a transfer fires it moves a copy from a
     uniformly-chosen donor copy to a recipient lineage alive at that instant, chosen by
     ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage), ``"distance"`` /
-    ``Distance(decay=)`` (closer relatives likelier), or ``mod.DrivenBy(source, mapping)`` (weighted
-    by another level; see below). ``replacement=True`` overwrites a homologous
+    ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))`` (weighted by
+    the donor's and recipient's **named clade**, so transfer can run *between* two clades — see below),
+    or ``mod.DrivenBy(source, mapping)`` (weighted by another level; see below). ``replacement=True``
+    overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
     as originations at the crown. ``families=["toxin", …]`` additionally declares **named** families —
@@ -365,6 +371,26 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
     candidate weighs 0 the transfer does not happen (see :func:`_do_transfer`). The two couplings are
     independent and may be used together or apart.
+
+    ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
+    process — the families are independent (a transfer roams a copy across lineages but never mixes two
+    families), so it enumerates every family's origination first and then evolves each on its own. It is
+    worker-count invariant (each family draws from its own stream spawned off ``seed``) but gives a
+    different-though-equally-valid draw than the serial default for a given seed. ``False`` (default)
+    runs the serial loop; ``True`` uses every core; an ``int`` sets the worker count. A **driven** rate
+    or ``transfer_to`` (``DrivenBy``) has no per-family engine yet — the run announces this and falls
+    back to the serial loop. The gain is real but modest (a merge over the whole event log stays
+    serial), so a handful of workers is the sweet spot; unlike the sequences level it does not scale far.
+    Because it spawns processes, a calling script must guard its entry with ``if __name__ ==
+    "__main__":`` (the ``zombi2`` CLI already does).
+
+    ``stream_to=DIR`` takes the same engine to the many-families regime: each family is written straight
+    to disk as it finishes — no whole-run merge, no run held in memory (a run that fills gigabytes in
+    memory streams in tens of megabytes) — and a light :class:`~zombi2.genomes.StreamedRun` handle comes
+    back instead of a ``GenomesResult``. ``outputs=`` picks which files, exactly as
+    :meth:`GenomesResult.write` takes them (default: all of them). It is the per-family engine, so a
+    driven rate **raises** here rather than falling back (that would defeat the point), and ``outputs``
+    without ``stream_to`` is an error.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     dup = as_rate(duplication, default_scope=PerCopy)
@@ -391,6 +417,12 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
                     "Put ByFamily on duplication, transfer or loss, or use family_speed= for a "
                     "family-wide tempo.")
+            if isinstance(m, DrivenBy) and isinstance(m.mapping, Between):
+                raise ValueError(
+                    f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned — "
+                    f"it weights a recipient by the (donor, recipient) group pair — so it belongs only "
+                    f"in transfer_to (who RECEIVES), never in a rate (which has no donor to condition "
+                    f"on). Drive a rate with a Table (a plain dict).")
             if isinstance(m, (OnTime, DrivenBy, ByFamily)):
                 continue
             raise ValueError(
@@ -426,9 +458,10 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
             "Distance(decay=), or mod.DrivenBy(source, {...})."
         )
-    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy)):
+    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy, Clades)):
         raise ValueError(
-            f"transfer_to must be 'uniform', 'distance' / Distance(decay=), or "
+            f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
+            f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
             f"mod.DrivenBy(source, {{...}}) (a recipient weight driven by another level), "
             f"got {transfer_to!r}")
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
@@ -448,6 +481,28 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     # duplication rate is zero for a family already at its quota — a declared ceiling, not a
     # truncated run. ``None`` removes it.
     cap = resolve_max_family_size(max_family_size, len(tree.nodes))
+
+    # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
+    # process (SPEC-style — serial by default). `stream_to` takes the same engine one step further —
+    # each family is written straight to disk and a light StreamedRun handle comes back, so a run of a
+    # million families never has to fit in memory (`outputs` picks which files, as `.write` does). Both
+    # handle everything but a driven rate / recipient; there the parallel path prints why and returns
+    # None so this serial reference loop runs unchanged (decision A), while a streamed run raises (it
+    # cannot fall back without pulling the whole thing into memory). Everything above is shared
+    # validation, so bad input still raises the same way.
+    if outputs is not None and stream_to is None:
+        raise ValueError(
+            "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
+            "in-memory run choose them when you call result.write(outputs=...).")
+    if parallel or stream_to is not None:
+        from ._perfamily import run_parallel_unordered
+        result = run_parallel_unordered(
+            tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
+            replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
+            families=families, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
+            progress=progress, stream_to=stream_to, outputs=outputs)
+        if result is not None:
+            return result
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -481,6 +536,12 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
         return f
 
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
+    # a Clades rule paints every lineage with its clade once (membership is a fact about the tree, not
+    # a driver, so it is constant along a branch and adds no Gillespie breakpoints). A kernel naming
+    # only absent groups weights every candidate at its default — secretly uniform — so refuse it here.
+    group_of = resolve_groups(tree, transfer_to.groups) if isinstance(transfer_to, Clades) else None
+    if group_of is not None:
+        check_kernel_fires(transfer_to.between, set(group_of.values()), source_label="clades")
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)  # (end_time, node_id)
 
     root = tree.nodes[tree.root]
@@ -531,6 +592,9 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     # breakpoints for it). Only the rate drivers make the loop per-lineage.
     trajs = {key: resolved[key] for key in rate_keys}
     to_traj = resolved[to_mod.key] if to_mod is not None else None
+    if to_mod is not None and isinstance(to_mod.mapping, Between):  # a donor-conditioned trait kernel:
+        label = to_mod.source if isinstance(to_mod.source, str) else f"<{type(to_mod.source).__name__}>"
+        check_kernel_fires(to_mod.mapping, to_traj.states(), source_label=label)
     any_driven = bool(rate_keys)
 
     # the species tree's schedule is the run's spine: one entry per speciation/extinction, so how
@@ -632,7 +696,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                         kd, jd = _pick_copy(rng, gen, n)
                     total_copies += _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
                                                  transfer_to, replacement, self_transfer, depth,
-                                                 to_traj, cap)
+                                                 to_traj, cap, group_of)
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch
@@ -720,7 +784,9 @@ def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=10
 
 
 __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
+           "Clades", "Between",
            "Profiles", "GeneTree", "GeneNode", "UnorderedGenome", "unordered",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
            "ChromosomeEvent", "Inversion", "Transposition", "Translocation", "EventPosition",
-           "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome"]
+           "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome",
+           "StreamedRun"]

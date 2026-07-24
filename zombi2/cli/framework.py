@@ -186,6 +186,37 @@ def _add_quiet_arg(g) -> None:
                         "log file or a script running hundreds of replicates")
 
 
+def _add_parallel_arg(g) -> None:
+    """Add ``--parallel [N]`` — evolve the run's independent units concurrently. Opt-in: omitting it
+    runs serially, the default."""
+    g.add_argument("--parallel", nargs="?", const="__all__", default=None, metavar="N",
+                   help="evolve independent units concurrently, one per worker process — a gene "
+                        "family (genomes) or a gene tree (sequences). Bare --parallel uses every "
+                        "core; --parallel N uses N workers; omitted runs serially (the default). It "
+                        "is a separate engine: the result is identical for any worker count but "
+                        "differs from a serial run for the same seed (both valid). Worth it for a "
+                        "large run — long sequences, many families — and a loss for a small one")
+
+
+def parallel_from_args(args, parser):
+    """Turn the ``--parallel`` flag into the API's ``parallel`` value: ``False`` (omitted, serial),
+    ``True`` (bare, every core), or a positive worker count. A non-positive or non-integer value is a
+    usage error, named here rather than left to raise deeper in."""
+    v = args.parallel
+    if v is None:
+        return False
+    if v == "__all__":                                  # bare --parallel
+        return True
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        parser.error(f"--parallel takes a worker count (a positive integer) or no value for all "
+                     f"cores, got {v!r}")
+    if n < 1:
+        parser.error(f"--parallel needs a positive worker count, got {n}")
+    return n
+
+
 def level_dir(output: str, level: str, flat: bool) -> str:
     """Where one level's files belong: ``<output>/<level>/``, or ``<output>/`` under ``--flat``.
 

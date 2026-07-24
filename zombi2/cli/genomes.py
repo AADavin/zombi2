@@ -19,9 +19,10 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _read_tip_fates, _write_params_log, default_outputs,
-                                  level_dir, resolve_tree, sibling_fates)
+from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+                                  _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
+                                  _write_params_log, default_outputs, level_dir, parallel_from_args,
+                                  resolve_tree, sibling_fates)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -189,6 +190,13 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "coordinates — the genes and the blocks respectively — named to join the "
                         "FASTA the sequence level writes.")
     _add_flat_arg(g)
+    _add_parallel_arg(g)
+    g.add_argument("--stream", action="store_true",
+                   help="[unordered] write each gene family straight to disk instead of building the "
+                        "whole run in memory — for a very large number of families, where the "
+                        "in-memory result would not fit. Composes with --parallel and --write; the "
+                        "files are the same and the disk is the handoff to the sequence level (gene "
+                        "trees are grouped under gene_trees/ regardless of --flat)")
     _add_quiet_arg(g)
 
 
@@ -236,6 +244,13 @@ def run(args, parser):
         if stray := _stray(args, _STRUCTURED_ONLY):
             parser.error(f"these options need --resolution ordered or nucleotide: "
                          f"{', '.join(stray)} (the unordered core has no chromosomes or positions)")
+    else:
+        for flag, given in (("--parallel", args.parallel is not None), ("--stream", args.stream)):
+            if given:
+                parser.error(f"{flag} applies to --resolution unordered only, where gene families are "
+                             f"independent and evolve one per worker; the {args.resolution} resolution "
+                             f"couples families by position (inversions, translocations), so it has no "
+                             f"per-family engine")
     if args.resolution != "nucleotide":
         if stray := _stray(args, _NUCLEOTIDE_ONLY):
             parser.error(f"these options need --resolution nucleotide: {', '.join(stray)} "
@@ -286,6 +301,10 @@ def run(args, parser):
                       chromosome_loss=args.chromosome_loss,
                       inversion_probability=args.inversion_probability)
 
+    os.makedirs(args.run, exist_ok=True)
+    out = level_dir(args.run, "genomes", args.flat)
+    streaming = args.stream and args.resolution == "unordered"
+
     t0 = time.perf_counter()
     if args.resolution == "ordered":
         result = simulate_genomes_ordered(
@@ -301,24 +320,33 @@ def run(args, parser):
             duplication_length=args.duplication_length, transfer_length=args.transfer_length,
             origination_length=args.origination_length, progress=not args.quiet,
             **structured, **common)
+    elif streaming:
+        # each family written straight to disk (no whole run in memory) — the engine writes `out`
+        # itself, so there is no result.write below; a StreamedRun handle comes back.
+        result = simulate_genomes_unordered(
+            tree, replacement=args.replacement, initial_families=args.initial_families,
+            parallel=parallel_from_args(args, parser), stream_to=out,
+            outputs=tuple(args.write) if args.write else None, progress=not args.quiet, **common)
     else:
         result = simulate_genomes_unordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            progress=not args.quiet, **common)
+            parallel=parallel_from_args(args, parser), progress=not args.quiet, **common)
     dt = time.perf_counter() - t0
 
-    os.makedirs(args.run, exist_ok=True)
-    out = level_dir(args.run, "genomes", args.flat)
-    # the many-files-per-run outputs each get their own subdirectory (unless --flat): gene trees are
-    # one Newick per family, and gff/bed are one file per node — a hundred families or nodes is a
-    # hundred files, which would bury the handful of TSVs otherwise
-    grouped = ("gene_trees", "gff", "bed")
-    wanted = tuple(args.write) if args.write else default_outputs(result)
-    if rest := [o for o in wanted if o not in grouped]:
-        result.write(out, outputs=rest)
-    for sub in grouped:
-        if sub in wanted:
-            result.write(level_dir(out, sub, args.flat), outputs=(sub,))
+    # a genome run is on a fixed tree, so its complete tree is the input; a StreamedRun does not carry
+    # one, so read it from `tree` there. The rest of the CLI's bookkeeping is identical either way.
+    complete_tree = tree if streaming else result.complete_tree
+    if not streaming:
+        # the many-files-per-run outputs each get their own subdirectory (unless --flat): gene trees are
+        # one Newick per family, and gff/bed are one file per node — a hundred families or nodes is a
+        # hundred files, which would bury the handful of TSVs otherwise
+        grouped = ("gene_trees", "gff", "bed")
+        wanted = tuple(args.write) if args.write else default_outputs(result)
+        if rest := [o for o in wanted if o not in grouped]:
+            result.write(out, outputs=rest)
+        for sub in grouped:
+            if sub in wanted:
+                result.write(level_dir(out, sub, args.flat), outputs=(sub,))
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
     # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where
@@ -327,11 +355,11 @@ def run(args, parser):
     canonical = os.path.join(species_dir, "species_complete.nwk")
     if not os.path.exists(canonical):
         with open(canonical, "w") as f:
-            f.write(result.complete_tree.to_newick() + "\n")
+            f.write(complete_tree.to_newick() + "\n")
         # write the fate table beside the canonical tree too, so a later level on this run reads each
         # tip's fate from the record instead of guessing it from depth (matching a species run's output)
         fate_rows = ["lineage\tfate"] + [f"n{n.id}\t{n.fate}"
-                                         for n in sorted(result.complete_tree.leaves(), key=lambda x: x.id)]
+                                         for n in sorted(complete_tree.leaves(), key=lambda x: x.id)]
         with open(os.path.join(species_dir, "species_fates.tsv"), "w") as f:
             f.write("\n".join(fate_rows) + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
@@ -339,7 +367,10 @@ def run(args, parser):
         with open(os.path.join(out, "names.tsv"), "w") as f:
             f.write("\n".join(rows) + "\n")
 
-    if args.resolution == "nucleotide":         # no phyletic profiles here: the unit is a base pair
+    if streaming:                               # a StreamedRun carries counts, not the run in memory
+        summary = (f"{result.n_families} gene families, {result.n_events} events, streamed to disk "
+                   f"(unordered)")
+    elif args.resolution == "nucleotide":       # no phyletic profiles here: the unit is a base pair
         extant = [n.id for n in result.complete_tree.extant()]
         bp = sum(result.genomes[s].length for s in extant)
         summary = (f"{len(result.gene_spans)} genes and {bp} bp across {len(extant)} extant "
