@@ -69,9 +69,9 @@ tips, printed as `<metric><TAB><value>` to stdout (or a file with `-o`). Pick th
 | `branch-score` | Kuhner–Felsenstein — the square root of the summed squared branch-length differences over every clade, terminal branches included; unlike RF it moves even when only the branch lengths differ |
 | `all` | every metric above, one per line |
 
-The tips are matched by node identity, and a ZOMBI tree labels every node `n<id>`, so two trees from
-the same run are matched by those labels. The two trees must carry the same tip set, identically
-labelled: a differing leaf set is an error, not a partial score. This is a current limitation.
+The tips are matched by **label** — the tip name for an external tree, or `n<id>` for a ZOMBI tree —
+so a true tree and an inferred tree line up by taxon, whatever order their files list the tips in. The
+two trees must carry the same tip set: a differing leaf set is an error, not a partial score.
 
 ```bash
 # Robinson–Foulds between a true tree and an inferred one over the same tips
