@@ -250,3 +250,11 @@ g = simulate_genomes_unordered(tree, duplication=0.2, loss=0.25, origination=0.5
 
 The gain is real but modest, and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful of workers there is little more to win. It pays off on a large run — many families, or high rates — and is a loss on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
 
+When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family straight to a directory as it finishes and hands back a light path handle instead of a `GenomesResult`, so memory stays flat however many families you run (a run that fills 2 GB held in memory streams in about 40 MB). Pick the files you want with `outputs=`, exactly as `.write` takes them, and read them back as you would any run — the disk is the handoff to the sequence level. On the command line it is `--stream`.
+
+```python
+run = simulate_genomes_unordered(tree, origination=2.0, initial_families=5000, seed=1,
+                                 parallel=8, stream_to="out/", outputs=("events", "profiles"))
+run.path("events")            # out/genome_events.tsv — the log, ready to replay
+```
+
