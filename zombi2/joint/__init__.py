@@ -41,7 +41,8 @@ from ..genomes import (
 from ..rates.modifiers import DrivenBy, FromParent
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
-from ..species import Event, Node, SpeciesResult, Tree
+from ..species import Event, SpeciesResult
+from ..tree import Node, Tree
 from ..traits import Change, DiscreteTrait, TraitsResult
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant

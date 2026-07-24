@@ -53,7 +53,8 @@ from zombi2.genomes.events import node_from_label
 from zombi2.cli.main import main
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.genomes.nucleotide import _CutsGene
-from zombi2.species import read_newick, simulate_species_tree
+from zombi2.species import simulate_species_tree
+from zombi2.tree import read_newick
 
 
 # ==================================================================================================

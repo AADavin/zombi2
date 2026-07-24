@@ -45,7 +45,7 @@ from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.modifiers import ByLineage
 from ..rates.rate import as_rate
 from ..rates.scope import PerSite
-from ..species import Node, Tree, prune
+from ..tree import Node, Tree, prune
 from ..progress import progress_bar
 from .evolution import evolve_gene_tree
 from .substitution_models import BASES, SubstitutionModel, decode, encode, jc69

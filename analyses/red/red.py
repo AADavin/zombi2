@@ -25,7 +25,7 @@ children, fate)``; branch length ``end_time − birth_time``).
 """
 from __future__ import annotations
 
-from zombi2.species import Tree
+from zombi2.tree import Tree
 
 
 def _preorder(tree: Tree) -> list[int]:

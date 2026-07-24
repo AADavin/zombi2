@@ -2,7 +2,8 @@
 
 import pytest
 
-from zombi2.species import Node, Tree, simulate_species_tree
+from zombi2.species import simulate_species_tree
+from zombi2.tree import Node, Tree
 from zombi2.genomes import GeneTree, simulate_genomes_unordered
 
 LEAF_KINDS = {"extant", "extinct", "unsampled", "loss"}
