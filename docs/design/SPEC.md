@@ -232,3 +232,23 @@ Literature model names: deprecated in the manual (footnote at most), class names
   founding gene's first event; for a **phylogram**, it is that same stem in substitutions, because
   the founding sequence is drawn at origination and evolves across the stem like any other branch.
 
+---
+
+## 8. Adding a model
+
+A new model **belongs to its level** (Species, Genomes, Sequences, Traits): a module in that level's
+package and, when it ships, a flag (or a `--model` value) on that level's command — never a new command,
+since the CLI is one command per level.
+
+**Maturity is a tag, not a place.** A young model carries an `experimental` marker in its docstring — no
+separate folder or command, no `gallery`/`sandbox`. It is Python-first and reaches the CLI only once you
+promise to keep it; half-built work stays on a branch, not in the package.
+
+**Graduation moves nothing:** drop the tag, wire the flag, write the manual section, add the outputs to
+Appendix B — the file was in the level's package all along.
+
+A model that **breaks independence** — the level's units stop being independent (families that affect
+each other, sites that evolve in context) — is a new engine, not a knob: it needs its own evolve path in
+the level, and graduates by handing the core one *general* capability the specific model is then one use
+of.
+
