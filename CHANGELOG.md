@@ -9,6 +9,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **Opt-in parallelism** for the unordered-genome and sequence engines (`parallel=` in Python,
+  `--parallel` on the CLI): a separate, worker-count-invariant engine that evolves independent units
+  (gene families, gene trees) across processes. It covers D/T/L/O with `uniform`/`distance` transfer;
+  a driven or clade-based `transfer_to` falls back to the serial engine (loudly). Also `stream_to=`
+  to write each family straight to disk for the many-families regime. The serial path is the default
+  and is unchanged. (#233)
+- **`Clades` transfer_to rule + the `Between` kernel** — weight horizontal transfers by the donor's
+  and the recipient's **named clade**, so transfer can be steered to run *between* two clades rather
+  than within them (a topological rule, sibling of `"distance"`). Name a clade by a few of its tips or
+  a node id. The trait-driven form is `mod.DrivenBy(trait, Between({...}))`. (#235)
+
+### Changed
+- **Faster nucleotide sequence runs at lower memory**: a run-wide CDF cache and lazy genome assembly,
+  plus batched decoding and a streaming FASTA writer. (#234)
+
 ## [0.4.0] - 2026-07-24
 
 ### Added
