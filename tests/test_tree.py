@@ -175,6 +175,17 @@ def test_cli_treedist_self_is_zero_and_mismatch_errors(tmp_path, capsys):
     assert main(["tools", "treedist", f, f, "--metric", "all"]) == 0
     out = capsys.readouterr().out
     assert "rf\t0" in out and "branch-score\t0" in out
-    other = _write(tmp_path, "other.nwk", "((a:1,b:1):1,(c:1,d:1):1);")
+    other = _write(tmp_path, "other.nwk", "((a:1,b:1):1,(c:1,e:1):1);")   # taxon e, not d
     with pytest.raises(SystemExit):
         main(["tools", "treedist", f, other, "--metric", "rf"])
+
+
+def test_cli_treedist_matches_external_trees_by_label_not_parse_order(tmp_path, capsys):
+    # two external trees, same four taxa, DIFFERENT topology — must be rf>0 (matched by label,
+    # not by the positionally-minted parse ids, which would falsely report rf 0).
+    t1 = _write(tmp_path, "t1.nwk", "((A:1,B:1):1,(C:1,D:1):1);")
+    t2 = _write(tmp_path, "t2.nwk", "((A:1,C:1):1,(B:1,D:1):1);")
+    assert main(["tools", "treedist", t1, t2, "--metric", "rf"]) == 0
+    assert capsys.readouterr().out.strip() == "rf\t4"
+    assert main(["tools", "treedist", t1, t1, "--metric", "rf"]) == 0
+    assert capsys.readouterr().out.strip() == "rf\t0"
