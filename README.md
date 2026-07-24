@@ -14,9 +14,7 @@
 
 ZOMBI2 simulates evolution at **four levels** — the **species** tree of lineages, the
 **genomes** that evolve along it, the **sequences** inside each gene, and the **traits** a
-lineage carries. Each level runs on its own, conditioned on another, or jointly with it, and
-every run records the true history behind the dataset. Use it to generate benchmark datasets
-with known ground truth for phylogenetic and comparative methods.
+lineage carries. Use it to generate benchmark datasets with known ground truth for phylogenetic and comparative methods.
 
 ---
 
@@ -25,8 +23,6 @@ with known ground truth for phylogenetic and comparative methods.
 ```bash
 pip install zombi2
 ```
-
-Pure Python — NumPy and tqdm, no build step and no compiler.
 
 ---
 
