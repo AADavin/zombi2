@@ -19,12 +19,12 @@ Read `SPEC.md` first (the model), then this (the shape). Two principles througho
 ## The clean core and the quarantine
 
 The rewrite is a **clean core grown from `SPEC.md`**, not a migration of the old codebase. Everything not
-yet rebuilt is **quarantined** in `legacy/` at the repo root — read-only reference, **not importable**, not
-wired to anything. Features are ported out of `legacy/` **deliberately, one level at a time, renamed to
-this map** — never carried, never re-imported. That is what keeps the active tree small enough to hold in
-one head, and in one context window.
+yet rebuilt is **kept out of the clean core**, read-only, in the sibling **`../ZOMBI2_LEGACY/`** (the old
+codebase, moved out of the repo — not importable, not wired to anything). Features are ported **in** from
+there deliberately, one level at a time, renamed to this map — never carried, never re-imported. That is
+what keeps the active tree small enough to hold in one head, and in one context window.
 
-Legend:  ✅ built · 🔨 to build · 📦 quarantined in `legacy/`
+Legend:  ✅ built · 🔨 to build · 📦 not in the clean core (reference in the sibling `../ZOMBI2_LEGACY/`)
 
 ## The tree
 
@@ -45,9 +45,10 @@ zombi2/
   traits/            ✅ simulate_continuous · simulate_discrete → TraitsResult ;  discrete(...) process spec (for joint)
   joint/             ✅ simulate_joint → JointResult   (the FUSE engine; SPEC §2–4). Conditioned needs no engine — it folds into the target level via DrivenBy + rates/driver.py. "Coupling" is the concept (SPEC/manual), not a package.
   tools/             ~  read-back analyses on a finished run (the levels simulate; the tools re-express). `homology` ✅ — the true ortholog/paralog/xenolog matrix per gene tree (the event at each leaf pair's MRCA). The rest (reconciliation, treedist, recon-accuracy, red, …) 📦
-  cli/               ~  species · genomes · sequences · traits · tools (clean, one flag per API keyword, rates in the written form); the coupled commands 📦
-legacy/              📦 repo root, not importable — the old code, kept only to port from
+  cli/               ✅ species · genomes · sequences · traits · joint · tools (clean, one flag per API keyword, rates in the written form)
 ```
+(The old codebase is no longer in the repo — it lives in the sibling `../ZOMBI2_LEGACY/`; nothing under
+`zombi2/` imports it.)
 
 The cross-level primitives live in **`zombi2.rates`** (scope, modifiers, rate, distributions) because the
 rate grammar is one thing shared by all four levels. The **`Tree`** belongs to **`zombi2.species`**: the
@@ -57,13 +58,13 @@ species level produces it and the other levels read it (`from zombi2.species imp
 
 | Canonical home | Public names |
 |---|---|
-| `zombi2.rates` | `from zombi2.rates import scope, modifiers` → `scope.Global`, `modifiers.OnTime({...})`. Scopes: `PerCopy · PerLineage · PerSite · PerChromosome · Global`. Modifiers: `OnTime · OnTotalDiversity · FromParent · ByLineage · DrivenBy`. Also `parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")` — the same expression the CLI and `--params` take. |
-| `zombi2.species` | `simulate_species_tree(birth, death=0, *, n_extant=None, total_time=None, mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None)` → `SpeciesResult(.complete_tree, .extant_tree, .fossils, .events, .seed)`. Also `Tree`, `Node`, `prune(tree, keep="extant")`. |
-| `zombi2.genomes` | `simulate_genomes_unordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, transfer_to="uniform", replacement=False, self_transfer=False, initial_families=100, seed=None)` → `GenomesResult(.complete_tree, .genomes, .events, .seed, .family_counts())`. Also `GeneCopy(id, family)`, `Distance(decay=1.0)`. `transfer_to` takes `"uniform"` · `"distance"` / `Distance(decay=)` · `mod.DrivenBy(source, mapping)` — the **choice slot** of SPEC §5, where the mapping's numbers are per-candidate weights, not rate multipliers (unordered engine only). |
-| `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, transposition=0, translocation=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, <event>_extension=Geometric(mean=1), inversion_probability=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=100, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order(), .event_positions)`. Every gene-level event acts on an **extension** (a run of consecutive genes, length ~ `<event>_extension`; origination is single). `topology` decides where a run stops: on a `"circular"` chromosome it **wraps** past position 0 and is capped only by the whole chromosome, on a `"linear"` one it stops at the last gene. Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion` · `Transposition` · `Translocation` (identity-preserving, in `.rearrangements`), `EventPosition` (where each gene-genealogy `Event` fired — the positional companion to the position-blind log, in `.event_positions`), `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`; `ChromosomeEvent` and its `chromosome_events_tsv` writer live in `genomes/chromosomes.py`, one home for both the ordered and the nucleotide engine. |
-| `zombi2.genomes` (nucleotide) | `simulate_genomes_nucleotide(tree, *, inversion=0, translocation=0, transposition=0, loss=0, duplication=0, transfer=0, origination=0, <event>_length=50.0, inversion_probability=0, fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, chromosomes=1, root_length=1000, topology="circular", genes=0, gene_length=100, gff=None, trim_overlaps=False, transfer_to=…, self_transfer=…, seed=None)` → `NucleotideGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .gene_spans, .gene_names, .gene_strands, .mosaic(), .trace_back(), .ancestry(), .root_blocks, .gene_trees)`. The genome is a nucleotide sequence of `Block`s (a run of one unbroken ancestry) on `Chromosome`s; a **declared gene is indivisible** (an event that would cut one redraws). Its `Origination` · `Loss` · `Duplication` · `Transfer` · `Speciation` records are **positional already** (each names ancestral intervals), so there is no `EventPosition` companion here. Rates are **constants** — no `scope × modifiers` grammar yet. |
+| `zombi2.rates` | `from zombi2.rates import scope, modifiers` → `scope.Global`, `modifiers.OnTime({...})`. Scopes: `PerCopy · PerLineage · PerSite · PerChromosome · Global`. Modifiers: `OnTime · OnTotalDiversity · FromParent · ByLineage · ByFamily · DrivenBy`. Also `parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")` — the same expression the CLI and `--params` take. |
+| `zombi2.species` | `simulate_species_tree(birth, death=0, *, n_extant=None, total_time=None, mass_extinctions=None, sampling=1.0, fossils=0.0, seed=None, max_lineages=100_000)` → `SpeciesResult(.complete_tree, .extant_tree, .fossils, .events, .seed)`. Also `Tree`, `Node`, `Event`, `prune(tree, keep="extant")`. |
+| `zombi2.genomes` | `simulate_genomes_unordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, transfer_to="uniform", replacement=False, self_transfer=False, initial_families=100, families=None, family_speed=None, max_family_size=10.0, seed=None)` → `GenomesResult(.complete_tree, .genomes, .events, .seed, .family_counts())`. Also `GeneCopy(id, family)`, `Distance(decay=1.0)`. `transfer_to` takes `"uniform"` · `"distance"` / `Distance(decay=)` · `mod.DrivenBy(source, mapping)` — the **choice slot** of SPEC §5, where the mapping's numbers are per-candidate weights, not rate multipliers (unordered engine only). |
+| `zombi2.genomes` (ordered) | `simulate_genomes_ordered(tree, *, duplication=0, transfer=0, loss=0, origination=0, inversion=0, transposition=0, translocation=0, chromosomes=1, topology="circular", fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, <event>_extension=None (→ Geometric(mean=1)), inversion_probability=0, transfer_to=…, replacement=…, self_transfer=…, initial_families=100, families=None, family_speed=None, max_family_size=None, seed=None)` → `OrderedGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .family_counts(), .gene_order(), .event_positions)`. Every gene-level event acts on an **extension** (a run of consecutive genes, length ~ `<event>_extension`; origination is single). `topology` decides where a run stops: on a `"circular"` chromosome it **wraps** past position 0 and is capped only by the whole chromosome, on a `"linear"` one it stops at the last gene. Also `Gene(id, family, strand)`, `Chromosome(id, topology, genes)`, `Inversion` · `Transposition` · `Translocation` (identity-preserving, in `.rearrangements`), `EventPosition` (where each gene-genealogy `Event` fired — the positional companion to the position-blind log, in `.event_positions`), `ChromosomeEvent` (kinds: origination · speciation · fission · fusion · loss — the reticulating chromosome network's edge list). Shared spine (`Event`, live-set, transfer mechanics) lives in `genomes/{events,_live,_transfer}.py`; `ChromosomeEvent` and its `chromosome_events_tsv` writer live in `genomes/chromosomes.py`, one home for both the ordered and the nucleotide engine. |
+| `zombi2.genomes` (nucleotide) | `simulate_genomes_nucleotide(tree, *, inversion=0, translocation=0, transposition=0, loss=0, duplication=0, transfer=0, origination=0, <event>_length=50.0, inversion_probability=0, fission=0, fusion=0, chromosome_origination=0, chromosome_loss=0, chromosomes=1, root_length=1000, topology="circular", genes=0, gene_length=100, gff=None, fasta=None, trim_overlaps=False, transfer_to=…, self_transfer=…, seed=None)` → `NucleotideGenomesResult(.complete_tree, .genomes, .events, .rearrangements, .chromosome_events, .seed, .gene_spans, .gene_names, .gene_strands, .mosaic(), .trace_back(), .ancestry(), .root_blocks, .gene_trees)`. The genome is a nucleotide sequence of `Block`s (a run of one unbroken ancestry) on `Chromosome`s; a **declared gene is indivisible** (an event that would cut one redraws). Its `Origination` · `Loss` · `Duplication` · `Transfer` · `Speciation` records are **positional already** (each names ancestral intervals), so there is no `EventPosition` companion here. Rates are **constants** — no `scope × modifiers` grammar yet. |
 
-| `zombi2.tools` | `homology_table(root)` → `(labels, matrix)` and `homology_tsv(root)` classify one gene tree's leaves — the event at each pair's MRCA is a **speciation** → `O` (ortholog), **duplication** → `P` (paralog), or **transfer** → `X` (xenolog); `write_homology({family: GeneTree}, dir)` writes one `homology_fam<f>.tsv` per surviving family. Exact, not inferred: ZOMBI recorded the embedding (see `genomes/gene_trees.py`). On the CLI as `zombi2 tools format --format homology`. |
+| `zombi2.tools` | `homology_table(root)` → `(labels, matrix)` and `homology_tsv(root)` classify one gene tree's leaves — the event at each pair's MRCA is a **speciation** → `O` (ortholog), **duplication** → `P` (paralog), or **transfer** → `X` (xenolog); `write_homology({family: GeneTree}, dir)` writes one `homology_fam<f>.tsv` per surviving family. Exact, not inferred: ZOMBI recorded the embedding (see `genomes/gene_trees.py`). On the CLI as `zombi2 tools format DIR` (`--format` defaults to `homology`). |
 
 Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(s) / `.seed` /
 `.write(dir, [...])`, with the `record=[...]` memory dial (see [`result-api.md`](result-api.md)).
@@ -73,7 +74,7 @@ Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(
 Level by level, each with its chapter written alongside:
 
 1. **Species** ✅ — the forward birth–death engine. Chapter 4 written.
-2. **Genomes** — unordered D/T/L/O ✅ (Ch5 drafted); **ordered** ✅ slices 1–3 — chromosomes as
+2. **Genomes** — unordered D/T/L/O ✅ (Ch5); **ordered** ✅ slices 1–3 — chromosomes as
    identity-bearing containers; **segmental** D/T/L/O + inversion/transposition/translocation (every
    gene-level event acts on an *extension* of consecutive genes, the ZOMBI1 model); and the
    number-changing tier (fission/fusion/origination/loss) forming a reticulating chromosome network,
@@ -82,8 +83,8 @@ Level by level, each with its chapter written alongside:
    even layout), the same event set in base pairs, its own outputs and `--resolution nucleotide`
    (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide). Its rates are still constants: the
    `scope × modifiers` grammar 🔨 is not wired there.
-3. **Sequences** 🔨 — substitution + clocks on the gene trees.
-4. **Traits** 🔨 — the overlay models on the species tree.
+3. **Sequences** ✅ — substitution models + the relaxed lineage clock (`ByLineage`) on the gene trees.
+4. **Traits** ✅ — the continuous / discrete overlay models on the species tree.
 5. **Coupling** — the one mechanism `mod.DrivenBy(source, mapping)` (SPEC §2–4). **Conditioned** ✅
    (source = a file: `rates/driver.py` + the target level runs it — e.g. genome loss driven by a trait;
    all four unordered D/T/L/O rates, plus the `transfer_to` **choice slot**, where the same modifier's
@@ -94,24 +95,15 @@ Level by level, each with its chapter written alongside:
    trait→sequence-clock, continuous drivers (QuaSSE — needs thinning). "Coupling" stays the level's
    name in SPEC and the manual's Part III.
 
-## The move (species, first)
-
-The first act of the clean core: `zombi2/species_tree.py` becomes the `zombi2/species/` package (the
-engine + `Tree`); the old model-zoo `zombi2/species/` (`sim`, `model`, `forward`, `ghosts`, `_caps`) goes to
-`legacy/`; `zombi2/genomes_unordered.py` becomes `zombi2/genomes/`; and everything downstream still built on
-the old engines (coevolve, tools, most of the CLI, the old sequence/trait code) goes to `legacy/` until its
-level is rebuilt. The public import becomes `from zombi2 import species; species.simulate_species_tree(...)`
-— real at last.
-
 ## Docs & manual
 
 Same strategy, so the docs are **watched growing** instead of retrofitted:
 
-- **Manual (the book)** — the 11-chapter index stands (SPEC §9). Ch4 (Species) written, Ch5 (Genomes I)
-  drafted; the rest follow their level.
-- **Docs site** — rewrite **Home** and the **Guide → Species Tree** pages fresh; **park "Get started"** and
-  every other page in `legacy/`. The site shows only what the clean core supports, and grows a page as each
-  level lands.
+- **Manual (the book)** — Chapters 1–9 written (`manual/book/ch1.md … ch9.md`) plus appendices A–C;
+  the genome resolution ladder is Ch4–Ch6 (unordered ⊂ ordered ⊂ nucleotide).
+- **Docs site** — each chapter publishes as a snippet include (Ch1–Ch9 under `docs/guide/`, the
+  appendices under `docs/reference/`); the site shows only what the clean core supports, built with
+  `mkdocs --strict`.
 
 ---
 *When a convention needs to change, change `SPEC.md` (the words) or this map (the shape) **first**, then propagate.*

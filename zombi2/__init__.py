@@ -11,7 +11,8 @@ level's package (see ``docs/design/MAP.md``). ::
 
 ZOMBI2 is a **clean core grown from** ``docs/design/SPEC.md`` — pure Python, one concept
 per name across the API, the CLI and a ``--params`` file: ``zombi2.rates`` · ``zombi2.species`` ·
-``zombi2.genomes`` · ``zombi2.sequences`` · ``zombi2.traits`` · ``zombi2.coupling``.
+``zombi2.genomes`` · ``zombi2.sequences`` · ``zombi2.traits`` · ``zombi2.joint`` (conditioned
+coupling folds into the target level, so there is no ``coupling`` package — SPEC §2–4).
 """
 
 from __future__ import annotations
