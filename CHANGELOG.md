@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-24
+
 ### Added
 - **Opt-in parallelism** for the unordered-genome and sequence engines (`parallel=` in Python,
   `--parallel` on the CLI): a separate, worker-count-invariant engine that evolves independent units
