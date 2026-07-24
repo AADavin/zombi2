@@ -259,11 +259,38 @@ def _run_tree(args, parser) -> int:
     return 0
 
 
+def _leaf_labels(tree, namemap: dict) -> dict:
+    """``{leaf id: label}`` — the external name for an external tree, ``n<id>`` for a ZOMBI tree."""
+    return {i: (namemap.get(i) or f"n{i}") for i, n in tree.nodes.items() if n.children is None}
+
+
+def _relabel_leaves(tree, leaf_labels: dict, label_id: dict):
+    """A copy whose LEAF ids are ``label_id[label]`` (so two trees share leaf ids **by label**);
+    internal ids are shifted clear of the leaf range. Distance compares clades of leaf ids, so this
+    makes treedist match tips by taxon rather than by the positionally-minted parse ids."""
+    offset = len(label_id)
+    new = {i: (label_id[leaf_labels[i]] if i in leaf_labels else i + offset) for i in tree.nodes}
+    nodes = {new[i]: _tree.Node(new[i], None if n.parent is None else new[n.parent],
+                                n.birth_time, n.end_time,
+                                None if n.children is None else tuple(new[c] for c in n.children),
+                                n.fate)
+             for i, n in tree.nodes.items()}
+    return _tree.Tree(nodes, new[tree.root])
+
+
 def _run_treedist(args, parser) -> int:
-    """``zombi2 tools treedist`` — a distance (or all) between two trees, to stdout."""
+    """``zombi2 tools treedist`` — a distance (or all) between two trees, to stdout. Tips are matched
+    by **label** (the external name, or ``n<id>`` for a ZOMBI tree), not by parse order."""
     try:
-        a, _ = _tree.read_newick(open(args.a).read(), assume_extant=True)
-        b, _ = _tree.read_newick(open(args.b).read(), assume_extant=True)
+        a, na = _tree.read_newick(open(args.a).read(), assume_extant=True)
+        b, nb = _tree.read_newick(open(args.b).read(), assume_extant=True)
+        la, lb = _leaf_labels(a, na), _leaf_labels(b, nb)
+        sa, sb = set(la.values()), set(lb.values())
+        if sa != sb:
+            parser.error(f"the two trees have different leaf sets ({len(sa)} vs {len(sb)} tips, "
+                         f"{len(sa ^ sb)} not shared) — treedist needs the same taxa on both")
+        label_id = {lab: k for k, lab in enumerate(sorted(sa))}
+        a, b = _relabel_leaves(a, la, label_id), _relabel_leaves(b, lb, label_id)
         metrics = ["rf", "rf-normalized", "branch-score"] if args.metric == "all" else [args.metric]
         lines = [f"{m}\t{_tree.distance(a, b, metric=m):g}" for m in metrics]
     except (ValueError, OSError) as e:
