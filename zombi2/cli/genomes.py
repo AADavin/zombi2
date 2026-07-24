@@ -18,7 +18,7 @@ import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
                                   _rate, _rates_help, _read_tip_fates, _write_params_log, default_outputs,
                                   level_dir, resolve_tree, sibling_fates)

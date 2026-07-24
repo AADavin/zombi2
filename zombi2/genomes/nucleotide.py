@@ -102,7 +102,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..species import SpeciesResult, Tree
+from ..species import SpeciesResult
+from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv

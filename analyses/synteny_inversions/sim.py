@@ -13,10 +13,8 @@ the mean inversion length **in genes**, converted to base pairs through the fixe
 """
 from __future__ import annotations
 
-from ete3 import Tree as ETree
-
 from zombi2 import genomes
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 
 GENE_LENGTH = 1000       # bp per gene (an arbitrary unit; only gene order and length-in-genes matter)
 SPACING = 1.4            # chromosome bp per gene of coding — ~70% coding, leaving intergenic room
@@ -25,11 +23,10 @@ SPACING = 1.4            # chromosome bp per gene of coding — ~70% coding, lea
 def load_dated_tree(nwk_path: str):
     """Load a dated species tree (branch lengths in Myr). Returns ``(tree, {node id: species})``.
 
-    Real dated trees are ultrametric only up to rounding, so every tip is declared extant rather
-    than left for ZOMBI to infer from depth (which it refuses to guess)."""
-    nwk = open(nwk_path).read()
-    species = [leaf.name for leaf in ETree(nwk, format=1).get_leaves()]
-    tree, namemap = read_newick(nwk, tip_fates={s: "extant" for s in species})
+    Real dated trees are ultrametric only up to rounding, so every tip is taken as extant
+    (``assume_extant``) rather than left for ZOMBI to infer from depth (which it refuses to guess);
+    the tiny non-ultrametricity is harmless for the forward run."""
+    tree, namemap = read_newick(open(nwk_path).read(), assume_extant=True)
     return tree, namemap
 
 

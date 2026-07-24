@@ -70,7 +70,8 @@ from ..rates.modifiers import OnTotalDiversity, FromParent, OnTime
 from ..progress import track
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
-from ..species import SpeciesResult, Tree
+from ..species import SpeciesResult
+from ..tree import Tree
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. These bend a *continuous*

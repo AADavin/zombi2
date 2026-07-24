@@ -35,7 +35,8 @@ import numpy as np
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerCopy, PerLineage
-from ..species import SpeciesResult, Tree
+from ..species import SpeciesResult
+from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 
