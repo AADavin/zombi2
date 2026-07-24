@@ -36,6 +36,7 @@ compact the way the speciation / D-T-L-O logs are).
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -115,7 +116,9 @@ class SequencesResult:
     phylograms: dict[int, dict[str, str | None]]
     species_phylogram: dict[str, str | None]
     seed: int | None
-    genomes: dict[str, dict[int, str]] = field(default_factory=dict)
+    # A nucleotide run's genomes are assembled lazily (see :class:`_AssembledGenomes`) so they do not
+    # all sit in memory at once; the shape a caller sees is unchanged — ``{lineage: {chromosome: seq}}``.
+    genomes: "Mapping[str, dict[int, str]]" = field(default_factory=dict)
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
 
@@ -181,26 +184,53 @@ class SequencesResult:
                         _fasta({f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()}))
 
 
-def _assemble(genomes, node_ids, sequences: dict[int, dict[str, str]]) -> dict[str, dict[int, str]]:
-    """The genome of each node in ``node_ids``, its blocks concatenated in physical order.
+class _AssembledGenomes(Mapping):
+    """Every node's genome, assembled **on demand** rather than all held at once.
 
-    The genome level says *what* to concatenate — ``assembly(node)`` gives, per chromosome, the pieces
-    in order as ``(root block, gene id, strand)`` — and this puts the letters in, reading each from
-    ``sequences``: the alignments for an extant tip, the ancestral set for every other node. A piece is
-    one block's evolved sequence, read reverse-complemented where the genome carries it inverted. Get
-    the order or the strand wrong and the genome still looks like a genome, which is why the tests
-    check it nucleotide by nucleotide against the run's own trace-back."""
-    out: dict[str, dict[int, str]] = {}
-    for node_id in node_ids:
+    A nucleotide run reconstructs a whole genome for every node of the tree — hundreds of megabases
+    across a real genome times a real tree. Materialising them all at once would roughly double the
+    run's peak memory, on top of the per-block ``alignments``/``ancestral`` where the very same letters
+    already live. So this keeps only the cheap **layout** per node —
+    ``{chromosome id: [(block, gene, strand), …]}`` from
+    :meth:`~zombi2.genomes.NucleotideGenomesResult.assembly` — and concatenates a node's blocks into
+    its genome string only when that node is asked for. Iterating (as :meth:`SequencesResult.write`
+    does) then builds one node's genome, writes it, and lets it go before the next, so the assembled
+    genomes never all coexist.
+
+    The genome level says *what* to concatenate; this puts the letters in, reading each block from the
+    ``alignments`` of an extant tip or the ``ancestral`` set of every other node — reverse-complemented
+    where the genome carries it inverted. It is a read-only mapping of exactly the documented shape
+    ``{lineage: {chromosome id: sequence}}``: indexing, ``.items()``, ``len`` and ``in`` all behave as
+    a dict does — only *when* each string is built has changed. Get the order or the strand wrong and
+    the genome still looks like a genome, which is why the tests check it nucleotide by nucleotide
+    against the run's own trace-back."""
+
+    __slots__ = ("_layouts", "_alignments", "_ancestral", "_extant")
+
+    def __init__(self, layouts: dict[str, dict[int, list]], alignments, ancestral,
+                 extant_labels: set[str]) -> None:
+        self._layouts = layouts                 # {label: {cid: [(block, gene, strand), …]}}
+        self._alignments = alignments
+        self._ancestral = ancestral
+        self._extant = extant_labels            # labels whose blocks read from `alignments`
+
+    def __getitem__(self, label: str) -> dict[int, str]:
+        pieces_by_cid = self._layouts[label]    # KeyError on an unknown label, exactly like a dict
+        src = self._alignments if label in self._extant else self._ancestral
         chroms: dict[int, str] = {}
-        for cid, pieces in genomes.assembly(node_id).items():
+        for cid, pieces in pieces_by_cid.items():
             parts = []
             for (block, gene, strand) in pieces:
-                seq = sequences[block][f"g{gene}"]
+                seq = src[block][f"g{gene}"]
                 parts.append(seq if strand == 1 else seq.translate(_COMPLEMENT)[::-1])
             chroms[cid] = "".join(parts)
-        out[node_label(node_id)] = chroms
-    return out
+        return chroms
+
+    def __iter__(self):
+        return iter(self._layouts)
+
+    def __len__(self) -> int:
+        return len(self._layouts)
 
 
 def _fasta(records: dict[str, str], width: int = 70) -> str:
@@ -493,6 +523,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
+    # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
+    # recur across blocks (a block passing straight through a species branch reuses its length), so a
+    # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
+    # Keyed by model identity — genes and spacer are different models and must not share a cache.
+    cdf_caches: dict[int, dict[float, np.ndarray]] = {}
     bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
     for family in sorted(gene_trees):  # sorted for reproducibility given the seed
         bar.update()
@@ -503,8 +538,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             f_len, f_model, speed = per_block[family]
             f_rate = rate_base * speed
         seed_states = None if per_block is None else founding_seed[family]
+        cache = cdf_caches.setdefault(id(f_model), {})
         states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
-                                                   gt.origination, founding=seed_states)
+                                                   gt.origination, founding=seed_states,
+                                                   cdf_cache=cache)
         alignments[family], ancestral[family] = _split(gt, states, f_model)
         founding[family] = decode(founding_states, f_model.alphabet)
         scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
@@ -520,14 +557,22 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                          "extant": sp_extant.to_newick() if sp_extant is not None else None}
     # A nucleotide run evolved every block, so **every** node's genome can be put back together —
     # one map, as at the genome level. Which sequences each node reads is the split the level already
-    # makes: an extant tip's genes are tips of their block trees, everything else's are not.
-    assembled: dict[str, dict[int, str]] = {}
+    # makes: an extant tip's genes are tips of their block trees, everything else's are not. The
+    # concatenation is deferred to read-time (see :class:`_AssembledGenomes`): only the cheap per-node
+    # layout is captured now, so hundreds of megabases of genome do not all sit in memory beside the
+    # per-block sequences they are built from.
+    assembled: "Mapping[str, dict[int, str]]" = {}
     initial_genome: dict[int, str] = {}
     if nucleotide:
-        extant = {n.id for n in species_tree.extant()}
-        assembled = _assemble(genomes, sorted(extant), alignments)
-        assembled.update(_assemble(genomes, [i for i in sorted(species_tree.nodes)
-                                             if i not in extant], ancestral))
+        # Capture the layouts in the same order the eager build used — extant nodes (read from
+        # `alignments`) sorted first, then the rest (read from `ancestral`) — so the map iterates,
+        # and `write` emits its files, in exactly the previous order.
+        extant_ids = sorted(n.id for n in species_tree.extant())
+        extant_id_set = set(extant_ids)
+        extant_labels = {node_label(i) for i in extant_ids}
+        ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
+        layouts = {node_label(i): genomes.assembly(i) for i in ordered_ids}
+        assembled = _AssembledGenomes(layouts, alignments, ancestral, extant_labels)
         # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
         # so it is in neither map above; the same reason `founding` is not in `ancestral`.

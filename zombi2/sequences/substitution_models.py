@@ -191,6 +191,12 @@ def lg() -> SubstitutionModel:
     return _empirical_protein("LG", _LG_EXCH, _LG_PI)
 
 
+#: ASCII lookup tables for :func:`decode`, one per alphabet, built once on first use. The table is
+#: tiny and read-only, so it is safe to reuse across calls — and :func:`decode` runs once per node of
+#: every gene tree, so rebuilding it each time was pure waste.
+_DECODE_LUT: dict[str, np.ndarray] = {}
+
+
 def decode(states: np.ndarray, alphabet: str = BASES) -> str:
     """Map an array of integer states back to a string over ``alphabet`` — ``ACGT`` by default, or
     :data:`AMINO_ACIDS` for a protein model (callers pass ``model.alphabet``).
@@ -198,8 +204,12 @@ def decode(states: np.ndarray, alphabet: str = BASES) -> str:
     ``states`` are indices into ``alphabet``, so the whole array is one numpy gather into an ASCII
     lookup table — ``lut[states]`` — read out in a single ``.tobytes().decode()`` rather than one
     Python step per site. This is called once per node of every gene tree, so the per-site loop it
-    replaces was the dominant cost of a sequence run; the result is byte-for-byte the same string."""
-    lut = np.frombuffer(alphabet.encode("ascii"), dtype=np.uint8)
+    replaces was the dominant cost of a sequence run; the result is byte-for-byte the same string. The
+    lookup table itself is cached per alphabet (:data:`_DECODE_LUT`), built once instead of per call."""
+    lut = _DECODE_LUT.get(alphabet)
+    if lut is None:
+        lut = np.frombuffer(alphabet.encode("ascii"), dtype=np.uint8)
+        _DECODE_LUT[alphabet] = lut
     return lut[np.asarray(states)].tobytes().decode("ascii")
 
 
