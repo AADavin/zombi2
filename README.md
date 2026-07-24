@@ -48,8 +48,7 @@ from zombi2 import species
 from zombi2.genomes import simulate_genomes_unordered
 
 sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g  = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, loss=0.25,
-                                origination=0.5, initial_families=20, seed=42)
+g  = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, seed=42)
 
 g.gene_trees                    # the true gene tree of every family
 g.write("run/")                 # the event log and the copy-number profiles
