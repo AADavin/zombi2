@@ -29,9 +29,9 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, default_outputs, level_dir,
-                                  resolve_genomes)
+from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+                                  _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
+                                  default_outputs, level_dir, parallel_from_args, resolve_genomes)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -124,6 +124,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "family's sequence at its origination, where the phylogram's root branch "
                         "starts)")
     _add_flat_arg(g)
+    _add_parallel_arg(g)
     _add_quiet_arg(g)
 
 
@@ -198,7 +199,8 @@ def run(args, parser):
 
     t0 = time.perf_counter()
     result = simulate_sequences(genome_run, model=model, substitution=args.substitution,
-                                seed=args.seed, progress=not args.quiet, **extra)
+                                seed=args.seed, parallel=parallel_from_args(args, parser),
+                                progress=not args.quiet, **extra)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
