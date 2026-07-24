@@ -73,30 +73,22 @@ Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(
 Level by level, each with its chapter written alongside:
 
 1. **Species** ✅ — the forward birth–death engine. Chapter 4 written.
-2. **Genomes** — unordered D/T/L/O ✅ (Ch5); **ordered** ✅ slices 1–3 — chromosomes as
-   identity-bearing containers; **segmental** D/T/L/O + inversion/transposition/translocation (every
-   gene-level event acts on an *extension* of consecutive genes, the ZOMBI1 model); and the
-   number-changing tier (fission/fusion/origination/loss) forming a reticulating chromosome network,
-   recorded as the `chromosome_events` edge-list ground truth.
-   **Nucleotide** ✅ — blocks of unbroken ancestry, indivisible declared genes (from `--gff` or an
-   even layout), the same event set in base pairs, its own outputs and `--resolution nucleotide`
-   (unordered ⊂ ordered ⊂ nucleotide). Its rates are still constants: the
-   `scope × modifiers` grammar 🔨 is not wired there.
+2. **Genomes** ✅ — **unordered** D/T/L/O (Ch5); **ordered** (identity-bearing chromosomes, segmental
+   events on runs of genes, the reticulating chromosome network); **nucleotide** (blocks of unbroken
+   ancestry, indivisible declared genes) — all three on `--resolution`, detailed in the names table
+   above. Nucleotide rates are still constants: the `scope × modifiers` grammar 🔨 is not wired there.
 3. **Sequences** ✅ — substitution models + both lineage clocks on the gene trees: `ByLineage` (uncorrelated / relaxed) and `FromParent` (autocorrelated, drifting parent→child down the species tree).
 4. **Traits** ✅ — the continuous / discrete overlay models on the species tree.
 5. **Coupling** — the one mechanism `mod.DrivenBy(source, mapping)` (SPEC §2–4). **Conditioned** ✅
-   (source = a file: `rates/driver.py` + the target level runs it — e.g. genome loss driven by a trait;
-   all four unordered D/T/L/O rates, plus the `transfer_to` **choice slot**, where the same modifier's
-   numbers are per-candidate weights instead of rate multipliers — SPEC §5);
-   **joint** ✅ (source = a live level: `joint/simulate_joint` grows both — a discrete trait drives
-   speciation, BiSSE/MuSSE). There is **no `coupling` package**: conditioned folds into the target
-   level, so the only engine is `joint`. Remaining: joint gene-content→speciation, conditioned
-   trait→sequence-clock, continuous drivers (QuaSSE — needs thinning). "Coupling" stays the level's
-   name in SPEC and the manual's Part III.
+   (source = a file, `rates/driver.py`, and the target level runs it — all four unordered D/T/L/O rates
+   plus the `transfer_to` choice slot). **Joint** ✅ (source = a live level, `joint/simulate_joint` — a
+   discrete trait drives speciation, BiSSE/MuSSE). No `coupling` package — conditioned folds into the
+   target level, so `joint` is the only engine. Remaining: joint gene-content→speciation, conditioned
+   trait→sequence-clock, continuous drivers (QuaSSE). "Coupling" stays the level's name in SPEC and Part III.
 
 ## Docs & manual
 
-Same strategy, so the docs are **watched growing** instead of retrofitted:
+Same strategy — the docs grow with the code, not retrofitted:
 
 - **Manual (the book)** — Chapters 1–9 written (`manual/book/ch1.md … ch9.md`) plus appendices A–C;
   the genome resolution ladder is Ch4–Ch6 (unordered ⊂ ordered ⊂ nucleotide).
