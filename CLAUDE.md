@@ -21,6 +21,21 @@ format, a changed default, new columns, or a new Python-only accessor like `.gen
 table in the same change.** The table's columns are Output · File · Format · Default (yes / no /
 Python) · Contents.
 
+## Changelog — log every user-facing change
+
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the top section is
+`## [Unreleased]`. **Whenever you make a change a user could observe** — new or changed behaviour, a CLI
+flag, an output file, a public API, a bug fix — **add a line under `[Unreleased]` in the same change.**
+A release is blocked (rightly) when that section is empty, and the reason it goes empty is entries
+skipped as changes land, so treat the entry as part of the change, not an afterthought.
+
+- **Format:** group under `### Added` / `### Changed` / `### Fixed`, one line per change, ending with the
+  PR number — `- Weight transfers between named clades. (#235)`. Match the prose of the entries already there.
+- **Skip** purely internal changes with no observable effect (a refactor, tests, docs prose).
+- `scripts/changelog-draft.sh` drafts the block from the PRs merged since the last tag — a **starting
+  point** to curate, not the final text. A release rolls `[Unreleased]` into a dated `[X.Y.Z]` section
+  via `scripts/release.sh` (which now refuses an empty `[Unreleased]` before touching anything).
+
 ## Run environment
 
 - Python: `/Users/aadria/miniconda3/bin/python` (3.12). Bare `python`/`zombi2` are not on PATH.
