@@ -56,6 +56,7 @@ from .ordered import (
     simulate_genomes_ordered,
 )
 from .profiles import Profiles, profiles_from_genomes
+from ._perfamily import StreamedRun
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
@@ -326,7 +327,8 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                                transfer_to="uniform", replacement=False, self_transfer=False,
                                initial_families=100, families=None, family_speed=None,
-                               max_family_size=10.0, seed=None, progress=False) -> GenomesResult:
+                               max_family_size=10.0, seed=None, parallel=False, stream_to=None,
+                               outputs=None, progress=False) -> "GenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -365,6 +367,26 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
     candidate weighs 0 the transfer does not happen (see :func:`_do_transfer`). The two couplings are
     independent and may be used together or apart.
+
+    ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
+    process — the families are independent (a transfer roams a copy across lineages but never mixes two
+    families), so it enumerates every family's origination first and then evolves each on its own. It is
+    worker-count invariant (each family draws from its own stream spawned off ``seed``) but gives a
+    different-though-equally-valid draw than the serial default for a given seed. ``False`` (default)
+    runs the serial loop; ``True`` uses every core; an ``int`` sets the worker count. A **driven** rate
+    or ``transfer_to`` (``DrivenBy``) has no per-family engine yet — the run announces this and falls
+    back to the serial loop. The gain is real but modest (a merge over the whole event log stays
+    serial), so a handful of workers is the sweet spot; unlike the sequences level it does not scale far.
+    Because it spawns processes, a calling script must guard its entry with ``if __name__ ==
+    "__main__":`` (the ``zombi2`` CLI already does).
+
+    ``stream_to=DIR`` takes the same engine to the many-families regime: each family is written straight
+    to disk as it finishes — no whole-run merge, no run held in memory (a run that fills gigabytes in
+    memory streams in tens of megabytes) — and a light :class:`~zombi2.genomes.StreamedRun` handle comes
+    back instead of a ``GenomesResult``. ``outputs=`` picks which files, exactly as
+    :meth:`GenomesResult.write` takes them (default: all of them). It is the per-family engine, so a
+    driven rate **raises** here rather than falling back (that would defeat the point), and ``outputs``
+    without ``stream_to`` is an error.
     """
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     dup = as_rate(duplication, default_scope=PerCopy)
@@ -448,6 +470,28 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     # duplication rate is zero for a family already at its quota — a declared ceiling, not a
     # truncated run. ``None`` removes it.
     cap = resolve_max_family_size(max_family_size, len(tree.nodes))
+
+    # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
+    # process (SPEC-style — serial by default). `stream_to` takes the same engine one step further —
+    # each family is written straight to disk and a light StreamedRun handle comes back, so a run of a
+    # million families never has to fit in memory (`outputs` picks which files, as `.write` does). Both
+    # handle everything but a driven rate / recipient; there the parallel path prints why and returns
+    # None so this serial reference loop runs unchanged (decision A), while a streamed run raises (it
+    # cannot fall back without pulling the whole thing into memory). Everything above is shared
+    # validation, so bad input still raises the same way.
+    if outputs is not None and stream_to is None:
+        raise ValueError(
+            "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
+            "in-memory run choose them when you call result.write(outputs=...).")
+    if parallel or stream_to is not None:
+        from ._perfamily import run_parallel_unordered
+        result = run_parallel_unordered(
+            tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
+            replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
+            families=families, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
+            progress=progress, stream_to=stream_to, outputs=outputs)
+        if result is not None:
+            return result
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -723,4 +767,5 @@ __all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "
            "Profiles", "GeneTree", "GeneNode", "UnorderedGenome", "unordered",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
            "ChromosomeEvent", "Inversion", "Transposition", "Translocation", "EventPosition",
-           "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome"]
+           "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome",
+           "StreamedRun"]

@@ -316,6 +316,24 @@ def _clock_factor(clock, species: int) -> float:
     return 1.0 if clock is None else clock.get(species, 1.0)
 
 
+def _draw_clock(clock_mod, species_tree, gene_trees, rng) -> "dict[int, float] | None":
+    """The lineage clock: one factor per species branch, drawn once and shared by every family (a hot
+    species runs hot for all its genes). ``None`` ⇒ the strict clock (factor 1). ``ByLineage`` draws
+    each branch i.i.d.; ``FromParent`` drifts the factor parent→child down the species tree
+    (autocorrelated). Factored out so the serial loop and the parallel engine draw it the same way —
+    each just hands in its own ``rng`` (the serial run's shared generator, or a stream spawned for the
+    clock so the parallel engine is worker-count invariant)."""
+    if isinstance(clock_mod, FromParent):
+        clock: dict[int, float] = {}
+        for i in _preorder(species_tree):                       # parent before child
+            p = species_tree.nodes[i].parent
+            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
+        return clock
+    if clock_mod is not None:
+        return {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
+    return None
+
+
 def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
     """A copy of the gene tree whose node ``time`` holds the cumulative **substitutions/site** from the
     family's **origination** (``base × clock[species] × Δt`` summed along the path). Feeding it to
@@ -391,7 +409,7 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
 
 def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
-                       substitution=1.0, seed=None, progress=False) -> SequencesResult:
+                       substitution=1.0, seed=None, parallel=False, progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
     ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.GenomesResult` that
@@ -427,6 +445,18 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
     species tree, with branch lengths converted from time to substitutions/site by the same
     ``base × clock × Δt``.
+
+    ``parallel`` opts into evolving the gene trees **concurrently** — one gene tree per worker
+    process, which is where a run's time goes when the sequences are long or a nucleotide genome has
+    thousands of blocks. ``False`` (the default) runs the serial engine above. ``True`` uses every
+    core; a positive ``int`` sets the worker count. It is a **separate engine**: each family draws
+    from its own RNG stream (spawned from ``seed``), so every worker count returns the *same* bytes,
+    but that realisation differs from the serial one for a given seed — parallel is a speed choice,
+    made once, not a drop-in for the default. Threads would not help here (numpy releases the GIL too
+    little for these array sizes), so this is process-backed and only pays off above a work threshold.
+    Because it spawns processes, a script that calls it with ``parallel`` set must guard its entry with
+    ``if __name__ == "__main__":`` (the standard multiprocessing requirement); the ``zombi2`` CLI
+    already does, so ``--parallel`` there needs nothing extra.
     """
     from ..genomes import NucleotideGenomesResult
 
@@ -524,49 +554,54 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             )
     rate_base = rate.base
 
-    rng = np.random.default_rng(seed)
-    # the lineage clock: one factor per species branch, computed once here and shared by every family
-    # (so a hot species runs hot for all its genes). None ⇒ the strict clock (factor 1). ByLineage draws
-    # each branch i.i.d.; FromParent drifts the factor parent→child down the species tree (autocorrelated).
-    clock = None
-    if isinstance(clock_mod, FromParent):
-        clock = {}
-        for i in _preorder(species_tree):                       # parent before child
-            p = species_tree.nodes[i].parent
-            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
-    elif clock_mod is not None:
-        clock = {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
-    # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
-    # recur across blocks (a block passing straight through a species branch reuses its length), so a
-    # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
-    # Keyed by model identity — genes and spacer are different models and must not share a cache.
-    cdf_caches: dict[int, dict[float, np.ndarray]] = {}
-    bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
-    for family in sorted(gene_trees):  # sorted for reproducibility given the seed
-        bar.update()
-        gt = gene_trees[family]
-        if per_block is None:
-            f_len, f_model, f_rate = length, model, rate_base
-        else:                       # a nucleotide block: its own length, and spacer runs faster
-            f_len, f_model, speed = per_block[family]
-            f_rate = rate_base * speed
-        seed_states = None if per_block is None else founding_seed[family]
-        cache = cdf_caches.setdefault(id(f_model), {})
-        states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
-                                                   gt.origination, founding=seed_states,
-                                                   cdf_cache=cache)
-        alignments[family], ancestral[family] = _split(gt, states, f_model)
-        founding[family] = decode(founding_states, f_model.alphabet)
-        scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
-        ext = scaled.extant
-        phylograms[family] = {"complete": _gene_newick(scaled.complete),
-                              "extant": _gene_newick(ext) if ext is not None else None}
-
-    bar.close()
+    if not parallel:
+        # Serial reference engine — the default, left exactly as it was. One shared generator draws the
+        # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
+        # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
+        rng = np.random.default_rng(seed)
+        clock = _draw_clock(clock_mod, species_tree, gene_trees, rng)
+        # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
+        # recur across blocks (a block passing straight through a species branch reuses its length), so a
+        # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
+        # Keyed by model identity — genes and spacer are different models and must not share a cache.
+        cdf_caches: dict[int, dict[float, np.ndarray]] = {}
+        bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
+        for family in sorted(gene_trees):  # sorted for reproducibility given the seed
+            bar.update()
+            gt = gene_trees[family]
+            if per_block is None:
+                f_len, f_model, f_rate = length, model, rate_base
+            else:                       # a nucleotide block: its own length, and spacer runs faster
+                f_len, f_model, speed = per_block[family]
+                f_rate = rate_base * speed
+            seed_states = None if per_block is None else founding_seed[family]
+            cache = cdf_caches.setdefault(id(f_model), {})
+            states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
+                                                       gt.origination, founding=seed_states,
+                                                       cdf_cache=cache)
+            alignments[family], ancestral[family] = _split(gt, states, f_model)
+            founding[family] = decode(founding_states, f_model.alphabet)
+            scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
+            ext = scaled.extant
+            phylograms[family] = {"complete": _gene_newick(scaled.complete),
+                                  "extant": _gene_newick(ext) if ext is not None else None}
+        bar.close()
+    else:
+        # Parallel engine (opt-in): one gene tree per process, each under its own spawned RNG stream, so
+        # any worker count is bit-identical to any other. The clock is a shared read-only draw, so it is
+        # taken once here from a reserved stream (index 0) and shipped to every worker.
+        from .._parallel import resolve_workers
+        from ._parallel import evolve_families
+        workers = resolve_workers(parallel)
+        spawned = np.random.SeedSequence(seed).spawn(1 + len(gene_trees))
+        clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
+        alignments, ancestral, founding, phylograms = evolve_families(
+            gene_trees, per_block, model, intergene_model, length, rate_base, clock,
+            founding_seed if nucleotide else None, spawned[1:], workers, progress)
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
