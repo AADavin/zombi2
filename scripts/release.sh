@@ -2,9 +2,13 @@
 #
 # One-command release for ZOMBI2.
 #
-#   scripts/release.sh X.Y.Z
+#   scripts/release.sh patch     # bump the last number   (0.4.0 -> 0.4.1) — a fix release
+#   scripts/release.sh minor     # bump the middle number (0.4.0 -> 0.5.0) — a feature release
+#   scripts/release.sh major     # bump the first number  (0.4.0 -> 1.0.0)
+#   scripts/release.sh 0.4.0     # or an explicit version, if you must
 #
-# What it does, on an up-to-date `main` with a clean working tree:
+# The version is COMPUTED from the current one (no typing a version, no typos). What it does, on an
+# up-to-date `main` with a clean working tree:
 #   1. sets the single-source version (`__version__` in zombi2/__init__.py — hatchling reads it),
 #   2. rolls the CHANGELOG's [Unreleased] entries into a dated `[X.Y.Z]` section,
 #   3. commits `release: bump version to X.Y.Z`, tags `vX.Y.Z`, and pushes both,
@@ -17,15 +21,44 @@ set -euo pipefail
 YES=0
 ARGS=()
 for a in "$@"; do [[ "$a" == "--yes" ]] && YES=1 || ARGS+=("$a"); done
-VERSION="${ARGS[0]:-}"
+BUMP="${ARGS[0]:-}"
 
 die() { echo "release: $*" >&2; exit 1; }
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "usage: scripts/release.sh X.Y.Z [--yes]"
-TAG="v$VERSION"
+[[ -n "$BUMP" ]] || die "usage: scripts/release.sh (patch|minor|major | X.Y.Z) [--yes]"
 cd "$(git rev-parse --show-toplevel)"
 
 PY="$(command -v python3 || command -v python)" || die "python not found"
 command -v gh >/dev/null || die "the GitHub CLI 'gh' is required (brew install gh)"
+
+# --- read the current version and compute the next -----------------------------------------------
+# The version is derived from zombi2/__init__.py, not typed, so a keyword can never fat-finger it.
+CURRENT="$("$PY" - <<'PY'
+import re, pathlib
+m = re.search(r'^__version__ = "(.*)"$', pathlib.Path("zombi2/__init__.py").read_text(), re.M)
+print(m.group(1) if m else "")
+PY
+)"
+[[ "$CURRENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    || die "could not read a valid current version from zombi2/__init__.py (got '$CURRENT')"
+
+case "$BUMP" in
+    patch|minor|major)
+        VERSION="$("$PY" - "$CURRENT" "$BUMP" <<'PY'
+import sys
+x, y, z = (int(n) for n in sys.argv[1].split("."))
+kind = sys.argv[2]
+if kind == "patch":   x, y, z = x, y, z + 1
+elif kind == "minor": x, y, z = x, y + 1, 0
+else:                 x, y, z = x + 1, 0, 0
+print(f"{x}.{y}.{z}")
+PY
+)" ;;
+    *) [[ "$BUMP" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+           || die "not a bump keyword (patch|minor|major) or an X.Y.Z version: '$BUMP'"
+       VERSION="$BUMP" ;;
+esac
+TAG="v$VERSION"
+DATE="$("$PY" -c 'import datetime; print(datetime.date.today().isoformat())')"
 
 # --- preconditions: fail before touching anything ------------------------------------------------
 [[ "$(git branch --show-current)" == "main" ]] || die "not on main (checkout main first)"
@@ -36,9 +69,6 @@ git fetch --quiet origin
 git rev-parse "$TAG" >/dev/null 2>&1 && die "tag $TAG already exists"
 [[ -f CHANGELOG.md ]] || die "CHANGELOG.md not found"
 grep -q '^## \[Unreleased\]' CHANGELOG.md || die "CHANGELOG.md has no '## [Unreleased]' section"
-
-CURRENT="$("$PY" -c 'import zombi2; print(zombi2.__version__)')"
-DATE="$("$PY" -c 'import datetime; print(datetime.date.today().isoformat())')"
 
 echo "ZOMBI2 release  $CURRENT -> $VERSION   (tag $TAG, $DATE)"
 echo "  · set __version__ in zombi2/__init__.py"
