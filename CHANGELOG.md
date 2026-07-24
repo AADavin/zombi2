@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-24
+
 ### Added
 - `analyses/` — a home for self-contained validation studies, each regenerating from fixed seeds:
   **RED** node-age validation (does Relative Evolutionary Divergence recover node ages under a
