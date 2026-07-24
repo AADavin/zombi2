@@ -29,7 +29,7 @@ from scipy.stats import pearsonr
 from zombi2 import genomes, sequences, species
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import substitution_models as sm
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 
 from red import internal_nodes
 from red import relative_evolutionary_divergence as red_of

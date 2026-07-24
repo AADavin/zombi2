@@ -16,7 +16,7 @@ from __future__ import annotations
 from ete3 import Tree as ETree
 
 from zombi2 import genomes
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 
 GENE_LENGTH = 1000       # bp per gene (an arbitrary unit; only gene order and length-in-genes matter)
 SPACING = 1.4            # chromosome bp per gene of coding — ~70% coding, leaving intergenic room

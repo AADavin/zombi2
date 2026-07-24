@@ -15,7 +15,7 @@ import os
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.gene_trees import gene_trees_from_events
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 from zombi2.tools.homology import write_homology
 from zombi2.cli.framework import (
     ZombiHelpFormatter, _add_flat_arg, _add_from_arg, _add_run_arg, _examples, level_dir,

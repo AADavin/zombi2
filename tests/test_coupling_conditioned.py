@@ -16,7 +16,8 @@ from zombi2 import genomes, traits
 from zombi2.rates.driver import DriverTrajectory, load_driver
 from zombi2.rates import modifiers as mod
 from zombi2.rates.mapping import Curve, Scalar, Table, as_mapping
-from zombi2.species import read_newick, simulate_species_tree
+from zombi2.species import simulate_species_tree
+from zombi2.tree import read_newick
 
 
 # --- the mapping shapes (Table / Curve / Scalar) --------------------------------------------------

@@ -8,7 +8,8 @@ import pytest
 from zombi2.cli.main import main
 from zombi2.genomes import simulate_genomes_unordered
 from zombi2.sequences.substitution_models import AMINO_ACIDS
-from zombi2.species import read_newick, simulate_species_tree
+from zombi2.species import simulate_species_tree
+from zombi2.tree import read_newick
 
 
 # ── read_newick ─────────────────────────────────────────────────────────────────────

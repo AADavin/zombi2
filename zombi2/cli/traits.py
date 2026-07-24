@@ -21,7 +21,7 @@ import time
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
                                   _rate, _rates_help, _read_tip_fates, _write_params_log, level_dir,
                                   resolve_tree, sibling_fates)
-from zombi2.species import read_newick
+from zombi2.tree import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
 
 #: the RATES block for ``zombi2 traits -h``, built from the level's own declaration
