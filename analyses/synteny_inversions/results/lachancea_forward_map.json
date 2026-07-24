@@ -1,0 +1,29 @@
+{
+  "name": "Lachancea",
+  "rate_at_reference_length": 0.0002737844,
+  "reference_length": 4.0,
+  "inversion": {
+    "median": 0.0002309619,
+    "q05": 0.000138655,
+    "q95": 0.0012653859
+  },
+  "mean_length": {
+    "median": 16.0,
+    "q05": 1.0,
+    "q95": 256.0
+  },
+  "best_cell": {
+    "inversion": 0.0015,
+    "mean_length": 1.0,
+    "dist": 0.05560618951775617
+  },
+  "n_core": 3306,
+  "K": 8,
+  "G": 5000,
+  "bins": [
+    0.0,
+    70.0,
+    130.0,
+    200.0
+  ]
+}
