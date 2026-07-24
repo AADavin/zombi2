@@ -18,7 +18,6 @@ from __future__ import annotations
 import functools
 import math
 import pathlib
-import re
 from dataclasses import dataclass, field
 
 import numpy as np

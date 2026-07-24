@@ -1,7 +1,6 @@
 """The zombi2.tree toolkit — transforms (with_stem, make_ultrametric, rescale) and analyses
 (relative_evolutionary_divergence, red_scaled, distance). read_newick / prune are covered in
 test_cli.py."""
-import numpy as np
 import pytest
 
 from zombi2 import species
