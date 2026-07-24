@@ -3,8 +3,7 @@
 The classic comparative-genomics view of a genome run: a families × extant-species matrix of copy
 numbers (0 = absent). It is **derived** from the observed genomes (the extant tips of the complete
 tree), so it costs nothing to keep the run lean and materialise it on access. Stored sparse — only
-the nonzero ``(family, species)`` cells — with the dense matrix and presence/absence derived. See
-``docs/design/result-api.md``.
+the nonzero ``(family, species)`` cells — with the dense matrix and presence/absence derived.
 """
 
 from __future__ import annotations

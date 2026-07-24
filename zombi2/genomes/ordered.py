@@ -21,7 +21,7 @@ Chromosomes carry a genuine **identity** — a chromosome id re-minted at every 
 so ``chromosome_events`` is the true reticulating **chromosome network**: fission (a bifurcation),
 fusion (the reticulation), chromosome origination (a de-novo replicon) and chromosome loss, rooted at
 the initial and de-novo originations, recorded as an edge list (its ground truth — a network is a graph,
-not eNewick; see ``chromosome-network.md``).
+not eNewick).
 
 It is the genome twin of the unordered core and shares its spine: one forward Gillespie over the
 **complete** species tree, the same ``scope(base) × modifiers`` rate grammar, the same gene-genealogy

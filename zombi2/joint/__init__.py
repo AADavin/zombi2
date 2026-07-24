@@ -1,4 +1,4 @@
-"""Joint models — the driver co-evolves with what it drives (SPEC §2–4, ``coupling-api.md``).
+"""Joint models — the driver co-evolves with what it drives (SPEC §2–4).
 
 When the driver **cannot** be grown first — because it is entangled with what it drives as the tree
 unfolds — one run must produce both. Two drivers of speciation are grown here, the tree an **output**:

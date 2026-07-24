@@ -1,4 +1,4 @@
-"""A conditioned :class:`~zombi2.rates.modifiers.DrivenBy`'s file-backing (SPEC §2, ``coupling-api.md``).
+"""A conditioned :class:`~zombi2.rates.modifiers.DrivenBy`'s file-backing (SPEC §2).
 
 When ``DrivenBy``'s ``source`` is a **filename**, the coupling is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest

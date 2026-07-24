@@ -11,7 +11,7 @@ Read `SPEC.md` first (the model), then this (the shape). Two principles througho
 - **One canonical path per name** — no top-level re-exports, no aliases, so nothing drifts. Reach
   everything through its level package (`from zombi2 import species`, `from zombi2.rates import scope`).
 - **Concepts → code → chapter**, and this map is the **as-built truth**: where an older design doc
-  disagrees (e.g. `species-api.md` still says `n_tips` / `age`), this map is right — the built engine uses
+  disagrees, this map is right — the built engine uses
   `n_extant` / `total_time`, and time is always **forward from the crown** (SPEC §5).
 
 ---
@@ -71,7 +71,7 @@ share one home (`from zombi2 import tree`).
 | `zombi2.tools` | `homology_table(root)` → `(labels, matrix)` and `homology_tsv(root)` classify one gene tree's leaves — the event at each pair's MRCA is a **speciation** → `O` (ortholog), **duplication** → `P` (paralog), or **transfer** → `X` (xenolog); `write_homology({family: GeneTree}, dir)` writes one `homology_fam<f>.tsv` per surviving family. Exact, not inferred: ZOMBI recorded the embedding (see `genomes/gene_trees.py`). On the CLI as `zombi2 tools format DIR` (`--format` defaults to `homology`). |
 
 Every level returns a `<Level>Result` bundle sharing the spine `.events` / tree(s) / `.seed` /
-`.write(dir, [...])`, with the `record=[...]` memory dial (see [`result-api.md`](result-api.md)).
+`.write(dir, [...])`, with the `record=[...]` memory dial.
 
 ## The rebuild order
 
@@ -82,10 +82,10 @@ Level by level, each with its chapter written alongside:
    identity-bearing containers; **segmental** D/T/L/O + inversion/transposition/translocation (every
    gene-level event acts on an *extension* of consecutive genes, the ZOMBI1 model); and the
    number-changing tier (fission/fusion/origination/loss) forming a reticulating chromosome network,
-   recorded as the `chromosome_events` edge-list ground truth (`chromosome-network.md`).
+   recorded as the `chromosome_events` edge-list ground truth.
    **Nucleotide** ✅ — blocks of unbroken ancestry, indivisible declared genes (from `--gff` or an
    even layout), the same event set in base pairs, its own outputs and `--resolution nucleotide`
-   (`genome-api.md`: unordered ⊂ ordered ⊂ nucleotide). Its rates are still constants: the
+   (unordered ⊂ ordered ⊂ nucleotide). Its rates are still constants: the
    `scope × modifiers` grammar 🔨 is not wired there.
 3. **Sequences** ✅ — substitution models + both lineage clocks on the gene trees: `ByLineage` (uncorrelated / relaxed) and `FromParent` (autocorrelated, drifting parent→child down the species tree).
 4. **Traits** ✅ — the continuous / discrete overlay models on the species tree.

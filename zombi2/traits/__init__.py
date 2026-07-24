@@ -1,7 +1,7 @@
 """Traits — a value riding the species tree (level 4).
 
 A trait is a **value that rides the tree** — a body size, a habitat, a presence/absence — evolved
-along the branches of a fixed tree (``docs/design/trait-api.md``). The result records the value at
+along the branches of a fixed tree. The result records the value at
 **every** node (``node_values``, so the ancestral states are exact, not inferred) and, like the other
 levels, an **event log** (``events``): a **discrete** trait mirrors the genome level exactly — its
 transitions are timestamped events, the source of truth, and the per-branch stochastic character map
@@ -875,8 +875,8 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
 
 @dataclass(frozen=True)
 class DiscreteTrait:
-    """A discrete (Mk) trait **process** — its parameters bundled but not yet run (SPEC §4,
-    ``coupling-api.md``). ``simulate_discrete(tree, ...)`` is the runner that grows this on a *fixed*
+    """A discrete (Mk) trait **process** — its parameters bundled but not yet run (SPEC §4).
+    ``simulate_discrete(tree, ...)`` is the runner that grows this on a *fixed*
     tree; a **joint** model instead takes this spec and grows the trait *with* the tree it drives
     (``joint.simulate_joint(trait=traits.discrete(...))``), so neither can be simulated first. Same
     parameters as :func:`simulate_discrete` (the Mk half): ``states``, ``switch`` (the rate spec),
