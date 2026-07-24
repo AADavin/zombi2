@@ -388,16 +388,13 @@
         <h2>Running ZOMBI from the terminal</h2>
         <div class="term codeblock" role="img" aria-label="Example ZOMBI2 command-line session">
           <div class="term-bar"><i></i><i></i><i></i><span>zombi2 — bash</span></div>
-<pre><span class="c"># 1 · species tree (backward birth–death)</span>
-<span class="p">$</span> zombi2 <span class="k">species</span> --birth 1 --death 0.3 \
-    --tips 50 --age 5 --seed 1 -o <span class="s">out/</span>
+<pre><span class="c"># 1 · species tree (forward birth–death)</span>
+<span class="p">$</span> zombi2 <span class="k">species</span> <span class="s">out/</span> --birth 1 --death 0.3 \
+    --n-extant 50 --seed 1
 
-<span class="c"># 2 · genomes along it (DTLO)</span>
-<span class="p">$</span> zombi2 <span class="k">genomes</span> --tree out/species_tree.nwk \
-    --dup 0.2 --trans 0.1 --loss 0.25 \
-    --orig 0.5 --seed 42 -o <span class="s">out/</span>
-
-<span class="c"># → gene trees · reconciliations · profiles</span>
+<span class="c"># 2 · genomes along it (DTLO) — reads the tree from out/</span>
+<span class="p">$</span> zombi2 <span class="k">genomes</span> <span class="s">out/</span> --duplication 0.2 --transfer 0.1 \
+    --loss 0.25 --origination 0.5 --seed 42
 </pre>
         </div>
       </div>
@@ -410,21 +407,21 @@
         <h2>Running ZOMBI in Python</h2>
         <div class="term codeblock" role="img" aria-label="Example ZOMBI2 Python session">
           <div class="term-bar"><i></i><i></i><i></i><span>example.py</span></div>
-<pre><span class="k">import</span> zombi2 <span class="k">as</span> z
+<pre><span class="k">from</span> zombi2 <span class="k">import</span> species, genomes
 
-<span class="c"># 1 · species tree (backward birth–death)</span>
-tree = z.simulate_species_tree(
-    z.BirthDeath(birth=<span class="s">1.0</span>, death=<span class="s">0.3</span>),
-    n_tips=<span class="s">20</span>, age=<span class="s">5.0</span>, seed=<span class="s">1</span>)
+<span class="c"># 1 · species tree (forward birth–death)</span>
+result = species.simulate_species_tree(
+    birth=<span class="s">1.0</span>, death=<span class="s">0.3</span>,
+    n_extant=<span class="s">20</span>, seed=<span class="s">1</span>)
 
 <span class="c"># 2 · genomes evolving along it</span>
-genomes = z.simulate_genomes(
-    tree, duplication=<span class="s">0.2</span>, transfer=<span class="s">0.1</span>,
+g = genomes.simulate_genomes_unordered(
+    result.complete_tree, duplication=<span class="s">0.2</span>, transfer=<span class="s">0.1</span>,
     loss=<span class="s">0.25</span>, origination=<span class="s">0.5</span>, seed=<span class="s">42</span>)
 
-<span class="c"># copy-number profiles, gene trees, reconciliations</span>
-print(genomes.profiles.matrix)
-genomes.write(<span class="s">"out/"</span>)
+<span class="c"># gene copy-number profiles, gene trees, full history</span>
+print(g.profiles.shape)
+g.write(<span class="s">"out/"</span>)
 </pre>
         </div>
       </div>
@@ -471,13 +468,13 @@ genomes.write(<span class="s">"out/"</span>)
         <div>
           <h4>Support</h4>
           <ul>
-            <li><a href="https://github.com/AADavin/zombi2/discussions">Discussions</a></li>
+            <li><a href="https://github.com/AADavin/zombi2/issues">Issues &amp; questions</a></li>
             <li><a href="#cite">How to cite</a></li>
           </ul>
         </div>
       </div>
       <div class="foot-bottom">
-        <span>© 2026 ZOMBI2 · Davín lab · Released under the MIT License.</span>
+        <span>© 2026 ZOMBI2 · Released under the MIT License.</span>
         <span>A pure-Python library and a command-line interface.</span>
       </div>
     </div>
