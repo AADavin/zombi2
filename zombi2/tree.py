@@ -11,6 +11,7 @@ toolkit grows by adding functions, never by growing the class.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -372,4 +373,188 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None) -> tupl
 
 
 
-__all__ = ["Tree", "Node", "prune", "read_newick"]
+# --------------------------------------------------------------------------------------------------
+# The toolkit — free functions (Tree → Tree transforms, and analyses). Grow it here, not on the class.
+# --------------------------------------------------------------------------------------------------
+
+
+def _copy(tree: Tree) -> Tree:
+    return Tree({i: Node(n.id, n.parent, n.birth_time, n.end_time, n.children, n.fate)
+                 for i, n in tree.nodes.items()}, tree.root)
+
+
+def _preorder(tree: Tree) -> list[int]:
+    """Node ids, parent before child, from the root."""
+    order: list[int] = []
+    stack = [tree.root]
+    while stack:
+        i = stack.pop()
+        order.append(i)
+        kids = tree.nodes[i].children
+        if kids is not None:
+            stack.extend(kids)
+    return order
+
+
+def _depths(tree: Tree) -> dict[int, float]:
+    """Root-to-node branch-length depth of every node (root at 0)."""
+    depth: dict[int, float] = {}
+    for i in _preorder(tree):
+        nd = tree.nodes[i]
+        depth[i] = 0.0 if nd.parent is None else depth[nd.parent] + (nd.end_time - nd.birth_time)
+    return depth
+
+
+def with_stem(tree: Tree, length: float, *, mode: str = "set") -> Tree:
+    """Return a copy whose **stem** — the branch above the crown (root) — is ``length`` (``mode="set"``)
+    or is extended by ``length`` (``mode="add"``). Every other branch length is unchanged, so
+    ``to_newick`` writes the new stem as ``)n<root>:<stem>;`` and nothing below moves."""
+    if not math.isfinite(length):
+        raise ValueError(f"stem length must be finite, got {length!r}")
+    if mode not in ("set", "add"):
+        raise ValueError(f"mode must be 'set' or 'add', got {mode!r}")
+    out = _copy(tree)
+    root = out.nodes[out.root]
+    root.birth_time = (root.end_time - length) if mode == "set" else (root.birth_time - length)
+    if root.end_time - root.birth_time < 0:
+        raise ValueError("resulting stem is negative")
+    return out
+
+
+def make_ultrametric(tree: Tree, *, tol: float = 1e-3) -> Tree:
+    """Return a copy in which every tip sits at the present (exactly ultrametric), by extending the
+    terminal branches to a common depth. Snaps only when the tip-depth spread is within ``tol`` of
+    the tree height — i.e. rounding; a larger spread raises, because differing tip depths then carry
+    real signal (extinct lineages or serial samples) that this must not silently flatten."""
+    depth = _depths(tree)
+    tips = [i for i, n in tree.nodes.items() if n.children is None]
+    lo, hi = min(depth[i] for i in tips), max(depth[i] for i in tips)
+    if hi > 0 and (hi - lo) > tol * hi:
+        raise ValueError(
+            f"tip depths differ by {hi - lo:.3g} (> {tol:g} × height {hi:.3g}); this is more than "
+            "rounding — the tips are not contemporaneous (extinct lineages or serial samples), so "
+            "there is no ultrametric tree to snap to")
+    out = _copy(tree)
+    for i in tips:
+        nd = out.nodes[i]
+        parent_depth = depth[i] - (nd.end_time - nd.birth_time)   # = depth of this tip's parent
+        nd.end_time = nd.birth_time + (hi - parent_depth)         # so the tip lands at depth hi
+    return out
+
+
+def rescale(tree: Tree, *, height: float | None = None, factor: float | None = None) -> Tree:
+    """Return a copy with every branch length scaled — either so the root-to-tip height equals
+    ``height``, or by a raw ``factor``. Exactly one of the two must be given."""
+    if (height is None) == (factor is None):
+        raise ValueError("pass exactly one of height= or factor=")
+    if factor is None:
+        depth = _depths(tree)
+        current = max(depth[i] for i, n in tree.nodes.items() if n.children is None)
+        if current <= 0:
+            raise ValueError("tree has zero height; cannot scale it to a target height")
+        factor = height / current
+    if factor < 0:
+        raise ValueError(f"scale factor must be non-negative, got {factor}")
+    out = _copy(tree)
+    for nd in out.nodes.values():
+        nd.birth_time *= factor
+        nd.end_time *= factor
+    return out
+
+
+def relative_evolutionary_divergence(tree: Tree) -> dict[int, float]:
+    """Relative Evolutionary Divergence (Parks et al. 2018) of every node — root ``0.0``, leaves
+    ``1.0``, keyed by node id. Walking root-outward, a node sits at ``RED(parent) + a/(a+b)·(1 −
+    RED(parent))`` where ``a`` is its branch and ``b`` the mean branch-length distance from it to the
+    leaves of its subtree. RED is invariant to a global rescaling, so a rate-distorted phylogram reads
+    as an approximate relative timeline; on an ultrametric tree it returns each node's exact relative
+    age. A zero-length branch passes the parent's value straight down."""
+    nodes = tree.nodes
+    order = _preorder(tree)
+    if not order:
+        raise ValueError("empty tree — nothing to compute RED on")
+
+    def length(i: int) -> float:
+        a = nodes[i].end_time - nodes[i].birth_time
+        if a < 0.0:
+            raise ValueError(f"negative branch length ({a}) above node n{i}")
+        return a
+
+    mean_tip_dist: dict[int, float] = {}
+    n_leaves: dict[int, int] = {}
+    for i in reversed(order):                       # child before parent
+        kids = nodes[i].children
+        if kids is None:
+            mean_tip_dist[i] = 0.0
+            n_leaves[i] = 1
+            continue
+        total = 0.0
+        k = 0
+        for c in kids:
+            total += n_leaves[c] * (length(c) + mean_tip_dist[c])
+            k += n_leaves[c]
+        mean_tip_dist[i] = total / k
+        n_leaves[i] = k
+
+    red: dict[int, float] = {}
+    for i in order:                                 # parent before child
+        p = nodes[i].parent
+        if p is None:
+            red[i] = 0.0
+            continue
+        a, b, pr = length(i), mean_tip_dist[i], red[p]
+        red[i] = pr + (a / (a + b)) * (1.0 - pr) if (a + b) > 0.0 else pr
+    return red
+
+
+def red_scaled(tree: Tree) -> Tree:
+    """Return a copy whose node depths **are** their RED — ultrametric on ``[0, 1]``, root at 0, every
+    tip at 1. Branch lengths become RED increments. This is the tree GTDB-style rank normalisation
+    reads (:func:`relative_evolutionary_divergence` gives the raw per-node values)."""
+    red = relative_evolutionary_divergence(tree)
+    out = _copy(tree)
+    for i, nd in out.nodes.items():
+        nd.birth_time = 0.0 if nd.parent is None else red[nd.parent]
+        nd.end_time = red[i]
+    return out
+
+
+def _clades(tree: Tree) -> dict[frozenset, float]:
+    """``{frozenset(descendant leaf ids): branch length above the node}`` for every node."""
+    leafset: dict[int, frozenset] = {}
+    for i in reversed(_preorder(tree)):             # child before parent
+        nd = tree.nodes[i]
+        leafset[i] = (frozenset((i,)) if nd.children is None
+                      else frozenset().union(*(leafset[c] for c in nd.children)))
+    return {leafset[i]: (n.end_time - n.birth_time) for i, n in tree.nodes.items()}
+
+
+def distance(a: Tree, b: Tree, *, metric: str = "rf") -> float:
+    """Distance between two **rooted** trees over their shared tips (matched by node id). Raises if the
+    two leaf sets differ. ``metric``: ``"rf"`` (Robinson–Foulds — the number of clades in one tree but
+    not the other), ``"rf-normalized"`` (that count over the total number of non-trivial clades), or
+    ``"branch-score"`` (Kuhner–Felsenstein — √Σ(branch-length difference)² over all clades, terminal
+    branches included)."""
+    la = frozenset(i for i, n in a.nodes.items() if n.children is None)
+    lb = frozenset(i for i, n in b.nodes.items() if n.children is None)
+    if la != lb:
+        raise ValueError(
+            f"the two trees have different leaf sets ({len(la)} vs {len(lb)} tips, {len(la ^ lb)} not "
+            "shared) — treedist needs the same taxa, identically labelled, on both trees")
+    ca, cb = _clades(a), _clades(b)
+    n = len(la)
+    if metric in ("rf", "rf-normalized"):
+        sa = {c for c in ca if 2 <= len(c) <= n - 1}
+        sb = {c for c in cb if 2 <= len(c) <= n - 1}
+        rf = len(sa ^ sb)
+        if metric == "rf":
+            return float(rf)
+        denom = len(sa) + len(sb)
+        return float(rf / denom) if denom else 0.0
+    if metric == "branch-score":
+        return float(sum((ca.get(c, 0.0) - cb.get(c, 0.0)) ** 2 for c in set(ca) | set(cb)) ** 0.5)
+    raise ValueError(f"unknown metric {metric!r}; choose 'rf', 'rf-normalized', or 'branch-score'")
+
+
+__all__ = ["Tree", "Node", "prune", "read_newick", "with_stem", "make_ultrametric", "rescale",
+           "relative_evolutionary_divergence", "red_scaled", "distance"]
