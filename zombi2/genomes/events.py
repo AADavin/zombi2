@@ -67,16 +67,28 @@ def node_from_label(cell: str) -> int:
     return int(cell[1:] if cell[:1] == "n" else cell)
 
 
+#: the event-log header line — the column names, tab-joined. Shared so a streamed shard and the
+#: whole-log writer put the same header on the same columns.
+EVENTS_HEADER = "\t".join(_COLS)
+
+
+def _cell(e: Event, col: str) -> str:
+    v = getattr(e, col)
+    if v is None:
+        return ""
+    return node_label(v) if col in _NODE_COLS else str(v)
+
+
+def event_rows(events: list[Event]) -> list[str]:
+    """The event rows **without** the header — one tab-joined line per event. The one row format, so a
+    streamed per-worker shard and :func:`events_tsv` cannot drift; the shard writes only rows and the
+    finalize prepends :data:`EVENTS_HEADER` once."""
+    return ["\t".join(_cell(e, c) for c in _COLS) for e in events]
+
+
 def events_tsv(events: list[Event]) -> str:
     """The event log as TSV — one row per event; empty cells for the fields a kind does not use."""
-    def cell(e: Event, col: str) -> str:
-        v = getattr(e, col)
-        if v is None:
-            return ""
-        return node_label(v) if col in _NODE_COLS else str(v)
-
-    rows = ["\t".join(cell(e, c) for c in _COLS) for e in events]
-    return "\n".join(["\t".join(_COLS), *rows]) + "\n"
+    return "\n".join([EVENTS_HEADER, *event_rows(events)]) + "\n"
 
 
 def events_from_tsv(text: str) -> list[Event]:

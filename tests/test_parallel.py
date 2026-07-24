@@ -13,11 +13,13 @@ The contract, level-independent (SPEC: serial by default, parallel a separate op
   and a resolution with no per-family engine rejects the flag.
 """
 
+import os
+
 import pytest
 
 from zombi2._parallel import flatten_gene_tree, rebuild_gene_tree, resolve_workers
-from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_unordered
-from zombi2.genomes.events import node_label
+from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_unordered
+from zombi2.genomes.events import events_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import simulate_sequences
@@ -185,3 +187,68 @@ def test_genomes_parallel_true_uses_all_cores(species_for_genomes):
     kw = dict(duplication=0.4, loss=0.3, origination=0.2, initial_families=15, seed=5)
     assert _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=True, **kw)) == \
            _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=2, **kw))
+
+
+# --- streaming: the same run written straight to disk, for the many-families regime ----------------
+
+_STREAM_KW = dict(duplication=0.5, transfer=0.3, loss=0.4, origination=0.2, initial_families=40, seed=5)
+
+
+def _lines(path):
+    with open(path) as f:
+        return f.read().splitlines()
+
+
+def test_stream_files_carry_the_same_content_as_the_in_memory_run(species_for_genomes, tmp_path):
+    # streaming is the *same* per-family engine, just written per family instead of merged — so for one
+    # seed the files must hold exactly the in-memory run's outputs (order aside), and be replayable.
+    sp = species_for_genomes
+    mem = simulate_genomes_unordered(sp, parallel=2, **_STREAM_KW)
+    mem.write(tmp_path / "mem", outputs=("events", "profiles", "genomes", "initial_genome", "gene_trees"))
+    run = simulate_genomes_unordered(sp, parallel=2, stream_to=tmp_path / "str", **_STREAM_KW)
+
+    assert isinstance(run, StreamedRun) and run.n_families > 0
+    assert sorted(_lines(run.path("events"))[1:]) == sorted(_lines(tmp_path / "mem/genome_events.tsv")[1:])
+    assert sorted(_lines(run.path("genomes"))[1:]) == sorted(_lines(tmp_path / "mem/genomes.tsv")[1:])
+    assert _lines(run.path("initial_genome")) == _lines(tmp_path / "mem/initial_genome.tsv")
+    # profiles: same matrix (rows keyed by family; order aside)
+    assert sorted(_lines(run.path("profiles"))[1:]) == sorted(_lines(tmp_path / "mem/profiles.tsv")[1:])
+    # gene trees: one Newick pair per family, byte-identical
+    mem_trees = {f for f in os.listdir(tmp_path / "mem") if f.startswith("gene_tree_fam")}
+    str_trees = set(os.listdir(tmp_path / "str/gene_trees"))
+    assert mem_trees == str_trees and mem_trees
+    for f in mem_trees:
+        assert _lines(tmp_path / "mem" / f) == _lines(tmp_path / "str/gene_trees" / f)
+    # the streamed event log replays (the disk handoff the sequence level uses)
+    assert len(events_from_tsv(open(run.path("events")).read())) == run.n_events
+
+
+def test_stream_output_selection(species_for_genomes, tmp_path):
+    run = simulate_genomes_unordered(species_for_genomes, parallel=2, stream_to=tmp_path,
+                                     outputs=("events", "gene_trees"), **_STREAM_KW)
+    assert set(os.listdir(tmp_path)) == {"genome_events.tsv", "gene_trees"}
+    assert run.outputs == ("events", "gene_trees")
+    with pytest.raises(ValueError, match="unknown stream outputs"):
+        simulate_genomes_unordered(species_for_genomes, parallel=1, stream_to=tmp_path / "x",
+                                   outputs=("nope",), **_STREAM_KW)
+
+
+def test_stream_is_worker_count_invariant(species_for_genomes, tmp_path):
+    # fixed chunks → the shards concatenate in a deterministic order → byte-identical files for any N.
+    simulate_genomes_unordered(species_for_genomes, parallel=1, stream_to=tmp_path / "w1", **_STREAM_KW)
+    simulate_genomes_unordered(species_for_genomes, parallel=4, stream_to=tmp_path / "w4", **_STREAM_KW)
+    for name in ("genome_events.tsv", "genomes.tsv", "profiles.tsv", "initial_genome.tsv"):
+        assert _lines(tmp_path / "w1" / name) == _lines(tmp_path / "w4" / name)
+
+
+def test_stream_rejects_driven_rate(species_for_genomes, tmp_path):
+    habitat = simulate_discrete(species_for_genomes, states=["a", "b"], switch=0.8, seed=2)
+    with pytest.raises(ValueError, match="streamed run cannot handle this"):
+        simulate_genomes_unordered(species_for_genomes, parallel=2, stream_to=tmp_path,
+                                   duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
+                                   origination=0.2, initial_families=20, seed=5)
+
+
+def test_stream_outputs_arg_needs_stream_to(species_for_genomes):
+    with pytest.raises(ValueError, match="outputs applies to a streamed run"):
+        simulate_genomes_unordered(species_for_genomes, parallel=2, outputs=("events",), **_STREAM_KW)
