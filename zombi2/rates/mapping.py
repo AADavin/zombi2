@@ -140,6 +140,82 @@ class Scalar(Mapping):
         return isinstance(other, Scalar) and other.strength == self.strength
 
 
+class Between:
+    """A weight over ordered **(donor-group, recipient-group)** pairs — the 2-D kernel of the transfer
+    **choice slot** (SPEC §5), the donor-conditioned sibling of :class:`Table`::
+
+        Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)   # A↔B only, nothing else receives
+        Between({("A", "B"): 3.0})                                 # A→B 3× baseline, every other pair 1×
+
+    A :class:`Table` weights a candidate recipient by *that candidate's* state alone; a ``Between``
+    weights it by the **pair** — the donor's group and the recipient's — which is what lets a transfer
+    be steered to run *between* two groups rather than within them. It is therefore **not** a
+    :class:`Mapping` (a ``Mapping.multiplier`` reads one value): its :meth:`weight` reads two, and the
+    choice-slot engine passes both. It is used in ``transfer_to`` — on its own as the kernel of a
+    :class:`~zombi2.genomes.Clades` rule (groups from the tree), or inside a
+    :class:`~zombi2.rates.modifiers.DrivenBy` (groups from a trait). It is **not** a rate multiplier:
+    a rate has no donor to condition on, so a ``Between`` in a rate slot is refused.
+
+    Keys are ``(from_group, to_group)`` pairs matched by **string form**, exactly like ``Table``'s
+    states, so an integer-labelled group still finds its entry. ``default`` (1.0) is the weight for any
+    pair not named — ``default=0.0`` gives the "only the flows I name can happen" idiom, reusing the
+    choice slot's rule that a **weight of 0 means the donor cannot send to that recipient group**;
+    when every candidate weighs 0 the transfer has nowhere to land and does not fire."""
+
+    def __init__(self, per_pair, default: float = 1.0) -> None:
+        if not isinstance(per_pair, dict) or not per_pair:
+            raise ValueError(
+                f"Between needs a non-empty {{(from_group, to_group): weight}} dict, got {per_pair!r}")
+        table: dict[tuple[str, str], float] = {}
+        for pair, weight in per_pair.items():
+            if not (isinstance(pair, tuple) and len(pair) == 2):
+                raise ValueError(
+                    f"Between keys are (from_group, to_group) pairs, got {pair!r} — write "
+                    f"Between({{('A', 'B'): 1.0}}), the donor group first, the recipient group second")
+            key = (str(pair[0]), str(pair[1]))  # groups matched by string form, like Table's states
+            if key in table:
+                raise ValueError(
+                    f"Between pairs collide as strings: {pair!r} and an earlier key both map to {key!r}")
+            table[key] = _check_factor(weight, f"Between weight for {pair!r}")
+        self.per_pair = table
+        self.default = _check_factor(default, "Between default")
+
+    def weight(self, from_group: object, to_group: object) -> float:
+        """The weight for a transfer from a ``from_group`` donor to a ``to_group`` recipient — the
+        named pair's weight, or :attr:`default` if the pair is unnamed."""
+        return self.per_pair.get((str(from_group), str(to_group)), self.default)
+
+    def groups(self) -> set:
+        """Every group named on either side of a pair — what a fires-check tests against the groups
+        that actually occur, so a kernel naming only absent groups (a typo) can be caught."""
+        return {g for pair in self.per_pair for g in pair}
+
+    def __repr__(self) -> str:
+        inner = ", ".join(f"({a!r}, {b!r}): {w:g}" for (a, b), w in self.per_pair.items())
+        tail = "" if self.default == 1.0 else f", default={self.default:g}"
+        return f"Between({{{inner}}}{tail})"
+
+    def __eq__(self, other: object) -> bool:
+        return (isinstance(other, Between) and other.per_pair == self.per_pair
+                and other.default == self.default)
+
+
+def check_kernel_fires(kernel: Between, available_groups, *, source_label: str) -> None:
+    """Raise if a :class:`Between` names **no pair whose two groups both occur** among
+    ``available_groups`` — the choice-slot twin of
+    :func:`~zombi2.rates.driver.check_mapping_fires`. Such a kernel weights every candidate at its
+    ``default``, so the recipient choice is secretly *uniform* while the run records it as steered —
+    almost always a typo in a group name or a stale driver. A kernel may still name a pair this
+    realisation never realises (a legitimate partial kernel), so only an *empty* overlap is refused."""
+    have = {str(g) for g in available_groups}
+    if not any(a in have and b in have for a, b in kernel.per_pair):
+        raise ValueError(
+            f"Between on {source_label}: the kernel's groups {sorted(kernel.groups())} include no pair "
+            f"whose two groups both occur in {sorted(have)}, so the weighting would silently do nothing "
+            f"— every candidate falls to the default weight and the recipient is drawn uniformly. Check "
+            f"for a typo in the group names, or a stale or mismatched driver.")
+
+
 def _check_factor(x: object, where: str) -> float:
     """Coerce ``x`` to a finite, non-negative float (a rate multiplier) or raise naming ``where``."""
     if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or x < 0:
@@ -167,8 +243,9 @@ def as_mapping(spec: object) -> Mapping:
     callable (→ :class:`Curve`), or a number (→ :class:`Scalar`). Mirrors
     :func:`~zombi2.rates.rate.as_rate` / :func:`~zombi2.rates.distributions.as_distribution`.
     """
-    if isinstance(spec, Mapping):
-        return spec
+    if isinstance(spec, (Mapping, Between)):
+        return spec  # a Between is a choice-slot kernel, not a rate multiplier; carried through here
+                     # so DrivenBy(..., Between(...)) works, and refused in a rate slot by the engine
     if isinstance(spec, dict):
         return Table(spec)
     if isinstance(spec, bool):
@@ -183,4 +260,4 @@ def as_mapping(spec: object) -> Mapping:
     )
 
 
-__all__ = ["Mapping", "Table", "Curve", "Scalar", "as_mapping"]
+__all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires", "as_mapping"]

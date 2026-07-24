@@ -298,6 +298,138 @@ def test_transfer_to_validation():
         simulate_genomes_unordered(sp, transfer=0.3, transfer_to="bogus", initial_families=3, seed=1)
 
 
+# --- transfer_to = Clades: weight recipients by the donor's and recipient's named clade -----------
+
+def _two_clades(sp):
+    """Two disjoint internal clades of the complete tree, plus their tip lists and a labeler that maps
+    a node id to ``"A"`` / ``"B"`` / ``"rest"``. Chosen to leave a real 'rest' remainder."""
+    tree = sp.complete_tree
+
+    def desc(r):
+        out, st = set(), [r]
+        while st:
+            i = st.pop(); out.add(i)
+            if tree.nodes[i].children:
+                st.extend(tree.nodes[i].children)
+        return out
+
+    internals = [i for i, n in tree.nodes.items() if n.children is not None and i != tree.root]
+    sub = {i: desc(i) for i in internals}
+    for a in internals:
+        if not (4 <= len(sub[a]) <= len(tree.nodes) // 3):
+            continue
+        for b in internals:
+            if a != b and not (sub[a] & sub[b]) and 4 <= len(sub[b]) <= len(tree.nodes) // 3:
+                lab = lambda i, A=sub[a], B=sub[b]: "A" if i in A else ("B" if i in B else "rest")
+                tips_a = [i for i in sub[a] if tree.nodes[i].children is None]
+                tips_b = [i for i in sub[b] if tree.nodes[i].children is None]
+                return a, b, tips_a, tips_b, lab
+    raise AssertionError("no two disjoint clades of a usable size")
+
+
+def _clade_pairs(events, lab):
+    """Every fired transfer as a ``(donor clade, recipient clade)`` label pair."""
+    return [(lab(e.donor), lab(e.lineage)) for e in events
+            if e.kind == "transfer" and e.recipient is not None]
+
+
+# bounded params: a small tree and a low per-genome family cap keep additive transfers from growing
+# copies to the cap (which would make the per-copy transfer rate — and the run — explode), while still
+# firing enough transfers for an exact who-sends-to-whom assertion.
+_CLADE_TREE = dict(seed=7, n_extant=20)
+_CLADE_KW = dict(transfer=1.0, initial_families=15, max_family_size=8, seed=11)
+
+
+def test_clades_between_only_excludes_within_and_rest():
+    """The case a per-recipient weight cannot express: transfer runs strictly BETWEEN A and B —
+    never A→A, B→B, or anything touching the rest of the tree."""
+    from zombi2.genomes import Between, Clades
+    sp = _tree(**_CLADE_TREE)
+    a, b, _, _, lab = _two_clades(sp)
+    g = simulate_genomes_unordered(
+        sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0, ("B", "A"): 1.0},
+                                                         default=0.0)), **_CLADE_KW)
+    pairs = _clade_pairs(g.events, lab)
+    assert pairs
+    assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
+
+
+def test_clades_directional_a_to_b_only():
+    """A donates, B receives, nothing else: every transfer is A→B."""
+    from zombi2.genomes import Between, Clades
+    sp = _tree(**_CLADE_TREE)
+    a, b, _, _, lab = _two_clades(sp)
+    g = simulate_genomes_unordered(
+        sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0}, default=0.0)), **_CLADE_KW)
+    pairs = _clade_pairs(g.events, lab)
+    assert pairs and all(p == ("A", "B") for p in pairs)
+
+
+def test_clades_named_by_tips_equals_named_by_node_id():
+    """A clade named by all its tips (its MRCA's subtree) is the same clade as its node id — the two
+    spellings give a byte-identical run."""
+    from zombi2.genomes import Between, Clades
+    sp = _tree(**_CLADE_TREE)
+    a, b, tips_a, tips_b, _ = _two_clades(sp)
+    kernel = Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
+    by_id = simulate_genomes_unordered(sp, transfer_to=Clades({"A": a, "B": b}, kernel), **_CLADE_KW)
+    by_tips = simulate_genomes_unordered(sp, transfer_to=Clades({"A": tips_a, "B": tips_b}, kernel),
+                                         **_CLADE_KW)
+    assert [str(e) for e in by_id.events] == [str(e) for e in by_tips.events]
+
+
+def test_clades_default_baseline_allows_other_pairs():
+    """default=1.0 is a baseline: an up-weighted pair is enriched, but unlisted pairs still happen —
+    unlike default=0.0, which forbids them."""
+    from zombi2.genomes import Between, Clades
+    sp = _tree(**_CLADE_TREE)
+    a, b, _, _, lab = _two_clades(sp)
+    g = simulate_genomes_unordered(
+        sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 8.0})), **_CLADE_KW)  # default 1.0
+    kinds = set(_clade_pairs(g.events, lab))
+    assert ("A", "B") in kinds
+    assert any(p not in {("A", "B"), ("B", "A")} for p in kinds)   # within/rest still occur at baseline
+
+
+def test_clades_is_deterministic():
+    from zombi2.genomes import Between, Clades
+    sp = _tree(**_CLADE_TREE)
+    a, b, _, _, _ = _two_clades(sp)
+    kw = dict(_CLADE_KW, transfer_to=Clades({"A": a, "B": b},
+                                            Between({("A", "B"): 1.0, ("B", "A"): 1.0})))
+    x, y = simulate_genomes_unordered(sp, **kw), simulate_genomes_unordered(sp, **kw)
+    assert [str(e) for e in x.events] == [str(e) for e in y.events]
+
+
+def test_clades_construction_validation():
+    from zombi2.genomes import Between, Clades
+    sp = _tree(seed=1)
+    root_kid = sp.complete_tree.nodes[sp.complete_tree.root].children[0]
+    with pytest.raises(ValueError, match="reserved"):
+        Clades({"rest": root_kid}, Between({("rest", "rest"): 1.0}))
+    with pytest.raises(ValueError, match="not defined clades"):
+        Clades({"A": root_kid}, Between({("A", "Z"): 1.0}))
+    with pytest.raises(ValueError, match="Between kernel"):
+        Clades({"A": root_kid}, "nope")
+    with pytest.raises(ValueError, match="non-empty"):
+        Clades({}, Between({("A", "B"): 1.0}))
+
+
+def test_clades_runtime_validation():
+    from zombi2.genomes import Between, Clades
+    sp = _tree(seed=1)
+    tree = sp.complete_tree
+    root_kid = tree.nodes[tree.root].children[0]
+    grandkid = tree.nodes[root_kid].children[0]           # nested inside root_kid
+    with pytest.raises(ValueError, match="disjoint"):     # nested clades overlap
+        simulate_genomes_unordered(sp, transfer=1.0, initial_families=3,
+                                   transfer_to=Clades({"A": root_kid, "B": grandkid},
+                                                      Between({("A", "B"): 1.0})))
+    with pytest.raises(ValueError, match="not a lineage"):
+        simulate_genomes_unordered(sp, transfer=1.0, initial_families=3,
+                                   transfer_to=Clades({"A": 999999}, Between({("A", "A"): 1.0})))
+
+
 def test_distance_decay_validation():
     from zombi2.genomes import Distance
     Distance(decay=0.0)                       # zero is fine — the uniform limit

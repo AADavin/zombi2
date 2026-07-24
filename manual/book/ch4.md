@@ -80,7 +80,7 @@ Transfer is the one event that couples lineages, and it is what makes the unorde
 
 Three arguments shape what a transfer does:
 
-- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*.
+- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*. `Clades(...)` weights recipients by **named clades of the tree** — see below.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
 - **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. 
 
@@ -93,6 +93,26 @@ g = simulate_genomes_unordered(
 ```
 
 One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct**. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace.
+
+### Transfer between named clades
+
+`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself — "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade — by a few of its tips (the clade is the subtree below their MRCA) or by a node id — and give a `Between` kernel: a weight for each ordered **(donor clade, recipient clade)** pair.
+
+```python
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_unordered, Clades, Between
+
+sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+# genes flow only BETWEEN clade A and clade B — never within either, never to the rest
+g = simulate_genomes_unordered(
+    sp, transfer=1.0, initial_families=20, seed=2,
+    transfer_to=Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]},
+                       Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
+```
+
+The kernel is the new part. Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as at the end of Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
+
+A clade here is a fact about the *tree* — which lineage sits in which subtree — so `Clades` reads the tree directly, needs no extra file, and is a sibling of `"distance"`, not a coupling. When the groups are instead an evolved property — a habitat, an ecological guild — the same donor-and-recipient steering is a coupling, written `transfer_to = DrivenBy(trait, Between({...}))`; that is Chapter 9.
 
 ## The `GenomesResult` object
 
