@@ -33,8 +33,7 @@ it under duplication, transfer, loss and origination, then sequences down each g
 
 ```bash
 zombi2 species out/  --birth 1 --death 0.3 --n-extant 20 --seed 1
-zombi2 genomes out/ \
-                --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42
+zombi2 genomes out/ --duplication 0.2 --transfer 0.1 --seed 42
 zombi2 sequences out/ --model hky85 --length 1000 --seed 1
 ```
 
