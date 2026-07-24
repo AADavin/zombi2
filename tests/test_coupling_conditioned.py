@@ -15,7 +15,7 @@ import pytest
 from zombi2 import genomes, traits
 from zombi2.rates.driver import DriverTrajectory, load_driver
 from zombi2.rates import modifiers as mod
-from zombi2.rates.mapping import Curve, Scalar, Table, as_mapping
+from zombi2.rates.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
 from zombi2.species import simulate_species_tree
 from zombi2.tree import read_newick
 
@@ -78,10 +78,55 @@ def test_as_mapping_coercion():
     assert isinstance(as_mapping(0.5), Scalar)
     t = Table({"a": 2.0})
     assert as_mapping(t) is t                           # already a mapping → unchanged
+    b = Between({("a", "b"): 2.0})
+    assert as_mapping(b) is b                           # a kernel passes through (for DrivenBy(., Between))
     with pytest.raises(TypeError):
         as_mapping(True)
     with pytest.raises(TypeError):
         as_mapping("nope")
+
+
+# --- the Between kernel: the 2-D, donor-conditioned choice-slot weight -----------------------------
+
+def test_between_weight_pair_lookup_and_default():
+    k = Between({("A", "B"): 3.0, ("B", "A"): 2.0}, default=0.5)
+    assert k.weight("A", "B") == 3.0
+    assert k.weight("B", "A") == 2.0
+    assert k.weight("A", "A") == 0.5                    # unlisted pair → default
+    assert k.weight("A", "rest") == 0.5
+    assert Between({("A", "B"): 1.0}).weight("A", "A") == 1.0  # default default is 1.0 (baseline)
+    assert k.groups() == {"A", "B"}
+
+
+def test_between_matches_groups_by_string_form():
+    k = Between({(0, 1): 3.0})
+    assert k.weight(0, 1) == 3.0 and k.weight("0", "1") == 3.0   # int and str keys agree, like Table
+
+
+def test_between_rejects_bad_input():
+    with pytest.raises(ValueError, match="pairs"):
+        Between({"A": 1.0})                             # a bare key, not a (from, to) pair
+    with pytest.raises(ValueError, match="non-empty"):
+        Between({})
+    with pytest.raises(ValueError, match="weight"):
+        Between({("A", "B"): -1.0})                     # negative weight
+    with pytest.raises(ValueError, match="default"):
+        Between({("A", "B"): 1.0}, default=-2.0)
+    with pytest.raises(ValueError, match="collide"):
+        Between({(0, 1): 1.0, ("0", "1"): 2.0})         # two keys collide as strings
+
+
+def test_between_repr_round_trips_through_the_parser():
+    from zombi2.rates.parse import parse_rate
+    d = mod.DrivenBy("f.tsv", Between({("A", "B"): 3.0, ("B", "A"): 3.0}, default=0.0))
+    assert parse_rate(repr(d)) == d                     # the log line pastes back into a flag
+
+
+def test_check_kernel_fires_needs_a_named_pair_to_occur():
+    check_kernel_fires(Between({("A", "B"): 1.0}), {"A", "B"}, source_label="x")  # both present → ok
+    check_kernel_fires(Between({("A", "B"): 1.0, ("Q", "Z"): 1.0}), {"A", "B"}, source_label="x")  # partial ok
+    with pytest.raises(ValueError, match="silently do nothing"):
+        check_kernel_fires(Between({("Q", "Z"): 1.0}), {"A", "B"}, source_label="x")  # none present
 
 
 # --- the DrivenBy modifier ------------------------------------------------------------------------
@@ -460,6 +505,41 @@ def test_both_couplings_compose(tmp_path):
     assert donations and arrivals
     assert all(e.lineage in hot for e in donations)          # only competent lineages donate
     assert all(e.lineage not in hot for e in arrivals)       # only non-competent lineages receive
+
+
+# --- a Between kernel makes transfer_to donor-conditioned (assortative by a trait) -----------------
+
+def test_recipient_kernel_keeps_transfer_within_the_donor_state(tmp_path):
+    """DrivenBy(trait, Between(...)) reads the driver on the DONOR too, so a same-state kernel keeps
+    every transfer within one habitat — the thing a 1-D recipient weight cannot express."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_unordered(
+        tree, transfer=4.0, initial_families=6, self_transfer=True,
+        transfer_to=mod.DrivenBy(str(driver),
+                                 Between({("competent", "competent"): 1.0,
+                                          ("normal", "normal"): 1.0}, default=0.0)), seed=5)
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert arrivals
+    assert all((e.donor in hot) == (e.lineage in hot) for e in arrivals)  # donor and recipient agree
+
+
+def test_recipient_kernel_fires_check_catches_absent_groups(tmp_path):
+    """A kernel naming groups the driver never takes would weight every candidate at the default —
+    secretly uniform — so it is refused, like a Table that names no occurring state."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    with pytest.raises(ValueError, match="silently do nothing"):
+        genomes.simulate_genomes_unordered(
+            tree, transfer=1.0, initial_families=6,
+            transfer_to=mod.DrivenBy(str(driver), Between({("x", "y"): 1.0})), seed=5)
+
+
+def test_between_is_rejected_in_a_rate_slot():
+    """A rate has no donor to condition on, so a Between kernel there is a category error."""
+    tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
+    with pytest.raises(ValueError, match="donor-conditioned"):
+        genomes.simulate_genomes_unordered(
+            tree, loss=0.5 * mod.DrivenBy("f.tsv", Between({("a", "b"): 1.0})),
+            initial_families=1, seed=1)
 
 
 # --- the guard: what is not wired ------------------------------------------------------------------

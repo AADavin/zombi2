@@ -171,6 +171,13 @@ slot takes the modifier **on its own**, never `base * modifier` — there is no 
 rate. A weight of 0 means "cannot receive"; when every candidate weighs 0 the transfer cannot happen at
 all, so the event does not fire.
 
+The weight may read **both** ends — a **kernel** over `(donor group, recipient group)` pairs
+(`Between({...})`) rather than one factor per recipient — so transfer can be steered *between* groups,
+not only *into* one. The groups partition the lineages, and come from the tree (named clades — a
+topological `transfer_to` rule like `distance`, no coupling) or from a trait (`DrivenBy(trait,
+Between(...))` — a coupling). It is still a choice slot: a kernel only redistributes who receives, so a
+kernel in a *rate* slot is refused (a rate has no donor to condition on).
+
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
