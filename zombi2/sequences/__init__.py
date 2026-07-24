@@ -22,7 +22,7 @@ parent→child down the species tree so close relatives run at similar rates (``
 (``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, and the
 ``record=`` memory dial) are named later slices; each is a pure addition.
 
-The result is a :class:`SequencesResult` bundle mirroring the other levels (``result-api.md``):
+The result is a :class:`SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species

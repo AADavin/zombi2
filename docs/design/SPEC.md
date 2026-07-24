@@ -7,10 +7,6 @@ and the exact words used to describe it. When any other file — code, docstring
 chapter, design doc, README — disagrees with this document, that other file is a **fossil** and must be
 changed to match. It reflects decisions ratified with Adrián in July 2026.
 
-It **supersedes** these earlier design docs, which encode the old lexicon: `coevolve-grammar.md`,
-`opportunity.md`, `opportunity-knob.md`, `rate-vocabulary.md`, `rate-modifiers.md`, and the coupling
-parts of `model-architecture.md` and `naming-consolidation.md`.
-
 Principle throughout: **concepts → code → chapter.** Never document behaviour the code does not have;
 fix the code first. §12 lists the known gaps between this spec and today's code.
 
@@ -247,8 +243,7 @@ does not fix its scope); **one memory-structure per axis** (`By…` none / `From
 discrete — never two at once; orthogonal axes compose); **named exceptions** — discrete-memory
 switching is `Markov` (a mechanism name, no preposition), and any future prepositionless mechanism is
 named likewise; **outside the grammar** — a modifier multiplies *one* rate, so a value-level process
-(the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier. Full analysis:
-[`proposals/modifier-naming-scheme.md`](proposals/modifier-naming-scheme.md).
+(the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier.
 
 **Planned unification — the `On` family shares one response (parked 2026-07-20, not yet active).**
 An `On` modifier is, by its own definition, *a covariate + a response*: a measured quantity mapped to a

@@ -236,7 +236,7 @@ def test_driven_loss_is_deterministic(tmp_path):
 
 
 def test_end_to_end_trait_drives_loss(tmp_path):
-    """The full coupling-api.md workflow: grow a habitat trait, write it, drive gene loss by it.
+    """The full conditioned-coupling workflow: grow a habitat trait, write it, drive gene loss by it.
     Across the tree, lineages in the high-loss state should carry fewer copies on average than
     lineages in the low-loss state."""
     tree = simulate_species_tree(birth=1.1, total_time=3.0, seed=3).complete_tree

@@ -7,9 +7,6 @@ they test, so this file reads against his originals and can be handed to him who
 scenarios; the coordinates are re-derived, because ZOMBI2 is a rewrite rather than a descendant and
 the two models express the same ideas differently (see the concept map below).
 
-`docs/design/swenson-test-port.md` tabulates each of his test files, where it landed, and what was
-deliberately not ported.
-
 His argument, which is the one that shapes all of this: **ZOMBI2's output is a set of files, and
 the files are what a reader consumes.** Verifying the in-memory structures says nothing about
 whether the written coordinates mean what they claim — a convention slip yields a plausible file
