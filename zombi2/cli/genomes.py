@@ -19,9 +19,10 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _read_tip_fates, _write_params_log, default_outputs,
-                                  level_dir, resolve_tree, sibling_fates)
+from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+                                  _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
+                                  _write_params_log, default_outputs, level_dir, parallel_from_args,
+                                  resolve_tree, sibling_fates)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -189,6 +190,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "coordinates — the genes and the blocks respectively — named to join the "
                         "FASTA the sequence level writes.")
     _add_flat_arg(g)
+    _add_parallel_arg(g)
     _add_quiet_arg(g)
 
 
@@ -236,6 +238,11 @@ def run(args, parser):
         if stray := _stray(args, _STRUCTURED_ONLY):
             parser.error(f"these options need --resolution ordered or nucleotide: "
                          f"{', '.join(stray)} (the unordered core has no chromosomes or positions)")
+    elif args.parallel is not None:
+        parser.error(f"--parallel applies to --resolution unordered only, where gene families are "
+                     f"independent and evolve one per worker; the {args.resolution} resolution "
+                     f"couples families by position (inversions, translocations), so it has no "
+                     f"per-family engine")
     if args.resolution != "nucleotide":
         if stray := _stray(args, _NUCLEOTIDE_ONLY):
             parser.error(f"these options need --resolution nucleotide: {', '.join(stray)} "
@@ -304,7 +311,7 @@ def run(args, parser):
     else:
         result = simulate_genomes_unordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            progress=not args.quiet, **common)
+            parallel=parallel_from_args(args, parser), progress=not args.quiet, **common)
     dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
