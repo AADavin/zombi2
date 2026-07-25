@@ -228,14 +228,14 @@ out/gene_tree_fam<f>_*.nwk         each family's genealogy, complete and extant
 
 ```
 lineage  family  copy
-n0       0       0
-n0       1       1
-n0       2       2
-n1       0       3
-n1       0       8
+n0       0       g0
+n0       1       g1
+n0       2       g2
+n1       0       g3
+n1       0       g8
 ```
 
-Read a list of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0`, one of them a duplicate. `copy` is the individual gene, and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
+Read a list of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0`, one of them a duplicate. `copy` is the individual gene, written `g<id>` — the same token the gene-tree leaf and the alignment header carry, so a row joins straight onto a tree or a sequence — and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
 
 ## Evolving families in parallel
 

@@ -50,9 +50,14 @@ class Event:
 
 _COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor")
 
-#: Columns holding a species-tree node, written as ``n<id>``. ``parent`` is a *gene copy*, not a
-#: lineage, so it stays a bare id.
+#: Columns holding a species-tree node, written as ``n<id>``.
 _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
+
+#: Columns holding a gene copy, written as ``g<id>`` — the same token the gene-tree Newick leaves,
+#: the alignment FASTA headers and the homology tables use, so a copy joins across every file without
+#: translation. ``parent`` is a gene copy too (the source copy a duplication/transfer descends from),
+#: so it is g-labelled; the species columns above are not.
+_GENE_COLS = frozenset({"copy", "parent"})
 
 
 def node_label(node_id: int | None) -> str:
@@ -67,6 +72,21 @@ def node_from_label(cell: str) -> int:
     return int(cell[1:] if cell[:1] == "n" else cell)
 
 
+def gene_label(copy_id: int | None) -> str:
+    """A gene copy as every ZOMBI2 table writes it: ``g<id>``, the same token the gene-tree Newick
+    leaves, the alignment FASTA headers and the homology tables use — so a copy in ``genomes.tsv`` or
+    the event log joins to a tree leaf or a sequence with no translation. Empty for ``None``. The
+    ``g`` also keeps a copy id from being read as a bare number in a Newick leaf, where that is
+    ambiguous with a support value or a branch length."""
+    return "" if copy_id is None else f"g{copy_id}"
+
+
+def gene_from_label(cell: str) -> int:
+    """The inverse of :func:`gene_label`. A bare integer is accepted too, so a table written before
+    the copy columns carried their ``g`` still replays."""
+    return int(cell[1:] if cell[:1] == "g" else cell)
+
+
 #: the event-log header line — the column names, tab-joined. Shared so a streamed shard and the
 #: whole-log writer put the same header on the same columns.
 EVENTS_HEADER = "\t".join(_COLS)
@@ -76,7 +96,11 @@ def _cell(e: Event, col: str) -> str:
     v = getattr(e, col)
     if v is None:
         return ""
-    return node_label(v) if col in _NODE_COLS else str(v)
+    if col in _NODE_COLS:
+        return node_label(v)
+    if col in _GENE_COLS:
+        return gene_label(v)
+    return str(v)
 
 
 def event_rows(events: list[Event]) -> list[str]:
@@ -140,8 +164,8 @@ def _parse(lines: list[str], header: list[str]) -> list[Event]:
         get = lambda c: cells[at[c]]                    # noqa: E731
         events.append(Event(
             time=float(get("time")), kind=get("kind"), lineage=node_from_label(get("lineage")),
-            family=int(get("family")), copy=int(get("copy")),
-            parent=int(get("parent")) if get("parent") else None,
+            family=int(get("family")), copy=gene_from_label(get("copy")),
+            parent=gene_from_label(get("parent")) if get("parent") else None,
             recipient=node_from_label(get("recipient")) if get("recipient") else None,
             donor=node_from_label(get("donor")) if get("donor") else None))
     return events

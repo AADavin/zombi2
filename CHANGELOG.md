@@ -10,6 +10,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
+- **Gene-copy ids are now written `g<id>` in every genome table** — `genomes.tsv`, `genome_events.tsv`,
+  `gene_order.tsv`, `blocks.tsv` and `initial_genome.tsv`, in both the `copy` and `parent` columns.
+  This is the same token the gene-tree Newick leaves, the alignment FASTA headers and the homology
+  tables already use, so a gene copy now joins across every file of a run with no translation step
+  (previously the tables held a bare integer while the trees/alignments held `g<id>`). The column
+  names are unchanged; this is a breaking change to the *values* those columns hold.
 - **A joint (`zombi2 joint`) driver mapping that names a state outside the trait's declared alphabet is
   now refused.** A key that can never occur — a typo such as `{"caev": 4.0}` for a cave/surface trait —
   is caught up front instead of silently applying to nothing. The conditioned (file-driven) path is

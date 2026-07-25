@@ -108,7 +108,7 @@ from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .._runtime.progress import progress_bar
-from .events import node_from_label, node_label
+from .events import gene_from_label, gene_label, node_from_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff
 
@@ -1011,7 +1011,7 @@ class NucleotideGenomesResult:
                 at = 0
                 for b in c.blocks:
                     rows.append(f"{node_label(s)}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
-                                f"{b.copy}\t{b.gene}")
+                                f"{gene_label(b.copy)}\t{b.gene}")
                     at += b.length
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
@@ -1024,7 +1024,7 @@ class NucleotideGenomesResult:
             at = 0
             for b in c.blocks:
                 rows.append(f"{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
-                            f"{b.copy}\t{b.gene}")
+                            f"{gene_label(b.copy)}\t{b.gene}")
                 at += b.length
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
@@ -1064,12 +1064,21 @@ def _nucleotide_events_tsv(events, rearrangements=()) -> str:
     rows = []
     # the columns holding a species-tree node, labelled n<id> like every other table
     node_at = {i for i, c in enumerate(_NUCLEOTIDE_EVENT_COLS) if c in ("lineage", "recipient")}
+    # the columns holding a gene copy, labelled g<id> like every other table
+    gene_at = {i for i, c in enumerate(_NUCLEOTIDE_EVENT_COLS) if c in ("copy", "parent")}
+
+    def _fmt(i, c):
+        if c is None:
+            return ""
+        if i in node_at:
+            return node_label(c)
+        if i in gene_at:
+            return gene_label(c)
+        return str(c)
 
     def row(*cells):
         cells = cells + ("",) * (len(_NUCLEOTIDE_EVENT_COLS) - len(cells))
-        rows.append((cells[0], "\t".join(
-            "" if c is None else (node_label(c) if i in node_at else str(c))
-            for i, c in enumerate(cells))))
+        rows.append((cells[0], "\t".join(_fmt(i, c) for i, c in enumerate(cells))))
 
     for e in events:
         if isinstance(e, Origination):
@@ -1142,7 +1151,8 @@ def _blocks_from_tsv(text: str) -> dict[int, NucleotideGenome]:
     for cells in _rows(text, cols, "blocks.tsv"):
         node = node_from_label(cells[0])
         cid, position = int(cells[1]), int(cells[2])
-        source, start, end, strand, copy, gene = (int(c) for c in cells[3:])
+        source, start, end, strand = (int(c) for c in cells[3:7])
+        copy, gene = gene_from_label(cells[7]), int(cells[8])  # copy is a gene id (g<n>); gene is genic class
         if at.get((node, cid), 0) != position:
             raise ValueError(f"blocks.tsv: chromosome {cid} of {cells[0]} does not tile — expected "
                              f"position {at.get((node, cid), 0)}, got {position}")
@@ -1155,7 +1165,9 @@ def _initial_genome_from_tsv(text: str) -> NucleotideGenome:
     """``initial_genome.tsv`` → the genome the run started with. No ``lineage`` column: it is not a
     node's (see :attr:`NucleotideGenomesResult.initial_genome`)."""
     cols = ("chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
-    return _karyotype([(int(c[0]), *(int(x) for x in c[2:])) for c in
+    # columns after position: source, start, end, strand (ints), copy (a gene id g<n>), gene (int)
+    return _karyotype([(int(c[0]), int(c[2]), int(c[3]), int(c[4]), int(c[5]),
+                        gene_from_label(c[6]), int(c[7])) for c in
                        _rows(text, cols, "initial_genome.tsv")])
 
 
@@ -1233,7 +1245,9 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
             continue
         row = (kind, float(time), node_from_label(lineage), num(chrom),
                node_from_label(recipient) if recipient else None,
-               num(copy), num(parent), num(source), num(start), num(end))
+               gene_from_label(copy) if copy else None,
+               gene_from_label(parent) if parent else None,
+               num(source), num(start), num(end))
         # what makes this row part of the *same* event as the last one
         row_key = (None if kind in ("origination", "initial") else
                    (*row[:3], row[6]) if kind == "speciation" else row[:5])
