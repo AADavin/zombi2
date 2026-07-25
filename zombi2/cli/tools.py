@@ -20,8 +20,8 @@ from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.tree import read_newick
 from zombi2.tools.homology import write_homology
 from zombi2.cli.framework import (
-    ZombiHelpFormatter, _add_flat_arg, _add_from_arg, _add_run_arg, _examples, level_dir,
-    resolve_genomes,
+    ZombiHelpFormatter, _add_flat_arg, _add_from_arg, _add_quiet_arg, _add_run_arg, _examples,
+    level_dir, resolve_genomes,
 )
 
 #: the tables ``format`` can emit — ``name -> (subdirectory, writer, one-line gloss)``. One today; the
@@ -174,6 +174,7 @@ def _add_tools_format_args(p: argparse.ArgumentParser) -> None:
         help="which tables to write (default: homology). " +
              "  ".join(f"{name}: {gloss}" for name, (_, _, gloss) in sorted(_FORMATS.items())))
     _add_flat_arg(g)
+    _add_quiet_arg(g)
 
 
 def _load_gene_trees(handoff, tree):
@@ -220,7 +221,8 @@ def _run_format(args, parser) -> int:
         directory = level_dir(out, subdir, args.flat)
         writer(gene_trees, directory)
         wrote.append(f"{name} → {os.path.relpath(directory, args.run)}/")
-    print(f"wrote {args.run}/ ({n_tables} table(s) per format: {', '.join(wrote)})")
+    if not args.quiet:
+        print(f"wrote {args.run}/ ({n_tables} table(s) per format: {', '.join(wrote)})")
     return 0
 
 

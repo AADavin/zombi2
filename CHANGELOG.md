@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- `--quiet` on `zombi2 tools format`, matching the level commands — it suppresses the summary line,
+  for a log file or a batch of runs. (#242)
+
 ### Changed
 - **Gene-copy ids are now written `g<id>` in every genome table** — `genomes.tsv`, `genome_events.tsv`,
   `gene_order.tsv`, `blocks.tsv` and `initial_genome.tsv`, in both the `copy` and `parent` columns.
@@ -20,6 +24,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   now refused.** A key that can never occur — a typo such as `{"caev": 4.0}` for a cave/surface trait —
   is caught up front instead of silently applying to nothing. The conditioned (file-driven) path is
   unchanged: it still refuses only a mapping that matches *none* of the driver's observed states.
+
+### Fixed
+- The run-completion line no longer doubles a trailing slash: a directory given as `out/` (as the
+  quickstart shows) now echoes as `wrote out/`, not `wrote out//`. (#242)
 
 ## [0.5.0] - 2026-07-24
 
