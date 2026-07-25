@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 # _parallel → genomes a cycle. The annotations below are strings (``from __future__ import annotations``);
 # this block gives the names to a type-checker without a runtime import.
 if TYPE_CHECKING:
-    from .genomes.gene_trees import GeneNode, GeneTree  # noqa: F401
+    from ..genomes.gene_trees import GeneNode, GeneTree  # noqa: F401
 
 
 def resolve_workers(parallel) -> int:
@@ -69,7 +69,7 @@ def rebuild_gene_tree(flat: tuple[int, float, list[tuple[int, str, int, float, i
     """Invert :func:`flatten_gene_tree` — rebuild the :class:`GeneTree` in the worker, iteratively.
     Children are appended in flat-list order, which is the order :func:`flatten_gene_tree` emitted
     them, so the reconstructed tree is identical node-for-node (and sibling order is preserved)."""
-    from .genomes.gene_trees import GeneNode, GeneTree     # lazy: avoids a genomes ↔ _parallel cycle
+    from ..genomes.gene_trees import GeneNode, GeneTree     # lazy: avoids a genomes ↔ _parallel cycle
 
     family, origination, nodes = flat
     built = [GeneNode(kind, species, time, copy) for (_p, kind, species, time, copy) in nodes]

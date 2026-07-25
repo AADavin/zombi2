@@ -8,7 +8,7 @@ be worth spawning workers is evaluated inline with the *same* streams, giving th
 Why processes and not threads: measured on this codebase, a thread pool barely helps and often hurts —
 numpy releases the GIL too little for the per-site arrays here. So each worker is a real process, the
 shared read-only inputs (the models and the lineage clock) are shipped once via an initializer, and the
-gene tree crosses the boundary in the flat, recursion-free form of :mod:`zombi2._parallel` (a deep tree
+gene tree crosses the boundary in the flat, recursion-free form of :mod:`zombi2._runtime.parallel` (a deep tree
 overflows the pickle recursion limit otherwise).
 """
 
@@ -18,8 +18,8 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
-from .._parallel import flatten_gene_tree, rebuild_gene_tree
-from ..progress import progress_bar
+from .._runtime.parallel import flatten_gene_tree, rebuild_gene_tree
+from .._runtime.progress import progress_bar
 from .evolution import evolve_gene_tree
 from .substitution_models import decode
 

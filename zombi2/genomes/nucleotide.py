@@ -107,7 +107,7 @@ from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
-from ..progress import progress_bar
+from .._runtime.progress import progress_bar
 from .events import node_from_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff

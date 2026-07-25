@@ -67,7 +67,7 @@ from functools import cached_property
 import numpy as np
 
 from ..rates.modifiers import OnTotalDiversity, FromParent, OnTime
-from ..progress import track
+from .._runtime.progress import track
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import SpeciesResult

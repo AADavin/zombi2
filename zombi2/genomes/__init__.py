@@ -40,7 +40,7 @@ from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
 
-from ..progress import progress_bar
+from .._runtime.progress import progress_bar
 from .events import Event, events_tsv, node_label
 from .gene_trees import GeneNode, GeneTree, gene_trees_from_events, write_gene_trees
 from .chromosomes import ChromosomeEvent

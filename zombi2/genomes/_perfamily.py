@@ -34,8 +34,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._parallel import resolve_workers
-from ..progress import progress_bar
+from .._runtime.parallel import resolve_workers
+from .._runtime.progress import progress_bar
 from ..rates.modifiers import ByFamily, DrivenBy
 from ._live import enter, retire
 from ._transfer import Clades, mean_root_to_tip, recipient_index
