@@ -17,7 +17,7 @@ import os
 
 import pytest
 
-from zombi2._parallel import flatten_gene_tree, rebuild_gene_tree, resolve_workers
+from zombi2._runtime.parallel import flatten_gene_tree, rebuild_gene_tree, resolve_workers
 from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_unordered
 from zombi2.genomes.events import events_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree

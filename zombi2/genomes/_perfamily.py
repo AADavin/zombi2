@@ -34,8 +34,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._parallel import resolve_workers
-from ..progress import progress_bar
+from .._runtime.parallel import resolve_workers
+from .._runtime.progress import progress_bar
 from ..rates.modifiers import ByFamily, DrivenBy
 from ._live import enter, retire
 from ._transfer import Clades, mean_root_to_tip, recipient_index
@@ -157,7 +157,7 @@ def _evolve_one(fid, birth_lineage, birth_time, seedseq):
     ids are ``(fid << SHIFT) + local`` — globally unique, so the caller (the merge, or a streamed
     shard) concatenates without rewriting. Mirrors the global loop's inner event handling, scoped to
     this family's footprint (the lineages it occupies). Reads the shared inputs from :data:`_CTX`."""
-    from . import GeneCopy, _at_cap, _duplicate, _lose_at, _pick_copy   # package helpers; no cycle
+    from .unordered import GeneCopy, _at_cap, _duplicate, _lose_at, _pick_copy   # package helpers; no cycle
 
     c = _CTX
     tree, dup, tra, los = c["tree"], c["dup"], c["tra"], c["los"]
@@ -303,7 +303,7 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
     footprint: the donor copy is a uniform pick across the family's copies, the recipient is a
     contemporaneous lineage picked by ``transfer_to``, and a recipient the family had not reached is
     entered into the footprint. Returns the change in copy count (+1 additive, 0 replacement/no-op)."""
-    from . import _at_cap, _pick_copy
+    from .unordered import _at_cap, _pick_copy
 
     kd, jd = _pick_copy(rng, gen, total)                   # a uniform donor copy across the family
     donor = alive[kd]
@@ -437,7 +437,7 @@ def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement
     Copy ids are global from the start (``fid << SHIFT`` + local), so the merge and the streamed shards
     both just concatenate — no id rewrite, no run-sized bottleneck beyond the (serial) in-memory merge
     the streaming path exists to avoid."""
-    from . import GeneCopy, GenomesResult
+    from .unordered import GeneCopy, GenomesResult
 
     reason = _unsupported_reason(dup, tra, los, org, transfer_to)
     if reason is not None:
