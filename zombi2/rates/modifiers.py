@@ -13,9 +13,9 @@ You reach them through ``mod``::
 
 The **deterministic** modifiers (``OnTime``, ``OnTotalDiversity``) have a factor that is a pure function of the
 context. The **stochastic** ones additionally carry a draw method the engine drives with a random
-generator: ``FromParent`` (the rate drifts parent→child along the tree, via ``initial``/``descend``)
-and ``ByLineage`` (one i.i.d. draw per lineage, via ``draw``). Still to come: ``ByFamily`` (i.i.d. per
-family) and ``Markov`` (a chain of rate categories). Composition (``*``), which turns
+generator: ``FromParent`` (the rate drifts parent→child along the tree, via ``initial``/``descend``),
+``ByLineage`` (one i.i.d. draw per lineage) and ``ByFamily`` (one i.i.d. draw per family), the last two
+via ``draw``. Still to come: ``Markov`` (a chain of rate categories). Composition (``*``), which turns
 ``scope(base) × modifiers`` into a Rate, is the Rate module; here each modifier only knows how to
 produce its own factor (or, for the stochastic ones, its own draw).
 """
