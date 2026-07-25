@@ -17,9 +17,8 @@ there is no birth-death race, no survival conditioning. Speciations and extincti
 schedule enter/retire lineages; between them one Gillespie fires D/T/L/O. ``transfer=0`` is the
 special case where the lineages are independent — same law as evolving each segment alone.
 
-Still to come: per-family heterogeneity (``ByFamily`` + ``Speed``), the sparse profiles and lazy
-gene-tree views behind the ``record=`` memory dial, and the Rust core. This lives here for now so
-the legacy ``zombi2/genomes`` package is untouched.
+Still to come: the ``record=`` memory dial (trading recorded detail for a smaller footprint) and the
+Rust core.
 """
 
 from __future__ import annotations
@@ -83,8 +82,8 @@ class GenomesResult:
     ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
     truth), and the ``seed``. The observed genomes are the extant tips —
     ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. The phyletic ``profiles`` are derived
-    from those tips on access, and ``write`` materialises the chosen outputs to disk. (Lazy gene
-    trees and the ``record=`` scale dial are later slices.)"""
+    from those tips on access, and ``write`` materialises the chosen outputs to disk. (The ``record=``
+    scale dial is a later slice.)"""
 
     complete_tree: Tree
     genomes: dict[int, tuple[GeneCopy, ...]]

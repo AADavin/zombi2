@@ -28,7 +28,8 @@ It is the genome twin of the unordered core and shares its spine: one forward Gi
 :class:`~zombi2.genomes.events.Event` log (position-blind, so ``gene_trees`` and ``profiles`` are
 derived from it unchanged), and the same live-lineage bookkeeping. What differs is the state (a list
 of chromosomes) and the segmental, position-aware mutators, plus the ``rearrangements`` and
-``chromosome_events`` logs. Still to come: the nucleotide resolution (genes/intergenes, indels).
+``chromosome_events`` logs. The nucleotide resolution (genes/intergenes, indels) is
+:func:`~zombi2.genomes.simulate_genomes_nucleotide`.
 """
 
 from __future__ import annotations
