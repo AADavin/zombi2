@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **A joint (`zombi2 joint`) driver mapping that names a state outside the trait's declared alphabet is
+  now refused.** A key that can never occur — a typo such as `{"caev": 4.0}` for a cave/surface trait —
+  is caught up front instead of silently applying to nothing. The conditioned (file-driven) path is
+  unchanged: it still refuses only a mapping that matches *none* of the driver's observed states.
+
 ## [0.5.0] - 2026-07-24
 
 ### Added
