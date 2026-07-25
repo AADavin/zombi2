@@ -84,7 +84,14 @@ def load_driver(path, tree) -> DriverTrajectory:
     the branch into constant stretches. This is the same tree the target level runs on, so ``node n7``
     in the log is lineage 7 here. (``tree`` is the run's own species tree, always in hand where a
     conditioned rate is resolved.)"""
-    text = pathlib.Path(path).read_text()
+    try:
+        text = pathlib.Path(path).read_text()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"DrivenBy driver file not found: {str(path)!r}. A conditioned rate points at this file, but "
+            f"it is not there — check the path (it is relative to where you run zombi2), or grow the "
+            f"driver first (run the level that writes it) so there is something to condition on."
+        ) from None
     rows = [line for line in text.splitlines() if line.strip()]
     if not rows:
         raise ValueError(f"driver file {str(path)!r} is empty")
