@@ -28,16 +28,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..genomes import (
-    Event as GenomeEvent,
-    GeneCopy,
-    GenomesResult,
-    UnorderedGenome,
-    _duplicate,
-    _lose_at,
-    _originate,
-    _pick_copy,
-)
+from ..genomes import Event as GenomeEvent, GeneCopy, GenomesResult, UnorderedGenome
+from ..genomes.unordered import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.modifiers import DrivenBy, FromParent
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
