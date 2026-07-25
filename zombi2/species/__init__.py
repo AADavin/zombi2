@@ -8,9 +8,6 @@ tree as it fills up, ``birth = 1.0 * mod.OnTime({...})`` runs a skyline (the int
 sampler steps to each breakpoint), and ``birth = 1.0 * mod.FromParent(spread=0.2)`` lets
 the rate drift down the tree (clade drift): each lineage threads its own inherited factor and
 the lineage that speciates or dies is drawn **weighted** by its effective rate.
-
-Still to come: the full result spine, the CLI, and the move to ``zombi2.species``. This
-lives here for now so the old package is untouched.
 """
 
 from __future__ import annotations
