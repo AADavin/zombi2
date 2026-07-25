@@ -16,7 +16,9 @@ the default pickle recursion limit; the rest of the codebase is iterative for th
 
 from __future__ import annotations
 
+import multiprocessing
 import os
+import sys
 from typing import TYPE_CHECKING
 
 # NB: gene-tree types are imported *lazily* inside rebuild_gene_tree, not here. This module is the
@@ -43,6 +45,38 @@ def resolve_workers(parallel) -> int:
             f"parallel must be False (serial), True (all cores), or a positive int (worker count), "
             f"got {parallel!r}")
     return parallel
+
+
+def _pool_would_fail_to_start() -> bool:
+    """True when a process pool cannot start here because the workers would have to re-import a
+    ``__main__`` that has no importable file — an interactive shell, ``python -c``, a stdin heredoc, or
+    a Jupyter / IPython kernel. Only the re-importing start methods (``spawn`` / ``forkserver``) are
+    affected; ``fork`` inherits the parent, so it is always safe. In the failing case a
+    ``ProcessPoolExecutor`` dies at startup with a raw ``BrokenProcessPool``, so a caller checks this
+    first and runs single-process instead. A real ``.py`` script, the ``zombi2`` console script, and a
+    pytest run all have a ``__main__`` with a real file, so none of them are affected."""
+    try:
+        method = multiprocessing.get_start_method()
+    except Exception:                       # a locked-down environment with no start method: play safe
+        method = None
+    if method == "fork":
+        return False
+    path = getattr(sys.modules.get("__main__"), "__file__", None)
+    return not (path and os.path.exists(path))
+
+
+def guard_pool_workers(workers: int, *, what: str = "--parallel") -> int:
+    """Return ``workers`` unchanged, unless a process pool would crash at startup here (see
+    :func:`_pool_would_fail_to_start`) — then fall back to ``1`` (single-process), warning once. This is
+    what lets ``parallel=`` be called from a notebook, ``python -c``, or a stdin heredoc without a raw
+    ``BrokenProcessPool``: it runs single-process instead of dying. A ``.py`` script (or the CLI) is
+    unaffected and keeps every worker. ``what`` names the knob in the message."""
+    if workers > 1 and _pool_would_fail_to_start():
+        print(f"note: {what} needs worker processes, but this looks like an interactive session, a "
+              f"notebook, or 'python -c', where they cannot re-import your program — a process pool "
+              f"would crash there. Running single-process instead; run from a .py script to use all cores.")
+        return 1
+    return workers
 
 
 def flatten_gene_tree(gt: GeneTree) -> tuple[int, float, list[tuple[int, str, int, float, int]]]:

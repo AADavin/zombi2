@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._runtime.parallel import resolve_workers
+from .._runtime.parallel import guard_pool_workers, resolve_workers
 from .._runtime.progress import progress_bar
 from ..rates.modifiers import ByFamily, DrivenBy
 from ._live import enter, retire
@@ -533,7 +533,7 @@ def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement
         if unknown:
             raise ValueError(f"unknown stream outputs {unknown}; choose from {list(_STREAM_OUTPUTS)}")
 
-    workers = resolve_workers(parallel)
+    workers = guard_pool_workers(resolve_workers(parallel))
     ctx = prepare_family_context(
         tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
         self_transfer=self_transfer, cap=cap, family_speed=family_speed)

@@ -30,6 +30,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   quickstart shows) now echoes as `wrote out/`, not `wrote out//`. (#242)
 - A conditioned rate whose `DrivenBy` points at a missing file now reports it as a missing driver file
   (with the path and how to fix it), instead of a bare `[Errno 2] No such file or directory`. (#242)
+- `parallel=` no longer crashes with a raw `BrokenProcessPool` when called from a notebook, `python -c`,
+  or a stdin heredoc (where worker processes cannot re-import your program). It falls back to
+  single-process with a one-line note; a `.py` script or the CLI still uses every core. (#242)
 
 ## [0.5.0] - 2026-07-24
 
