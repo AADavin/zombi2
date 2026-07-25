@@ -51,7 +51,7 @@ from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .._runtime.progress import progress_bar
-from .events import Event, node_label
+from .events import Event, gene_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -299,13 +299,13 @@ class OrderedGenomesResult:
         """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which
         is the whole point: it belongs to the start of the root branch, not to a node."""
         cols = ("chromosome", "position", "strand", "family", "copy")
-        rows = [f"{chrom.id}\t{pos}\t{g.strand}\t{g.family}\t{g.id}"
+        rows = [f"{chrom.id}\t{pos}\t{g.strand}\t{g.family}\t{gene_label(g.id)}"
                 for chrom in self.initial_genome for pos, g in enumerate(chrom.genes)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
     def _gene_order_tsv(self) -> str:
         cols = ("lineage", "chromosome", "position", "strand", "family", "copy")
-        rows = [f"{node_label(s)}\t{ch}\t{p}\t{st}\t{fam}\t{gid}"
+        rows = [f"{node_label(s)}\t{ch}\t{p}\t{st}\t{fam}\t{gene_label(gid)}"
                 for s in sorted(self.genomes)
                 for (ch, p, st, fam, gid) in self.gene_order(s)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -350,8 +350,8 @@ def _events_tsv(events, event_positions, rearrangements) -> str:
     for e in events:
         key = (e.time, *_position_key(e.kind, e.lineage, e.family, e.recipient))
         p = where.get(key)
-        cells = [e.time, e.kind, node_label(e.lineage), e.family, e.copy,
-                 "" if e.parent is None else e.parent,
+        cells = [e.time, e.kind, node_label(e.lineage), e.family, gene_label(e.copy),
+                 "" if e.parent is None else gene_label(e.parent),
                  "" if e.recipient is None else node_label(e.recipient),
                  "" if e.donor is None else node_label(e.donor)]
         # `donor` is on both of a transfer's rows (it comes from the event itself); the row that

@@ -14,7 +14,7 @@ import collections
 import numpy as np
 import pytest
 
-from zombi2.genomes.events import node_from_label, node_label
+from zombi2.genomes.events import gene_from_label, node_from_label, node_label
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
@@ -1704,7 +1704,7 @@ def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):
             assert int(row["position"]) == at, f"node {node} chromosome {chrom_id} does not tile"
             assert (int(row["source"]), int(row["start"]), int(row["end"]), int(row["strand"])) == \
                    (block.source, block.start, block.end, block.strand)
-            assert (int(row["copy"]), int(row["gene"])) == (block.copy, block.gene)
+            assert (gene_from_label(row["copy"]), int(row["gene"])) == (block.copy, block.gene)
             at += block.end - block.start
         assert at == chrom.length
     assert seen == set(r.genomes), "ancestors as well as tips must be written"

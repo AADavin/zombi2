@@ -42,7 +42,7 @@ from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
 
 from .._runtime.progress import progress_bar
-from .events import Event, events_tsv, node_label
+from .events import Event, events_tsv, gene_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -147,7 +147,7 @@ class GenomesResult:
         unordered counterpart of the ordered resolution's ``gene_order.tsv`` — without a chromosome
         or a position, because at this resolution a genome is a set, not a sequence."""
         cols = ("lineage", "family", "copy")
-        rows = [f"{node_label(s)}\t{c.family}\t{c.id}"
+        rows = [f"{node_label(s)}\t{c.family}\t{gene_label(c.id)}"
                 for s in sorted(self.genomes)
                 for c in sorted(self.genomes[s], key=lambda c: (c.family, c.id))]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -156,7 +156,7 @@ class GenomesResult:
         """The genome the run started with — ``genomes.tsv``'s columns without ``lineage``, which is
         the whole point: it belongs to the start of the root branch, not to a node."""
         cols = ("family", "copy")
-        rows = [f"{c.family}\t{c.id}"
+        rows = [f"{c.family}\t{gene_label(c.id)}"
                 for c in sorted(self.initial_genome, key=lambda c: (c.family, c.id))]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 

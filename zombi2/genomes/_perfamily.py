@@ -45,7 +45,7 @@ from .._runtime.progress import progress_bar
 from ..rates.modifiers import ByFamily, DrivenBy
 from ._live import enter, retire
 from ._transfer import Clades, mean_root_to_tip, recipient_index
-from .events import EVENTS_HEADER, Event, event_rows, node_label
+from .events import EVENTS_HEADER, Event, event_rows, gene_label, node_label
 from .gene_trees import gene_trees_from_events, write_gene_trees
 
 
@@ -489,7 +489,7 @@ def _stream_chunk(task):
                 for node_id, copies in node_genomes.items():
                     label = node_label(node_id)
                     for cp in copies:
-                        f.write(f"{label}\t{cp.family}\t{cp.id}\n")
+                        f.write(f"{label}\t{cp.family}\t{gene_label(cp.id)}\n")
             if want["profiles"]:
                 counts = [len(node_genomes.get(sp, ())) for sp in extant_ids]
                 if any(counts):                             # a family absent from every extant tip: no row
@@ -638,7 +638,7 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
         with open(os.path.join(out_dir, _STREAM_FILENAMES["initial_genome"]), "w") as out:
             out.write("family\tcopy\n")
             for fid in range(n_seeded):
-                out.write(f"{fid}\t{_copy_base(fid)}\n")
+                out.write(f"{fid}\t{gene_label(_copy_base(fid))}\n")
     shutil.rmtree(shard_dir, ignore_errors=True)
 
 
