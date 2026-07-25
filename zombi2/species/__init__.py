@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
-from ..progress import progress_bar
+from .._runtime.progress import progress_bar
 from ..rates.rate import as_rate
 from ..rates.scope import Global, PerLineage
 from ..tree import Node, Tree, prune

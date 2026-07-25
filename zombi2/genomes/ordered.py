@@ -50,7 +50,7 @@ from ..tree import Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
-from ..progress import progress_bar
+from .._runtime.progress import progress_bar
 from .events import Event, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
