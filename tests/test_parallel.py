@@ -268,3 +268,20 @@ def test_stream_rejects_driven_rate(species_for_genomes, tmp_path):
 def test_stream_outputs_arg_needs_stream_to(species_for_genomes):
     with pytest.raises(ValueError, match="outputs applies to a streamed run"):
         simulate_genomes_unordered(species_for_genomes, parallel=2, outputs=("events",), **_STREAM_KW)
+
+
+def test_guard_pool_workers_falls_back_when_a_pool_cannot_start(monkeypatch, capsys):
+    # parallel= must not crash from a notebook / `python -c` / stdin, where worker processes cannot
+    # re-import __main__: it falls back to single-process with a note instead of a BrokenProcessPool.
+    from zombi2._runtime import parallel as par
+    # a pool CAN start (a real .py script, the CLI, a pytest run): every worker is kept, nothing printed
+    monkeypatch.setattr(par, "_pool_would_fail_to_start", lambda: False)
+    assert par.guard_pool_workers(4) == 4
+    assert par.guard_pool_workers(1) == 1
+    assert capsys.readouterr().out == ""
+    # a pool CANNOT start: >1 downgrades to 1 with a note; a lone worker is already single-process
+    monkeypatch.setattr(par, "_pool_would_fail_to_start", lambda: True)
+    assert par.guard_pool_workers(1) == 1
+    assert capsys.readouterr().out == ""
+    assert par.guard_pool_workers(4) == 1
+    assert "single-process" in capsys.readouterr().out
