@@ -14,6 +14,12 @@ family, each under its own spawned RNG stream — so the result is identical for
 family "roams" across lineages: it is inherited by both daughters at a speciation and carried to a new
 lineage by a transfer, but it is always self-contained, which is what makes the decomposition exact.
 
+Pass 2's per-family evolution is :func:`simulate_one_family` — a standalone primitive that, given a
+prepared :class:`FamilyContext` (the run's tree, rates and contemporaneous-lineage schedule, built once
+by :func:`prepare_family_context`), evolves one family from any origination point down the whole tree.
+The in-memory and streamed engines are both thin maps over it; the workers only ship that context once
+and read it from module state.
+
 The realisation differs from the serial reference engine for a given seed (a different, equally valid
 draw — the "A" decision), and the engine **loudly falls back** to the serial loop for a configuration
 it does not cover yet: a driven rate or a driven ``transfer_to`` (per-lineage weighting by another
@@ -130,13 +136,69 @@ def _copy_base(fid: int) -> int:
     return fid << _COPY_ID_SHIFT
 
 
-# Shared read-only state, shipped once per worker by the initializer (never re-pickled per family).
-_CTX: dict = {}
+@dataclass(frozen=True)
+class FamilyContext:
+    """Everything constant across a run's families — the read-only context :func:`simulate_one_family`
+    evolves each family against. Built once by :func:`prepare_family_context` and, in the parallel
+    engine, shipped to each worker a single time via the pool initializer (never re-pickled per family).
+    Holds the tree, the D/T/L rates and their per-family ``ByFamily`` slots, the transfer settings, the
+    family cap, and the precomputed contemporaneous-lineage schedule (sorted birth / death times whose
+    two pointers give the set alive at any instant, plus the times the "≥ 2 lineages" transfer gate
+    flips). Origination is *not* here: a family's origination point is an input to
+    :func:`simulate_one_family`, drawn once for the whole run in Pass 1."""
+
+    tree: object
+    dup: object
+    tra: object
+    los: object
+    transfer_to: object
+    replacement: bool
+    self_transfer: bool
+    cap: "int | None"
+    depth: float
+    family_speed: object
+    fam_by: dict
+    birth_times: list
+    birth_nodes: list
+    death_times: list
+    death_nodes: list
+    cross2: list
 
 
-def _init_worker(ctx) -> None:
-    global _CTX
+def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, self_transfer,
+                           cap, family_speed) -> FamilyContext:
+    """Precompute the per-run :class:`FamilyContext` — the schedule and rate metadata every family
+    reuses — so :func:`simulate_one_family` can evolve any family from any origination point without
+    recomputing it. ``dup`` / ``tra`` / ``los`` are resolved :class:`~zombi2.rates.rate.Rate`s (per
+    copy)."""
+    depth = mean_root_to_tip(tree)
+    # which single rate each per-family ByFamily slot sits on (origination is excluded upstream) — drawn
+    # once per family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
+    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
+              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
+              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None)}
+    # the contemporaneous-lineage machinery: sorted birth / death times (two pointers give the set alive
+    # at any t) and the times can_xfer (≥ 2 lineages alive) flips.
+    births = sorted((tree.nodes[i].birth_time, i) for i in tree.nodes)
+    deaths = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)
+    return FamilyContext(
+        tree=tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
+        self_transfer=self_transfer, cap=cap, depth=depth, family_speed=family_speed, fam_by=fam_by,
+        birth_times=[t for t, _ in births], birth_nodes=[i for _, i in births],
+        death_times=[t for t, _ in deaths], death_nodes=[i for _, i in deaths],
+        cross2=_cross2_times(tree))
+
+
+# The shared context and stream config, shipped once per worker by the initializer (never re-pickled per
+# family). In-process (inline) runs set them directly; ``_STREAM`` is ``None`` off the streaming path.
+_CTX: "FamilyContext | None" = None
+_STREAM: "dict | None" = None
+
+
+def _init_worker(ctx, stream=None) -> None:
+    global _CTX, _STREAM
     _CTX = ctx
+    _STREAM = stream
 
 
 def _family_mults(rng, family_speed, fam_by):
@@ -152,35 +214,44 @@ def _family_mults(rng, family_speed, fam_by):
     return out
 
 
-def _evolve_one(fid, birth_lineage, birth_time, seedseq):
-    """Evolve one family from its origination down the tree; return ``(events, node_genomes)``. Copy
-    ids are ``(fid << SHIFT) + local`` — globally unique, so the caller (the merge, or a streamed
-    shard) concatenates without rewriting. Mirrors the global loop's inner event handling, scoped to
-    this family's footprint (the lineages it occupies). Reads the shared inputs from :data:`_CTX`."""
+def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
+    """Evolve **one** gene family from a given origination point down the whole tree, and return its
+    ``(events, node_genomes)`` — the compact event log and this family's copies at every node it reaches.
+
+    This is the per-family primitive the parallel engine is built on. The unordered D/T/L process is a
+    superposition of independent per-family processes (no event ever spans two families), so a family
+    born as ``family`` in lineage ``lineage`` at time ``time`` can be evolved on its own, against the
+    contemporaneous-lineage schedule prepared once in ``ctx`` (a :class:`FamilyContext`; see
+    :func:`prepare_family_context`). A transfer may still hand a copy to *any* lineage alive at the
+    instant — the family "roams" — which is why the whole tree's schedule is needed, not just
+    ``lineage``'s subtree.
+
+    ``rng`` is this family's own generator (spawn one stream per family for a worker-count-invariant
+    run); ``copy_id_base`` offsets the minted copy ids so several families' logs concatenate without a
+    rewrite (the parallel engine passes ``family << 30``). Mirrors the serial loop's inner event
+    handling, scoped to this family's footprint (the lineages it occupies)."""
     from .unordered import GeneCopy, _at_cap, _duplicate, _lose_at, _pick_copy   # package helpers; no cycle
 
-    c = _CTX
-    tree, dup, tra, los = c["tree"], c["dup"], c["tra"], c["los"]
-    transfer_to, replacement, self_transfer = c["transfer_to"], c["replacement"], c["self_transfer"]
-    cap, depth, family_speed, fam_by = c["cap"], c["depth"], c["family_speed"], c["fam_by"]
-    birth_times, birth_nodes = c["birth_times"], c["birth_nodes"]
-    death_times, death_nodes = c["death_times"], c["death_nodes"]
-    cross2 = c["cross2"]
+    tree, dup, tra, los = ctx.tree, ctx.dup, ctx.tra, ctx.los
+    transfer_to, replacement, self_transfer = ctx.transfer_to, ctx.replacement, ctx.self_transfer
+    cap, depth, family_speed, fam_by = ctx.cap, ctx.depth, ctx.family_speed, ctx.fam_by
+    birth_times, birth_nodes = ctx.birth_times, ctx.birth_nodes
+    death_times, death_nodes = ctx.death_times, ctx.death_nodes
+    cross2 = ctx.cross2
 
-    rng = np.random.default_rng(seedseq)
     mult = _family_mults(rng, family_speed, fam_by)
     m_dup, m_tra, m_los = mult["duplication"], mult["transfer"], mult["loss"]
 
     events: list[Event] = []
     node_genomes: dict[int, list] = {}
-    base = _copy_base(fid)
+    base = copy_id_base
     counter = 0
 
-    def new_copy(family: int) -> "GeneCopy":
+    def new_copy(fam: int) -> "GeneCopy":
         nonlocal counter
         if counter >= (1 << _COPY_ID_SHIFT):                # a billion copies in one family — unreachable
-            raise OverflowError(f"family {fid} exceeded {1 << _COPY_ID_SHIFT} copies; raise _COPY_ID_SHIFT")
-        gc = GeneCopy(base + counter, family)
+            raise OverflowError(f"family {family} exceeded {1 << _COPY_ID_SHIFT} copies; raise _COPY_ID_SHIFT")
+        gc = GeneCopy(base + counter, fam)
         counter += 1
         return gc
 
@@ -192,15 +263,15 @@ def _evolve_one(fid, birth_lineage, birth_time, seedseq):
     pos: dict[int, int] = {}
     heap: list[tuple[float, int]] = []
 
-    founding = new_copy(fid)                                # the founding gene (local id 0)
-    events.append(Event(birth_time, "origination", birth_lineage, fid, founding.id))
-    enter(alive, gen, pos, birth_lineage, [founding])
-    heapq.heappush(heap, (tree.nodes[birth_lineage].end_time, birth_lineage))
+    founding = new_copy(family)                             # the founding gene (local id 0)
+    events.append(Event(time, "origination", lineage, family, founding.id))
+    enter(alive, gen, pos, lineage, [founding])
+    heapq.heappush(heap, (tree.nodes[lineage].end_time, lineage))
 
     # the contemporaneous lineage set (all lineages alive now), maintained by two pointers as t rises —
     # needed to choose a transfer recipient and to know whether a recipient can exist at all.
-    bi = bisect.bisect_right(birth_times, birth_time)
-    di = bisect.bisect_right(death_times, birth_time)
+    bi = bisect.bisect_right(birth_times, time)
+    di = bisect.bisect_right(death_times, time)
     contemp = set(birth_nodes[:bi]) - set(death_nodes[:di])
 
     def advance_contemp(t):
@@ -219,7 +290,7 @@ def _evolve_one(fid, birth_lineage, birth_time, seedseq):
         j = bisect.bisect_right(cross2, t)
         return cross2[j] if j < len(cross2) else math.inf
 
-    t = birth_time
+    t = time
     total = 1
     while alive:
         advance_contemp(t)
@@ -287,6 +358,14 @@ def _evolve_one(fid, birth_lineage, birth_time, seedseq):
             t = horizon                                     # a skyline or transfer-window breakpoint
 
     return events, node_genomes
+
+
+def _evolve_one(family, lineage, birth_time, seedseq):
+    """Worker adapter: evolve one family from the shared per-run context under its own spawned RNG
+    stream (so the run is identical for any worker count). The pool ships the context once via the
+    initializer; this reads it from module state and hands it to :func:`simulate_one_family`."""
+    return simulate_one_family(_CTX, family=family, lineage=lineage, time=birth_time,
+                               rng=np.random.default_rng(seedseq), copy_id_base=_copy_base(family))
 
 
 def _evolve_family(task):
@@ -389,7 +468,7 @@ def _stream_chunk(task):
     Nothing run-sized is held; the parent concatenates the shards afterwards. Returns
     ``(chunk_index, n_families, n_events)``."""
     chunk_index, family_list = task
-    tree, s = _CTX["tree"], _CTX["stream"]
+    tree, s = _CTX.tree, _STREAM
     out_dir, outputs, extant_ids, shard_dir = s["out_dir"], s["outputs"], s["extant_ids"], s["shard_dir"]
     want = {name: name in outputs for name in ("events", "genomes", "profiles", "gene_trees")}
     trees_dir = os.path.join(out_dir, "gene_trees")
@@ -455,12 +534,9 @@ def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement
             raise ValueError(f"unknown stream outputs {unknown}; choose from {list(_STREAM_OUTPUTS)}")
 
     workers = resolve_workers(parallel)
-    depth = mean_root_to_tip(tree)
-    # which single rate each per-family ByFamily slot sits on (origination is excluded upstream) — drawn
-    # once per family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
-    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
-              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
-              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None)}
+    ctx = prepare_family_context(
+        tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
+        self_transfer=self_transfer, cap=cap, family_speed=family_speed)
 
     # Pass 1: who originates, and where. One reserved stream for it; one per family after.
     root_ss = np.random.SeedSequence(seed)
@@ -469,19 +545,6 @@ def run_parallel_unordered(tree, *, dup, tra, los, org, transfer_to, replacement
     n_families = len(families_meta)
     family_seeds = root_ss.spawn(n_families) if n_families else []
     per_family = [(fid, lin, bt, family_seeds[k]) for k, (fid, lin, bt) in enumerate(families_meta)]
-
-    # the contemporaneous-lineage machinery, precomputed once and shared: sorted birth / death times
-    # (two pointers give the set alive at any t) and the times can_xfer (≥2 lineages alive) flips.
-    births = sorted((tree.nodes[i].birth_time, i) for i in tree.nodes)
-    deaths = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)
-    ctx = {
-        "tree": tree, "dup": dup, "tra": tra, "los": los, "transfer_to": transfer_to,
-        "replacement": replacement, "self_transfer": self_transfer, "cap": cap, "depth": depth,
-        "family_speed": family_speed, "fam_by": fam_by,
-        "birth_times": [t for t, _ in births], "birth_nodes": [i for _, i in births],
-        "death_times": [t for t, _ in deaths], "death_nodes": [i for _, i in deaths],
-        "cross2": _cross2_times(tree),
-    }
 
     if stream_to is not None:
         return _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families,
@@ -529,8 +592,8 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
     extant_ids = sorted(n.id for n in tree.extant())
-    ctx["stream"] = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
-                     "shard_dir": shard_dir}
+    stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
+                  "shard_dir": shard_dir}
 
     chunks = [per_family[i:i + _STREAM_CHUNK] for i in range(0, n_families, _STREAM_CHUNK)]
     tasks = list(enumerate(chunks))
@@ -539,11 +602,12 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     bar = progress_bar(max(1, n_chunks), "genomes", unit="chunk", enabled=progress)
     if workers > 1 and n_chunks >= 2:
         w = min(workers, n_chunks)
-        with ProcessPoolExecutor(max_workers=w, initializer=_init_worker, initargs=(ctx,)) as ex:
+        with ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
+                                 initargs=(ctx, stream_cfg)) as ex:
             for (_ci, _nfam, nev) in ex.map(_stream_chunk, tasks):
                 total_events += nev; bar.update()
     else:
-        _init_worker(ctx)
+        _init_worker(ctx, stream_cfg)
         for task in tasks:
             _ci, _nfam, nev = _stream_chunk(task)
             total_events += nev; bar.update()
