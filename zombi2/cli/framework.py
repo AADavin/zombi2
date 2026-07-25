@@ -228,13 +228,21 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     return path
 
 
+def _run_dir(s: str) -> str:
+    """Normalise the run-directory argument: drop trailing slashes, so the completion line reads
+    ``wrote out/`` and not ``wrote out//`` when the user wrote ``out/`` (as the quickstart does). Path
+    semantics are unchanged — ``Path`` and ``os.path.join`` treat ``out`` and ``out/`` alike; this only
+    tidies how the directory is echoed back. An all-slashes argument keeps a single slash."""
+    return s.rstrip("/") or "/"
+
+
 def _add_run_arg(p, what: str) -> None:
     """Add the run directory — the one positional every command takes.
 
     A run accumulates in one directory: each level reads what the level before it left there and
     writes its own beside it. Naming that directory once, positionally, is the whole invocation's
     shape; ``--from`` is the exception for when the input lives somewhere else."""
-    p.add_argument("run", metavar="DIR",
+    p.add_argument("run", metavar="DIR", type=_run_dir,
                    help=f"the run directory: {what}. Created if needed, and read from as well as "
                         f"written to, so a pipeline names it once per command")
 
