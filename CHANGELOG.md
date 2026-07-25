@@ -28,6 +28,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Fixed
 - The run-completion line no longer doubles a trailing slash: a directory given as `out/` (as the
   quickstart shows) now echoes as `wrote out/`, not `wrote out//`. (#242)
+- A conditioned rate whose `DrivenBy` points at a missing file now reports it as a missing driver file
+  (with the path and how to fix it), instead of a bare `[Errno 2] No such file or directory`. (#242)
 
 ## [0.5.0] - 2026-07-24
 
