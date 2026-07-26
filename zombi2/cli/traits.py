@@ -188,7 +188,7 @@ def run(args, parser):
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    guidance(args, look=f"trait values: {os.path.join(out, 'trait_values.tsv')}")
+    guidance(args, f"trait values: {os.path.join(out, 'trait_values.tsv')}")
     _write_params_log(os.path.join(out, "traits.log"),
                       args, summary)
     return 0

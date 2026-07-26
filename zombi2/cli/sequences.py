@@ -258,7 +258,7 @@ def run(args, parser):
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
                    f"{extra['length']} sites, {clock}")
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    guidance(args, look=f"alignments under {out}/")
+    guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
                       args, summary, effective=_effective_model_params(args))
     return 0

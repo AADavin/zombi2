@@ -18,10 +18,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   marker). `--force` re-runs anyway and removes the now-stale downstream, so a run's levels can never
   quietly disagree. The forward pipeline is unaffected (each level is run once); applies to the default
   grouped layout — `--flat` commingles the levels and is left to the user. (#243)
-- **Onboarding nudges.** After a level runs, a one-line hint points at the key output file and the next
-  command in the pipeline (e.g. `next: zombi2 genomes out/`) — suppressed by `--quiet`, so a scripted
-  batch stays quiet. The top-level `--help` now leads with the levels and the plain quickstart, with the
-  `DrivenBy` / joint coupling note moved below them. (#244)
+- **Onboarding nudges.** After a level runs, a one-line pointer names the output file(s) worth looking
+  at — a species run names both its complete and its extant tree — so a newcomer can find what they
+  made. It says only *what was written and where*, never what to do next (a run is not one road);
+  suppressed by `--quiet`. The top-level `--help` now leads with the levels and the plain quickstart,
+  with the `DrivenBy` / joint coupling note moved below them. (#244)
 
 ### Fixed
 - A non-nucleotide `sequences` run no longer leaves an empty `sequences/genomes/` directory behind (the
