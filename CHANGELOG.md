@@ -26,6 +26,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Fixed
 - A non-nucleotide `sequences` run no longer leaves an empty `sequences/genomes/` directory behind (the
   assembled-genome FASTAs are a nucleotide-run output). (#244)
+- The `sequences` run log now records the substitution model's **effective** parameters (e.g. `kappa 2.0`,
+  `frequencies [0.25, 0.25, 0.25, 0.25]`) instead of the bare `None` args, so a run reproduces from its
+  log alone, without the reader having to know each model's defaults. (#244)
 
 ## [0.6.0] - 2026-07-26
 
