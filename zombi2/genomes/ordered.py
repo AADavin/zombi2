@@ -42,7 +42,7 @@ from functools import cached_property
 import numpy as np
 
 from ..rates.distributions import as_extent
-from ..rates.modifiers import OnTime
+from ..rates.modifiers import ByFamily, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..species import SpeciesResult
@@ -430,6 +430,94 @@ def _extent(rng, dist, chrom, start) -> int:
     return min(m, n) if chrom.topology == "circular" else min(m, n - start)
 
 
+def _weighted_index(rng, weights, total: float) -> int:
+    """Pick an index in proportion to ``weights``, which sum to ``total``."""
+    r = float(rng.random()) * total
+    acc = 0.0
+    for i, w in enumerate(weights):
+        acc += w
+        if r < acc:
+            return i
+    return len(weights) - 1                      # float guard: r == total lands on the last
+
+
+def _run_means(chrom, mult, m) -> list[float]:
+    """For each start, the **mean** family weight of the run of ``m`` genes it opens (SPEC §6).
+
+    Prefix-summed, so this is one pass over the chromosome rather than one per candidate run. A
+    circular run wraps position 0; a linear one is clamped by its start, exactly as :func:`_extent`
+    clamps it."""
+    w = [mult[g.family] for g in chrom.genes]
+    n = len(w)
+    pre = [0.0] * (n + 1)
+    for i, x in enumerate(w):
+        pre[i + 1] = pre[i] + x
+    circular = chrom.topology == "circular"
+    out = []
+    for s in range(n):
+        if circular:
+            tot = pre[n] - pre[s] + pre[s + m - n] if s + m > n else pre[s + m] - pre[s]
+            ln = m
+        else:
+            ln = min(m, n - s)
+            tot = pre[s + ln] - pre[s]
+        out.append(tot / ln)
+    return out
+
+
+def _pick_run_by_family(rng, genome, mult, dist) -> tuple[int, int, int] | None:
+    """A run drawn with the per-family weight on the **segment**, not on its starting gene (SPEC §6).
+
+    Returns ``(chromosome index, start, run size)``, or ``None`` when the genome has no genes to act
+    on. The size is drawn first, then the start in proportion to the run's **mean** weight: a run of
+    heavily-weighted genes is favoured, a mixed one sits in between, an ordinary one is unweighted.
+    Weighting the *starting* gene instead — the obvious implementation — would apply a family's own
+    rate to its **neighbours**, and the neighbourhood is reshuffled by every rearrangement, so the
+    parameter would not even name a fixed thing over a run.
+
+    Drawing the size before the start is **exact on a circular chromosome**: there ``Σ_s mean_w(s, m)``
+    equals ``Σ_g w_g`` for every ``m``, so the total rate carries no per-size term and the two draws
+    factorise cleanly. On a **linear** chromosome the run is clamped by its start, so that identity
+    holds only approximately — the same edge effect, from the same cause, that clamping already gives
+    a linear run.
+
+    With uniform weights every mean is 1, the start pick is uniform and the size distribution is
+    untouched, so a run that sets no per-family weight is byte-identical to one taking the plain path.
+    """
+    sums = [sum(mult[g.family] for g in c.genes) for c in genome]
+    total = sum(sums)
+    if total <= 0.0:
+        return None
+    ci = _weighted_index(rng, sums, total)
+    chrom = genome[ci]
+    n = len(chrom.genes)
+    m = min(max(1, int(dist.sample(rng))), n)
+    means = _run_means(chrom, mult, m)
+    s = _weighted_index(rng, means, sum(means))
+    return ci, s, (m if chrom.topology == "circular" else min(m, n - s))
+
+
+def _pick_event_run(rng, gen, n, fw, fam_mult, key, dist):
+    """``(lineage, chromosome index, start, run size)`` for one gene-level event.
+
+    Uniform over genes when no per-family weight is set — the plain path, untouched. With one set, the
+    lineage is drawn by its summed weight and the run by :func:`_pick_run_by_family`, so the weight
+    reaches the segment. ``None`` when the drawn lineage has nothing left to act on."""
+    if fw is None:
+        k, ci, j = _pick_gene(rng, gen, n)
+        return k, ci, j, _extent(rng, dist, gen[k][ci], j)
+    w = fw[key]
+    total = sum(w)
+    if total <= 0.0:
+        return None
+    k = _weighted_index(rng, w, total)
+    picked = _pick_run_by_family(rng, gen[k], fam_mult[key], dist)
+    if picked is None:
+        return None
+    ci, j, m = picked
+    return k, ci, j, m
+
+
 def _anchor(chrom, start, m) -> int:
     """Make the run ``[start, start+m)`` one contiguous slice, and return the index it now begins at.
 
@@ -740,9 +828,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     fus = as_rate(fusion, default_scope=PerChromosome)
     cor = as_rate(chromosome_origination, default_scope=PerLineage)
     clo = as_rate(chromosome_loss, default_scope=PerChromosome)
-    # like the family core, this slice wires only the default scope of each event and OnTime
-    # (skyline) modifiers; a scope override or per-family/clade modifier is a later slice, so reject
-    # them rather than silently mis-scale (see the family engine for the reasoning).
+    # this slice wires each event's default scope, OnTime (skyline), and ByFamily — the last with the
+    # weight on the SEGMENT rather than on its starting gene (SPEC §6, and _pick_run_by_family). A
+    # scope override or a clade/driven modifier is a later slice, so reject it rather than silently
+    # mis-scale (see the family engine for the reasoning).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage),
                               ("inversion", inv, PerCopy), ("transposition", trp, PerCopy),
@@ -755,11 +844,22 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if not isinstance(m, OnTime):
+            if isinstance(m, ByFamily) and label == "origination":
+                raise ValueError(
+                    "origination carries ByFamily, but origination is the rate at which families are "
+                    "CREATED — when it is read there is no family yet to have drawn a factor for. "
+                    "Put ByFamily on duplication, transfer, loss, inversion, transposition or "
+                    "translocation, or use family_speed= for a family-wide tempo.")
+            if isinstance(m, ByFamily) and not isinstance(rate.scope, PerCopy):
+                raise ValueError(
+                    f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
+                    f"weight has to reach the genes an event covers, so it is wired for the per-copy "
+                    f"gene events only — not for the chromosome tier, which acts on whole replicons.")
+            if not isinstance(m, (OnTime, ByFamily)):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
-                    f"support yet — only OnTime (skyline) is wired. Per-family heterogeneity and clade "
-                    f"drift are later slices."
+                    f"support yet — OnTime (skyline) and ByFamily are wired. Clade drift and driven "
+                    f"rates are later slices."
                 )
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     dup_ext, los_ext, tra_ext = (as_extent(duplication_extent), as_extent(loss_extent),
@@ -788,11 +888,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             "to decide what happens to a block that is partly over it — refusing the whole segment "
             "and refusing part of it are different processes. Unset it, or use --resolution "
             "family, where the unit is one gene and the answer is unambiguous.")
-    if family_speed is not None:
+    if family_speed is not None and not isinstance(family_speed, ByFamily):
         raise ValueError(
-            "family_speed (per-family heterogeneity) is wired at the family resolution only for "
-            "now — the ordered engine draws segments as well as copies, so a per-family weight has "
-            "to reach the segment pick too. Use --resolution family, or leave it unset.")
+            f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -805,10 +903,28 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         copy_counter += 1
         return g
 
+    # Per-family multipliers, drawn once when a family is minted and fixed for its whole life, exactly
+    # as at the family resolution: family_speed scales every rate that family has (one draw), a
+    # ByFamily on a single rate varies that rate alone (its own draw). What differs here is where the
+    # weight lands — on the run an event covers, not on the gene it started from (SPEC §6). Empty
+    # unless one of them is used, and a run without either is byte-identical to the plain path.
+    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
+              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
+              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None),
+              "inversion": next((m for m in inv.modifiers if isinstance(m, ByFamily)), None),
+              "transposition": next((m for m in trp.modifiers if isinstance(m, ByFamily)), None),
+              "translocation": next((m for m in trl.modifiers if isinstance(m, ByFamily)), None)}
+    any_family = family_speed is not None or any(fam_by.values())
+    fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
+
     def new_family() -> int:
         nonlocal family_counter
         f = family_counter
         family_counter += 1
+        if any_family:
+            speed = family_speed.draw(rng) if family_speed is not None else 1.0
+            for key, m in fam_by.items():
+                fam_mult[key][f] = speed * (m.draw(rng) if m is not None else 1.0)
         return f
 
     def new_chromosome() -> int:
@@ -869,14 +985,32 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
         c = total_chromosomes
-        r_dup = dup.effective(**ctx) if n else 0.0
-        r_los = los.effective(**ctx) if n else 0.0
-        r_org = org.effective(**ctx)                                    # per lineage
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)
-        r_tra = tra.effective(**ctx) if can_xfer else 0.0
-        r_inv = inv.effective(**ctx) if n else 0.0                      # per copy (the run's start)
-        r_trp = trp.effective(**ctx) if n else 0.0                      # per copy (the run's start)
-        r_trl = trl.effective(**ctx) if n else 0.0                      # per copy; needs >=2 chromosomes
+        # A per-copy rate pools over genes, so with per-family weights the total is the unit rate
+        # times those weights summed over the live genes — and the run must then be drawn with the
+        # same weights, or the rate would say one thing and the picking another. Summed per lineage,
+        # so the lineage pick can reuse them. On a circular chromosome ``Σ_s mean_w(s, m)`` is exactly
+        # this sum for every run size, which is why no per-size term appears here (SPEC §6).
+        fw = None
+        if any_family:
+            fw = {key: [sum(mult[g.family] for chrom in gen[k] for g in chrom.genes)
+                        for k in range(k_alive)]
+                  for key, mult in fam_mult.items()}
+            one = {"copies": 1, "lineages": 1, "chromosomes": 1, "time": t}
+            r_dup = dup.effective(**one) * sum(fw["duplication"]) if n else 0.0
+            r_los = los.effective(**one) * sum(fw["loss"]) if n else 0.0
+            r_tra = tra.effective(**one) * sum(fw["transfer"]) if can_xfer else 0.0
+            r_inv = inv.effective(**one) * sum(fw["inversion"]) if n else 0.0
+            r_trp = trp.effective(**one) * sum(fw["transposition"]) if n else 0.0
+            r_trl = trl.effective(**one) * sum(fw["translocation"]) if n else 0.0
+        else:
+            r_dup = dup.effective(**ctx) if n else 0.0
+            r_los = los.effective(**ctx) if n else 0.0
+            r_tra = tra.effective(**ctx) if can_xfer else 0.0
+            r_inv = inv.effective(**ctx) if n else 0.0                  # per copy (the run's start)
+            r_trp = trp.effective(**ctx) if n else 0.0                  # per copy (the run's start)
+            r_trl = trl.effective(**ctx) if n else 0.0                  # per copy; needs >=2 chromosomes
+        r_org = org.effective(**ctx)                                    # per lineage
         r_fis = fis.effective(**ctx) if c else 0.0                      # per chromosome (the tier)
         r_fus = fus.effective(**ctx) if c else 0.0
         r_cor = cor.effective(**ctx)                                    # per lineage (de-novo replicon)
@@ -904,43 +1038,46 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor                    # ... and the remainder (to total) is clo
                 if r < r_dup:                            # every gene-level event acts on an extent
-                    k, ci, j = _pick_gene(rng, gen, n)
-                    chrom = gen[k][ci]
-                    m = _extent(rng, dup_ext, chrom, j)
-                    total_copies += _duplicate(chrom, j, m, tree.nodes[alive[k]], t, events,
-                                               event_positions, new_gene)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext)
+                    if picked is not None:
+                        k, ci, j, m = picked
+                        total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
+                                                   event_positions, new_gene)
                 elif r < b_los:
-                    k, ci, j = _pick_gene(rng, gen, n)
-                    chrom = gen[k][ci]
-                    m = _extent(rng, los_ext, chrom, j)
-                    total_copies -= _lose_at(chrom, j, m, tree.nodes[alive[k]], t, events,
-                                             event_positions)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext)
+                    if picked is not None:
+                        k, ci, j, m = picked
+                        total_copies -= _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
+                                                 event_positions)
                 elif r < b_org:
                     k = int(rng.integers(k_alive))  # origination is per lineage: a uniform lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, event_positions, new_gene,
                                new_family, rng)
                     total_copies += 1
                 elif r < b_tra:
-                    kd, cdi, jd = _pick_gene(rng, gen, n)
-                    m = _extent(rng, tra_ext, gen[kd][cdi], jd)
-                    total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
-                                                 event_positions, new_gene, transfer_to, replacement,
-                                                 self_transfer, depth)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext)
+                    if picked is not None:
+                        kd, cdi, jd, m = picked
+                        total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
+                                                     event_positions, new_gene, transfer_to,
+                                                     replacement, self_transfer, depth)
                 elif r < b_inv:
-                    k, ci, i0 = _pick_gene(rng, gen, n)   # the run starts at a gene, so: per copy
-                    chrom = gen[k][ci]
-                    _invert(chrom, i0, _extent(rng, inv_ext, chrom, i0),
-                            tree.nodes[alive[k]], t, rearrangements)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext)
+                    if picked is not None:                # the run starts at a gene, so: per copy
+                        k, ci, i0, m = picked
+                        _invert(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements)
                 elif r < b_trp:
-                    k, ci, i0 = _pick_gene(rng, gen, n)
-                    chrom = gen[k][ci]
-                    _transpose(chrom, i0, _extent(rng, trp_ext, chrom, i0),
-                               tree.nodes[alive[k]], t, rearrangements, rng, inversion_probability)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transposition", trp_ext)
+                    if picked is not None:
+                        k, ci, i0, m = picked
+                        _transpose(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements, rng,
+                                   inversion_probability)
                 elif r < b_trl:
-                    k, ci, j = _pick_gene(rng, gen, n)
-                    m = _extent(rng, trl_ext, gen[k][ci], j)
-                    _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,
-                                 inversion_probability)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "translocation", trl_ext)
+                    if picked is not None:
+                        k, ci, j, m = picked
+                        _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,
+                                     inversion_probability)
                 elif r < b_fis:
                     k, ci = _pick_chromosome(rng, gen, c)
                     dc, dg = _fission(gen[k], ci, tree.nodes[alive[k]], t, chromosome_events,

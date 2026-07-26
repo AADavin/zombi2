@@ -9,6 +9,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **Per-family rate heterogeneity at the ordered resolution.** `ByFamily` on `duplication`,
+  `transfer`, `loss`, `inversion`, `transposition` or `translocation`, and the family-wide
+  `family_speed=`, now work at `--resolution ordered`; both were previously refused. The weight lands
+  on the **segment an event covers**, not on the gene it started from (SPEC §6) — weighting the start
+  would apply a family's own rate to its *neighbours*, and the neighbourhood is reshuffled by every
+  rearrangement, so the parameter would not name a fixed thing over a run. A run's weight is the
+  **mean** over the genes it covers, which is what makes a run with no weights set behave exactly as
+  before. `ByFamily` remains refused on `origination` (there is no family yet to have drawn a factor)
+  and on the chromosome tier (a fission acts on a whole replicon). `max_family_size` stays refused at
+  this resolution: a quota is not a weight, and it would have to decide what happens to a segment
+  only partly over the cap. (#247)
+
 ### Changed
 - **One word for how much a segmental event takes: `extent`.** The ordered resolution called it
   `<event>_extension` and the nucleotide one `<event>_length`; both are now `<event>_extent`, in

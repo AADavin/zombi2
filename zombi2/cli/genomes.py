@@ -32,8 +32,9 @@ RATES_HELP = _rates_help(
     note="Each rate keeps its natural scope here (D/T/L per copy, origination per lineage), so "
          "there is no scope wrapper to write. DrivenBy is wired for all four gene-family rates "
          "(on --transfer it drives how often a lineage DONATES); --transfer-to takes the same "
-         "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime only; "
-         "--resolution nucleotide takes constant rates only.")
+         "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime and "
+         "ByFamily (the weight lands on the segment an event covers, not on the gene it started "
+         "from); --resolution nucleotide takes constant rates only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
