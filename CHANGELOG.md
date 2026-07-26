@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-26
+
 ### Changed
 - **The genome level's first resolution is now `family`, not `unordered`.** It is the default
   resolution and the first thing a new user meets, and it was named for the feature it lacks rather
