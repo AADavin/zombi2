@@ -1386,12 +1386,12 @@ def test_an_unconditioned_genome_leaves_the_trait_free_to_rerun(tmp_path):
 
 # ── onboarding nudges + no empty genomes/ dir ───────────────────────────────────────
 
-def test_completion_nudge_points_to_the_key_file_and_next_step(tmp_path, capsys):
+def test_completion_nudge_points_to_the_output_files(tmp_path, capsys):
     main(["species", str(tmp_path / "run"), "--birth", "1", "--death", "0.3", "--n-extant", "6",
           "--seed", "1"])
     out = capsys.readouterr().out
-    assert "species_extant.nwk" in out            # names the file worth looking at
-    assert "next: zombi2 genomes" in out           # and the next command in the pipeline
+    assert "species_complete.nwk" in out and "species_extant.nwk" in out   # names both trees
+    assert "next:" not in out                      # never prescribes what to do next
 
 
 def test_quiet_suppresses_the_nudge_but_keeps_the_wrote_line(tmp_path, capsys):
@@ -1399,7 +1399,7 @@ def test_quiet_suppresses_the_nudge_but_keeps_the_wrote_line(tmp_path, capsys):
           "--seed", "1", "--quiet"])
     out = capsys.readouterr().out
     assert "wrote" in out
-    assert "next:" not in out and "→" not in out
+    assert "→" not in out                          # no nudge lines under --quiet
 
 
 def test_non_nucleotide_sequences_run_leaves_no_empty_genomes_dir(tmp_path):

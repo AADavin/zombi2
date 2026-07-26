@@ -233,22 +233,15 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     return path
 
 
-def guidance(args, *, look: str, nxt: str | None = None) -> None:
-    """A one-line nudge printed after a run: the file (or directory) worth looking at, and — for a step
-    in the pipeline — the next command to run. It is for someone finding their way around a run, so it
-    is suppressed by ``--quiet`` (a scripted batch stays quiet); the ``wrote …`` summary still prints."""
+def guidance(args, *looks: str) -> None:
+    """One or more one-line pointers printed after a run — the file(s) worth looking at, for someone
+    finding their way around a run. It only says *what was written and where*, never what to do next
+    (a run is not one road: after a species tree you might grow genomes, or a trait, or stop). It is
+    suppressed by ``--quiet`` (a scripted batch stays quiet); the ``wrote …`` summary still prints."""
     if getattr(args, "quiet", False):
         return
-    line = f"  → {look}"
-    if nxt:
-        line += f"      next: {nxt}"
-    print(line)
-
-
-def next_command(args, level: str) -> str:
-    """The next pipeline command to suggest, on the same run directory (and carrying ``--flat`` so the
-    next level's layout matches this one's)."""
-    return f"zombi2 {level} {args.run}/" + (" --flat" if getattr(args, "flat", False) else "")
+    for look in looks:
+        print(f"  → {look}")
 
 
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
