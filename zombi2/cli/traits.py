@@ -21,7 +21,7 @@ import time
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
-                                  level_dir, resolve_tree, sibling_fates)
+                                  guidance, level_dir, resolve_tree, sibling_fates)
 from zombi2.tree import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
 
@@ -188,6 +188,7 @@ def run(args, parser):
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    guidance(args, look=f"trait values: {os.path.join(out, 'trait_values.tsv')}")
     _write_params_log(os.path.join(out, "traits.log"),
                       args, summary)
     return 0
