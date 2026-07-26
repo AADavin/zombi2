@@ -1044,7 +1044,7 @@ def _nucleotide_run(tmp_path, *, extra=()):
     main(["species", run, "--birth", "1.0", "--death", "0.3", "--n-extant", "5",
           "--seed", "3", "--quiet"])
     main(["genomes", run, "--resolution", "nucleotide", "--root-length", "2000", "--genes", "5",
-          "--gene-length", "150", "--inversion", "3.0", "--inversion-length", "250",
+          "--gene-length", "150", "--inversion", "3.0", "--inversion-extent", "250",
           "--duplication", "1.0", "--loss", "1.0", "--seed", "3", "--quiet"])
     main(["sequences", run, "--model", "hky85", "--kappa", "3.0", "--substitution", "0.05",
           "--seed", "3", "--quiet", *extra])
@@ -1089,7 +1089,7 @@ def test_sequences_matches_the_python_api_on_a_nucleotide_run(tmp_path):
     out = _nucleotide_run(tmp_path)
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=5, seed=3)
     g = simulate_genomes_nucleotide(sp, root_length=2000, genes=5, gene_length=150, inversion=3.0,
-                                    inversion_length=250, duplication=1.0, loss=1.0, seed=3)
+                                    inversion_extent=250, duplication=1.0, loss=1.0, seed=3)
     r = simulate_sequences(g, model=hky85(kappa=3.0), substitution=0.05, seed=3)
     for lineage, chroms in r.genomes.items():
         text = (out / "genomes" / f"genome_{lineage}.fasta").read_text()
@@ -1214,7 +1214,7 @@ def _nucleotide_gene_run(tmp_path, *, name="nucrun"):
           "--quiet"])
     main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "4000", "--genes", "6",
           "--gene-length", "200", "--duplication", "1.0", "--transfer", "0.8", "--loss", "0.3",
-          "--duplication-length", "260", "--transfer-length", "260", "--seed", "1", "--quiet"])
+          "--duplication-extent", "260", "--transfer-extent", "260", "--seed", "1", "--quiet"])
     return run
 
 

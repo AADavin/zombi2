@@ -99,8 +99,8 @@ def test_sequences_parallel_differs_from_serial_but_matches_family_set(genome_ru
 
 def test_sequences_parallel_nucleotide_assembles_every_node():
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=3)
-    gen = simulate_genomes_nucleotide(sp, loss=0.5, loss_length=40, duplication=0.5,
-                                      duplication_length=40, root_length=400, genes=2,
+    gen = simulate_genomes_nucleotide(sp, loss=0.5, loss_extent=40, duplication=0.5,
+                                      duplication_extent=40, root_length=400, genes=2,
                                       gene_length=90, seed=3)
     a = simulate_sequences(gen, model=hky85(kappa=2.0), intergene_model=jc69(), seed=9, parallel=1)
     b = simulate_sequences(gen, model=hky85(kappa=2.0), intergene_model=jc69(), seed=9, parallel=2)

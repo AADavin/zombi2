@@ -4,7 +4,7 @@ The ordered resolution layers **position** over the family D/T/L/O core (Chapter
 no longer a multiset of gene copies but a list of **chromosomes**, each an ordered run of oriented
 :class:`Gene`\\ s.
 
-**Every gene-level event acts on an extension** — a run of consecutive genes (the ZOMBI1 model), its
+**Every gene-level event acts on an extent** — a run of consecutive genes (the ZOMBI1 model), its
 length drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). The run
 starts at a drawn gene and goes rightwards, and where it stops is set by the chromosome's
 **topology**: a **circular** chromosome has no ends, so a run that reaches the last gene continues
@@ -41,7 +41,7 @@ from functools import cached_property
 
 import numpy as np
 
-from ..rates.distributions import Geometric, as_distribution
+from ..rates.distributions import as_extent
 from ..rates.modifiers import OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
@@ -413,17 +413,17 @@ def _pick_chromosome(rng, gen, total_chromosomes) -> tuple[int, int]:
     raise AssertionError("total_chromosomes out of sync with the genomes")  # unreachable
 
 
-# --- extension: every gene-level event acts on a run of consecutive genes (the ZOMBI1 model) -------
+# --- extent: every gene-level event acts on a run of consecutive genes (the ZOMBI1 model) ------------
 
 def _extent(rng, dist, chrom, start) -> int:
-    """A segment length in genes: sample the event's extension distribution, then clamp it to what
+    """A segment size in genes: sample the event's extent distribution, then clamp it to what
     the chromosome can carry from ``start``.
 
     A **linear** chromosome has ends, so the run stops at the last gene: ``1 <= m <= n - start``. A
     **circular** one has none, so the run wraps past position 0 and only the whole chromosome bounds
     it: ``1 <= m <= n``. That difference is the point of ``topology``. Clamping a circular run at the
     end of the gene array — as if the array boundary were a real end — would truncate every run that
-    started near it, pull the realised mean extension below the nominal one, and leave the genes
+    started near it, pull the realised mean extent below the nominal one, and leave the genes
     around position 0 covered less often than the rest."""
     m = max(1, int(dist.sample(rng)))
     n = len(chrom.genes)
@@ -451,10 +451,10 @@ def _oriented(segment, flip):
     return [Gene(g.id, g.family, -g.strand) for g in reversed(segment)] if flip else list(segment)
 
 
-# --- the mutators (position-, chromosome-, and extension-aware; each records to its log) -----------
+# --- the mutators (position-, chromosome-, and extent-aware; each records to its log) ----------------
 
 def _originate(genome, node, t, events, positions, new_gene, new_family, rng) -> None:
-    """A new gene family arises: mint a single founding gene (a family is born once — no extension) on
+    """A new gene family arises: mint a single founding gene (a family is born once — no extent) on
     a uniformly-chosen chromosome at a uniformly-chosen position (strand ``+1``), and record it."""
     chrom = genome[int(rng.integers(len(genome)))]
     fam = new_family()
@@ -682,9 +682,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion=0.0, transposition=0.0, translocation=0.0,
                              chromosomes=1, topology="circular",
                              fission=0.0, fusion=0.0, chromosome_origination=0.0, chromosome_loss=0.0,
-                             duplication_extension=None, loss_extension=None, transfer_extension=None,
-                             inversion_extension=None, transposition_extension=None,
-                             translocation_extension=None, inversion_probability=0.0,
+                             duplication_extent=None, loss_extent=None, transfer_extent=None,
+                             inversion_extent=None, transposition_extent=None,
+                             translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, family_names=None, family_speed=None,
                              max_family_size=None, seed=None,
@@ -692,13 +692,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
 
-    **Every gene-level event acts on an *extension*** — a run of consecutive genes (the ZOMBI1 model):
+    **Every gene-level event acts on an *extent*** — a run of consecutive genes (the ZOMBI1 model):
     ``duplication`` copies the run in tandem, ``loss`` removes it, ``transfer`` sends it to a
     contemporaneous recipient as a block, ``inversion`` reverses it (flipping strands), ``transposition``
     relocates it elsewhere on the same chromosome, and ``translocation`` moves it to a different
-    chromosome. The run's length is drawn per event from ``<event>_extension`` (a distribution,
+    chromosome. The run's length is drawn per event from ``<event>_extent`` (a distribution,
     default ``Geometric(mean=1)`` — usually a single gene; dial the mean up for larger blocks).
-    ``origination`` is the exception: a family is born once, a single gene, no extension.
+    ``origination`` is the exception: a family is born once, a single gene, no extent.
     ``transposition`` and ``translocation`` land the moved block inverted with probability
     ``inversion_probability``.
 
@@ -706,7 +706,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     it starts at. On a ``"circular"`` chromosome there are no ends, so a run that reaches the last
     gene continues from the first, and only the whole chromosome bounds it; on a ``"linear"`` one the
     run stops at the last gene. So on a circular chromosome every gene is covered by segmental events
-    at the same rate, and the nominal mean extension is the realised one.
+    at the same rate, and the nominal mean extent is the realised one.
 
     Scopes follow the cross-level grammar, which counts an event per the thing it acts on: the
     gene-level events — ``duplication``/``transfer``/``loss`` and the rearrangements
@@ -761,12 +761,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"support yet — only OnTime (skyline) is wired. Per-family heterogeneity and clade "
                     f"drift are later slices."
                 )
-    # per-event extension distributions (segment length in genes); default to a single gene
-    def _ext(spec):
-        return as_distribution(spec) if spec is not None else Geometric(mean=1)
-    dup_ext, los_ext, tra_ext = _ext(duplication_extension), _ext(loss_extension), _ext(transfer_extension)
-    inv_ext, trp_ext, trl_ext = (_ext(inversion_extension), _ext(transposition_extension),
-                                 _ext(translocation_extension))
+    # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
+    dup_ext, los_ext, tra_ext = (as_extent(duplication_extent), as_extent(loss_extent),
+                                 as_extent(transfer_extent))
+    inv_ext, trp_ext, trl_ext = (as_extent(inversion_extent), as_extent(transposition_extent),
+                                 as_extent(translocation_extent))
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability!r}")
     if transfer_to == "distance":
@@ -904,7 +903,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 b_fis = b_trl + r_fis
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor                    # ... and the remainder (to total) is clo
-                if r < r_dup:                            # every gene-level event acts on an extension
+                if r < r_dup:                            # every gene-level event acts on an extent
                     k, ci, j = _pick_gene(rng, gen, n)
                     chrom = gen[k][ci]
                     m = _extent(rng, dup_ext, chrom, j)

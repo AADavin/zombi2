@@ -9,6 +9,35 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **One word for how much a segmental event takes: `extent`.** The ordered resolution called it
+  `<event>_extension` and the nucleotide one `<event>_length`; both are now `<event>_extent`, in
+  Python and on the command line (`--inversion-extent`, `--loss-extent`, …). The unit is still set by
+  the resolution — genes at ordered, base pairs at nucleotide — which is what a resolution is for.
+  `--root-length` and `--gene-length` are **unchanged**: they size the initial genome, they are not
+  extents. (#246)
+- **A bare extent number is now the mean, at every resolution.** `duplication_extent=3` at the ordered
+  resolution used to mean *exactly* three genes every time and now means runs averaging three, which
+  is what the same number has always meant at the nucleotide resolution. This is a **change of
+  results**, not just of spelling: an ordered run that passed a bare number will now produce a spread
+  of segment sizes rather than one size. Write `Fixed(3)` for the old behaviour. `None` remains a
+  single unit. The new `zombi2.rates.as_extent` coerces this; `as_distribution` is untouched, since a
+  bare number is rightly a fixed value for the per-family rate specs that use it. (#246)
+- **The nucleotide resolution refuses an extent shape it cannot honour.** It draws each arc's far end
+  directly from the genome's legal breakpoints, so anything other than a geometric extent would have
+  to be re-weighted over that set rather than drawn; passing one now raises instead of being silently
+  approximated. An extent below 1 bp is also refused. (#246)
+- **The manual's title page now names the ZOMBI2 version it documents** — `Version 0.8.0 — July 2026`,
+  under the author. The version is read from the package at build time rather than typed into the
+  manual, so the book cannot claim a release the code does not have, and the build stops if it cannot
+  be read. (#246)
+
+### Fixed
+- Chapter 6 said an event whose extent the genome cannot supply "still fires, just shorter", which its
+  own table contradicts two lines above — an arc whose nearest legal breakpoint lies beyond the extent
+  you asked for comes out **longer**. The correction runs both ways, and the chapter now says so, along
+  with the one degenerate case (a replicon with no legal end in reach) where the event is skipped. (#246)
+
 ## [0.8.0] - 2026-07-26
 
 ### Changed

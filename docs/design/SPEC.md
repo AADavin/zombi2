@@ -94,6 +94,12 @@ The class names remain in the code as the field's search terms.
 
 ## 5. Rates
 
+Every event answers three questions: **how often** it starts (its rate, this section), **where** it
+starts (the copy, position or lineage it is drawn on), and **how much** it takes (its **extent**, §6).
+At Species, at Traits, and at the genome level's family resolution the third answer is always "one", so
+the rate is the whole story. Once an event acts on a **segment** the three come apart, and a process is
+only described when both the rate and the extent are given.
+
 Every event fires at a **rate**, and every rate is written the same way: a **scope** wrapped around a
 **base**, times **modifiers**.
 
@@ -201,7 +207,44 @@ named likewise; **outside the grammar** — a modifier multiplies *one* rate, so
 
 ---
 
-## 6. Canonical vocabulary 
+## 6. Extents
+
+An event that acts on a **segment** — a run of genes at the ordered resolution, an arc of DNA at the
+nucleotide one — carries an **extent**: how much it takes once it has started. An extent is written the
+way a rate is, **minus the scope**, because it is already an absolute quantity and has no "per what?"
+to answer:
+
+```
+extent  =  base × modifiers
+```
+
+- **base** — a number (the mean) or a distribution over sizes.
+- **modifiers** — the same dimensionless multipliers a rate takes (`On` / `By` / `From`, `DrivenBy`).
+
+One word, **extent**, at every resolution and for every event. Its **unit is set by the resolution** —
+genes at ordered, base pairs at nucleotide — and needs no word of its own, because fixing that unit is
+what a resolution *is*.
+
+**A rate counts starts, not hits.** A rate says how often an event *begins*. A unit lying inside a
+segment is therefore affected more often than the rate reads — about `rate × E[extent]` times — since it
+is taken whenever any event begins on a segment that covers it. The two axes **multiply**, and quoting
+one without the other describes nothing.
+
+**A modifier attaches either to the lineage or to the contents.** `OnTime`, `ByLineage`, `FromParent`
+and a trait-`DrivenBy` attach to the **lineage**: at any instant they are uniform across that lineage's
+whole genome, so they compose with any extent unchanged. `ByFamily` attaches to the **contents**, and a
+segment has several — so a content-attached modifier must weight the **segment, by what it covers**,
+never the position the event started from. Weighting the start applies a family's own rate to its
+*neighbours*, and the neighbourhood is reshuffled by every rearrangement, so the parameter would not
+even mean a fixed thing over a run.
+
+A resolution that has not wired an extent, or a modifier on one, **raises** — the §5 rule, unchanged.
+
+**Banned:** "extension" and "length" for this quantity (say **extent**); "size" for the same.
+
+---
+
+## 7. Canonical vocabulary 
 
 Left column is correct; right column is a fossil to purge.
 
@@ -214,6 +257,7 @@ Left column is correct; right column is a fossil to purge.
 | conditioning; joining; a joint model | coevolution (as a category) |
 | rate; effective rate = scope(base) × modifiers | propensity |
 | scope; "per what?" | opportunity |
+| extent — how much a segmental event takes | extension; length (for this quantity); size |
 | clock (the sequences by-lineage rate modifier only) | clock (for the count) |
 | the four levels of ZOMBI2 (the layout) | the diamond |
 | complete tree / extant | "reconstructed" (only once, as Nee's synonym); "pruned" as a noun |
@@ -224,7 +268,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ---
 
-## 7. Naming and branding
+## 8. Naming and branding
 
 - The tool is **ZOMBI2** (already consistent; do not change to "Zombi2"). The package/CLI token is
   lowercase `zombi2`.
@@ -241,7 +285,7 @@ Literature model names: deprecated in the manual (footnote at most), class names
 
 ---
 
-## 8. Adding a model
+## 9. Adding a model
 
 A new model **belongs to its level** (Species, Genomes, Sequences, Traits): a module in that level's
 package and, when it ships, a flag (or a `--model` value) on that level's command — never a new command,
