@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-26
+
 ### Added
 - `--quiet` on `zombi2 tools format`, matching the level commands — it suppresses the summary line,
   for a log file or a batch of runs. (#242)
