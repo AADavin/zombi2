@@ -186,6 +186,15 @@ def _add_quiet_arg(g) -> None:
                         "log file or a script running hundreds of replicates")
 
 
+def _add_force_arg(g) -> None:
+    """Add ``--force`` — re-run this level even though a later level built from it is already in the run
+    directory, removing that now-stale downstream output (see :func:`check_stale_downstream`)."""
+    g.add_argument("--force", action="store_true",
+                   help="re-run this level even if a later level in the run was built from its output, "
+                        "removing that now-stale downstream. Without it the command refuses, so a run's "
+                        "levels can never silently disagree")
+
+
 def _add_parallel_arg(g) -> None:
     """Add ``--parallel [N]`` — evolve the run's independent units concurrently. Opt-in: omitting it
     runs serially, the default."""
@@ -226,6 +235,136 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     path = output if flat else os.path.join(output, level)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+#: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
+#: ``genomes`` and ``traits`` (both read the species tree); ``genomes`` feeds ``sequences`` (the gene
+#: trees). Re-running a level orphans everything reachable from it here, plus any level that recorded a
+#: DrivenBy *conditioning* on it (a dynamic edge — see :func:`_conditioned_on`).
+_STRUCTURAL = {
+    "species": ("genomes", "traits"),
+    "genomes": ("sequences",),
+}
+
+#: Levels whose rates can be conditioned on another level (they take a ``DrivenBy``), so they may carry
+#: a ``conditioned_on`` record. Only ``genomes`` today — ``sequences`` and ``traits`` take no driven rate.
+_CONDITIONABLE = ("genomes",)
+
+#: Every level, in pipeline order — a stable order for listing them in a message.
+_LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
+
+#: The marker a conditioned level writes, naming the levels its rates read via ``DrivenBy`` — the
+#: dynamic half of the staleness graph (the fixed half is :data:`_STRUCTURAL`).
+_CONDITIONED_ON_FILE = "conditioned_on"
+
+
+def _level_present(run: str, level: str) -> bool:
+    """Whether ``run/<level>/`` holds a level's output — a non-empty grouped sub-directory. (The check
+    is grouped-only: ``--flat`` commingles every level in one directory, where they cannot be told
+    apart, so a ``--flat`` run is left to the user — see :func:`check_stale_downstream`.)"""
+    d = os.path.join(run, level)
+    return os.path.isdir(d) and bool(os.listdir(d))
+
+
+def _conditioned_on(run: str, level: str) -> set:
+    """The levels ``run/<level>/`` recorded a ``DrivenBy`` conditioning on (its rates read their
+    output), from the :data:`_CONDITIONED_ON_FILE` marker — empty if it conditioned on nothing."""
+    p = os.path.join(run, level, _CONDITIONED_ON_FILE)
+    if not os.path.exists(p):
+        return set()
+    with open(p) as f:
+        return {ln.strip() for ln in f if ln.strip()}
+
+
+def _drivenby_sources(spec):
+    """Every ``DrivenBy`` source in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a choice slot
+    like ``transfer_to``) or a rate carrying ``DrivenBy`` modifiers. A plain number yields none."""
+    from zombi2.rates.modifiers import DrivenBy
+    if isinstance(spec, DrivenBy):
+        yield spec.source
+    for m in getattr(spec, "modifiers", ()):
+        if isinstance(m, DrivenBy):
+            yield m.source
+
+
+def conditioned_levels(run: str, rate_specs) -> set:
+    """Which of THIS run's levels the given rate specs are conditioned on — a same-run ``DrivenBy`` file
+    maps to the level whose directory holds it (``run/traits/trait_events.tsv`` → ``traits``). A driver
+    file outside the run does not count: re-running a level of this run cannot make it stale."""
+    run_abs = os.path.abspath(run)
+    levels = set()
+    for spec in rate_specs:
+        for src in _drivenby_sources(spec):
+            if isinstance(src, str):
+                first = os.path.relpath(os.path.abspath(src), run_abs).split(os.sep)[0]
+                if first not in (os.curdir, os.pardir):    # a file under one of this run's level dirs
+                    levels.add(first)
+    return levels
+
+
+def record_conditioning(level_out: str, driver_levels) -> None:
+    """Write (or clear) the :data:`_CONDITIONED_ON_FILE` marker in a level's output directory: the
+    same-run levels its rates read via ``DrivenBy``, so the guard knows re-running one of them orphans
+    this level. Removes a stale marker when a re-run conditions on nothing."""
+    driver_levels = sorted(set(driver_levels))
+    p = os.path.join(level_out, _CONDITIONED_ON_FILE)
+    if driver_levels:
+        with open(p, "w") as f:
+            f.write("\n".join(driver_levels) + "\n")
+    elif os.path.exists(p):
+        os.remove(p)
+
+
+def _stale_downstream(args, level: str) -> list:
+    """The downstream levels already present that re-running ``level`` would orphan — everything
+    reachable from it by a 'reads its output' edge (the fixed pipeline :data:`_STRUCTURAL` plus recorded
+    ``DrivenBy`` conditioning), listed in pipeline order. Empty under ``--flat`` (not guarded)."""
+    if getattr(args, "flat", False):
+        return []
+    run = args.run
+    edges = {k: set(v) for k, v in _STRUCTURAL.items()}
+    for consumer in _CONDITIONABLE:                          # a conditioning edge: driver → consumer
+        for driver in _conditioned_on(run, consumer):
+            edges.setdefault(driver, set()).add(consumer)
+    seen, stack = set(), list(edges.get(level, ()))
+    while stack:
+        d = stack.pop()
+        if d not in seen:
+            seen.add(d)
+            stack.extend(edges.get(d, ()))
+    return [d for d in _LEVEL_ORDER if d in seen and _level_present(run, d)]
+
+
+def check_stale_downstream(args, level: str) -> None:
+    """Refuse, up front, to re-run ``level`` when the run directory already holds a later level built
+    from it: re-running would leave that downstream output silently mismatched with the new one. The
+    normal forward pipeline never trips this (each level is run once, downstream not yet there); only a
+    re-run does. ``--force`` allows it — the orphaned downstream is removed afterwards by
+    :func:`clear_stale_downstream`, so the run can never end up a stale mix. Raises ``ValueError`` (the
+    CLI reports it as ``zombi2: error: …``); does nothing under ``--flat`` (see :func:`_level_present`)."""
+    if getattr(args, "force", False):
+        return
+    present = _stale_downstream(args, level)
+    if present:
+        names = ", ".join(present)
+        raise ValueError(
+            f"{args.run}/ already holds a downstream {names} run built from this {level}; re-running "
+            f"{level} would leave {'it' if len(present) == 1 else 'them'} stale. Write to a fresh "
+            f"directory, or pass --force to re-run {level} and remove the now-stale {names}.")
+
+
+def clear_stale_downstream(args, level: str) -> None:
+    """With ``--force``, remove the downstream levels re-running ``level`` has now orphaned, so the run
+    is left consistent (this level fresh, nothing stale beneath it). Called after the level's own run
+    succeeds, so a failed re-run never deletes the old downstream. A no-op without ``--force`` or under
+    ``--flat``, and quiet unless it actually removed something."""
+    if not getattr(args, "force", False):
+        return
+    present = _stale_downstream(args, level)
+    for d in present:
+        shutil.rmtree(os.path.join(args.run, d))
+    if present and not getattr(args, "quiet", False):
+        print(f"note: --force removed the now-stale {', '.join(present)} (rebuilt from the new {level})")
 
 
 def _run_dir(s: str) -> str:

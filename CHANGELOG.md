@@ -14,6 +14,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Added
 - `--quiet` on `zombi2 tools format`, matching the level commands — it suppresses the summary line,
   for a log file or a batch of runs. (#242)
+- **Cross-level staleness guard.** A level refuses to re-run in place when a later level built from it
+  is already in the run directory — re-running would leave that downstream output silently mismatched.
+  This covers both the pipeline chain (re-running `genomes` would orphan the `sequences` under it) and
+  `DrivenBy` **conditioning** (re-running a `traits` run that a `genomes` rate was conditioned on orphans
+  that genomes, and the sequences beneath it — the dependency is recorded in a small `conditioned_on`
+  marker). `--force` re-runs anyway and removes the now-stale downstream, so a run's levels can never
+  quietly disagree. The forward pipeline is unaffected (each level is run once); applies to the default
+  grouped layout — `--flat` commingles the levels and is left to the user. (#243)
 
 ### Changed
 - **Gene-copy ids are now written `g<id>` in every genome table** — `genomes.tsv`, `genome_events.tsv`,
@@ -21,11 +29,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   This is the same token the gene-tree Newick leaves, the alignment FASTA headers and the homology
   tables already use, so a gene copy now joins across every file of a run with no translation step
   (previously the tables held a bare integer while the trees/alignments held `g<id>`). The column
-  names are unchanged; this is a breaking change to the *values* those columns hold.
+  names are unchanged; this is a breaking change to the *values* those columns hold. (#242)
 - **A joint (`zombi2 joint`) driver mapping that names a state outside the trait's declared alphabet is
   now refused.** A key that can never occur — a typo such as `{"caev": 4.0}` for a cave/surface trait —
   is caught up front instead of silently applying to nothing. The conditioned (file-driven) path is
-  unchanged: it still refuses only a mapping that matches *none* of the driver's observed states.
+  unchanged: it still refuses only a mapping that matches *none* of the driver's observed states. (#242)
 
 ### Fixed
 - The run-completion line no longer doubles a trailing slash: a directory given as `out/` (as the

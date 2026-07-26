@@ -1270,3 +1270,115 @@ def test_tools_format_quiet_suppresses_the_summary(tmp_path, capsys):
     assert capsys.readouterr().out == ""                  # --quiet: no summary line
     assert main(["tools", "format", str(run)]) == 0       # without it, the summary prints
     assert "wrote" in capsys.readouterr().out
+
+
+# ── the cross-level staleness guard ─────────────────────────────────────────────────
+
+def _pipeline(run, seed=1):
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+          "--seed", str(seed), "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.4",
+          "--initial-families", "5", "--seed", str(seed), "--quiet"])
+    main(["sequences", str(run), "--model", "jc69", "--length", "20", "--seed", str(seed), "--quiet"])
+
+
+def test_rerunning_an_upstream_level_refuses_when_a_downstream_exists(tmp_path, capsys):
+    run = tmp_path / "run"
+    _pipeline(run)
+    capsys.readouterr()
+    # re-running genomes would leave the sequences built from it mismatched → refuse, delete nothing
+    rc = main(["genomes", str(run), "--duplication", "0.3", "--loss", "0.1", "--origination", "0.4",
+               "--initial-families", "5", "--seed", "9", "--quiet"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "zombi2: error:" in err and "sequences" in err and "--force" in err
+    assert (run / "sequences").exists()                  # a refusal is non-destructive
+
+
+def test_force_reruns_the_level_and_removes_the_stale_downstream(tmp_path, capsys):
+    run = tmp_path / "run"
+    _pipeline(run)
+    capsys.readouterr()
+    rc = main(["genomes", str(run), "--duplication", "0.3", "--loss", "0.1", "--origination", "0.4",
+               "--initial-families", "5", "--seed", "9", "--force", "--quiet"])
+    assert rc == 0
+    assert not (run / "sequences").exists()              # the now-stale downstream is cleared
+    assert (run / "genomes").exists()                    # the level itself was rebuilt
+
+
+def test_forward_pipeline_and_last_level_rerun_are_not_blocked(tmp_path):
+    run = tmp_path / "run"
+    _pipeline(run)                                        # species → genomes → sequences, all fine
+    # re-running the LAST level (nothing downstream) is safe — e.g. a different substitution model
+    assert main(["sequences", str(run), "--model", "k80", "--length", "20", "--seed", "2",
+                 "--quiet"]) == 0
+
+
+def test_flat_layout_is_left_to_the_user(tmp_path):
+    run = tmp_path / "run"
+    for cmd in (["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed",
+                 "1", "--quiet", "--flat"],
+                ["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.4",
+                 "--initial-families", "5", "--seed", "1", "--quiet", "--flat"]):
+        main(cmd)
+    # --flat commingles the levels in one directory, so there is no per-level folder to guard on:
+    # re-running is not blocked (documented limitation)
+    assert main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed",
+                 "2", "--quiet", "--flat"]) == 0
+
+
+# ── the staleness guard: DrivenBy conditioning edges ────────────────────────────────
+
+def _conditioned_pipeline(run):
+    """species -> discrete trait -> genomes with a loss *driven by* that trait -> sequences."""
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--origination", "0.5", "--seed", "3", "--quiet",
+          "--loss", f"0.25 * DrivenBy('{run}/traits/trait_events.tsv', {{'cave': 4.0}})"])
+    main(["sequences", str(run), "--model", "jc69", "--length", "20", "--seed", "1", "--quiet"])
+
+
+def test_conditioning_records_which_level_drove_a_rate(tmp_path):
+    run = tmp_path / "run"
+    _conditioned_pipeline(run)
+    assert (run / "genomes" / "conditioned_on").read_text().split() == ["traits"]
+
+
+def test_rerunning_a_trait_a_genome_was_conditioned_on_refuses(tmp_path, capsys):
+    run = tmp_path / "run"
+    _conditioned_pipeline(run)
+    capsys.readouterr()
+    rc = main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.9",
+               "--seed", "2", "--quiet"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    # the cascade: the conditioned genomes AND the sequences beneath it are both named, nothing deleted
+    assert "zombi2: error:" in err and "genomes" in err and "sequences" in err
+    assert (run / "genomes").exists() and (run / "sequences").exists()
+
+
+def test_force_reruns_the_trait_and_clears_its_conditioned_downstream(tmp_path, capsys):
+    run = tmp_path / "run"
+    _conditioned_pipeline(run)
+    capsys.readouterr()
+    rc = main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.9",
+               "--seed", "2", "--force", "--quiet"])
+    assert rc == 0
+    assert not (run / "genomes").exists() and not (run / "sequences").exists()
+    assert (run / "traits").exists()
+
+
+def test_an_unconditioned_genome_leaves_the_trait_free_to_rerun(tmp_path):
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
+          "--seed", "3", "--quiet"])                      # NOT conditioned on the trait
+    assert not (run / "genomes" / "conditioned_on").exists()
+    # trait and genomes are independent here, so re-running the trait is allowed
+    assert main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch",
+                 "0.9", "--seed", "2", "--quiet"]) == 0

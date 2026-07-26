@@ -117,7 +117,7 @@ A rate flag takes a rate **written exactly as you would write it in Python** —
 zombi2 species out/ --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --total-time 5 --seed 1
 ```
 
-Every command takes one positional argument, the **run directory**, and it is both where that command writes and where it reads the level before it. So a pipeline is the same directory named once per command, and nothing has to be passed between them by hand. `--from` overrides the reading half, for a tree that came from elsewhere or a run you would rather not write into; a `--params` TOML file can hold the settings for a whole pipeline at once. On the clean core the CLI covers all four levels — **species**, **genomes**, **sequences**, **traits**; the coupled models are run from Python until their commands land.
+Every command takes one positional argument, the **run directory**, and it is both where that command writes and where it reads the level before it. So a pipeline is the same directory named once per command, and nothing has to be passed between them by hand. `--from` overrides the reading half, for a tree that came from elsewhere or a run you would rather not write into; a `--params` TOML file can hold the settings for a whole pipeline at once. Because every level shares the one directory, a command refuses to re-run a level in place when a later level was built from it — re-running would leave that later output out of step — unless you pass `--force`, which re-runs the level and removes the now-stale downstream. On the clean core the CLI covers all four levels — **species**, **genomes**, **sequences**, **traits**; the coupled models are run from Python until their commands land.
 
 ## Output in ZOMBI2
 
