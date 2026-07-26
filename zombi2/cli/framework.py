@@ -186,6 +186,15 @@ def _add_quiet_arg(g) -> None:
                         "log file or a script running hundreds of replicates")
 
 
+def _add_force_arg(g) -> None:
+    """Add ``--force`` — re-run this level even though a later level built from it is already in the run
+    directory, removing that now-stale downstream output (see :func:`check_stale_downstream`)."""
+    g.add_argument("--force", action="store_true",
+                   help="re-run this level even if a later level in the run was built from its output, "
+                        "removing that now-stale downstream. Without it the command refuses, so a run's "
+                        "levels can never silently disagree")
+
+
 def _add_parallel_arg(g) -> None:
     """Add ``--parallel [N]`` — evolve the run's independent units concurrently. Opt-in: omitting it
     runs serially, the default."""
@@ -226,6 +235,64 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     path = output if flat else os.path.join(output, level)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+#: Which later levels read what a level wrote, so re-running that level in place would leave them
+#: silently mismatched. The run pipeline is species → genomes → sequences; traits branches off the
+#: species tree. Only the levels that *have* a downstream appear here (sequences and traits are leaves).
+#: Keyed and valued by the grouped sub-directory name, which is also what gets removed on ``--force``.
+_DOWNSTREAM = {
+    "species": ("genomes", "sequences", "traits"),
+    "genomes": ("sequences",),
+}
+
+
+def _level_present(run: str, level: str) -> bool:
+    """Whether ``run/<level>/`` holds a level's output — a non-empty grouped sub-directory. (The check
+    is grouped-only: ``--flat`` commingles every level in one directory, where they cannot be told
+    apart, so a ``--flat`` run is left to the user — see :func:`check_stale_downstream`.)"""
+    d = os.path.join(run, level)
+    return os.path.isdir(d) and bool(os.listdir(d))
+
+
+def _stale_downstream(args, level: str) -> list[str]:
+    """The downstream levels already present in the run — the ones re-running ``level`` would orphan.
+    Empty under ``--flat`` (not guarded) or when ``level`` has no downstream in the run yet."""
+    if getattr(args, "flat", False):
+        return []
+    return [d for d in _DOWNSTREAM.get(level, ()) if _level_present(args.run, d)]
+
+
+def check_stale_downstream(args, level: str) -> None:
+    """Refuse, up front, to re-run ``level`` when the run directory already holds a later level built
+    from it: re-running would leave that downstream output silently mismatched with the new one. The
+    normal forward pipeline never trips this (each level is run once, downstream not yet there); only a
+    re-run does. ``--force`` allows it — the orphaned downstream is removed afterwards by
+    :func:`clear_stale_downstream`, so the run can never end up a stale mix. Raises ``ValueError`` (the
+    CLI reports it as ``zombi2: error: …``); does nothing under ``--flat`` (see :func:`_level_present`)."""
+    if getattr(args, "force", False):
+        return
+    present = _stale_downstream(args, level)
+    if present:
+        names = ", ".join(present)
+        raise ValueError(
+            f"{args.run}/ already holds a downstream {names} run built from this {level}; re-running "
+            f"{level} would leave {'it' if len(present) == 1 else 'them'} stale. Write to a fresh "
+            f"directory, or pass --force to re-run {level} and remove the now-stale {names}.")
+
+
+def clear_stale_downstream(args, level: str) -> None:
+    """With ``--force``, remove the downstream levels re-running ``level`` has now orphaned, so the run
+    is left consistent (this level fresh, nothing stale beneath it). Called after the level's own run
+    succeeds, so a failed re-run never deletes the old downstream. A no-op without ``--force`` or under
+    ``--flat``, and quiet unless it actually removed something."""
+    if not getattr(args, "force", False):
+        return
+    present = _stale_downstream(args, level)
+    for d in present:
+        shutil.rmtree(os.path.join(args.run, d))
+    if present and not getattr(args, "quiet", False):
+        print(f"note: --force removed the now-stale {', '.join(present)} (rebuilt from the new {level})")
 
 
 def _run_dir(s: str) -> str:

@@ -12,6 +12,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Added
 - `--quiet` on `zombi2 tools format`, matching the level commands — it suppresses the summary line,
   for a log file or a batch of runs. (#242)
+- **Cross-level staleness guard.** A level (`species`, `genomes`) refuses to re-run in place when a
+  later level built from it is already in the run directory — re-running would leave that downstream
+  output silently mismatched. `--force` re-runs anyway and removes the now-stale downstream, so a run's
+  levels can never quietly disagree. The normal forward pipeline is unaffected (each level is run once);
+  applies to the default grouped layout — `--flat` commingles the levels and is left to the user. (#242)
 
 ### Changed
 - **Gene-copy ids are now written `g<id>` in every genome table** — `genomes.tsv`, `genome_events.tsv`,

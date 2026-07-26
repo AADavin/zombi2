@@ -19,9 +19,10 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_unordered)
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
-                                  _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
-                                  _write_params_log, default_outputs, level_dir, parallel_from_args,
+from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
+                                  _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
+                                  _read_tip_fates, _write_params_log, check_stale_downstream,
+                                  clear_stale_downstream, default_outputs, level_dir, parallel_from_args,
                                   resolve_tree, sibling_fates)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
@@ -198,6 +199,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "files are the same and the disk is the handoff to the sequence level (gene "
                         "trees are grouped under gene_trees/ regardless of --flat)")
     _add_quiet_arg(g)
+    _add_force_arg(g)
 
 
 def _transfer_to(text: str):
@@ -281,6 +283,9 @@ def run(args, parser):
             parser.error(f"--write {' '.join(bad)} not available for --resolution "
                          f"{args.resolution}; choose from: {', '.join(vocab)}")
 
+    # refuse up front if re-running would orphan a later level already in the run (unless --force)
+    check_stale_downstream(args, "genomes")
+
     tree_path = resolve_tree(args.source or args.run)
     # an explicit --tip-fates wins; otherwise pick up the run's own species_fates.tsv so extinct and
     # unsampled tips are read from the record rather than guessed from tip depth
@@ -301,6 +306,7 @@ def run(args, parser):
                       chromosome_loss=args.chromosome_loss,
                       inversion_probability=args.inversion_probability)
 
+    clear_stale_downstream(args, "genomes")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
     streaming = args.stream and args.resolution == "unordered"

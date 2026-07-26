@@ -1270,3 +1270,58 @@ def test_tools_format_quiet_suppresses_the_summary(tmp_path, capsys):
     assert capsys.readouterr().out == ""                  # --quiet: no summary line
     assert main(["tools", "format", str(run)]) == 0       # without it, the summary prints
     assert "wrote" in capsys.readouterr().out
+
+
+# ── the cross-level staleness guard ─────────────────────────────────────────────────
+
+def _pipeline(run, seed=1):
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+          "--seed", str(seed), "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.4",
+          "--initial-families", "5", "--seed", str(seed), "--quiet"])
+    main(["sequences", str(run), "--model", "jc69", "--length", "20", "--seed", str(seed), "--quiet"])
+
+
+def test_rerunning_an_upstream_level_refuses_when_a_downstream_exists(tmp_path, capsys):
+    run = tmp_path / "run"
+    _pipeline(run)
+    capsys.readouterr()
+    # re-running genomes would leave the sequences built from it mismatched → refuse, delete nothing
+    rc = main(["genomes", str(run), "--duplication", "0.3", "--loss", "0.1", "--origination", "0.4",
+               "--initial-families", "5", "--seed", "9", "--quiet"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "zombi2: error:" in err and "sequences" in err and "--force" in err
+    assert (run / "sequences").exists()                  # a refusal is non-destructive
+
+
+def test_force_reruns_the_level_and_removes_the_stale_downstream(tmp_path, capsys):
+    run = tmp_path / "run"
+    _pipeline(run)
+    capsys.readouterr()
+    rc = main(["genomes", str(run), "--duplication", "0.3", "--loss", "0.1", "--origination", "0.4",
+               "--initial-families", "5", "--seed", "9", "--force", "--quiet"])
+    assert rc == 0
+    assert not (run / "sequences").exists()              # the now-stale downstream is cleared
+    assert (run / "genomes").exists()                    # the level itself was rebuilt
+
+
+def test_forward_pipeline_and_last_level_rerun_are_not_blocked(tmp_path):
+    run = tmp_path / "run"
+    _pipeline(run)                                        # species → genomes → sequences, all fine
+    # re-running the LAST level (nothing downstream) is safe — e.g. a different substitution model
+    assert main(["sequences", str(run), "--model", "k80", "--length", "20", "--seed", "2",
+                 "--quiet"]) == 0
+
+
+def test_flat_layout_is_left_to_the_user(tmp_path):
+    run = tmp_path / "run"
+    for cmd in (["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed",
+                 "1", "--quiet", "--flat"],
+                ["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.4",
+                 "--initial-families", "5", "--seed", "1", "--quiet", "--flat"]):
+        main(cmd)
+    # --flat commingles the levels in one directory, so there is no per-level folder to guard on:
+    # re-running is not blocked (documented limitation)
+    assert main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed",
+                 "2", "--quiet", "--flat"]) == 0
