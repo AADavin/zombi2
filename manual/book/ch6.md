@@ -79,7 +79,7 @@ The one case that yields no event is degenerate — a replicon with no legal end
 
 The chromosome tier below is the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage.
 
-Rates here are plain numbers. The `scope(base) × modifiers` grammar of the other levels is not yet wired at this resolution, so an `OnTime` skyline is not available.
+Rates here take the same written form as everywhere else — `scope(base) × modifiers` — and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = 5.0 * OnTime({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it. `DrivenBy` — a rate conditioned on a trait, which is what genome reduction under a host-restricted lifestyle needs — is the next slice, and is refused here rather than silently ignored.
 
 ## The initial genome
 

@@ -313,7 +313,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
     (["--replacement"], "nucleotide transfers are additive"),
-    (["--loss", "0.2 * OnTime({0: 1.0, 3: 2.0})"], "nucleotide takes constant rates only"),
+    (["--loss", "0.2 * DrivenBy('t.tsv', {'a': 2.0})"], "nucleotide wires OnTime only, not DrivenBy"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
     (["--write", "profiles"], "the nucleotide resolution has no profiles"),
@@ -322,6 +322,15 @@ def test_genomes_nucleotide_rejects_foreign_options(tmp_path, tree_file, argv, w
     with pytest.raises(SystemExit) as e:
         main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--resolution", "nucleotide", *argv, "--flat"])
     assert e.value.code == 2, why
+
+
+def test_genomes_nucleotide_accepts_a_skyline(tmp_path, tree_file):
+    """The nucleotide resolution speaks the rate grammar now, so a skyline is written the same way
+    there as anywhere else — one notation across the levels, not a per-resolution dialect."""
+    rc = main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--resolution", "nucleotide",
+               "--root-length", "800", "--genes", "2",
+               "--inversion", "3.0 * OnTime({0: 1.0, 1.0: 0.0})", "--seed", "1", "--flat", "--quiet"])
+    assert rc == 0
 
 
 @pytest.mark.parametrize("resolution", ["family", "ordered"])
