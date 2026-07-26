@@ -57,9 +57,9 @@ _STRUCTURED_ONLY = (
 _NUCLEOTIDE_ONLY = (
     ("root_length", 1000), ("genes", 0), ("gene_length", 100), ("gff", None),
     ("trim_overlaps", False),
-    ("inversion_length", 50.0), ("transposition_length", 50.0), ("translocation_length", 50.0),
-    ("loss_length", 50.0), ("duplication_length", 50.0), ("transfer_length", 50.0),
-    ("origination_length", 50.0),
+    ("inversion_extent", 50.0), ("transposition_extent", 50.0), ("translocation_extent", 50.0),
+    ("loss_extent", 50.0), ("duplication_extent", 50.0), ("transfer_extent", 50.0),
+    ("origination_extent", 50.0),
 )
 
 # A genome the command starts with. The library function defaults to 0 — an explicit caller says what
@@ -169,9 +169,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                        ("translocation", "moved to another chromosome"), ("loss", "deleted"),
                        ("duplication", "copied in tandem"), ("transfer", "copied to a recipient"),
                        ("origination", "laid down as new material")):
-        g.add_argument(f"--{knob}-length", type=float, default=50.0, metavar="BP",
-                       dest=f"{knob}_length",
-                       help=f"mean bp {what} per event (geometric, default 50)")
+        g.add_argument(f"--{knob}-extent", type=float, default=50.0, metavar="BP",
+                       dest=f"{knob}_extent",
+                       help=f"mean bp {what} per event — the extent (geometric, default 50)")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
@@ -321,11 +321,11 @@ def run(args, parser):
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
             gff=args.gff, fasta=args.fasta, trim_overlaps=args.trim_overlaps,
-            inversion_length=args.inversion_length,
-            transposition_length=args.transposition_length,
-            translocation_length=args.translocation_length, loss_length=args.loss_length,
-            duplication_length=args.duplication_length, transfer_length=args.transfer_length,
-            origination_length=args.origination_length, progress=not args.quiet,
+            inversion_extent=args.inversion_extent,
+            transposition_extent=args.transposition_extent,
+            translocation_extent=args.translocation_extent, loss_extent=args.loss_extent,
+            duplication_extent=args.duplication_extent, transfer_extent=args.transfer_extent,
+            origination_extent=args.origination_extent, progress=not args.quiet,
             **structured, **common)
     elif streaming:
         # each family written straight to disk (no whole run in memory) — the engine writes `out`

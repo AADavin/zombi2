@@ -100,8 +100,8 @@ def test_shared_params_are_a_subset_of_the_ordered_signature():
     assert ordered - shared == {                            # ordered's own additions:
         "chromosomes", "topology", "inversion", "transposition", "translocation",
         "fission", "fusion", "chromosome_origination", "chromosome_loss", "inversion_probability",
-        "duplication_extension", "loss_extension", "transfer_extension",
-        "inversion_extension", "transposition_extension", "translocation_extension"}
+        "duplication_extent", "loss_extent", "transfer_extent",
+        "inversion_extent", "transposition_extent", "translocation_extent"}
 
 
 # --- the shared gene genealogy still holds -------------------------------------------------------
@@ -512,12 +512,12 @@ def test_translocate_is_a_noop_with_a_single_chromosome():
 
 def test_all_three_rearrangements_fire_and_are_typed():
     _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3,
-                transposition_extension=Geometric(mean=3), translocation_extension=Geometric(mean=2))
+                transposition_extent=Geometric(mean=3), translocation_extent=Geometric(mean=2))
     kinds = {type(x).__name__ for x in r.rearrangements}
     assert {"Inversion", "Transposition", "Translocation"} <= kinds
 
 
-def test_default_extension_is_a_single_gene_and_scales_up():
+def test_default_extent_is_a_single_gene_and_scales_up():
     # default Geometric(mean=1): every inversion spans exactly one gene
     _, small = _run(seed=4, inversion=2.0, transposition=0.0, translocation=0.0,
                     duplication=0.0, transfer=0.0, loss=0.0, origination=0.0)
@@ -525,13 +525,13 @@ def test_default_extension_is_a_single_gene_and_scales_up():
     # dial the extension up: longer blocks appear
     _, big = _run(seed=4, inversion=2.0, transposition=0.0, translocation=0.0,
                   duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
-                  inversion_extension=Geometric(mean=6))
+                  inversion_extent=Geometric(mean=6))
     assert max(x.length for x in big.rearrangements) > 1
 
 
 def test_inversion_probability_governs_flips():
     _, always = _run(seed=2, transposition=1.0, translocation=1.0, inversion=0.0, duplication=0.3,
-                     transposition_extension=Geometric(mean=3), translocation_extension=Geometric(mean=3),
+                     transposition_extent=Geometric(mean=3), translocation_extent=Geometric(mean=3),
                      inversion_probability=1.0)
     moves = [x for x in always.rearrangements if isinstance(x, (Transposition, Translocation))]
     assert moves and all(x.flipped for x in moves)
@@ -547,8 +547,8 @@ def test_strong_invariant_holds_under_segmental_everything():
     for seed in range(3):
         sp, r = _run(seed=seed, n_extant=8, duplication=0.3, loss=0.4, transfer=0.25, inversion=0.2,
                      transposition=0.2, translocation=0.2, inversion_probability=0.5,
-                     duplication_extension=Geometric(mean=3), loss_extension=Geometric(mean=3),
-                     transfer_extension=Geometric(mean=2))
+                     duplication_extent=Geometric(mean=3), loss_extent=Geometric(mean=3),
+                     transfer_extent=Geometric(mean=2))
         extant = {n.id for n in sp.complete_tree.extant()}
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
@@ -590,7 +590,7 @@ def _inversion_coverage(topology, n=8, mean=4.0, total_time=3000.0, seed=1):
     all run long and the tally is comparable across them. Returns ``(result, coverage per position)``."""
     r = simulate_genomes_ordered(_lone_branch(total_time), inversion=1.0, chromosomes=1,
                                  topology=topology, initial_families=n,
-                                 inversion_extension=Geometric(mean=mean), seed=seed)
+                                 inversion_extent=Geometric(mean=mean), seed=seed)
     cov = [0] * n
     for x in r.rearrangements:
         for k in range(x.length):
@@ -668,7 +668,7 @@ def test_a_whole_chromosome_loss_empties_it_but_leaves_the_chromosome():
     # a run covering every gene is legal. The chromosome survives as an empty replicon, exactly as a
     # de-novo one starts out; only chromosome_loss takes a chromosome out of the karyotype.
     r = simulate_genomes_ordered(_lone_branch(5.0), loss=2.0, chromosomes=2, initial_families=6,
-                                 loss_extension=Fixed(50), seed=1)
+                                 loss_extent=Fixed(50), seed=1)
     assert len(r.genomes[0]) == 2                                # both chromosomes still there
     assert sum(len(ch.genes) for ch in r.genomes[0]) == 0        # and both empty
     assert sorted(e.copy for e in r.events if e.kind == "loss") == list(range(6))
@@ -677,7 +677,7 @@ def test_a_whole_chromosome_loss_empties_it_but_leaves_the_chromosome():
 def test_a_linear_chromosome_still_clamps_at_its_end():
     r = simulate_genomes_ordered(_lone_branch(200.0), inversion=1.0, chromosomes=1,
                                  topology="linear", initial_families=8,
-                                 inversion_extension=Geometric(mean=6), seed=1)
+                                 inversion_extent=Geometric(mean=6), seed=1)
     assert r.rearrangements
     assert all(x.start + x.length <= 8 for x in r.rearrangements)
 
@@ -685,7 +685,7 @@ def test_a_linear_chromosome_still_clamps_at_its_end():
 def test_a_circular_chromosome_really_wraps():
     r = simulate_genomes_ordered(_lone_branch(200.0), inversion=1.0, chromosomes=1,
                                  topology="circular", initial_families=8,
-                                 inversion_extension=Geometric(mean=6), seed=1)
+                                 inversion_extent=Geometric(mean=6), seed=1)
     assert any(x.start + x.length > 8 for x in r.rearrangements)  # runs cross position 0
     assert all(x.length <= 8 for x in r.rearrangements)           # never more than the whole ring
 
@@ -703,7 +703,7 @@ def test_segmental_events_cover_a_circle_evenly():
     assert lin[0] < 0.5 * lin[-1]
 
 
-def test_realised_extension_on_a_circle_matches_the_nominal_one():
+def test_realised_extent_on_a_circle_matches_the_nominal_one():
     # with no end to truncate them, runs on a circle realise E[min(M, n)] — everything the extension
     # distribution asks for, short only of what the chromosome cannot hold
     q = 1 - 1 / 4.0                                   # M ~ Geometric(mean=4); E[min(M, 8)] = sum q^k
@@ -720,7 +720,7 @@ def test_realised_extension_on_a_circle_matches_the_nominal_one():
 def test_the_strong_invariant_survives_wrapped_runs():
     # runs longer than the chromosome, on circles, so most events cross the origin: the gene
     # genealogy must still account for every surviving copy
-    exts = {f"{e}_extension": Geometric(mean=6) for e in
+    exts = {f"{e}_extent": Geometric(mean=6) for e in
             ("duplication", "loss", "transfer", "inversion", "transposition", "translocation")}
     for seed in range(3):
         sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=seed)
@@ -735,7 +735,7 @@ def test_the_strong_invariant_survives_wrapped_runs():
 
 
 def test_wrapped_runs_stay_deterministic_given_a_seed():
-    exts = {f"{e}_extension": Geometric(mean=5) for e in
+    exts = {f"{e}_extent": Geometric(mean=5) for e in
             ("duplication", "loss", "transfer", "inversion", "transposition", "translocation")}
     kw = dict(duplication=0.3, loss=0.35, transfer=0.2, inversion=0.4, transposition=0.3,
               translocation=0.3, chromosomes=3, initial_families=9, topology="circular",

@@ -27,8 +27,8 @@ def _run(*, seed=1, n_extant=6, **kw):
     copy number changing, so the leaves' blocks are neither aligned with the root partition nor all on
     the forward strand."""
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=seed)
-    params = dict(inversion=2.0, inversion_length=80, loss=0.5, loss_length=40, duplication=0.5,
-                  duplication_length=40, root_length=600, genes=3, gene_length=90, seed=seed)
+    params = dict(inversion=2.0, inversion_extent=80, loss=0.5, loss_extent=40, duplication=0.5,
+                  duplication_extent=40, root_length=600, genes=3, gene_length=90, seed=seed)
     params.update(kw)
     return simulate_genomes_nucleotide(sp, **params)
 
@@ -184,9 +184,9 @@ def test_the_rebuilt_root_is_the_genome_the_gff_seeded(tmp_path):
                    "c\tt\tgene\t1001\t1300\t.\t-\t.\tID=recA\n"
                    "c\tt\tgene\t2001\t2200\t.\t+\t.\tID=gyrB\n")
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
-    g = simulate_genomes_nucleotide(sp, gff=gff, inversion=2.0, inversion_length=400,
-                                    duplication=0.4, duplication_length=300, loss=0.4,
-                                    loss_length=300, seed=1)
+    g = simulate_genomes_nucleotide(sp, gff=gff, inversion=2.0, inversion_extent=400,
+                                    duplication=0.4, duplication_extent=300, loss=0.4,
+                                    loss_extent=300, seed=1)
     root = g.complete_tree.root
     assert not [x for x in g.rearrangements if x.lineage == root], \
         "this seed rearranges on the root branch, so n0 is no longer the seeded genome"
@@ -283,7 +283,7 @@ def test_a_seeded_gene_always_has_a_block_however_hard_the_run():
 def test_block_of_says_so_when_a_gene_left_nothing_behind():
     # a de-novo gene born and lost on the same branch is carried by no genome in the run at all, so
     # nothing was reconstructed for it. That is the one way a declared family has no block.
-    genomes = _run(seed=2, loss=4.0, loss_length=60, origination=3.0, origination_length=50,
+    genomes = _run(seed=2, loss=4.0, loss_extent=60, origination=3.0, origination_extent=50,
                    n_extant=8)
     gone = sorted(set(genomes.gene_spans) - set(genomes.gene_trees))
     assert gone, "every declared gene left a block in this run — pick another seed"
@@ -300,9 +300,9 @@ def _busy(seed=2, n_extant=10):
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=n_extant, seed=seed)
     return simulate_genomes_nucleotide(
         sp.complete_tree, chromosomes=[(900, "circular"), (400, "linear")], genes=6, gene_length=60,
-        inversion=3.0, inversion_length=120, translocation=1.0, transposition=1.0,
-        duplication=1.5, duplication_length=100, loss=1.5, loss_length=100,
-        transfer=1.0, transfer_length=100, origination=0.3, fission=0.1, fusion=0.1, seed=seed)
+        inversion=3.0, inversion_extent=120, translocation=1.0, transposition=1.0,
+        duplication=1.5, duplication_extent=100, loss=1.5, loss_extent=100,
+        transfer=1.0, transfer_extent=100, origination=0.3, fission=0.1, fusion=0.1, seed=seed)
 
 
 def test_every_rebuildable_genome_is_exact_under_every_event_kind():
@@ -434,7 +434,7 @@ def _seeded(tmp_path, root_seq, *, seed=4, **kw):
         "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\nc\tt\tgene\t61\t90\t.\t-\t.\tID=b\n")
     (tmp_path / "g.fasta").write_text(f">c\n{root_seq}\n")
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=seed)
-    params = dict(inversion=2.0, inversion_length=20, duplication=0.6, loss=0.6, transfer=0.6, seed=seed)
+    params = dict(inversion=2.0, inversion_extent=20, duplication=0.6, loss=0.6, transfer=0.6, seed=seed)
     params.update(kw)
     return simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "g.fasta", **params)
 
@@ -485,7 +485,7 @@ def test_a_homopolymer_inverts_to_its_complement(tmp_path):
 def test_a_de_novo_gene_falls_back_to_the_model(tmp_path):
     # origination mints a fresh source with no supplied DNA, so its block draws from the model — the
     # seeded sources stay exact, the de-novo one is whatever the model gives
-    genomes = _seeded(tmp_path, "A" * 100, seed=3, origination=2.0, origination_length=20)
+    genomes = _seeded(tmp_path, "A" * 100, seed=3, origination=2.0, origination_extent=20)
     denovo = {i for i, (src, _a, _b) in enumerate(genomes.root_blocks) if src not in genomes.initial_sequence}
     assert denovo, "no de-novo source in this run — pick another seed"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
