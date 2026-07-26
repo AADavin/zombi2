@@ -44,7 +44,7 @@ def simulate_signed_order(tree, namemap, *, inversion: float, mean_length: float
     inv_genome = inversion * n_total                        # per-gene rate -> genome-wide rate
     inv_len_bp = max(1, int(round(mean_length * bp_per_gene)))
     res = genomes.simulate_genomes_nucleotide(
-        tree, inversion=inv_genome, inversion_length=inv_len_bp,
+        tree, inversion=inv_genome, inversion_extent=inv_len_bp,
         genes=genes_per_chrom, gene_length=GENE_LENGTH, chromosomes=n_chrom,
         root_length=root_length, topology="linear", seed=seed)
     out: dict[str, list[tuple]] = {}

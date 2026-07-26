@@ -15,6 +15,14 @@ BIB    := ../docs/references.bib
 IMG    := ../figures/svg
 DATE   := $(shell date '+%B %Y')
 
+# The ZOMBI2 release this manual documents, shown on the title page. Read from the package rather
+# than typed here, so the book can never claim a version the code does not have. Empty means the
+# read failed (a moved file, a changed line) — stop rather than print "Version  —".
+VERSION := $(shell sed -n 's/^__version__ = "\(.*\)"/\1/p' ../zombi2/__init__.py)
+ifeq ($(strip $(VERSION)),)
+$(error could not read __version__ from ../zombi2/__init__.py)
+endif
+
 # The book, in reading order. Spelled out rather than wildcarded: a wildcard sorts
 # appendix-a/appendix-b in FRONT of ch1, and — worse — silently expands to nothing if the
 # directory is ever renamed, which builds an empty book instead of failing. With the list
@@ -40,9 +48,9 @@ COMMON := --from=markdown --pdf-engine=$(ENGINE) --top-level-division=chapter \
           --number-sections --citeproc --bibliography=$(BIB) \
           --lua-filter=callouts.lua --include-in-header=preamble.tex \
           --syntax-highlighting=tango --resource-path=.:figures:$(BOOK) \
-          --metadata-file=metadata.yaml --metadata=date:"$(DATE)"
+          --metadata-file=metadata.yaml --metadata=date:"Version $(VERSION) — $(DATE)"
 
-DEPS := preamble.tex callouts.lua metadata.yaml $(BIB) $(FIGS)
+DEPS := preamble.tex callouts.lua metadata.yaml $(BIB) $(FIGS) ../zombi2/__init__.py
 
 .PHONY: all manual chapters figures clean
 all: manual
