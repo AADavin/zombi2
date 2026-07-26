@@ -8,7 +8,7 @@ trees and then cross-check the whole matrix against a naive pairwise-LCA computa
 import pytest
 
 from zombi2.genomes.gene_trees import GeneNode, gene_trees_from_events
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 from zombi2.species import simulate_species_tree
 from zombi2.tools.homology import homology_table, homology_tsv
 
@@ -100,8 +100,8 @@ def _naive_matrix(root: GeneNode):
 @pytest.mark.parametrize("seed", range(1, 8))
 def test_matches_a_naive_pairwise_lca_on_real_runs(seed):
     sp = simulate_species_tree(birth=1, death=0.3, n_extant=10, seed=seed)
-    g = simulate_genomes_unordered(sp.complete_tree, duplication=0.4, transfer=0.3,
-                                   loss=0.25, origination=0.6, seed=seed * 3)
+    g = simulate_genomes_family(sp.complete_tree, duplication=0.4, transfer=0.3,
+                                loss=0.25, origination=0.6, seed=seed * 3)
     trees = gene_trees_from_events(g.events, g.complete_tree)
     checked = 0
     for gt in trees.values():

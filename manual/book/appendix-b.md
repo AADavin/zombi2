@@ -63,7 +63,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 
 ¹ written only if fossil sampling recovered any.
 
-## Genomes, unordered — `simulate_genomes_unordered`
+## Genomes, family — `simulate_genomes_family`
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
@@ -80,12 +80,12 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | **the run's whole history, in one time-ordered table.** The gene genealogy as unordered, plus **where** each event happened and the ancestry-neutral rearrangements as kinds of their own — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor` · `dest_lineage` · `chromosome` · `position` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹. `position` / `length` are coordinates in that branch's own genome just before the event, as `gene_order` numbers it, and are filled **once per event** — on its first row — because the arc belongs to the event, not to each copy it touched. Filtering on a non-empty `position` therefore gives one row per event that moved genes, which is what a replay walks. A transfer writes a row on each branch and each names the whole edge: `donor` is on both, and the departing row adds `dest_lineage` for where the material went |
+| Event log | `genome_events.tsv` | TSV | yes | **the run's whole history, in one time-ordered table.** The gene genealogy as at the family resolution, plus **where** each event happened and the ancestry-neutral rearrangements as kinds of their own — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor` · `dest_lineage` · `chromosome` · `position` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹. `position` / `length` are coordinates in that branch's own genome just before the event, as `gene_order` numbers it, and are filled **once per event** — on its first row — because the arc belongs to the event, not to each copy it touched. Filtering on a non-empty `position` therefore gives one row per event that moved genes, which is what a replay walks. A transfer writes a row on each branch and each names the whole edge: `donor` is on both, and the departing row adds `dest_lineage` for where the material went |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `lineage` · `chromosome` · `position` · `strand` · `family` · `copy` |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `position` · `strand` · `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
 | Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — `time` · `kind` · `lineage` · `parents` · `children` |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as unordered — position is orthogonal to genealogy |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as at the family resolution — position is orthogonal to genealogy |
 
 ¹ a run is named by `start` (its first position, in the chromosome's frame just before the event) and
 `length` (how many genes it covered), counted rightwards from `start` and **wrapping past position 0 on
@@ -130,7 +130,7 @@ sequences.
 | Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | the sequence at every node that is not an extant tip: internal nodes, and the tips where a copy was lost or its species died |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
-| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: an unordered or ordered run has gene families, not coordinates, so there is nothing to lay out. The biggest thing this level writes — a whole genome times every node |
+| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: a family or ordered run has gene families, not coordinates, so there is nothing to lay out. The biggest thing this level writes — a whole genome times every node |
 | Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. Nucleotide runs only |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks

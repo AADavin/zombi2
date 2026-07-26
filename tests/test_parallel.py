@@ -18,7 +18,7 @@ import os
 import pytest
 
 from zombi2._runtime.parallel import flatten_gene_tree, rebuild_gene_tree, resolve_workers
-from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_unordered
+from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_family
 from zombi2.genomes.events import events_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
@@ -78,8 +78,8 @@ def _seq_fingerprint(r):
 @pytest.fixture(scope="module")
 def genome_run():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=18, seed=1)
-    return simulate_genomes_unordered(sp, duplication=0.4, transfer=0.2, loss=0.3,
-                                      origination=0.1, initial_families=25, seed=2)
+    return simulate_genomes_family(sp, duplication=0.4, transfer=0.2, loss=0.3,
+                                   origination=0.1, initial_families=25, seed=2)
 
 
 def test_sequences_parallel_is_worker_count_invariant(genome_run):
@@ -132,15 +132,15 @@ def species_for_genomes():
 
 def test_genomes_parallel_is_worker_count_invariant(species_for_genomes):
     kw = dict(duplication=0.5, transfer=0.3, loss=0.4, origination=0.2, initial_families=30, seed=5)
-    inline = _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=1, **kw))
-    pooled = _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=2, **kw))
+    inline = _gen_fingerprint(simulate_genomes_family(species_for_genomes, parallel=1, **kw))
+    pooled = _gen_fingerprint(simulate_genomes_family(species_for_genomes, parallel=2, **kw))
     assert inline == pooled
 
 
 def test_genomes_parallel_differs_from_serial(species_for_genomes):
     kw = dict(duplication=0.5, transfer=0.3, loss=0.4, origination=0.2, initial_families=30, seed=5)
-    serial = _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, **kw))
-    par = _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=2, **kw))
+    serial = _gen_fingerprint(simulate_genomes_family(species_for_genomes, **kw))
+    par = _gen_fingerprint(simulate_genomes_family(species_for_genomes, parallel=2, **kw))
     assert serial != par
 
 
@@ -148,8 +148,8 @@ def test_genomes_parallel_is_a_valid_run(species_for_genomes):
     # the merge produces a coherent run: every node has a genome, copy ids are globally unique, the
     # gene trees build, and the strong invariant holds — surviving gene-tree leaves == extant copies.
     sp = species_for_genomes
-    r = simulate_genomes_unordered(sp, duplication=0.5, transfer=0.3, loss=0.4, origination=0.2,
-                                   initial_families=30, seed=5, parallel=2)
+    r = simulate_genomes_family(sp, duplication=0.5, transfer=0.3, loss=0.4, origination=0.2,
+                                initial_families=30, seed=5, parallel=2)
     assert set(r.genomes) == set(sp.complete_tree.nodes)
     born = [e.copy for e in r.events
             if e.kind in ("origination", "duplication", "transfer", "speciation")]
@@ -161,9 +161,9 @@ def test_genomes_parallel_is_a_valid_run(species_for_genomes):
 
 
 def test_genomes_parallel_named_families_survive(species_for_genomes):
-    r = simulate_genomes_unordered(species_for_genomes, origination=0.2, loss=0.1,
-                                   families=["toxin", "operon"], initial_families=10,
-                                   seed=5, parallel=2)
+    r = simulate_genomes_family(species_for_genomes, origination=0.2, loss=0.1,
+                                family_names=["toxin", "operon"], initial_families=10,
+                                seed=5, parallel=2)
     assert set(r.family_names) == {"toxin", "operon"}
     assert all(fid in {c.family for g in r.genomes.values() for c in g} for fid in r.family_names.values())
 
@@ -175,10 +175,10 @@ def test_genomes_parallel_falls_back_on_driven_rate(species_for_genomes, capsys)
     habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
     kw = dict(duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
               origination=0.2, initial_families=25, seed=5)
-    par = simulate_genomes_unordered(sp, parallel=4, **kw)
+    par = simulate_genomes_family(sp, parallel=4, **kw)
     note = capsys.readouterr().out
     assert "not applied" in note and "driven" in note
-    serial = simulate_genomes_unordered(sp, **kw)
+    serial = simulate_genomes_family(sp, **kw)
     assert _gen_fingerprint(par) == _gen_fingerprint(serial)
 
 
@@ -191,18 +191,18 @@ def test_genomes_parallel_falls_back_on_clades(species_for_genomes, capsys):
     kw = dict(transfer=0.4, loss=0.3, origination=0.2, initial_families=25, seed=5,
               transfer_to=Clades({"A": kid[0], "B": kid[1]},
                                  Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
-    par = simulate_genomes_unordered(sp, parallel=4, **kw)
+    par = simulate_genomes_family(sp, parallel=4, **kw)
     note = capsys.readouterr().out
     assert "not applied" in note and "clades" in note.lower()
-    serial = simulate_genomes_unordered(sp, **kw)
+    serial = simulate_genomes_family(sp, **kw)
     assert _gen_fingerprint(par) == _gen_fingerprint(serial)
 
 
 def test_genomes_parallel_true_uses_all_cores(species_for_genomes):
     # parallel=True (every core) must agree with an explicit worker count — same spawned streams.
     kw = dict(duplication=0.4, loss=0.3, origination=0.2, initial_families=15, seed=5)
-    assert _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=True, **kw)) == \
-           _gen_fingerprint(simulate_genomes_unordered(species_for_genomes, parallel=2, **kw))
+    assert _gen_fingerprint(simulate_genomes_family(species_for_genomes, parallel=True, **kw)) == \
+           _gen_fingerprint(simulate_genomes_family(species_for_genomes, parallel=2, **kw))
 
 
 # --- streaming: the same run written straight to disk, for the many-families regime ----------------
@@ -219,9 +219,9 @@ def test_stream_files_carry_the_same_content_as_the_in_memory_run(species_for_ge
     # streaming is the *same* per-family engine, just written per family instead of merged — so for one
     # seed the files must hold exactly the in-memory run's outputs (order aside), and be replayable.
     sp = species_for_genomes
-    mem = simulate_genomes_unordered(sp, parallel=2, **_STREAM_KW)
+    mem = simulate_genomes_family(sp, parallel=2, **_STREAM_KW)
     mem.write(tmp_path / "mem", outputs=("events", "profiles", "genomes", "initial_genome", "gene_trees"))
-    run = simulate_genomes_unordered(sp, parallel=2, stream_to=tmp_path / "str", **_STREAM_KW)
+    run = simulate_genomes_family(sp, parallel=2, stream_to=tmp_path / "str", **_STREAM_KW)
 
     assert isinstance(run, StreamedRun) and run.n_families > 0
     assert sorted(_lines(run.path("events"))[1:]) == sorted(_lines(tmp_path / "mem/genome_events.tsv")[1:])
@@ -240,19 +240,19 @@ def test_stream_files_carry_the_same_content_as_the_in_memory_run(species_for_ge
 
 
 def test_stream_output_selection(species_for_genomes, tmp_path):
-    run = simulate_genomes_unordered(species_for_genomes, parallel=2, stream_to=tmp_path,
-                                     outputs=("events", "gene_trees"), **_STREAM_KW)
+    run = simulate_genomes_family(species_for_genomes, parallel=2, stream_to=tmp_path,
+                                  outputs=("events", "gene_trees"), **_STREAM_KW)
     assert set(os.listdir(tmp_path)) == {"genome_events.tsv", "gene_trees"}
     assert run.outputs == ("events", "gene_trees")
     with pytest.raises(ValueError, match="unknown stream outputs"):
-        simulate_genomes_unordered(species_for_genomes, parallel=1, stream_to=tmp_path / "x",
-                                   outputs=("nope",), **_STREAM_KW)
+        simulate_genomes_family(species_for_genomes, parallel=1, stream_to=tmp_path / "x",
+                                outputs=("nope",), **_STREAM_KW)
 
 
 def test_stream_is_worker_count_invariant(species_for_genomes, tmp_path):
     # fixed chunks → the shards concatenate in a deterministic order → byte-identical files for any N.
-    simulate_genomes_unordered(species_for_genomes, parallel=1, stream_to=tmp_path / "w1", **_STREAM_KW)
-    simulate_genomes_unordered(species_for_genomes, parallel=4, stream_to=tmp_path / "w4", **_STREAM_KW)
+    simulate_genomes_family(species_for_genomes, parallel=1, stream_to=tmp_path / "w1", **_STREAM_KW)
+    simulate_genomes_family(species_for_genomes, parallel=4, stream_to=tmp_path / "w4", **_STREAM_KW)
     for name in ("genome_events.tsv", "genomes.tsv", "profiles.tsv", "initial_genome.tsv"):
         assert _lines(tmp_path / "w1" / name) == _lines(tmp_path / "w4" / name)
 
@@ -260,14 +260,14 @@ def test_stream_is_worker_count_invariant(species_for_genomes, tmp_path):
 def test_stream_rejects_driven_rate(species_for_genomes, tmp_path):
     habitat = simulate_discrete(species_for_genomes, states=["a", "b"], switch=0.8, seed=2)
     with pytest.raises(ValueError, match="streamed run cannot handle this"):
-        simulate_genomes_unordered(species_for_genomes, parallel=2, stream_to=tmp_path,
-                                   duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
-                                   origination=0.2, initial_families=20, seed=5)
+        simulate_genomes_family(species_for_genomes, parallel=2, stream_to=tmp_path,
+                                duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
+                                origination=0.2, initial_families=20, seed=5)
 
 
 def test_stream_outputs_arg_needs_stream_to(species_for_genomes):
     with pytest.raises(ValueError, match="outputs applies to a streamed run"):
-        simulate_genomes_unordered(species_for_genomes, parallel=2, outputs=("events",), **_STREAM_KW)
+        simulate_genomes_family(species_for_genomes, parallel=2, outputs=("events",), **_STREAM_KW)
 
 
 def test_guard_pool_workers_falls_back_when_a_pool_cannot_start(monkeypatch, capsys):

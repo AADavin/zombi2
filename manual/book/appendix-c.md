@@ -9,7 +9,7 @@ to stdout by default, or to a file with `-o`.
 ## `format` — analysis-ready tables
 
 `zombi2 tools format DIR` reads a genomes run and writes tables derived from its gene trees, one
-`--format` at a time, into a directory under `genomes/`. It works for every resolution: unordered and
+`--format` at a time, into a directory under `genomes/`. It works for every resolution: family and
 ordered runs rebuild their gene trees from the event log; a nucleotide run recovers them from the
 genome, and there one table is written per **declared gene** — the intergenic spacer is not a gene, so
 it gets none. `--from PATH` reads a run that lives elsewhere; `--flat` writes the tables straight into

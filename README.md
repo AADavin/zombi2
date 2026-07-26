@@ -44,10 +44,10 @@ From Python, each level is one function, and the result object carries the histo
 
 ```python
 from zombi2 import species
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 
 sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g  = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, seed=42)
+g  = simulate_genomes_family(sp, duplication=0.2, transfer=0.1, seed=42)
 
 g.gene_trees                    # the true gene tree of every family
 g.write("run/")                 # the event log and the copy-number profiles
@@ -70,7 +70,7 @@ reproducible run.
   the tree, plus mass extinctions, incomplete sampling and fossils. Extinct lineages are kept,
   so the complete tree and the extant one are both available.
 - **[Genomes](https://aadavin.github.io/zombi2/docs/guide/genomes/)** — gene families under
-  duplication, transfer, loss and origination, at three resolutions: unordered families,
+  duplication, transfer, loss and origination, at three resolutions: gene families,
   [ordered](https://aadavin.github.io/zombi2/docs/guide/genomes-ordered/) chromosomes with
   rearrangements, and
   [nucleotide](https://aadavin.github.io/zombi2/docs/guide/genomes-nucleotide/) genomes where

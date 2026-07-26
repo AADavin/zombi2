@@ -6,7 +6,7 @@ exercise argument wiring, output files, ``--params``, and the clean error paths 
 import pytest
 
 from zombi2.cli.main import main
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences.substitution_models import AMINO_ACIDS
 from zombi2.species import simulate_species_tree
 from zombi2.tree import read_newick
@@ -128,7 +128,7 @@ def test_unsampled_is_an_accepted_external_tip_fate():
 def test_read_newick_output_feeds_the_genomes_engine():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=5)
     back, _ = read_newick(r.complete_tree.to_newick())
-    g = simulate_genomes_unordered(back, duplication=0.2, loss=0.2, origination=0.5, seed=9)
+    g = simulate_genomes_family(back, duplication=0.2, loss=0.2, origination=0.5, seed=9)
     assert g.profiles.shape[1] == len(back.extant())            # one column per extant tip
 
 
@@ -324,7 +324,7 @@ def test_genomes_nucleotide_rejects_foreign_options(tmp_path, tree_file, argv, w
     assert e.value.code == 2, why
 
 
-@pytest.mark.parametrize("resolution", ["unordered", "ordered"])
+@pytest.mark.parametrize("resolution", ["family", "ordered"])
 def test_genomes_rejects_nucleotide_only_flags_elsewhere(tmp_path, tree_file, resolution):
     with pytest.raises(SystemExit) as e:                     # bp knobs need a nucleotide genome
         main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--resolution", resolution, "--root-length", "500", "--flat"])
@@ -993,7 +993,7 @@ def test_joint_trait_writes_both_levels(tmp_path):
 def test_joint_genome_driver_nests_its_gene_trees(tmp_path):
     rc = main(["joint", str(tmp_path),
                "--birth", "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})",
-               "--origination", "0.2", "--loss", "0.1", "--families", "toxin",
+               "--origination", "0.2", "--loss", "0.1", "--family-names", "toxin",
                "--n-extant", "20", "--seed", "1"])
     assert rc == 0
     written = {p.name for p in (tmp_path / "genomes").iterdir()}
@@ -1099,7 +1099,7 @@ def test_sequences_matches_the_python_api_on_a_nucleotide_run(tmp_path):
 def test_sequences_rejects_length_and_an_intergene_model_where_they_do_not_apply(tmp_path):
     with pytest.raises(SystemExit):
         _nucleotide_run(tmp_path, extra=("--length", "300"))   # the genome sets the lengths
-    run = str(tmp_path / "unordered")
+    run = str(tmp_path / "family")
     main(["species", run, "--birth", "1.0", "--n-extant", "4", "--seed", "1", "--quiet"])
     main(["genomes", run, "--initial-families", "4", "--duplication", "0.2", "--loss", "0.2",
           "--seed", "1", "--quiet"])

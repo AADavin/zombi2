@@ -1,7 +1,7 @@
 # tools/
 
-Developer tooling for the documentation. Neither script is part of the `zombi2` package
-or needed to use it.
+Developer tooling for the documentation. It is not part of the `zombi2` package or needed
+to use it.
 
 ## `build_docs_html.py`
 
@@ -12,16 +12,10 @@ and images inlined), for sharing docs without hosting them:
 python tools/build_docs_html.py [out.html]   # default: ./zombi2-docs.html
 ```
 
+The page list and its order come from `mkdocs.yml`'s `nav`, so the bundle and the published
+site always contain the same pages. A page the nav names but that is missing from `docs/` is
+an error, not a skip.
+
 The output (`zombi2-docs.html`) is a **build artifact and is not tracked in git** (see
 `.gitignore`) — regenerate it on demand, or publish the MkDocs site instead
 (`mkdocs build`).
-
-## `sync_wiki.py`
-
-Mirrors the canonical `docs/` pages into a GitHub **wiki** checkout (flattening the nav,
-rewriting intra-doc links, converting MkDocs admonitions to plain Markdown). Run it
-manually against a local wiki clone.
-
-It is **currently dormant**: there is no CI Action wired up to run it, and the MkDocs site
-already renders the same `docs/`. The canonical, published documentation is the MkDocs
-site — treat the wiki as an optional mirror.

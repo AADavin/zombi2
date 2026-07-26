@@ -1,4 +1,4 @@
-"""Genomes I — the unordered D/T/L/O gene-family core.
+"""Genomes I — the D/T/L/O gene-family core.
 
 A genome is a multiset of gene families that evolves along the species tree by four events:
 **origination** (a new family arises in a lineage — per lineage), **duplication** (a gene copy
@@ -68,8 +68,8 @@ class GeneCopy:
 
 
 @dataclass
-class GenomesResult:
-    """What ``simulate_genomes_unordered`` returns: the ``complete_tree`` it ran on, the final
+class FamilyGenomesResult:
+    """What ``simulate_genomes_family`` returns: the ``complete_tree`` it ran on, the final
     ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
     truth), and the ``seed``. The observed genomes are the extant tips —
     ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. The phyletic ``profiles`` are derived
@@ -80,7 +80,7 @@ class GenomesResult:
     genomes: dict[int, tuple[GeneCopy, ...]]
     events: list[Event]
     seed: int | None
-    #: ``{name: family id}`` for families declared by ``families=[…]`` — the handle to a *named* family
+    #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family
     #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
     family_names: dict[str, int] = field(default_factory=dict)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
@@ -94,7 +94,7 @@ class GenomesResult:
         return collections.Counter(c.family for c in self.genomes[node_id])
 
     def has_family(self, node_id: int, name: str) -> bool:
-        """Whether the named family ``name`` (declared via ``families=``) is present — has ≥ 1 copy — in
+        """Whether the named family ``name`` (declared via ``family_names=``) is present — has ≥ 1 copy — in
         the genome at ``node_id``. The presence signal a joint ``DrivenBy("genomes:<name>", …)`` reads."""
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
@@ -144,7 +144,7 @@ class GenomesResult:
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
-        unordered counterpart of the ordered resolution's ``gene_order.tsv`` — without a chromosome
+        family counterpart of the ordered resolution's ``gene_order.tsv`` — without a chromosome
         or a position, because at this resolution a genome is a set, not a sequence."""
         cols = ("lineage", "family", "copy")
         rows = [f"{node_label(s)}\t{c.family}\t{gene_label(c.id)}"
@@ -316,11 +316,11 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 
 
 @without_cyclic_gc
-def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
-                               transfer_to="uniform", replacement=False, self_transfer=False,
-                               initial_families=100, families=None, family_speed=None,
-                               max_family_size=10.0, seed=None, parallel=False, stream_to=None,
-                               outputs=None, progress=False) -> "GenomesResult | StreamedRun":
+def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
+                            transfer_to="uniform", replacement=False, self_transfer=False,
+                            initial_families=100, family_names=None, family_speed=None,
+                            max_family_size=10.0, seed=None, parallel=False, stream_to=None,
+                            outputs=None, progress=False) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
@@ -339,7 +339,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
-    as originations at the crown. ``families=["toxin", …]`` additionally declares **named** families —
+    as originations at the crown. ``family_names=["toxin", …]`` additionally declares **named** families —
     each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
     ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
@@ -377,8 +377,8 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     ``stream_to=DIR`` takes the same engine to the many-families regime: each family is written straight
     to disk as it finishes — no whole-run merge, no run held in memory (a run that fills gigabytes in
     memory streams in tens of megabytes) — and a light :class:`~zombi2.genomes.StreamedRun` handle comes
-    back instead of a ``GenomesResult``. ``outputs=`` picks which files, exactly as
-    :meth:`GenomesResult.write` takes them (default: all of them). It is the per-family engine, so a
+    back instead of a ``FamilyGenomesResult``. ``outputs=`` picks which files, exactly as
+    :meth:`FamilyGenomesResult.write` takes them (default: all of them). It is the per-family engine, so a
     driven rate **raises** here rather than falling back (that would defeat the point), and ``outputs``
     without ``stream_to`` is an error.
     """
@@ -397,7 +397,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
         if not isinstance(rate.scope, want):
             raise ValueError(
-                f"{label} has a {type(rate.scope).__name__} scope, but the unordered genome engine "
+                f"{label} has a {type(rate.scope).__name__} scope, but the family genome engine "
                 f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
@@ -416,7 +416,7 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             if isinstance(m, (OnTime, DrivenBy, ByFamily)):
                 continue
             raise ValueError(
-                f"{label} carries {type(m).__name__}, which the unordered genome engine does not "
+                f"{label} carries {type(m).__name__}, which the family genome engine does not "
                 f"support yet — only OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                 f"ByFamily (per-family heterogeneity) are wired. Clade drift is a later slice."
             )
@@ -456,12 +456,12 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             f"got {transfer_to!r}")
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
-    families = list(families) if families is not None else []
-    for name in families:
+    family_names = list(family_names) if family_names is not None else []
+    for name in family_names:
         if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
-    if len(set(families)) != len(families):
-        raise ValueError(f"family names must be unique, got {families}")
+            raise ValueError(f"family_names must be a list of non-empty family names (strings), got {name!r}")
+    if len(set(family_names)) != len(family_names):
+        raise ValueError(f"family names must be unique, got {family_names}")
 
     # A family's copies in one genome are capped. Growth compounds — a duplication rate above the
     # loss rate multiplies without bound — so a run needs a ceiling somewhere. An int is that number
@@ -485,11 +485,11 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
             "in-memory run choose them when you call result.write(outputs=...).")
     if parallel or stream_to is not None:
-        from ._perfamily import run_parallel_unordered
-        result = run_parallel_unordered(
+        from ._perfamily import run_parallel_family
+        result = run_parallel_family(
             tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
             replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
-            families=families, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
+            family_names=family_names, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
             progress=progress, stream_to=stream_to, outputs=outputs)
         if result is not None:
             return result
@@ -544,10 +544,10 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
     enter(alive, gen, pos, root.id, [])
     for _ in range(initial_families):  # lay down the crown as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
-    family_names: dict[str, int] = {}  # named families: a minted id per name (so GeneCopy.family stays int)
-    for name in families:
+    named: dict[str, int] = {}  # a minted id per declared name (so GeneCopy.family stays an int)
+    for name in family_names:
         fid = new_family()
-        family_names[name] = fid
+        named[name] = fid
         c = new_copy(fid)
         gen[0].append(c)
         events.append(Event(t, "origination", root.id, fid, c.id))
@@ -712,26 +712,26 @@ def simulate_genomes_unordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0,
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
-    return GenomesResult(tree, genomes, events, seed, family_names, initial_genome)
+    return FamilyGenomesResult(tree, genomes, events, seed, named, initial_genome)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------
 
 @dataclass(frozen=True)
-class UnorderedGenome:
-    """An unordered-genome **process** — its D/T/L/O parameters bundled but not yet run (the genome
-    twin of :class:`~zombi2.traits.DiscreteTrait`). ``simulate_genomes_unordered(tree, ...)`` runs
-    this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.unordered(...))``)
+class FamilyGenome:
+    """A family-genome **process** — its D/T/L/O parameters bundled but not yet run (the genome
+    twin of :class:`~zombi2.traits.DiscreteTrait`). ``simulate_genomes_family(tree, ...)`` runs
+    this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.family(...))``)
     grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
     origination (each a ``scope(base) × modifiers`` rate, ``OnTime`` allowed) plus ``initial_families``
-    and named ``families`` (the handle a ``DrivenBy("genomes:<name>", …)`` reads). Transfer is deferred
+    and named ``family_names`` (the handle a ``DrivenBy("genomes:<name>", …)`` reads). Transfer is deferred
     for joint runs (a growing tree's contemporaneous set is still forming as events fire)."""
 
     duplication: object
     loss: object
     origination: object
     initial_families: int
-    families: tuple
+    family_names: tuple
 
     def _resolve(self):
         """Coerce and validate the three rates for the joint engine — ``(duplication, loss,
@@ -756,21 +756,21 @@ class UnorderedGenome:
         return dup, los, org
 
 
-def unordered(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,
-              families=None) -> UnorderedGenome:
-    """An unordered-genome **process spec** — :class:`UnorderedGenome`, unexecuted — for a joint model
-    to grow with the tree its gene content drives (``joint.simulate_joint(genome=genomes.unordered(
-    origination=0.2, loss=0.1, families=["toxin"]))``). Duplication / loss / origination and named
-    ``families``; transfer is a later slice for joint runs."""
-    fams = tuple(families) if families is not None else ()
+def family(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,
+              family_names=None) -> FamilyGenome:
+    """A family-genome **process spec** — :class:`FamilyGenome`, unexecuted — for a joint model
+    to grow with the tree its gene content drives (``joint.simulate_joint(genome=genomes.family(
+    origination=0.2, loss=0.1, family_names=["toxin"]))``). Duplication / loss / origination and named
+    ``family_names``; transfer is a later slice for joint runs."""
+    fams = tuple(family_names) if family_names is not None else ()
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
     for name in fams:
         if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
+            raise ValueError(f"family_names must be a list of non-empty family names (strings), got {name!r}")
     if len(set(fams)) != len(fams):
         raise ValueError(f"family names must be unique, got {list(fams)}")
-    return UnorderedGenome(duplication, loss, origination, initial_families, fams)
+    return FamilyGenome(duplication, loss, origination, initial_families, fams)
 
 
-__all__ = ["simulate_genomes_unordered", "GenomesResult", "GeneCopy", "UnorderedGenome", "unordered"]
+__all__ = ["simulate_genomes_family", "FamilyGenomesResult", "GeneCopy", "FamilyGenome", "family"]

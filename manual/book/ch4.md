@@ -1,12 +1,12 @@
-# Genomes I: unordered
+# Genomes I: gene families
 
-Genomes live inside the species tree, and they can be simulated at different levels of **resolution**. The simplest case is a single gene family evolving along the species tree. The most complex is a genome in which every nucleotide is tracked across several chromosomes. ZOMBI2 offers three resolutions, one per chapter: **unordered** here, **ordered** in Chapter 5, **nucleotide** in Chapter 6.
+Genomes live inside the species tree, and they can be simulated at different levels of **resolution**. The simplest case is a single gene family evolving along the species tree. The most complex is a genome in which every nucleotide is tracked across several chromosomes. ZOMBI2 offers three resolutions, one per chapter: **family** here, **ordered** in Chapter 5, **nucleotide** in Chapter 6.
 
-The **unordered** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
+The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
 
 ## The four events
 
-An unordered genome evolves by four kinds of event, applied to every lineage as it runs down the species tree:
+A genome at the family resolution evolves by four kinds of event, applied to every lineage as it runs down the species tree:
 
 - **Duplication** — a gene copy is copied, so its family gains a member in that lineage.
 - **Transfer** — a copy jumps from one lineage to another that is alive at the same moment. This is the only event that crosses lineages, and it gets its own section below.
@@ -17,10 +17,10 @@ You give ZOMBI2 a rate for each, and it plays the events out along the tree, sta
 
 ```python
 from zombi2 import species
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
 ```
 
@@ -34,7 +34,7 @@ Where you put it decides what varies *together*:
 
 ```python
 # each rate varies by family on its own — a family that loses fast is not thereby duplicating fast
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     tree,
     duplication = 0.2  * mod.ByFamily(spread=0.6),
     transfer    = 0.1  * mod.ByFamily(spread=0.6),
@@ -42,7 +42,7 @@ g = simulate_genomes_unordered(
     initial_families = 100, seed = 42)
 
 # one tempo per family, scaling every rate it has — a fast family is fast at everything
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     tree, duplication=0.2, transfer=0.1, loss=0.25,
     family_speed = mod.ByFamily(spread=0.5),
     initial_families = 100, seed = 42)
@@ -71,12 +71,12 @@ Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifi
 ```python
 from zombi2.rates import modifiers as mod
 # lots of new families early, then origination shuts off after time 2
-g = simulate_genomes_unordered(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+g = simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
 
 ## Lateral gene transfers
 
-Transfer is the one event that couples lineages, and it is what makes the unordered resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**.
+Transfer is the one event that couples lineages, and it is what makes the family resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**.
 
 Three arguments shape what a transfer does:
 
@@ -87,7 +87,7 @@ Three arguments shape what a transfer does:
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=7)
 # horizontal transfer biased toward close relatives, overwriting resident copies
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     tree, transfer=0.5, transfer_to="distance", replacement=True,
     origination=0.4, initial_families=10, seed=3)
 ```
@@ -100,11 +100,11 @@ One consequence is worth stating plainly: a transfer can arrive **from a lineage
 
 ```python
 from zombi2.species import simulate_species_tree
-from zombi2.genomes import simulate_genomes_unordered, Clades, Between
+from zombi2.genomes import simulate_genomes_family, Clades, Between
 
 sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
 # genes flow only BETWEEN clade A and clade B — never within either, never to the rest
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     sp, transfer=1.0, initial_families=20, seed=2,
     transfer_to=Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]},
                        Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
@@ -114,9 +114,9 @@ The kernel is the new part. Each entry is a weight, read the same way `"distance
 
 A clade here is a fact about the *tree* — which lineage sits in which subtree — so `Clades` reads the tree directly, needs no extra file, and is a sibling of `"distance"`, not a coupling. When the groups are instead an evolved property — a habitat, an ecological guild — the same donor-and-recipient steering is a coupling, written `transfer_to = DrivenBy(trait, Between({...}))`; that is Chapter 9.
 
-## The `GenomesResult` object
+## The `FamilyGenomesResult` object
 
-`simulate_genomes_unordered` returns a **GenomesResult** which carries:
+`simulate_genomes_family` returns a **FamilyGenomesResult** which carries:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages and all.
 - `.genomes` — a dict from node to that node's genome.
@@ -167,22 +167,22 @@ The whole range is one function call:
 ```python
 from zombi2 import species
 from zombi2.rates import modifiers as mod
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=1)
 
 # a plain duplication–loss–origination run
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
 
 # origination only — every family stays a single copy, none is ever duplicated
-g = simulate_genomes_unordered(tree, origination=0.6, seed=1)
+g = simulate_genomes_family(tree, origination=0.6, seed=1)
 
 # a skyline: new families pour in early, then origination shuts off after time 2
-g = simulate_genomes_unordered(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+g = simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 
 # horizontal transfer, biased toward close relatives, overwriting resident copies
-g = simulate_genomes_unordered(
+g = simulate_genomes_family(
     tree, transfer=0.5, transfer_to="distance", replacement=True,
     origination=0.4, initial_families=10, seed=3)
 
@@ -198,7 +198,7 @@ g.write("out/")                                  # the event log + profiles, on 
 
 ## Usage from the CLI
 
-`zombi2 genomes` evolves gene families along a species tree read from a Newick file. The unordered resolution is the default, and each rate is a plain number:
+`zombi2 genomes` evolves gene families along a species tree read from a Newick file. The family resolution is the default, and each rate is a plain number:
 
 ```bash
 # duplication–loss–origination along a species tree
@@ -242,19 +242,19 @@ Read a list of rows sharing a `lineage` and you have that lineage's genome. `fam
 Because families are independent — a transfer moves a copy between lineages, but no event ever mixes two families — a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
 
 ```python
-g = simulate_genomes_unordered(tree, duplication=0.2, loss=0.25, origination=0.5,
-                               initial_families=1000, seed=1, parallel=8)   # 8 workers
+g = simulate_genomes_family(tree, duplication=0.2, loss=0.25, origination=0.5,
+                            initial_families=1000, seed=1, parallel=8)   # 8 workers
 ```
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
 
 The gain is real but modest, and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful of workers there is little more to win. It pays off on a large run — many families, or high rates — and is a loss on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
 
-When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family straight to a directory as it finishes and hands back a light path handle instead of a `GenomesResult`, so memory stays flat however many families you run (a run that fills 2 GB held in memory streams in about 40 MB). Pick the files you want with `outputs=`, exactly as `.write` takes them, and read them back as you would any run — the disk is the handoff to the sequence level. On the command line it is `--stream`.
+When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family straight to a directory as it finishes and hands back a light path handle instead of a `FamilyGenomesResult`, so memory stays flat however many families you run (a run that fills 2 GB held in memory streams in about 40 MB). Pick the files you want with `outputs=`, exactly as `.write` takes them, and read them back as you would any run — the disk is the handoff to the sequence level. On the command line it is `--stream`.
 
 ```python
-run = simulate_genomes_unordered(tree, origination=2.0, initial_families=5000, seed=1,
-                                 parallel=8, stream_to="out/", outputs=("events", "profiles"))
+run = simulate_genomes_family(tree, origination=2.0, initial_families=5000, seed=1,
+                              parallel=8, stream_to="out/", outputs=("events", "profiles"))
 run.path("events")            # out/genome_events.tsv — the log, ready to replay
 ```
 

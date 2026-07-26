@@ -70,8 +70,8 @@ def rtt_cv(tree) -> float:
 def make_tree(n_extant: int, seed: int, birth: float = 1.0, death: float = 0.0):
     """A dated species tree (the truth) plus a small genome to carry the clock down it."""
     res = species.simulate_species_tree(birth=birth, death=death, n_extant=n_extant, seed=seed)
-    g = genomes.simulate_genomes_unordered(res.complete_tree, duplication=0.01, loss=0.01,
-                                           initial_families=5, seed=seed)
+    g = genomes.simulate_genomes_family(res.complete_tree, duplication=0.01, loss=0.01,
+                                        initial_families=5, seed=seed)
     return res.extant_tree, g
 
 
