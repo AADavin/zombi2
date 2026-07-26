@@ -18,6 +18,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   marker). `--force` re-runs anyway and removes the now-stale downstream, so a run's levels can never
   quietly disagree. The forward pipeline is unaffected (each level is run once); applies to the default
   grouped layout — `--flat` commingles the levels and is left to the user. (#243)
+- **Onboarding nudges.** After a level runs, a one-line pointer names the output file(s) worth looking
+  at — a species run names both its complete and its extant tree — so a newcomer can find what they
+  made. It says only *what was written and where*, never what to do next (a run is not one road);
+  suppressed by `--quiet`. The top-level `--help` now leads with the levels and the plain quickstart,
+  with the `DrivenBy` / joint coupling note moved below them. (#244)
+
+### Fixed
+- A non-nucleotide `sequences` run no longer leaves an empty `sequences/genomes/` directory behind (the
+  assembled-genome FASTAs are a nucleotide-run output). (#244)
+- The `sequences` run log now records the substitution model's **effective** parameters (e.g. `kappa 2.0`,
+  `frequencies [0.25, 0.25, 0.25, 0.25]`) instead of the bare `None` args, so a run reproduces from its
+  log alone, without the reader having to know each model's defaults. (#244)
 
 ## [0.6.0] - 2026-07-26
 

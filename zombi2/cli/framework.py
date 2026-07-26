@@ -26,10 +26,6 @@ Coupling
 
 Tools
   tools                analyses that read a finished run (homology O/P/X tables, …)
-
-A level is CONDITIONED on another by pointing a rate at what that level wrote — no separate command:
-  zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0})"
-JOINT is for when neither level can be grown first, because each drives the other.
 """
 
 
@@ -235,6 +231,17 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     path = output if flat else os.path.join(output, level)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def guidance(args, *looks: str) -> None:
+    """One or more one-line pointers printed after a run — the file(s) worth looking at, for someone
+    finding their way around a run. It only says *what was written and where*, never what to do next
+    (a run is not one road: after a species tree you might grow genomes, or a trait, or stop). It is
+    suppressed by ``--quiet`` (a scripted batch stays quiet); the ``wrote …`` summary still prints."""
+    if getattr(args, "quiet", False):
+        return
+    for look in looks:
+        print(f"  → {look}")
 
 
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
@@ -488,13 +495,16 @@ def _log_value(value: object) -> str:
     return str(value)
 
 
-def _write_params_log(path: str, args: argparse.Namespace, summary: str) -> None:
-    """Write the full set of run parameters to ``path`` — always, for reproducibility."""
+def _write_params_log(path: str, args: argparse.Namespace, summary: str, effective=None) -> None:
+    """Write the full set of run parameters to ``path`` — always, for reproducibility. ``effective``
+    overrides the logged value of the named args with the **resolved** value the run actually used
+    (e.g. a model's default ``kappa`` in place of the bare ``None`` that was on the command line), so
+    the log reproduces the run without the reader having to know each default."""
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
              f"command_line\t{' '.join(sys.argv)}"]
-    for key, value in sorted(vars(args).items()):
+    for key, value in sorted({**vars(args), **(effective or {})}.items()):
         lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")
     with open(path, "w") as f:
