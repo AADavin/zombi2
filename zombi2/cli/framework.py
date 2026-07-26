@@ -26,10 +26,6 @@ Coupling
 
 Tools
   tools                analyses that read a finished run (homology O/P/X tables, …)
-
-A level is CONDITIONED on another by pointing a rate at what that level wrote — no separate command:
-  zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0})"
-JOINT is for when neither level can be grown first, because each drives the other.
 """
 
 
@@ -235,6 +231,24 @@ def level_dir(output: str, level: str, flat: bool) -> str:
     path = output if flat else os.path.join(output, level)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def guidance(args, *, look: str, nxt: str | None = None) -> None:
+    """A one-line nudge printed after a run: the file (or directory) worth looking at, and — for a step
+    in the pipeline — the next command to run. It is for someone finding their way around a run, so it
+    is suppressed by ``--quiet`` (a scripted batch stays quiet); the ``wrote …`` summary still prints."""
+    if getattr(args, "quiet", False):
+        return
+    line = f"  → {look}"
+    if nxt:
+        line += f"      next: {nxt}"
+    print(line)
+
+
+def next_command(args, level: str) -> str:
+    """The next pipeline command to suggest, on the same run directory (and carrying ``--flat`` so the
+    next level's layout matches this one's)."""
+    return f"zombi2 {level} {args.run}/" + (" --flat" if getattr(args, "flat", False) else "")
 
 
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds

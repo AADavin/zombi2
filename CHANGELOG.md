@@ -18,6 +18,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   marker). `--force` re-runs anyway and removes the now-stale downstream, so a run's levels can never
   quietly disagree. The forward pipeline is unaffected (each level is run once); applies to the default
   grouped layout — `--flat` commingles the levels and is left to the user. (#243)
+- **Onboarding nudges.** After a level runs, a one-line hint points at the key output file and the next
+  command in the pipeline (e.g. `next: zombi2 genomes out/`) — suppressed by `--quiet`, so a scripted
+  batch stays quiet. The top-level `--help` now leads with the levels and the plain quickstart, with the
+  `DrivenBy` / joint coupling note moved below them. (#244)
+
+### Fixed
+- A non-nucleotide `sequences` run no longer leaves an empty `sequences/genomes/` directory behind (the
+  assembled-genome FASTAs are a nucleotide-run output). (#244)
 
 ## [0.6.0] - 2026-07-26
 

@@ -13,7 +13,8 @@ import time
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
-                                  check_stale_downstream, clear_stale_downstream, level_dir)
+                                  check_stale_downstream, clear_stale_downstream, guidance, level_dir,
+                                  next_command)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -108,6 +109,8 @@ def run(args, parser):
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    guidance(args, look=f"tree: {os.path.join(out, 'species_extant.nwk')}",
+             nxt=next_command(args, "genomes"))
     _write_params_log(os.path.join(out, "species.log"),
                       args, summary)
     return 0
