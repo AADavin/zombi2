@@ -1410,3 +1410,17 @@ def test_non_nucleotide_sequences_run_leaves_no_empty_genomes_dir(tmp_path):
           "--initial-families", "5", "--seed", "3", "--quiet"])
     main(["sequences", str(run), "--model", "jc69", "--length", "20", "--seed", "1", "--quiet"])
     assert not (run / "sequences" / "genomes").exists()   # nucleotide-only output, empty here
+
+
+def test_sequences_log_records_effective_model_params(tmp_path):
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "5", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--initial-families", "3", "--seed", "3",
+          "--quiet"])
+    main(["sequences", str(run), "--model", "hky85", "--length", "20", "--seed", "1", "--quiet"])
+    log = (run / "sequences" / "sequences.log").read_text()
+    # the resolved values the run used, not the bare `None` that was on the command line
+    assert "kappa\t2.0" in log
+    assert "frequencies\t[0.25, 0.25, 0.25, 0.25]" in log
+    assert "gtr_rates\tNone" in log            # a knob this model does not have stays None

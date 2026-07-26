@@ -129,14 +129,30 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     _add_quiet_arg(g)
 
 
+def _resolve_model_knobs(args) -> dict:
+    """The nucleotide substitution-model knobs with each default filled in — ``kappa`` (2.0),
+    ``frequencies`` (uniform), ``gtr_rates`` (all 1). Shared by :func:`_build_model`, which uses them,
+    and :func:`_effective_model_params`, which logs them, so the two cannot drift."""
+    return {"kappa": 2.0 if args.kappa is None else args.kappa,
+            "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),
+            "gtr_rates": [1, 1, 1, 1, 1, 1] if args.gtr_rates is None else list(args.gtr_rates)}
+
+
+def _effective_model_params(args) -> dict:
+    """The substitution-model params the run actually used, defaults filled — but only the knobs this
+    model has (:data:`_MODEL_KNOBS`), so the ``.log`` reproduces the exact model without the reader
+    knowing each model's defaults. ``jc69`` and the protein models have no free knob, so this is empty."""
+    resolved = _resolve_model_knobs(args)
+    return {name: resolved[name] for name in _MODEL_KNOBS.get(args.model, ())}
+
+
 def _build_model(args: argparse.Namespace):
     """Build the substitution model from ``--model`` and its physical parameters (each knob falls back
     to the menu constructor's own default when not given; a protein model takes none)."""
     if args.model in _PROTEIN_MODELS:
         return _PROTEIN_MODELS[args.model]()
-    kappa = 2.0 if args.kappa is None else args.kappa
-    freqs = (0.25, 0.25, 0.25, 0.25) if args.frequencies is None else tuple(args.frequencies)
-    rates = (1, 1, 1, 1, 1, 1) if args.gtr_rates is None else tuple(args.gtr_rates)
+    knobs = _resolve_model_knobs(args)
+    kappa, freqs, rates = knobs["kappa"], tuple(knobs["frequencies"]), tuple(knobs["gtr_rates"])
     if args.model == "jc69":
         return jc69()
     if args.model == "k80":
@@ -244,5 +260,5 @@ def run(args, parser):
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     guidance(args, look=f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
-                      args, summary)
+                      args, summary, effective=_effective_model_params(args))
     return 0
