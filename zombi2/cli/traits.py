@@ -18,9 +18,10 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_from_arg, _add_params_arg, _add_run_arg,
-                                  _rate, _rates_help, _read_tip_fates, _write_params_log, level_dir,
-                                  resolve_tree, sibling_fates)
+from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
+                                  _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
+                                  _write_params_log, check_stale_downstream, clear_stale_downstream,
+                                  level_dir, resolve_tree, sibling_fates)
 from zombi2.tree import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
 
@@ -104,6 +105,7 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                         "the trait tree (annotated Newick).")
     _add_flat_arg(g)
     _add_quiet_arg(g)
+    _add_force_arg(g)
 
 
 def run(args, parser):
@@ -139,6 +141,9 @@ def run(args, parser):
             parser.error("--kind discrete needs --switch (the Mk model) or "
                          "--liability/--threshold (the threshold model)")
 
+    # refuse up front if re-running would orphan a level conditioned on this trait (unless --force)
+    check_stale_downstream(args, "traits")
+
     tree_path = resolve_tree(args.source or args.run)
     # an explicit --tip-fates wins; otherwise pick up the run's own species_fates.tsv so extinct and
     # unsampled tips are read from the record rather than guessed from tip depth
@@ -169,6 +174,7 @@ def run(args, parser):
                                      progress=not args.quiet)
     dt = time.perf_counter() - t0
 
+    clear_stale_downstream(args, "traits")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "traits", args.flat)
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
