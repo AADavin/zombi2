@@ -66,3 +66,7 @@ HANDOFF.md
 
 # Phylustrator is a separate editable git checkout (figure tool), not vendored here
 tools/Phylustrator/
+
+# Claude Code session directory — local settings and session state, not committed. (If you ever
+# want to share Claude config in-repo, un-ignore the specific file, e.g. `!.claude/settings.json`.)
+.claude/
