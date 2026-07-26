@@ -1325,3 +1325,60 @@ def test_flat_layout_is_left_to_the_user(tmp_path):
     # re-running is not blocked (documented limitation)
     assert main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed",
                  "2", "--quiet", "--flat"]) == 0
+
+
+# ── the staleness guard: DrivenBy conditioning edges ────────────────────────────────
+
+def _conditioned_pipeline(run):
+    """species -> discrete trait -> genomes with a loss *driven by* that trait -> sequences."""
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--origination", "0.5", "--seed", "3", "--quiet",
+          "--loss", f"0.25 * DrivenBy('{run}/traits/trait_events.tsv', {{'cave': 4.0}})"])
+    main(["sequences", str(run), "--model", "jc69", "--length", "20", "--seed", "1", "--quiet"])
+
+
+def test_conditioning_records_which_level_drove_a_rate(tmp_path):
+    run = tmp_path / "run"
+    _conditioned_pipeline(run)
+    assert (run / "genomes" / "conditioned_on").read_text().split() == ["traits"]
+
+
+def test_rerunning_a_trait_a_genome_was_conditioned_on_refuses(tmp_path, capsys):
+    run = tmp_path / "run"
+    _conditioned_pipeline(run)
+    capsys.readouterr()
+    rc = main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.9",
+               "--seed", "2", "--quiet"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    # the cascade: the conditioned genomes AND the sequences beneath it are both named, nothing deleted
+    assert "zombi2: error:" in err and "genomes" in err and "sequences" in err
+    assert (run / "genomes").exists() and (run / "sequences").exists()
+
+
+def test_force_reruns_the_trait_and_clears_its_conditioned_downstream(tmp_path, capsys):
+    run = tmp_path / "run"
+    _conditioned_pipeline(run)
+    capsys.readouterr()
+    rc = main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.9",
+               "--seed", "2", "--force", "--quiet"])
+    assert rc == 0
+    assert not (run / "genomes").exists() and not (run / "sequences").exists()
+    assert (run / "traits").exists()
+
+
+def test_an_unconditioned_genome_leaves_the_trait_free_to_rerun(tmp_path):
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
+          "--seed", "3", "--quiet"])                      # NOT conditioned on the trait
+    assert not (run / "genomes" / "conditioned_on").exists()
+    # trait and genomes are independent here, so re-running the trait is allowed
+    assert main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch",
+                 "0.9", "--seed", "2", "--quiet"]) == 0

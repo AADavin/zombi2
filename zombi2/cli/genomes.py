@@ -22,8 +22,9 @@ from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
-                                  clear_stale_downstream, default_outputs, level_dir, parallel_from_args,
-                                  resolve_tree, sibling_fates)
+                                  clear_stale_downstream, conditioned_levels, default_outputs,
+                                  level_dir, parallel_from_args, record_conditioning, resolve_tree,
+                                  sibling_fates)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -385,6 +386,9 @@ def run(args, parser):
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    if not args.flat:                             # record which same-run levels drove a rate (if any),
+        record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
+            args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
     _write_params_log(os.path.join(out, "genomes.log"),
                       args, summary)
     return 0
