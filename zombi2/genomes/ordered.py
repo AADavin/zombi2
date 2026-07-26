@@ -48,6 +48,7 @@ from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..species import SpeciesResult
 from ..tree import Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
+from .family import resolve_max_family_size
 from ._live import enter, retire, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .._runtime.progress import progress_bar
@@ -497,6 +498,33 @@ def _pick_run_by_family(rng, genome, mult, dist) -> tuple[int, int, int] | None:
     return ci, s, (m if chrom.topology == "circular" else min(m, n - s))
 
 
+def _run_over_cap(genome, chrom, start, m, cap) -> bool:
+    """Whether copying the run ``[start, start+m)`` would take any family it covers past ``cap``.
+
+    The segmental answer to the per-genome family quota. At the family resolution the unit is one
+    gene, so the question is simply "is this family already full?"; here a run may carry several
+    families, and several copies of one, so the test is *current + carried > cap* for each of them.
+    That reduces to exactly the family-resolution condition when the run is a single gene.
+
+    **The whole run is refused, never part of it.** Clipping the run to the genes still under quota
+    would be a different process — it would quietly reshape the extent distribution, making runs
+    shorter precisely where the genome is crowded. Refusing outright is Poisson thinning on a
+    condition that reads only the current state, so what is kept is a clean process; a clipped run
+    would not be."""
+    if cap is None:
+        return False
+    n = len(chrom.genes)
+    carried: dict[int, int] = {}
+    for i in range(m):
+        f = chrom.genes[(start + i) % n].family
+        carried[f] = carried.get(f, 0) + 1
+    for f, k in carried.items():
+        have = sum(1 for c in genome for g in c.genes if g.family == f)
+        if have + k > cap:
+            return True
+    return False
+
+
 def _pick_event_run(rng, gen, n, fw, fam_mult, key, dist):
     """``(lineage, chromosome index, start, run size)`` for one gene-level event.
 
@@ -634,7 +662,7 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
 
 
 def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, new_gene,
-                 transfer_to, replacement, self_transfer, depth) -> int:
+                 transfer_to, replacement, self_transfer, depth, cap=None) -> int:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient: each gene ends → a continuation on the donor branch and a transferred copy on the
     recipient (a horizontal gene-tree edge). The run may wrap position 0 on a circular donor
@@ -648,6 +676,8 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
     recipient = alive[kr]
     rgenome = gen[kr]
+    if _run_over_cap(rgenome, gen[kd][cdi], jd, m, cap):   # the recipient is full: same thinning
+        return 0
     conts = [new_gene(g.family, g.strand) for g in segment]
     xfers = [new_gene(g.family, g.strand) for g in segment]
     gen[kd][cdi].genes[jd:jd + m] = conts               # continuations replace the segment on the donor
@@ -775,7 +805,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, family_names=None, family_speed=None,
-                             max_family_size=None, seed=None,
+                             max_family_size=10.0, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
@@ -881,13 +911,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     if len(set(family_names)) != len(family_names):
         raise ValueError(f"family names must be unique, got {family_names}")
 
-    if max_family_size is not None:
-        raise ValueError(
-            "max_family_size is wired at the family resolution only for now. A duplication here "
-            "copies a SEGMENT, which may span several families at once, so a per-family quota has "
-            "to decide what happens to a block that is partly over it — refusing the whole segment "
-            "and refusing part of it are different processes. Unset it, or use --resolution "
-            "family, where the unit is one gene and the answer is unambiguous.")
+    # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
+    # above its loss rate — or a family that drew a high ByFamily factor — multiplies without bound
+    # unless something stops it. A segment may carry several families, and several copies of one, so
+    # the run is refused when it would take *any* of them past the quota (see _run_over_cap).
+    cap = resolve_max_family_size(max_family_size, len(tree.nodes))
     if family_speed is not None and not isinstance(family_speed, ByFamily):
         raise ValueError(
             f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
@@ -1041,8 +1069,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext)
                     if picked is not None:
                         k, ci, j, m = picked
-                        total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
-                                                   event_positions, new_gene)
+                        if not _run_over_cap(gen[k], gen[k][ci], j, m, cap):
+                            total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t,
+                                                       events, event_positions, new_gene)
                 elif r < b_los:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext)
                     if picked is not None:
@@ -1060,7 +1089,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         kd, cdi, jd, m = picked
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                      event_positions, new_gene, transfer_to,
-                                                     replacement, self_transfer, depth)
+                                                     replacement, self_transfer, depth, cap)
                 elif r < b_inv:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext)
                     if picked is not None:                # the run starts at a gene, so: per copy
