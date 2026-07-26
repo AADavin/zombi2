@@ -415,7 +415,7 @@ result = species.simulate_species_tree(
     n_extant=<span class="s">20</span>, seed=<span class="s">1</span>)
 
 <span class="c"># 2 · genomes evolving along it</span>
-g = genomes.simulate_genomes_unordered(
+g = genomes.simulate_genomes_family(
     result.complete_tree, duplication=<span class="s">0.2</span>, transfer=<span class="s">0.1</span>,
     loss=<span class="s">0.25</span>, origination=<span class="s">0.5</span>, seed=<span class="s">42</span>)
 

@@ -1,7 +1,7 @@
 """Transfer mechanics shared across genome resolutions — the ``transfer_to`` weighting.
 
 A transfer's *rate* is an ordinary rate; what is special is **who receives** once it fires. That
-mechanic is the same whether the genome is an unordered multiset or an ordered set of chromosomes,
+mechanic is the same whether the genome is a multiset of families or an ordered set of chromosomes,
 so it lives here, imported by every resolution. ``transfer_to`` is the **choice slot** of SPEC §5 —
 the numbers in it are per-candidate weights, normalised across the contemporaneous lineages, so they
 change neither how fast nor how many transfers happen, only **who** receives. Three rules:
@@ -11,7 +11,7 @@ change neither how fast nor how many transfers happen, only **who** receives. Th
   root-to-tip time to stay scale-free;
 - :class:`~zombi2.rates.modifiers.DrivenBy` — weight by **another level**: candidate ``k``'s weight is
   the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a lineage
-  competent to take DNA up). Wired for the unordered resolution only.
+  competent to take DNA up). Wired for the family resolution only.
 """
 
 from __future__ import annotations

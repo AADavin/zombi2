@@ -17,7 +17,7 @@ Simulate each level of evolution on its own. Run 'zombi2 <command> -h' for a com
 
 Levels
   species              simulate a dated species tree
-  genomes              evolve gene families along a species tree (unordered or ordered)
+  genomes              evolve gene families along a species tree (family or ordered)
   sequences            evolve sequences down each gene tree (a prior genomes run)
   traits               evolve a trait along a species tree (continuous or discrete)
 

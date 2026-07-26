@@ -7,7 +7,7 @@ Nine chapters and two appendices, one file each:
 | `ch1.md` | Introduction |
 | `ch2.md` | A tour of ZOMBI2 |
 | `ch3.md` | Species trees |
-| `ch4.md` | Genomes I: unordered |
+| `ch4.md` | Genomes I: gene families |
 | `ch5.md` | Genomes II: ordered |
 | `ch6.md` | Genomes III: nucleotide |
 | `ch7.md` | Sequence evolution |

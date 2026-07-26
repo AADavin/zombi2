@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from zombi2 import species
-from zombi2.genomes import GenomesResult, simulate_genomes_unordered
+from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import _aa_matrices, simulate_sequences
@@ -45,7 +45,7 @@ def _genome_run(gene_trees: dict[int, GeneTree], *, t_split: float = 1.0, t_now:
     tree = species.Tree({0: species.Node(0, None, 0.0, t_split, (1, 2), "speciation"),
                          1: species.Node(1, 0, t_split, t_now, None, "extant"),
                          2: species.Node(2, 0, t_split, t_now, None, "extant")}, 0)
-    run = GenomesResult(complete_tree=tree, genomes={}, events=[], seed=None)
+    run = FamilyGenomesResult(complete_tree=tree, genomes={}, events=[], seed=None)
     run.gene_trees = dict(gene_trees)      # a cached_property: the instance dict wins
     return run
 
@@ -220,8 +220,8 @@ def test_zero_rate_leaves_a_protein_alignment_untouched():
 
 def test_protein_run_over_a_real_genome_history(tmp_path):
     sp = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1)
-    g = simulate_genomes_unordered(sp, duplication=0.2, loss=0.2, transfer=0.1,
-                                   initial_families=6, seed=2)
+    g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, transfer=0.1,
+                                initial_families=6, seed=2)
     r = simulate_sequences(g, model=lg(), length=120, seed=3)
     assert set(r.alignments) == set(g.gene_trees)
     for aln in r.alignments.values():

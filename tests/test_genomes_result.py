@@ -1,13 +1,13 @@
 """Tests for the genome Result spine: phyletic profiles + write (zombi2.genomes)."""
 
 from zombi2.species import simulate_species_tree
-from zombi2.genomes import Profiles, simulate_genomes_unordered
+from zombi2.genomes import Profiles, simulate_genomes_family
 
 
 def _run(seed=1, n_extant=12, death=0.3):
     sp = simulate_species_tree(birth=1.0, death=death, n_extant=n_extant, seed=seed)
-    g = simulate_genomes_unordered(sp, duplication=0.3, transfer=0.1, loss=0.2, origination=0.6,
-                                   initial_families=8, seed=seed)
+    g = simulate_genomes_family(sp, duplication=0.3, transfer=0.1, loss=0.2, origination=0.6,
+                                initial_families=8, seed=seed)
     return sp, g
 
 
@@ -58,7 +58,7 @@ def test_profiles_is_cached():
 
 def test_empty_run_has_empty_profiles():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1)
-    g = simulate_genomes_unordered(sp, initial_families=0, seed=1)          # no families, no rates
+    g = simulate_genomes_family(sp, initial_families=0, seed=1)          # no families, no rates
     assert g.profiles.families == ()
     assert g.profiles.matrix.shape == (0, 10)           # no families, still the 10 extant columns
 
@@ -104,10 +104,10 @@ def test_the_initial_genome_is_the_one_the_run_started_with(tmp_path):
     """The genome at the START of the root branch. It is not genomes[root]: a node sits at the END of
     its branch, and the root branch is real simulated time, so events happen along it."""
     from zombi2.species import simulate_species_tree
-    from zombi2.genomes import simulate_genomes_unordered
+    from zombi2.genomes import simulate_genomes_family
 
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1)
-    g = simulate_genomes_unordered(sp, duplication=0.5, loss=0.5, initial_families=6, seed=1)
+    g = simulate_genomes_family(sp, duplication=0.5, loss=0.5, initial_families=6, seed=1)
     assert len(g.initial_genome) == 6                     # one copy per seeded family
     assert sorted(c.family for c in g.initial_genome) == list(range(6))
     root = sp.complete_tree.root
@@ -122,10 +122,10 @@ def test_the_initial_genome_is_the_one_the_run_started_with(tmp_path):
 def test_the_initial_genome_survives_a_run_that_loses_everything():
     # the run starts with what it starts with, whatever later becomes of it
     from zombi2.species import simulate_species_tree
-    from zombi2.genomes import simulate_genomes_unordered
+    from zombi2.genomes import simulate_genomes_family
 
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=3)
-    g = simulate_genomes_unordered(sp, loss=6.0, initial_families=5, seed=3)
+    g = simulate_genomes_family(sp, loss=6.0, initial_families=5, seed=3)
     assert len(g.initial_genome) == 5
     assert sum(len(g.genomes[n.id]) for n in sp.complete_tree.extant()) < 5 * 4
 
@@ -136,10 +136,10 @@ def test_a_transfer_names_both_ends_of_its_edge_on_every_row():
     `recipient` are the same branch there — so reading who donated to whom meant pairing the rows on
     (time, parent). It is also what makes a self-transfer visible: donor == recipient."""
     from zombi2.species import simulate_species_tree
-    from zombi2.genomes import simulate_genomes_unordered
+    from zombi2.genomes import simulate_genomes_family
 
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=4)
-    r = simulate_genomes_unordered(sp, initial_families=8, transfer=1.0, seed=4)
+    r = simulate_genomes_family(sp, initial_families=8, transfer=1.0, seed=4)
     transfers = [e for e in r.events if e.kind == "transfer"]
     assert transfers
     for e in transfers:
@@ -155,11 +155,11 @@ def test_a_transfer_names_both_ends_of_its_edge_on_every_row():
 def test_self_transfers_are_readable_from_one_row():
     from zombi2.genomes._transfer import Distance
     from zombi2.species import simulate_species_tree
-    from zombi2.genomes import simulate_genomes_unordered
+    from zombi2.genomes import simulate_genomes_family
 
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=4)
-    r = simulate_genomes_unordered(sp, initial_families=8, transfer=1.0, self_transfer=True,
-                                   transfer_to=Distance(decay=10.0), seed=4)
+    r = simulate_genomes_family(sp, initial_families=8, transfer=1.0, self_transfer=True,
+                                transfer_to=Distance(decay=10.0), seed=4)
     arrived = [e for e in r.events if e.kind == "transfer" and e.recipient is not None]
     selfies = [e for e in arrived if e.donor == e.recipient]
     assert selfies, "a steep distance decay with self_transfer should give plenty of self-transfers"

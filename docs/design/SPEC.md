@@ -209,7 +209,7 @@ Left column is correct; right column is a fossil to purge.
 |---|---|
 | Species, Genomes, Sequences, Traits (words, plural) | single letters, "Sigma" |
 | level (one of the four) | tier |
-| resolution — unordered / ordered / nucleotide | "level" for the genome sub-axis; `--genome-model` |
+| resolution — family / ordered / nucleotide | "level" for the genome sub-axis; "unordered"; `--genome-model` |
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
 | rate; effective rate = scope(base) × modifiers | propensity |

@@ -2,7 +2,7 @@
 
 ZOMBI2 runs single-threaded unless you explicitly ask for parallelism (SPEC: serial by default).
 When you do, each independent unit — a gene tree at the sequences level, a gene family at the
-unordered-genomes level — is evolved under its **own** spawned RNG stream, so the result is
+family-genomes level — is evolved under its **own** spawned RNG stream, so the result is
 bit-identical for any worker count (``parallel=2`` and ``parallel=8`` agree to the byte), though it
 differs from the serial reference engine: parallel is a **separate** engine, chosen deliberately
 (the "A" decision — the serial default stays untouched, no fixture re-blessing).

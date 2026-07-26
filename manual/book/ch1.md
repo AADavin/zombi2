@@ -73,9 +73,9 @@ Here is the same run from Python:
 from zombi2 import species, genomes
 
 sp  = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-gen = genomes.simulate_genomes_unordered(sp.complete_tree,
-                                         duplication=0.2, transfer=0.1,
-                                         loss=0.25, origination=0.5, seed=42)
+gen = genomes.simulate_genomes_family(sp.complete_tree,
+                                      duplication=0.2, transfer=0.1,
+                                      loss=0.25, origination=0.5, seed=42)
 
 sp.write("out/")
 gen.write("out/")

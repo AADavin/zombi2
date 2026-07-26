@@ -5,7 +5,7 @@ contemporaneous lineages), so both keep the same three parallel structures: ``al
 ids), ``gen`` (each lineage's working genome, at whatever resolution), and ``pos`` (node id → its
 index, so a lineage can be retired in O(1)). These two helpers manage that set and are
 genome-shape-agnostic — ``gen`` may hold multisets or lists of chromosomes — so they live here, one
-home, shared by the unordered core and the ordered engine.
+home, shared by the family core and the ordered engine.
 """
 
 from __future__ import annotations

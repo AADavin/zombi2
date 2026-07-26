@@ -3,7 +3,7 @@
 The CLI is grown from the clean core, one level at a time, exactly like the packages it wraps. Today it exposes the three built levels:
 
 - ``zombi2 species``  → :func:`zombi2.species.simulate_species_tree`
-- ``zombi2 genomes``  → :func:`zombi2.genomes.simulate_genomes_unordered` /
+- ``zombi2 genomes``  → :func:`zombi2.genomes.simulate_genomes_family` /
   :func:`~zombi2.genomes.simulate_genomes_ordered` (chosen by ``--resolution``)
 - ``zombi2 traits``   → :func:`zombi2.traits.simulate_continuous` /
   :func:`~zombi2.traits.simulate_discrete` (chosen by ``--kind``)

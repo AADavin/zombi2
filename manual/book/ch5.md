@@ -117,7 +117,7 @@ g = simulate_genomes_ordered(
 
 ## The `OrderedGenomesResult` object
 
-`simulate_genomes_ordered` returns an **`OrderedGenomesResult`**, the ordered counterpart of `GenomesResult` — the same spine, with the structured extras:
+`simulate_genomes_ordered` returns an **`OrderedGenomesResult`**, the ordered counterpart of `FamilyGenomesResult` — the same spine, with the structured extras:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages included.
 - `.genomes` — a dict from node id to that node's genome, now a tuple of **`Chromosome`** objects. Each `Chromosome` has an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`).
@@ -133,7 +133,7 @@ with the methods `.family_counts(node_id)` (the multiset view), `.gene_order(nod
 g.genomes[2]                     # the chromosomes of node n2
 g.gene_order(2)                  # its layout, gene by gene
 g.chromosome_events              # the chromosome network, as an edge list
-g.gene_trees[0].to_newick()      # a family's gene tree — unchanged from unordered
+g.gene_trees[0].to_newick()      # a family's gene tree — unchanged from the family resolution
 ```
 
 ## Usage from Python

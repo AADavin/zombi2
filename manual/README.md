@@ -65,7 +65,7 @@ To work on a chapter you only need: **that one chapter file**, this README, and
   Classes: `note`, `warning`, `tip`.
 - **Code.** Fenced code blocks with a language tag (```` ```python ````) are syntax-highlighted.
 - **Cross-references.** Link to another chapter/section by its heading id, e.g.
-  `[unordered genomes](#unordered-genomes)` (resolves in the merged book).
+  `[gene families](#genomes-i-gene-families)` (resolves in the merged book).
 
 ## The tools manual (retired)
 

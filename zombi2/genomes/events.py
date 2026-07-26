@@ -2,9 +2,9 @@
 
 An :class:`Event` records one moment in a gene family's history; the per-family gene trees are
 *derived* from a run's events (see :mod:`.gene_trees`), identically whether the genome was an
-unordered multiset or an ordered set of chromosomes. Position and orientation are **not** here —
+multiset of families or an ordered set of chromosomes. Position and orientation are **not** here —
 they live in the genome snapshots and the rearrangement log — because an event is about gene
-*identity and descent*, which is resolution-blind. So this module is imported by both the unordered
+*identity and descent*, which is resolution-blind. So this module is imported by both the family
 core and the ordered engine, and neither owns it.
 """
 
