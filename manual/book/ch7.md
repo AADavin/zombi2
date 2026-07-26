@@ -11,8 +11,8 @@ The sequence level is always dependent on a genome-level run, and it takes that 
 from zombi2 import genomes, sequences
 from zombi2.sequences.substitution_models import hky85
 
-my_genomes = genomes.simulate_genomes_unordered(tree, duplication=0.2, transfer=0.1,
-                                                loss=0.25, origination=0.5, seed=1)
+my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
+                                             loss=0.25, origination=0.5, seed=1)
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),
                                       length=1000, seed=1)
 ```
@@ -101,8 +101,8 @@ from zombi2.rates import modifiers as mod
 from zombi2.sequences.substitution_models import hky85, gtr, lg
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
-my_genomes = genomes.simulate_genomes_unordered(tree, duplication=0.2, transfer=0.1,
-                                                loss=0.25, origination=0.5, seed=1)
+my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
+                                             loss=0.25, origination=0.5, seed=1)
 
 # the common case: DNA under HKY85, a strict clock
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),

@@ -4,7 +4,7 @@ import pytest
 
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
-from zombi2.genomes import GeneTree, simulate_genomes_unordered
+from zombi2.genomes import GeneTree, simulate_genomes_family
 
 LEAF_KINDS = {"extant", "extinct", "unsampled", "loss"}
 INTERNAL_KINDS = {"duplication", "transfer", "speciation"}   # ZOMBI1: a node's kind is what ended the gene
@@ -28,7 +28,7 @@ def _run(seed=1, n_extant=15, death=0.4, **kw):
     sp = simulate_species_tree(birth=1.0, death=death, n_extant=n_extant, seed=seed)
     params = dict(duplication=0.4, transfer=0.2, loss=0.3, origination=0.7, initial_families=6, seed=seed)
     params.update(kw)                                # caller overrides (e.g. transfer=0.0, loss=1.2)
-    return sp, simulate_genomes_unordered(sp, **params)
+    return sp, simulate_genomes_family(sp, **params)
 
 
 # --- the tree exists and is well-formed ------------------------------------
@@ -160,15 +160,15 @@ def test_newick_is_balanced_and_both_trees_serialise():
 
 def test_deterministic_given_seed():
     sp, g = _run(seed=3)
-    g2 = simulate_genomes_unordered(sp, duplication=0.4, transfer=0.2, loss=0.3, origination=0.7,
-                                    initial_families=6, seed=3)
+    g2 = simulate_genomes_family(sp, duplication=0.4, transfer=0.2, loss=0.3, origination=0.7,
+                                 initial_families=6, seed=3)
     assert all(g.gene_trees[f].to_newick("complete") == g2.gene_trees[f].to_newick("complete")
                for f in g.gene_trees)
 
 
 def test_empty_run_has_no_gene_trees():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1)
-    g = simulate_genomes_unordered(sp, initial_families=0, seed=1)       # no families
+    g = simulate_genomes_family(sp, initial_families=0, seed=1)       # no families
     assert g.gene_trees == {}
 
 
@@ -182,7 +182,7 @@ def test_deep_tree_serialises_without_recursion_error():
         nodes[s] = Node(s, (2 * (k - 1) if k > 0 else None), float(k), float(k + 1), (leaf, nxt), "speciation")
         nodes[leaf] = Node(leaf, s, float(k + 1), float(L + 1), None, "extant")
     nodes[2 * L] = Node(2 * L, 2 * (L - 1), float(L), float(L + 1), None, "extant")
-    g = simulate_genomes_unordered(Tree(nodes, 0), initial_families=1, seed=0)
+    g = simulate_genomes_family(Tree(nodes, 0), initial_families=1, seed=0)
     for which in ("complete", "extant"):
         nw = g.gene_trees[0].to_newick(which)         # must not raise RecursionError
         assert nw.endswith(";") and nw.count("(") == nw.count(")")

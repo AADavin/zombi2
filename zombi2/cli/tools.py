@@ -180,7 +180,7 @@ def _add_tools_format_args(p: argparse.ArgumentParser) -> None:
 def _load_gene_trees(handoff, tree):
     """The run's ``{family: GeneTree}``, rebuilt from disk for either genome resolution.
 
-    An unordered or ordered run derives its gene trees from the event log alone. A **nucleotide** run
+    A family or ordered run derives its gene trees from the event log alone. A **nucleotide** run
     keys its events by ancestral interval, so its trees are recovered from the genome itself (the same
     ``read_nucleotide_genomes`` the sequence level replays) — and only its **declared genes** get a
     tree, never the intergenic spacer, which is what ``.gene_trees`` gives (the spacer's blocks live in

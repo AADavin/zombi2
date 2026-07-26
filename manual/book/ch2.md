@@ -91,7 +91,7 @@ from zombi2 import species, genomes, sequences, traits
 from zombi2.sequences import substitution_models as sm
 
 sp   = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-gen  = genomes.simulate_genomes_unordered(sp, duplication=0.2, loss=0.25, origination=0.5, seed=42)
+gen  = genomes.simulate_genomes_family(sp, duplication=0.2, loss=0.25, origination=0.5, seed=42)
 seqs = sequences.simulate_sequences(gen, model=sm.hky85(kappa=2.0), length=300, seed=7)
 bm   = traits.simulate_continuous(sp, rate=1.0, seed=1)
 ```

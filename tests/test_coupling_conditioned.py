@@ -225,7 +225,7 @@ def test_zero_factor_lineages_never_lose(tmp_path):
     driver = tmp_path / "habitat.tsv"
     _write_driver(driver, tree, state_of)
 
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree,
         loss=0.25 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 40.0}),
         initial_families=6, seed=3,
@@ -250,7 +250,7 @@ def test_mapping_matching_no_driver_state_is_refused(tmp_path):
     driver = tmp_path / "habitat.tsv"
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
     with pytest.raises(ValueError, match="match none of the driver's states"):
-        genomes.simulate_genomes_unordered(
+        genomes.simulate_genomes_family(
             tree, loss=0.25 * mod.DrivenBy(str(driver), {"cave": 4.0}),  # 'cave' is never a driver state
             initial_families=6, seed=3)
 
@@ -261,7 +261,7 @@ def test_partial_mapping_with_one_matching_state_still_runs(tmp_path):
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
     driver = tmp_path / "habitat.tsv"
     _write_driver(driver, tree, {i: "lo" for i in tree.nodes})   # only 'lo' ever occurs
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, loss=0.25 * mod.DrivenBy(str(driver), {"lo": 2.0, "hi": 9.0}),  # 'hi' listed but absent
         initial_families=6, seed=3)
     assert res.events is not None                                # it ran; the absent 'hi' key is fine
@@ -274,8 +274,8 @@ def test_driven_loss_is_deterministic(tmp_path):
     _write_driver(driver, tree, state_of)
     kw = dict(loss=0.3 * mod.DrivenBy(str(driver), {"lo": 1.0, "hi": 5.0}),
               initial_families=4, seed=9)
-    a = genomes.simulate_genomes_unordered(tree, **kw)
-    b = genomes.simulate_genomes_unordered(tree, **kw)
+    a = genomes.simulate_genomes_family(tree, **kw)
+    b = genomes.simulate_genomes_family(tree, **kw)
     assert [(e.time, e.kind, e.lineage, e.family) for e in a.events] == \
            [(e.time, e.kind, e.lineage, e.family) for e in b.events]
 
@@ -287,7 +287,7 @@ def test_end_to_end_trait_drives_loss(tmp_path):
     tree = simulate_species_tree(birth=1.1, total_time=3.0, seed=3).complete_tree
     hab = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.5, seed=1)
     hab.write(tmp_path, outputs=("events",))
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree,
         loss=0.15 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"),
                                  {"cave": 6.0, "surface": 1.0}),
@@ -306,7 +306,7 @@ def test_int_state_trait_drives_loss_end_to_end(tmp_path):
     tree = simulate_species_tree(birth=1.1, total_time=2.5, seed=6).complete_tree
     trait = traits.simulate_discrete(tree, states=[0, 1], switch=0.5, seed=1)
     trait.write(tmp_path, outputs=("events",))
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree,
         loss=0.3 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), {0: 0.0, 1: 30.0}),
         initial_families=5, seed=2,
@@ -327,10 +327,10 @@ def test_drivenby_accepts_traits_result_object(tmp_path):
     habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.5, seed=1)
     kw = dict(loss=0.5 * mod.DrivenBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0}),
               origination=0.2, initial_families=8, seed=2)
-    by_object = genomes.simulate_genomes_unordered(tree, **kw)
+    by_object = genomes.simulate_genomes_family(tree, **kw)
 
     habitat.write(tmp_path, outputs=("events",))
-    by_file = genomes.simulate_genomes_unordered(
+    by_file = genomes.simulate_genomes_family(
         tree,
         loss=0.5 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
         origination=0.2, initial_families=8, seed=2)
@@ -342,7 +342,7 @@ def test_drivenby_object_must_be_discrete(tmp_path):
     tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=2).complete_tree
     cont = traits.simulate_continuous(tree, rate=1.0, seed=1)   # a diffusion has no stochastic map
     with pytest.raises(ValueError, match="DISCRETE"):
-        genomes.simulate_genomes_unordered(
+        genomes.simulate_genomes_family(
             tree, loss=0.5 * mod.DrivenBy(cont, {"a": 2.0}), initial_families=3, seed=1)
 
 
@@ -367,7 +367,7 @@ def _event_digest(result) -> str:
 @pytest.mark.parametrize("rule", ["uniform", "distance"])
 def test_undriven_transfer_is_unchanged(rule):
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=2.5, seed=17).complete_tree
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3,
         transfer_to=rule, initial_families=5, seed=23)
     assert _event_digest(res) == _UNDRIVEN_TRANSFER_DIGESTS[rule], (
@@ -376,7 +376,7 @@ def test_undriven_transfer_is_unchanged(rule):
 
 def test_undriven_transfer_is_unchanged_under_replacement_and_self_transfer():
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=2.5, seed=17).complete_tree
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3, replacement=True,
         self_transfer=True, initial_families=5, seed=23)
     assert _event_digest(res) == "6eb913b6da50df2dcfa463dcc02327258e7da68ec092c127990bd03ea2d8dfac"
@@ -389,7 +389,7 @@ def test_driven_transfer_picks_the_donor(tmp_path):
     driver = tmp_path / "d.tsv"
     _write_driver(driver, tree, state_of)
 
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, transfer=0.2 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 20.0}),
         initial_families=6, seed=3)
     donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
@@ -413,8 +413,8 @@ def test_driven_transfer_changes_how_much_transfer_happens(tmp_path):
         driver = tmp_path / f"flat{seed}.tsv"
         _write_driver(driver, tree, {i: "any" for i in tree.nodes})
         kw = dict(replacement=True, initial_families=8, seed=seed)
-        plain = genomes.simulate_genomes_unordered(tree, transfer=0.2, **kw)
-        driven = genomes.simulate_genomes_unordered(
+        plain = genomes.simulate_genomes_family(tree, transfer=0.2, **kw)
+        driven = genomes.simulate_genomes_family(
             tree, transfer=0.2 * mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
         n_plain += sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
         n_driven += sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
@@ -427,8 +427,8 @@ def test_driven_transfer_is_deterministic(tmp_path):
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
     kw = dict(transfer=0.3 * mod.DrivenBy(str(driver), {"lo": 1.0, "hi": 5.0}),
               initial_families=4, seed=9)
-    a = genomes.simulate_genomes_unordered(tree, **kw)
-    b = genomes.simulate_genomes_unordered(tree, **kw)
+    a = genomes.simulate_genomes_family(tree, **kw)
+    b = genomes.simulate_genomes_family(tree, **kw)
     assert _event_digest(a) == _event_digest(b)
 
 
@@ -457,7 +457,7 @@ def test_recipient_weight_splits_transfers_two_to_one(tmp_path):
     """Four candidates at weight 2 and four at weight 1 send 2/3 of transfers to the weight-2 group.
     ``self_transfer`` keeps the donor in the candidate set, so the normaliser is always 4·2 + 4·1."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, transfer=4.0, initial_families=6, self_transfer=True,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
     arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
@@ -470,7 +470,7 @@ def test_recipient_weight_splits_transfers_two_to_one(tmp_path):
 def test_recipient_weight_zero_cannot_receive(tmp_path):
     """Weight 0 means "cannot receive": every transfer lands on a competent lineage."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, transfer=1.0, initial_families=6,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
     arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
@@ -484,9 +484,9 @@ def test_no_eligible_recipient_means_no_transfer_at_all(tmp_path):
     freely, so the difference is the weighting and not the setup."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=0)   # nobody is competent
     kw = dict(transfer=1.0, initial_families=6, seed=5)
-    blocked = genomes.simulate_genomes_unordered(
+    blocked = genomes.simulate_genomes_family(
         tree, transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), **kw)
-    free = genomes.simulate_genomes_unordered(tree, transfer_to="uniform", **kw)
+    free = genomes.simulate_genomes_family(tree, transfer_to="uniform", **kw)
     assert not [e for e in blocked.events if e.kind == "transfer"]
     assert [e for e in free.events if e.kind == "transfer"]
     # a dropped event leaves the genomes untouched: the six crown families are simply inherited
@@ -496,7 +496,7 @@ def test_no_eligible_recipient_means_no_transfer_at_all(tmp_path):
 def test_both_couplings_compose(tmp_path):
     """The donor rate and the recipient weight are independent models and may be used together."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, transfer=0.5 * mod.DrivenBy(str(driver), {"competent": 5.0, "normal": 0.0}),
         transfer_to=mod.DrivenBy(str(driver), {"competent": 0.0, "normal": 1.0}),
         initial_families=6, seed=5)
@@ -513,7 +513,7 @@ def test_recipient_kernel_keeps_transfer_within_the_donor_state(tmp_path):
     """DrivenBy(trait, Between(...)) reads the driver on the DONOR too, so a same-state kernel keeps
     every transfer within one habitat — the thing a 1-D recipient weight cannot express."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
-    res = genomes.simulate_genomes_unordered(
+    res = genomes.simulate_genomes_family(
         tree, transfer=4.0, initial_families=6, self_transfer=True,
         transfer_to=mod.DrivenBy(str(driver),
                                  Between({("competent", "competent"): 1.0,
@@ -528,7 +528,7 @@ def test_recipient_kernel_fires_check_catches_absent_groups(tmp_path):
     secretly uniform — so it is refused, like a Table that names no occurring state."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     with pytest.raises(ValueError, match="silently do nothing"):
-        genomes.simulate_genomes_unordered(
+        genomes.simulate_genomes_family(
             tree, transfer=1.0, initial_families=6,
             transfer_to=mod.DrivenBy(str(driver), Between({("x", "y"): 1.0})), seed=5)
 
@@ -537,7 +537,7 @@ def test_between_is_rejected_in_a_rate_slot():
     """A rate has no donor to condition on, so a Between kernel there is a category error."""
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
     with pytest.raises(ValueError, match="donor-conditioned"):
-        genomes.simulate_genomes_unordered(
+        genomes.simulate_genomes_family(
             tree, loss=0.5 * mod.DrivenBy("f.tsv", Between({("a", "b"): 1.0})),
             initial_families=1, seed=1)
 
@@ -547,7 +547,7 @@ def test_between_is_rejected_in_a_rate_slot():
 def test_transfer_to_rejects_a_rate():
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
     with pytest.raises(ValueError, match="on its own, not a rate"):
-        genomes.simulate_genomes_unordered(
+        genomes.simulate_genomes_family(
             tree, transfer=0.1, transfer_to=1.0 * mod.DrivenBy("f.tsv", {"a": 2.0}),
             initial_families=1, seed=1)
 
@@ -555,7 +555,7 @@ def test_transfer_to_rejects_a_rate():
 def test_transfer_to_rejects_combining_distance_with_a_driven_weight():
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
     with pytest.raises(ValueError, match="one recipient rule"):
-        genomes.simulate_genomes_unordered(
+        genomes.simulate_genomes_family(
             tree, transfer=0.1,
             transfer_to=(genomes.Distance(decay=1.0), mod.DrivenBy("f.tsv", {"a": 2.0})),
             initial_families=1, seed=1)
@@ -564,8 +564,8 @@ def test_transfer_to_rejects_combining_distance_with_a_driven_weight():
 def test_transfer_to_rejects_an_unknown_rule():
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
     with pytest.raises(ValueError, match="transfer_to must be"):
-        genomes.simulate_genomes_unordered(tree, transfer=0.1, transfer_to="closest",
-                                           initial_families=1, seed=1)
+        genomes.simulate_genomes_family(tree, transfer=0.1, transfer_to="closest",
+                                        initial_families=1, seed=1)
 
 
 def test_ordered_engine_rejects_a_driven_transfer_to():

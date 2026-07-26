@@ -23,14 +23,14 @@ Grow a species tree, then evolve gene families along it:
 
 ```python
 from zombi2 import species
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 
 # a birth–death tree of 20 surviving species
 sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 
 # gene families along that tree — duplication, transfer, loss, origination
-g = simulate_genomes_unordered(sp, duplication=0.2, transfer=0.1, loss=0.25,
-                               origination=0.5, initial_families=20, seed=42)
+g = simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25,
+                            origination=0.5, initial_families=20, seed=42)
 
 # the genomes you observe are the extant tips
 observed = {n.id: g.genomes[n.id] for n in sp.complete_tree.extant()}

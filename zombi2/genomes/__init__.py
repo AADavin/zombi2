@@ -1,10 +1,10 @@
-"""Genomes — the gene-family core, at three resolutions (SPEC §5).
+"""Genomes — the gene-family core, at three resolutions (SPEC §6).
 
 A genome evolves along the species tree by **duplication, transfer, loss and origination**. The three
 resolutions share one spine (a forward Gillespie over the complete tree, the same rate grammar, the
 same gene-genealogy event log) and differ only in the state they carry:
 
-- :mod:`.unordered` — a genome is a **multiset** of gene families (:func:`simulate_genomes_unordered`);
+- :mod:`.family` — a genome is a **multiset** of gene families (:func:`simulate_genomes_family`);
 - :mod:`.ordered` — genes gain a **position and orientation** on chromosomes
   (:func:`simulate_genomes_ordered`);
 - :mod:`.nucleotide` — genes and intergenes carry **sequence** (:func:`simulate_genomes_nucleotide`).
@@ -21,9 +21,9 @@ from ._transfer import Clades, Distance
 from .events import Event
 from .gene_trees import GeneNode, GeneTree
 from .profiles import Profiles
-from .unordered import GeneCopy, GenomesResult, UnorderedGenome, simulate_genomes_unordered, unordered
+from .family import GeneCopy, FamilyGenomesResult, FamilyGenome, simulate_genomes_family, family
 # re-exported on the package path for the CLI / tests, but kept out of __all__ (not public API):
-from .unordered import WIRED_MODIFIERS, resolve_max_family_size  # noqa: F401
+from .family import WIRED_MODIFIERS, resolve_max_family_size  # noqa: F401
 from .chromosomes import ChromosomeEvent
 from .ordered import (
     Chromosome,
@@ -38,9 +38,9 @@ from .ordered import (
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from ._perfamily import StreamedRun
 
-__all__ = ["simulate_genomes_unordered", "GenomesResult", "Event", "GeneCopy", "Distance",
+__all__ = ["simulate_genomes_family", "FamilyGenomesResult", "Event", "GeneCopy", "Distance",
            "Clades", "Between",
-           "Profiles", "GeneTree", "GeneNode", "UnorderedGenome", "unordered",
+           "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "family",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
            "ChromosomeEvent", "Inversion", "Transposition", "Translocation", "EventPosition",
            "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome",

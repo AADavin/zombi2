@@ -114,7 +114,7 @@ nav:
       - Introduction: guide/introduction.md
       - A tour of ZOMBI2: guide/tour.md
       - Species trees: guide/species-trees.md
-      - "Genomes I: unordered": guide/genomes.md
+      - "Genomes I: gene families": guide/genomes.md
       - "Genomes II: ordered": guide/genomes-ordered.md
       - "Genomes III: nucleotide": guide/genomes-nucleotide.md
       - Sequence evolution: guide/sequences.md

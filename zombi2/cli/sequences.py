@@ -20,7 +20,7 @@ import argparse
 import os
 import time
 
-from zombi2.genomes import GenomesResult
+from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage
@@ -204,7 +204,7 @@ def run(args, parser):
         # The genome run's spine from disk: its gene trees derive from (events, tree), and the species
         # tree drives the species phylogram. The sequence engine reads only .complete_tree and
         # .gene_trees, so an empty `genomes` map is the honest minimal shell (it never escapes here).
-        genome_run = GenomesResult(complete_tree=tree, genomes={}, events=events, seed=None)
+        genome_run = FamilyGenomesResult(complete_tree=tree, genomes={}, events=events, seed=None)
         for flag, value in (("--intergene-model", args.intergene_model),):
             if value is not None:
                 parser.error(f"{flag} applies to a nucleotide genome run, where blocks are genes or "
@@ -230,7 +230,7 @@ def run(args, parser):
     own_dir = {"alignments": "alignments", "phylograms": "phylograms",
                "genomes": "genomes", "initial_genome": "genomes"}
     # genomes / initial_genome are the assembled-genome FASTAs — a **nucleotide** run only. On an
-    # unordered or ordered run they are empty, so skip them rather than leave an empty genomes/ behind.
+    # family or ordered run they are empty, so skip them rather than leave an empty genomes/ behind.
     has_content = {"genomes": bool(result.genomes), "initial_genome": bool(result.initial_genome)}
     if rest := [o for o in wanted if o not in own_dir]:
         result.write(out, outputs=rest)

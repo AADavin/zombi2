@@ -23,7 +23,7 @@ from zombi2.genomes import (
     Transposition,
     Translocation,
     simulate_genomes_ordered,
-    simulate_genomes_unordered,
+    simulate_genomes_family,
 )
 from zombi2.genomes.ordered import (
     _duplicate,
@@ -89,14 +89,14 @@ def test_initial_families_dealt_round_robin_across_chromosomes():
 
 
 def test_shared_params_are_a_subset_of_the_ordered_signature():
-    # the layering contract: unordered ⊂ ordered, only the extra args differ. `parallel` / `stream_to` /
+    # the layering contract: family ⊂ ordered, only the extra args differ. `parallel` / `stream_to` /
     # `outputs` are the documented exceptions — the per-family engine (and its streaming form) is
-    # unordered-only, because per-family parallelism needs the families to be independent, and the
+    # family-only, because per-family parallelism needs the families to be independent, and the
     # ordered resolution couples them by position (an inversion or translocation spans several families).
-    shared = (set(inspect.signature(simulate_genomes_unordered).parameters)
+    shared = (set(inspect.signature(simulate_genomes_family).parameters)
               - {"tree", "parallel", "stream_to", "outputs"})
     ordered = set(inspect.signature(simulate_genomes_ordered).parameters) - {"tree"}
-    assert shared <= ordered                                 # unordered ⊂ ordered: nothing dropped
+    assert shared <= ordered                                 # family ⊂ ordered: nothing dropped
     assert ordered - shared == {                            # ordered's own additions:
         "chromosomes", "topology", "inversion", "transposition", "translocation",
         "fission", "fusion", "chromosome_origination", "chromosome_loss", "inversion_probability",
@@ -107,7 +107,7 @@ def test_shared_params_are_a_subset_of_the_ordered_signature():
 # --- the shared gene genealogy still holds -------------------------------------------------------
 
 def test_extant_gene_tree_leaves_equal_the_extant_copy_total():
-    # the strongest invariant, inherited from the unordered core: surviving gene-tree leaves == copies
+    # the strongest invariant, inherited from the family core: surviving gene-tree leaves == copies
     sp, r = _run(seed=5, death=0.5)
     extant_sp = {n.id for n in sp.complete_tree.extant()}
     for fam, tree in r.gene_trees.items():

@@ -42,7 +42,7 @@ Conditioning goes in exactly one direction today: **a trait drives gene gain or 
 habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.1, seed=1)
 
 # 2. grow the genomes, with loss reading the habitat on each lineage
-genomes.simulate_genomes_unordered(tree,
+genomes.simulate_genomes_family(tree,
     loss = 0.25 * mod.DrivenBy(habitat, {"cave": 4.0, "surface": 1.0}),
     duplication=0.2, origination=0.5, seed=2)
 ```
@@ -52,7 +52,7 @@ The `source` here is the grown `TraitsResult` itself. That is the in-memory shor
 ```python
 habitat.write("out/", outputs=("events",))          # writes out/trait_events.tsv (a bare
                                                     # write() puts it where you point it)
-genomes.simulate_genomes_unordered(tree,
+genomes.simulate_genomes_family(tree,
     loss = 0.25 * mod.DrivenBy("out/trait_events.tsv", {"cave": 4.0, "surface": 1.0}),
     duplication=0.2, origination=0.5, seed=2)
 ```
@@ -61,7 +61,7 @@ That is the whole of conditioning today, and it fits in two rows:
 
 | The driver | What it drives | Written like this | Mapping |
 |---|---|---|---|
-| a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the rates of an unordered genome run | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the rates of a genome run at the family resolution | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
 | a discrete trait | `transfer_to` — which lineage a transfer lands on | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
 
 `source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
@@ -88,7 +88,7 @@ The two couplings are independent, and a run may use either or both:
 competence = traits.simulate_discrete(tree, states=["competent", "normal"],
                                       switch=0.3, seed=1)
 
-genomes.simulate_genomes_unordered(tree,
+genomes.simulate_genomes_family(tree,
     transfer    = 0.1 * mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0}),
     transfer_to =       mod.DrivenBy(competence, {"competent": 3.0, "normal": 1.0}),
     initial_families=10, seed=2)
@@ -103,7 +103,7 @@ from zombi2.rates.mapping import Between
 
 habitat = traits.simulate_discrete(tree, states=["marine", "soil"], switch=0.3, seed=1)
 
-genomes.simulate_genomes_unordered(tree,
+genomes.simulate_genomes_family(tree,
     transfer    = 0.5,
     transfer_to = mod.DrivenBy(habitat, Between({("marine", "marine"): 1.0,
                                                  ("soil",   "soil"):   1.0}, default=0.0)),
@@ -120,7 +120,7 @@ Everything outside those two rows raises an error. The driver has to be a discre
 
 ### What can be conditioned, and what cannot yet
 
-Conditioning is wired at **one resolution only: the unordered genome** — the four gene-family rates in the table above, plus `transfer_to`. Nothing else takes a `DrivenBy` today, and the gaps are worth knowing because they are easy to reach for:
+Conditioning is wired at **one resolution only: the family resolution** — the four gene-family rates in the table above, plus `transfer_to`. Nothing else takes a `DrivenBy` today, and the gaps are worth knowing because they are easy to reach for:
 
 - **The ordered and nucleotide resolutions hold their rates constant.** The ordered engine wires `OnTime` (a skyline that varies in *time*) but not `DrivenBy`; the nucleotide engine takes plain numbers only. So the **rearrangement rates — `inversion`, `transposition`, `translocation` — cannot be driven by a trait**, at either resolution. This is the one people hit first: "let a trait speed up inversion" is not expressible yet. Inversion lives only where conditioning is not wired, and conditioning is wired only where inversion does not exist.
 - **Sequence evolution and trait runs** take no `DrivenBy` on their own rates either.
@@ -183,8 +183,8 @@ Driving `death` with the same modifier makes extinction state-dependent too, and
 joint.simulate_joint(
     birth  = 1.0 * mod.DrivenBy("genomes:toxin", {"present": 1.8, "absent": 1.0}),
     death  = 0.2,
-    genome = genomes.unordered(duplication=0.2, loss=0.25, origination=0.5,
-                               families=["toxin"]),
+    genome = genomes.family(duplication=0.2, loss=0.25, origination=0.5,
+                            family_names=["toxin"]),
     n_extant = 100, seed = 1)
 ```
 
