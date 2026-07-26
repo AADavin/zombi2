@@ -74,7 +74,7 @@ It is a **network** and not a tree because of one event: **fusion joins two chro
 
 Once genes have neighbours, **a gene-level event acts on a segment** — a run of consecutive genes — not on a single gene. A duplication copies a segment; a loss removes a segment; a transfer sends a segment sideways. This is what produces the signature of real genome evolution: neighbouring genes that share a history because they were copied, moved, or lost *together*.
 
-How long a segment? Its length — the **extension** — is drawn per event from a distribution you set per event type, `<event>_extension`. The default is `Geometric(mean=1)`, which is degenerate at one gene, so out of the box every event touches a single gene and you recover the simplest behaviour. Raise the mean to make segments longer.
+How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the **mean**, so `duplication_extent=3` copies about three adjacent genes — often two or three, sometimes one, occasionally many more. Write `Fixed(3)` for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
 
 ```python
 from zombi2.rates.distributions import Geometric
@@ -82,7 +82,7 @@ from zombi2.rates.distributions import Geometric
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=27)
 g = simulate_genomes_ordered(
     tree, duplication=0.35, loss=0.3,
-    duplication_extension=Geometric(mean=3),      # duplications copy ~3 adjacent genes at once
+    duplication_extent=Geometric(mean=3),      # duplications copy ~3 adjacent genes at once
     chromosomes=1, initial_families=5, seed=27)
 ```
 
@@ -92,7 +92,21 @@ leaf n2:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
             the segment 4 1, duplicated as a unit and landed in tandem
 ```
 
-The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent — it was lost earlier, which is what left `4` and `1` next to each other.) A duplication puts its copy **in tandem**, immediately after the original run; a transferred segment arrives together on the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extension.
+The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent — it was lost earlier, which is what left `4` and `1` next to each other.) A duplication puts its copy **in tandem**, immediately after the original run; a transferred segment arrives together on the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extent.
+
+### How often, where, how much
+
+A segmental event answers three questions, and it takes two numbers to describe one:
+
+- **how often** it starts — the rate;
+- **where** it starts — a gene drawn from the genome;
+- **how much** it takes — the extent.
+
+In Chapter 4 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
+
+That has one consequence worth stating plainly, because it is what catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any event begins on a run that covers it — which is about three times as often, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
+
+The same reading holds at the nucleotide resolution of Chapter 6, where the extent is in base pairs rather than genes.
 
 ## Rearrangements: inversion, transposition, translocation
 
@@ -109,7 +123,7 @@ tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=0)
 g = simulate_genomes_ordered(
     tree, duplication=0.15, loss=0.15, origination=0.1,
     inversion=0.3, transposition=0.25, translocation=0.2,
-    transposition_extension=Geometric(mean=2), inversion_probability=0.5,
+    transposition_extent=Geometric(mean=2), inversion_probability=0.5,
     chromosomes=2, initial_families=6, seed=0)
 ```
 
@@ -160,8 +174,8 @@ g = simulate_genomes_ordered(
 # segmental everything: duplications, losses and inversions act on segments of genes
 g = simulate_genomes_ordered(
     tree, duplication=0.2, loss=0.25, inversion=0.3,
-    duplication_extension=Geometric(mean=4), loss_extension=Geometric(mean=3),
-    inversion_extension=Geometric(mean=5), initial_families=15, seed=1)
+    duplication_extent=Geometric(mean=4), loss_extent=Geometric(mean=3),
+    inversion_extent=Geometric(mean=5), initial_families=15, seed=1)
 
 # rearrangements: relocate and move segments between chromosomes, sometimes inverting them
 g = simulate_genomes_ordered(

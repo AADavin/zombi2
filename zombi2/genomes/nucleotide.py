@@ -102,6 +102,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ..rates.distributions import Geometric, as_extent
 from ..species import SpeciesResult
 from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
@@ -1380,17 +1381,17 @@ class _Rates:
     fusion: float
     chromosome_origination: float
     chromosome_loss: float
-    inversion_length: float
-    translocation_length: float
-    transposition_length: float
-    loss_length: float
-    duplication_length: float
-    transfer_length: float
-    origination_length: float
+    inversion_extent: float
+    translocation_extent: float
+    transposition_extent: float
+    loss_extent: float
+    duplication_extent: float
+    transfer_extent: float
+    origination_extent: float
     inversion_probability: float
 
 
-def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) -> int:
+def _do_duplication(g, node_id, t, duplication_extent, rng, events, new_copy) -> int:
     """Copy a geometric-length arc of a length-weighted chromosome **in tandem** (the copy inserted
     right after the arc). An ancestry-changing *birth*: the copied material now has an extra copy (same
     source coordinates). Each distinct copy lineage in the arc begets one fresh child lineage, so the
@@ -1400,7 +1401,7 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     if spot is None:
         return 0
     chrom, start = spot
-    ell = chrom._pick_arc_extent(start, duplication_length, rng)
+    ell = chrom._pick_arc_extent(start, duplication_extent, rng)
     if ell is None:
         return 0
     copied = chrom.duplicate(start, ell, new_copy)
@@ -1410,7 +1411,7 @@ def _do_duplication(g, node_id, t, duplication_length, rng, events, new_copy) ->
     return sum(end - beg for (_par, _child, _src, beg, end) in copied)
 
 
-def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, self_transfer, depth,
+def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, self_transfer, depth,
                  events, new_copy) -> int:
     """Copy a geometric-length arc of the donor lineage ``alive[kd]`` into a **contemporaneous
     recipient** (chosen by ``transfer_to``: uniform, or a :class:`Distance` weighting): the arc's copy
@@ -1422,7 +1423,7 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     if spot is None:
         return 0
     chrom, start = spot
-    ell = chrom._pick_arc_extent(start, transfer_length, rng)
+    ell = chrom._pick_arc_extent(start, transfer_extent, rng)
     if ell is None:
         return 0
     span = chrom._arc_range(start, ell)
@@ -1454,15 +1455,15 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_length, transfer_to, sel
     return sum(b.length for b in arc)                   # the recipient's length gain
 
 
-def _do_origination(g, node_id, t, origination_length, rng, events, new_source, new_copy,
+def _do_origination(g, node_id, t, origination_extent, rng, events, new_source, new_copy,
                     new_family, gene_spans, gene_strands) -> int:
     """A **new gene** arises de novo: a fresh source (a geometric-length stretch, mean
-    ``origination_length``), its own copy lineage and its own **gene family**, inserted at a random spot
+    ``origination_extent``), its own copy lineage and its own **gene family**, inserted at a random spot
     on a uniformly-chosen chromosome. Per lineage — a family is born once. Origination mints a *gene*,
     never plain spacer, so the new block is indivisible from birth and gets its own gene tree. Returns
     the length added."""
     chrom = g.chromosomes[int(rng.integers(len(g.chromosomes)))]
-    length = max(1, int(rng.geometric(1.0 / origination_length)))
+    length = max(1, int(rng.geometric(1.0 / origination_extent)))
     src, cp, fam = new_source(), new_copy(), new_family()
     p = chrom._pick_legal_cut(rng)
     if p is None:
@@ -1474,7 +1475,7 @@ def _do_origination(g, node_id, t, origination_length, rng, events, new_source, 
     return length
 
 
-def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
+def _do_loss(g, node_id, t, loss_extent, rng, events) -> int:
     """Delete a geometric-length arc from a length-weighted chromosome — an ancestry-changing event (a
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
     deferred tier event). Records the deleted material — which copy lineage lost which arc — as a
@@ -1485,7 +1486,7 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     chrom, start = spot
     if chrom.length < 2:
         return 0
-    ell = chrom._pick_arc_extent(start, loss_length, rng)
+    ell = chrom._pick_arc_extent(start, loss_extent, rng)
     if ell is None:
         return 0
     lost = chrom.delete(start, ell)
@@ -1495,20 +1496,20 @@ def _do_loss(g, node_id, t, loss_length, rng, events) -> int:
     return -sum(end - beg for (_cp, _src, beg, end) in lost)
 
 
-def _do_inversion(g, node_id, t, inversion_length, rng, rearrangements) -> None:
+def _do_inversion(g, node_id, t, inversion_extent, rng, rearrangements) -> None:
     """Invert a geometric-length arc of a length-weighted chromosome (length-neutral)."""
     spot = g._pick_legal_cut(rng)
     if spot is None:
         return
     chrom, pos = spot
-    length = chrom._pick_arc_extent(pos, inversion_length, rng)
+    length = chrom._pick_arc_extent(pos, inversion_extent, rng)
     if length is None:
         return
     chrom.invert(pos, length)
     rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
 
 
-def _do_translocation(g, node_id, t, translocation_length, inversion_probability, rng,
+def _do_translocation(g, node_id, t, translocation_extent, inversion_probability, rng,
                       rearrangements) -> None:
     """Move a geometric-length arc from a length-weighted source chromosome to a uniformly-chosen
     **different** chromosome, landing inverted with probability ``inversion_probability``.
@@ -1523,7 +1524,7 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     source, start = spot
     if source.length < 2:
         return
-    ell = source._pick_arc_extent(start, translocation_length, rng)
+    ell = source._pick_arc_extent(start, translocation_extent, rng)
     if ell is None:
         return
     span = source._arc_range(start, ell)
@@ -1550,7 +1551,7 @@ def _do_translocation(g, node_id, t, translocation_length, inversion_probability
     rearrangements.append(Translocation(t, node_id, source.id, dest.id, start, ell, flipped))
 
 
-def _do_transposition(g, node_id, t, transposition_length, inversion_probability, rng,
+def _do_transposition(g, node_id, t, transposition_extent, inversion_probability, rng,
                       rearrangements) -> None:
     """Excise a geometric-length arc of a length-weighted chromosome and reinsert it **elsewhere on
     the same chromosome**, landing inverted with probability ``inversion_probability``. Ancestry-neutral
@@ -1562,7 +1563,7 @@ def _do_transposition(g, node_id, t, transposition_length, inversion_probability
     chrom, start = spot
     if chrom.length < 2:
         return
-    ell = chrom._pick_arc_extent(start, transposition_length, rng)
+    ell = chrom._pick_arc_extent(start, transposition_extent, rng)
     if ell is None:
         return
     intact = chrom.blocks                                # keep for rollback if there is nowhere to land
@@ -1635,7 +1636,7 @@ def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
     return -1
 
 
-def _do_chromosome_origination(g, node_id, t, origination_length, rng, events, chromosome_events,
+def _do_chromosome_origination(g, node_id, t, origination_extent, rng, events, chromosome_events,
                                new_chrom_id, new_source, new_copy, new_family,
                                gene_spans, gene_strands) -> tuple[int, int]:
     """A de-novo replicon (a plasmid): a fresh circular chromosome — a **root** of the chromosome
@@ -1643,7 +1644,7 @@ def _do_chromosome_origination(g, node_id, t, origination_length, rng, events, c
     replicon is born with one rather than as an empty shell: its own source, copy lineage and family,
     exactly like a de-novo :func:`_do_origination`. Returns ``(chromosome delta, length delta)``."""
     cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
-    length = max(1, int(rng.geometric(1.0 / origination_length)))
+    length = max(1, int(rng.geometric(1.0 / origination_extent)))
     g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)]))
     gene_spans[fam] = (src, 0, length)
     gene_strands[fam] = 1
@@ -1703,12 +1704,12 @@ def _speciate(node, g, new_chrom_id, new_copy, events, chromosome_events):
 
 
 @without_cyclic_gc
-def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, translocation=0.0,
-                                translocation_length=50.0, transposition=0.0, transposition_length=50.0,
-                                inversion_probability=0.0, loss=0.0, loss_length=50.0, duplication=0.0,
-                                duplication_length=50.0, transfer=0.0, transfer_length=50.0,
+def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, translocation=0.0,
+                                translocation_extent=50.0, transposition=0.0, transposition_extent=50.0,
+                                inversion_probability=0.0, loss=0.0, loss_extent=50.0, duplication=0.0,
+                                duplication_extent=50.0, transfer=0.0, transfer_extent=50.0,
                                 transfer_to="uniform", self_transfer=False, origination=0.0,
-                                origination_length=50.0, fission=0.0, fusion=0.0,
+                                origination_extent=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
                                 gff=None, fasta=None, trim_overlaps=False, seed=None,
@@ -1720,22 +1721,22 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's
     karyotype at speciation, with **every chromosome re-minted** (the chromosome network), and evolves:
 
-    - ``inversion`` (**per lineage**) reverses a geometric-length (mean ``inversion_length``) arc
+    - ``inversion`` (**per lineage**) reverses a geometric-length (mean ``inversion_extent``) arc
       of a length-weighted chromosome.
-    - ``translocation`` (**per lineage**) moves a geometric-length (mean ``translocation_length``)
+    - ``translocation`` (**per lineage**) moves a geometric-length (mean ``translocation_extent``)
       arc to a **different** chromosome; ``transposition`` (**per lineage**, mean
-      ``transposition_length``) moves one **within** its chromosome. Both land inverted with
+      ``transposition_extent``) moves one **within** its chromosome. Both land inverted with
       probability ``inversion_probability``, keep source coordinates, and are rearrangements, not edges.
-    - ``loss`` (**per lineage**) deletes a geometric-length (mean ``loss_length``) arc — an
+    - ``loss`` (**per lineage**) deletes a geometric-length (mean ``loss_extent``) arc — an
       ancestry-**changing** event (a death), recorded in ``events``. Never empties a chromosome.
-    - ``duplication`` (**per lineage**) copies a geometric-length (mean ``duplication_length``) arc
+    - ``duplication`` (**per lineage**) copies a geometric-length (mean ``duplication_extent``) arc
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
-    - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_length``) arc into a
+    - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
       :class:`Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
       (the donor keeps its copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
-      mean ``origination_length``) — a *birth* of a wholly new family, indivisible from birth.
+      mean ``origination_extent``) — a *birth* of a wholly new family, indivisible from birth.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
       (**per chromosome**) merges two chromosomes of the same topology (the **reticulation**).
       ``chromosome_origination`` (**per lineage**) adds a de-novo circular replicon (a plasmid, a
@@ -1748,7 +1749,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
     splitting off a geneless half — simply does not happen. (Vacuous when no genes are declared.)
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
-    (every extension event is **per lineage** — the rate says how often a lineage does it, the extent how
+    (every segmental event is **per lineage** — the rate says how often a lineage does it, the extent how
     much it touches, so a bigger genome does not get proportionally more events; the chromosome tier is
     per chromosome), so a transfer
     couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
@@ -1771,13 +1772,30 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 "chapter). Pass a plain number.")
         if rate < 0:
             raise ValueError(f"{label} must be >= 0, got {rate}")
-    for label, mean in (("inversion_length", inversion_length),
-                        ("translocation_length", translocation_length),
-                        ("transposition_length", transposition_length), ("loss_length", loss_length),
-                        ("duplication_length", duplication_length), ("transfer_length", transfer_length),
-                        ("origination_length", origination_length)):
-        if mean <= 0:
-            raise ValueError(f"{label} must be > 0, got {mean}")
+    def _mean_bp(spec, label):
+        """An extent's mean in base pairs (SPEC §6): a bare number *is* the mean, so ``500`` reads the
+        same here as anywhere else. A ``Distribution`` must be :class:`~zombi2.rates.Geometric` for now
+        — this engine draws each arc's far end **directly from the genome's legal breakpoints** rather
+        than drawing a size and clamping it, so an arbitrary shape has to be re-weighted over that set
+        instead of sampled. Refusing beats quietly approximating."""
+        if isinstance(spec, (int, float)) and spec < 1:
+            raise ValueError(f"{label} must be >= 1 bp, got {spec}")
+        d = as_extent(spec)
+        if not isinstance(d, Geometric):
+            raise ValueError(
+                f"{label} is {type(d).__name__}, but the nucleotide engine wires a geometric extent "
+                f"only — it draws each arc's far end directly from the legal breakpoints, so another "
+                f"shape would have to be re-weighted over that set rather than drawn. Pass a number "
+                f"(the mean in bp) or Geometric(mean=...).")
+        return d.mean
+
+    inversion_extent = _mean_bp(inversion_extent, "inversion_extent")
+    translocation_extent = _mean_bp(translocation_extent, "translocation_extent")
+    transposition_extent = _mean_bp(transposition_extent, "transposition_extent")
+    loss_extent = _mean_bp(loss_extent, "loss_extent")
+    duplication_extent = _mean_bp(duplication_extent, "duplication_extent")
+    transfer_extent = _mean_bp(transfer_extent, "transfer_extent")
+    origination_extent = _mean_bp(origination_extent, "origination_extent")
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability}")
     if transfer_to == "distance":
@@ -1823,9 +1841,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                                  f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
     rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
-                   fission, fusion, chromosome_origination, chromosome_loss, inversion_length,
-                   translocation_length, transposition_length, loss_length, duplication_length,
-                   transfer_length, origination_length, inversion_probability)
+                   fission, fusion, chromosome_origination, chromosome_loss, inversion_extent,
+                   translocation_extent, transposition_extent, loss_extent, duplication_extent,
+                   transfer_extent, origination_extent, inversion_probability)
     depth = mean_root_to_tip(tree)                       # timescale for Distance weighting
 
     rng = np.random.default_rng(seed)
@@ -1896,7 +1914,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
         bar.to(si)
         length, count, nlin = total_length, total_chromosomes, len(alive)
         can_xfer = nlin >= 2 or self_transfer
-        r_inv = rates.inversion * nlin                  # every extension event is PER LINEAGE:
+        r_inv = rates.inversion * nlin                  # every segmental event is PER LINEAGE:
         r_trl = rates.translocation * nlin              # the rate says how often a lineage does this,
         r_trp = rates.transposition * nlin              # and the extent says how much it touches — so
         r_los = rates.loss * nlin                       # a bigger genome does NOT get more events
@@ -1925,29 +1943,29 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 b_cor = b_fus + r_cor
                 if r < r_inv:
                     k = int(rng.integers(nlin))
-                    _do_inversion(gen[k], alive[k], t, rates.inversion_length, rng, rearrangements)
+                    _do_inversion(gen[k], alive[k], t, rates.inversion_extent, rng, rearrangements)
                 elif r < b_trl:
                     k = int(rng.integers(nlin))
-                    _do_translocation(gen[k], alive[k], t, rates.translocation_length,
+                    _do_translocation(gen[k], alive[k], t, rates.translocation_extent,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_trp:
                     k = int(rng.integers(nlin))
-                    _do_transposition(gen[k], alive[k], t, rates.transposition_length,
+                    _do_transposition(gen[k], alive[k], t, rates.transposition_extent,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_los:
                     k = int(rng.integers(nlin))
-                    total_length += _do_loss(gen[k], alive[k], t, rates.loss_length, rng, events)
+                    total_length += _do_loss(gen[k], alive[k], t, rates.loss_extent, rng, events)
                 elif r < b_dup:
                     k = int(rng.integers(nlin))
-                    total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_length,
+                    total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_extent,
                                                     rng, events, new_copy)
                 elif r < b_tra:
                     kd = int(rng.integers(nlin))
-                    total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_length,
+                    total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_extent,
                                                  transfer_to, self_transfer, depth, events, new_copy)
                 elif r < b_org:
                     k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
-                    total_length += _do_origination(gen[k], alive[k], t, rates.origination_length,
+                    total_length += _do_origination(gen[k], alive[k], t, rates.origination_extent,
                                                     rng, events, new_source, new_copy,
                                                     new_family, gene_spans, gene_strands)
                 elif r < b_fis:
@@ -1961,7 +1979,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_length=50.0, t
                 elif r < b_cor:
                     k = int(rng.integers(nlin))         # chromosome origination is per lineage
                     dc, dl = _do_chromosome_origination(
-                        gen[k], alive[k], t, rates.origination_length, rng, events, chromosome_events,
+                        gen[k], alive[k], t, rates.origination_extent, rng, events, chromosome_events,
                         new_chrom_id, new_source, new_copy, new_family, gene_spans, gene_strands)
                     total_chromosomes += dc
                     total_length += dl

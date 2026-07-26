@@ -131,7 +131,7 @@ from zombi2.sequences.substitution_models import hky85
 
 tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
 my_genomes = genomes.simulate_genomes_nucleotide(
-    tree, gff="ecoli.gff", inversion=1.0, inversion_length=5000,
+    tree, gff="ecoli.gff", inversion=1.0, inversion_extent=5000,
     duplication=0.3, loss=0.3, seed=1)
 
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
@@ -146,7 +146,7 @@ From the command line it is the same two commands as any other run:
 
 ```bash
 zombi2 genomes out/ --resolution nucleotide --gff ecoli.gff --trim-overlaps \
-  --inversion 5.0 --inversion-length 50000 --loss 2.0 --loss-length 8000 --seed 7
+  --inversion 5.0 --inversion-extent 50000 --loss 2.0 --loss-extent 8000 --seed 7
 
 zombi2 sequences out/ --model hky85 --kappa 3.0 --substitution 0.02 \
   --intergene-speed 3.0 --seed 7

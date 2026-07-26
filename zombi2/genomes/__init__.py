@@ -1,4 +1,4 @@
-"""Genomes — the gene-family core, at three resolutions (SPEC §6).
+"""Genomes — the gene-family core, at three resolutions (SPEC §7).
 
 A genome evolves along the species tree by **duplication, transfer, loss and origination**. The three
 resolutions share one spine (a forward Gillespie over the complete tree, the same rate grammar, the

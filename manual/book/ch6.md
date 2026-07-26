@@ -9,8 +9,8 @@ from zombi2.genomes import simulate_genomes_nucleotide
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=2)
 g = simulate_genomes_nucleotide(
     tree, root_length=3000, genes=3, gene_length=400,
-    inversion=1.0, inversion_length=600,
-    duplication=0.3, duplication_length=300, loss=0.3, loss_length=300, seed=2)
+    inversion=1.0, inversion_extent=600,
+    duplication=0.3, duplication_extent=300, loss=0.3, loss_extent=300, seed=2)
 ```
 
 This starts the run from a 3000 bp circular chromosome carrying three 400 bp genes, evenly spaced, and evolves it down the tree.
@@ -50,7 +50,7 @@ Both leaves still carry all three genes. In `n2` an inversion covered gene 2, wh
 
 An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
 
-## Extensions
+## Extents
 
 There is one important consequence: **the realised extent is not always the extent you asked for.** It is quantised to the legal breakpoints, and on a gene-dense genome the difference is large. Take thirty-one 3000 bp genes in a 100 kb genome — 93% genic, so the spacers are about 200 bp — and ask for an inversion of:
 
@@ -63,7 +63,9 @@ There is one important consequence: **the realised extent is not always the exte
 
 A 500 bp event has nowhere to go but inside a spacer, so it comes out at 59 bp. Long events land near what you asked for, because they can span whole genes.
 
-Ask for more than the genome can give — a huge event, or any event on a spacer-poor genome — and nothing fails: the arc extends to the nearest legal breakpoint instead. Its realised length is capped by the genome and never exceeds it, so the event still fires, just shorter.
+**The correction runs both ways.** When every legal end lies *further* out than you asked — a long gene sitting just past the start — the arc snaps to the nearest legal breakpoint, which is **longer** than the extent you set. That is the `10 000 → 10 315` row above. When the genome cannot give what you asked at all, the arc is capped by the replicon and comes out shorter. Either way the event still fires: an extent is a request, and the genome answers it.
+
+The one case that yields no event is degenerate — a replicon with no legal end within reach at all, such as one under 2 bp — where the event is skipped rather than forced.
 
 ## A note on rates
 
@@ -127,14 +129,14 @@ tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=6, seed=4)
 
 # rearrangement only — every leaf is a permutation of the initial sequence
 g = simulate_genomes_nucleotide(
-    tree, root_length=100_000, inversion=5.0, inversion_length=1000, seed=4)
+    tree, root_length=100_000, inversion=5.0, inversion_extent=1000, seed=4)
 
 # a genic genome with real turnover: genes duplicate, are lost, transfer, and arise
 g = simulate_genomes_nucleotide(
     tree, root_length=6000, genes=6, gene_length=400,
-    duplication=2.0, duplication_length=900, loss=2.0, loss_length=900,
-    transfer=1.0, transfer_length=900, transfer_to="distance",
-    origination=0.5, origination_length=400, seed=4)
+    duplication=2.0, duplication_extent=900, loss=2.0, loss_extent=900,
+    transfer=1.0, transfer_extent=900, transfer_to="distance",
+    origination=0.5, origination_extent=400, seed=4)
 
 # a karyotype that splits and merges, with a plasmid
 g = simulate_genomes_nucleotide(
@@ -144,8 +146,8 @@ g = simulate_genomes_nucleotide(
 
 # a real annotation as the initial genome
 g = simulate_genomes_nucleotide(
-    tree, gff="ecoli.gff", inversion=2.0, inversion_length=5000,
-    loss=1.0, loss_length=3000, seed=1)
+    tree, gff="ecoli.gff", inversion=2.0, inversion_extent=5000,
+    loss=1.0, loss_extent=3000, seed=1)
 
 # the outputs
 g.gene_spans                            # where each gene sits, in initial coordinates
@@ -166,15 +168,15 @@ The nucleotide resolution is `--resolution nucleotide`. It takes the same event 
 # an evenly spaced initial genome: 5 kb, six genes of 300 bp, with inversions averaging 400 bp
 zombi2 genomes out/ --resolution nucleotide \
   --root-length 5000 --genes 6 --gene-length 300 \
-  --inversion 1.0 --inversion-length 400 --duplication 0.3 --loss 0.3 --seed 1
+  --inversion 1.0 --inversion-extent 400 --duplication 0.3 --loss 0.3 --seed 1
 
 # or start from a real genome: the GFF declares the replicons and the genes,
 # and a paired FASTA supplies the actual DNA those coordinates hold
 zombi2 genomes out/ --resolution nucleotide \
-  --gff ecoli.gff --fasta ecoli.fasta --inversion 0.5 --loss 0.4 --loss-length 900 --seed 1
+  --gff ecoli.gff --fasta ecoli.fasta --inversion 0.5 --loss 0.4 --loss-extent 900 --seed 1
 ```
 
-Every event kind has its own `--<event>-length`, the mean of a geometric draw in base pairs: `--inversion-length`, `--loss-length`, `--duplication-length`, `--transfer-length`, `--transposition-length`, `--translocation-length`, `--origination-length`.
+Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent`.
 
 ## Outputs
 
