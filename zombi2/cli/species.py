@@ -11,8 +11,9 @@ import os
 import time
 
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_params_arg, _add_run_arg, _rate,
-                                  _rates_help, _write_params_log, level_dir)
+from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
+                                  _add_run_arg, _rate, _rates_help, _write_params_log,
+                                  check_stale_downstream, clear_stale_downstream, level_dir)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -67,6 +68,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                         f"{', '.join(_WRITE_OUTPUTS)}. Files are prefixed 'species_'.")
     _add_flat_arg(g)
     _add_quiet_arg(g)
+    _add_force_arg(g)
 
 
 def run(args, parser):
@@ -75,6 +77,9 @@ def run(args, parser):
         parser.error("--birth is required (give it on the command line or in --params)")
     if (args.n_extant is None) == (args.total_time is None):
         parser.error("give exactly one stop condition: --n-extant N or --total-time T")
+
+    # refuse up front if re-running would orphan a later level already in the run (unless --force)
+    check_stale_downstream(args, "species")
 
     # [(time, fraction), ...] pulses, or None — the API places them on the timeline and needs a
     # fixed end (--total-time); it raises a clean error if that is missing.
@@ -87,6 +92,7 @@ def run(args, parser):
         progress=not args.quiet, max_lineages=args.max_lineages or None)
     dt = time.perf_counter() - t0
 
+    clear_stale_downstream(args, "species")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "species", args.flat)
     result.write(out, outputs=args.write)
