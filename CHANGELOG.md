@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-26
+
 ### Added
 - **Cross-level staleness guard.** A level refuses to re-run in place when a later level built from it
   is already in the run directory — re-running would leave that downstream output silently mismatched.
