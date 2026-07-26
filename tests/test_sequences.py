@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from zombi2 import species
-from zombi2.genomes import GenomesResult, simulate_genomes_unordered
+from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import SequencesResult, simulate_sequences
@@ -18,7 +18,7 @@ from zombi2.sequences.substitution_models import gtr, hky85, jc69, k80
 
 # --- hand-built gene trees: origination → speciation → two extant tips -----------------------------
 
-def _run(gene_trees, *, t_split: float = 1.0, t_now: float = 2.0) -> GenomesResult:
+def _run(gene_trees, *, t_split: float = 1.0, t_now: float = 2.0) -> FamilyGenomesResult:
     """The **genome run** the sequence level requires, wrapped around hand-built gene trees: a
     three-lineage species tree (root 0 splits at ``t_split`` into extant tips 1 and 2 at ``t_now``)
     carrying the given families. The gene trees are attached directly — these families are written by
@@ -26,12 +26,12 @@ def _run(gene_trees, *, t_split: float = 1.0, t_now: float = 2.0) -> GenomesResu
     tree = species.Tree({0: species.Node(0, None, 0.0, t_split, (1, 2), "speciation"),
                          1: species.Node(1, 0, t_split, t_now, None, "extant"),
                          2: species.Node(2, 0, t_split, t_now, None, "extant")}, 0)
-    run = GenomesResult(complete_tree=tree, genomes={}, events=[], seed=None)
+    run = FamilyGenomesResult(complete_tree=tree, genomes={}, events=[], seed=None)
     run.gene_trees = dict(gene_trees)      # a cached_property: the instance dict wins
     return run
 
 
-def _pair_run(t_spec: float, t_tip: float) -> GenomesResult:
+def _pair_run(t_spec: float, t_tip: float) -> FamilyGenomesResult:
     """A minimal family (per-segment gene ids) in its genome run: the founding gene (id 0) on species
     0 ends by a ``speciation`` at ``t_spec``; its two daughters (ids 1, 2) reach ``extant`` tips
     (species 1, 2) at ``t_tip``. The root→tip branch has length ``t_tip - t_spec`` (so
@@ -172,8 +172,8 @@ def test_family_with_no_extant_copy_has_empty_alignment_but_full_ancestral():
 
 def test_a_real_genome_run_is_covered_node_for_node():
     sp = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1)
-    g = simulate_genomes_unordered(sp, duplication=0.2, loss=0.2, transfer=0.1,
-                                   initial_families=6, seed=2)
+    g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, transfer=0.1,
+                                initial_families=6, seed=2)
     r = simulate_sequences(g, model=hky85(kappa=2.5), length=300, seed=3)   # the genome run itself
     assert isinstance(r, SequencesResult)
     assert set(r.alignments) == set(g.gene_trees) == set(r.ancestral)       # one entry per family
@@ -190,7 +190,7 @@ def test_a_real_genome_run_is_covered_node_for_node():
 
 def test_integration_is_deterministic_given_the_seed():
     sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=11)
-    g = simulate_genomes_unordered(sp, duplication=0.3, loss=0.2, initial_families=5, seed=12)
+    g = simulate_genomes_family(sp, duplication=0.3, loss=0.2, initial_families=5, seed=12)
     a = simulate_sequences(g, model=gtr(), length=100, seed=13)
     b = simulate_sequences(g, model=gtr(), length=100, seed=13)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
@@ -287,7 +287,7 @@ def _total_bl(nwk: str) -> float:
 
 def _small_run(clock=1.0):
     sp = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1)
-    g = simulate_genomes_unordered(sp, duplication=0.3, loss=0.3, transfer=0.1, initial_families=8, seed=2)
+    g = simulate_genomes_family(sp, duplication=0.3, loss=0.3, transfer=0.1, initial_families=8, seed=2)
     r = simulate_sequences(g, model=jc69(), length=10, substitution=clock, seed=3)
     return g, r
 
@@ -372,7 +372,7 @@ def test_bare_gene_trees_are_rejected():
     # the lineage clock has no branches to ride and the species phylogram cannot exist, so accepting
     # the mapping would hide that degradation instead of naming it
     g, _ = _small_run()
-    with pytest.raises(TypeError, match="simulate_genomes_unordered"):
+    with pytest.raises(TypeError, match="simulate_genomes_family"):
         simulate_sequences(g.gene_trees, model=jc69(), length=10, seed=3)
 
 

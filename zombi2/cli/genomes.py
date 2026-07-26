@@ -1,7 +1,7 @@
 """``zombi2 genomes`` — evolve gene families along a species tree.
 
-``--resolution`` picks the model: ``unordered`` (the D/T/L/O gene-family core,
-:func:`zombi2.genomes.simulate_genomes_unordered`), ``ordered`` (genes with a position and
+``--resolution`` picks the model: ``family`` (the D/T/L/O gene-family core,
+:func:`zombi2.genomes.simulate_genomes_family`), ``ordered`` (genes with a position and
 orientation on chromosomes — segmental rearrangements and the chromosome tier,
 :func:`~zombi2.genomes.simulate_genomes_ordered`), or ``nucleotide`` (the genome as a nucleotide
 sequence of ancestry blocks, with declared indivisible genes and intergenic spacer,
@@ -17,7 +17,7 @@ import os
 import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
-                            simulate_genomes_unordered)
+                            simulate_genomes_family)
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
@@ -36,15 +36,15 @@ RATES_HELP = _rates_help(
          "--resolution nucleotide takes constant rates only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
-_UNORDERED_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
+_FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
 _ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "initial_genome", "gene_trees",
                     "chromosome_events")
 _NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "initial_genome", "gene_trees",
                        "chromosome_events", "gff", "bed")
-_OUTPUTS = {"unordered": _UNORDERED_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
+_OUTPUTS = {"family": _FAMILY_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
             "nucleotide": _NUCLEOTIDE_OUTPUTS}
 
-# knobs that need a *structured* genome — (attribute, default) pairs — rejected under unordered
+# knobs that need a *structured* genome — (attribute, default) pairs — rejected under the family resolution
 _STRUCTURED_ONLY = (
     ("inversion", 0.0), ("transposition", 0.0), ("translocation", 0.0),
     ("chromosomes", 1), ("topology", "circular"),
@@ -53,7 +53,7 @@ _STRUCTURED_ONLY = (
     ("inversion_probability", 0.0),
 )
 
-# knobs only the nucleotide engine has — rejected under unordered and ordered
+# knobs only the nucleotide engine has — rejected under the family and ordered resolutions
 _NUCLEOTIDE_ONLY = (
     ("root_length", 1000), ("genes", 0), ("gene_length", 100), ("gff", None),
     ("trim_overlaps", False),
@@ -79,9 +79,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("general")
     _add_params_arg(g)
     _add_from_arg(g, "the species tree — a Newick file, or another run's directory")
-    g.add_argument("--resolution", choices=("unordered", "ordered", "nucleotide"),
-                   default="unordered", metavar="RESOLUTION",
-                   help="unordered (gene-family counts, default), ordered (genes positioned on "
+    g.add_argument("--resolution", choices=("family", "ordered", "nucleotide"),
+                   default="family", metavar="RESOLUTION",
+                   help="family (gene-family counts, default), ordered (genes positioned on "
                         "chromosomes, with rearrangements), or nucleotide (the genome as a "
                         "sequence of ancestry blocks, with indivisible genes)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
@@ -109,7 +109,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "default), distance (closer relatives likelier), or a DrivenBy weight — "
                         "\"DrivenBy('trait_events.tsv', {'competent': 2.0, 'normal': 1.0})\" — "
                         "which redistributes transfers without changing how many there are "
-                        "(unordered only)")
+                        "(family resolution only)")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy in the recipient (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
@@ -177,7 +177,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
                    default=None, metavar="PART",
                    help="which outputs to write (default: each resolution's own, which is all of "
-                        "them). unordered: events, profiles, genomes, initial_genome, gene_trees. "
+                        "them). family: events, profiles, genomes, initial_genome, gene_trees. "
                         "ordered: those with gene_order for genomes, plus chromosome_events. "
                         "nucleotide: events, genes, blocks, initial_genome, gene_trees, "
                         "chromosome_events, gff, bed. "
@@ -194,7 +194,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     _add_flat_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
-                   help="[unordered] write each gene family straight to disk instead of building the "
+                   help="[family] write each gene family straight to disk instead of building the "
                         "whole run in memory — for a very large number of families, where the "
                         "in-memory result would not fit. Composes with --parallel and --write; the "
                         "files are the same and the disk is the handoff to the sequence level (gene "
@@ -241,16 +241,16 @@ def _stray(args, knobs) -> list[str]:
 
 def run(args, parser):
     # a flag a resolution does not have is an error, never silently ignored — otherwise
-    # `--inversion` under unordered, or `--initial-families` under nucleotide, would quietly
+    # `--inversion` under the family resolution, or `--initial-families` under nucleotide, would quietly
     # produce a run that is not the one asked for
-    if args.resolution == "unordered":
+    if args.resolution == "family":
         if stray := _stray(args, _STRUCTURED_ONLY):
             parser.error(f"these options need --resolution ordered or nucleotide: "
-                         f"{', '.join(stray)} (the unordered core has no chromosomes or positions)")
+                         f"{', '.join(stray)} (the gene-family core has no chromosomes or positions)")
     else:
         for flag, given in (("--parallel", args.parallel is not None), ("--stream", args.stream)):
             if given:
-                parser.error(f"{flag} applies to --resolution unordered only, where gene families are "
+                parser.error(f"{flag} applies to --resolution family only, where gene families are "
                              f"independent and evolve one per worker; the {args.resolution} resolution "
                              f"couples families by position (inversions, translocations), so it has no "
                              f"per-family engine")
@@ -310,7 +310,7 @@ def run(args, parser):
     clear_stale_downstream(args, "genomes")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
-    streaming = args.stream and args.resolution == "unordered"
+    streaming = args.stream and args.resolution == "family"
 
     t0 = time.perf_counter()
     if args.resolution == "ordered":
@@ -330,12 +330,12 @@ def run(args, parser):
     elif streaming:
         # each family written straight to disk (no whole run in memory) — the engine writes `out`
         # itself, so there is no result.write below; a StreamedRun handle comes back.
-        result = simulate_genomes_unordered(
+        result = simulate_genomes_family(
             tree, replacement=args.replacement, initial_families=args.initial_families,
             parallel=parallel_from_args(args, parser), stream_to=out,
             outputs=tuple(args.write) if args.write else None, progress=not args.quiet, **common)
     else:
-        result = simulate_genomes_unordered(
+        result = simulate_genomes_family(
             tree, replacement=args.replacement, initial_families=args.initial_families,
             parallel=parallel_from_args(args, parser), progress=not args.quiet, **common)
     dt = time.perf_counter() - t0
@@ -376,7 +376,7 @@ def run(args, parser):
 
     if streaming:                               # a StreamedRun carries counts, not the run in memory
         summary = (f"{result.n_families} gene families, {result.n_events} events, streamed to disk "
-                   f"(unordered)")
+                   f"(family)")
     elif args.resolution == "nucleotide":       # no phyletic profiles here: the unit is a base pair
         extant = [n.id for n in result.complete_tree.extant()]
         bp = sum(result.genomes[s].length for s in extant)

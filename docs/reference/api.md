@@ -8,7 +8,7 @@ returns a `*Result` object that carries the true history behind the dataset.
 from zombi2 import species
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 
-from zombi2.genomes import simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_family
 from zombi2.rates import scope, modifiers
 ```
 
@@ -31,16 +31,16 @@ order as the [user guide](../guide/introduction.md).
 
 ## Genomes
 
-The genome level has three resolutions — unordered ⊂ ordered ⊂ nucleotide — one entry
+The genome level has three resolutions — family ⊂ ordered ⊂ nucleotide — one entry
 point each.
 
-::: zombi2.genomes.simulate_genomes_unordered
+::: zombi2.genomes.simulate_genomes_family
 
 ::: zombi2.genomes.simulate_genomes_ordered
 
 ::: zombi2.genomes.simulate_genomes_nucleotide
 
-::: zombi2.genomes.GenomesResult
+::: zombi2.genomes.FamilyGenomesResult
 
 ::: zombi2.genomes.OrderedGenomesResult
 

@@ -233,8 +233,8 @@ class ByFamily(Modifier):
     In the family-wide ``family_speed=`` slot, one draw scales **every** rate that family has, so a
     fast family is fast at everything::
 
-        simulate_genomes_unordered(tree, duplication=0.2, loss=0.25,
-                                   family_speed=mod.ByFamily(spread=0.5))
+        simulate_genomes_family(tree, duplication=0.2, loss=0.25,
+                                family_speed=mod.ByFamily(spread=0.5))
 
     The two compose: a family-wide tempo, plus extra variation on one rate.
 

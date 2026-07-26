@@ -1,6 +1,6 @@
 """Genomes II — ordered: genes carry a position and an orientation, on chromosomes.
 
-The ordered resolution layers **position** over the unordered D/T/L/O core (Chapter 6). A genome is
+The ordered resolution layers **position** over the family D/T/L/O core (Chapter 4). A genome is
 no longer a multiset of gene copies but a list of **chromosomes**, each an ordered run of oriented
 :class:`Gene`\\ s.
 
@@ -23,7 +23,7 @@ fusion (the reticulation), chromosome origination (a de-novo replicon) and chrom
 the initial and de-novo originations, recorded as an edge list (its ground truth — a network is a graph,
 not eNewick).
 
-It is the genome twin of the unordered core and shares its spine: one forward Gillespie over the
+It is the genome twin of the family core and shares its spine: one forward Gillespie over the
 **complete** species tree, the same ``scope(base) × modifiers`` rate grammar, the same gene-genealogy
 :class:`~zombi2.genomes.events.Event` log (position-blind, so ``gene_trees`` and ``profiles`` are
 derived from it unchanged), and the same live-lineage bookkeeping. What differs is the state (a list
@@ -60,7 +60,7 @@ from .profiles import Profiles, profiles_from_genomes
 class Gene:
     """One gene copy with an **orientation**: a member of family ``family``, identified by a
     globally-unique ``id`` (per segment, the ZOMBI1 model), lying on its chromosome on the ``strand``
-    ``+1`` or ``-1``. It is the unordered :class:`~zombi2.genomes.GeneCopy` with the one thing that
+    ``+1`` or ``-1``. It is the family :class:`~zombi2.genomes.GeneCopy` with the one thing that
     only makes sense once genes are ordered — which way it points. Its position is implicit: the index
     of the gene in its chromosome's ordered list. Birth/death and parentage live in the event log."""
 
@@ -201,7 +201,7 @@ class OrderedGenomesResult:
     ``genomes`` at **every** node as tuples of :class:`Chromosome`\\ s, the shared gene-genealogy
     ``events`` log, the ``rearrangements`` (inversions) and ``chromosome_events`` (the chromosome
     genealogy) logs, and the ``seed``. The observed genomes are the extant tips; ``profiles`` and
-    ``gene_trees`` are derived from the (position-blind) genealogy exactly as for the unordered core;
+    ``gene_trees`` are derived from the (position-blind) genealogy exactly as for the family core;
     ``gene_order`` reads a node's layout, and ``write`` materialises the chosen outputs."""
 
     complete_tree: Tree
@@ -210,7 +210,7 @@ class OrderedGenomesResult:
     rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
-    #: ``{name: family id}`` for families declared by ``families=[…]`` — the handle to a *named* family.
+    #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
     #: where each gene-genealogy :class:`~zombi2.genomes.events.Event` happened — the positional
     #: companion to :attr:`events`, which is position-blind. See :class:`EventPosition`.
@@ -226,7 +226,7 @@ class OrderedGenomesResult:
         return collections.Counter(g.family for chrom in self.genomes[node_id] for g in chrom.genes)
 
     def has_family(self, node_id: int, name: str) -> bool:
-        """Whether the named family ``name`` (declared via ``families=``) has ≥ 1 copy in the genome at
+        """Whether the named family ``name`` (declared via ``family_names=``) has ≥ 1 copy in the genome at
         ``node_id`` (across all chromosomes)."""
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
@@ -256,7 +256,7 @@ class OrderedGenomesResult:
     @cached_property
     def gene_trees(self) -> dict[int, GeneTree]:
         """``{family id: GeneTree}`` — each family's true genealogy inside the complete tree, derived
-        from the (position-blind) event log exactly as for the unordered core. See :mod:`.gene_trees`."""
+        from the (position-blind) event log exactly as for the family core. See :mod:`.gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory,
@@ -277,7 +277,7 @@ class OrderedGenomesResult:
           one log kept apart: it is a network over chromosome **ids**, with list-valued parents and
           children, joined on a different key from everything above.
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
-          genealogy — unchanged from the unordered resolution, position being orthogonal to it.
+          genealogy — unchanged from the family resolution, position being orthogonal to it.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -686,7 +686,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extension=None, transposition_extension=None,
                              translocation_extension=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=100, families=None, family_speed=None,
+                             initial_families=100, family_names=None, family_speed=None,
                              max_family_size=None, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
@@ -715,10 +715,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     is **per chromosome**; and the two events that make something from nothing,
     ``origination``/``chromosome_origination``, are **per lineage**. The
     run starts with ``chromosomes`` chromosomes of the given ``topology``, across which the
-    ``initial_families`` founding genes are dealt **round-robin**; ``families=["toxin", …]`` additionally
+    ``initial_families`` founding genes are dealt **round-robin**; ``family_names=["toxin", …]`` additionally
     declares **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
-    "toxin")``), as in the unordered core; ``transfer_to`` / ``replacement`` / ``self_transfer`` behave
-    as in the unordered core.
+    "toxin")``), as in the family core; ``transfer_to`` / ``replacement`` / ``self_transfer`` behave
+    as in the family core.
 
     The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge — the
     reticulation), ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
@@ -740,9 +740,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     fus = as_rate(fusion, default_scope=PerChromosome)
     cor = as_rate(chromosome_origination, default_scope=PerLineage)
     clo = as_rate(chromosome_loss, default_scope=PerChromosome)
-    # like the unordered core, this slice wires only the default scope of each event and OnTime
+    # like the family core, this slice wires only the default scope of each event and OnTime
     # (skyline) modifiers; a scope override or per-family/clade modifier is a later slice, so reject
-    # them rather than silently mis-scale (see the unordered engine for the reasoning).
+    # them rather than silently mis-scale (see the family engine for the reasoning).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage),
                               ("inversion", inv, PerCopy), ("transposition", trp, PerCopy),
@@ -775,25 +775,25 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), got {transfer_to!r}")
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
-    families = list(families) if families is not None else []
-    for name in families:
+    family_names = list(family_names) if family_names is not None else []
+    for name in family_names:
         if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"families must be a list of non-empty family names (strings), got {name!r}")
-    if len(set(families)) != len(families):
-        raise ValueError(f"family names must be unique, got {families}")
+            raise ValueError(f"family_names must be a list of non-empty family names (strings), got {name!r}")
+    if len(set(family_names)) != len(family_names):
+        raise ValueError(f"family names must be unique, got {family_names}")
 
     if max_family_size is not None:
         raise ValueError(
-            "max_family_size is wired at the unordered resolution only for now. A duplication here "
+            "max_family_size is wired at the family resolution only for now. A duplication here "
             "copies a SEGMENT, which may span several families at once, so a per-family quota has "
             "to decide what happens to a block that is partly over it — refusing the whole segment "
             "and refusing part of it are different processes. Unset it, or use --resolution "
-            "unordered, where the unit is one gene and the answer is unambiguous.")
+            "family, where the unit is one gene and the answer is unambiguous.")
     if family_speed is not None:
         raise ValueError(
-            "family_speed (per-family heterogeneity) is wired at the unordered resolution only for "
+            "family_speed (per-family heterogeneity) is wired at the family resolution only for "
             "now — the ordered engine draws segments as well as copies, so a per-family weight has "
-            "to reach the segment pick too. Use --resolution unordered, or leave it unset.")
+            "to reach the segment pick too. Use --resolution family, or leave it unset.")
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -847,10 +847,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
-    family_names: dict[str, int] = {}  # named crown families, dealt round-robin after the anonymous ones
-    for j, name in enumerate(families):
+    named: dict[str, int] = {}  # a minted id per declared name, dealt round-robin after the anonymous ones
+    for j, name in enumerate(family_names):
         fam = new_family()
-        family_names[name] = fam
+        named[name] = fam
         chrom = initial_chroms[(initial_families + j) % n_initial_chrom]
         chrom.genes.append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
@@ -859,7 +859,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
     enter(alive, gen, pos, root.id, initial_chroms)
-    total_copies = initial_families + len(families)
+    total_copies = initial_families + len(family_names)
     total_chromosomes = n_initial_chrom
 
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
@@ -1004,7 +1004,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
 
     bar.close()
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                family_names, event_positions, initial_genome)
+                                named, event_positions, initial_genome)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

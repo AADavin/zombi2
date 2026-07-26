@@ -6,7 +6,7 @@ level's package. ::
     from zombi2 import species
     result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 
-    from zombi2.genomes import simulate_genomes_unordered
+    from zombi2.genomes import simulate_genomes_family
     from zombi2.rates import scope, modifiers
 
 ZOMBI2 is a **clean core grown from** ``docs/design/SPEC.md`` — pure Python, one concept

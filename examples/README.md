@@ -45,6 +45,6 @@ a few hundred MB by default. To keep only the assembled genomes, add
 ### A note on the rates
 
 Every rate in the `[genomes]` table is **per lineage, per unit of branch time** — that is
-the scope at the nucleotide resolution (unlike the per-copy rates of the unordered/ordered
+the scope at the nucleotide resolution (unlike the per-copy rates of the family/ordered
 resolutions). The number says how often a lineage does the event; the matching
 `*-length` says how many base pairs it touches. See the manual, *Genomes III: nucleotide*.

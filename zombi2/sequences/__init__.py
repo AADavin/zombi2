@@ -2,7 +2,7 @@
 
 A sequence lives **inside a gene**, so it sees the species tree only through its gene tree
 (``SPEC §1``): :func:`simulate_sequences` takes a **genome run** (a
-:class:`~zombi2.genomes.GenomesResult`) and evolves one sequence down each family's *complete* gene
+:class:`~zombi2.genomes.FamilyGenomesResult`) and evolves one sequence down each family's *complete* gene
 tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``,
 or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; :mod:`.substitution_models`) and a
 substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are **target-only** in
@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..genomes import GenomesResult
+from ..genomes import FamilyGenomesResult
 from ..genomes.events import node_label
 from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.modifiers import ByLineage, FromParent
@@ -95,7 +95,7 @@ class SequencesResult:
       inverted) — extant tips, ancestors and the lineages that went extinct alike. The same coverage
       as the genome level's own ``genomes``, which is keyed the same way: the observed ones are the
       extant tips, ``{node_label(n.id) for n in complete_tree.extant()}``. Only a **nucleotide** genome
-      run has any — an unordered or ordered run has gene families, not coordinates, so there is no
+      run has any — a family or ordered run has gene families, not coordinates, so there is no
       genome to lay out and this is empty.
     - ``initial_genome`` — ``{chromosome id: sequence}``: the genome the run **started** with, at the
       root lineage's origination. Not in ``genomes``, because it belongs to no node: the root branch is
@@ -103,7 +103,7 @@ class SequencesResult:
       stem. It stands to ``genomes`` as ``founding`` stands to ``ancestral``.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
-      **names**: ``"family"`` (a gene family id) on an unordered or ordered run, ``"block"`` (an index
+      **names**: ``"family"`` (a gene family id) on a family or ordered run, ``"block"`` (an index
       into the genome run's ``root_blocks``) on a nucleotide one, where every block evolves and spacer
       has no family. They are different numbering schemes over the same ints, so a gene family id is
       **not** a key here on a nucleotide run — go through
@@ -132,7 +132,7 @@ class SequencesResult:
               outputs=("alignments", "phylograms", "species_phylogram", "genomes",
                        "initial_genome")) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
-        ``fam<family>`` on an unordered or ordered run and ``block<index>`` on a nucleotide one — the
+        ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see :attr:`unit`):
 
         - ``"alignments"`` → ``<u>.fasta`` (skipped for empty families).
@@ -412,8 +412,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                        substitution=1.0, seed=None, parallel=False, progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
-    ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.GenomesResult` that
-    ``genomes.simulate_genomes_unordered(...)`` returned. Its ``gene_trees`` are what the sequences
+    ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.FamilyGenomesResult` that
+    ``genomes.simulate_genomes_family(...)`` returned. Its ``gene_trees`` are what the sequences
     evolve along and its ``complete_tree`` is the species tree the lineage clock rides; bare gene
     trees are rejected (they would run, but with no clock and no species phylogram — a silent
     degradation). Each family's *complete* gene tree is evolved, so the true history is complete and
@@ -461,10 +461,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     from ..genomes import NucleotideGenomesResult
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
-    if not nucleotide and not isinstance(genomes, GenomesResult):
+    if not nucleotide and not isinstance(genomes, FamilyGenomesResult):
         raise TypeError(
             f"the sequence level runs on a genome run, got {type(genomes).__name__} — pass the "
-            "GenomesResult that genomes.simulate_genomes_unordered(...) returned, or the "
+            "FamilyGenomesResult that genomes.simulate_genomes_family(...) returned, or the "
             "NucleotideGenomesResult from simulate_genomes_nucleotide(...): the whole run, not its "
             ".gene_trees. A sequence lives inside a gene, but its clock rides the *species* branch "
             "that gene sits on — one draw per lineage, shared by every family — so the run needs "
@@ -530,7 +530,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         if intergene_model is not None:
             raise ValueError(
                 "intergene_model applies to a nucleotide genome run, where blocks are genes or "
-                "spacer. An unordered or ordered run has gene families only, so there is nothing "
+                "spacer. A family or ordered run has gene families only, so there is nothing "
                 "for a second model to evolve.")
         per_block = None
     rate = as_rate(substitution, default_scope=PerSite)

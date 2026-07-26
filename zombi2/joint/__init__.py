@@ -28,8 +28,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..genomes import Event as GenomeEvent, GeneCopy, GenomesResult, UnorderedGenome
-from ..genomes.unordered import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
+from ..genomes import Event as GenomeEvent, GeneCopy, FamilyGenomesResult, FamilyGenome
+from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.modifiers import DrivenBy, FromParent
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -47,13 +47,13 @@ class JointResult:
     grown tree (a :class:`~zombi2.species.SpeciesResult`: ``complete_tree``, ``extant_tree``, the
     speciation/extinction ``events``); the **driver** level that grew with it is either ``trait`` (a
     :class:`~zombi2.traits.TraitsResult`, for a trait→speciation run) or ``genome`` (a
-    :class:`~zombi2.genomes.GenomesResult`, for a gene-content→speciation run) — exactly one is set.
+    :class:`~zombi2.genomes.FamilyGenomesResult`, for a gene-content→speciation run) — exactly one is set.
     The tree is an output, grown by the driver it carries, so the levels share one ``complete_tree``."""
 
     species: SpeciesResult
     seed: int | None
     trait: TraitsResult | None = None
-    genome: GenomesResult | None = None
+    genome: FamilyGenomesResult | None = None
 
     @property
     def complete_tree(self) -> Tree:
@@ -212,7 +212,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     return Tree(nodes, root), species_events, node_values, trait_events
 
 
-def _grow_joint_genome(rng, birth_rate, death_rate, spec: UnorderedGenome, sources, n_extant, total_time):
+def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources, n_extant, total_time):
     """Grow a forward birth-death tree whose birth/death read the genome's **live gene content**, while
     the genome (duplication/loss/origination) evolves on that same growing tree. The species race and
     the genome's own D/L/O race run in one Gillespie over a shared living set. Returns
@@ -251,10 +251,10 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: UnorderedGenome, sourc
     genome_events: list[GenomeEvent] = []
     for _ in range(spec.initial_families):  # anonymous crown families
         _originate(gen[0], nodes[root], 0.0, genome_events, new_copy, new_family)
-    family_names: dict[str, int] = {}       # named crown families (the DrivenBy("genomes:<name>") handles)
-    for name in spec.families:
+    named: dict[str, int] = {}              # a minted id per declared name (the DrivenBy("genomes:<name>") handles)
+    for name in spec.family_names:
         fid = new_family()
-        family_names[name] = fid
+        named[name] = fid
         c = new_copy(fid)
         gen[0].append(c)
         genome_events.append(GenomeEvent(0.0, "origination", root, fid, c.id))
@@ -264,7 +264,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: UnorderedGenome, sourc
     def driver_value(src, k):
         if src == _GENOME_COUNT:
             return len(gen[k])                                   # a count → a Curve / Scalar
-        fid = family_names[src.split(":", 1)[1]]                 # "genomes:<name>" → presence → a Table
+        fid = named[src.split(":", 1)[1]]                 # "genomes:<name>" → presence → a Table
         return "present" if any(c.family == fid for c in gen[k]) else "absent"
 
     t = 0.0
@@ -347,7 +347,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: UnorderedGenome, sourc
         nodes[node_id].end_time = t
         nodes[node_id].fate = "extant"
         genomes_out[node_id] = tuple(gen[k])
-    return Tree(nodes, root), species_events, genomes_out, genome_events, family_names
+    return Tree(nodes, root), species_events, genomes_out, genome_events, named
 
 
 def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, total_time=None,
@@ -361,16 +361,16 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     - ``trait = traits.discrete(...)`` — a discrete trait drives speciation (BiSSE / MuSSE), read as
       ``mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})``. Driving both birth and death gives
       state-dependent λ *and* μ.
-    - ``genome = genomes.unordered(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
+    - ``genome = genomes.family(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
       read as the total gene count ``mod.DrivenBy("genomes:count", curve)`` or the presence of a named
       family ``mod.DrivenBy("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
-      ``families=["toxin"]``).
+      ``family_names=["toxin"]``).
 
     ::
 
         joint.simulate_joint(
             birth  = 1.0 * mod.DrivenBy("genomes:toxin", {"present": 3.0, "absent": 1.0}),
-            genome = genomes.unordered(origination=0.2, loss=0.1, families=["toxin"]),
+            genome = genomes.family(origination=0.2, loss=0.1, family_names=["toxin"]),
             n_extant = 100, seed = 1)
 
     The driver is an **unexecuted** process spec, grown with the tree. Stop at exactly ``n_extant``
@@ -384,7 +384,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     death_rate = as_rate(death, default_scope=PerLineage)
     if (trait is None) == (genome is None):
         raise TypeError(
-            "give exactly one driver: trait=traits.discrete(...) OR genome=genomes.unordered(...)."
+            "give exactly one driver: trait=traits.discrete(...) OR genome=genomes.family(...)."
         )
     # collect the DrivenBy sources on birth/death (a joint model's diversification must be per lineage)
     sources: list[str] = []
@@ -427,17 +427,17 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 f"{bad}. (A filename source is conditioning, not a joint run.)"
             )
     else:
-        if not isinstance(genome, UnorderedGenome):
-            raise TypeError("genome= must be genomes.unordered(...) — an unordered-genome process spec.")
+        if not isinstance(genome, FamilyGenome):
+            raise TypeError("genome= must be genomes.family(...) — a family-genome process spec.")
         for s in sources:
             if s == _GENOME_COUNT:
                 continue
             if s.startswith("genomes:"):
                 name = s.split(":", 1)[1]
-                if name not in genome.families:
+                if name not in genome.family_names:
                     raise ValueError(
-                        f'DrivenBy("{s}", ...) names family {name!r}, but genomes.unordered was not '
-                        f"declared with it — add families=[…, {name!r}]."
+                        f'DrivenBy("{s}", ...) names family {name!r}, but genomes.family was not '
+                        f"declared with it — add family_names=[…, {name!r}]."
                     )
                 continue
             raise ValueError(
@@ -465,7 +465,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
             tree, se, go, ge, fn = _grow_joint_genome(
                 rng, birth_rate, death_rate, genome, unique_sources, target_n, tt)
             result = JointResult(SpeciesResult(tree, se, seed, []), seed,
-                                 genome=GenomesResult(tree, go, ge, seed, fn))
+                                 genome=FamilyGenomesResult(tree, go, ge, seed, fn))
         return tree, result
 
     if total_time is not None:

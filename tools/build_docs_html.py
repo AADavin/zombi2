@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build the whole documentation into ONE self-contained, offline HTML file.
 
-Reads the same ``docs/`` pages as the wiki sync (single source of truth), converts each
-with Python-Markdown + Pygments, and writes a single ``zombi2-docs.html`` with an inline
-sidebar, styles, and syntax highlighting — no server, no assets, just a file you open in a
-browser. Re-run it whenever the docs change.
+Reads the pages ``mkdocs.yml`` declares — the one place the site's nav lives, so this bundle
+and the published site can never list different pages — converts each with Python-Markdown +
+Pygments, and writes a single ``zombi2-docs.html`` with an inline sidebar, styles, and syntax
+highlighting — no server, no assets, just a file you open in a browser. Re-run it whenever the
+docs change.
 
 Usage::
 
@@ -20,19 +21,59 @@ import re
 import sys
 
 import markdown
+import yaml
 from pygments.formatters import HtmlFormatter
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from sync_wiki import NAV, REPO, STUB_PAGES  # reuse the page list + order
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS = os.path.join(ROOT, "docs")
 
-DOCS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
+REPO = "https://github.com/AADavin/zombi2"
+# Generated from the source docstrings by mkdocstrings, so it has no file of its own to read.
+STUB_PAGES = {"reference/api.md"}
+
+
+def load_nav() -> list[tuple[str, str, str | None]]:
+    """Read the page list, in order, from ``mkdocs.yml``.
+
+    Returns ``(source_path, label, section)`` per page, where ``section`` is ``None`` for a
+    top-level page and the enclosing group's title for a nested one. A page the nav names but
+    that does not exist raises: silently skipping one is how an earlier hand-kept copy of this
+    list drifted until almost nothing rendered.
+    """
+    with open(os.path.join(ROOT, "mkdocs.yml"), encoding="utf-8") as fh:
+        nav = yaml.safe_load(fh)["nav"]
+
+    pages: list[tuple[str, str, str | None]] = []
+
+    def walk(entries: list, section: str | None) -> None:
+        for entry in entries:
+            if isinstance(entry, str):          # a bare path; MkDocs titles it from its own H1
+                pages.append((entry, entry, section))
+                continue
+            for title, target in entry.items():
+                if isinstance(target, list):
+                    walk(target, title)
+                else:
+                    pages.append((target, title, section))
+
+    walk(nav, None)
+
+    missing = [src for src, _l, _s in pages
+               if src not in STUB_PAGES and not os.path.isfile(os.path.join(DOCS, src))]
+    if missing:
+        raise SystemExit("mkdocs.yml names pages that do not exist under docs/:\n  "
+                         + "\n  ".join(missing))
+    return pages
+
+
+NAV = load_nav()
 
 
 def anchor(src: str) -> str:
     return src[:-3].replace("/", "-").replace("_", "-") if src.endswith(".md") else src
 
 
-PATH_ANCHOR = {src: anchor(src) for src, _w, _l, _s in NAV}
+PATH_ANCHOR = {src: anchor(src) for src, _l, _s in NAV}
 
 
 def rewrite_links(body: str, src: str) -> str:
@@ -90,9 +131,13 @@ def render_page(src: str) -> str:
             f"(<code>mkdocs serve</code>). See the <a href=\"{REPO}\">repository</a>.</p>"
         )
     md = markdown.Markdown(
+        # ``pymdownx.snippets`` is load-bearing, not decoration: every Guide and Reference page is
+        # a one-line ``--8<--`` include of a manual/book chapter, so without it this bundle renders
+        # fourteen include directives and no documentation. Same base_path as mkdocs.yml.
         extensions=["fenced_code", "tables", "admonition", "toc", "codehilite", "attr_list",
-                    "sane_lists", "md_in_html"],
-        extension_configs={"codehilite": {"guess_lang": False}},
+                    "sane_lists", "md_in_html", "pymdownx.snippets"],
+        extension_configs={"codehilite": {"guess_lang": False},
+                           "pymdownx.snippets": {"base_path": [ROOT], "check_paths": True}},
     )
     with open(os.path.join(DOCS, src), encoding="utf-8") as f:
         return embed_images(rewrite_links(md.convert(f.read()), src), src)
@@ -100,9 +145,7 @@ def render_page(src: str) -> str:
 
 def build_sidebar() -> str:
     out, section = ['<nav id="side"><div class="brand">ZOMBI2</div>'], "__top__"
-    for src, _w, label, sec in NAV:
-        if src not in STUB_PAGES and not os.path.exists(os.path.join(DOCS, src)):
-            continue
+    for src, label, sec in NAV:
         if sec != section:
             if sec is not None:
                 out.append(f'<div class="sec">{_html.escape(sec)}</div>')
@@ -155,9 +198,7 @@ def main(argv: list[str]) -> int:
     pyg = HtmlFormatter(style="default").get_style_defs(".codehilite")
 
     sections = []
-    for src, _w, _l, _s in NAV:
-        if src not in STUB_PAGES and not os.path.exists(os.path.join(DOCS, src)):
-            continue
+    for src, _l, _s in NAV:
         sections.append(f'<section id="{anchor(src)}" class="doc-page">{render_page(src)}</section>')
 
     doc = (

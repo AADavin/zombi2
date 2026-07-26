@@ -13,7 +13,7 @@ import collections
 
 import pytest
 
-from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_unordered
+from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_family
 from zombi2.genomes.events import node_from_label, node_label
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
@@ -153,7 +153,7 @@ def test_write_emits_one_fasta_per_extant_lineage(tmp_path):
 
 def test_an_unordered_run_assembles_nothing(tmp_path):
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
-    g = simulate_genomes_unordered(sp, duplication=0.2, loss=0.2, initial_families=3, seed=1)
+    g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, initial_families=3, seed=1)
     r = simulate_sequences(g, model=jc69(), length=30, seed=1)
     assert r.genomes == {}
     r.write(tmp_path, outputs=("genomes",))
@@ -247,7 +247,7 @@ def test_a_nucleotide_run_names_its_files_blocks_not_families(tmp_path):
 
 def test_an_unordered_run_still_names_them_families(tmp_path):
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
-    g = simulate_genomes_unordered(sp, duplication=0.2, loss=0.2, initial_families=3, seed=1)
+    g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, initial_families=3, seed=1)
     r = simulate_sequences(g, model=jc69(), length=30, seed=1)
     assert r.unit == "family"
     r.write(tmp_path, outputs=("alignments", "phylograms"))

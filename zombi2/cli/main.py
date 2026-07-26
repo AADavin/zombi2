@@ -71,12 +71,12 @@ def main(argv: list[str] | None = None) -> int:
 
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
-        "Evolve gene families along a species tree, at the unordered (gene-family counts) or "
+        "Evolve gene families along a species tree, at the family (gene-family counts) or "
         "ordered (genes positioned on chromosomes) resolution.",
         "zombi2 genomes DIR [--from PATH] [--resolution RESOLUTION] [options]",
         genomes._add_genomes_args,
         epilog=_examples(
-            "  # unordered D/T/L/O gene families, with the event log and profiles",
+            "  # family-resolution D/T/L/O gene families, with the event log and profiles",
             "  zombi2 genomes out/ --duplication 0.2 --transfer 0.1 "
             "--loss 0.25 --origination 0.5 --seed 42",
             "",

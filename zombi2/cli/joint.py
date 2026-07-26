@@ -21,7 +21,7 @@ from zombi2.cli.framework import (_add_flat_arg, _add_params_arg, _add_quiet_arg
                                   _rate, _rates_help, _write_params_log, default_outputs,
                                   level_dir)
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
-from zombi2.genomes import unordered
+from zombi2.genomes import family
 from zombi2.joint import simulate_joint
 from zombi2.rates.modifiers import DrivenBy
 from zombi2.traits import discrete
@@ -38,7 +38,7 @@ RATES_HELP = _rates_help(
 #: than ignore them, the discipline every other command follows
 _TRAIT_ONLY = (("states", None), ("switch", None), ("trait_start", None))
 _GENOME_ONLY = (("duplication", 0.0), ("loss", 0.0), ("origination", 0.0),
-                ("initial_families", 0), ("families", None))
+                ("initial_families", 0), ("family_names", None))
 
 
 def _add_joint_args(p: argparse.ArgumentParser) -> None:
@@ -81,7 +81,7 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
                    help="new-family origination rate (per lineage)")
     g.add_argument("--initial-families", type=int, default=0, metavar="N", dest="initial_families",
                    help="gene families the root genome starts with (default 0)")
-    g.add_argument("--families", metavar="A,B,...", default=None,
+    g.add_argument("--family-names", metavar="A,B,...", default=None, dest="family_names",
                    help="named families to declare, comma-separated — a name is what "
                         "DrivenBy('genomes:<name>', …) reads")
 
@@ -121,10 +121,11 @@ def run(args, parser):
             parser.error(f"--states needs at least two, got {args.states!r}")
         driver = dict(trait=discrete(states=states, switch=args.switch, start=args.trait_start))
     else:
-        names = [s.strip() for s in args.families.split(",") if s.strip()] if args.families else None
-        driver = dict(genome=unordered(duplication=args.duplication, loss=args.loss,
-                                       origination=args.origination,
-                                       initial_families=args.initial_families, families=names))
+        names = ([s.strip() for s in args.family_names.split(",") if s.strip()]
+                 if args.family_names else None)
+        driver = dict(genome=family(duplication=args.duplication, loss=args.loss,
+                                    origination=args.origination,
+                                    initial_families=args.initial_families, family_names=names))
 
     t0 = time.perf_counter()
     result = simulate_joint(birth=args.birth, death=args.death, n_extant=args.n_extant,

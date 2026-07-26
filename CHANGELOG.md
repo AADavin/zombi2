@@ -9,6 +9,33 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **The genome level's first resolution is now `family`, not `unordered`.** It is the default
+  resolution and the first thing a new user meets, and it was named for the feature it lacks rather
+  than for what it is. The other two resolutions keep their names, and the model itself is untouched —
+  the three still share one engine, one rate grammar and one event log. This is a **breaking rename
+  with no deprecation aliases**:
+
+  | was | is |
+  |---|---|
+  | `simulate_genomes_unordered(…)` | `simulate_genomes_family(…)` |
+  | `GenomesResult` | `FamilyGenomesResult` |
+  | `UnorderedGenome` | `FamilyGenome` |
+  | `genomes.unordered(…)` | `genomes.family(…)` |
+  | `zombi2.genomes.unordered` | `zombi2.genomes.family` |
+  | `--resolution unordered`, and the same value in a `--params` file | `--resolution family` |
+
+  Renaming the result class also removes an asymmetry: the first resolution returned the unprefixed
+  `GenomesResult` while its two siblings carried a prefix, which read as a default plus two variants
+  rather than three resolutions of one model. The run log's `resolution` row and the run-completion
+  summary now say `family`; no output filename, directory or column header changes, so nothing that
+  reads a run's tables needs updating. Chapter 4 is now *Genomes I: gene families*. (#245)
+- **`families=` is now `family_names=`**, on `simulate_genomes_family`, `simulate_genomes_ordered` and
+  `genomes.family(…)`; `zombi2 joint --families` is likewise now `--family-names`. The argument takes a
+  list of *names* and always did — the attribute it fills has been `result.family_names` all along — so
+  input and output now agree, and `initial_families=100` (a count) no longer reads as a sibling of the
+  name list beside it. (#245)
+
 ## [0.7.0] - 2026-07-26
 
 ### Added
