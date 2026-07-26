@@ -8,7 +8,7 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 :func:`~zombi2.genomes.simulate_genomes_nucleotide`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. The nucleotide engine takes **constant rates only**, so a modifier expression is rejected
+2.0})"``. The nucleotide engine wires the skyline (``OnTime``) only, so any other modifier is rejected
 there rather than silently ignored."""
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_family)
+from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
@@ -33,7 +34,7 @@ RATES_HELP = _rates_help(
          "there is no scope wrapper to write. DrivenBy is wired for all four gene-family rates "
          "(on --transfer it drives how often a lineage DONATES); --transfer-to takes the same "
          "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime only; "
-         "--resolution nucleotide takes constant rates only.")
+         "--resolution nucleotide wires OnTime only.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
@@ -272,10 +273,12 @@ def run(args, parser):
         # accepted and then dropped; refuse it instead
         modulated = [f"--{n}" for n in ("duplication", "transfer", "loss", "origination", "inversion",
                                         "transposition", "translocation", "fission", "fusion")
-                     if not isinstance(getattr(args, n), float)]
+                     if not isinstance(getattr(args, n), float)
+                     and any(not isinstance(m, _NUC_WIRED) for m in getattr(args, n).modifiers)]
         if modulated:
-            parser.error(f"--resolution nucleotide takes constant rates only, but "
-                         f"{', '.join(modulated)} carries a modifier")
+            parser.error(f"--resolution nucleotide wires only "
+                         f"{', '.join(w.__name__ for w in _NUC_WIRED)}, but "
+                         f"{', '.join(modulated)} carries another modifier")
 
     vocab = _OUTPUTS[args.resolution]
     if args.write:
