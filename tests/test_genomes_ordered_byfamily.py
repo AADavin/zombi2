@@ -6,6 +6,8 @@ apply a family's own rate to its neighbours, and the neighbourhood is reshuffled
 rearrangement, so the parameter would not even name a fixed thing over a run.
 """
 
+import collections
+
 import numpy as np
 import pytest
 
@@ -131,9 +133,58 @@ def test_byfamily_refused_on_the_chromosome_tier(tree):
                                          fission=0.2 * mod.ByFamily(spread=0.5), seed=1)
 
 
-def test_max_family_size_is_still_refused(tree):
-    """Left refused deliberately: a quota is not a weight — it has to decide what happens to a
-    segment that is only partly over the cap, and refusing the whole run and refusing part of it are
-    different processes."""
-    with pytest.raises(ValueError, match="max_family_size is wired at the family resolution"):
-        genomes.simulate_genomes_ordered(tree, duplication=0.3, max_family_size=5, seed=1)
+# --- the growth guard -----------------------------------------------------------------------------
+
+def _worst_family_count(g):
+    """The largest number of copies any one family reaches in any one genome of the run."""
+    worst = 0
+    for genome in g.genomes.values():
+        c = collections.Counter(gene.family for chrom in genome for gene in chrom.genes)
+        worst = max(worst, max(c.values(), default=0))
+    return worst
+
+
+def test_the_cap_actually_bounds_a_family(tree):
+    """Duplication compounds, so without a quota a fast family multiplies without bound. The cap is
+    the same guard the family resolution has always had, and an int is an absolute copy count."""
+    g = genomes.simulate_genomes_ordered(tree, duplication=1.2, loss=0.1, origination=0.4,
+                                         initial_families=10, chromosomes=1, max_family_size=4,
+                                         seed=4)
+    assert _worst_family_count(g) <= 4
+
+
+def test_the_cap_holds_when_runs_carry_several_copies(tree):
+    """A run may carry several copies of one family, so the test is *current + carried > cap*, not
+    merely "already full" — otherwise a segmental duplication would overshoot the quota."""
+    g = genomes.simulate_genomes_ordered(tree, duplication=1.2, loss=0.1, origination=0.4,
+                                         duplication_extent=4, initial_families=10, chromosomes=1,
+                                         max_family_size=5, seed=4)
+    assert _worst_family_count(g) <= 5
+
+
+def test_the_cap_can_be_switched_off(tree):
+    g = genomes.simulate_genomes_ordered(tree, duplication=1.2, loss=0.1, origination=0.4,
+                                         initial_families=10, chromosomes=1, max_family_size=None,
+                                         seed=4)
+    assert _worst_family_count(g) > 4          # unbounded growth is still available on request
+
+
+def test_a_capped_run_refuses_whole_runs_not_partial_ones(tree):
+    """Clipping a run to the genes still under quota would quietly shorten runs exactly where the
+    genome is crowded, reshaping the extent distribution. Refusing outright keeps it intact."""
+    g = genomes.simulate_genomes_ordered(tree, duplication=1.0, loss=0.2, origination=0.4,
+                                         duplication_extent=3, initial_families=10, chromosomes=1,
+                                         max_family_size=3, seed=8)
+    dup_runs = [p.length for p in g.event_positions if p.kind == "duplication" and p.length]
+    assert dup_runs, "the run should still produce duplications under a cap"
+    assert max(dup_runs) > 1, "runs are refused whole, so multi-gene duplications still occur"
+
+
+def test_the_cap_is_on_by_default(tree):
+    """It defaults to the same 10.0 multiple of the tree's lineages as the family resolution, so the
+    two agree out of the box instead of one growing without bound."""
+    import inspect
+    sig = inspect.signature(genomes.simulate_genomes_ordered)
+    assert sig.parameters["max_family_size"].default == 10.0
+    assert inspect.signature(genomes.simulate_genomes_family).parameters[
+        "max_family_size"].default == 10.0
