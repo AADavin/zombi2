@@ -41,6 +41,10 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 sequences out/ --model hky85 --length 1000 --seed 1",
             "",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
+            "",
+            "Coupling — CONDITION a level on another by pointing a rate at what that level wrote:",
+            "  zombi2 genomes out/ --loss \"0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0})\"",
+            "JOINT (zombi2 joint) is for when neither level can be grown first, because each drives the other.",
         ),
     )
     parser.add_argument("--version", action="version", version=f"ZOMBI2 {__version__}")
