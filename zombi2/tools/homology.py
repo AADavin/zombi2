@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pathlib
 
-from zombi2.genomes.events import node_label
+from zombi2.genomes.events import gene_label, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 
 #: the internal-node event kind → the one-letter relation of the leaf pairs it is the MRCA of.
@@ -30,7 +30,7 @@ def _leaf_label(leaf: GeneNode) -> str:
     """A leaf's row/column header: ``n<species>|g<id>`` — the species branch the gene sits on and its
     gene id. Both tokens are exactly the ones the gene-tree Newick and the event log write, so the
     table joins to either without translation."""
-    return f"{node_label(leaf.species)}|g{leaf.copy}"
+    return f"{node_label(leaf.species)}|{gene_label(leaf.copy)}"
 
 
 def homology_table(root: GeneNode) -> tuple[list[str], list[list[str]]]:

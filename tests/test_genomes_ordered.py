@@ -10,7 +10,7 @@ import inspect
 
 import pytest
 
-from zombi2.genomes.events import node_from_label
+from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
 from zombi2.rates.modifiers import OnTime
@@ -292,8 +292,9 @@ def _written_gene_order(path):
     written = {}
     for row in lines:
         s, *rest = row.split("\t")
-        s, rest = node_from_label(s), [int(c) for c in rest]
-        written.setdefault(s, []).append(tuple(rest))
+        *ints, copy = rest                       # chromosome, position, strand, family are ints; copy is g<n>
+        written.setdefault(node_from_label(s), []).append(
+            (*(int(c) for c in ints), gene_from_label(copy)))
     return written
 
 

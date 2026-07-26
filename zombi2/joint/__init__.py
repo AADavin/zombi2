@@ -105,13 +105,15 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     k_states = len(states)
     out_rate = [float(-Q[s, s]) for s in range(k_states)]  # the trait's total switch-out rate per state
 
-    # birth/death are driven by the trait; a mapping whose states are none of the trait's would leave
-    # every lineage at the default factor — a silently uncoupled run — so refuse it up front
+    # birth/death are driven by the trait; the trait's declared states are known up front, so the check
+    # is exhaustive — every mapping key must be one of them. A key outside the alphabet is a state that
+    # can never occur (a typo whose factor would silently never apply), and a mapping matching none of
+    # them would be a silently uncoupled run; both are refused here rather than run as if coupled.
     from ..rates.driver import check_mapping_fires
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:
             if isinstance(m, DrivenBy):
-                check_mapping_fires(m.mapping, states, source_label=f"{label} (trait)")
+                check_mapping_fires(m.mapping, states, source_label=f"{label} (trait)", exhaustive=True)
 
     nodes: dict[int, Node] = {}
     counter = 0

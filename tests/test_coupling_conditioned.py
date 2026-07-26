@@ -581,3 +581,10 @@ def test_ordered_engine_rejects_a_driven_transfer_rate():
     with pytest.raises(ValueError, match="ordered genome engine does not"):
         genomes.simulate_genomes_ordered(
             tree, transfer=0.1 * mod.DrivenBy("f.tsv", {"a": 2.0}), initial_families=1, seed=1)
+
+
+def test_missing_driver_file_is_named_as_a_drivenby_driver(tmp_path):
+    # a conditioned rate pointing at a file that is not there must say so as a DrivenBy driver, not
+    # leak a bare errno — so the user knows which kind of input is missing and how to fix it
+    with pytest.raises(FileNotFoundError, match="DrivenBy driver file not found"):
+        load_driver(str(tmp_path / "not_here.tsv"), None)
