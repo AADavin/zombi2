@@ -9,8 +9,11 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 
 A species-tree node is written `n<id>` everywhere it appears, and the column holding one is always
 called `lineage` (or `donor` / `recipient` where a row names two), so a node reads the same in any
-file of a run. A gene copy is always `copy`. In `blocks.tsv` alone, `gene` means something else — the
-genic classification of a block, `0` for spacer or the family id for a declared gene.
+file of a run. A gene copy is written `g<id>` the same way — the same token the gene-tree Newick
+leaves and the alignment FASTA headers use, so a copy joins across files without translation — and the
+column holding one is always `copy` (or `parent`, the source copy of a duplication or transfer). In
+`blocks.tsv` alone, `gene` means something else — the genic classification of a block, `0` for spacer
+or the family id for a declared gene.
 
 ## Where the files go
 

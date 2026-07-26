@@ -9,6 +9,31 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- `--quiet` on `zombi2 tools format`, matching the level commands — it suppresses the summary line,
+  for a log file or a batch of runs. (#242)
+
+### Changed
+- **Gene-copy ids are now written `g<id>` in every genome table** — `genomes.tsv`, `genome_events.tsv`,
+  `gene_order.tsv`, `blocks.tsv` and `initial_genome.tsv`, in both the `copy` and `parent` columns.
+  This is the same token the gene-tree Newick leaves, the alignment FASTA headers and the homology
+  tables already use, so a gene copy now joins across every file of a run with no translation step
+  (previously the tables held a bare integer while the trees/alignments held `g<id>`). The column
+  names are unchanged; this is a breaking change to the *values* those columns hold.
+- **A joint (`zombi2 joint`) driver mapping that names a state outside the trait's declared alphabet is
+  now refused.** A key that can never occur — a typo such as `{"caev": 4.0}` for a cave/surface trait —
+  is caught up front instead of silently applying to nothing. The conditioned (file-driven) path is
+  unchanged: it still refuses only a mapping that matches *none* of the driver's observed states.
+
+### Fixed
+- The run-completion line no longer doubles a trailing slash: a directory given as `out/` (as the
+  quickstart shows) now echoes as `wrote out/`, not `wrote out//`. (#242)
+- A conditioned rate whose `DrivenBy` points at a missing file now reports it as a missing driver file
+  (with the path and how to fix it), instead of a bare `[Errno 2] No such file or directory`. (#242)
+- `parallel=` no longer crashes with a raw `BrokenProcessPool` when called from a notebook, `python -c`,
+  or a stdin heredoc (where worker processes cannot re-import your program). It falls back to
+  single-process with a one-line note; a `.py` script or the CLI still uses every core. (#242)
+
 ## [0.5.0] - 2026-07-24
 
 ### Added

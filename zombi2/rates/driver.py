@@ -84,7 +84,14 @@ def load_driver(path, tree) -> DriverTrajectory:
     the branch into constant stretches. This is the same tree the target level runs on, so ``node n7``
     in the log is lineage 7 here. (``tree`` is the run's own species tree, always in hand where a
     conditioned rate is resolved.)"""
-    text = pathlib.Path(path).read_text()
+    try:
+        text = pathlib.Path(path).read_text()
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"DrivenBy driver file not found: {str(path)!r}. A conditioned rate points at this file, but "
+            f"it is not there — check the path (it is relative to where you run zombi2), or grow the "
+            f"driver first (run the level that writes it) so there is something to condition on."
+        ) from None
     rows = [line for line in text.splitlines() if line.strip()]
     if not rows:
         raise ValueError(f"driver file {str(path)!r} is empty")
@@ -172,21 +179,38 @@ def driver_from_result(result) -> DriverTrajectory:
     return DriverTrajectory(segments)
 
 
-def check_mapping_fires(mapping, available_states, *, source_label: str) -> None:
-    """Raise if a **discrete** (:class:`~zombi2.rates.mapping.Table`) mapping names none of the states
-    the driver can actually take. Such a mapping leaves every lineage at the table's default factor —
-    a rate that is never touched — so the run is the fully *uncoupled* model while the log records it as
-    driven. That is almost always a typo or a stale / mismatched driver file, so it is refused.
+def check_mapping_fires(mapping, available_states, *, source_label: str, exhaustive: bool = False) -> None:
+    """Raise if a **discrete** (:class:`~zombi2.rates.mapping.Table`) mapping's states do not line up
+    with the states the driver can take. Such a mismatch leaves lineages at the table's default factor —
+    a rate that is never touched — so the run drifts from the model the log records. It is almost always
+    a typo or a stale / mismatched driver, so it is refused. Continuous mappings (Curve / Scalar) apply
+    to every value and have nothing to mismatch.
 
-    At least **one** named state must occur; a mapping may still list a state this particular
-    realisation never reached (a legitimate partial mapping), so only an *empty* overlap is an error.
-    Continuous mappings (Curve / Scalar) apply to every value and have nothing to mismatch."""
+    ``available_states`` is the set the mapping is checked against, and ``exhaustive`` says what that set
+    *is*:
+
+    - ``exhaustive=False`` (the default) — ``available_states`` are the states the driver was **observed**
+      to take (e.g. replayed from a written trait file). At least **one** named state must occur, but a
+      mapping may still list a state this particular realisation never reached (a legitimate partial
+      mapping), so only an *empty* overlap is an error.
+    - ``exhaustive=True`` — ``available_states`` is the driver's **complete declared alphabet**, known up
+      front (e.g. a joint trait's declared states). Then **every** named state must be one of them: a key
+      outside the alphabet is a state that can never occur, so its factor could never apply — an
+      unambiguous typo, refused even when other keys do match."""
     from .mapping import Table
 
     if not isinstance(mapping, Table):
         return
     named = set(mapping.per_state)
     have = {str(s) for s in available_states}
+    if exhaustive:
+        stray = named - have
+        if stray:
+            raise ValueError(
+                f"DrivenBy on {source_label}: the mapping names state(s) {sorted(stray)} that are not "
+                f"among the driver's states {sorted(have)} — a factor for a state that can never occur, "
+                f"so it would silently never apply. Check for a typo in the state names.")
+        return
     if not (named & have):
         raise ValueError(
             f"DrivenBy on {source_label}: the mapping's states {sorted(named)} match none of the "

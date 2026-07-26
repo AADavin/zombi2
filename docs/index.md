@@ -2,13 +2,8 @@
 
 **ZOMBI2** simulates the evolution of **species trees**, **genomes**, **sequences** and **traits** —
 each on its own, conditioned on another, or jointly — and records the true history behind every
-dataset. It is a ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi).
-
-!!! note "Rebuild in progress"
-    ZOMBI2 is being rebuilt as a **clean core, grown level by level from a single specification**.
-    **Species trees** and **unordered genomes** are available now; sequences, traits, and the
-    couplings between levels are being rebuilt and return here as they land. This guide grows a page
-    per level.
+dataset. It is a ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi), built as a clean core grown
+level by level from a single specification.
 
 ## The four levels
 
@@ -50,11 +45,18 @@ from zombi2.rates import scope, modifiers
 sp = species.simulate_species_tree(
     birth = 1.0 * modifiers.OnTime({0: 1.0, 3: 0.5}),   # skyline: full rate, then half after time 3
     death = scope.Global(0.3),                        # one tree-wide death rate, not per lineage
-    total_time = 8.0, seed = 1)
+    n_extant = 20, seed = 1)                           # grow until 20 species survive
 ```
 
 ## Where next
 
-- The [**Species trees**](guide/species-trees.md) guide — the birth–death process, the rate modifiers,
-  sampling and fossils, and the objects a run returns.
-- More level guides appear here as each level is rebuilt.
+- New here? Start with the [**Introduction**](guide/introduction.md) and [**a tour of ZOMBI2**](guide/tour.md).
+- The level guides — each grows one level and the objects a run returns:
+  [**Species trees**](guide/species-trees.md),
+  [**Genomes**](guide/genomes.md) (with [ordered](guide/genomes-ordered.md) and
+  [nucleotide](guide/genomes-nucleotide.md) resolutions),
+  [**Sequence evolution**](guide/sequences.md), and [**Trait evolution**](guide/traits.md).
+- [**Conditioning and joining**](guide/conditioning-and-joining.md) — letting one level drive another.
+- Reference: the [**API**](reference/api.md), [**rates and the Gillespie algorithm**](reference/rates-and-gillespie.md),
+  the [**output files**](reference/output-files.md) each run writes, and the [**tools**](reference/tools.md)
+  that read a finished run.

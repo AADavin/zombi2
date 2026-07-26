@@ -1245,3 +1245,28 @@ def test_tools_format_refuses_a_nucleotide_run_with_no_declared_genes(tmp_path, 
           "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--quiet"])       # no --genes
     assert main(["tools", "format", str(run)]) == 1
     assert "declared no genes" in capsys.readouterr().err
+
+
+# ── run-directory echo and --quiet ──────────────────────────────────────────────────
+
+def test_completion_message_has_no_double_slash_on_a_trailing_slash_dir(tmp_path, capsys):
+    # a dir written with a trailing slash (as the quickstart's `out/` does) must echo as `out/`, not
+    # `out//` — the run directory is normalised so the completion line reads cleanly
+    rc = main(["species", str(tmp_path) + "/", "--birth", "1", "--death", "0.3",
+               "--n-extant", "10", "--seed", "1", "--flat"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "//" not in out
+    assert f"wrote {tmp_path}/" in out
+
+
+def test_tools_format_quiet_suppresses_the_summary(tmp_path, capsys):
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
+          "--initial-families", "5", "--seed", "3"])
+    capsys.readouterr()                                   # drop the setup chatter
+    assert main(["tools", "format", str(run), "--quiet"]) == 0
+    assert capsys.readouterr().out == ""                  # --quiet: no summary line
+    assert main(["tools", "format", str(run)]) == 0       # without it, the summary prints
+    assert "wrote" in capsys.readouterr().out

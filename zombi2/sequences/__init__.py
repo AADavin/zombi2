@@ -594,9 +594,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         # Parallel engine (opt-in): one gene tree per process, each under its own spawned RNG stream, so
         # any worker count is bit-identical to any other. The clock is a shared read-only draw, so it is
         # taken once here from a reserved stream (index 0) and shipped to every worker.
-        from .._runtime.parallel import resolve_workers
+        from .._runtime.parallel import guard_pool_workers, resolve_workers
         from ._pergenetree import evolve_families
-        workers = resolve_workers(parallel)
+        workers = guard_pool_workers(resolve_workers(parallel))
         spawned = np.random.SeedSequence(seed).spawn(1 + len(gene_trees))
         clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
