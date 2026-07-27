@@ -102,7 +102,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..rates.distributions import Geometric, as_extent
+from ..rates.distributions import Geometric
+from ..rates.extent import Extent, as_extent
 from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.modifiers import DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
@@ -1391,13 +1392,15 @@ class _Rates:
     fusion: Rate
     chromosome_origination: Rate
     chromosome_loss: Rate
-    inversion_extent: float
-    translocation_extent: float
-    transposition_extent: float
-    loss_extent: float
-    duplication_extent: float
-    transfer_extent: float
-    origination_extent: float
+    # each an Extent (SPEC §6): base x modifiers, no scope. Read when an event fires, so a modifier
+    # here changes how much that event takes without touching any rate.
+    inversion_extent: Extent
+    translocation_extent: Extent
+    transposition_extent: Extent
+    loss_extent: Extent
+    duplication_extent: Extent
+    transfer_extent: Extent
+    origination_extent: Extent
     inversion_probability: float
 
 
@@ -1795,30 +1798,44 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                     f"support yet — only {', '.join(w.__name__ for w in WIRED_MODIFIERS)} is wired. "
                     f"Driving a nucleotide rate with a trait is the next slice.")
         _rates[label] = r
-    def _mean_bp(spec, label):
-        """An extent's mean in base pairs (SPEC §6): a bare number *is* the mean, so ``500`` reads the
-        same here as anywhere else. A ``Distribution`` must be :class:`~zombi2.rates.Geometric` for now
-        — this engine draws each arc's far end **directly from the genome's legal breakpoints** rather
-        than drawing a size and clamping it, so an arbitrary shape has to be re-weighted over that set
-        instead of sampled. Refusing beats quietly approximating."""
-        if isinstance(spec, (int, float)) and spec < 1:
-            raise ValueError(f"{label} must be >= 1 bp, got {spec}")
-        d = as_extent(spec)
-        if not isinstance(d, Geometric):
-            raise ValueError(
-                f"{label} is {type(d).__name__}, but the nucleotide engine wires a geometric extent "
-                f"only — it draws each arc's far end directly from the legal breakpoints, so another "
-                f"shape would have to be re-weighted over that set rather than drawn. Pass a number "
-                f"(the mean in bp) or Geometric(mean=...).")
-        return d.mean
+    def _as_bp_extent(spec, label):
+        """An extent in base pairs (SPEC §6): ``base × modifiers``, no scope. A bare number *is* the
+        mean, so ``500`` reads the same here as anywhere else.
 
-    inversion_extent = _mean_bp(inversion_extent, "inversion_extent")
-    translocation_extent = _mean_bp(translocation_extent, "translocation_extent")
-    transposition_extent = _mean_bp(transposition_extent, "transposition_extent")
-    loss_extent = _mean_bp(loss_extent, "loss_extent")
-    duplication_extent = _mean_bp(duplication_extent, "duplication_extent")
-    transfer_extent = _mean_bp(transfer_extent, "transfer_extent")
-    origination_extent = _mean_bp(origination_extent, "origination_extent")
+        The base must be :class:`~zombi2.rates.distributions.Geometric` — this engine draws each arc's
+        far end **directly from the genome's legal breakpoints** rather than drawing a size and
+        clamping it, so an arbitrary shape would have to be re-weighted over that set instead of
+        sampled. Refusing beats quietly approximating. The modifiers are the ones this resolution
+        wires on a rate, and they scale the mean: an extent's modifier is read when an event fires, so
+        it changes how much that event takes without touching any rate."""
+        if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 1:
+            raise ValueError(f"{label} must be >= 1 bp, got {spec}")
+        e = as_extent(spec)
+        if not isinstance(e.base, Geometric):
+            raise ValueError(
+                f"{label} has a {type(e.base).__name__} base, but the nucleotide engine wires a "
+                f"geometric extent only — it draws each arc's far end directly from the legal "
+                f"breakpoints, so another shape would have to be re-weighted over that set rather "
+                f"than drawn. Pass a number (the mean in bp) or Geometric(mean=...).")
+        for m in e.modifiers:
+            if not isinstance(m, WIRED_MODIFIERS):
+                raise ValueError(
+                    f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
+                    f"support yet — an extent takes the same modifiers a rate does here "
+                    f"({', '.join(w.__name__ for w in WIRED_MODIFIERS)}).")
+        return e
+
+    inversion_extent = _as_bp_extent(inversion_extent, "inversion_extent")
+    translocation_extent = _as_bp_extent(translocation_extent, "translocation_extent")
+    transposition_extent = _as_bp_extent(transposition_extent, "transposition_extent")
+    loss_extent = _as_bp_extent(loss_extent, "loss_extent")
+    duplication_extent = _as_bp_extent(duplication_extent, "duplication_extent")
+    transfer_extent = _as_bp_extent(transfer_extent, "transfer_extent")
+    origination_extent = _as_bp_extent(origination_extent, "origination_extent")
+    _extents = {"inversion_extent": inversion_extent, "translocation_extent": translocation_extent,
+                "transposition_extent": transposition_extent, "loss_extent": loss_extent,
+                "duplication_extent": duplication_extent, "transfer_extent": transfer_extent,
+                "origination_extent": origination_extent}
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability}")
     if transfer_to == "distance":
@@ -1869,19 +1886,27 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     # id, from a file or an in-memory trait result. With no driven rate this is empty and the loop
     # stays exactly the pooled one, so an uncoupled run is untouched.
     driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)] for label, r in _rates.items()}
+    ext_driven = {label: [m for m in e.modifiers if isinstance(m, DrivenBy)]
+                  for label, e in _extents.items()}
     by_key: dict[object, object] = {}
-    for mods in driven.values():
+    for mods in (*driven.values(), *ext_driven.values()):
         for m in mods:
             by_key.setdefault(m.key, m.source)
-    trajs = {}
+    resolved = {}
     if by_key:
-        trajs = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the uncoupled model — refuse it here, naming the driver
-        for mods in driven.values():
+        for mods in (*driven.values(), *ext_driven.values()):
             for m in mods:
                 label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-                check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
+                check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
+    # Only a driver on a **rate** makes the loop per-lineage and adds a Gillespie breakpoint. A driver
+    # on an **extent** is read at the instant an event fires — it changes how much that event takes,
+    # never how often one happens — so it deliberately stays out of `trajs`: no per-lineage rate
+    # weights, no extra horizon steps. (SPEC §6.)
+    _rate_keys = {m.key for mods in driven.values() for m in mods}
+    trajs = {k: v for k, v in resolved.items() if k in _rate_keys}
     any_driven = bool(trajs)
 
     rates = _Rates(_rates["inversion"], _rates["translocation"], _rates["transposition"],
@@ -2009,6 +2034,16 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
                                         for k in range(nlin)), default=math.inf))
 
+        def _ext(label, k):
+            """An extent's mean in bp for this event: the base mean, scaled by its modifiers read on
+            the acting lineage. Undriven is the common case and costs nothing — the point of reading it
+            here rather than in the rate loop is that an extent changes no rate, so it never had to be
+            raced to."""
+            e = _extents[label]
+            if not e.is_driven:
+                return e.base.mean
+            return e.mean(time=t, drivers={key: resolved[key].value(alive[k], t) for key in resolved})
+
         def _pick(label, fallback=None):
             """The affected lineage: drawn by its own effective rate where that rate is driven — the
             same weights the total was summed with — and otherwise by the rate's own undriven rule,
@@ -2033,29 +2068,29 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 b_cor = b_fus + r_cor
                 if r < r_inv:
                     k = _pick("inversion")
-                    _do_inversion(gen[k], alive[k], t, rates.inversion_extent, rng, rearrangements)
+                    _do_inversion(gen[k], alive[k], t, _ext("inversion_extent", k), rng, rearrangements)
                 elif r < b_trl:
                     k = _pick("translocation")
-                    _do_translocation(gen[k], alive[k], t, rates.translocation_extent,
+                    _do_translocation(gen[k], alive[k], t, _ext("translocation_extent", k),
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_trp:
                     k = _pick("transposition")
-                    _do_transposition(gen[k], alive[k], t, rates.transposition_extent,
+                    _do_transposition(gen[k], alive[k], t, _ext("transposition_extent", k),
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_los:
                     k = _pick("loss")
-                    total_length += _do_loss(gen[k], alive[k], t, rates.loss_extent, rng, events)
+                    total_length += _do_loss(gen[k], alive[k], t, _ext("loss_extent", k), rng, events)
                 elif r < b_dup:
                     k = _pick("duplication")
-                    total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_extent,
+                    total_length += _do_duplication(gen[k], alive[k], t, _ext("duplication_extent", k),
                                                     rng, events, new_copy)
                 elif r < b_tra:
                     kd = _pick("transfer")
-                    total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_extent,
+                    total_length += _do_transfer(rng, tree, alive, gen, kd, t, _ext("transfer_extent", kd),
                                                  transfer_to, self_transfer, depth, events, new_copy)
                 elif r < b_org:
                     k = _pick("origination")            # per lineage; weighted when driven
-                    total_length += _do_origination(gen[k], alive[k], t, rates.origination_extent,
+                    total_length += _do_origination(gen[k], alive[k], t, _ext("origination_extent", k),
                                                     rng, events, new_source, new_copy,
                                                     new_family, gene_spans, gene_strands)
                 elif r < b_fis:
@@ -2069,8 +2104,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 elif r < b_cor:
                     k = _pick("chromosome_origination")  # per lineage; weighted when driven
                     dc, dl = _do_chromosome_origination(
-                        gen[k], alive[k], t, rates.origination_extent, rng, events, chromosome_events,
-                        new_chrom_id, new_source, new_copy, new_family, gene_spans, gene_strands)
+                        gen[k], alive[k], t, _ext("origination_extent", k), rng, events,
+                        chromosome_events, new_chrom_id, new_source, new_copy, new_family,
+                        gene_spans, gene_strands)
                     total_chromosomes += dc
                     total_length += dl
                 else:
