@@ -25,6 +25,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   those lineages' genomes collapse — shown as per-tip genome-size bars beside a tree coloured by
   lifestyle. Uses Phylustrator 0.1.2's new `bars` panel (pinned via `zombi2[gallery]`). (#260)
 
+### Added
+- **`zombi2 species out/`, `zombi2 genomes out/` and `zombi2 sequences out/` now run with no other
+  arguments.** Each fills what it was not given (`--birth 1.0 --n-extant 20`; `--duplication 0.2
+  --transfer 0.1 --loss 0.25 --origination 0.5`; `--model jc69`) and says on stderr exactly which
+  values it chose and that they are illustrative rather than estimates. Refusing to run taught a
+  newcomer nothing about the shape of a command, and the rates are precisely the part nobody can
+  guess on a first run — "every number was a guess" was among the loudest first-time complaints. A
+  default is announced rather than silent for the same reason a saturated alignment now is: the run
+  should never imply a number was chosen when it was not, and the `.log` records it either way.
+  `genomes` fills in only when **no** rate of any kind was given: a run that names `--duplication
+  0.3` or `--inversion 1.0` has had its model described, and quietly adding gene turnover to it
+  would be the surprise.
+
 ### Changed
 - **A gene copy is named `n<species>_g<copy>` wherever there is no column to say which species it
   sits in** — gene-tree and phylogram Newick leaves, alignment and ancestral FASTA records, and
