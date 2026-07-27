@@ -397,8 +397,8 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
         for m in rate.modifiers:
             if isinstance(m, FromParent):
                 raise ValueError(
-                    f"{label} carries FromParent (clade drift); drift combined with a driven rate is a "
-                    f"not available together — use one or the other."
+                    f"{label} carries FromParent (clade drift); drift and a driven rate are not available "
+                    f"together — use one or the other."
                 )
             if isinstance(m, DrivenBy):
                 if not isinstance(m.source, str):
