@@ -10,6 +10,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **An extent now takes modifiers, as SPEC §6 says it should: `base × modifiers`, no scope.** So
+  `loss_extent = 150 * DrivenBy(habitat, {"host": 6.0, "free": 1.0})` makes host-restricted lineages
+  delete in **bigger chunks** — a different model from `loss = … * DrivenBy(…)`, which makes them
+  delete more **often**. Set both and they multiply. An extent takes the modifiers its resolution
+  wires on a rate: `OnTime` at ordered, `OnTime` and `DrivenBy` at nucleotide; anything else raises.
+  Unlike a rate's, an extent's modifier is read when an event fires, so it changes no rate and adds no
+  step to the Gillespie clock. The concept has its own module, `zombi2.rates.extent` (`Extent`,
+  `as_extent`), parallel to `rates.rate`; `as_extent` moved there from `rates.distributions` and now
+  returns an `Extent` rather than a bare distribution. A scope on an extent is refused — it is already
+  an absolute size, so there is no "per what?" to answer. (#250)
 - **Conditioning at the nucleotide resolution: every rate there now takes a `DrivenBy`.** A trait can
   drive how much DNA a lineage sheds — genome reduction as it is usually meant, on a genome measured
   in base pairs rather than in family tokens — and can drive the **rearrangements** as well, which
