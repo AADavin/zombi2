@@ -64,6 +64,7 @@ validation:
 hooks:
   - hooks/manual_callouts.py
   - hooks/manual_figures.py
+  - hooks/manual_citations.py
 
 plugins:
   - search
