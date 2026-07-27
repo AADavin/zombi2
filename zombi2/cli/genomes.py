@@ -217,8 +217,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="[family] write each gene family straight to disk instead of building the "
                         "whole run in memory — for a very large number of families, where the "
                         "in-memory result would not fit. Composes with --parallel and --write; the "
-                        "files are the same and the disk is the handoff to the sequence level (gene "
-                        "trees are grouped under gene_trees/ regardless of --flat)")
+                        "same files are written and the disk is the handoff to the sequence level "
+                        "(gene trees are grouped under gene_trees/ regardless of --flat). Like "
+                        "--parallel it is a separate engine: it draws families in a different order, "
+                        "so for the same seed the run it produces DIFFERS from a serial one (both "
+                        "valid samples). Fix the mode alongside the seed to reproduce a run")
     _add_quiet_arg(g)
     _add_force_arg(g)
 

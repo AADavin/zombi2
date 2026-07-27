@@ -244,6 +244,15 @@ def guidance(args, *looks: str) -> None:
         print(f"  → {look}")
 
 
+def warn(message: str) -> None:
+    """A diagnostic about the *result* — the run succeeded, but something about what came out is
+    likely not what was wanted. Unlike :func:`guidance` it goes to **stderr** and survives
+    ``--quiet``: a scripted batch is precisely the caller who needs to hear that its data is
+    degenerate, and stdout stays clean for the ``wrote …`` line. A healthy run prints nothing here,
+    so an empty stderr still means "nothing to report"."""
+    print(f"zombi2: warning: {message}", file=sys.stderr)
+
+
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
 #: ``genomes`` and ``traits`` (both read the species tree); ``genomes`` feeds ``sequences`` (the gene
 #: trees). Re-running a level orphans everything reachable from it here, plus any level that recorded a

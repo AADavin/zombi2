@@ -70,6 +70,22 @@ jobs:
         run: mkdocs build --strict --site-dir _site/docs
       - name: Add the landing page at the site root
         run: cp -R web/. _site/
+      # The landing page's version badge is stamped here, from the same __version__ hatchling
+      # packages, so it cannot drift behind a release the way a hand-edited number does. It is
+      # rewritten in _site/ only — web/index.html keeps a readable literal so the page still opens
+      # correctly straight from the repo.
+      - name: Stamp the landing page with the released version
+        run: |
+          python - <<'PY'
+          import pathlib, re, zombi2
+          page = pathlib.Path("_site/index.html")
+          html, n = re.subn(r'(<span class="pill" data-version>)[^<]*(</span>)',
+                            rf'\g<1>v{zombi2.__version__}\g<2>', page.read_text())
+          if n != 1:
+              raise SystemExit(f"expected exactly one data-version badge on the landing page, found {n}")
+          page.write_text(html)
+          print(f"landing page stamped v{zombi2.__version__}")
+          PY
       - name: Add the manual PDF at the site root
         uses: actions/download-artifact@v4
         with:

@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
             "--loss 0.25 --origination 0.5 --seed 42",
             "",
             "  # 3. sequences down each gene tree",
-            "  zombi2 sequences out/ --model hky85 --length 1000 --seed 1",
+            "  zombi2 sequences out/ --model hky85 --length 1000 --substitution 0.05 --seed 1",
             "",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
             "",

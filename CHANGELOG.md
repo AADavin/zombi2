@@ -10,11 +10,49 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`zombi2 sequences` reports the alignment divergence it actually produced, and warns when the
+  sequences are saturated.** The summary line gains `mean identity NN%`, measured over a bounded
+  random sample of within-family pairs. When that identity sits within 15% of the model's own random
+  floor (`Σπ²` — 25% for equal-frequency DNA, ~6% for a protein model) the run also prints a warning
+  naming the realised identity, the floor, and `--substitution`. The rate is per unit *time*, so
+  whether it yields a usable alignment depends on the height of the tree it runs down — which no flag
+  reveals. Five independent first-time users were given the default rate on the documented quickstart
+  tree and two of them nearly abandoned the tool believing the sequence level was broken. The warning
+  goes to stderr and survives `--quiet`, so a scripted batch hears it; a healthy run prints nothing.
 - **A "Genome reduction" gallery example — a trait *conditions* the genome.** In the renamed
   *Joining and conditioning* level: an irreversible endosymbiont lifestyle drives fast gene loss and
   near-zero gene gain through the same `DrivenBy` mechanism that couples a trait to speciation, so
   those lineages' genomes collapse — shown as per-tip genome-size bars beside a tree coloured by
   lifestyle. Uses Phylustrator 0.1.2's new `bars` panel (pinned via `zombi2[gallery]`). (#260)
+
+### Changed
+- **Trees are written with 7 significant figures instead of 6.** Rounding accumulated along a
+  root-to-tip path put the extant species tree outside the `1e-6 × height` ultrametricity that
+  `read_newick` documents — measured at 19 of 20 seeds, so third-party dating and strict-clock tools
+  could reject ZOMBI2's own output. At 7 figures the drift is ~2–3e-7 and 0 of 20 seeds exceed the
+  criterion, verified up to 5000 tips. Applies to the species tree, gene trees, phylograms and trait
+  trees; event logs were already full precision.
+- **The quickstart is now one command sequence, identical in the README, on the landing page and in
+  `zombi2 --help`.** The three had drifted apart — different `--n-extant`, missing rates, and no
+  sequence step on the landing page. It now also passes `--substitution 0.05`, so the documented
+  first run produces a usable alignment (83% mean identity) rather than a saturated one.
+- **The landing page's version badge is stamped from `zombi2.__version__` at deploy time.** It read
+  `v0.2.0` while PyPI served 0.11.0. The Pages workflow now rewrites it on every deploy and fails
+  loudly if the badge is missing, so it cannot drift behind a release again.
+
+### Fixed
+- **Documented that `genome_events.tsv` holds one row per gene-tree *edge*, not per event.**
+  Duplications, transfers and speciations each write two rows; losses and originations write one.
+  Appendix B (which the output-files reference includes verbatim) previously stated this for
+  transfers only, so counting rows by kind silently doubled the other two. Three of five first-time
+  users hit this and two of them diagnosed it as a factor-of-two rate bug before finding the cause.
+  The appendix now gives the per-kind row counts and a verified counting recipe — including why that
+  recipe must *not* be applied to originations, which share `time` 0 and carry no `parent`.
+- **`--stream` no longer implies it reproduces a serial run.** Its help said "the files are the
+  same", meaning the same file *layout*; it reads as "the same content". It is a separate engine like
+  `--parallel` and draws families in a different order, so the same seed gives a different (equally
+  valid) run — verified as 173 families/3684 rows serial against 191/3996 streamed. The help now says
+  so, in the wording `--parallel` already used.
 
 ### Changed
 - **`zombi2[gallery]` now installs Phylustrator from PyPI.** The plotting library is published, so the

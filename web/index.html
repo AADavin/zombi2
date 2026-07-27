@@ -332,7 +332,8 @@
       <div class="wrap">
         <div class="release-card">
           <div class="release-meta">
-            <span class="pill">v0.2.0</span>
+            <!-- stamped from zombi2.__version__ by .github/workflows/pages.yml on every deploy -->
+            <span class="pill" data-version>v0.11.0</span>
             <span>Python&nbsp;≥&nbsp;3.10 · Linux · macOS · Windows</span>
           </div>
           <div class="cmd">
@@ -393,11 +394,15 @@
           <div class="term-bar"><i></i><i></i><i></i><span>zombi2 — bash</span></div>
 <pre><span class="c"># 1 · species tree (forward birth–death)</span>
 <span class="p">$</span> zombi2 <span class="k">species</span> <span class="s">out/</span> --birth 1 --death 0.3 \
-    --n-extant 50 --seed 1
+    --n-extant 20 --seed 1
 
 <span class="c"># 2 · genomes along it (DTLO) — reads the tree from out/</span>
 <span class="p">$</span> zombi2 <span class="k">genomes</span> <span class="s">out/</span> --duplication 0.2 --transfer 0.1 \
     --loss 0.25 --origination 0.5 --seed 42
+
+<span class="c"># 3 · sequences down each gene tree</span>
+<span class="p">$</span> zombi2 <span class="k">sequences</span> <span class="s">out/</span> --model hky85 --length 1000 \
+    --substitution 0.05 --seed 1
 </pre>
         </div>
       </div>
