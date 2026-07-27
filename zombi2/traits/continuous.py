@@ -100,7 +100,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
     toward the current regime's optimum, integrated **exactly** across the regime's ``(state,
     duration)`` segments (a regime may switch part-way along a branch); convention B paints the root
     branch too. ``reverts_to`` is a dict ``{regime_state: θ}``; ``pull`` (α > 0) and ``rate`` (σ²) are
-    shared across regimes this slice (the OUM variant; per-regime α/σ² are a later slice)."""
+    shared across regimes (the OUM variant)."""
     if getattr(regimes, "kind", None) != "discrete" or regimes.history is None:
         raise ValueError(
             "regimes must be a discrete TraitsResult carrying a stochastic map — paint them with "
@@ -148,8 +148,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     """Correlated continuous traits in **one call** (the joint rule inside a level). ``start`` and
     ``rate`` are dicts over the same trait names; the branch increment is drawn from ``MVN(0, Σ·dt)``
     with ``Σ = D R D`` (``D = diag(σ_i)``, ``R`` from ``correlation``), so at a tip the correlation
-    between two traits equals their ρ. Correlated Brownian motion this slice — per-trait modifiers and
-    multivariate OU are later slices. Convention B holds: the root diffuses over its own branch."""
+    between two traits equals their ρ. Correlated Brownian motion only. Convention B holds: the root diffuses over its own branch."""
     if not isinstance(start, dict) or not isinstance(rate, dict):
         raise ValueError(
             "for correlated traits give both start and rate as dicts keyed by trait name, e.g. "
@@ -213,8 +212,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     ``start`` and ``rate`` as dicts keyed by trait name and a ``correlation={(a, b): ρ}`` overlay
     (each ρ ∈ [−1, 1]). The traits then diffuse jointly — the branch increment is drawn from
     ``MVN(0, Σ·dt)`` with ``Σ = D R D`` (``D = diag(σ_i)``, ``R`` the correlation matrix), so at a tip
-    the correlation between two traits is exactly their ρ. This slice wires correlated **Brownian
-    motion** (bare per-trait rates); per-trait modifiers and multivariate OU are later slices.
+    the correlation between two traits is exactly their ρ. Correlated **Brownian motion** only, with bare per-trait rates.
 
     ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree`, or a
     :class:`~zombi2.species.SpeciesResult` whose ``complete_tree`` is used). The trait evolves on

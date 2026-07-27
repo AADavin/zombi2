@@ -14,8 +14,8 @@ One Gillespie races the event classes over the living lineages at once: **specia
 out-rate) or a genome **duplication/loss/origination**. A driver event changes a lineage's state
 without touching the topology; a speciation hands the parent's driver state (its trait, its genome) to
 both daughters. Because these drivers only change at events, the rate is piecewise-constant between
-them and the race is **exact** — no thinning. (A continuously-diffusing driver — QuaSSE — is deferred:
-it makes the rate vary continuously, which needs thinning.)
+them and the race is **exact** — no thinning. (A continuously-diffusing driver — QuaSSE — is not
+available: it makes the rate vary continuously, which needs thinning.)
 
 The mechanism is the same ``mod.DrivenBy`` as conditioning; only the ``source`` differs — here a
 **live level name** (``"trait"``, ``"genomes:count"``, ``"genomes:<family>"``) rather than a filename.
@@ -378,7 +378,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     advancing the same generator) **or** at ``total_time`` — give exactly one. Returns a
     :class:`JointResult` carrying the grown tree and the driver level (``.trait`` or ``.genome``).
     Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (``FromParent``)
-    combined with driving, and gene transfer in a joint run are later slices.
+    combined with driving, and gene transfer in a joint run are not available.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
@@ -398,7 +398,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
             if isinstance(m, FromParent):
                 raise ValueError(
                     f"{label} carries FromParent (clade drift); drift combined with a driven rate is a "
-                    f"later slice — use one or the other."
+                    f"not available together — use one or the other."
                 )
             if isinstance(m, DrivenBy):
                 if not isinstance(m.source, str):
@@ -418,7 +418,8 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
         if not isinstance(trait, DiscreteTrait):
             raise TypeError(
                 "trait= must be traits.discrete(states=[...], switch=...) — a discrete process spec. "
-                "Continuous trait→speciation (QuaSSE) is deferred."
+                "Continuous trait→speciation (QuaSSE) is not available: a continuously varying "
+                "rate needs thinning, which this exact race does not do."
             )
         bad = sorted({s for s in sources if s != "trait"})
         if bad:
