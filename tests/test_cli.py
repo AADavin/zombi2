@@ -313,7 +313,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
     (["--replacement"], "nucleotide transfers are additive"),
-    (["--loss", "0.2 * DrivenBy('t.tsv', {'a': 2.0})"], "nucleotide wires OnTime only, not DrivenBy"),
+    (["--loss", "0.2 * ByFamily(spread=0.5)"], "nucleotide wires OnTime and DrivenBy, not ByFamily"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
     (["--write", "profiles"], "the nucleotide resolution has no profiles"),
