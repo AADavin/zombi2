@@ -91,7 +91,7 @@ g = genomes.simulate_genomes_family(
     origination=0.4, initial_families=10, seed=3)
 ```
 
-One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct**. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace.
+One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct** [@szollosi2013lgtdead]. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace.
 
 ### Transfer between named clades
 
@@ -139,7 +139,7 @@ g.write("out/")                      # genome_events.tsv + profiles.tsv
 
 Two products are derived from the run's recorded history.
 
-**Profiles** are the classic comparative-genomics view: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
+**Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
 
 ```python
 g.profiles.matrix        # families × extant-species copy counts, a NumPy array

@@ -39,7 +39,7 @@ The rest of the modifier vocabulary applies to `rate` unchanged, each with a nam
 
 ## Discrete traits
 
-A discrete trait takes a finite set of states and switches between them along the branches — a continuous-time Markov chain, the field's **Mk model**:
+A discrete trait takes a finite set of states and switches between them along the branches — a continuous-time Markov chain, the field's **Mk model** [@lewis2001mk]:
 
 ```python
 # Mk — habitat flips between two states at rate 0.1
@@ -92,17 +92,17 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|
-| a value diffusing | `simulate_continuous(rate=…)` | Brownian motion (BM) |
-| diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` | Ornstein–Uhlenbeck (OU) |
-| diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnTime({…}))` | Early burst (EB / ACDC) |
-| diffusion rate drifts between lineages | `simulate_continuous(rate=1.0 * mod.FromParent(spread=…))` | Variable-rates BM |
-| diffusion rate slows as the clade fills | `simulate_continuous(rate=1.0 * mod.OnTotalDiversity(cap=…))` | Diversity-dependent / ecological limits |
-| the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) |
+| a value diffusing | `simulate_continuous(rate=…)` | Brownian motion (BM) [@felsenstein1985comparative] |
+| diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] |
+| diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnTime({…}))` | Early burst (EB / ACDC) [@harmon2010earlyburst] |
+| diffusion rate drifts between lineages | `simulate_continuous(rate=1.0 * mod.FromParent(spread=…))` | Variable-rates BM [@maliet2019clads] |
+| diffusion rate slows as the clade fills | `simulate_continuous(rate=1.0 * mod.OnTotalDiversity(cap=…))` | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
+| the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
 | the value jumps at each split | `at_speciation=…` (either kind) | Cladogenetic / punctuational change |
 | traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call | Multivariate BM |
 | a discrete state switching | `simulate_discrete(states=…, switch=…)` | Mk (k-state Markov) |
-| discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) |
-| discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel |
+| discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
+| discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel [@pagel1994correlated] |
 
 ## The objects
 
