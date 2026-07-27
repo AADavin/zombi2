@@ -69,15 +69,15 @@ class Tree:
             node = self.nodes[i]
             bl = node.end_time - node.birth_time
             if node.children is None:
-                return f"n{i}:{bl:.6g}"
+                return f"n{i}:{bl:.7g}"
             inner = ",".join(emit(c) for c in node.children)
-            return f"({inner})n{i}:{bl:.6g}"
+            return f"({inner})n{i}:{bl:.7g}"
 
         root = self.nodes[self.root]
         stem = root.end_time - root.birth_time
         if root.children is None:
-            return f"n{self.root}:{stem:.6g};"
-        return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.6g};"
+            return f"n{self.root}:{stem:.7g};"
+        return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.7g};"
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -357,10 +357,12 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
                                    source="tip fates")
             return Tree(nodes, root_id), names
         # no fate table: a tip is extinct if it ends before the present (the greatest end_time). The
-        # tolerance is depth-relative — ``to_newick`` prints 6 significant figures, whose rounding
-        # accumulates to ~5e-6·height along a root-to-tip path, so a tip at the present can fall a few
-        # ×1e-5·height short of the max, far below any real extinction gap. This cannot recover an
-        # unsampled tip (it sits at the present, so it reads back extant) — pass the fate table for that.
+        # tolerance is depth-relative — ``to_newick`` prints 7 significant figures, whose rounding
+        # accumulates to ~5e-7·height along a root-to-tip path, so a tip at the present can fall a
+        # little short of the max, far below any real extinction gap. The margin here is deliberately
+        # wider than that: it costs nothing and absorbs a hand-edited or third-party tree. This cannot
+        # recover an unsampled tip (it sits at the present, so it reads back extant) — pass the fate
+        # table for that.
         present = max(n.end_time for n in nodes.values())
         tol = max(1e-9, 1e-4 * present)
         for n in leaves:

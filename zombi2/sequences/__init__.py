@@ -373,7 +373,7 @@ def _gene_newick(root: GeneNode) -> str:
             frame[2] = ci + 1
             stack.append([node.children[ci], node.time, 0, []])
             continue
-        bl = f":{node.time - parent_time:.6g}"
+        bl = f":{node.time - parent_time:.7g}"
         s = f"g{node.copy}{bl}" if node.is_leaf else f"({','.join(parts)})g{node.copy}{bl}"
         stack.pop()
         if stack:

@@ -20,6 +20,8 @@ import argparse
 import os
 import time
 
+import numpy as np
+
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
@@ -32,7 +34,7 @@ from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
-                                  resolve_genomes)
+                                  resolve_genomes, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -162,6 +164,46 @@ def _build_model(args: argparse.Namespace):
     return gtr(rates=rates, freqs=freqs)
 
 
+#: Below this much of the way from the random floor to identical, an alignment carries so little
+#: signal that homology search and tree inference will fail on it. 0.15 sits well clear of both
+#: sides in practice: a saturated DNA run lands near 0.04–0.09, a usable one above 0.7.
+_SATURATED_BELOW = 0.15
+
+
+def _mean_pairwise_identity(alignments, max_pairs: int = 2000) -> float | None:
+    """Mean identity over a bounded random sample of within-family sequence pairs, or ``None`` when
+    no family holds two sequences to compare.
+
+    Sampled rather than exhaustive because the pair count is quadratic in family size — a run with
+    thousands of copies would otherwise spend longer measuring itself than it spent simulating. The
+    draw is from a fixed stream, so the number printed for a given run is reproducible."""
+    families = [list(a.values()) for a in alignments.values() if len(a) >= 2]
+    if not families:
+        return None
+    rng = np.random.default_rng(0)
+    matched = compared = 0
+    for _ in range(max_pairs):
+        seqs = families[int(rng.integers(len(families)))]
+        i, j = (int(x) for x in rng.choice(len(seqs), size=2, replace=False))
+        n = min(len(seqs[i]), len(seqs[j]))
+        if not n:
+            continue
+        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
+        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
+        matched += int(np.count_nonzero(a == b))
+        compared += n
+    return matched / compared if compared else None
+
+
+def _saturation_signal(identity: float, model) -> float:
+    """How far the realised identity sits from random, as a fraction of the distance from the model's
+    own random floor to identical. Two sequences related only by chance still match at ``Σπ²`` — 25%
+    for equal-frequency DNA, ~6% for a protein model — so raw identity is not comparable across
+    models and this is."""
+    floor = float(np.sum(np.asarray(model.stationary) ** 2))
+    return (identity - floor) / (1.0 - floor) if floor < 1.0 else 1.0
+
+
 def run(args, parser):
     # validated here (not as argparse `required`) so a --params file can supply it
     if args.model is None:
@@ -244,6 +286,11 @@ def run(args, parser):
     clocks = [m for m in getattr(args.substitution, "modifiers", ()) if isinstance(m, ByLineage)]
     clock = (f"{clocks[0].dist} lineage clock, spread {clocks[0].spread:g}" if clocks
              else "strict clock")
+    # What the run actually produced, not what was asked for: the rate is per unit time, so whether
+    # it yields a usable alignment depends on the height of the tree it ran down, which the user has
+    # no way to read off the flags. Reporting it turns a silent failure into a visible number.
+    identity = _mean_pairwise_identity(result.alignments)
+    realised = "" if identity is None else f", mean identity {identity:.0%}"
     if nucleotide:
         # the assembled genome of a node is exactly as long as its block layout (substitution keeps
         # length), so total bp comes from the genome run without assembling every node's sequence —
@@ -253,11 +300,19 @@ def run(args, parser):
         spacer = args.intergene_model or "jc69"
         summary = (f"{n_seqs} sequences across {n_families} blocks, {bp:,} bp assembled into "
                    f"{len(result.genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
-                   f"{args.intergene_speed:g}x, {clock}")
+                   f"{args.intergene_speed:g}x, {clock}{realised}")
     else:
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
-                   f"{extra['length']} sites, {clock}")
+                   f"{extra['length']} sites, {clock}{realised}")
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
+        floor = float(np.sum(np.asarray(model.stationary) ** 2))
+        warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.0%}, "
+             f"against {floor:.0%} for unrelated sequences under {model.name}. The substitution "
+             f"rate is per unit time, so a tall tree accrues many substitutions per site and the "
+             f"alignments keep little history: homology search and tree inference will both do "
+             f"poorly on them. Consider lowering --substitution (it is currently "
+             f"{args.substitution}) or shortening the tree.")
     guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
                       args, summary, effective=_effective_model_params(args))

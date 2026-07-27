@@ -185,7 +185,7 @@ def _to_newick(root: GeneNode, annotate: bool, origination: float) -> str:
             frame[2] = ci + 1
             stack.append([node.children[ci], node.time, 0, []])
             continue
-        bl = f":{node.time - parent_time:.6g}"             # the root's parent time is `origination`
+        bl = f":{node.time - parent_time:.7g}"             # the root's parent time is `origination`
         if node.is_leaf:
             s = f"g{node.copy}{bl}"
         else:

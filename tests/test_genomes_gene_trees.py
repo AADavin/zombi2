@@ -83,7 +83,7 @@ def test_a_family_that_never_splits_is_one_node_with_its_lifespan():
     if not singles:                                              # seed-dependent; skip if none arose
         pytest.skip("no single-gene family under this seed")
     t = singles[0]
-    assert t.to_newick("complete") == f"g{t.complete.copy}:{t.complete.time - t.origination:.6g};"
+    assert t.to_newick("complete") == f"g{t.complete.copy}:{t.complete.time - t.origination:.7g};"
 
 
 # --- the key cross-check: gene tree agrees with the profiles ---------------

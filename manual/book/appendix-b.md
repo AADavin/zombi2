@@ -67,14 +67,45 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor`. A transfer writes two rows sharing a `parent`, and **both name `donor`**, the branch the material left, so either row gives the whole edge without pairing them. On the arriving row `lineage` and `recipient` are the same branch, so `donor` is what makes a self-transfer (`donor` == `recipient`) visible at all |
+| Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor`. **One row per gene-tree edge, so duplications, transfers and speciations write two rows each** — see [One row per gene-tree edge](#one-row-per-gene-tree-edge-not-per-event) below before counting anything. A transfer's two rows share a `parent`, and **both name `donor`**, the branch the material left, so either row gives the whole edge without pairing them. On the arriving row `lineage` and `recipient` are the same branch, so `donor` is what makes a self-transfer (`donor` == `recipient`) visible at all |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Genomes | `genomes.tsv` | TSV | yes | every node's gene content, **ancestors included** — `lineage` · `family` · `copy`. **One row per gene copy**, so a lineage holding six genes has six rows; two rows sharing a `family` are two copies of it. `copy` is the same identifier the event log uses, so a gene can be followed from the genome it sits in back to the event that made it. `profiles.tsv` is the same information counted, and only for the extant tips |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
 | Conditioning | `conditioned_on` | text | conditioned | written **only when a rate was conditioned**: the run's levels this run read via `DrivenBy` (one per line, e.g. `traits`). It records the dependency so re-running a driver level (say the trait) refuses to leave this run silently stale, or clears it under `--force`. A run with no driven rate writes no such file |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. A family with no surviving copy writes no `_extant` file |
-| Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
+| Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded —
+ where its gene tree's root branch begins |
 
+### One row per gene-tree edge, not per event
+
+`genome_events.tsv` holds **one row for every gene-tree edge that begins**, not one row per event.
+An event that leaves two descendants therefore writes two rows, and an event that leaves one writes
+one:
+
+| Kind | Rows | Why |
+|------|------|-----|
+| `duplication` | **2** | the parent copy ends; two copies begin, both on `lineage` |
+| `transfer` | **2** | the donor copy ends; the continuation begins on the donor branch, the transferred copy on `recipient` |
+| `speciation` | **2** | the parent copy ends at the split; one copy begins in each daughter species |
+| `loss` | 1 | the copy ends with no descendant |
+| `origination` | 1 | a founding copy begins with no parent |
+
+The two rows of one event share their `time` and their `parent`. **Counting rows by kind therefore
+counts edges, not events, and doubles duplications, transfers and speciations.** For those three,
+count distinct `(time, parent)` pairs instead:
+
+```bash
+# transfers that happened — NOT `grep -c transfer`, which returns twice this
+awk -F'\t' '$2=="transfer" {print $1, $6}' genome_events.tsv | sort -u | wc -l
+```
+
+Apply that only to the three two-row kinds. `loss` and `origination` are already one row per event,
+so count their rows directly — de-duplicating them would *under*-count, because an origination has
+no `parent` and every family present at the start shares `time` 0.
+
+The edge is the unit because the file has to reconstruct the gene tree: every branch needs its own
+row to carry the copy that starts it. Note that `chromosome_events.tsv`, in the same directory,
+records **one row per event** — its rows are rearrangements, which begin no gene-tree edge.
 
 ## Genomes, ordered — `simulate_genomes_ordered`
 
