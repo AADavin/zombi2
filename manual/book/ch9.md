@@ -120,12 +120,15 @@ Everything outside those two rows raises an error. The driver has to be a discre
 
 ### What can be conditioned, and what cannot yet
 
-Conditioning is wired at **one resolution only: the family resolution** — the four gene-family rates in the table above, plus `transfer_to`. Nothing else takes a `DrivenBy` today, and the gaps are worth knowing because they are easy to reach for:
+Conditioning is wired at two of the three genome resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **nucleotide** resolution it covers *every* rate the engine has — the rearrangements included — so a trait can speed up inversion, transposition and translocation, and can drive how much DNA a lineage sheds. That last one is genome reduction as it is usually meant: a lifestyle trait raising `loss`, on a genome measured in base pairs rather than in family tokens.
 
-- **The ordered and nucleotide resolutions hold their rates constant.** The ordered engine wires `OnTime` (a skyline that varies in *time*) but not `DrivenBy`; the nucleotide engine takes plain numbers only. So the **rearrangement rates — `inversion`, `transposition`, `translocation` — cannot be driven by a trait**, at either resolution. This is the one people hit first: "let a trait speed up inversion" is not expressible yet. Inversion lives only where conditioning is not wired, and conditioning is wired only where inversion does not exist.
-- **Sequence evolution and trait runs** take no `DrivenBy` on their own rates either.
+What is not wired yet:
 
-These are current limits of the implementation, not of the model — the coupling grammar (`SPEC §5`) is the same everywhere, so wiring `DrivenBy` into the ordered or nucleotide engine is a pure addition when it comes. Until then, a driven rate those engines cannot honour raises rather than being silently dropped.
+- **The ordered resolution does not take a `DrivenBy` on its rates.** It wires `OnTime` (a skyline that varies in *time*) and `ByFamily` (per-family heterogeneity, applied to the segment an event covers), but not a driver. If you want a trait to drive rearrangement, use the nucleotide resolution, where an event is an arc of DNA rather than a run of gene tokens.
+- **`transfer_to` — where a transfer lands — is family-resolution only.** A nucleotide transfer's *rate* can be driven; its recipient rule cannot.
+- **Sequence evolution and trait runs** take no `DrivenBy` on their own rates.
+
+These are limits of the implementation, not of the model — the coupling grammar (`SPEC §5`) is the same everywhere, so wiring `DrivenBy` into the ordered engine is a pure addition when it comes. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
 
 Notice too that the coupling **folds into the target level's own command**. There is no separate coupling step and no coupling object to build; you grow the driver, then make an ordinary genome run whose `loss` happens to be `DrivenBy` instead of a bare number. That holds on the command line as well, where the rate keeps its written form:
 

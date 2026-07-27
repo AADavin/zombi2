@@ -10,6 +10,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **Conditioning at the nucleotide resolution: every rate there now takes a `DrivenBy`.** A trait can
+  drive how much DNA a lineage sheds — genome reduction as it is usually meant, on a genome measured
+  in base pairs rather than in family tokens — and can drive the **rearrangements** as well, which
+  nothing could do before: Chapter 9 named "let a trait speed up inversion" as the limitation people
+  hit first, and it is now expressible. Same mechanism and same written form as the family
+  resolution, from a trait file or an in-memory result:
+  `loss = 0.8 * DrivenBy(habitat, {"host": 20.0, "free": 0.5})`. A driven rate becomes per lineage, so
+  the affected lineage is drawn with the same weights the total was summed with, and a driver
+  switching mid-branch is a step the Gillespie stops at. `transfer_to` — where a transfer lands — stays
+  family-resolution only; a nucleotide transfer's *rate* can be driven, its recipient rule cannot.
+  (#249)
 - **The nucleotide resolution now speaks the rate grammar.** Its rates were bare floats with the
   scope hardcoded; each is now a `scope(base) × modifiers` expression like every other level's, with
   the defaults stated rather than implied — **per lineage** for the gene events (the rate says how

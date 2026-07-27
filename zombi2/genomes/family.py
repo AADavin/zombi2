@@ -38,7 +38,7 @@ from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerCopy, PerLineage
 from ..species import SpeciesResult
 from ..tree import Tree
-from ._live import enter, retire, without_cyclic_gc
+from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
 
 from .._runtime.progress import progress_bar
@@ -51,8 +51,8 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 
 #: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
-#: scope this slice, ``DrivenBy`` is wired for the single-lineage events, and the ordered engine
-#: wires ``OnTime`` only; the gates below say so per rate.
+#: scope this slice, ``DrivenBy`` is wired for the single-lineage events; the ordered engine wires
+#: ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so per rate.
 WIRED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
 
 
@@ -188,20 +188,6 @@ def _pick_copy_by_family(rng, genome, mult: dict[int, float]) -> int:
         if r < acc:
             return j
     return len(genome) - 1                    # float guard: r == total lands on the last copy
-
-
-def _weighted_index(rng, weights: list[float], total: float) -> int:
-    """Pick a lineage index in proportion to ``weights`` (which sum to ``total``) — the per-lineage
-    pick a driven rate needs, the twin of ``species_tree._weighted_index``. When a rate is driven by
-    a trait, lineages differ in their loss/duplication/origination rate, so the affected lineage is
-    drawn weighted by its own effective rate rather than uniformly from the pool."""
-    r = rng.random() * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
 def _driven_mods(rate) -> list:
@@ -652,7 +638,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 r = float(rng.random()) * total
                 if r < r_dup:
                     if w_dup is not None:  # weighted lineage, then a copy within it
-                        k = _weighted_index(rng, w_dup, r_dup)
+                        k = weighted_index(rng, w_dup, r_dup)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["duplication"])
                              if any_family else int(rng.integers(len(gen[k]))))
                     else:
@@ -662,7 +648,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         total_copies += 1
                 elif r < r_dup + r_los:
                     if w_los is not None:
-                        k = _weighted_index(rng, w_los, r_los)
+                        k = weighted_index(rng, w_los, r_los)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["loss"])
                              if any_family else int(rng.integers(len(gen[k]))))
                     else:
@@ -670,13 +656,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total_copies -= 1
                 elif r < r_dup + r_los + r_org:
-                    k = (_weighted_index(rng, w_org, r_org) if w_org is not None
+                    k = (weighted_index(rng, w_org, r_org) if w_org is not None
                          else int(rng.integers(k_alive)))  # origination is per lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
                     total_copies += 1
                 else:
                     if w_tra is not None:  # driven: weighted DONOR lineage, then a uniform copy in it
-                        kd = _weighted_index(rng, w_tra, r_tra)
+                        kd = weighted_index(rng, w_tra, r_tra)
                         if not gen[kd]:    # only via _weighted_index's r == total float guard: a
                             # zero-weight lineage has no copies to donate, so take the heaviest instead
                             kd = max(range(k_alive), key=lambda k: w_tra[k])

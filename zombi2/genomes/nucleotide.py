@@ -103,12 +103,13 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..rates.distributions import Geometric, as_extent
-from ..rates.modifiers import OnTime
+from ..rates.driver import check_mapping_fires, resolve_driver
+from ..rates.modifiers import DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
 from ..species import SpeciesResult
 from ..tree import Tree
-from ._live import enter, retire, without_cyclic_gc
+from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .._runtime.progress import progress_bar
@@ -118,7 +119,7 @@ from .gff import read_fasta, read_gff
 
 #: The rate grammar this engine wires (SPEC §5). Only the skyline this slice: a modifier it has not
 #: wired raises rather than being silently ignored, so a run is never quietly not the model asked for.
-WIRED_MODIFIERS = (OnTime,)
+WIRED_MODIFIERS = (OnTime, DrivenBy)
 
 
 @dataclass(slots=True)
@@ -1862,6 +1863,27 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
                                  f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
+    # Conditioning: a rate carrying DrivenBy reads a driver **per lineage**, so the rates stop being
+    # one number for the whole live set and become one per lineage. Same machinery as the family
+    # resolution — each source resolves once into a DriverTrajectory keyed by the shared species node
+    # id, from a file or an in-memory trait result. With no driven rate this is empty and the loop
+    # stays exactly the pooled one, so an uncoupled run is untouched.
+    driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)] for label, r in _rates.items()}
+    by_key: dict[object, object] = {}
+    for mods in driven.values():
+        for m in mods:
+            by_key.setdefault(m.key, m.source)
+    trajs = {}
+    if by_key:
+        trajs = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        # a mapping whose states never occur leaves every lineage on the default factor, so the run
+        # would secretly be the uncoupled model — refuse it here, naming the driver
+        for mods in driven.values():
+            for m in mods:
+                label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
+                check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
+    any_driven = bool(trajs)
+
     rates = _Rates(_rates["inversion"], _rates["translocation"], _rates["transposition"],
                    _rates["loss"], _rates["duplication"], _rates["transfer"], _rates["origination"],
                    _rates["fission"], _rates["fusion"], _rates["chromosome_origination"],
@@ -1943,17 +1965,36 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         # a lineage does the event and the extent says how much DNA it touches, so a bigger genome does
         # NOT get more events (that would double-count size and explode).
         ctx = {"copies": 0, "lineages": nlin, "chromosomes": count, "time": t}
-        r_inv = rates.inversion.effective(**ctx)
-        r_trl = rates.translocation.effective(**ctx)
-        r_trp = rates.transposition.effective(**ctx)
-        r_los = rates.loss.effective(**ctx)
-        r_dup = rates.duplication.effective(**ctx)
-        r_tra = rates.transfer.effective(**ctx) if can_xfer else 0.0
-        r_org = rates.origination.effective(**ctx)
-        r_fis = rates.fission.effective(**ctx)
-        r_fus = rates.fusion.effective(**ctx)
-        r_cor = rates.chromosome_origination.effective(**ctx)   # per lineage (de-novo replicon)
-        r_clo = rates.chromosome_loss.effective(**ctx)          # per chromosome
+        # A driven rate differs from lineage to lineage, so it is summed **over the living lineages**,
+        # each read with its own driver value and its own chromosome count — and the weights are kept,
+        # because the affected lineage must then be drawn with them too. An undriven rate stays pooled
+        # (one .effective, uniform pick), so a run with no coupling is byte-identical to before.
+        w: dict[str, list[float]] = {}
+        if any_driven:
+            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(nlin)]
+            for label, rate in _rates.items():
+                if driven[label]:
+                    w[label] = [rate.effective(copies=0, lineages=1,
+                                               chromosomes=len(gen[k].chromosomes), time=t,
+                                               drivers=drivers[k]) for k in range(nlin)]
+
+        def _r(label, pooled, live=True):
+            """The total for one event class: summed per-lineage when driven, pooled when not."""
+            if not live:
+                return 0.0
+            return sum(w[label]) if label in w else pooled
+
+        r_inv = _r("inversion", rates.inversion.effective(**ctx))
+        r_trl = _r("translocation", rates.translocation.effective(**ctx))
+        r_trp = _r("transposition", rates.transposition.effective(**ctx))
+        r_los = _r("loss", rates.loss.effective(**ctx))
+        r_dup = _r("duplication", rates.duplication.effective(**ctx))
+        r_tra = _r("transfer", rates.transfer.effective(**ctx), live=can_xfer)
+        r_org = _r("origination", rates.origination.effective(**ctx))
+        r_fis = _r("fission", rates.fission.effective(**ctx))
+        r_fus = _r("fusion", rates.fusion.effective(**ctx))
+        r_cor = _r("chromosome_origination", rates.chromosome_origination.effective(**ctx))
+        r_clo = _r("chromosome_loss", rates.chromosome_loss.effective(**ctx))
         total = (r_inv + r_trl + r_trp + r_los + r_dup + r_tra + r_org + r_fis + r_fus + r_cor + r_clo)
         next_species = schedule[si][0]
         # a skyline steps at a known time, so the race runs only to the next of those or the next
@@ -1964,6 +2005,18 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                       rates.origination.next_change(t), rates.fission.next_change(t),
                       rates.fusion.next_change(t), rates.chromosome_origination.next_change(t),
                       rates.chromosome_loss.next_change(t))
+        if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
+            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
+                                        for k in range(nlin)), default=math.inf))
+
+        def _pick(label, fallback=None):
+            """The affected lineage: drawn by its own effective rate where that rate is driven — the
+            same weights the total was summed with — and otherwise by the rate's own undriven rule,
+            which is uniform for a per-lineage rate and by chromosome count for the tier."""
+            ws = w.get(label)
+            if ws:
+                return weighted_index(rng, ws, sum(ws))
+            return fallback() if fallback is not None else int(rng.integers(nlin))
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
             if t_ev < horizon:                          # a genome event fires before the horizon
@@ -1979,49 +2032,49 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor
                 if r < r_inv:
-                    k = int(rng.integers(nlin))
+                    k = _pick("inversion")
                     _do_inversion(gen[k], alive[k], t, rates.inversion_extent, rng, rearrangements)
                 elif r < b_trl:
-                    k = int(rng.integers(nlin))
+                    k = _pick("translocation")
                     _do_translocation(gen[k], alive[k], t, rates.translocation_extent,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_trp:
-                    k = int(rng.integers(nlin))
+                    k = _pick("transposition")
                     _do_transposition(gen[k], alive[k], t, rates.transposition_extent,
                                       rates.inversion_probability, rng, rearrangements)
                 elif r < b_los:
-                    k = int(rng.integers(nlin))
+                    k = _pick("loss")
                     total_length += _do_loss(gen[k], alive[k], t, rates.loss_extent, rng, events)
                 elif r < b_dup:
-                    k = int(rng.integers(nlin))
+                    k = _pick("duplication")
                     total_length += _do_duplication(gen[k], alive[k], t, rates.duplication_extent,
                                                     rng, events, new_copy)
                 elif r < b_tra:
-                    kd = int(rng.integers(nlin))
+                    kd = _pick("transfer")
                     total_length += _do_transfer(rng, tree, alive, gen, kd, t, rates.transfer_extent,
                                                  transfer_to, self_transfer, depth, events, new_copy)
                 elif r < b_org:
-                    k = int(rng.integers(nlin))         # origination is per lineage: a uniform lineage
+                    k = _pick("origination")            # per lineage; weighted when driven
                     total_length += _do_origination(gen[k], alive[k], t, rates.origination_extent,
                                                     rng, events, new_source, new_copy,
                                                     new_family, gene_spans, gene_strands)
                 elif r < b_fis:
-                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    k = _pick("fission", lambda: _pick_lineage_by_chromosomes(rng, gen, count))
                     total_chromosomes += _do_fission(gen[k], alive[k], t, rng, chromosome_events,
                                                      new_chrom_id)
                 elif r < b_fus:
-                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    k = _pick("fusion", lambda: _pick_lineage_by_chromosomes(rng, gen, count))
                     total_chromosomes += _do_fusion(gen[k], alive[k], t, rng, chromosome_events,
                                                     new_chrom_id)
                 elif r < b_cor:
-                    k = int(rng.integers(nlin))         # chromosome origination is per lineage
+                    k = _pick("chromosome_origination")  # per lineage; weighted when driven
                     dc, dl = _do_chromosome_origination(
                         gen[k], alive[k], t, rates.origination_extent, rng, events, chromosome_events,
                         new_chrom_id, new_source, new_copy, new_family, gene_spans, gene_strands)
                     total_chromosomes += dc
                     total_length += dl
                 else:
-                    k = _pick_lineage_by_chromosomes(rng, gen, count)
+                    k = _pick("chromosome_loss", lambda: _pick_lineage_by_chromosomes(rng, gen, count))
                     dc, dl = _do_chromosome_loss(gen[k], alive[k], t, rng, events, chromosome_events)
                     total_chromosomes += dc
                     total_length += dl

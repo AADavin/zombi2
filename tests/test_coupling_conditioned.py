@@ -588,3 +588,81 @@ def test_missing_driver_file_is_named_as_a_drivenby_driver(tmp_path):
     # leak a bare errno — so the user knows which kind of input is missing and how to fix it
     with pytest.raises(FileNotFoundError, match="DrivenBy driver file not found"):
         load_driver(str(tmp_path / "not_here.tsv"), None)
+
+
+# --- the nucleotide resolution: a trait drives DNA loss ------------------------------------------
+#
+# This is the Chapter 1 genome-reduction story at the resolution where it is actually biology: a
+# lifestyle trait drives how much DNA a lineage sheds, not how many family tokens it drops.
+
+def _nuc_tree():
+    return simulate_species_tree(birth=1.0, death=0.2, n_extant=10, seed=4).complete_tree
+
+
+def test_nucleotide_loss_is_driven_by_a_trait():
+    """The seed-independent invariant: with the free-living factor at zero, **every** recorded loss
+    must fall on a lineage that was host-restricted at the moment it happened. Anything else means
+    the driver is being read for the total but not for the pick, or not at all."""
+    tree = _nuc_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
+    res = genomes.simulate_genomes_nucleotide(
+        tree, root_length=6000, genes=4, gene_length=300,
+        loss=0.9 * mod.DrivenBy(habitat, {"host": 25.0, "free": 0.0}),
+        loss_extent=200, seed=2)
+
+    from zombi2.rates.driver import driver_from_result
+    traj = driver_from_result(habitat)
+    losses = [e for e in res.events if type(e).__name__ == "Loss"]
+    assert losses, "the run should produce losses at all"
+    assert all(traj.value(e.lineage, e.time) == "host" for e in losses), \
+        "a loss fell on a free-living lineage, whose factor is zero"
+
+
+def test_nucleotide_driven_rate_matches_between_an_object_and_a_file(tmp_path):
+    """A driver read from an in-memory trait result and the same driver read back from its own
+    ``trait_events.tsv`` must give the identical run — the file is a serialisation, not a model."""
+    tree = _nuc_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.6, seed=5)
+    kw = dict(root_length=4000, genes=3, gene_length=250, loss_extent=180, seed=5)
+
+    by_object = genomes.simulate_genomes_nucleotide(
+        tree, loss=0.6 * mod.DrivenBy(habitat, {"host": 8.0, "free": 1.0}), **kw)
+    habitat.write(str(tmp_path), outputs=("events",))
+    by_file = genomes.simulate_genomes_nucleotide(
+        tree, loss=0.6 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"),
+                                      {"host": 8.0, "free": 1.0}), **kw)
+    assert [(e.time, type(e).__name__, e.lineage) for e in by_object.events] == \
+           [(e.time, type(e).__name__, e.lineage) for e in by_file.events]
+
+
+def test_nucleotide_driving_changes_the_run():
+    """A driven rate must actually bite: the same seed with the coupling switched off is a different
+    run. Guards against a driver that resolves but never reaches the rate."""
+    tree = _nuc_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=6)
+    kw = dict(root_length=5000, genes=3, gene_length=250, loss_extent=200, seed=6)
+    driven = genomes.simulate_genomes_nucleotide(
+        tree, loss=0.6 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.05}), **kw)
+    flat = genomes.simulate_genomes_nucleotide(tree, loss=0.6, **kw)
+    assert len(driven.events) != len(flat.events)
+
+
+def test_nucleotide_undriven_run_is_unchanged():
+    """No coupling ⇒ the pooled path, byte for byte. The driven machinery must cost an uncoupled run
+    nothing."""
+    tree = _nuc_tree()
+    kw = dict(root_length=4000, genes=3, gene_length=250, inversion=1.5, loss=0.4, seed=9)
+    a = genomes.simulate_genomes_nucleotide(tree, **kw)
+    b = genomes.simulate_genomes_nucleotide(tree, **kw)
+    assert [(e.time, type(e).__name__, e.lineage) for e in a.events] == \
+           [(e.time, type(e).__name__, e.lineage) for e in b.events]
+
+
+def test_nucleotide_refuses_a_mapping_that_never_fires():
+    """A mapping naming states the driver never takes leaves every lineage on the default factor, so
+    the run would secretly be the uncoupled model."""
+    tree = _nuc_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=7)
+    with pytest.raises(ValueError):
+        genomes.simulate_genomes_nucleotide(
+            tree, root_length=3000, loss=0.5 * mod.DrivenBy(habitat, {"aquatic": 3.0}), seed=7)

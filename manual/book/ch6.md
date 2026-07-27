@@ -79,7 +79,15 @@ The one case that yields no event is degenerate — a replicon with no legal end
 
 The chromosome tier below is the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage.
 
-Rates here take the same written form as everywhere else — `scope(base) × modifiers` — and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = 5.0 * OnTime({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it. `DrivenBy` — a rate conditioned on a trait, which is what genome reduction under a host-restricted lifestyle needs — is the next slice, and is refused here rather than silently ignored.
+Rates here take the same written form as everywhere else — `scope(base) × modifiers` — and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = 5.0 * OnTime({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
+
+So does **conditioning**. Every rate here takes a `DrivenBy`, so a trait can drive how much DNA a lineage sheds — genome reduction as it is usually meant — and can drive the rearrangements too:
+
+```python
+loss = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})
+```
+
+Chapter 9 covers what a driver is and how to grow one. Anything the engine has *not* wired raises rather than being quietly ignored.
 
 ## The initial genome
 

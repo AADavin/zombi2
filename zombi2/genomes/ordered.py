@@ -49,7 +49,7 @@ from ..species import SpeciesResult
 from ..tree import Tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .family import resolve_max_family_size
-from ._live import enter, retire, without_cyclic_gc
+from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .._runtime.progress import progress_bar
 from .events import Event, gene_label, node_label
@@ -431,17 +431,6 @@ def _extent(rng, dist, chrom, start) -> int:
     return min(m, n) if chrom.topology == "circular" else min(m, n - start)
 
 
-def _weighted_index(rng, weights, total: float) -> int:
-    """Pick an index in proportion to ``weights``, which sum to ``total``."""
-    r = float(rng.random()) * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1                      # float guard: r == total lands on the last
-
-
 def _run_means(chrom, mult, m) -> list[float]:
     """For each start, the **mean** family weight of the run of ``m`` genes it opens (SPEC §6).
 
@@ -489,12 +478,12 @@ def _pick_run_by_family(rng, genome, mult, dist) -> tuple[int, int, int] | None:
     total = sum(sums)
     if total <= 0.0:
         return None
-    ci = _weighted_index(rng, sums, total)
+    ci = weighted_index(rng, sums, total)
     chrom = genome[ci]
     n = len(chrom.genes)
     m = min(max(1, int(dist.sample(rng))), n)
     means = _run_means(chrom, mult, m)
-    s = _weighted_index(rng, means, sum(means))
+    s = weighted_index(rng, means, sum(means))
     return ci, s, (m if chrom.topology == "circular" else min(m, n - s))
 
 
@@ -538,7 +527,7 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, dist):
     total = sum(w)
     if total <= 0.0:
         return None
-    k = _weighted_index(rng, w, total)
+    k = weighted_index(rng, w, total)
     picked = _pick_run_by_family(rng, gen[k], fam_mult[key], dist)
     if picked is None:
         return None

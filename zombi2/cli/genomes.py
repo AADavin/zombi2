@@ -8,7 +8,7 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 :func:`~zombi2.genomes.simulate_genomes_nucleotide`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. The nucleotide engine wires the skyline (``OnTime``) only, so any other modifier is rejected
+2.0})"``. The nucleotide engine wires ``OnTime`` and ``DrivenBy``, so any other modifier is rejected
 there rather than silently ignored."""
 from __future__ import annotations
 
@@ -35,7 +35,8 @@ RATES_HELP = _rates_help(
          "(on --transfer it drives how often a lineage DONATES); --transfer-to takes the same "
          "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime and "
          "ByFamily (the weight lands on the segment an event covers, not on the gene it started "
-         "from); --resolution nucleotide wires OnTime only.")
+         "from); --resolution nucleotide wires OnTime and DrivenBy — every rate there, rearrangements "
+         "included.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
