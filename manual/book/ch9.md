@@ -1,18 +1,18 @@
 # Conditioning and joining
 
-The four levels of the book have so far discussed how to run things individually: first species tree, then genomes, then sequences. The levels are not independent in the sense that all depend on the species tree. However, in some cases we want to crank up that dependency in a way that the species tree is more than a simple background. There are two main ways to do this: conditioning and joining.
+The book has so far run the levels one at a time: species tree, then genomes, then sequences. They already depend on the tree, but sometimes you want more than that background dependency. There are two ways: conditioning and joining.
 
-When we condition, we take a value of one level and make it drive a rate in a different level. This is more clearly seen with examples:
+**Conditioning** takes a value of one level and makes it drive a rate in another. Three examples:
 
 - **Cave fish lose their eyes.** A habitat trait, cave or surface, has already evolved down the species tree. Wherever a lineage sits in the dark, its genes are lost four times faster than on the surface.
 - **Endosymbionts shed their genomes.** A lifestyle trait, free-living or host-restricted, drives gene loss across the board, so the lineages that moved inside a host are the ones that end up with the small genomes.
 - **Competent bacteria pick genes up.** A trait for natural competence raises the rate at which new gene families appear in a lineage, so the trait leaves its mark on gene *gain* rather than on loss.
 
-In each case one level's value has been read by another level's rate. The value doing the reading-from is the **driver**; the rate doing the reading is the **target**. The two are not interchangeable, and the asymmetry is the whole point: a driver is a *value* that already varies from lineage to lineage — a habitat state, a gene count — while a target is a *rate*, a "how often", which gets multiplied by a factor that the driver's value picks out. The arrow runs one way, from the driver's value to the target's rate, and the driver never notices it is being read.
+In each case one level's value is read by another level's rate. The value read is the **driver**; the rate reading it is the **target**. They are not interchangeable, and the asymmetry is the point: a driver is a *value* that already varies from lineage to lineage — a habitat state, a gene count — while a target is a *rate*, a "how often", multiplied by a factor the driver's value picks out. The arrow runs one way, and nothing flows back.
 
-That one-wayness is what makes conditioning cheap. Because the habitat does not care how many genes a lineage has, the trait can be grown completely, on its own, and written to a file before the genome run that reads it ever starts. Two ordinary commands, in order.
+That one-wayness is what makes conditioning cheap. The habitat is unaffected by how many genes a lineage has, so the trait can be grown on its own and written to a file before the genome run that reads it starts. Two ordinary commands, in order.
 
-When we join, we simulate **simultaneously** two levels, because that ordering is no longer available to us. Suppose a trait drives not gene loss but **speciation** itself: large-bodied lineages split twice as fast as small ones. Now you cannot grow the trait first, because a trait is grown *along a tree* and the tree is precisely what this trait is busy shaping. Nor can you grow the tree first, because its branching rate needs a trait value that does not exist yet. Neither level can be finished before the other starts, so neither can be a file handed to the next command. They have to be grown together, in a single run whose Gillespie races speciation, extinction and trait change against one another, each event reading the other level's current state.
+**Joining** simulates two levels **at once**, because that ordering is no longer available. Suppose a trait drives **speciation** itself: large-bodied lineages split twice as fast as small ones. You cannot grow the trait first, because a trait is grown *along a tree* and the tree is what this trait shapes. Nor the tree first, because its branching rate needs a trait value that does not exist yet. Neither can be finished before the other starts, so neither can be a file handed on. They are grown together, in one run whose Gillespie races speciation, extinction and trait change against one another, each event reading the other level's current state.
 
 So the whole chapter turns on one question:
 
@@ -21,6 +21,8 @@ So the whole chapter turns on one question:
 If yes, it is **conditioning**: two runs, and the coupling's `source` is a file. If no, it is **joining**: one run, and the `source` is the name of a level growing beside it. Underneath, both are the same single mechanism — a modifier, `mod.DrivenBy` — and only the `source` differs.
 
 ```python
+from zombi2.rates import modifiers as mod
+
 loss  = 0.25 * mod.DrivenBy("trait_events.tsv", {"cave": 4.0, "surface": 1.0})   # conditioned
 birth = 1.0  * mod.DrivenBy("trait",            {"small": 1.0, "large": 2.0})    # joint
 ```
@@ -38,6 +40,9 @@ The `source` says where the driver lives; the `mapping` says how its value is re
 Conditioning goes in exactly one direction today: **a trait drives gene gain or loss** (Traits → Genomes). The cave example is the canonical one — lineages in the dark lose genes faster than lineages in the light — and it takes two runs:
 
 ```python
+from zombi2 import species, traits, genomes
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 # 1. grow the driver: a habitat trait down the species tree
 habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.1, seed=1)
 

@@ -4,10 +4,9 @@
 
 # Rates in detail, and the Gillespie algorithm
 
-Chapter 2 introduced the shape every rate takes, `effective rate = scope(base) × modifiers`, and gave a
-first feel for what the scope and the modifiers do. This appendix is the full reference: how a rate's
-units work, the default scope at each level, the catalogue of modifiers and which levels accept them,
-and the Gillespie algorithm that turns these rates into the events of a simulation.
+Chapter 2 introduced the shape every rate takes, `effective rate = scope(base) × modifiers`. This
+appendix is the full reference: how a rate's units work, the default scope at each level, the catalogue
+of modifiers and which levels accept them, and the Gillespie algorithm that turns rates into events.
 
 ## How a rate is counted: the scope
 
@@ -37,7 +36,7 @@ from zombi2 import species
 from zombi2.rates import scope
 
 # a death rate applied to the whole tree at once, not once per lineage
-species.simulate_species_tree(birth=1.0, death=scope.Global(0.3), total_time=8.0, seed=1)
+species.simulate_species_tree(birth=1.0, death=scope.Global(0.3), total_time=8.0, seed=2)
 ```
 
 The wrappers are `Global`, `PerLineage`, `PerCopy`, `PerSite` and `PerChromosome`. `Global(x)` is the
@@ -46,11 +45,10 @@ death rate does not grow as the tree does.
 
 ## Bending a rate: modifiers
 
-Rates can also be altered through **modifiers**, which makes ZOMBI2 a flexible platform for all sorts of
-scenarios. We might give a gene family a constant loss rate across the whole species tree, except in one
-clade that we know tends to shed genes, say a symbiotic bacterium, by multiplying the rate there by some
-number greater than one. Or we might let gene families evolve at different speeds: an antimicrobial-
-resistance family very prone to transfer, a ribosomal-protein family the opposite.
+A **modifier** alters a rate in context. You might give a gene family a constant loss rate across the
+tree except in one clade known to shed genes — a symbiotic bacterium — by multiplying the rate there.
+Or let families evolve at different speeds: an antimicrobial-resistance family prone to transfer, a
+ribosomal-protein family the opposite.
 
 The modifiers are:
 
@@ -92,16 +90,14 @@ above is always recoverable from the tool itself.
 
 ## The Gillespie algorithm
 
-Almost every simulation in ZOMBI2 is produced by a single small engine, run over and over. It is the
-engine that grows a birth–death tree, that duplicates and loses genes, and that switches a discrete trait
-between states — the same loop each time, given a different list of events. Learn it once and you
-understand how every stochastic process in ZOMBI2 is realised.
+Almost every simulation here comes from one small engine, run over and over: the same loop grows a
+birth–death tree, duplicates and loses genes, and switches a discrete trait between states, given a
+different list of events each time.
 
 That engine is the **Gillespie algorithm** [@gillespie1976; @gillespie1977], an exact, event-by-event
-recipe for simulating a continuous-time process defined by rates. This section builds it up from
-scratch: what a rate is, why waiting times are exponential, how competing events race to fire, and how
-those pieces assemble into the loop that drives the rest of the manual. No prior exposure to
-continuous-time Markov chains is assumed. The running idea is simple: **rates in, a timed history out.**
+recipe for a continuous-time process defined by rates. This section builds it from scratch — what a
+rate is, why waiting times are exponential, how competing events race, and how those assemble into the
+loop — assuming no prior exposure to continuous-time Markov chains. **Rates in, a timed history out.**
 
 ### From a rate to a waiting time
 
@@ -249,14 +245,14 @@ Each level supplies its own events and rates, and the same loop realises all of 
 
 ![One engine, many events. Each level supplies its own events and rates, but all are realised by the identical loop on the right: total rate, exponential waiting time, an event chosen in proportion to its rate, apply, repeat.](figures/gillespie_everywhere.pdf){width=100%}
 
-Swapping levels means swapping the list of events and how their rates are computed; the timing machinery
-— total rate, exponential wait, proportional choice — never changes.
+Swapping levels swaps the list of events and how their rates are computed; the timing machinery —
+total rate, exponential wait, proportional choice — never changes.
 
 ### …except when it isn't
 
-ZOMBI2 deliberately steps outside the event-by-event loop in two places, and for the same reason both
-times: when you do not need the whole timed history, only the endpoints, an exact shortcut beats
-simulating events you would immediately throw away.
+ZOMBI2 steps outside the event-by-event loop in two places, for the same reason both times: when only
+the endpoints are needed, not the whole timed history, an exact shortcut beats simulating events you
+would throw away.
 
 The first is **sequence substitution along a branch**. Once a gene tree and its branch lengths are
 settled, evolving a sequence down a branch does not require the individual substitution events, only the
