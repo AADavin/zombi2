@@ -108,6 +108,14 @@ That has one consequence worth stating plainly, because it is what catches peopl
 
 The same reading holds at the nucleotide resolution of Chapter 6, where the extent is in base pairs rather than genes.
 
+### Families that differ, once events cover several at once
+
+`ByFamily` and `family_speed` work here as they do in Chapter 4, but with one difference that matters. A run covers several families at once, so the weight is applied to **the run, averaged over the genes it covers** — not to the gene the run happened to start on.
+
+That is not a detail. Weighting the starting gene is the obvious implementation and it is the wrong one: a fast family's own rate would then be applied to whatever happened to sit beside it, so you would be describing the *neighbourhood* of a fast family rather than the family. Worse, the neighbourhood is not fixed — every inversion and translocation reshuffles it — so the parameter would not name a stable thing over the course of a run. Averaging over the run keeps the statement you wrote down true: a run of heavily-weighted genes is favoured, a mixed run sits in between, and a run of ordinary genes is unweighted.
+
+With no weights set every run averages to one, so a run that uses neither knob behaves exactly as it did before.
+
 ## Rearrangements: inversion, transposition, translocation
 
 Three further events act on a segment and reshape the order without creating or destroying genes:
