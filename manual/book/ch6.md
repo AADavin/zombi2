@@ -87,7 +87,16 @@ So does **conditioning**. Every rate here takes a `DrivenBy`, so a trait can dri
 loss = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})
 ```
 
-Chapter 9 covers what a driver is and how to grow one. Anything the engine has *not* wired raises rather than being quietly ignored.
+**The extent takes the same modifiers**, and that is a different statement:
+
+```python
+loss        = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})   # deletes more often
+loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})   # deletes in bigger chunks
+```
+
+The first raises how often a host-restricted lineage deletes; the second raises how much each deletion takes. Set both and they multiply, so the DNA shed per unit time goes up by the product, not the sum. Which of the two you want is a modelling choice, and having only one knob would force you to describe genome reduction with the wrong one.
+
+A modifier on an *extent* is read at the instant an event fires, so unlike the same modifier on a rate it changes no rate and adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one. Anything the engine has *not* wired raises rather than being quietly ignored.
 
 ## The initial genome
 

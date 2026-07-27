@@ -41,7 +41,7 @@ from functools import cached_property
 
 import numpy as np
 
-from ..rates.distributions import as_extent
+from ..rates.extent import as_extent
 from ..rates.modifiers import ByFamily, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
@@ -416,7 +416,7 @@ def _pick_chromosome(rng, gen, total_chromosomes) -> tuple[int, int]:
 
 # --- extent: every gene-level event acts on a run of consecutive genes (the ZOMBI1 model) ------------
 
-def _extent(rng, dist, chrom, start) -> int:
+def _extent(rng, ext, chrom, start, ctx=None) -> int:
     """A segment size in genes: sample the event's extent distribution, then clamp it to what
     the chromosome can carry from ``start``.
 
@@ -426,7 +426,7 @@ def _extent(rng, dist, chrom, start) -> int:
     end of the gene array — as if the array boundary were a real end — would truncate every run that
     started near it, pull the realised mean extent below the nominal one, and leave the genes
     around position 0 covered less often than the rest."""
-    m = max(1, int(dist.sample(rng)))
+    m = max(1, int(ext.sample(rng, **(ctx or {}))))
     n = len(chrom.genes)
     return min(m, n) if chrom.topology == "circular" else min(m, n - start)
 
@@ -455,7 +455,7 @@ def _run_means(chrom, mult, m) -> list[float]:
     return out
 
 
-def _pick_run_by_family(rng, genome, mult, dist) -> tuple[int, int, int] | None:
+def _pick_run_by_family(rng, genome, mult, ext, ctx=None) -> tuple[int, int, int] | None:
     """A run drawn with the per-family weight on the **segment**, not on its starting gene (SPEC §6).
 
     Returns ``(chromosome index, start, run size)``, or ``None`` when the genome has no genes to act
@@ -481,7 +481,7 @@ def _pick_run_by_family(rng, genome, mult, dist) -> tuple[int, int, int] | None:
     ci = weighted_index(rng, sums, total)
     chrom = genome[ci]
     n = len(chrom.genes)
-    m = min(max(1, int(dist.sample(rng))), n)
+    m = min(max(1, int(ext.sample(rng, **(ctx or {})))), n)
     means = _run_means(chrom, mult, m)
     s = weighted_index(rng, means, sum(means))
     return ci, s, (m if chrom.topology == "circular" else min(m, n - s))
@@ -514,7 +514,7 @@ def _run_over_cap(genome, chrom, start, m, cap) -> bool:
     return False
 
 
-def _pick_event_run(rng, gen, n, fw, fam_mult, key, dist):
+def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ctx=None):
     """``(lineage, chromosome index, start, run size)`` for one gene-level event.
 
     Uniform over genes when no per-family weight is set — the plain path, untouched. With one set, the
@@ -522,13 +522,13 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, dist):
     reaches the segment. ``None`` when the drawn lineage has nothing left to act on."""
     if fw is None:
         k, ci, j = _pick_gene(rng, gen, n)
-        return k, ci, j, _extent(rng, dist, gen[k][ci], j)
+        return k, ci, j, _extent(rng, ext, gen[k][ci], j, ctx)
     w = fw[key]
     total = sum(w)
     if total <= 0.0:
         return None
     k = weighted_index(rng, w, total)
-    picked = _pick_run_by_family(rng, gen[k], fam_mult[key], dist)
+    picked = _pick_run_by_family(rng, gen[k], fam_mult[key], ext, ctx)
     if picked is None:
         return None
     ci, j, m = picked
@@ -881,10 +881,26 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"rates are later slices."
                 )
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
-    dup_ext, los_ext, tra_ext = (as_extent(duplication_extent), as_extent(loss_extent),
-                                 as_extent(transfer_extent))
-    inv_ext, trp_ext, trl_ext = (as_extent(inversion_extent), as_extent(transposition_extent),
-                                 as_extent(translocation_extent))
+    def _ext_spec(spec, label):
+        """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
+        takes the modifiers this resolution wires on a rate — ``OnTime`` — and they scale the size
+        drawn. A driver is not among them: this engine wires no ``DrivenBy`` on its rates either, and
+        for trait-driven rearrangement the nucleotide resolution is the one that has it."""
+        e = as_extent(spec)
+        for m in e.modifiers:
+            if not isinstance(m, OnTime):
+                raise ValueError(
+                    f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
+                    f"wire on an extent — only OnTime (a skyline in time). For a trait-driven extent "
+                    f"use --resolution nucleotide.")
+        return e
+
+    dup_ext, los_ext, tra_ext = (_ext_spec(duplication_extent, "duplication_extent"),
+                                 _ext_spec(loss_extent, "loss_extent"),
+                                 _ext_spec(transfer_extent, "transfer_extent"))
+    inv_ext, trp_ext, trl_ext = (_ext_spec(inversion_extent, "inversion_extent"),
+                                 _ext_spec(transposition_extent, "transposition_extent"),
+                                 _ext_spec(translocation_extent, "translocation_extent"))
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability!r}")
     if transfer_to == "distance":
@@ -1055,14 +1071,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor                    # ... and the remainder (to total) is clo
                 if r < r_dup:                            # every gene-level event acts on an extent
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext, {"time": t})
                     if picked is not None:
                         k, ci, j, m = picked
                         if not _run_over_cap(gen[k], gen[k][ci], j, m, cap):
                             total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t,
                                                        events, event_positions, new_gene)
                 elif r < b_los:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext, {"time": t})
                     if picked is not None:
                         k, ci, j, m = picked
                         total_copies -= _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
@@ -1073,25 +1089,25 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                new_family, rng)
                     total_copies += 1
                 elif r < b_tra:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext, {"time": t})
                     if picked is not None:
                         kd, cdi, jd, m = picked
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                      event_positions, new_gene, transfer_to,
                                                      replacement, self_transfer, depth, cap)
                 elif r < b_inv:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext, {"time": t})
                     if picked is not None:                # the run starts at a gene, so: per copy
                         k, ci, i0, m = picked
                         _invert(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements)
                 elif r < b_trp:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transposition", trp_ext)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transposition", trp_ext, {"time": t})
                     if picked is not None:
                         k, ci, i0, m = picked
                         _transpose(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements, rng,
                                    inversion_probability)
                 elif r < b_trl:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "translocation", trl_ext)
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "translocation", trl_ext, {"time": t})
                     if picked is not None:
                         k, ci, j, m = picked
                         _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,
