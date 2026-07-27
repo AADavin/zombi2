@@ -18,9 +18,8 @@ gets ``substitution · Δt`` substitutions/site — the **strict clock**), optio
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
 ``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
-parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). The rest
-(``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ``, codon models, and the
-``record=`` memory dial) are named later slices; each is a pure addition.
+parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). Any other
+modifier — ``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ`` — raises.
 
 The result is a :class:`SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
@@ -28,9 +27,8 @@ sequence at every **internal** node), ``.phylograms`` (each gene tree with branc
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
 tree scaled the same way — the molecular clock made visible), ``.genomes`` and ``.initial_genome``
 (every node's whole genome, assembled, and the one the run started with — a **nucleotide** run only),
-and ``.seed``. Genuine substitution
-``.events`` are the deferred opt-in ``record=`` slice, not the default spine (a substitution log is not
-compact the way the speciation / D-T-L-O logs are).
+and ``.seed``. There is no per-substitution event log: it would not be
+compact the way the speciation and D/T/L/O logs are.
 """
 
 from __future__ import annotations
@@ -433,7 +431,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
     i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
     parent→child down the species tree). Any other modifier (the ``Markov`` clock, the ``ByFamily``
-    per-family speed, ``+Γ``) or a non-``PerSite`` scope is a later slice and raises.
+    per-family speed, ``+Γ``) or a non-``PerSite`` scope raises.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
@@ -550,7 +548,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             raise ValueError(
                 f"substitution carries {offenders}, but this slice wires a single lineage clock — one "
                 "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock, the "
-                "ByFamily per-family speed, and +Γ across-site heterogeneity are later slices."
+                "ByFamily per-family speed, and +Γ across-site heterogeneity are not wired."
             )
     rate_base = rate.base
 
