@@ -179,3 +179,39 @@ def test_mapping_naming_a_non_trait_state_is_refused():
         joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"small": 2.0, "tiny": 3.0}),
                        death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),
                        n_extant=10, seed=1)
+
+
+# --- a trait that drives speciation and also jumps at the split ----------------------------------
+
+def test_joint_trait_can_jump_at_speciation_while_driving_it():
+    """The two options compose: `at_speciation=` gives the trait a chance of changing *at* a split,
+    and the same trait drives how fast that split happens. Both kinds of change must appear in the
+    log, distinguishable, or the model is only one of its two halves."""
+    import collections
+    from zombi2 import joint, traits
+    from zombi2.rates import modifiers as mod
+
+    res = joint.simulate_joint(
+        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.5}),
+        death=0.2,
+        trait=traits.discrete(states=["small", "large"], switch=0.3, at_speciation=0.4),
+        n_extant=30, seed=1)
+
+    kinds = collections.Counter(e.kind for e in res.trait.events)
+    assert kinds["on_speciation"] > 0, "no jump at a split — at_speciation was ignored"
+    assert kinds["on_branch"] > 0, "no change along a branch — the CTMC was ignored"
+
+
+def test_joint_speciation_jump_is_off_by_default():
+    """Without `at_speciation`, a joint trait changes only along branches — the jump is opt-in, and
+    a run that does not ask for it must not get it."""
+    import collections
+    from zombi2 import joint, traits
+    from zombi2.rates import modifiers as mod
+
+    res = joint.simulate_joint(
+        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.5}),
+        death=0.2,
+        trait=traits.discrete(states=["small", "large"], switch=0.3),
+        n_extant=30, seed=1)
+    assert collections.Counter(e.kind for e in res.trait.events)["on_speciation"] == 0
