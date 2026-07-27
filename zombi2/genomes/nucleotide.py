@@ -14,26 +14,22 @@ ordered list of **blocks**. The vocabulary (fixed here, once):
 - **segment** — *not* an object: the **extent** a single event acts on, the arc ``[start,
   start+length)``. "An inversion inverts a segment of a chromosome."
 
-This module is grown **slice by slice** (the legacy engine is ~1900 lines, so we build it very
-slowly). Built so far:
+A genome is a karyotype of chromosomes with heterogeneous **sizes and shapes**, each
+**identity-bearing** — a chromosome id re-minted at every speciation, the edge recorded in the shared
+chromosome network — and inherited whole at a split. The **ancestry-neutral** events reshape it
+without creating or destroying material:
 
-- **The representation + inversion** — split a chromosome at a coordinate, invert an arc (which may
-  wrap the origin on a circular chromosome), keep blocks maximal, and trace every nucleotide back to
-  its ancestral origin.
-- **The tree wiring + the multi-chromosome container** (``simulate_genomes_nucleotide``): a genome is
-  a karyotype of chromosomes (heterogeneous **sizes and shapes**), each **identity-bearing** (a
-  chromosome id re-minted at every speciation, the edge recorded in the shared chromosome network);
-  inversions act within a length-weighted chromosome; the whole karyotype is inherited at speciation.
-- **The number-changing chromosome tier**: ``fission`` (a bifurcation — one chromosome into two) and
-  ``fusion`` (the reticulation — two same-topology chromosomes into one), both re-minting their
-  children into the chromosome network. Every event conserves total length but fission/fusion change
-  the chromosome *count*, so a branch is a small Gillespie.
+- **Inversion** — an arc reversed, which may wrap the origin on a circular chromosome.
 - **Translocation / transposition** — an arc moved to a *different* chromosome (translocation) or
   *within* its own (transposition), optionally inverted (probability ``inversion_probability``). Both
   keep source coordinates, so they are *rearrangements*, not network edges.
+- **Fission / fusion** — the number-changing tier: one chromosome into two (a bifurcation), or two
+  same-topology chromosomes into one (the reticulation), both re-minting their children into the
+  network. They conserve total length but change the chromosome *count*, so a branch is a small
+  Gillespie.
 
-Those are all **ancestry-neutral** (the strong invariant: every node carries the whole initial sequence,
-permuted). The ancestry-**changing** events are here too:
+Those hold the strong invariant: every node carries the whole initial sequence, permuted. The
+ancestry-**changing** events are here too:
 
 - **Loss** — an arc deleted (per lineage, never emptying a chromosome). A death, in the ``events``
   (genealogy) log. On its own it weakens the invariant to *subset*: each ancestral position at most
@@ -87,9 +83,7 @@ Because every node votes on the partition, the recovery covers the **complete** 
 extant tips: any node's genome can be put back together (``NucleotideGenomesResult.assembly``), an
 extinct lineage and the root as readily as a survivor.
 
-Deferred to later slices: homologous *replacement* transfer (only additive for now); indels;
-pseudogenization (``gene → intergene``); BED output; and the opt-in per-copy dial (size-blind,
-settable per-gene turnover — a *second* selection method, deliberately kept out).
+A transfer here is always additive: it copies material in, it does not overwrite a homologue.
 """
 
 from __future__ import annotations
@@ -1491,7 +1485,7 @@ def _do_origination(g, node_id, t, origination_extent, rng, events, new_source, 
 def _do_loss(g, node_id, t, loss_extent, rng, events) -> int:
     """Delete a geometric-length arc from a length-weighted chromosome — an ancestry-changing event (a
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
-    deferred tier event). Records the deleted material — which copy lineage lost which arc — as a
+    the chromosome tier's own event). Records the deleted material — which copy lineage lost which arc — as a
     :class:`Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
     spot = g._pick_legal_cut(rng)
     if spot is None:
@@ -1768,7 +1762,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
     of the initial sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
-    additive for now; homologous *replacement* transfer is a later refinement.)"""
+    always additive.)"""
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
     # Every rate takes the written form (SPEC §5). The scopes here are **per lineage** for the gene
     # events — the rate says how often a lineage does the event and the extent says how much DNA it

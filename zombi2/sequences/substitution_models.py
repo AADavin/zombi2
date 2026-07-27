@@ -13,7 +13,7 @@ Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`
 The protein models are *empirical*: their exchangeabilities and frequencies were estimated once from
 large alignments and are read off the published matrices (:mod:`._aa_matrices`), so they take **no
 free parameters** — you pick one, you do not tune it. Codon models and across-site ``+Γ``
-heterogeneity are named later slices; adding them is a pure extension of this menu, no refactor.
+heterogeneity are not in the menu; adding one is a pure extension of it, no refactor.
 
 Every model here is time-reversible, so the transition matrix over a branch of length ``t`` (in
 substitutions/site), ``P(t) = exp(Q·t)``, is computed by eigendecomposition of the *symmetric*

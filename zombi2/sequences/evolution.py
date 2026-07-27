@@ -5,7 +5,7 @@ sequence living inside that gene converts time to *substitutions/site* through t
 **rate**: a branch spanning ``Δt`` accrues ``rate · Δt`` substitutions/site. Under the **strict
 clock** (this slice) the rate is one number for the whole tree, so the branch length in subs/site is
 just ``rate_base · Δt``. (The relaxed-clock family — a per-branch ``clock`` modifier riding the
-species tree — and across-site ``+Γ`` are later slices; they scale this same branch length.)
+species tree — and across-site ``+Γ`` are not wired; they would scale this same branch length.)
 
 The engine draws the founding sequence from the model's stationary frequencies **at the family's
 origination**, then walks the tree from root to tips: a child's sequence is sampled site-by-site from

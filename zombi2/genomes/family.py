@@ -17,8 +17,6 @@ there is no birth-death race, no survival conditioning. Speciations and extincti
 schedule enter/retire lineages; between them one Gillespie fires D/T/L/O. ``transfer=0`` is the
 special case where the lineages are independent — same law as evolving each segment alone.
 
-Still to come: the ``record=`` memory dial (trading recorded detail for a smaller footprint) and the
-Rust core.
 """
 
 from __future__ import annotations
@@ -73,8 +71,7 @@ class FamilyGenomesResult:
     ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
     truth), and the ``seed``. The observed genomes are the extant tips —
     ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. The phyletic ``profiles`` are derived
-    from those tips on access, and ``write`` materialises the chosen outputs to disk. (The ``record=``
-    scale dial is a later slice.)"""
+    from those tips on access, and ``write`` materialises the chosen outputs to disk."""
 
     complete_tree: Tree
     genomes: dict[int, tuple[GeneCopy, ...]]
@@ -710,8 +707,8 @@ class FamilyGenome:
     this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.family(...))``)
     grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
     origination (each a ``scope(base) × modifiers`` rate, ``OnTime`` allowed) plus ``initial_families``
-    and named ``family_names`` (the handle a ``DrivenBy("genomes:<name>", …)`` reads). Transfer is deferred
-    for joint runs (a growing tree's contemporaneous set is still forming as events fire)."""
+    and named ``family_names`` (the handle a ``DrivenBy("genomes:<name>", …)`` reads). Transfer is not
+    available in a joint run: a growing tree's contemporaneous set is still forming as events fire."""
 
     duplication: object
     loss: object
@@ -747,7 +744,7 @@ def family(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,
     """A family-genome **process spec** — :class:`FamilyGenome`, unexecuted — for a joint model
     to grow with the tree its gene content drives (``joint.simulate_joint(genome=genomes.family(
     origination=0.2, loss=0.1, family_names=["toxin"]))``). Duplication / loss / origination and named
-    ``family_names``; transfer is a later slice for joint runs."""
+    ``family_names``; a joint run takes no transfer."""
     fams = tuple(family_names) if family_names is not None else ()
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")

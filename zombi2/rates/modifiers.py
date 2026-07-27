@@ -186,9 +186,7 @@ class ByLineage(Modifier):
 
     At the sequence level this is the lineage clock: the engine draws one value per **species lineage**
     (via :meth:`draw`) and shares it across every gene family passing through that lineage.
-    It is the lineage-twin of the genome level's ``ByFamily`` — the same
-    i.i.d.-heterogeneity idea, by lineage instead of by family. (A fully per-gene-tree-branch clock is
-    the deferred ``ByBranch``.)
+    It is the lineage-twin of the genome level's ``ByFamily``.
     """
 
     spread: float
@@ -297,8 +295,7 @@ class DrivenBy(Modifier):
     (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete
     driver switches mid-branch, so the engine steps its Gillespie at each switch); a rate reaching an
     engine that has not threaded its ``source`` gets a factor of 1.0 (inert). ``DrivenBy`` targets a
-    **rate** (a "how often") and **multiplies**; driving a *value* (an OU optimum) is a different verb,
-    deferred to experimental for v1.
+    **rate** (a "how often") and **multiplies**; it does not drive a *value*, such as an OU optimum.
     """
 
     def __init__(self, source: object, mapping: object) -> None:
