@@ -34,7 +34,7 @@ from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
-                                  resolve_genomes, warn)
+                                  defaults_used, resolve_genomes, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -87,7 +87,8 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="substitution model. nucleotide (4 states, ACGT): jc69 (equal rates), "
                         "k80 (--kappa), hky85 (--kappa, --frequencies), gtr (--gtr-rates, "
                         "--frequencies). protein (20 states): poisson (equal rates), jtt, dayhoff, "
-                        "wag, lg — empirical matrices, no parameters to give")
+                        "wag, lg — empirical matrices, no parameters to give. Defaults to jc69, "
+                        "announced when used")
     g.add_argument("--length", type=int, default=None, metavar="N",
                    help="alignment length in sites — residues under a protein model (default 1000). "
                         "Not for a nucleotide genome run: there every block carries its own length "
@@ -207,7 +208,8 @@ def _saturation_signal(identity: float, model) -> float:
 def run(args, parser):
     # validated here (not as argparse `required`) so a --params file can supply it
     if args.model is None:
-        parser.error("--model is required (give it on the command line or in --params)")
+        # jc69 has no free parameters, so a bare run needs nothing else to be well defined
+        warn(defaults_used(args, model="jc69"))
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
     allowed = set(_MODEL_KNOBS[args.model])
