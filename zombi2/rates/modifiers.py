@@ -11,13 +11,13 @@ You reach them through ``mod``::
     birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})   # a skyline: 1.0, then 0.3 from time 3 on
     birth = 1.0 * mod.OnTotalDiversity(cap=100)       # slows to 0 as diversity approaches 100
 
-The **deterministic** modifiers (``OnTime``, ``OnTotalDiversity``) have a factor that is a pure function of the
-context. The **stochastic** ones additionally carry a draw method the engine drives with a random
-generator: ``FromParent`` (the rate drifts parent→child along the tree, via ``initial``/``descend``),
-``ByLineage`` (one i.i.d. draw per lineage) and ``ByFamily`` (one i.i.d. draw per family), the last two
-via ``draw``. Still to come: ``Markov`` (a chain of rate categories). Composition (``*``), which turns
-``scope(base) × modifiers`` into a Rate, is the Rate module; here each modifier only knows how to
-produce its own factor (or, for the stochastic ones, its own draw).
+The **deterministic** modifiers (``OnTime``, ``OnTotalDiversity``) compute their factor as a pure
+function of the context. The **stochastic** ones also carry a draw the engine drives with a random
+generator: ``FromParent`` (the rate drifts parent→child, via ``initial``/``descend``), ``ByLineage``
+(one i.i.d. draw per lineage) and ``ByFamily`` (one per family), the last two via ``draw``.
+
+Composition (``*``) belongs to the Rate module; a modifier here knows only how to produce its own
+factor, or its own draw.
 """
 
 from __future__ import annotations
