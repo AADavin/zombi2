@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 
 __all__ = [
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "Geometric",
-    "as_distribution", "as_extent",
+    "as_distribution",
 ]
 
 
@@ -129,24 +129,3 @@ def as_distribution(spec) -> Distribution:
         return _CallableDist(spec)
     raise TypeError(f"cannot interpret {spec!r} as a distribution")
 
-
-def as_extent(spec) -> Distribution:
-    """Coerce an **extent** — how much a segmental event takes once it has started (SPEC §6).
-
-    A bare number is the **mean**, not an exact size: ``3`` is ``Geometric(mean=3)``, so runs vary
-    around three. Write ``Fixed(3)`` for exactly three every time. ``None`` is ``Geometric(mean=1)``,
-    a single unit, which is the default everywhere an extent is optional.
-
-    This is the one place an extent parts company with :func:`as_distribution`, where a bare number is
-    a *fixed* value. The readings differ because the quantities do: a sampled per-family rate given as
-    ``0.1`` means that rate, whereas an extent given as ``500`` means runs of about 500 — nobody wants
-    every inversion to be exactly the same size. Keeping them separate is why ``as_distribution`` is
-    left alone for the family-rate specs that use it.
-    """
-    if spec is None:
-        return Geometric(mean=1)
-    if isinstance(spec, Distribution):
-        return spec
-    if isinstance(spec, (int, float)):
-        return Geometric(mean=spec)
-    return as_distribution(spec)
