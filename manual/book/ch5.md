@@ -3,11 +3,10 @@
 The previous chapter put genes on the tree as a *bag of families* — how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered run of genes, and each gene knows which way it points. This is the **ordered** resolution.
 
 ```python
-from zombi2 import species
-from zombi2.genomes import simulate_genomes_ordered
+from zombi2 import species, genomes
 
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=2)
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
     chromosomes=1, initial_families=5, seed=2)
 ```
@@ -42,7 +41,7 @@ On top of the karyotype, four events change the **number** of chromosomes:
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=42)
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.15, loss=0.1, origination=0.25,
     chromosomes=2, fission=0.25, fusion=0.25,
     chromosome_origination=0.03, chromosome_loss=0.03,
@@ -80,7 +79,7 @@ How much does an event take? That is its **extent**, set per event type as `<eve
 from zombi2.rates.distributions import Geometric
 
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=27)
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.35, loss=0.3,
     duplication_extent=Geometric(mean=3),      # duplications copy ~3 adjacent genes at once
     chromosomes=1, initial_families=5, seed=27)
@@ -128,7 +127,7 @@ A moved segment — transposed or translocated — lands **inverted** with proba
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=0)
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.15, loss=0.15, origination=0.1,
     inversion=0.3, transposition=0.25, translocation=0.2,
     transposition_extent=Geometric(mean=2), inversion_probability=0.5,
@@ -161,37 +160,36 @@ g.gene_trees[0].to_newick()      # a family's gene tree — unchanged from the f
 ## Usage from Python
 
 ```python
-from zombi2 import species
-from zombi2.genomes import simulate_genomes_ordered
+from zombi2 import species, genomes
 from zombi2.rates.distributions import Geometric
 from zombi2.rates import modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
 
 # several chromosomes that split, merge, and gain a plasmid
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, chromosomes=6, topology="linear",
     fission=0.05, fusion=0.05, chromosome_origination=0.02, chromosome_loss=0.02,
     origination=0.4, initial_families=20, seed=1)
 
 # ordered genome: the Chapter 4 events, plus inversions, on a single chromosome
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.2, loss=0.2, origination=0.3, inversion=0.3,
     chromosomes=1, initial_families=20, seed=1)
 
 # segmental everything: duplications, losses and inversions act on segments of genes
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.2, loss=0.25, inversion=0.3,
     duplication_extent=Geometric(mean=4), loss_extent=Geometric(mean=3),
     inversion_extent=Geometric(mean=5), initial_families=15, seed=1)
 
 # rearrangements: relocate and move segments between chromosomes, sometimes inverting them
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, duplication=0.2, transposition=0.2, translocation=0.2,
     inversion_probability=0.5, chromosomes=3, initial_families=15, seed=1)
 
 # rates can still depend on time (the skyline), as at every level
-g = simulate_genomes_ordered(
+g = genomes.simulate_genomes_ordered(
     tree, inversion=1.0 * mod.OnTime({0: 1.0, 2: 0.2}), initial_families=10, seed=1)
 
 # the outputs
