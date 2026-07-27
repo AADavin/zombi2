@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **An examples gallery, published at `/gallery.html` and linked from the landing page.** Five levels
+  — species, genomes, sequences, traits, and the joining that couples them — each a short, runnable
+  recipe that simulates with ZOMBI2 and plots with Phylustrator (trees via `ph.trees`, genomes,
+  synteny and alignments via `ph.genomes`). Click any figure for the exact code that reproduces it.
+  The source lives in `gallery/` (self-contained, like `analyses/`) and a `[gallery]` optional extra
+  regenerates the page; the landing page's four level cards now link to its per-level sections, with a
+  "See the gallery" button beside "Read the docs". (#257)
+
 ## [0.10.0] - 2026-07-27
 
 ### Added

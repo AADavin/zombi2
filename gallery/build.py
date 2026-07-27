@@ -1,0 +1,272 @@
+"""Render every example and (re)build the published gallery page.
+
+    cd gallery && python build.py
+
+Renders figures/ (local, regenerated) and writes the page to ../web/gallery.html, which the site
+deploy copies to the root so it publishes at /gallery.html. Adding a level = a new module with an
+EXAMPLES list, added to LEVELS (each entry carries a URL slug used as the section anchor).
+"""
+
+from __future__ import annotations
+
+import base64
+import inspect
+import io
+import json
+import os
+import textwrap
+
+from PIL import Image
+
+import genomes
+import joining
+import sequences
+import species
+import traits
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIGDIR = os.path.join(HERE, "figures")
+OUT = os.path.abspath(os.path.join(HERE, "..", "web", "gallery.html"))   # published at /gallery.html
+
+# (slug, title, blurb, examples) — the slug is the section id the landing-page cards link to.
+LEVELS = [
+    ("species", "Species trees",
+     "Forward birth–death trees — the whole history, survivors and extinctions, with the diversification model made visible.",
+     species.EXAMPLES),
+    ("genomes", "Genomes",
+     "Genes on chromosomes — a genome as a ring, synteny between genomes, and gene-family events and copy number read against the species tree.",
+     genomes.EXAMPLES),
+    ("sequences", "Sequences",
+     "The dated tree the sequences evolve down, and an alignment lined up row-for-row with its tips.",
+     sequences.EXAMPLES),
+    ("traits", "Trait evolution",
+     "A trait evolving down the tree — branches coloured by its value; some paired with a companion panel.",
+     traits.EXAMPLES),
+    ("joining", "Joining",
+     "A trait and the tree grow together — the trait drives diversification, so its state shapes the tree.",
+     joining.EXAMPLES),
+]
+
+
+def render_all():
+    os.makedirs(FIGDIR, exist_ok=True)
+    for _, _, _, examples in LEVELS:
+        for ex in examples:
+            ex.render(os.path.join(FIGDIR, f"{ex.id}.png"))
+            print("rendered", ex.id)
+
+
+def _data_uri(path, maxw=920):
+    im = Image.open(path).convert("RGB")
+    if im.width > maxw:
+        im = im.resize((maxw, round(im.height * maxw / im.width)), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, format="PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _code_for(ex):
+    """The snippet shown on the detail view: the example's curated ``code`` if given, else the body
+    of its render function (def line dropped, dedented)."""
+    if ex.code:
+        return ex.code
+    src = textwrap.dedent(inspect.getsource(ex.render)).splitlines()
+    i = 0
+    while i < len(src) and not src[i].lstrip().startswith("def "):
+        i += 1
+    return textwrap.dedent("\n".join(src[i + 1:])).strip()
+
+
+def _detail_data(examples, store):
+    for ex in examples:
+        store[ex.id] = {"title": ex.title, "caption": ex.caption,
+                        "tag": ex.tag, "code": _code_for(ex)}
+
+
+def _cards(examples):
+    out = []
+    for ex in examples:
+        uri = _data_uri(os.path.join(FIGDIR, f"{ex.id}.png"))
+        out.append(f"""      <figure class="card" tabindex="0" role="button" data-id="{ex.id}" aria-label="Open: {ex.title}">
+        <div class="thumb"><img loading="lazy" src="{uri}" alt="{ex.title}"></div>
+        <figcaption><h3>{ex.title}</h3><p>{ex.caption}</p><span class="tag">{ex.tag}</span></figcaption>
+      </figure>""")
+    return "\n".join(out)
+
+
+def build_html():
+    sections, detail = [], {}
+    for slug, name, blurb, examples in LEVELS:
+        _detail_data(examples, detail)
+        sections.append(f"""  <section class="level" id="{slug}">
+    <div class="level-head"><h2>{name}</h2><span class="count">{len(examples)}</span><p>{blurb}</p></div>
+    <div class="grid">
+{_cards(examples)}
+    </div>
+  </section>""")
+    data = "<script>window.EX = " + json.dumps(detail) + ";</script>"
+    # A minimal standards-mode head so the page stands on its own at /gallery.html.
+    head = ('<!doctype html>\n<meta charset="utf-8">\n'
+            '<title>ZOMBI2 — Examples gallery</title>\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n')
+    html = head + _CSS + _PAGE_OPEN + "\n".join(sections) + _PAGE_CLOSE + data + _JS
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    with open(OUT, "w") as f:
+        f.write(html)
+    print(f"wrote {os.path.relpath(OUT, HERE)} ({len(html) // 1024} KB)")
+
+
+_CSS = """<style>
+:root{--bg:#f4f8f7;--surface:#fff;--ink:#16211f;--muted:#57655f;--faint:#7c8a85;--line:#e2ebe8;
+ --accent:#0d7d74;--accent-ink:#0a625b;--mat:#fff;--code-bg:#eef4f2;--code-ink:#1d2a27;--shadow:0 1px 2px rgba(18,40,36,.05),0 10px 28px -14px rgba(18,40,36,.16);--radius:13px}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1513;--surface:#141e1b;--ink:#e9f0ee;--muted:#8ea09b;--faint:#748681;
+ --line:#243330;--accent:#45bcae;--accent-ink:#63cec2;--mat:#f8fbfa;--code-bg:#0b120f;--code-ink:#cfe0db;--shadow:0 1px 2px rgba(0,0,0,.45),0 12px 32px -16px rgba(0,0,0,.7)}}
+:root[data-theme="light"]{--bg:#f4f8f7;--surface:#fff;--ink:#16211f;--muted:#57655f;--faint:#7c8a85;--line:#e2ebe8;
+ --accent:#0d7d74;--accent-ink:#0a625b;--mat:#fff;--code-bg:#eef4f2;--code-ink:#1d2a27;--shadow:0 1px 2px rgba(18,40,36,.05),0 10px 28px -14px rgba(18,40,36,.16)}
+:root[data-theme="dark"]{--bg:#0d1513;--surface:#141e1b;--ink:#e9f0ee;--muted:#8ea09b;--faint:#748681;--line:#243330;
+ --accent:#45bcae;--accent-ink:#63cec2;--mat:#f8fbfa;--code-bg:#0b120f;--code-ink:#cfe0db;--shadow:0 1px 2px rgba(0,0,0,.45),0 12px 32px -16px rgba(0,0,0,.7)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+.wrap{max-width:1160px;margin:0 auto;padding:36px 24px 88px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:34px}
+.eyebrow{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);display:flex;align-items:center;gap:9px}
+.eyebrow::before{content:"";width:22px;height:2px;background:var(--accent);border-radius:2px}
+.toggle{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:600 12px/1 system-ui;padding:9px 13px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:.18s}
+.toggle:hover{color:var(--ink);border-color:var(--accent)}
+.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.masthead h1{font-size:clamp(2rem,4.4vw,2.7rem);line-height:1.06;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance;font-weight:700}
+.masthead .lede{margin:0;max-width:60ch;color:var(--muted);font-size:1.05rem}
+.masthead .lede b{color:var(--ink);font-weight:600}
+.note{margin:18px 0 0;display:inline-flex;gap:9px;align-items:center;font-size:.82rem;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:7px 12px}
+.note b{color:var(--accent-ink);font-weight:600}
+.level{margin-top:52px}
+.level-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-bottom:14px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+.level-head h2{margin:0;font-size:1.4rem;letter-spacing:-.01em;font-weight:650}
+.level-head .count{font:600 12px/1 ui-monospace,monospace;color:var(--faint);padding:4px 9px;border:1px solid var(--line);border-radius:20px}
+.level-head p{margin:0;color:var(--muted);font-size:.95rem;flex:1;min-width:200px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(315px,1fr));gap:22px}
+.card{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column}
+.card:hover,.card:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--accent);outline:none}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.thumb{background:var(--mat);aspect-ratio:16/11;display:flex;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+figcaption{padding:16px 17px 17px;display:flex;flex-direction:column;gap:6px}
+figcaption h3{margin:0;font-size:1.03rem;font-weight:640;letter-spacing:-.01em}
+figcaption p{margin:0;color:var(--muted);font-size:.88rem;line-height:1.5}
+.tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink);text-transform:lowercase}
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
+.detail{position:fixed;inset:0;background:rgba(8,16,14,.86);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:4vmin;z-index:50;overflow:auto}
+.detail.open{display:flex}
+.sheet{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);max-width:1000px;width:100%;box-shadow:0 24px 70px -20px rgba(0,0,0,.7);overflow:hidden;margin:auto}
+.det-close{position:absolute;top:12px;right:12px;z-index:2;appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1;transition:.15s}
+.det-close:hover{color:var(--ink);border-color:var(--accent)}
+.det-fig{background:var(--mat);display:flex;align-items:center;justify-content:center;padding:22px;border-bottom:1px solid var(--line)}
+.det-fig img{max-width:100%;max-height:58vh;object-fit:contain;display:block}
+.det-meta{padding:20px 26px 4px}
+.det-meta .tag{margin:0}
+.det-meta h2{margin:.4rem 0 .5rem;font-size:1.4rem;letter-spacing:-.01em;font-weight:650}
+.det-meta p{margin:0;color:var(--muted);font-size:.96rem;line-height:1.55;max-width:72ch}
+.det-codewrap{padding:16px 26px 26px}
+.det-codehead{display:flex;justify-content:space-between;align-items:center;font:600 11px/1 ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:9px}
+.det-codehead button{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:600 11px/1 ui-monospace,monospace;padding:6px 11px;border-radius:7px;cursor:pointer;text-transform:none;letter-spacing:0;transition:.15s}
+.det-codehead button:hover{color:var(--ink);border-color:var(--accent)}
+.det-code{margin:0;background:#0f1714;border:1px solid #20302c;border-radius:10px;padding:16px 18px;overflow-x:auto;font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cdd9d4;white-space:pre;tab-size:4}
+.hl-sec{color:#59d3c3;font-weight:700}
+.hl-c{color:#6c8079;font-style:italic}
+.hl-s{color:#93d2a1}
+.hl-n{color:#e3ab60}
+.hl-k{color:#6cb7d7}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>"""
+
+_PAGE_OPEN = """
+<div class="wrap">
+  <div class="top">
+    <div class="eyebrow"><a href="./">ZOMBI2</a> · examples</div>
+    <button class="toggle" id="toggle" aria-label="Toggle colour theme">◑ <span>Dark</span></button>
+  </div>
+  <header class="masthead">
+    <h1>Examples gallery</h1>
+    <p class="lede">Short, runnable recipes — each <b>simulates</b> with ZOMBI2 and <b>plots</b> with <a href="https://github.com/AADavin/Phylustrator">Phylustrator</a>.
+    Click any figure for the code and a short explanation. The levels of a run: species, genomes, sequences, traits, and the joining that couples them.</p>
+    <p class="note">◆ Every figure is built from a real ZOMBI2 run — the code shown reproduces it.</p>
+  </header>
+"""
+
+_PAGE_CLOSE = """
+  <footer>
+    <span><a href="./">ZOMBI2</a> · <a href="docs/">docs</a> · <a href="https://github.com/AADavin/zombi2">GitHub</a></span>
+    <span><code>plot(tree) + color_branches(…) + …</code></span>
+  </footer>
+</div>
+<div class="detail" id="detail" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="det-title">
+    <button class="det-close" id="det-close" aria-label="Close">✕</button>
+    <div class="det-fig"><img id="det-img" alt=""></div>
+    <div class="det-meta">
+      <span class="tag" id="det-tag"></span>
+      <h2 id="det-title"></h2>
+      <p id="det-cap"></p>
+    </div>
+    <div class="det-codewrap">
+      <div class="det-codehead"><span>example code</span><button id="det-copy">copy</button></div>
+      <pre class="det-code"><code id="det-code"></code></pre>
+    </div>
+  </div>
+</div>
+"""
+
+_JS = """<script>
+(function(){
+  var root=document.documentElement, KEY="zombi2-gallery-theme";
+  var saved=localStorage.getItem(KEY); if(saved) root.setAttribute("data-theme",saved);
+  function cur(){return root.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");}
+  var btn=document.getElementById("toggle");
+  function label(){btn.querySelector("span").textContent=cur()==="dark"?"Light":"Dark";}
+  label();
+  btn.addEventListener("click",function(){var n=cur()==="dark"?"light":"dark";root.setAttribute("data-theme",n);localStorage.setItem(KEY,n);label();});
+  var EX=window.EX||{};
+  function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  var HLRE=/(###[^\\n]*)|(#[^\\n]*)|("[^"]*"|'[^']*')|\\b(\\d+(?:\\.\\d+)?)\\b|\\b(import|from|as|for|in|if|else|elif|def|return|and|or|not|None|True|False|lambda|with|print)\\b/g;
+  function hl(code){
+    var out="",last=0,m;
+    while((m=HLRE.exec(code))){
+      out+=esc(code.slice(last,m.index));
+      var cls=m[1]?"sec":m[2]?"c":m[3]?"s":m[4]?"n":"k";
+      out+='<span class="hl-'+cls+'">'+esc(m[0])+"</span>";
+      last=m.index+m[0].length;
+    }
+    return out+esc(code.slice(last));
+  }
+  var det=document.getElementById("detail"),
+      dImg=document.getElementById("det-img"), dTag=document.getElementById("det-tag"),
+      dTitle=document.getElementById("det-title"), dCap=document.getElementById("det-cap"),
+      dCode=document.getElementById("det-code"), dCopy=document.getElementById("det-copy");
+  function open(c){
+    var id=c.getAttribute("data-id"), meta=EX[id]||{}, img=c.querySelector("img");
+    dImg.src=img.src; dImg.alt=img.alt;
+    dTag.innerHTML=meta.tag||""; dTitle.textContent=meta.title||img.alt;
+    dCap.innerHTML=meta.caption||""; dCode.innerHTML=hl(meta.code||"");
+    dCopy.textContent="copy";
+    det.classList.add("open"); det.setAttribute("aria-hidden","false"); det.scrollTop=0;
+  }
+  function close(){det.classList.remove("open");det.setAttribute("aria-hidden","true");dImg.src="";}
+  document.querySelectorAll(".card").forEach(function(c){
+    c.addEventListener("click",function(){open(c);});
+    c.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();open(c);}});
+  });
+  document.getElementById("det-close").addEventListener("click",close);
+  det.addEventListener("click",function(e){if(e.target===det)close();});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});
+  dCopy.addEventListener("click",function(){
+    navigator.clipboard&&navigator.clipboard.writeText(dCode.textContent).then(function(){
+      dCopy.textContent="copied";setTimeout(function(){dCopy.textContent="copy";},1400);});
+  });
+})();
+</script>"""
+
+
+if __name__ == "__main__":
+    render_all()
+    build_html()
