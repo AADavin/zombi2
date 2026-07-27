@@ -67,10 +67,11 @@ _COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "do
 #: Columns holding a species-tree node, written as ``n<id>``.
 _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
 
-#: Columns holding a gene copy, written as ``g<id>`` — the same token the gene-tree Newick leaves,
-#: the alignment FASTA headers and the homology tables use, so a copy joins across every file without
-#: translation. ``parent`` is a gene copy too (the source copy a duplication/transfer descends from),
-#: so it is g-labelled; the species columns above are not.
+#: Columns holding a gene copy, written as ``g<id>``. This table names the species in its own column,
+#: so the copy cell carries the copy alone; a file with no such column names it
+#: ``n<species>_g<copy>`` instead (:func:`copy_label`). Either way the ``g<id>`` half is the same
+#: token, so a copy joins across every file without translation. ``parent`` is a gene copy too (the
+#: source copy a duplication/transfer descends from), so it is g-labelled; the species columns are not.
 _GENE_COLS = frozenset({"copy", "parent", "event"})
 
 
@@ -87,12 +88,28 @@ def node_from_label(cell: str) -> int:
 
 
 def gene_label(copy_id: int | None) -> str:
-    """A gene copy as every ZOMBI2 table writes it: ``g<id>``, the same token the gene-tree Newick
-    leaves, the alignment FASTA headers and the homology tables use — so a copy in ``genomes.tsv`` or
-    the event log joins to a tree leaf or a sequence with no translation. Empty for ``None``. The
-    ``g`` also keeps a copy id from being read as a bare number in a Newick leaf, where that is
-    ambiguous with a support value or a branch length."""
+    """A gene copy as every ZOMBI2 **table** writes it: ``g<id>``. Empty for ``None``.
+
+    A table names the copy's species in a column of its own, so this is the whole cell. Where there is
+    no such column — a Newick leaf, a FASTA record — the copy is written ``n<species>_g<copy>``
+    (:func:`copy_label`), which embeds this unchanged, so a copy still joins across files without
+    translation. The ``g`` also keeps a copy id from being read as a bare number in a Newick leaf,
+    where that is ambiguous with a support value or a branch length."""
     return "" if copy_id is None else f"g{copy_id}"
+
+
+def copy_label(species: int | None, copy_id: int | None) -> str:
+    """A gene copy **where it sits**: ``n<species>_g<copy>``, the token every file naming a copy of a
+    known species uses — the gene-tree and phylogram leaves, the alignment FASTA records and the
+    homology tables.
+
+    The copy id alone is unique, so the species is redundant for joining; it is here because a
+    sequence or a tip is read by people and by tools that never see the rest of the run, and ``g2179``
+    alone cannot say which genome it came from. That forced everyone benchmarking orthology to join
+    the alignments back to ``genomes.tsv`` themselves. The two halves are each still their own label,
+    so splitting on the single ``_`` recovers them; ``_`` rather than ``|`` because a FASTA record
+    name goes on to be parsed by aligners and tree builders that treat ``|`` as a field separator."""
+    return f"{node_label(species)}_{gene_label(copy_id)}"
 
 
 def gene_from_label(cell: str) -> int:

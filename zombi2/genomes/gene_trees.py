@@ -24,6 +24,8 @@ from __future__ import annotations
 import collections
 from dataclasses import dataclass, field
 
+from .events import copy_label
+
 
 @dataclass
 class GeneNode:
@@ -65,8 +67,10 @@ class GeneTree:
 
     def to_newick(self, which: str = "extant", *, annotate: bool = True) -> str | None:
         """Newick of the ``"extant"`` (default) or ``"complete"`` tree; ``None`` if it is empty.
-        Leaves are ``g<id>``; with ``annotate`` internal nodes carry ``<kind>_n<species>``; branch
-        lengths are time differences.
+        Leaves are ``n<species>_g<copy>`` — the copy and the branch it sits on, the same name the
+        alignment FASTA records and the homology tables use, so a tip needs no translation to say
+        which genome it came from. With ``annotate`` internal nodes carry ``<kind>_n<species>``;
+        branch lengths are time differences.
 
         The root carries one too, running from ``origination`` to where the root gene ended — the
         stem of the family, real time in which that founding gene existed. On the extant tree the
@@ -187,7 +191,7 @@ def _to_newick(root: GeneNode, annotate: bool, origination: float) -> str:
             continue
         bl = f":{node.time - parent_time:.7g}"             # the root's parent time is `origination`
         if node.is_leaf:
-            s = f"g{node.copy}{bl}"
+            s = f"{copy_label(node.species, node.copy)}{bl}"
         else:
             label = f"{node.kind}_n{node.species}" if annotate else ""
             s = f"({','.join(parts)}){label}{bl}"

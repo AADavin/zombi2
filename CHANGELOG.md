@@ -26,6 +26,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   lifestyle. Uses Phylustrator 0.1.2's new `bars` panel (pinned via `zombi2[gallery]`). (#260)
 
 ### Changed
+- **A gene copy is named `n<species>_g<copy>` wherever there is no column to say which species it
+  sits in** — gene-tree and phylogram Newick leaves, alignment and ancestral FASTA records, and
+  homology table headers (which used `n<species>|g<copy>`; `_` replaces `|`, which aligners and tree
+  builders treat as a field separator). Previously a FASTA record was `>g2179` and could not say
+  which genome it came from, so anyone benchmarking orthology had to join the alignments back to
+  `genomes.tsv` themselves — the first thing two independent first-time users each wrote by hand.
+  The `g<copy>` half is unchanged and the tables still carry their own `lineage` column, so every
+  file still joins on the same token: verified as 1254 FASTA records matching their gene-tree tips
+  exactly, none mismatched.
 - **Every resolution now writes the same `genome_events.tsv`.** One filename meant two different
   tables: at the nucleotide resolution the rows were ancestral intervals, a duplication wrote one row
   instead of two, `initial` replaced `origination`, and `lineage` on a transfer named the *donor*

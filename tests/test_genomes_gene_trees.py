@@ -5,6 +5,7 @@ import pytest
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import GeneTree, simulate_genomes_family
+from zombi2.genomes.events import copy_label
 
 LEAF_KINDS = {"extant", "extinct", "unsampled", "loss"}
 INTERNAL_KINDS = {"duplication", "transfer", "speciation"}   # ZOMBI1: a node's kind is what ended the gene
@@ -83,7 +84,8 @@ def test_a_family_that_never_splits_is_one_node_with_its_lifespan():
     if not singles:                                              # seed-dependent; skip if none arose
         pytest.skip("no single-gene family under this seed")
     t = singles[0]
-    assert t.to_newick("complete") == f"g{t.complete.copy}:{t.complete.time - t.origination:.7g};"
+    label = copy_label(t.complete.species, t.complete.copy)
+    assert t.to_newick("complete") == f"{label}:{t.complete.time - t.origination:.7g};"
 
 
 # --- the key cross-check: gene tree agrees with the profiles ---------------

@@ -14,7 +14,7 @@ import collections
 import pytest
 
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_family
-from zombi2.genomes.events import node_from_label, node_label
+from zombi2.genomes.events import copy_label, node_from_label, node_label
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
 from zombi2.species import simulate_species_tree
@@ -97,7 +97,7 @@ def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
             for (block, gene, _strand) in pieces:
                 if block not in genic:
                     continue
-                seq = r.alignments[block][f"g{gene}"]
+                seq = r.alignments[block][copy_label(leaf.id, gene)]
                 assert seq in genome[cid] or seq.translate(COMPLEMENT)[::-1] in genome[cid]
                 checked += 1
     assert checked, "the run left no gene in any leaf — pick another seed"
