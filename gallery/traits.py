@@ -218,11 +218,11 @@ EXAMPLES = [
     Example("discrete", "Discrete states",
             "A two-state trait hops between habitats; each branch is painted by its state history.",
             "discrete · Mk", discrete_states, code=_C_DISCRETE),
-    Example("correlated", "Correlated traits",
+    Example("correlated", "Dependent continuous traits",
             "Two traits evolve together (r&nbsp;=&nbsp;0.9) — two trees, coloured by each trait, and the "
             "tip scatter.",
             "continuous · +&nbsp;scatter", correlated, code=_C_CORRELATED),
-    Example("dependent", "Dependent characters",
+    Example("dependent", "Dependent discrete traits",
             "Two binary characters where one's flip rate depends on the other's state — the model as a "
             "2×2 chain (arrow width = rate), and a run: the tree painted by compound state, beside the "
             "presence/absence tips. <code>simulate_discrete(states=(&quot;00&quot;,…),&nbsp;switch={…})</code>.",

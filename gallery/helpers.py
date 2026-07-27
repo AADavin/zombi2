@@ -228,10 +228,8 @@ def composite_model_realization(realization_png: str, out: str, draw_model, *,
                                    gridspec_kw={"width_ratios": list(ratios), "wspace": 0.02})
     draw_model(axm)
     axm.set_axis_off()
-    axm.set_title("the model", fontsize=15, fontweight="bold")
     axr.imshow(img)
     axr.set_axis_off()
-    axr.set_title("a simulated realization", fontsize=15, fontweight="bold")
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
