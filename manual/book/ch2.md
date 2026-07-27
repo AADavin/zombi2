@@ -9,7 +9,7 @@ This chapter introduces the four levels ZOMBI2 simulates, the three ways they ca
 - **Sequences** — the nucleotides or amino acids inside each gene. Sequences evolve on gene trees, so genomes must be simulated first.
 - **Traits** — phenotypes evolving along a tree: body size, optimal growth temperature, the presence or absence of a flagellum.
 
-![The four levels of ZOMBI2. Species, genomes and sequences form a chain of ancestry: a genome lives on the species tree, a sequence inside a gene. Traits branch to the side, because a trait can ride any species tree.](figures/fig-2-1-four-levels_print.png){width=40%}
+![The four levels of ZOMBI2. Everything starts from the species tree, which forks: a genome evolves along it, and so does a trait. Sequences continue below genomes, because a sequence lives inside a gene.](figures/fig-2-1-four-levels_print.png){width=45%}
 
 A run in which every level is simulated:
 

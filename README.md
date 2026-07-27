@@ -61,7 +61,7 @@ evolves along a species tree, so you run whichever you need, composed into one s
 reproducible run.
 
 <p align="center">
-  <img alt="The four levels of evolution ZOMBI2 simulates: species, genomes and sequences in a chain, with traits branching off species" src="manual/book/figures/fig-2-1-four-levels.svg" width="450">
+  <img alt="The four levels of evolution ZOMBI2 simulates: the species tree forks into genomes and traits, and sequences continue below genomes" src="manual/book/figures/fig-2-1-four-levels.svg" width="450">
 </p>
 
 - **[Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)** — a
