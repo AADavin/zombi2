@@ -13,6 +13,8 @@ A genome at the family resolution evolves by four kinds of event, applied to eve
 - **Loss** — a gene copy is deleted; a family that loses its last copy is gone from that lineage.
 - **Origination** — a brand-new family appears in a lineage, with one copy.
 
+Duplication, transfer and loss are the three events a reconciliation method infers, and simulating them is how such a method is tested against a history that is actually known [@szollosi2015inference].
+
 You give a rate for each, and the events play out along the tree from the initial genome, speciation handing a lineage's genome down to both children. Out comes the genome of *every* lineage together with the event log that produced it.
 
 ```python
