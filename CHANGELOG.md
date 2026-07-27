@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-27
+
 ### Added
 - **An examples gallery, published at `/gallery.html` and linked from the landing page.** Five levels
   — species, genomes, sequences, traits, and the joining that couples them — each a short, runnable
