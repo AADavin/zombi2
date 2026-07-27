@@ -57,12 +57,16 @@ genomes.simulate_genomes_family(tree,
     duplication=0.2, origination=0.5, seed=2)
 ```
 
-That is the whole of conditioning today, and it fits in two rows:
+That is the whole of conditioning today, and it fits in four rows:
 
 | The driver | What it drives | Written like this | Mapping |
 |---|---|---|---|
-| a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the rates of a genome run at the family resolution | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
-| a discrete trait | `transfer_to` — which lineage a transfer lands on | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
+| a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the gene-family rates, at the **family** resolution | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | **every rate** of a **nucleotide** run — those four, plus `inversion`, `transposition`, `translocation` and the chromosome tier | `inversion = 1.5 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | **every extent** of a **nucleotide** run — how much DNA an event takes, rather than how often one happens | `loss_extent = 150 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | `transfer_to` — which lineage a transfer lands on (**family** resolution only) | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
+
+The middle two rows are the pair worth holding apart. Driving a **rate** makes a lineage delete more often; driving an **extent** makes each deletion bigger. Both are ways of saying "this lineage sheds more DNA", they are different processes, and set together they multiply.
 
 `source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
 

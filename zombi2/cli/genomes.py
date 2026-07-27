@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
@@ -74,7 +75,12 @@ _DEFAULT_INITIAL_FAMILIES = 100
 # knobs the nucleotide engine does not have — it starts from a sequence, not from a family count,
 # and its transfers are always additive. Paired with the default, so leaving the flag alone is not
 # mistaken for setting it.
-_NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False))
+#: The per-genome family cap, the same default the two engines carry. Duplication compounds, so a run
+#: is bounded unless you ask otherwise; `--max-family-size none` is that ask.
+_DEFAULT_MAX_FAMILY_SIZE = 10.0
+
+_NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False),
+                      ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
 
 
 def _add_genomes_args(p: argparse.ArgumentParser) -> None:
@@ -122,6 +128,17 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help=f"number of gene families the root genome starts with (default "
                         f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty, so every family must then "
                         f"arrive by --origination")
+    g.add_argument("--max-family-size", type=_family_cap, default=_DEFAULT_MAX_FAMILY_SIZE,
+                   metavar="N", dest="max_family_size",
+                   help=f"cap on how many copies of one family a genome may hold — an int is a copy "
+                        f"count, a float is that multiple of the tree's lineages (default "
+                        f"{_DEFAULT_MAX_FAMILY_SIZE}), 'none' removes it. Duplication compounds, so a "
+                        f"run is bounded unless you ask otherwise")
+    g.add_argument("--family-speed", type=_family_speed, default=None, metavar="DRAW",
+                   dest="family_speed",
+                   help="one per-family tempo scaling every rate that family has, as a ByFamily draw "
+                        "— \"ByFamily(spread=0.5)\" — so a fast family is fast at everything (a "
+                        "ByFamily on a single rate varies that rate alone)")
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
@@ -206,6 +223,49 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     _add_force_arg(g)
 
 
+def _family_cap(text: str):
+    """The argparse ``type`` for ``--max-family-size``: how many copies of one family a genome may hold.
+
+    An **int** is an absolute copy count; a **float** is that multiple of the complete tree's lineages,
+    so the bound travels with the size of the run. ``none`` removes it. The int/float distinction is
+    the model's, not a formatting detail — ``10`` and ``10.0`` mean different things — so it is kept
+    exactly as written.
+
+    There is a cap by default because duplication **compounds**: a family whose duplication rate sits
+    above its loss rate multiplies without bound. ``none`` is how you ask for that on purpose.
+    """
+    s = text.strip()
+    if s.lower() in ("none", "off"):
+        return None
+    try:
+        return int(s) if re.fullmatch(r"[+-]?\d+", s) else float(s)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"--max-family-size takes an int (a copy count), a float (a multiple of the tree's "
+            f"lineages) or 'none' (no cap); got {text!r}") from None
+
+
+def _family_speed(text: str):
+    """The argparse ``type`` for ``--family-speed``: one per-family tempo scaling every rate a family
+    has, written as a ``ByFamily`` draw — ``--family-speed "ByFamily(spread=0.5)"``.
+
+    Parsed by the same ast-whitelist parser every rate flag uses, so the expression is the one you
+    would write in Python and nothing is evaluated. It differs from a ``ByFamily`` on a single rate:
+    there each rate varies on its own, here one draw moves them together.
+    """
+    from zombi2.rates.modifiers import ByFamily
+    from zombi2.rates.parse import parse_rate
+
+    try:
+        value = parse_rate(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"--family-speed: {e}") from None
+    if not isinstance(value, ByFamily):
+        raise argparse.ArgumentTypeError(
+            f"--family-speed takes a ByFamily draw, e.g. \"ByFamily(spread=0.5)\"; got {text!r}")
+    return value
+
+
 def _transfer_to(text: str):
     """The argparse ``type`` for ``--transfer-to``: the recipient rule of a transfer.
 
@@ -263,9 +323,17 @@ def run(args, parser):
                          f"(the {args.resolution} resolution counts genes, not base pairs)")
     else:
         if stray := _stray(args, _NOT_IN_NUCLEOTIDE):
-            parser.error(f"the nucleotide resolution has no {', '.join(stray)} (it is founded from "
-                         "a sequence — see --root-length / --genes / --gff — and its transfers are "
-                         "additive)")
+            # each of these is absent for its own reason, so say which rather than give one blanket
+            # explanation that fits some of them and not the rest
+            why = {"--initial-families": "the genome is founded from a sequence, not from a family "
+                                         "count — see --root-length / --genes / --gff",
+                   "--replacement": "a nucleotide transfer is always additive",
+                   "--max-family-size": "a quota counts copies of a family, and here an event takes "
+                                        "an arc of DNA that may cover several families or none",
+                   "--family-speed": "a per-family tempo has to reach the arc an event covers, which "
+                                     "is per-family weighting this resolution does not wire"}
+            parser.error("; ".join(f"the nucleotide resolution has no {f} ({why[f]})"
+                                   for f in stray))
         if args.gff and args.genes:
             parser.error("pass either --gff or --genes, not both — a GFF already declares the genes")
         if args.fasta and not args.gff:
@@ -305,6 +373,9 @@ def run(args, parser):
     common = dict(duplication=args.duplication, transfer=args.transfer, loss=args.loss,
                   origination=args.origination, transfer_to=args.transfer_to,
                   self_transfer=args.self_transfer, seed=args.seed)
+    # the two knobs only the family-tier engines have — kept out of `common`, which the nucleotide
+    # engine shares and which has neither
+    family_knobs = dict(max_family_size=args.max_family_size, family_speed=args.family_speed)
     structured = dict(inversion=args.inversion, transposition=args.transposition,
                       translocation=args.translocation, chromosomes=args.chromosomes,
                       topology=args.topology, fission=args.fission, fusion=args.fusion,
@@ -321,7 +392,7 @@ def run(args, parser):
     if args.resolution == "ordered":
         result = simulate_genomes_ordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            progress=not args.quiet, **structured, **common)
+            progress=not args.quiet, **structured, **family_knobs, **common)
     elif args.resolution == "nucleotide":
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
@@ -338,11 +409,13 @@ def run(args, parser):
         result = simulate_genomes_family(
             tree, replacement=args.replacement, initial_families=args.initial_families,
             parallel=parallel_from_args(args, parser), stream_to=out,
-            outputs=tuple(args.write) if args.write else None, progress=not args.quiet, **common)
+            outputs=tuple(args.write) if args.write else None, progress=not args.quiet,
+            **family_knobs, **common)
     else:
         result = simulate_genomes_family(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            parallel=parallel_from_args(args, parser), progress=not args.quiet, **common)
+            parallel=parallel_from_args(args, parser), progress=not args.quiet,
+            **family_knobs, **common)
     dt = time.perf_counter() - t0
 
     # a genome run is on a fixed tree, so its complete tree is the input; a StreamedRun does not carry
