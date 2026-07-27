@@ -34,6 +34,9 @@ PUBLICATION_READINESS_REPORT.md
 PUBLICATION_READINESS_REPORT.pdf
 coleman_biorxiv.pdf
 
+# Claude's working notes — kept local to this checkout, not shared in the repo
+CLAUDE.md
+
 # --- Generated artifacts: regenerable outputs; the sources that produce them ARE tracked ---
 
 # Offline single-file docs mirror (rebuild with tools/build_docs_html.py)
