@@ -41,7 +41,7 @@ other rate, and they compose (``σ² * OnTime({…}) * FromParent(spread=…)``)
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree — the engine evaluates the rate one lineage at a time (``lineages=1``), where the event levels
 sum a per-unit rate over everything alive at once. (OU with a time-varying σ² — the two knob-sets at
-once — is deferred; use one or the other.)
+once — is not available; use one or the other.)
 
 The **discrete** twin is ``simulate_discrete`` — a state switching along the tree (the Mk model),
 simulated *exactly* by the Gillespie algorithm along every branch. Its ``events`` log (each transition
@@ -52,7 +52,7 @@ map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or
 liability; the crossings are un-timed, so it carries no event log or map.
 
 Also built: correlated traits (the ``correlation=`` overlay), jumps at speciation (``at_speciation=``),
-and multi-optimum OU (``regimes=``). Still deferred: hidden-state Mk. SSE (BiSSE/MuSSE/QuaSSE) is
+and multi-optimum OU (``regimes=``). SSE (BiSSE/MuSSE/QuaSSE) is
 **not** a trait model — it is trait↔species *joint*, Part III.
 """
 

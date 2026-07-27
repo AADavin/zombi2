@@ -8,21 +8,21 @@ Simulation is the way around this. You create a dataset whose history you alread
 
 ## What ZOMBI2 is
 
-ZOMBI2 simulates four levels of evolution: **Species**, **Genomes**, **Sequences** and **Traits**. You can run a single level, run several in sequence, or let one level drive another. It comes as a Python library and as a command-line tool. Both drive the same engine and take the same parameters, so a run can be written either way. 
+ZOMBI2 simulates four levels of evolution: **Species**, **Genomes**, **Sequences** and **Traits**. You can run one level, several in sequence, or let one drive another. It is a Python library and a command-line tool over the same engine, taking the same parameters, so a run can be written either way.
 
 ## What it can do
 
 Some questions ZOMBI2 is built to answer, each of which is one run and a comparison:
 
-- **How well does a reconciliation method recover the truth?** Evolve gene families under duplication, transfer and loss, and you get every family's true gene tree together with the event behind every node. Reconcile the gene trees against the species tree and score what the method found against what actually happened.
+- **How well does a reconciliation method recover the truth?** Evolve gene families under duplication, transfer and loss, and you get every family's true gene tree with the event behind every node. Reconcile against the species tree and score what the method found against what happened.
 
 - **Can a transfer be detected when the donor is gone?** Transfers in ZOMBI2 can come from lineages that later go extinct, so a gene arrives in a survivor from a donor that leaves no other trace. The event log names that donor, so you can ask how often a detection method finds a transfer whose source is no longer on the tree.
 
-- **What does genome reduction look like in host-restricted bacteria?** Evolve a lifestyle trait, free-living or host-restricted, then let it drive the loss rate. Lineages that move inside a host shed genes faster, and you can measure how much of the resulting genome-size pattern a method attributes to lifestyle rather than to shared ancestry.
+- **What does genome reduction look like in host-restricted bacteria?** Evolve a lifestyle trait, free-living or host-restricted, and let it drive the loss rate. Lineages that move inside a host shed genes faster, so you can measure how much of the genome-size pattern a method attributes to lifestyle rather than to shared ancestry.
 
 - **Does a dating method survive a clock that is not strict?** Give the substitution rate a relaxed clock, so lineages evolve at different paces, and compare the dates a method infers from the alignment against the true node ages.
 
-- **How accurate is ancestral sequence reconstruction?** A run records the sequence at every internal node, not just the tips, so a reconstruction can be compared residue by residue against the sequence that really sat there.
+- **How accurate is ancestral sequence reconstruction?** A run records the sequence at every internal node, not just the tips, so a reconstruction can be compared residue by residue against the one that really sat there.
 
 - **Is a trait correlation real, or an artefact of the tree?** Two traits evolving on the same tree look correlated at the tips whether or not either drives the other, because they share ancestry. Simulate with the correlation switched off, on the same tree, and you have the baseline any comparative method has to beat.
 
@@ -65,7 +65,7 @@ out/genomes/    genome_events.tsv      every duplication, transfer, loss and ori
                 genomes.log
 ```
 
-Each level keeps to its own directory, its run log included, and the outputs that run to one file per gene family get a directory of their own inside it, so a run of a few hundred families stays legible. Pass `--flat` to any command and it writes everything straight into `out/` instead, and `--quiet` turns off the progress bar a command shows while it works.
+Each level keeps to its own directory, run log included, and outputs that run to one file per gene family get a directory of their own inside it, so a few hundred families stay legible. `--flat` writes everything straight into `out/` instead; `--quiet` turns off the progress bar.
 
 Here is the same run from Python:
 
@@ -73,12 +73,9 @@ Here is the same run from Python:
 from zombi2 import species, genomes
 
 sp  = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-gen = genomes.simulate_genomes_family(sp.complete_tree,
-                                      duplication=0.2, transfer=0.1,
+gen = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1,
                                       loss=0.25, origination=0.5, seed=42)
 
 sp.write("out/")
 gen.write("out/")
 ```
-
-The next chapter, *A tour of ZOMBI2*, lays out the four levels, the three ways they can relate, how every rate is written, and the vocabulary the rest of the book uses.

@@ -5,12 +5,14 @@ The sequence level does two main things:
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
 * It evolves the residues that sit inside every gene, so each family ends with an alignment.
 
-The sequence level is always dependent on a genome-level run, and it takes that run's result directly:
+The sequence level always follows a genome run, and takes that run's result directly:
 
 ```python
-from zombi2 import genomes, sequences
+from zombi2 import species, genomes, sequences
 from zombi2.sequences.substitution_models import hky85
+from zombi2.rates import modifiers as mod
 
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
                                              loss=0.25, origination=0.5, seed=1)
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),
@@ -28,6 +30,9 @@ Two things therefore have to be chosen: *what* changes (the substitution model, 
 ZOMBI2 implements different standard models of sequence evolution:
 
 ```python
+from zombi2.sequences.substitution_models import (jc69, k80, hky85, gtr,
+                                                  poisson, dayhoff, jtt, wag, lg)
+
 # --- nucleotide models (4 states, ACGT) ---
 model = jc69()                    # equal rates, equal base frequencies — no free parameters
 model = k80(kappa=2.0)            # a transition/transversion bias
@@ -42,13 +47,13 @@ model = wag()                     # Whelan & Goldman 2001
 model = lg()                      # Le & Gascuel 2008
 ```
 
-The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they do nest in the order written — `jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies — so each step down the list adds free parameters. The protein models work differently. Their rate matrices are **empirical**: each was estimated once from a large set of real alignments and is then used as a fixed table. That is why they take no parameters.
+The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal base frequencies — so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
 
 ## Relaxed molecular clocks
 
 The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree.
 
-Real lineages, however, evolve at different paces. A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock**. In ZOMBI2 this is not a new kind of object: you multiply the rate by a modifier, exactly as you do at every other level.
+A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock**. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
 
 ```python
 # strict clock — one rate everywhere; the default, so write nothing

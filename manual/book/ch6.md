@@ -1,6 +1,6 @@
 # Genomes III: nucleotide
 
-At the **nucleotide** resolution a chromosome is no longer a list of gene tokens but a **coordinate axis of DNA**, and an event is an arc on that axis: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are now stretches of that axis with a start and an end, and the DNA between them is simulated too.
+At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and an event is an arc on it: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too.
 
 ```python
 from zombi2 import species, genomes
@@ -23,7 +23,7 @@ Blocks come in two kinds:
 - a **gene** is a *declared, indivisible* block — one family, one id, **never split**. It carries a gene tree.
 - an **intergene** is the spacer between genes. It fragments freely into as many blocks as events dictate. 
 
-A genome is therefore an alternating chain of intergenes and genes. Either extreme is legal. Declare no genes and the whole chromosome is one big intergene — the uniform-sequence model. Fill the whole replicon with genes and there is no spacer at all; that evolves too, because events break at the joins *between* genes (see *Genes are never split*, below).
+A genome is therefore an alternating chain of intergenes and genes, and either extreme is legal. Declare no genes and the chromosome is one big intergene — the uniform-sequence model. Fill the replicon with genes and there is no spacer at all; that evolves too, because events break at the joins *between* genes (see *Genes are never split*, below).
 
 Reading two leaves of the run above shows what the events did:
 
@@ -83,6 +83,10 @@ Rates here take the same written form as everywhere else — `scope(base) × mod
 So does **conditioning**. Every rate here takes a `DrivenBy`, so a trait can drive how much DNA a lineage sheds — genome reduction as it is usually meant — and can drive the rearrangements too:
 
 ```python
+from zombi2 import traits
+from zombi2.rates import modifiers as mod
+
+habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
 loss = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})
 ```
 
@@ -93,9 +97,9 @@ loss        = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})   # delet
 loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})   # deletes in bigger chunks
 ```
 
-The first raises how often a host-restricted lineage deletes; the second raises how much each deletion takes. Set both and they multiply, so the DNA shed per unit time goes up by the product, not the sum. Which of the two you want is a modelling choice, and having only one knob would force you to describe genome reduction with the wrong one.
+The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-A modifier on an *extent* is read at the instant an event fires, so unlike the same modifier on a rate it changes no rate and adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one. Anything the engine has *not* wired raises rather than being quietly ignored.
+A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything not wired raises rather than being quietly ignored.
 
 ## The initial genome
 
@@ -173,11 +177,11 @@ g.mosaic(leaf)                          # that leaf's genome, block by block
 g.chromosome_events                     # the chromosome network
 ```
 
-A gene family lost in **every** extant lineage still gets a tree — it is still history — but a complete one only: `.gene_trees[fam].extant` is `None`, and no `_extant.nwk` is written for it. Only a family deleted from every node in the tree has no tree at all, and it will still appear in `.gene_spans`, because it was declared. Ask `.gene_trees` what it holds rather than assuming a declared family is in it.
+A family lost in **every** extant lineage still gets a complete tree — it is still history — but `.gene_trees[fam].extant` is `None` and no `_extant.nwk` is written. Only a family deleted from every node has no tree at all, and it still appears in `.gene_spans` because it was declared. Ask `.gene_trees` what it holds rather than assuming a declared family is in it.
 
 ## Usage from the CLI
 
-The nucleotide resolution is `--resolution nucleotide`. It takes the same event rates as Chapter 5 and adds two things: how to set up the initial genome, and how long an event is in base pairs.
+`--resolution nucleotide` takes the same event rates as Chapter 5 and adds two things: how to set up the initial genome, and how long an event is in base pairs.
 
 ```bash
 # an evenly spaced initial genome: 5 kb, six genes of 300 bp, with inversions averaging 400 bp

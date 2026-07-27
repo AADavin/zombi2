@@ -1,6 +1,6 @@
 # Genomes I: gene families
 
-Genomes live inside the species tree, and they can be simulated at different levels of **resolution**. The simplest case is a single gene family evolving along the species tree. The most complex is a genome in which every nucleotide is tracked across several chromosomes. ZOMBI2 offers three resolutions, one per chapter: **family** here, **ordered** in Chapter 5, **nucleotide** in Chapter 6.
+Genomes live inside the species tree, and they can be simulated at three **resolutions**, one per chapter: **family** here, **ordered** in Chapter 5, **nucleotide** in Chapter 6. The simplest is a gene family evolving along the tree; the most detailed tracks every nucleotide across several chromosomes.
 
 The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
 
@@ -13,10 +13,11 @@ A genome at the family resolution evolves by four kinds of event, applied to eve
 - **Loss** — a gene copy is deleted; a family that loses its last copy is gone from that lineage.
 - **Origination** — a brand-new family appears in a lineage, with one copy.
 
-You give ZOMBI2 a rate for each, and it plays the events out along the tree, starting from the initial genome and letting speciation hand a lineage's genome down to both its children. Out comes the genome of *every* lineage in the tree together with the event log that produced it.
+You give a rate for each, and the events play out along the tree from the initial genome, speciation handing a lineage's genome down to both children. Out comes the genome of *every* lineage together with the event log that produced it.
 
 ```python
 from zombi2 import species, genomes
+from zombi2.rates import modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 g = genomes.simulate_genomes_family(
@@ -27,7 +28,7 @@ The root starts with `initial_families` families of one copy each, recorded as o
 
 ### Families that differ from one another
 
-A bare rate is shared by every family: give `loss=0.25` and all of them lose at 0.25. Real families do not behave alike, and **`ByFamily`** is how you say so — the family twin of the sequence level's `ByLineage`, and the same idea, an independent draw per unit with no memory. Each family draws one multiplier, mean-corrected so `E[factor] = 1`, which is what lets you widen the spread without moving the average family off the base rate.
+A bare rate is shared by every family: give `loss=0.25` and all of them lose at 0.25. Real families do not behave alike, and **`ByFamily`** is how you say so — the family twin of the sequence level's `ByLineage`. Each family draws one multiplier, mean-corrected so `E[factor] = 1`, which lets you widen the spread without moving the average family off the base rate.
 
 Where you put it decides what varies *together*:
 
@@ -59,7 +60,7 @@ max_family_size = 50       # an int is that number of copies, whatever the tree
 max_family_size = None     # no ceiling
 ```
 
-A float scales with the run, so the same setting means the same thing on a tree of ten species and one of a thousand. An int is absolute. The ceiling holds for arrivals too, so a transfer cannot push a family past it sideways. What happens at the cap is that the family stops duplicating.
+A float scales with the run, so the same setting means the same thing on a tree of ten species and one of a thousand; an int is absolute. At the cap the family stops duplicating, and the ceiling holds for arrivals too, so a transfer cannot push it past sideways.
 
 ## What the rate depends on
 
@@ -68,7 +69,6 @@ The rates follow the **same grammar as the species level** (`base` optionally wr
 Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
 
 ```python
-from zombi2.rates import modifiers as mod
 # lots of new families early, then origination shuts off after time 2
 g = genomes.simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
@@ -137,9 +137,9 @@ g.write("out/")                      # genome_events.tsv + profiles.tsv
 
 ## Profiles and gene trees
 
-Two products are usually what you came for, and ZOMBI2 derives both from the run's recorded history.
+Two products are derived from the run's recorded history.
 
-**Profiles** are the classic comparative-genomics view: how many copies of each gene family sit in each extant species. They are read straight off the observed genomes, so the run stays lean and you materialise them on access.
+**Profiles** are the classic comparative-genomics view: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
 
 ```python
 g.profiles.matrix        # families × extant-species copy counts, a NumPy array
@@ -156,7 +156,7 @@ gt.to_newick("complete")             # ... or the whole genealogy
 gt.origination                       # when the family began
 ```
 
-The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination and the founding gene then lives for a while before its first duplication, transfer or speciation, and that wait is the root's branch: the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan — `g55:0.263097;`.
+The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination, and the founding gene lives a while before its first duplication, transfer or speciation; that wait is the root's branch, the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan — `g55:0.263097;`.
 
 ## Usage from Python
 
@@ -245,9 +245,9 @@ g = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.25, originatio
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
 
-The gain is real but modest, and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful of workers there is little more to win. It pays off on a large run — many families, or high rates — and is a loss on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
+The gain is modest and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful there is little more to win. It pays off on a large run — many families, or high rates — and costs on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
 
-When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family straight to a directory as it finishes and hands back a light path handle instead of a `FamilyGenomesResult`, so memory stays flat however many families you run (a run that fills 2 GB held in memory streams in about 40 MB). Pick the files you want with `outputs=`, exactly as `.write` takes them, and read them back as you would any run — the disk is the handoff to the sequence level. On the command line it is `--stream`.
+When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family to a directory as it finishes and hands back a light path handle instead of a `FamilyGenomesResult`, so memory stays flat however many families you run: 2 GB held in memory streams in about 40 MB. Pick the files with `outputs=`, exactly as `.write` takes them; the disk is then the handoff to the sequence level. On the command line it is `--stream`.
 
 ```python
 run = genomes.simulate_genomes_family(tree, origination=2.0, initial_families=5000, seed=1,
