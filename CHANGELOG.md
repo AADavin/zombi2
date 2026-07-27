@@ -10,9 +10,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
-- **`zombi2[gallery]` now installs Phylustrator from PyPI.** The plotting library shipped its first
-  release (`phylustrator` 0.1.0), so the gallery extra depends on it directly (`phylustrator>=0.1`)
-  instead of requiring a separate `pip install` from git. (#258)
+- **`zombi2[gallery]` now installs Phylustrator from PyPI.** The plotting library is published, so the
+  gallery extra depends on it directly (`phylustrator>=0.1.1` — the release that draws transfers as
+  visible arrows) instead of requiring a separate `pip install` from git. (#258)
 
 ## [0.11.0] - 2026-07-27
 
