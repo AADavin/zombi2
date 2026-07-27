@@ -53,11 +53,9 @@ reconparser = ["pandas>=2.0.0"]
 # executor plugin is only needed to run on a cluster.
 bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 # The examples gallery (gallery/) — simulates with zombi2 and plots with Phylustrator. Not a runtime
-# dependency of the library; only needed to regenerate web/gallery.html. matplotlib draws the
-# companion panels and pillow embeds the figures. Phylustrator isn't on PyPI yet, so install it from
-# git alongside (see gallery/README.md) — a direct-reference URL can't live in project metadata
-# (hatchling refuses it, and PyPI rejects it on upload).
-gallery = ["matplotlib", "pillow"]
+# dependency of the library; only needed to regenerate web/gallery.html. Phylustrator draws the
+# figures, matplotlib the companion panels, and pillow embeds them.
+gallery = ["phylustrator>=0.1", "matplotlib", "pillow"]
 
 # The `zombi2` CLI is grown from the clean core, one level at a time. It
 # currently exposes the four built levels — `species`, `genomes`, `sequences`, `traits`; the coupled
