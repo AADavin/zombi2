@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-27
+
 ### Added
 - **`--max-family-size` and `--family-speed` on `zombi2 genomes`.** Both existed in the Python API at
   the family and ordered resolutions but had no flag, which mattered once the growth cap became
