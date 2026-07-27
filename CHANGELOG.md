@@ -26,6 +26,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   lifestyle. Uses Phylustrator 0.1.2's new `bars` panel (pinned via `zombi2[gallery]`). (#260)
 
 ### Changed
+- **Every resolution now writes the same `genome_events.tsv`.** One filename meant two different
+  tables: at the nucleotide resolution the rows were ancestral intervals, a duplication wrote one row
+  instead of two, `initial` replaced `origination`, and `lineage` on a transfer named the *donor*
+  rather than the branch the copy is born on. The columns were close enough that making them match
+  would have let the family reader accept one and build silently wrong gene trees. So the genealogy
+  is now written in the shared format — derived onto the root-block partition, where a copy either
+  covers a block in full or does not touch it, which is what makes a duplication a bifurcation — and
+  the interval record keeps its own name, **`block_events.tsv`**. `zombi2 tools` and the sequence
+  level now work identically across all three resolutions, and a new test asserts the header,
+  per-kind row arity and transfer contract agree between them. The engine, the copy ids and the
+  simulation output are unchanged: the genealogy is what the recovery already built to derive the
+  gene trees, and was being discarded. `read_nucleotide_genomes` reads `block_events.tsv`.
 - **Trees are written with 7 significant figures instead of 6.** Rounding accumulated along a
   root-to-tip path put the extant species tree outside the `1e-6 × height` ultrametricity that
   `read_newick` documents — measured at 19 of 20 seeds, so third-party dating and strict-clock tools

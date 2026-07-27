@@ -145,12 +145,13 @@ def events_from_tsv(text: str) -> list[Event]:
         # touch. (A genome level that needs the positions reads them itself.)
         return _parse(lines, header)
     if tuple(header) != _COLS:
-        # the nucleotide resolution writes its own, wider log to the same filename — a likely
-        # mistake worth naming, since the two look alike until you read the columns
-        hint = ("; this looks like a --resolution nucleotide log, whose events are keyed by "
-                "ancestral interval rather than gene family. Read one with "
-                "zombi2.genomes.nucleotide.read_nucleotide_genomes, which the sequence level uses "
-                "when its handoff is a nucleotide run"
+        # `block_events.tsv` — a nucleotide run's own record, keyed by ancestral interval. Every
+        # resolution writes its genealogy here in one format, so that file is the only table left
+        # that looks like this one and is not; naming it saves reading the columns to find out.
+        hint = ("; this looks like a nucleotide run's block_events.tsv, whose rows are ancestral "
+                "intervals rather than gene-tree edges. Read one with "
+                "zombi2.genomes.nucleotide.read_nucleotide_genomes. That run's genome_events.tsv is "
+                "the genealogy, in this format, and is what this reader wants"
                 if "source" in header and "family" not in header else "")
         if not hint and set(header) < set(_COLS):
             # a genuinely short header: every column it has is one of ours, so it is a log this
