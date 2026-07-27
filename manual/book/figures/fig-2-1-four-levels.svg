@@ -1,25 +1,45 @@
 <svg viewBox="40 6 334 330" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>The four levels of ZOMBI2</title>
 <desc>Species sits at the top, centred. One line descends from it and forks into two curved arrows, left to Genomes and right to Traits. Genomes continues straight down to Sequences.</desc>
+<!-- Colours are presentation ATTRIBUTES, not CSS. GitHub's SVG sanitiser drops the style element, and
+     a figure whose fills live there renders in the README as black blobs with no labels or lines.
+     CSS outranks a presentation attribute, so the dark-mode rules below still win wherever CSS
+     survives. Keep it this way. -->
 <style>
-  :root { --ink:#1a1a1a; --paper:#ffffff; }
-  @media (prefers-color-scheme: dark) { :root { --ink:#e7ebe9; --paper:#191d20; } }
-  .node{fill:var(--paper);stroke:var(--ink);stroke-width:1.6}
-  .lbl{fill:var(--ink);font-size:16px;font-weight:600}
-  .edge{stroke:var(--ink);stroke-width:1.7;fill:none}
+  @media (prefers-color-scheme: dark) {
+    .node{fill:#191d20;stroke:#e7ebe9}
+    .lbl{fill:#e7ebe9}
+    .edge{stroke:#e7ebe9}
+    .head{fill:#e7ebe9}
+  }
 </style>
 <defs>
-  <marker id="a" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L9,5 L0,10 z" fill="var(--ink)"/></marker>
+  <!-- a slim, notched head: the concave back reads as an arrow rather than as a blob, and 7 units
+       against stroke-width 1.7 keeps it in proportion to a 42px node -->
+  <marker id="a" markerWidth="7" markerHeight="7" refX="5.8" refY="3.5" orient="auto">
+    <path class="head" d="M0,0.4 L6.6,3.5 L0,6.6 L1.7,3.5 z" fill="#1a1a1a"/>
+  </marker>
 </defs>
-<!-- one line down from Species, forking into two curved arrows -->
-<line class="edge" x1="210" y1="72" x2="210" y2="110"/>
-<path class="edge" d="M 210,110 C 210,128 120,122 120,148" marker-end="url(#a)"/>
-<path class="edge" d="M 210,110 C 210,128 300,122 300,148" marker-end="url(#a)"/>
-<!-- the chain continues: Genomes -> Sequences -->
-<line class="edge" x1="120" y1="192" x2="120" y2="268" marker-end="url(#a)"/>
-<!-- nodes -->
-<rect class="node" x="154" y="30"  width="112" height="42" rx="21"/><text x="210" y="51"  text-anchor="middle" dominant-baseline="central" class="lbl">Species</text>
-<rect class="node" x="64"  y="150" width="112" height="42" rx="21"/><text x="120" y="171" text-anchor="middle" dominant-baseline="central" class="lbl">Genomes</text>
-<rect class="node" x="64"  y="270" width="112" height="42" rx="21"/><text x="120" y="291" text-anchor="middle" dominant-baseline="central" class="lbl">Sequences</text>
-<rect class="node" x="250" y="150" width="100" height="42" rx="21"/><text x="300" y="171" text-anchor="middle" dominant-baseline="central" class="lbl">Traits</text>
+<!-- one line down from Species, forking into two curved arrows. Both control points sit at the
+     vertical midpoint of the drop, each above its own endpoint: that makes the tangent vertical at
+     the fork and again at the arrowhead, so the curve leaves and lands square with no kink. -->
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.7">
+  <line x1="210" y1="72" x2="210" y2="104"/>
+  <path d="M 210,104 C 210,126 120,126 120,147" marker-end="url(#a)"/>
+  <path d="M 210,104 C 210,126 300,126 300,147" marker-end="url(#a)"/>
+  <!-- the chain continues: Genomes -> Sequences -->
+  <line x1="120" y1="192" x2="120" y2="267" marker-end="url(#a)"/>
+</g>
+<g class="node" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="154" y="30"  width="112" height="42" rx="21"/>
+  <rect x="64"  y="150" width="112" height="42" rx="21"/>
+  <rect x="64"  y="270" width="112" height="42" rx="21"/>
+  <rect x="250" y="150" width="100" height="42" rx="21"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="16" font-weight="600" text-anchor="middle" dominant-baseline="central">
+  <text x="210" y="51">Species</text>
+  <text x="120" y="171">Genomes</text>
+  <text x="120" y="291">Sequences</text>
+  <text x="300" y="171">Traits</text>
+</g>
 </svg>
