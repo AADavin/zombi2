@@ -20,8 +20,29 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   file; the engine re-reads its rates at each step instead of racing past it. The resolution declares
   what it wires and refuses the rest — `DrivenBy` still raises, with a message saying so, rather than
   being silently dropped. (#248)
+- **Per-family rate heterogeneity at the ordered resolution.** `ByFamily` on `duplication`,
+  `transfer`, `loss`, `inversion`, `transposition` or `translocation`, and the family-wide
+  `family_speed=`, now work at `--resolution ordered`; both were previously refused. The weight lands
+  on the **segment an event covers**, not on the gene it started from (SPEC §6) — weighting the start
+  would apply a family's own rate to its *neighbours*, and the neighbourhood is reshuffled by every
+  rearrangement, so the parameter would not name a fixed thing over a run. A run's weight is the
+  **mean** over the genes it covers, which is what makes a run with no weights set behave exactly as
+  before. `ByFamily` remains refused on `origination` (there is no family yet to have drawn a factor)
+  and on the chromosome tier (a fission acts on a whole replicon). (#247)
+- **`max_family_size` now works at the ordered resolution too, and is on by default.** A segment may
+  carry several families, and several copies of one, so a run is refused when it would take *any* of
+  them past the quota — the whole run, never part of it, since clipping a run to the genes still under
+  quota would quietly shorten runs exactly where the genome is crowded and so reshape the extent
+  distribution. It reduces to the family resolution's condition when a run is a single gene. (#247)
 
 ### Changed
+- **An ordered run is now bounded by default** (`max_family_size=10.0`, the same multiple of the
+  tree's lineages the family resolution has always used), where it previously had **no cap at all**.
+  Duplication compounds, so a family whose duplication rate sits above its loss rate — or one that
+  drew a high `ByFamily` factor — could grow without bound; at `ByFamily(spread=1.0)` an ordered run
+  produced roughly twice the duplications of the equivalent, already-capped family run. The two now
+  agree. Pass `max_family_size=None` for the old unbounded behaviour. This **changes results** for any
+  ordered run that would have exceeded the cap. (#247)
 - **One word for how much a segmental event takes: `extent`.** The ordered resolution called it
   `<event>_extension` and the nucleotide one `<event>_length`; both are now `<event>_extent`, in
   Python and on the command line (`--inversion-extent`, `--loss-extent`, …). The unit is still set by
