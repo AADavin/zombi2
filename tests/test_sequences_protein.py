@@ -10,6 +10,8 @@ replaces which.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -151,7 +153,7 @@ def test_long_run_composition_matches_the_model_frequencies():
     # a long branch washes out the root draw, so the tip composition is the model's own π
     for m in (lg(), wag(), jtt(), dayhoff()):
         r = simulate_sequences(_one_branch(8.0), model=m, length=60000, seed=3)
-        seq = r.alignments[0]["g1"]
+        seq = r.alignments[0]["n1_g1"]
         observed = np.array([seq.count(a) for a in AMINO_ACIDS]) / len(seq)
         assert np.abs(observed - m.stationary).max() < 0.008, m.name
 
@@ -164,7 +166,7 @@ def test_expected_substitutions_per_unit_branch_length_is_one():
     for d in (0.02, 1.5):
         theory = 1.0 - float((m.stationary * np.diag(m.p_matrix(d))).sum())
         r = simulate_sequences(_one_branch(d), model=m, length=60000, seed=7)
-        root, tip = r.ancestral[0]["g0"], r.alignments[0]["g1"]
+        root, tip = r.ancestral[0]["n0_g0"], r.alignments[0]["n1_g1"]
         observed = np.mean(np.frombuffer(root.encode(), np.uint8)
                            != np.frombuffer(tip.encode(), np.uint8))
         assert abs(observed - theory) < 0.008, d
@@ -178,7 +180,7 @@ def test_isoleucine_prefers_valine_in_the_simulated_alignment():
     started as isoleucine and changed, valine must be the commonest destination — in the decoded
     sequences, not in the matrix. A permuted alphabet or a mis-decoded state array breaks this."""
     r = simulate_sequences(_one_branch(0.1), model=lg(), length=100000, seed=11)
-    root, tip = r.ancestral[0]["g0"], r.alignments[0]["g1"]
+    root, tip = r.ancestral[0]["n0_g0"], r.alignments[0]["n1_g1"]
     destinations: dict[str, int] = {}
     for a, b in zip(root, tip):
         if a == "I" and b != "I":
@@ -195,7 +197,7 @@ def test_the_empirical_models_are_genuinely_different():
     tips = {}
     for build in (lg, wag, jtt, dayhoff, poisson):
         r = simulate_sequences(run, model=build(), length=3000, seed=5)
-        tips[build().name] = r.alignments[0]["g1"]
+        tips[build().name] = r.alignments[0]["n1_g1"]
     assert len(set(tips.values())) == len(tips)              # five distinct alignments
     assert not any(set(s) <= set("ACGT") for s in tips.values())
 
@@ -208,7 +210,7 @@ def test_determinism_and_the_lineage_clock_carry_over_to_proteins():
     clocked = simulate_sequences(run, model=wag(), length=500,
                                  substitution=1.0 * mod.ByLineage(spread=0.5), seed=2)
     assert clocked.alignments != a.alignments                # the clock rescales the branches
-    assert set(clocked.alignments[0]["g1"]) <= set(AMINO_ACIDS)
+    assert set(clocked.alignments[0]["n1_g1"]) <= set(AMINO_ACIDS)
 
 
 def test_zero_rate_leaves_a_protein_alignment_untouched():
@@ -230,14 +232,14 @@ def test_protein_run_over_a_real_genome_history(tmp_path):
     # the outputs are the same files as for a nucleotide run — only the residues differ
     r.write(tmp_path)
     fasta = next(p for p in tmp_path.iterdir() if p.name.startswith("fam"))
-    assert fasta.read_text().startswith(">g")
+    assert re.match(r">n\d+_g\d+\n", fasta.read_text())      # the header is a copy label
     assert (tmp_path / "phylogram_fam0_complete.nwk").exists()
 
 
 def test_a_nucleotide_and_a_protein_model_stay_in_their_own_alphabets():
     run = _one_branch(1.0)
-    dna = simulate_sequences(run, model=jc69(), length=300, seed=4).alignments[0]["g1"]
-    protein = simulate_sequences(run, model=lg(), length=300, seed=4).alignments[0]["g1"]
+    dna = simulate_sequences(run, model=jc69(), length=300, seed=4).alignments[0]["n1_g1"]
+    protein = simulate_sequences(run, model=lg(), length=300, seed=4).alignments[0]["n1_g1"]
     assert set(dna) <= set("ACGT")
     assert not set(protein) <= set("ACGT")
 
