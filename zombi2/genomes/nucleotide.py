@@ -103,6 +103,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..rates.distributions import Geometric, as_extent
+from ..rates.modifiers import OnTime
+from ..rates.rate import Rate, as_rate
+from ..rates.scope import PerChromosome, PerLineage
 from ..species import SpeciesResult
 from ..tree import Tree
 from ._live import enter, retire, without_cyclic_gc
@@ -112,6 +115,10 @@ from .._runtime.progress import progress_bar
 from .events import gene_from_label, gene_label, node_from_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff
+
+#: The rate grammar this engine wires (SPEC §5). Only the skyline this slice: a modifier it has not
+#: wired raises rather than being silently ignored, so a run is never quietly not the model asked for.
+WIRED_MODIFIERS = (OnTime,)
 
 
 @dataclass(slots=True)
@@ -1370,17 +1377,19 @@ def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chrom
 
 @dataclass(frozen=True)
 class _Rates:
-    inversion: float
-    translocation: float
-    transposition: float
-    loss: float
-    duplication: float
-    transfer: float
-    origination: float
-    fission: float
-    fusion: float
-    chromosome_origination: float
-    chromosome_loss: float
+    # the eleven event rates, each a Rate (SPEC §5): scope(base) x modifiers, resolved at the entry
+    # point. The gene events are per lineage, the number-changing tier per chromosome.
+    inversion: Rate
+    translocation: Rate
+    transposition: Rate
+    loss: Rate
+    duplication: Rate
+    transfer: Rate
+    origination: Rate
+    fission: Rate
+    fusion: Rate
+    chromosome_origination: Rate
+    chromosome_loss: Rate
     inversion_extent: float
     translocation_extent: float
     transposition_extent: float
@@ -1757,21 +1766,34 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
     additive for now; homologous *replacement* transfer is a later refinement.)"""
     tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
-    for label, rate in (("inversion", inversion), ("translocation", translocation),
-                        ("transposition", transposition), ("loss", loss), ("duplication", duplication),
-                        ("transfer", transfer), ("origination", origination), ("fission", fission),
-                        ("fusion", fusion), ("chromosome_origination", chromosome_origination),
-                        ("chromosome_loss", chromosome_loss)):
-        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
-            # a Rate expression (OnTime / DrivenBy / ByFamily). The nucleotide engine holds rates
-            # constant, so it cannot honour one — say so, rather than crashing on `rate < 0` below.
+    # Every rate takes the written form (SPEC §5). The scopes here are **per lineage** for the gene
+    # events — the rate says how often a lineage does the event and the extent says how much DNA it
+    # touches, so the number reads the same whatever the genome's size — and **per chromosome** for the
+    # number-changing tier. A bare number therefore stays a bare number, and the scope is stated rather
+    # than hardcoded, so it can be seen and (later) overridden.
+    _scoped = (("inversion", inversion, PerLineage), ("translocation", translocation, PerLineage),
+               ("transposition", transposition, PerLineage), ("loss", loss, PerLineage),
+               ("duplication", duplication, PerLineage), ("transfer", transfer, PerLineage),
+               ("origination", origination, PerLineage), ("fission", fission, PerChromosome),
+               ("fusion", fusion, PerChromosome),
+               ("chromosome_origination", chromosome_origination, PerLineage),
+               ("chromosome_loss", chromosome_loss, PerChromosome))
+    _rates: dict[str, Rate] = {}
+    for label, spec, want in _scoped:
+        if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 0:
+            raise ValueError(f"{label} must be >= 0, got {spec}")
+        r = as_rate(spec, default_scope=want)
+        if not isinstance(r.scope, want):
             raise ValueError(
-                f"{label} carries a rate modifier, but the nucleotide genome engine takes constant "
-                "rates only — a skyline (OnTime) or a conditioned/driven rate (DrivenBy) is not wired "
-                "here. Driving a nucleotide rate with a trait is a later slice (see the conditioning "
-                "chapter). Pass a plain number.")
-        if rate < 0:
-            raise ValueError(f"{label} must be >= 0, got {rate}")
+                f"{label} has a {type(r.scope).__name__} scope, but the nucleotide engine wires only "
+                f"{want.__name__} for {label} this slice — scope overrides are a later slice.")
+        for m in r.modifiers:
+            if not isinstance(m, WIRED_MODIFIERS):
+                raise ValueError(
+                    f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
+                    f"support yet — only {', '.join(w.__name__ for w in WIRED_MODIFIERS)} is wired. "
+                    f"Driving a nucleotide rate with a trait is the next slice.")
+        _rates[label] = r
     def _mean_bp(spec, label):
         """An extent's mean in base pairs (SPEC §6): a bare number *is* the mean, so ``500`` reads the
         same here as anywhere else. A ``Distribution`` must be :class:`~zombi2.rates.Geometric` for now
@@ -1840,8 +1862,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
                                  f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
-    rates = _Rates(inversion, translocation, transposition, loss, duplication, transfer, origination,
-                   fission, fusion, chromosome_origination, chromosome_loss, inversion_extent,
+    rates = _Rates(_rates["inversion"], _rates["translocation"], _rates["transposition"],
+                   _rates["loss"], _rates["duplication"], _rates["transfer"], _rates["origination"],
+                   _rates["fission"], _rates["fusion"], _rates["chromosome_origination"],
+                   _rates["chromosome_loss"], inversion_extent,
                    translocation_extent, transposition_extent, loss_extent, duplication_extent,
                    transfer_extent, origination_extent, inversion_probability)
     depth = mean_root_to_tip(tree)                       # timescale for Distance weighting
@@ -1914,22 +1938,35 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         bar.to(si)
         length, count, nlin = total_length, total_chromosomes, len(alive)
         can_xfer = nlin >= 2 or self_transfer
-        r_inv = rates.inversion * nlin                  # every segmental event is PER LINEAGE:
-        r_trl = rates.translocation * nlin              # the rate says how often a lineage does this,
-        r_trp = rates.transposition * nlin              # and the extent says how much it touches — so
-        r_los = rates.loss * nlin                       # a bigger genome does NOT get more events
-        r_dup = rates.duplication * nlin                # (that would double-count size and explode).
-        r_tra = rates.transfer * nlin if can_xfer else 0.0
-        r_org = rates.origination * nlin
-        r_fis = rates.fission * count
-        r_fus = rates.fusion * count
-        r_cor = rates.chromosome_origination * nlin     # per lineage (de-novo replicon)
-        r_clo = rates.chromosome_loss * count           # per chromosome
+        # Each rate carries its own scope, so the count it is "per" comes from the context rather than
+        # from a multiplication written here. The gene events are PER LINEAGE: the rate says how often
+        # a lineage does the event and the extent says how much DNA it touches, so a bigger genome does
+        # NOT get more events (that would double-count size and explode).
+        ctx = {"copies": 0, "lineages": nlin, "chromosomes": count, "time": t}
+        r_inv = rates.inversion.effective(**ctx)
+        r_trl = rates.translocation.effective(**ctx)
+        r_trp = rates.transposition.effective(**ctx)
+        r_los = rates.loss.effective(**ctx)
+        r_dup = rates.duplication.effective(**ctx)
+        r_tra = rates.transfer.effective(**ctx) if can_xfer else 0.0
+        r_org = rates.origination.effective(**ctx)
+        r_fis = rates.fission.effective(**ctx)
+        r_fus = rates.fusion.effective(**ctx)
+        r_cor = rates.chromosome_origination.effective(**ctx)   # per lineage (de-novo replicon)
+        r_clo = rates.chromosome_loss.effective(**ctx)          # per chromosome
         total = (r_inv + r_trl + r_trp + r_los + r_dup + r_tra + r_org + r_fis + r_fus + r_cor + r_clo)
         next_species = schedule[si][0]
+        # a skyline steps at a known time, so the race runs only to the next of those or the next
+        # species event — whichever comes first — and the rates are re-read on the other side.
+        horizon = min(next_species, rates.inversion.next_change(t), rates.translocation.next_change(t),
+                      rates.transposition.next_change(t), rates.loss.next_change(t),
+                      rates.duplication.next_change(t), rates.transfer.next_change(t),
+                      rates.origination.next_change(t), rates.fission.next_change(t),
+                      rates.fusion.next_change(t), rates.chromosome_origination.next_change(t),
+                      rates.chromosome_loss.next_change(t))
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
-            if t_ev < next_species:                     # a genome event fires before the next species event
+            if t_ev < horizon:                          # a genome event fires before the horizon
                 t = t_ev
                 r = float(rng.random()) * total
                 b_trl = r_inv + r_trl
@@ -1990,7 +2027,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                     total_length += dl
                 continue
 
-        t = next_species                                # advance to the next species event(s)
+        t = horizon
+        if horizon < next_species:                      # a rate stepped, not a species event: re-read
+            continue                                    # the rates on the other side and race again
         while si < len(schedule) and schedule[si][0] == t:   # process the whole tie-batch
             i = schedule[si][1]
             g = gen[pos[i]]

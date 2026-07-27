@@ -1949,14 +1949,30 @@ def test_a_gff_we_wrote_reads_back_through_our_own_gff_reader(tmp_path):
     assert sorted((gene.start, gene.end) for gene in genes) == declared
 
 
-def test_a_driven_or_skyline_rate_is_refused_cleanly():
-    """The nucleotide engine holds rates constant, so a rate modifier (DrivenBy conditioning, an
-    OnTime skyline) is refused with a clear message — not the raw TypeError that `rate < 0` used to
-    throw on a Rate object. Trait-driven inversion lives here but is not wired (see Chapter 9)."""
+def test_a_driven_rate_is_still_refused_cleanly():
+    """The engine declares what it wires and refuses the rest, rather than silently ignoring it — a
+    modifier that returns a factor of 1.0 unnoticed is a run that is quietly not the model asked for.
+    ``DrivenBy`` conditioning is the next slice (see Chapter 9)."""
     from zombi2.rates import modifiers as mod
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
-    for expr in (2.0 * mod.DrivenBy("trait_events.tsv", {"a": 2.0}), 2.0 * mod.OnTime({0: 1.0})):
-        with pytest.raises(ValueError, match="constant rates only"):
-            simulate_genomes_nucleotide(sp, root_length=200, inversion=expr, seed=1)
+    with pytest.raises(ValueError, match="only OnTime is wired"):
+        simulate_genomes_nucleotide(sp, root_length=200,
+                                    inversion=2.0 * mod.DrivenBy("trait_events.tsv", {"a": 2.0}),
+                                    seed=1)
     # a plain number is of course fine
     assert simulate_genomes_nucleotide(sp, root_length=200, inversion=2.0, seed=1).genomes
+
+
+def test_a_skyline_is_now_honoured():
+    """``OnTime`` is wired: the rates are re-read at each step, and the race runs only as far as the
+    next step, so a rate that falls to zero really does stop producing events after it."""
+    from zombi2.rates import modifiers as mod
+    sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=8, seed=3)
+
+    early = simulate_genomes_nucleotide(sp, root_length=4000, genes=3, gene_length=200,
+                                        inversion=6.0 * mod.OnTime({0: 1.0, 1.0: 0.0}), seed=3)
+    flat = simulate_genomes_nucleotide(sp, root_length=4000, genes=3, gene_length=200,
+                                       inversion=6.0, seed=3)
+    # the skyline switches inversion off at t=1, so it must produce strictly fewer, and none after it
+    assert len(early.rearrangements) < len(flat.rearrangements)
+    assert all(r.time <= 1.0 + 1e-9 for r in early.rearrangements)

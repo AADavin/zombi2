@@ -10,6 +10,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **The nucleotide resolution now speaks the rate grammar.** Its rates were bare floats with the
+  scope hardcoded; each is now a `scope(base) × modifiers` expression like every other level's, with
+  the defaults stated rather than implied — **per lineage** for the gene events (the rate says how
+  often a lineage does it, the extent how much DNA it touches, so the number reads the same whatever
+  the genome's size) and **per chromosome** for the number-changing tier. A bare number stays a bare
+  number, so nothing existing changes. The **skyline** now works there:
+  `inversion = 5.0 * OnTime({0: 1.0, 3: 0.2})`, in Python, on the command line and in a `--params`
+  file; the engine re-reads its rates at each step instead of racing past it. The resolution declares
+  what it wires and refuses the rest — `DrivenBy` still raises, with a message saying so, rather than
+  being silently dropped. (#248)
 - **Per-family rate heterogeneity at the ordered resolution.** `ByFamily` on `duplication`,
   `transfer`, `loss`, `inversion`, `transposition` or `translocation`, and the family-wide
   `family_speed=`, now work at `--resolution ordered`; both were previously refused. The weight lands
@@ -33,8 +43,6 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   produced roughly twice the duplications of the equivalent, already-capped family run. The two now
   agree. Pass `max_family_size=None` for the old unbounded behaviour. This **changes results** for any
   ordered run that would have exceeded the cap. (#247)
-
-### Changed
 - **One word for how much a segmental event takes: `extent`.** The ordered resolution called it
   `<event>_extension` and the nucleotide one `<event>_length`; both are now `<event>_extent`, in
   Python and on the command line (`--inversion-extent`, `--loss-extent`, …). The unit is still set by
