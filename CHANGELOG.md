@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A "Genome reduction" gallery example — a trait *conditions* the genome.** In the renamed
+  *Joining and conditioning* level: an irreversible endosymbiont lifestyle drives fast gene loss and
+  near-zero gene gain through the same `DrivenBy` mechanism that couples a trait to speciation, so
+  those lineages' genomes collapse — shown as per-tip genome-size bars beside a tree coloured by
+  lifestyle. Uses Phylustrator 0.1.2's new `bars` panel (pinned via `zombi2[gallery]`). (#260)
+
 ### Changed
 - **`zombi2[gallery]` now installs Phylustrator from PyPI.** The plotting library is published, so the
   gallery extra depends on it directly (`phylustrator>=0.1.1` — the release that draws transfers as
