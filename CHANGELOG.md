@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-27
+
 ### Added
 - **A joint trait can jump at the split as well as along branches.** `traits.discrete(at_speciation=…)`
   already worked inside `simulate_joint`, so a trait could drive speciation *and* change at each
