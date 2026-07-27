@@ -71,7 +71,7 @@ It is a **network** and not a tree because of one event: **fusion joins two chro
 
 ## Events act on segments
 
-Once genes have neighbours, **a gene-level event acts on a segment** — a run of consecutive genes — not on a single gene. A duplication copies a segment; a loss removes a segment; a transfer sends a segment sideways. This is what produces the signature of real genome evolution: neighbouring genes that share a history because they were copied, moved, or lost *together*.
+Once genes have neighbours, **a gene-level event acts on a segment** — a run of consecutive genes — not on one gene. A duplication copies a segment, a loss removes one, a transfer sends one sideways. That produces the signature of real genome evolution: neighbouring genes sharing a history because they were copied, moved or lost *together*.
 
 How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the **mean**, so `duplication_extent=3` copies about three adjacent genes — often two or three, sometimes one, occasionally many more. Write `Fixed(3)` for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
 
@@ -103,7 +103,7 @@ A segmental event answers three questions, and it takes two numbers to describe 
 
 In Chapter 4 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
 
-That has one consequence worth stating plainly, because it is what catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any event begins on a run that covers it — which is about three times as often, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
+One consequence catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any event begins on a run that covers it — which is about three times as often, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
 
 The same reading holds at the nucleotide resolution of Chapter 6, where the extent is in base pairs rather than genes.
 
@@ -111,15 +111,15 @@ The same reading holds at the nucleotide resolution of Chapter 6, where the exte
 
 `ByFamily` and `family_speed` work here as they do in Chapter 4, but with one difference that matters. A run covers several families at once, so the weight is applied to **the run, averaged over the genes it covers** — not to the gene the run happened to start on.
 
-That is not a detail. Weighting the starting gene is the obvious implementation and it is the wrong one: a fast family's own rate would then be applied to whatever happened to sit beside it, so you would be describing the *neighbourhood* of a fast family rather than the family. Worse, the neighbourhood is not fixed — every inversion and translocation reshuffles it — so the parameter would not name a stable thing over the course of a run. Averaging over the run keeps the statement you wrote down true: a run of heavily-weighted genes is favoured, a mixed run sits in between, and a run of ordinary genes is unweighted.
+Weighting the starting gene is the obvious implementation and the wrong one: a fast family's rate would then apply to whatever sat beside it, so you would be describing the *neighbourhood* of a fast family rather than the family — and the neighbourhood is reshuffled by every inversion and translocation, so the parameter would not name a stable thing. Averaging over the run keeps what you wrote true: a run of heavily-weighted genes is favoured, a mixed one sits between, an ordinary one is unweighted.
 
-With no weights set every run averages to one, so a run that uses neither knob behaves exactly as it did before.
+With no weights set every run averages to one, so a run using neither knob is unchanged.
 
 ## Rearrangements: inversion, transposition, translocation
 
-Three further events act on a segment and reshape the order without creating or destroying genes:
+Three more events reshape the order without creating or destroying genes:
 
-- **Inversion** — reverse a segment in place, flipping the strand of every gene in it. The classic signed-permutation move: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin; reversal on a ring is well defined.
+- **Inversion** — reverse a segment in place, flipping every gene's strand: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin.
 - **Transposition** — cut a segment out and reinsert it **elsewhere on the same chromosome**.
 - **Translocation** — move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
 
@@ -134,16 +134,14 @@ g = genomes.simulate_genomes_ordered(
     chromosomes=2, initial_families=6, seed=0)
 ```
 
-
-
 ## The `OrderedGenomesResult` object
 
-`simulate_genomes_ordered` returns an **`OrderedGenomesResult`**, the ordered counterpart of `FamilyGenomesResult` — the same spine, with the structured extras:
+`simulate_genomes_ordered` returns an **`OrderedGenomesResult`** — the `FamilyGenomesResult` spine, with the structured extras:
 
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages included.
 - `.genomes` — a dict from node id to that node's genome, now a tuple of **`Chromosome`** objects. Each `Chromosome` has an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`).
 - `.initial_genome` — the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
-- `.events` — the gene-genealogy log, exactly as in Chapter 4 (origination, duplication, transfer, loss, speciation), from which `.gene_trees` and `.profiles` are derived unchanged. Position and orientation are *not* here; they live in the genomes and in the two logs below.
+- `.events` — the gene-genealogy log, exactly as in Chapter 4, from which `.gene_trees` and `.profiles` are derived unchanged. Position and orientation are *not* here; they live in the genomes and the two logs below.
 - `.rearrangements` — the inversion / transposition / translocation log.
 - `.chromosome_events` — the chromosome network, as an edge list.
 - `.gene_trees`, `.profiles`, `.seed` — as before.

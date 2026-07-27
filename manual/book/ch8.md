@@ -1,9 +1,12 @@
 # Trait evolution
 
-The trait level of ZOMBI2 evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree the same way everything else in the simulator does. There are two kinds of trait, continuous or discrete:
+The trait level evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree like everything else here. There are two kinds, continuous and discrete:
 
 ```python
-from zombi2 import traits
+from zombi2 import species, traits
+from zombi2.rates import modifiers as mod
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 result = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)   # a real value
 result = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                                   switch=0.1, seed=1)                     # a discrete state
@@ -11,7 +14,7 @@ result = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
 
 ## Continuous traits
 
-A continuous trait does **Brownian motion** natively. You give it a starting value and a diffusion rate, and it wanders down every branch, its variance growing in proportion to elapsed time:
+A continuous trait does **Brownian motion**. Give it a starting value and a diffusion rate and it wanders down every branch, its variance growing in proportion to elapsed time:
 
 ```python
 # BM — a body size diffusing from 0 at variance-rate σ² = 1.0
@@ -32,11 +35,11 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
 
-The rest of the modifier vocabulary applies to `rate` unchanged, and each one has a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), and `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two further knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where different clades pull toward different optima (a discrete trait supplies the painting, and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches.
+The rest of the modifier vocabulary applies to `rate` unchanged, each with a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches.
 
 ## Discrete traits
 
-A discrete trait takes a finite set of states and switches between them along the branches, a continuous-time Markov chain, which the field calls the **Mk model**:
+A discrete trait takes a finite set of states and switches between them along the branches — a continuous-time Markov chain, the field's **Mk model**:
 
 ```python
 # Mk — habitat flips between two states at rate 0.1
