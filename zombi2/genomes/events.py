@@ -47,8 +47,22 @@ class Event:
     #: the whole edge; on the donor's own row it repeats ``lineage``, which is the price of that.
     donor: int | None = None
 
+    @property
+    def event(self) -> int:
+        """Which event this row belongs to: **the gene copy whose fate the event is**.
 
-_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor")
+        A row is a gene-tree *edge*, so an event that leaves two descendants writes two rows. Those
+        rows agree here and nowhere else that is safe to group on — ``time`` is a float, and pairing
+        on it invites both false joins and float-equality bugs. A copy ends exactly once, so within a
+        kind this is unique: ``sort -u`` on it counts events rather than edges, which counting rows
+        does not. For the kinds that end a copy (duplication, transfer, speciation) that copy is
+        ``parent``; a loss ends ``copy`` itself, and an origination begins one with no parent, so
+        those name ``copy``. Both are already one row per event — the column exists so a single rule
+        works for every kind and no reader has to know which of the two to group on."""
+        return self.copy if self.parent is None else self.parent
+
+
+_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor", "event")
 
 #: Columns holding a species-tree node, written as ``n<id>``.
 _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
@@ -57,7 +71,7 @@ _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
 #: the alignment FASTA headers and the homology tables use, so a copy joins across every file without
 #: translation. ``parent`` is a gene copy too (the source copy a duplication/transfer descends from),
 #: so it is g-labelled; the species columns above are not.
-_GENE_COLS = frozenset({"copy", "parent"})
+_GENE_COLS = frozenset({"copy", "parent", "event"})
 
 
 def node_label(node_id: int | None) -> str:
@@ -138,6 +152,11 @@ def events_from_tsv(text: str) -> list[Event]:
                 "zombi2.genomes.nucleotide.read_nucleotide_genomes, which the sequence level uses "
                 "when its handoff is a nucleotide run"
                 if "source" in header and "family" not in header else "")
+        if not hint and set(header) < set(_COLS):
+            # a genuinely short header: every column it has is one of ours, so it is a log this
+            # version no longer reads rather than a different table
+            hint = (f"; it is missing {', '.join(c for c in _COLS if c not in header)}. Re-run "
+                    f"'zombi2 genomes' to write a log this version reads")
         raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}{hint}")
     return _parse(lines, header)
 
@@ -148,8 +167,9 @@ _GENEALOGY = frozenset({"origination", "duplication", "loss", "transfer", "speci
 
 
 def _parse(lines: list[str], header: list[str]) -> list[Event]:
-    """Read the rows by column **name**, so a table carrying more than the seven canonical columns
-    parses unchanged and only the genealogy rows come back."""
+    """Read the rows by column **name**, so a table carrying more than the canonical columns parses
+    unchanged and only the genealogy rows come back. ``event`` is derived from ``parent``/``copy``,
+    so it is written but never read back: there is one definition of it, on :class:`Event`."""
     at = {c: i for i, c in enumerate(header)}
     events: list[Event] = []
     for lineno, raw in enumerate(lines[1:], 2):

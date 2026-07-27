@@ -561,21 +561,32 @@ def test_one_table_carries_the_genealogy_its_places_and_the_rearrangements(tmp_p
     _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3)
     r.write(tmp_path, outputs=("events",))
     lines = (tmp_path / "genome_events.tsv").read_text().splitlines()
-    assert lines[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent",
-                                    "recipient", "donor", "dest_lineage", "chromosome", "position",
-                                    "length", "dest_chromosome", "dest_position", "flipped"]
+    header = lines[0].split("\t")
+    assert header == ["time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor",
+                      "event", "dest_lineage", "chromosome", "position", "length",
+                      "dest_chromosome", "dest_position", "flipped"]
+    # keyed by name, not position, so adding a column cannot silently shift what this asserts on
+    at = {c: i for i, c in enumerate(header)}
     rows = [ln.split("\t") for ln in lines[1:]]
-    assert [float(x[0]) for x in rows] == sorted(float(x[0]) for x in rows)   # in the order it happened
+    col = lambda x, c: x[at[c]]                                              # noqa: E731
+    assert ([float(col(x, "time")) for x in rows]
+            == sorted(float(col(x, "time")) for x in rows))   # in the order it happened
 
     genealogy = {"origination", "duplication", "loss", "transfer", "speciation"}
-    assert len([x for x in rows if x[1] in genealogy]) == len(r.events)
-    assert len([x for x in rows if x[1] not in genealogy]) == len(r.rearrangements)
-    assert {x[1] for x in rows} - genealogy <= {"inversion", "transposition", "translocation"}
+    assert len([x for x in rows if col(x, "kind") in genealogy]) == len(r.events)
+    assert len([x for x in rows if col(x, "kind") not in genealogy]) == len(r.rearrangements)
+    assert {col(x, "kind") for x in rows} - genealogy <= {"inversion", "transposition",
+                                                          "translocation"}
     # one arc per positioned event, not one per copy it touched
-    assert len([x for x in rows if x[1] in genealogy and x[10]]) == len(r.event_positions)
-    assert not [x for x in rows if x[1] == "speciation" and x[10]]     # a speciation moves nothing
-    # a rearrangement ends no gene lineage, so it names no family, copy or parent
-    assert all(x[3] == x[4] == x[5] == "" for x in rows if x[1] not in genealogy)
+    assert (len([x for x in rows if col(x, "kind") in genealogy and col(x, "position")])
+            == len(r.event_positions))
+    assert not [x for x in rows                            # a speciation moves nothing
+                if col(x, "kind") == "speciation" and col(x, "position")]
+    # a rearrangement ends no gene lineage, so it names no family, copy, parent — nor an event
+    assert all(col(x, "family") == col(x, "copy") == col(x, "parent") == col(x, "event") == ""
+               for x in rows if col(x, "kind") not in genealogy)
+    # and every genealogy row does name one, shared by the rows of the same event
+    assert all(col(x, "event") for x in rows if col(x, "kind") in genealogy)
 
 
 # --- topology: a circular chromosome has no ends, so a run wraps past position 0 ------------------

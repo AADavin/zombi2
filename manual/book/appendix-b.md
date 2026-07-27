@@ -90,18 +90,21 @@ one:
 | `loss` | 1 | the copy ends with no descendant |
 | `origination` | 1 | a founding copy begins with no parent |
 
-The two rows of one event share their `time` and their `parent`. **Counting rows by kind therefore
-counts edges, not events, and doubles duplications, transfers and speciations.** For those three,
-count distinct `(time, parent)` pairs instead:
+**Counting rows by kind therefore counts edges, not events, and doubles duplications, transfers and
+speciations.** The `event` column is there so you never have to: it names the gene copy whose fate
+the event is, so the rows of one event agree on it and, within a kind, it is exactly unique. Count
+distinct values of it and the answer is right for every kind:
 
 ```bash
 # transfers that happened — NOT `grep -c transfer`, which returns twice this
-awk -F'\t' '$2=="transfer" {print $1, $6}' genome_events.tsv | sort -u | wc -l
+awk -F'\t' '$2=="transfer" {print $9}' genome_events.tsv | sort -u | wc -l
 ```
 
-Apply that only to the three two-row kinds. `loss` and `origination` are already one row per event,
-so count their rows directly — de-duplicating them would *under*-count, because an origination has
-no `parent` and every family present at the start shares `time` 0.
+`event` repeats `parent` on the kinds that end a copy and `copy` on the two that do not, so one rule
+covers all five and no reader has to know which column a given kind groups on. Group on it rather
+than on `time`: times are floats, and pairing rows by float equality is both fragile and prone to
+joining two events that happened to fire at once. Compare across kinds only as `(kind, event)` — a
+copy that is originated and later lost names both of those events.
 
 The edge is the unit because the file has to reconstruct the gene tree: every branch needs its own
 row to carry the copy that starts it. Note that `chromosome_events.tsv`, in the same directory,

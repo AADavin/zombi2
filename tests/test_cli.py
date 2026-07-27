@@ -250,11 +250,15 @@ def test_genomes_ordered_events_carry_where_each_one_happened(tmp_path, tree_fil
     rows = (out / "genome_events.tsv").read_text().splitlines()
     cols = rows[0].split("\t")
     assert cols == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
-                    "donor", "dest_lineage", "chromosome", "position", "length",
+                    "donor", "event", "dest_lineage", "chromosome", "position", "length",
                     "dest_chromosome", "dest_position", "flipped"]
+    at = {c: i for i, c in enumerate(cols)}               # by name: a new column cannot shift these
     body = [r.split("\t") for r in rows[1:]]
-    assert {r[1] for r in body} >= {"origination", "duplication", "loss", "inversion"}
-    assert [r for r in body if r[10]], "no event carries the place it happened"
+    assert {r[at["kind"]] for r in body} >= {"origination", "duplication", "loss", "inversion"}
+    assert [r for r in body if r[at["position"]]], "no event carries the place it happened"
+    # a duplication writes one row per descendant, and both name the one event
+    dups = [r for r in body if r[at["kind"]] == "duplication"]
+    assert len(dups) == 2 * len({r[at["event"]] for r in dups})
 
 
 def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
