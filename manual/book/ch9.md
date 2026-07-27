@@ -189,6 +189,21 @@ joint.simulate_joint(
 
 Driving `death` with the same modifier makes extinction state-dependent too, and a birth *and* death that both read the trait is the model the literature calls BiSSE — with more than two states, MuSSE.
 
+### A trait that also changes at the split
+
+The trait spec keeps its own options in a joint run, and one of them changes the model. `at_speciation=` gives the trait a chance of jumping *at* each speciation rather than only along branches, and combined with driving that speciation it says something different from either piece alone: the split itself is where the daughters diverge, and how fast a lineage splits depends on the state it is in.
+
+```python
+joint.simulate_joint(
+    birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.5}),
+    death = 0.2,
+    trait = traits.discrete(states=["small", "large"], switch=0.3,
+                            at_speciation=0.4),   # a 0.4 chance of a jump at each split
+    n_extant = 100, seed = 1)
+```
+
+The trait's event log tells the two apart: a jump at a split is recorded as `on_speciation`, a change along a branch as `on_branch`, so a method can be scored against which kind actually happened.
+
 **Gene content drives speciation** — `P(Species, Genomes)`. The presence of a key gene, a toxin or a transporter, lifts a lineage's speciation rate, and the genome and the tree grow together. The genome enters as a process spec in the same way, and the family whose presence does the driving has to be declared in the initial genome:
 
 ```python
@@ -247,6 +262,7 @@ The state-dependent models arrive under a wall of acronyms, and a reader who wan
 |---|---|---|
 | a binary trait drives speciation (and extinction) | `simulate_joint`: `birth`, `death` `= … * mod.DrivenBy("trait", {…})` | BiSSE [@maddison2007bisse] |
 | a multi-state trait drives speciation | the same, with more states in the Table | MuSSE [@fitzjohn2012diversitree] |
+| a trait drives speciation **and** jumps at the split | the same, plus `traits.discrete(at_speciation=…)` | ClaSSE [@goldberg2012classe] |
 
 ## Outputs
 

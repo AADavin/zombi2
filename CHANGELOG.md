@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A joint trait can jump at the split as well as along branches.** `traits.discrete(at_speciation=…)`
+  already worked inside `simulate_joint`, so a trait could drive speciation *and* change at each
+  speciation — but nothing said so, nothing tested it, and Chapter 9 documented only the along-branch
+  case, which made the combination look unavailable. It is now documented, with an example, and pinned
+  by tests: a jump at a split is logged as `on_speciation`, a change along a branch as `on_branch`,
+  so the two can be told apart when scoring a method. (#256)
+
 ## [0.9.0] - 2026-07-27
 
 ### Added
