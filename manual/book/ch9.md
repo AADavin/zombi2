@@ -260,8 +260,8 @@ The state-dependent models arrive under a wall of acronyms, and a reader who wan
 
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|
-| a binary trait drives speciation (and extinction) | `simulate_joint`: `birth`, `death` `= … * mod.DrivenBy("trait", {…})` | BiSSE |
-| a multi-state trait drives speciation | the same, with more states in the Table | MuSSE |
+| a binary trait drives speciation (and extinction) | `simulate_joint`: `birth`, `death` `= … * mod.DrivenBy("trait", {…})` | BiSSE [@maddison2007bisse] |
+| a multi-state trait drives speciation | the same, with more states in the Table | MuSSE [@fitzjohn2012diversitree] |
 | a trait drives speciation **and** jumps at the split | the same, plus `traits.discrete(at_speciation=…)` | ClaSSE [@goldberg2012classe] |
 
 ## Outputs

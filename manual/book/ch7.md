@@ -47,13 +47,13 @@ model = wag()                     # Whelan & Goldman 2001
 model = lg()                      # Le & Gascuel 2008
 ```
 
-The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal base frequencies — so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
+The four nucleotide matrices are the standard published ones [@jukes1969evolution; @kimura1980simple; @hasegawa1985dating; @tavare1986some], as are the four protein ones [@dayhoff1978model; @jones1992rapid; @whelan2001general; @le2008improved]. The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal base frequencies — so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
 
 ## Relaxed molecular clocks
 
 The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree.
 
-A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock**. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
+A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
 
 ```python
 # strict clock — one rate everywhere; the default, so write nothing
