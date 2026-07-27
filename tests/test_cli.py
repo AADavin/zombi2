@@ -1433,3 +1433,66 @@ def test_sequences_log_records_effective_model_params(tmp_path):
     assert "kappa\t2.0" in log
     assert "frequencies\t[0.25, 0.25, 0.25, 0.25]" in log
     assert "gtr_rates\tNone" in log            # a knob this model does not have stays None
+
+
+# ── the family-tier knobs on the command line ───────────────────────────────────────────────────
+
+def test_max_family_size_bounds_a_run(tmp_path, tree_file):
+    """The cap is reachable from the command line, and an int is an absolute copy count."""
+    import collections
+    out = tmp_path / "capped"
+    main(["genomes", str(out), "--from", str(tree_file), "--duplication", "1.2", "--loss", "0.1",
+          "--origination", "0.3", "--initial-families", "6", "--max-family-size", "3",
+          "--seed", "1", "--flat", "--quiet"])
+    header, *rows = (out / "genomes.tsv").read_text().splitlines()
+    cols = header.split("\t")
+    lineage, family = cols.index("lineage"), cols.index("family")
+    per_genome = collections.defaultdict(collections.Counter)
+    for r in rows:
+        f = r.split("\t")
+        per_genome[f[lineage]][f[family]] += 1
+    worst = max(max(c.values()) for c in per_genome.values())
+    assert worst <= 3, f"a family reached {worst} copies in one genome, over the cap of 3"
+
+
+def test_max_family_size_none_removes_the_cap(tmp_path, tree_file):
+    """`none` is how you ask for unbounded growth on purpose — the flag exists because the cap is
+    on by default and was previously unreachable from the CLI."""
+    rc = main(["genomes", str(tmp_path / "u"), "--from", str(tree_file), "--duplication", "0.5",
+               "--loss", "0.2", "--initial-families", "4", "--max-family-size", "none",
+               "--seed", "1", "--flat", "--quiet"])
+    assert rc == 0
+    assert "max_family_size\tNone" in (tmp_path / "u" / "genomes.log").read_text()
+
+
+def test_max_family_size_rejects_a_non_number(tmp_path, tree_file):
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
+              "--max-family-size", "lots", "--flat"])
+    assert e.value.code == 2
+
+
+def test_family_speed_takes_a_byfamily_draw(tmp_path, tree_file):
+    rc = main(["genomes", str(tmp_path / "fs"), "--from", str(tree_file), "--duplication", "0.4",
+               "--loss", "0.2", "--origination", "0.3", "--initial-families", "8",
+               "--family-speed", "ByFamily(spread=0.6)", "--seed", "1", "--flat", "--quiet"])
+    assert rc == 0
+
+
+def test_family_speed_rejects_a_bare_number(tmp_path, tree_file):
+    """It is a *draw*, not a factor — a plain number would silently mean something else."""
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
+              "--family-speed", "2.0", "--flat"])
+    assert e.value.code == 2
+
+
+@pytest.mark.parametrize("flag, value", [("--max-family-size", "5"),
+                                         ("--family-speed", "ByFamily(spread=0.5)")])
+def test_the_family_knobs_are_refused_under_nucleotide(tmp_path, tree_file, flag, value):
+    """Each is absent there for its own reason, and the error says which rather than giving one
+    blanket explanation that fits some of the group and not the rest."""
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--resolution", "nucleotide",
+              "--root-length", "2000", flag, value, "--flat"])
+    assert e.value.code == 2
