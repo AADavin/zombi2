@@ -43,11 +43,10 @@ its own examples.
 From Python, each level is one function, and the result object carries the history:
 
 ```python
-from zombi2 import species
-from zombi2.genomes import simulate_genomes_family
+from zombi2 import species, genomes
 
 sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g  = simulate_genomes_family(sp, duplication=0.2, transfer=0.1, seed=42)
+g  = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, seed=42)
 
 g.gene_trees                    # the true gene tree of every family
 g.write("run/")                 # the event log and the copy-number profiles

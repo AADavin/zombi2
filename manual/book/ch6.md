@@ -3,11 +3,10 @@
 At the **nucleotide** resolution a chromosome is no longer a list of gene tokens but a **coordinate axis of DNA**, and an event is an arc on that axis: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are now stretches of that axis with a start and an end, and the DNA between them is simulated too.
 
 ```python
-from zombi2 import species
-from zombi2.genomes import simulate_genomes_nucleotide
+from zombi2 import species, genomes
 
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=2)
-g = simulate_genomes_nucleotide(
+g = genomes.simulate_genomes_nucleotide(
     tree, root_length=3000, genes=3, gene_length=400,
     inversion=1.0, inversion_extent=600,
     duplication=0.3, duplication_extent=300, loss=0.3, loss_extent=300, seed=2)
@@ -139,30 +138,29 @@ g.assembly(2)      # per piece:      {chromosome: [(block, gene, start, end, str
 ## Usage from Python
 
 ```python
-from zombi2 import species
-from zombi2.genomes import simulate_genomes_nucleotide
+from zombi2 import species, genomes
 
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=6, seed=4)
 
 # rearrangement only — every leaf is a permutation of the initial sequence
-g = simulate_genomes_nucleotide(
+g = genomes.simulate_genomes_nucleotide(
     tree, root_length=100_000, inversion=5.0, inversion_extent=1000, seed=4)
 
 # a genic genome with real turnover: genes duplicate, are lost, transfer, and arise
-g = simulate_genomes_nucleotide(
+g = genomes.simulate_genomes_nucleotide(
     tree, root_length=6000, genes=6, gene_length=400,
     duplication=2.0, duplication_extent=900, loss=2.0, loss_extent=900,
     transfer=1.0, transfer_extent=900, transfer_to="distance",
     origination=0.5, origination_extent=400, seed=4)
 
 # a karyotype that splits and merges, with a plasmid
-g = simulate_genomes_nucleotide(
+g = genomes.simulate_genomes_nucleotide(
     tree, chromosomes=3, root_length=4000, genes=6, gene_length=200,
     fission=0.2, fusion=0.2, chromosome_origination=0.05, chromosome_loss=0.05,
     inversion=1.0, seed=5)
 
 # a real annotation as the initial genome
-g = simulate_genomes_nucleotide(
+g = genomes.simulate_genomes_nucleotide(
     tree, gff="ecoli.gff", inversion=2.0, inversion_extent=5000,
     loss=1.0, loss_extent=3000, seed=1)
 

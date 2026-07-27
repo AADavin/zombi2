@@ -16,11 +16,10 @@ A genome at the family resolution evolves by four kinds of event, applied to eve
 You give ZOMBI2 a rate for each, and it plays the events out along the tree, starting from the initial genome and letting speciation hand a lineage's genome down to both its children. Out comes the genome of *every* lineage in the tree together with the event log that produced it.
 
 ```python
-from zombi2 import species
-from zombi2.genomes import simulate_genomes_family
+from zombi2 import species, genomes
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
 ```
 
@@ -34,7 +33,7 @@ Where you put it decides what varies *together*:
 
 ```python
 # each rate varies by family on its own — a family that loses fast is not thereby duplicating fast
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     tree,
     duplication = 0.2  * mod.ByFamily(spread=0.6),
     transfer    = 0.1  * mod.ByFamily(spread=0.6),
@@ -42,7 +41,7 @@ g = simulate_genomes_family(
     initial_families = 100, seed = 42)
 
 # one tempo per family, scaling every rate it has — a fast family is fast at everything
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     tree, duplication=0.2, transfer=0.1, loss=0.25,
     family_speed = mod.ByFamily(spread=0.5),
     initial_families = 100, seed = 42)
@@ -71,7 +70,7 @@ Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifi
 ```python
 from zombi2.rates import modifiers as mod
 # lots of new families early, then origination shuts off after time 2
-g = simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+g = genomes.simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
 
 ## Lateral gene transfers
@@ -87,7 +86,7 @@ Three arguments shape what a transfer does:
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.4, n_extant=30, seed=7)
 # horizontal transfer biased toward close relatives, overwriting resident copies
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     tree, transfer=0.5, transfer_to="distance", replacement=True,
     origination=0.4, initial_families=10, seed=3)
 ```
@@ -99,15 +98,14 @@ One consequence is worth stating plainly: a transfer can arrive **from a lineage
 `"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself — "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade — by a few of its tips (the clade is the subtree below their MRCA) or by a node id — and give a `Between` kernel: a weight for each ordered **(donor clade, recipient clade)** pair.
 
 ```python
-from zombi2.species import simulate_species_tree
-from zombi2.genomes import simulate_genomes_family, Clades, Between
+from zombi2 import species, genomes
 
-sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
 # genes flow only BETWEEN clade A and clade B — never within either, never to the rest
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     sp, transfer=1.0, initial_families=20, seed=2,
-    transfer_to=Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]},
-                       Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
+    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]},
+                               genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
 ```
 
 The kernel is the new part. Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as at the end of Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
@@ -165,24 +163,23 @@ The root of a gene tree carries a branch length, as the species tree's does. A f
 The whole range is one function call:
 
 ```python
-from zombi2 import species
+from zombi2 import species, genomes
 from zombi2.rates import modifiers as mod
-from zombi2.genomes import simulate_genomes_family
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=1)
 
 # a plain duplication–loss–origination run
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
 
 # origination only — every family stays a single copy, none is ever duplicated
-g = simulate_genomes_family(tree, origination=0.6, seed=1)
+g = genomes.simulate_genomes_family(tree, origination=0.6, seed=1)
 
 # a skyline: new families pour in early, then origination shuts off after time 2
-g = simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+g = genomes.simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 
 # horizontal transfer, biased toward close relatives, overwriting resident copies
-g = simulate_genomes_family(
+g = genomes.simulate_genomes_family(
     tree, transfer=0.5, transfer_to="distance", replacement=True,
     origination=0.4, initial_families=10, seed=3)
 
@@ -242,8 +239,8 @@ Read a list of rows sharing a `lineage` and you have that lineage's genome. `fam
 Because families are independent — a transfer moves a copy between lineages, but no event ever mixes two families — a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
 
 ```python
-g = simulate_genomes_family(tree, duplication=0.2, loss=0.25, origination=0.5,
-                            initial_families=1000, seed=1, parallel=8)   # 8 workers
+g = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.25, origination=0.5,
+                                    initial_families=1000, seed=1, parallel=8)   # 8 workers
 ```
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
@@ -253,8 +250,8 @@ The gain is real but modest, and a few workers is the sweet spot: the simulation
 When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family straight to a directory as it finishes and hands back a light path handle instead of a `FamilyGenomesResult`, so memory stays flat however many families you run (a run that fills 2 GB held in memory streams in about 40 MB). Pick the files you want with `outputs=`, exactly as `.write` takes them, and read them back as you would any run — the disk is the handoff to the sequence level. On the command line it is `--stream`.
 
 ```python
-run = simulate_genomes_family(tree, origination=2.0, initial_families=5000, seed=1,
-                              parallel=8, stream_to="out/", outputs=("events", "profiles"))
+run = genomes.simulate_genomes_family(tree, origination=2.0, initial_families=5000, seed=1,
+                                      parallel=8, stream_to="out/", outputs=("events", "profiles"))
 run.path("events")            # out/genome_events.tsv — the log, ready to replay
 ```
 
