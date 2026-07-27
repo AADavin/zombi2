@@ -44,18 +44,18 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 
 | What it does | Here | From the literature |
 |---|---|---|
-| rates change at set times | `1.0 * mod.OnTime({…})` | skyline / episodic birth–death |
-| rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` | diversity-dependent diversification |
-| rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` | ClaDS |
+| rates change at set times | `1.0 * mod.OnTime({…})` | skyline / episodic birth–death [@stadler2011mammalian] |
+| rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
+| rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` | ClaDS [@maliet2019clads] |
 | a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
 
 ## Sampling
 
 Two more choices decide not how the tree grows, but how much of it you get to see.
 
-By default you see every surviving species. **`sampling`** keeps a random fraction of the extant tips, so `sampling=0.5` gives you half. It thins a tree that has already grown, so it costs nothing.
+By default you see every surviving species. **`sampling`** keeps a random fraction of the extant tips, so `sampling=0.5` gives you half [@stadler2009incomplete]. It thins a tree that has already grown, so it costs nothing.
 
-**`fossils`** does the opposite: it recovers lineages from the past. Fossils are picked up along **every** branch of the complete tree at a rate you set — a surviving lineage's branch as readily as an extinct one — so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree.
+**`fossils`** does the opposite: it recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are picked up along **every** branch of the complete tree at a rate you set — a surviving lineage's branch as readily as an extinct one — so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree.
 
 ![Sampling and fossils, the two ways a dataset falls short of the whole tree. A single complete tree shows every lineage's fate. Sampled species reach the present as solid lines and are the data you keep. Lineages alive today but not sampled reach the present as dashed lines ending in an open ring. Lineages that went extinct are dashed and stop where they died. Fossils are dated samples recovered along any branch of the complete tree, a surviving lineage's branch as readily as an extinct one, shown as black diamonds. The data is the solid tips together with the diamonds; the dashed lineages are never observed. This tree was grown with `sampling=0.6, fossils=0.15`.](figures/sampling_fossils.pdf){width=100%}
 
