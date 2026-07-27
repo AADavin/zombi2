@@ -5,11 +5,10 @@ there are no top-level re-exports. A run always starts from a `simulate_*` entry
 returns a `*Result` object that carries the true history behind the dataset.
 
 ```python
-from zombi2 import species
-result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-
-from zombi2.genomes import simulate_genomes_family
+from zombi2 import species, genomes
 from zombi2.rates import scope, modifiers
+
+result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 ```
 
 The reference below is generated from the source docstrings, level by level, in the same
