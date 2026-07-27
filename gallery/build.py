@@ -188,9 +188,6 @@ _PAGE_OPEN = """
   </div>
   <header class="masthead">
     <h1>Examples gallery</h1>
-    <p class="lede">Short, runnable recipes — each <b>simulates</b> with ZOMBI2 and <b>plots</b> with <a href="https://github.com/AADavin/Phylustrator">Phylustrator</a>.
-    Click any figure for the code and a short explanation. The levels of a run: species, genomes, sequences, traits, and the joining that couples them.</p>
-    <p class="note">◆ Every figure is built from a real ZOMBI2 run — the code shown reproduces it.</p>
   </header>
 """
 

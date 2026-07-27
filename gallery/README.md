@@ -11,9 +11,8 @@ the landing-page level cards link to its per-level sections (`gallery.html#speci
 ## Build it
 
 ```bash
-pip install -e ".[gallery]"                                # matplotlib + pillow
-pip install "git+https://github.com/AADavin/Phylustrator"  # not on PyPI yet, so install it from git
-cd gallery && python build.py                              # renders figures/ and writes ../web/gallery.html
+pip install -e ".[gallery]"      # phylustrator + matplotlib + pillow
+cd gallery && python build.py     # renders figures/ and writes ../web/gallery.html
 ```
 
 `figures/` (and its cached `_data/` runs, including a one-off NCBI GFF download for the *Mycoplasma*
