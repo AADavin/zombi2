@@ -1,90 +1,86 @@
 # A tour of ZOMBI2
 
-ZOMBI2 simulates evolution at four levels: Species Tree, Genomes, Sequences and Traits. This chapter introduces the four levels, the three ways they can relate, and the single shape every rate takes. It is the vocabulary the rest of the book uses.
+This chapter introduces the four levels ZOMBI2 simulates, the three ways they can relate, and the single shape every rate takes.
 
 ## The four levels of ZOMBI2
 
-ZOMBI2 simulates evolution at four different levels:
-
-- **Species** — the tree of lineages: a strictly bifurcating rooted tree, with branches measured in time. Every ZOMBI2 workflow has some species tree, so this is the first thing to run.
-- **Genomes** — the genes that exist in each lineage of the tree. Genomes can be simulated at different levels of resolution: a full genome represented with nucleotides, or just a set of gene families. Genomes are always simulated within a species tree; you always need one to obtain them.
-- **Sequences** — the nucleotides or amino acids inside each gene. Sequences *always* evolve on gene trees, so you need to simulate genomes before using this level.
-- **Traits** — phenotypes evolving along a tree: body size, optimal growth temperature, the presence or absence of a flagellum. Traits can influence the evolution of the other levels in different ways that we cover in this chapter.
-
-The most general way to connect the four levels is shown in Figure 1.
+- **Species** — the tree of lineages: a strictly bifurcating rooted tree, with branches measured in time. Every workflow has a species tree, so this is the first thing to run.
+- **Genomes** — the genes that exist in each lineage. Genomes can be simulated at three **resolutions**: gene families alone, genes placed on chromosomes, or a full nucleotide genome. A genome is always simulated within a species tree.
+- **Sequences** — the nucleotides or amino acids inside each gene. Sequences evolve on gene trees, so genomes must be simulated first.
+- **Traits** — phenotypes evolving along a tree: body size, optimal growth temperature, the presence or absence of a flagellum.
 
 ![The four levels of ZOMBI2. Species, genomes and sequences form a chain of ancestry: a genome lives on the species tree, a sequence inside a gene. Traits branch to the side, because a trait can ride any species tree.](figures/fig-2-1-four-levels_print.png){width=40%}
 
-You can run a simulation in which every level is simulated. We write it in this notation:
+A run in which every level is simulated:
 
 $$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species}) \cdot P(\text{Sequences} \mid \text{Genomes}) \cdot P(\text{Traits} \mid \text{Species})$$
 
-But you can always choose which levels to run; you need not run them all. For example, you do not need to simulate sequences if you are only interested in gene trees, which the genome level already produces:
+You need not run them all. Skip sequences if you only want gene trees, which the genome level already produces:
 
 $$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species})$$
 
-And you do not have to simulate genomes if all you want is a species tree with some traits on it:
+Skip genomes if you want a species tree with traits on it:
 
 $$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species})$$
 
-In ZOMBI2 everything depends on a species tree, and in most cases you begin a workflow by simulating the tree alone. There are a few exceptions, which we cover a bit later.
+Everything depends on a species tree, so a workflow almost always begins by simulating one alone. The exception is a **joint** model, below, where the tree is an output rather than an input.
 
 ## Time
 
 ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 to the present.
 
-Time is imposed by the species tree, and every rate is measured against that time scale. If your tree runs from 0 at the root to 1 at the tips, your simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 — the moment of a mass extinction, the breakpoints of a rate that changes through time — is measured on that scale.
+Time is imposed by the species tree, and every rate is measured against that scale. If your tree runs from 0 at the root to 1 at the tips, the simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 — the moment of a mass extinction, the breakpoints of a rate that changes through time — is measured on it.
 
-The founding lineage lives for a while before it first splits, so it has a duration of its own. That stretch is the tree's **stem**, and the first split is its **crown**.
+The founding lineage lives for a while before it first splits. That stretch is the tree's **stem**, and the first split is its **crown**.
 
 ![The stem. A run starts from one lineage at time 0 — the origin — which lives for a while before it first splits. Everything up to that split is the stem, and it is ordinary simulated time: genes are gained and lost along it, traits drift along it. Every tree ZOMBI2 writes therefore gives its root a branch length.](figures/stem.pdf){width=70%}
 
 ## Rates
 
-In ZOMBI2 everything is driven by events that fire over time. The kind of event depends on the level being simulated. Some of the basic events are:
+Everything is driven by events that fire over time:
 
 - **Species** — speciations and extinctions
-- **Genomes** — duplications, transfers, losses, originations, inversions, transpositions.
-- **Sequences** — mutations
+- **Genomes** — duplications, transfers, losses, originations, inversions, transpositions
+- **Sequences** — substitutions
 - **Traits** — phenotypic changes
 
-The frequency at which an event fires depends on its **effective rate**:
+How often an event fires is its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
-The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps that base to say how many independent chances the event has: per lineage, per copy, or per site. The **modifiers** are dimensionless context multipliers that make a rate faster or slower depending on some factor — the lineage where the event happens, the gene family affected, or the total diversity present in the simulation.
+The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps it to say how many independent chances the event has: per lineage, per copy, per site. The **modifiers** are dimensionless multipliers that make a rate faster or slower depending on context — the lineage, the gene family, the total diversity present.
 
-Most of the time you do not need to touch either the default scope or the modifiers — but you can, and it is this flexibility that lets ZOMBI2 reach a wide range of scenarios. With them you could simulate, for example:
+You rarely need to touch the default scope or the modifiers. With them you can simulate:
 
-- a burst of change concentrated early and then tapering off — an early radiation, or a trait that diversifies fast at first and settles — by giving the rate a schedule that starts high and drops later;
-- a molecular clock that speeds up and slows down along the tree, with closely related lineages ticking at similar rates, by letting each lineage inherit its rate from its parent and drift a little at every split;
-- a radiation that starts fast and then eases off as the clade fills up toward a carrying capacity, by having the speciation rate read the total diversity present at each moment.
+- an early burst that tapers off, by giving the rate a schedule that starts high and drops;
+- a molecular clock that speeds and slows along the tree, with close relatives ticking alike, by letting each lineage inherit its rate from its parent and drift at every split;
+- a radiation that eases off as the clade fills up, by having the speciation rate read the diversity present at each moment.
 
-The full rate reference — how these units work in detail, the default scope at each level, and the complete catalogue of modifiers — is **Appendix A**, which also covers the Gillespie algorithm that turns these rates into the events of a simulation.
+**Appendix A** is the full rate reference — the units, each level's default scope, the catalogue of modifiers — and the Gillespie algorithm that turns rates into events.
 
-## Going beyond the basic simulation: conditioning and joining levels
+## Going beyond: conditioning and joining levels
 
-Some evolutionary scenarios cannot be simulated by the paradigm we have described so far. For example:
+Some scenarios need more than the levels running in sequence:
 
-- A trait evolves along a tree and itself controls how fast that tree speciates.
-- Gene content decides survival: lineages that acquire a key gene diversify faster than the rest.
-- Two levels feed back on each other: a trait raises a gene family's loss rate, while carrying that family in turn pulls on the trait, so the two co-evolve.
+- A trait evolves along a tree and controls how fast that tree speciates.
+- Gene content decides survival: lineages that acquire a key gene diversify faster.
+- Two levels feed back: a trait raises a gene family's loss rate, and carrying that family pulls on the trait.
 
-ZOMBI2 adds two new connections between levels to reach scenarios like these. One is **conditioning**, the other is **joining**. Because they need some care, each has its own chapter; here we give only a brief overview.
+ZOMBI2 adds two connections for these — **conditioning** and **joining**. Each has its own chapter; this is the shape of them.
 
-When we **condition** one level on another, a parameter of the second level stops being a fixed number you set and instead reads the state of the first. In the run below, the gene-loss rate is no longer constant: it depends on the trait's value on each branch. For example, you can use this to simulate that aquatic lineages lose their olfactory genes faster. Because the trait can be simulated first and then held fixed, conditioning is still two ordinary runs in order: you simulate the driver level, write it out, and feed it to the second, exactly as you already feed a species tree to a genome run.
+**Conditioning** makes a parameter of one level read the state of another instead of being a fixed number. Aquatic lineages lose their olfactory genes faster: the gene-loss rate depends on the trait's value on each branch. Because the trait can be simulated first and then held fixed, this is still two ordinary runs in order — simulate the driver, write it out, feed it to the second, exactly as you already feed a species tree to a genome run.
 
 $$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
 
-When we **join** two levels, neither can be simulated first, because each depends on the other as it unfolds. If a trait speeds up speciation, then faster-speciating lineages leave more descendants, so the tree's shape depends on the trait, but the trait is evolving along that very tree at the same time. No order works, so the two levels are grown together in a single run, step by step. When the coupling reaches back into the species tree, the tree itself becomes an output rather than an input.
+**Joining** is for when neither level can go first. If a trait speeds up speciation, faster-speciating lineages leave more descendants, so the tree's shape depends on the trait — while the trait is evolving along that very tree. No order works, so both are grown together in one run, and the tree becomes an output rather than an input.
 
 $$P(\text{Species}, \text{Traits})$$
 
-We **join** whenever a coupling would form a loop: when one level shapes another and is shaped back, directly or through the tree. If the influence runs only one way, we condition; if it runs in a loop, we join. In the directional case we can still name the variable the driver sets on its target: for a trait driving speciation, that variable is the speciation rate.
+The test is whether the influence runs one way or in a loop. One way: condition. In a loop — one level shaping another and being shaped back, directly or through the tree — join.
 
 ## Using ZOMBI2 in Python
 
-Each level is a function in its own subpackage, and they compose by feeding one level's result into the next. A run returns a *result object*; you read it directly in the session or write it to disk with `.write()`. A whole workflow is a short script:
+Each level is a function in its own subpackage, and they compose by feeding one level's result into the next. A run returns a *result object*; read it in the session or write it to disk with `.write()`. A whole workflow is a short script:
 
 ```python
 from zombi2 import species, genomes, sequences, traits
@@ -96,7 +92,7 @@ seqs = sequences.simulate_sequences(gen, model=sm.hky85(kappa=2.0), length=300, 
 bm   = traits.simulate_continuous(sp, rate=1.0, seed=1)
 ```
 
-Each call takes the object it depends on — genomes and traits read the species result, sequences reads the genomes result — so the script reads top to bottom in exactly the `P(·)` order from the start of this chapter. Every level's function, its arguments, and its result object are covered in that level's own chapter.
+Each call takes the object it depends on — genomes and traits read the species result, sequences reads the genomes result — so the script reads top to bottom in the `P(·)` order above.
 
 ## Using ZOMBI2 from the CLI
 
@@ -117,8 +113,12 @@ A rate flag takes a rate **written exactly as you would write it in Python** —
 zombi2 species out/ --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --total-time 5 --seed 1
 ```
 
-Every command takes one positional argument, the **run directory**, and it is both where that command writes and where it reads the level before it. So a pipeline is the same directory named once per command, and nothing has to be passed between them by hand. `--from` overrides the reading half, for a tree that came from elsewhere or a run you would rather not write into; a `--params` TOML file can hold the settings for a whole pipeline at once. Because every level shares the one directory, a command refuses to re-run a level in place when a later level was built from it — re-running would leave that later output out of step — unless you pass `--force`, which re-runs the level and removes the now-stale downstream. On the clean core the CLI covers all four levels — **species**, **genomes**, **sequences**, **traits**; the coupled models are run from Python until their commands land.
+Every command takes one positional argument, the **run directory**. It is both where that command writes and where it reads the level before it, so a pipeline is the same directory named once per command and nothing is passed by hand. `--from` overrides the reading half, for a tree from elsewhere or a run you would rather not write into; a `--params` TOML file can hold a whole pipeline's settings.
+
+Because the levels share one directory, a command refuses to re-run a level in place when a later level was built from it — that would leave the later output out of step. `--force` re-runs anyway and removes the now-stale downstream. The CLI covers all four levels; the coupled models are run from Python until their commands land.
 
 ## Output in ZOMBI2
 
-Every run can be written to disk with `result.write("out/", outputs=[...])`; with no `outputs` argument it writes that level's **default** set of files. The formats are uniform across levels — **trees** in Newick, **tables and event logs** in TSV, **sequences** in FASTA — and branch lengths are in units of time everywhere except the sequence phylograms, which are in substitutions per site. At every level the **event log** (`*_events.tsv`) is the true, ordered history the run actually followed: the source of truth from which the summaries are derived. Appendix B lists every file, level by level.
+Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform — **trees** in Newick, **tables and event logs** in TSV, **sequences** in FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site.
+
+At every level the **event log** (`*_events.tsv`) is the true, ordered history the run followed: the source of truth the summaries are derived from. Appendix B lists every file, level by level.
