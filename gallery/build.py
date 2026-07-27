@@ -42,8 +42,8 @@ LEVELS = [
     ("traits", "Trait evolution",
      "A trait evolving down the tree — branches coloured by its value; some paired with a companion panel.",
      traits.EXAMPLES),
-    ("joining", "Joining",
-     "A trait and the tree grow together — the trait drives diversification, so its state shapes the tree.",
+    ("joining", "Joining and conditioning",
+     "One level drives another through one mechanism: a trait drives diversification so its state shapes the tree, or a trait conditions the genome — driving gene loss — so its state shapes genome size.",
      joining.EXAMPLES),
 ]
 
