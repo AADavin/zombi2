@@ -10,6 +10,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`--max-family-size` and `--family-speed` on `zombi2 genomes`.** Both existed in the Python API at
+  the family and ordered resolutions but had no flag, which mattered once the growth cap became
+  on-by-default at ordered: a command-line run had a bound it could neither adjust nor switch off. The
+  cap keeps the model's int/float distinction — an int is an absolute copy count, a float that
+  multiple of the tree's lineages — and takes `none` for unbounded growth. `--family-speed` takes a
+  `ByFamily` draw in the same written form as every rate flag. Both are refused under
+  `--resolution nucleotide`, each with its own reason rather than one blanket explanation. (#251)
 - **An extent now takes modifiers, as SPEC §6 says it should: `base × modifiers`, no scope.** So
   `loss_extent = 150 * DrivenBy(habitat, {"host": 6.0, "free": 1.0})` makes host-restricted lineages
   delete in **bigger chunks** — a different model from `loss = … * DrivenBy(…)`, which makes them
