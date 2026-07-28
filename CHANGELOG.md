@@ -26,6 +26,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   differs from a serial one.
 
 ### Changed
+- **`result.write()` groups its many-files-per-run outputs, as the commands already did.** A genome
+  run written from Python dumped 200 gene-tree Newicks into the directory alongside its four tables;
+  the same run written by `zombi2 genomes` put them in `gene_trees/`. The subdirectory is now the
+  *result's* decision, not the command's, so both layouts agree: `gene_trees/`, `gff/`, `bed/`,
+  `alignments/`, `phylograms/`, `ancestral/`, and the assembled genome FASTAs in `genomes/`.
+  `result.write(dir, flat=True)` is the old behaviour, and is what `--flat` now passes through. An
+  output a run has none of writes nothing and leaves no empty directory. **A script reading files
+  written by `.write()` will need the subdirectory in its path**; nothing written by a `zombi2`
+  command moved.
 - **`--family-speed` and `ByFamily` are no longer quadratic in genome size.** The per-lineage sums of
   the per-family multipliers were rebuilt from scratch on every event — the whole live gene pool, per
   event — where one event changes one lineage by one copy. They are now carried across events and
