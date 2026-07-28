@@ -90,22 +90,6 @@ other. Both are one mechanism, `DrivenBy(source, mapping)`, on any rate. See
 
 ---
 
-## Validation
-
-The simulator is checked against **closed-form theory**, not only against itself. Every run of the
-test suite verifies that a Yule tree's size is geometric with mean `e^(λT)`, that a birth–death run's
-mean size and extinction probability match their analytic values, that origination is counted per
-lineage and duplication, transfer and loss per copy (via the compensator identity), and that
-`n_extant` conditioning is **length-weighted** rather than stopping at the *N*th birth — the naive
-scheme, which leaves degenerate terminal branches and biases anything that reads them.
-
-These live in [`tests/test_validation.py`](tests/test_validation.py) and run in CI on every commit, so
-the claim cannot go stale:
-
-```bash
-pytest tests/test_validation.py -v
-```
-
 ## Citation
 
 A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
