@@ -1,6 +1,6 @@
 # Species trees
 
-The species tree is the backbone every other level runs on, so it is where almost every workflow begins. This chapter is about making one.
+The species tree is the backbone every other level runs on, so it is where almost every workflow begins. 
 
 ## The birth–death process
 
@@ -36,7 +36,7 @@ Birth and death are modified independently. Give both a `FromParent` and each li
 
 ## Other models
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of those alive at time 3. It is a pulse rather than a steady rate, so it is its own argument.
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of those alive at time 3.
 
 ![A mass extinction as a survival pulse. The tree grows under a constant birth–death process until, at one instant, a fraction of the standing lineages die together — the cohort of dots along the vertical wall. Survivors are solid and extinct lineages dashed. The lineages-through-time curve below shares the time axis and shows the diversity crash at the pulse and the recovery after it. This tree was grown with `mass_extinctions=[(2.5, 0.75)]`.](figures/mass_extinction.pdf){width=100%}
 
@@ -119,7 +119,7 @@ zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0
 
 A run writes two Newick trees by default: the **extant** tree of survivors (`species_extant.nwk`) and the **complete** tree, which also carries the extinct and unsampled lineages (`species_complete.nwk`). The survivors are tips of both trees; the dead and unsampled are tips of the complete tree only.
 
-Both trees give the root a branch length, which many simulators leave off. A run begins with a single lineage and that lineage lives for a while before it first splits, so the root's branch is the **stem**: the time from the origin to the crown. It is ordinary simulated time — genes are gained and lost along it, traits drift along it — and a tree written without it would start at the crown and lose that history. In the complete tree the stem runs from the origin to the first speciation; in the extant tree it runs from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it.
+Both trees give the root a branch length (**the stem**), which many simulators leave off. A run begins with a single lineage and that lineage lives for a while before it first splits. It is ordinary simulated time — genes are gained and lost along it, traits drift along it — and a tree written without it would start at the crown and lose that history. In the complete tree the stem runs from the origin to the first speciation; in the extant tree it runs from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it.
 
 The **event log** (`species_events.tsv`) is always written: every speciation and extinction with its time. It is the ground truth the simulator exists to record. If you asked for fossils, the sampled fossil lineages are written too.
 

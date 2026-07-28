@@ -84,9 +84,10 @@ wire rather than silently ignoring it. This is what each accepts today:
 | Sequences | `ByLineage` |
 | Traits | `OnTime` · `OnTotalDiversity` · `FromParent` |
 
-The gaps are the rebuild, not the design: a level gains a modifier when its engine learns to read it. Pass
-one that a level does not wire and you get an error naming the modifiers that level accepts, so the table
-above is always recoverable from the tool itself.
+An empty cell means that level does not read that modifier **yet**. It is not a claim that the combination
+would be meaningless; each engine gains a modifier when its own code learns to read it, and some have not
+got there. You never have to guess which: give a level a modifier it does not wire and the error names the
+ones it does, so this table can always be read back off the tool itself.
 
 ## The Gillespie algorithm
 

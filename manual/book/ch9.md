@@ -10,9 +10,15 @@ The book has so far run the levels one at a time: species tree, then genomes, th
 
 In each case one level's value is read by another level's rate. The value read is the **driver**; the rate reading it is the **target**. They are not interchangeable, and the asymmetry is the point: a driver is a *value* that already varies from lineage to lineage — a habitat state, a gene count — while a target is a *rate*, a "how often", multiplied by a factor the driver's value picks out. The arrow runs one way, and nothing flows back.
 
+
+![The shape of a conditioned run. The **driver** is a level already simulated — a habitat trait here, its two states shown below it. The **target** is a rate in the run that comes next. The **modifier** is what joins them: `DrivenBy` carries one multiplier per state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished and written to a file before the second run starts, which is what lets this be two ordinary commands.](figures/conditioning_print.png){width=95%}
+
 That one-wayness is what makes conditioning cheap. The habitat is unaffected by how many genes a lineage has, so the trait can be grown on its own and written to a file before the genome run that reads it starts. Two ordinary commands, in order.
 
 **Joining** simulates two levels **at once**, because that ordering is no longer available. Suppose a trait drives **speciation** itself: large-bodied lineages split twice as fast as small ones. You cannot grow the trait first, because a trait is grown *along a tree* and the tree is what this trait shapes. Nor the tree first, because its branching rate needs a trait value that does not exist yet. Neither can be finished before the other starts, so neither can be a file handed on. They are grown together, in one run whose Gillespie races speciation, extinction and trait change against one another, each event reading the other level's current state.
+
+
+![The shape of a joint run, and why the ordering is gone. Body size drives speciation through the same `DrivenBy`, but the rate it drives is what creates the tree — and that tree is the one the trait is evolving along, so the arrow returns. It returns from the *tree*, not from the rate: a speciation rate does not change a body size, it decides which lineages split, and each split hands the parent's trait state to both daughters. Compare the previous figure, where the tree is a fixed input and so does not appear at all.](figures/joining_print.png){width=95%}
 
 So the whole chapter turns on one question:
 

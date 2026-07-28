@@ -1,0 +1,78 @@
+<svg viewBox="0 0 660 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>Conditioning: a driver, a modifier and a target</title>
+<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right, labelled DrivenBy, carrying a multiplier for each state. On the right, the gene loss rate it multiplies.</desc>
+<!-- Colours are presentation ATTRIBUTES, not CSS, and are literals rather than var(--ink): GitHub's
+     SVG sanitiser drops the style element, and librsvg resolves no custom properties, so a figure
+     whose fills live in either renders as black-on-black. The dark-mode rules below still win
+     wherever CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .node{fill:#191d20;stroke:#e7ebe9}
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .edge{stroke:#e7ebe9}
+    .head{fill:#e7ebe9}
+  }
+</style>
+<defs>
+  <!-- Sized in stroke-width units, so the small state diagram's heads shrink with its thinner
+       stroke without a second marker. -->
+  <marker id="cb" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
+    <path class="head" d="M0,0 L5,2.5 L0,5 z" fill="#1a1a1a"/>
+  </marker>
+</defs>
+
+<!-- column headings -->
+<g class="dim" fill="#6e6e6e" font-size="12.5" letter-spacing="1.6" text-anchor="middle">
+  <text x="120" y="34">DRIVER</text>
+  <text x="345" y="34">MODIFIER</text>
+  <text x="566" y="34">TARGET</text>
+</g>
+<g class="dim" fill="#8a8a8a" font-size="12.5" font-style="italic" text-anchor="middle">
+  <text x="345" y="52">what it does to the rate</text>
+  <text x="566" y="52">a rate in the genome run</text>
+</g>
+
+<!-- the driver: one thing, named -->
+<g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="45" y="96" width="150" height="60" rx="7"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="16" text-anchor="middle">
+  <text x="120" y="132">habitat</text>
+</g>
+
+<!-- its states, small: what the driver is made of -->
+<g class="node" fill="#f7f7f5" stroke="#1a1a1a" stroke-width="1.2">
+  <ellipse cx="66" cy="212" rx="36" ry="17"/>
+  <ellipse cx="174" cy="212" rx="36" ry="17"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="11" text-anchor="middle">
+  <text x="66" y="216">aquatic</text>
+  <text x="174" y="216">terrestrial</text>
+</g>
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.2">
+  <path d="M 103,204 C 112,195 128,195 137,204" marker-end="url(#cb)"/>
+  <path d="M 137,220 C 128,229 112,229 103,220" marker-end="url(#cb)"/>
+</g>
+
+<!-- the mapping: one multiplier per state -->
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.7">
+  <line x1="203" y1="126" x2="486" y2="126" marker-end="url(#cb)"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="14.5" text-anchor="middle">
+  <text x="345" y="116" font-style="italic">DrivenBy</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="13.5" text-anchor="middle">
+  <text x="345" y="153">aquatic &#215;&#8202;4</text>
+  <text x="345" y="171">terrestrial &#215;&#8202;1</text>
+</g>
+
+<!-- the target rate -->
+<g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="496" y="96" width="140" height="60" rx="7"/>
+</g>
+<g class="lbl" fill="#1a1a1a" text-anchor="middle">
+  <text x="566" y="120" font-size="15">loss</text>
+  <text x="566" y="142" font-size="13.5" fill="#6e6e6e">base 0.25</text>
+</g>
+</svg>
