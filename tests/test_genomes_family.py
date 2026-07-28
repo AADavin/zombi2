@@ -502,9 +502,9 @@ def test_write_gene_trees_emits_one_newick_per_family():
         out = pathlib.Path(d)
         g.write(out, outputs=("gene_trees",))
         for fam, gt in g.gene_trees.items():
-            complete = out / f"gene_tree_fam{fam}_complete.nwk"
+            complete = out / "gene_trees" / f"gene_tree_fam{fam}_complete.nwk"
             assert complete.read_text().strip() == gt.to_newick("complete")
-            extant = out / f"gene_tree_fam{fam}_extant.nwk"
+            extant = out / "gene_trees" / f"gene_tree_fam{fam}_extant.nwk"
             # a family with no survivor has no extant tree, and writes no file for it
             assert extant.exists() == (gt.to_newick("extant") is not None)
 

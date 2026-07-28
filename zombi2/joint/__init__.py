@@ -78,16 +78,17 @@ class JointResult:
         ``trait.events`` / ``genome.events``."""
         return self.species.events
 
-    def write(self, directory) -> None:
+    def write(self, directory, *, flat: bool = False) -> None:
         """Write both levels to ``directory``: the species files (``species_complete.nwk`` /
         ``species_extant.nwk`` / ``species_events.tsv``) and the driver level's — for a trait,
         ``trait_values.tsv`` / ``trait_events.tsv`` / ``trait_tree.nwk``; for a genome,
-        ``genome_events.tsv`` / ``profiles.tsv``."""
+        ``genome_events.tsv`` / ``profiles.tsv``. ``flat`` is passed to the driver level, which is
+        the only one of the two with a many-files-per-run output."""
         self.species.write(directory, outputs=("complete", "extant", "events"))
         if self.trait is not None:
             self.trait.write(directory, outputs=("values", "events", "tree"))
         if self.genome is not None:
-            self.genome.write(directory, outputs=("events", "profiles"))
+            self.genome.write(directory, outputs=("events", "profiles"), flat=flat)
 
 
 def _weighted_index(rng, weights: list[float], total: float) -> int:

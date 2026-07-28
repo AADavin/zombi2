@@ -50,6 +50,7 @@ from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .family import resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
+from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .events import _COLS, Event, gene_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
@@ -264,9 +265,9 @@ class OrderedGenomesResult:
         from the (position-blind) event log exactly as for the family core. See :mod:`.gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
-    def write(self, directory,
-              outputs=("events", "profiles", "gene_order", "initial_genome", "gene_trees",
-                       "chromosome_events")) -> None:
+    def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
+                                        "gene_trees", "chromosome_events"), *,
+              flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the run's whole history in one time-ordered table:
@@ -281,8 +282,12 @@ class OrderedGenomesResult:
         - ``"chromosome_events"`` → ``chromosome_events.tsv``, the chromosome genealogy edges. The
           one log kept apart: it is a network over chromosome **ids**, with list-valued parents and
           children, joined on a different key from everything above.
-        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
-          genealogy — unchanged from the family resolution, position being orthogonal to it.
+        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk`` under ``gene_trees/``,
+          each family's true genealogy — unchanged from the family resolution, position being
+          orthogonal to it.
+
+        The gene trees are two files per family, so they get a subdirectory rather than burying the
+        tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -298,7 +303,7 @@ class OrderedGenomesResult:
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, d)
+            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
 
     def _initial_genome_tsv(self) -> str:
         """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which

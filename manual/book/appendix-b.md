@@ -33,16 +33,26 @@ out/genomes/recphylo/       recphylo_fam<f>.xml                          (zombi2
 out/sequences/              clock_species_tree_complete.nwk · sequences.log
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
+out/sequences/genomes/      genome_<lineage>.fasta                       (nucleotide runs)
 out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv · traits.log
 ```
 
 Filenames keep their prefix inside their directory — `species/species_complete.nwk` — so a file
 still names itself once it has been moved or copied somewhere else.
 
-`--flat` on any command writes its files straight into the output directory instead, for a tool that
-expects one directory. The same files are written either way; only the directories differ. A run's
-files being grouped is a CLI matter, not the library's: `result.write(dir)` writes into whatever
-directory you hand it.
+The two groupings are decided in different places. Which **level** a file belongs to is the command's
+business: `result.write(dir)` writes one level into the one directory it is handed, and a pipeline
+gets `species/`, `genomes/`, `sequences/` because the command calls it once per level. The
+subdirectory *inside* a level is the result's own: an output that is one file per gene family or per
+node — the gene trees, the alignments, the phylograms, the assembled genome FASTAs, `gff` and `bed` —
+gets a directory of its own wherever it is written, because a hundred families is two hundred files
+and the handful of tables beside them would be lost. So `result.write("out/")` from Python produces
+`out/gene_trees/` exactly as the command produces `out/genomes/gene_trees/`. An output the run has
+none of writes nothing and leaves no empty directory behind.
+
+`--flat` on any command writes every file straight into the output directory instead, for a tool that
+expects one directory; in Python it is `result.write(dir, flat=True)`. The same files are written
+either way — only the directories differ.
 
 Every command that reads a prior level takes the **run directory**, and finds the file itself, in
 either layout: `zombi2 genomes out/` and `zombi2 traits out/` pick up that run's complete species
@@ -157,7 +167,9 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Initial sequence | `initial_sequence.fasta` | FASTA | yes¹ | the initial DNA the run was given (`--fasta`), one `>source<n>` record per replicon. Written only when a FASTA was supplied; it is what lets a separate `zombi2 sequences` run found its blocks from the real sequence |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
 | Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — same format as ordered |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block) |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block), in `gene_trees/` |
+| GFF | `genome_<lineage>.gff` | GFF3 | yes | one file per node, in `gff/`: that genome's **genes** in its own coordinates — the annotation to read beside the sequence level's `genome_<lineage>.fasta`, which it names its sequences to match |
+| BED | `genome_<lineage>.bed` | BED | yes | one file per node, in `bed/`: that genome's **blocks**, spacer included, each named by the ancestral interval it descends from — the ancestry as a browser track |
 
 The nucleotide log needs no separate positions file: its events carry ancestral coordinates already.
 
@@ -178,13 +190,13 @@ ancestral sequences.
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Alignments | `fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model. The command puts these in `sequences/alignments/`, which is what lets the name be this short |
-| Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `sequences/phylograms/` |
-| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | the sequence at every node that is not an extant tip: internal nodes, and the tips where a copy was lost or its species died |
+| Alignments | `fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model. They go in `alignments/`, which is what lets the name be this short |
+| Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `phylograms/` |
+| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | the sequence at every node that is not an extant tip: internal nodes, and the tips where a copy was lost or its species died. One per family, so they go in `ancestral/` |
 | Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
 | Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible |
-| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order. **Nucleotide genome runs only**: a family or ordered run has gene families, not coordinates, so there is nothing to lay out. The biggest thing this level writes — a whole genome times every node |
-| Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. Nucleotide runs only |
+| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order, in `genomes/`. **Nucleotide genome runs only**: a family or ordered run has gene families, not coordinates, so there is nothing to lay out, and no `genomes/` is created. The biggest thing this level writes — a whole genome times every node |
+| Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. In `genomes/` with the rest, being a whole-genome FASTA like they are. Nucleotide runs only |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in

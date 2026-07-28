@@ -144,9 +144,7 @@ def run(args, parser):
         detail = "a discrete trait driving speciation"
     else:
         out = level_dir(args.run, "genomes", args.flat)
-        wanted = default_outputs(result.genome)
-        result.genome.write(out, outputs=[o for o in wanted if o != "gene_trees"])
-        result.genome.write(level_dir(out, "gene_trees", args.flat), outputs=("gene_trees",))
+        result.genome.write(out, outputs=default_outputs(result.genome), flat=args.flat)
         detail = "gene content driving speciation"
 
     n_extant = len(result.species.complete_tree.extant())

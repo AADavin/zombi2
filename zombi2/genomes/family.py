@@ -38,6 +38,7 @@ from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
 
+from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .events import Event, events_tsv, gene_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
@@ -115,8 +116,8 @@ class FamilyGenomesResult:
         :mod:`.gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
-    def write(self, directory,
-              outputs=("events", "profiles", "genomes", "initial_genome", "gene_trees")) -> None:
+    def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
+                                        "gene_trees"), *, flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
@@ -126,8 +127,11 @@ class FamilyGenomesResult:
         - ``"initial_genome"`` → ``initial_genome.tsv``, the genome the run started with. Its own
           file, not a row in ``genomes.tsv``, because it belongs to no node: it sits at the start of
           the root branch, and every ``lineage`` in that table is a node at the end of one.
-        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk``, each family's true
-          genealogy. A family with no surviving copy writes no ``_extant`` file.
+        - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk`` under ``gene_trees/``,
+          each family's true genealogy. A family with no surviving copy writes no ``_extant`` file.
+
+        The gene trees are two files per family, so they get a subdirectory rather than burying the
+        tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -140,7 +144,7 @@ class FamilyGenomesResult:
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, d)
+            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The

@@ -465,16 +465,11 @@ def run(args, parser):
     # one, so read it from `tree` there. The rest of the CLI's bookkeeping is identical either way.
     complete_tree = tree if streaming else result.complete_tree
     if not streaming:
-        # the many-files-per-run outputs each get their own subdirectory (unless --flat): gene trees are
-        # one Newick per family, and gff/bed are one file per node — a hundred families or nodes is a
-        # hundred files, which would bury the handful of TSVs otherwise
-        grouped = ("gene_trees", "gff", "bed")
+        # The many-files-per-run outputs (gene trees, gff, bed) get a subdirectory apiece, and
+        # `write` is where that is decided — so a run written from Python has this layout too, and
+        # --flat is simply passed through rather than being a second layout the CLI knows about.
         wanted = tuple(args.write) if args.write else default_outputs(result)
-        if rest := [o for o in wanted if o not in grouped]:
-            result.write(out, outputs=rest)
-        for sub in grouped:
-            if sub in wanted:
-                result.write(level_dir(out, sub, args.flat), outputs=(sub,))
+        result.write(out, outputs=wanted, flat=args.flat)
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
     # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where

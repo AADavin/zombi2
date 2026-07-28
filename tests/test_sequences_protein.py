@@ -231,9 +231,9 @@ def test_protein_run_over_a_real_genome_history(tmp_path):
             assert len(seq) == 120 and set(seq) <= set(AMINO_ACIDS)
     # the outputs are the same files as for a nucleotide run — only the residues differ
     r.write(tmp_path)
-    fasta = next(p for p in tmp_path.iterdir() if p.name.startswith("fam"))
+    fasta = next(p for p in (tmp_path / "alignments").iterdir() if p.name.startswith("fam"))
     assert re.match(r">n\d+_g\d+\n", fasta.read_text())      # the header is a copy label
-    assert (tmp_path / "phylogram_fam0_complete.nwk").exists()
+    assert (tmp_path / "phylograms" / "phylogram_fam0_complete.nwk").exists()
 
 
 def test_a_nucleotide_and_a_protein_model_stay_in_their_own_alphabets():
