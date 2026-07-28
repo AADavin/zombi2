@@ -121,6 +121,11 @@ class SequencesResult:
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
 
+    def __repr__(self) -> str:
+        n = sum(len(a) for a in self.alignments.values())
+        return (f"SequencesResult({n} sequences across {len(self.alignments)} {self.unit} "
+                f"alignments, seed={self.seed})")
+
     @property
     def _stem(self) -> str:
         """The filename stem for a per-unit output, so a file never claims to be a family when it is

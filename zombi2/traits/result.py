@@ -52,6 +52,10 @@ class TraitsResult:
     seed: int | None = None
     kind: str = "continuous"
 
+    def __repr__(self) -> str:
+        return (f"TraitsResult(a {self.kind} trait over {len(self.values)} extant tips, "
+                f"{len(self.node_values)} nodes, {len(self.events)} events, seed={self.seed})")
+
     @property
     def values(self) -> dict[int, object]:
         """The observed trait dataset — the value at each **extant** tip (the comparative-data

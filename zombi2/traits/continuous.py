@@ -10,8 +10,7 @@ import numpy as np
 from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
-from ..species import SpeciesResult
-from ..tree import Tree
+from ..tree import Tree, as_tree
 
 from ._shared import _correlation_matrix, _preorder, _symmetric_sqrt
 from .result import Change, TraitsResult
@@ -247,7 +246,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     and the value follows OU toward whichever regime's optimum a branch is in. Deterministic given
     ``seed``.
     """
-    tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    tree = as_tree(tree, level="traits")
     if regimes is not None:
         return _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed,
                                  progress)
