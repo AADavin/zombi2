@@ -1,0 +1,87 @@
+<svg viewBox="0 0 820 240" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>Joining: the trait, the rate it drives, and the tree that closes the loop</title>
+<desc>Body size drives the speciation rate through a DrivenBy modifier carrying a multiplier per state. The speciation rate creates the tree. An arrow runs back underneath from the tree to body size, because the trait and the tree are growing at the same time.</desc>
+<!-- The loop closes through the TREE, not directly from the rate back to the trait: a speciation
+     rate does not change a body size. It decides which lineages split, and a split hands the
+     parent's trait state to both daughters — so the tree is the third thing in the cycle, and an
+     arrow straight from speciation back to body size would state something false. That is also the
+     contrast with conditioning, where the tree is a fixed input and can be left out.
+     Colours are presentation ATTRIBUTES and literals, never var(--ink): GitHub's sanitiser drops the
+     style element and librsvg resolves no custom properties, so either renders black-on-black. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .node{fill:#191d20;stroke:#e7ebe9}
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .edge{stroke:#e7ebe9}
+    .head{fill:#e7ebe9}
+  }
+</style>
+<defs>
+  <marker id="je" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
+    <path class="head" d="M0,0 L5,2.5 L0,5 z" fill="#1a1a1a"/>
+  </marker>
+</defs>
+
+<!-- Three boxes of 150 at x=45, 335, 625: gaps of 140 either side, margins of 45 either end. -->
+<g class="dim" fill="#6e6e6e" font-size="12.5" letter-spacing="1.6" text-anchor="middle">
+  <text x="120" y="34">DRIVER</text>
+  <text x="265" y="34">MODIFIER</text>
+  <text x="410" y="34">TARGET</text>
+  <text x="700" y="34">OUTPUT</text>
+</g>
+
+<!-- driver -->
+<g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="45" y="96" width="150" height="60" rx="7"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="16" text-anchor="middle">
+  <text x="120" y="132">body size</text>
+</g>
+
+<!-- driver -> rate -->
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.7">
+  <line x1="203" y1="126" x2="327" y2="126" marker-end="url(#je)"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="14.5" text-anchor="middle">
+  <text x="265" y="116" font-style="italic">DrivenBy</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="13.5" text-anchor="middle">
+  <text x="265" y="153">large &#215;&#8202;3</text>
+  <text x="265" y="171">small &#215;&#8202;1</text>
+</g>
+
+<!-- the rate -->
+<g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="335" y="96" width="150" height="60" rx="7"/>
+</g>
+<g class="lbl" fill="#1a1a1a" text-anchor="middle">
+  <text x="410" y="120" font-size="15">speciation</text>
+  <text x="410" y="142" font-size="13.5" fill="#6e6e6e">base 1.0</text>
+</g>
+
+<!-- rate -> tree -->
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.7">
+  <line x1="493" y1="126" x2="617" y2="126" marker-end="url(#je)"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="14.5" text-anchor="middle">
+  <text x="555" y="116" font-style="italic">creates</text>
+</g>
+
+<!-- the tree -->
+<g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="625" y="96" width="150" height="60" rx="7"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="16" text-anchor="middle">
+  <text x="700" y="132">the tree</text>
+</g>
+
+<!-- the return leg, underneath: the tree the rate creates is the tree the trait evolves along -->
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.7">
+  <path d="M 700,156 L 700,182 C 700,192 692,200 680,200 L 140,200 C 128,200 120,192 120,182 L 120,158"
+        marker-end="url(#je)"/>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="13.5" font-style="italic" text-anchor="middle">
+  <text x="410" y="222">the trait and the tree evolve at the same time</text>
+</g>
+</svg>

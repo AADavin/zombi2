@@ -1,2 +1,9 @@
 build/
-figures/
+# Anchored: this is manual/figures/, the PDFs `make figures` generates from ../figures/svg. An
+# unanchored `figures/` also matches manual/book/figures/, which is hand-authored chapter artwork —
+# every new figure there was being ignored silently, and the one tracked file only survives because
+# it predates the pattern (a git mv keeps a file tracked).
+/figures/
+# ...but the flattened intermediates the manual build makes from that artwork are generated.
+book/figures/*_print.svg
+book/figures/*_print.png
