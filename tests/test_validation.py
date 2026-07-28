@@ -19,17 +19,30 @@ So each test here computes a quantity with a **closed form** and checks the run 
   the scope of all three at once;
 - inversion breakpoints fall **uniformly** around a chromosome, which on a ring is the statement that
   the arcs they cut are ``Dirichlet(1, …, 1)``, and their extent has the geometric *shape* its mean
-  implies rather than merely the right average.
+  implies rather than merely the right average;
+- a mass extinction culls the fraction it was given, and ``sampling`` observes the fraction it was
+  given;
+- a transfer picks its recipient uniformly among the lineages alive at that instant;
+- **a driven rate realises the multiplier it was declared with** — on the conditioned path and on the
+  joint one. These matter most and are checked last, because a mis-wired coupling is the one error
+  that leaves every output well formed: a tree, a genome and a log that are all internally consistent,
+  with only the strength of the association wrong, which is precisely what the run was made to
+  measure.
 
 **Every test is deterministic.** The seeds are fixed, so a "statistical" test here cannot flake: it
 computes one number and compares it to one expectation. The tolerances are wide (``|z| < 4``) because
 their job is to catch a model that has changed, not to detect a rate that is off by a percent — and
 the hypotheses these rule out are rejected by tens of standard deviations, not by twos.
 
-What that buys, measured rather than assumed: scaling a rate by 1.15 behind the engine's back fails
-these tests, and scaling it by 1.02 does not. Resolution is around **ten percent**. So this file is
-evidence that the model is the one advertised, not a calibration of it — a rate quietly off by a few
-percent would still get past, and catching that needs more replicates than a test suite should spend.
+What that buys, measured by mutating the model rather than assumed. Scaling a rate by 1.15 behind the
+engine's back fails these; by 1.02 it does not. Biasing 10% of inversions toward one half of the ring
+fails; 3% does not. Mis-wiring the coupling strength by 5% is caught on the conditioned path and by
+10% on the joint one. So resolution sits between a few and ten percent, depending on the check.
+
+That figure is a property of *these* trees and replicate counts, not of the method: more material, or
+more replicates, tightens it. Which is the honest way to read this file — it is evidence that the
+model is the one advertised, not a calibration of it. A rate quietly off by a percent still gets
+past, and catching that costs more replicates than a test suite should spend on every commit.
 
 If one of these fails, the arithmetic below is not what to doubt first. Something about what the
 engine samples has changed.
@@ -37,12 +50,16 @@ engine samples has changed.
 from __future__ import annotations
 
 import math
+from collections import Counter
 
 import numpy as np
 
 from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
 from zombi2.genomes.ordered import Inversion
+from zombi2.joint import simulate_joint
+from zombi2.rates.modifiers import DrivenBy
 from zombi2.species import simulate_species_tree
+from zombi2.traits import discrete, simulate_discrete
 
 #: How far an observation may sit from its closed form before the test fails, in standard errors.
 #: Generous on purpose: with fixed seeds these numbers are deterministic, so this is not guarding
@@ -139,6 +156,56 @@ def test_n_extant_conditioning_is_length_weighted_not_stop_at_the_nth_birth():
 
     # Exp has sd == mean; a different stopping rule would not
     assert abs(gaps.std(ddof=1) / gaps.mean() - 1.0) < 0.15, "the gap is not exponential"
+
+
+def test_a_mass_extinction_culls_the_fraction_it_was_given():
+    """At the pulse each standing lineage is lost independently with probability ``f``.
+
+    The tree has to be **large** at the pulse, and that is not a convenience. A pulse can wipe out a
+    small tree entirely, and a run that goes extinct raises rather than returning — so measuring on
+    the runs that came back conditions on survival, and runs where the pulse bit hardest are exactly
+    the ones missing. Measured on a tree of a few standing lineages that bias shows up as roughly
+    four standard errors of apparent *under*-culling, which reads convincingly like a real defect.
+    With hundreds of lineages standing, total wipeout has no measurable probability and the estimate
+    is honest."""
+    pulse, fraction = 4.0, 0.75
+    standing = culled = 0
+    for s in range(15):
+        # tall enough that no seed here is wiped out, so nothing is excluded and nothing is biased
+        run = simulate_species_tree(birth=2.0, death=0.0, total_time=pulse + 0.1,
+                                    mass_extinctions=[(pulse, fraction)], seed=s)
+        alive = [n for n in run.complete_tree.nodes.values()
+                 if n.birth_time < pulse <= n.end_time]
+        standing += len(alive)
+        culled += sum(1 for n in alive
+                      if not n.children and abs(n.end_time - pulse) < 1e-9)
+
+    assert standing > 20_000, f"only {standing} lineages stood at the pulse — too few to be unbiased"
+    observed = culled / standing
+    se = math.sqrt(fraction * (1 - fraction) / standing)
+    assert abs((observed - fraction) / se) < Z_MAX, (
+        f"the pulse culled {observed:.4f} of standing lineages, not {fraction}")
+
+
+def test_incomplete_sampling_observes_the_fraction_it_was_given():
+    """``sampling=ρ`` observes each survivor independently with probability ρ; the rest are
+    ``unsampled`` — present in the complete tree, absent from the extant one. A ρ applied to the
+    process rather than to the observation would change the tree's shape instead of its labelling,
+    so what is checked is the labelling of survivors."""
+    rho = 0.4
+    observed = unsampled = 0
+    for s in range(120):
+        run = simulate_species_tree(birth=1.0, death=0.2, n_extant=30, sampling=rho, seed=s)
+        for n in run.complete_tree.nodes.values():
+            if n.children is None:
+                observed += n.fate == "extant"
+                unsampled += n.fate == "unsampled"
+
+    total = observed + unsampled
+    seen = observed / total
+    se = math.sqrt(rho * (1 - rho) / total)
+    assert abs((seen - rho) / se) < Z_MAX, (
+        f"{seen:.4f} of survivors were observed, not ρ = {rho}")
 
 
 # --- the genome level: what each rate is counted per ---------------------------------------------
@@ -248,3 +315,123 @@ def test_duplication_transfer_and_loss_are_counted_per_copy():
         assert abs(_z(observed, rate * total)) < Z_MAX, (
             f"{kind}={rate}: {observed.mean():.2f} events against rate × gene-copy-time "
             f"= {rate * total:.2f} (ratio {observed.mean() / (rate * total):.4f})")
+
+
+def test_transfer_picks_its_recipient_uniformly():
+    """Who receives a transfer, under ``transfer_to="uniform"``.
+
+    The same concern as the inversion breakpoints, one level up: a recipient sampler that quietly
+    favoured some lineages — the deepest, the most recently born, the lowest-numbered — would still
+    produce a plausible genome for everyone and would still satisfy every invariant on the event log.
+    Only the distribution shows it.
+
+    Which lineages are even eligible changes through the run, so a flat count per lineage is not the
+    expectation. Each transfer offers ``1/k`` to each of the ``k`` lineages alive at that instant, so
+    a lineage's expected receipts are the sum of ``1/k`` over the transfers it was exposed to."""
+    tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=1).complete_tree
+    spans = {n.id: (n.birth_time, n.end_time) for n in tree.nodes.values()}
+    received, exposure, total = Counter(), Counter(), 0
+
+    for s in range(12):
+        for e in simulate_genomes_family(tree, initial_families=30, transfer=0.6, seed=s).events:
+            if e.kind != "transfer" or e.recipient is None:
+                continue
+            eligible = [i for i, (b, d) in spans.items() if b < e.time <= d and i != e.lineage]
+            if len(eligible) < 2:
+                continue
+            received[e.recipient] += 1
+            total += 1
+            for i in eligible:
+                exposure[i] += 1 / len(eligible)
+
+    assert total > 10_000, f"only {total} transfers to judge by"
+    keys = [k for k in exposure if exposure[k] >= 20]        # enough exposure for chi-square to apply
+    chi2 = sum((received[k] - exposure[k]) ** 2 / exposure[k] for k in keys)
+    df = len(keys) - 1
+    assert abs((chi2 - df) / math.sqrt(2 * df)) < Z_MAX, (
+        f"recipients are not uniform: chi2 {chi2:.1f} on {df} df")
+
+
+# --- the coupled models: a rate that reads another level ------------------------------------------
+
+def _state_at(history, node, tree, when):
+    """Which state a lineage held at ``when``, walking its own segment history."""
+    at = tree.nodes[node].birth_time
+    segments = history.get(node) or []
+    for state, duration in segments:
+        if when <= at + duration + 1e-12:
+            return state
+        at += duration
+    return segments[-1][0] if segments else None
+
+
+def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
+    """The coupling mechanism itself, on the conditioned path (the driver is a finished level).
+
+    This is the one a downstream invariant cannot catch. If ``DrivenBy`` attached its factors to the
+    wrong branches, or applied them a step late, every output would still be well formed — a tree, a
+    genome, an event log, all internally consistent — and only the *strength* of the association
+    would be wrong, which is exactly the quantity a user is measuring when they reach for a
+    conditioned run.
+
+    Origination is per lineage, so the compensator is simply lineage-time: a lineage sitting in state
+    ``s`` originates at ``o × m(s)`` per unit time, and each state's realised rate is checked against
+    its own declared value rather than against the other's — a ratio would pass even if both were
+    scaled by the same wrong constant."""
+    factors, base = {"hot": 5.0, "cold": 1.0}, 1.4
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=25, seed=1).complete_tree
+    seen, lineage_time = Counter(), Counter()
+
+    for s in range(120):
+        habitat = simulate_discrete(tree, states=list(factors), switch=0.5, start="hot", seed=s)
+        for segments in habitat.history.values():
+            for state, duration in segments:
+                lineage_time[state] += duration
+        run = simulate_genomes_family(tree, initial_families=0, seed=s,
+                                      origination=base * DrivenBy(habitat, factors))
+        for e in run.events:
+            if e.kind == "origination":
+                seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
+
+    for state, factor in factors.items():
+        realised = seen[state] / lineage_time[state]
+        expected = base * factor
+        se = math.sqrt(seen[state]) / lineage_time[state]      # Poisson count, known exposure
+        assert abs((realised - expected) / se) < Z_MAX, (
+            f"{state}: origination ran at {realised:.4f} per unit time, but was told to run at "
+            f"base × {factor} = {expected:.4f}")
+
+
+def test_a_joint_rate_realises_the_multiplier_it_was_given():
+    """The same check on the joint path, where the driver is growing at the same time.
+
+    Harder than the conditioned case, and the more likely to be subtly wrong: the trait is evolving
+    along the very tree its own speciation rate is building, so the rate has to be re-read as the
+    state changes, mid-race. Getting that wrong — reading a stale state, or missing the re-read at a
+    split — gives a tree that looks entirely ordinary and a state-dependence of the wrong strength.
+
+    Speciation is per lineage, so again the exposure is lineage-time in each state, and each state's
+    realised rate is checked against its own ``λ × m(s)``."""
+    factors, base = {"fast": 3.0, "slow": 1.0}, 1.0
+    splits, lineage_time = Counter(), Counter()
+
+    for s in range(60):
+        run = simulate_joint(birth=base * DrivenBy("trait", factors),
+                             trait=discrete(states=list(factors), switch=0.4),
+                             n_extant=120, seed=s)
+        for segments in run.trait.history.values():
+            for state, duration in segments:
+                lineage_time[state] += duration
+        for node in run.complete_tree.nodes.values():
+            if node.children:                                   # it split: credit the state it held
+                segments = run.trait.history.get(node.id)
+                if segments:
+                    splits[segments[-1][0]] += 1
+
+    for state, factor in factors.items():
+        realised = splits[state] / lineage_time[state]
+        expected = base * factor
+        se = math.sqrt(splits[state]) / lineage_time[state]
+        assert abs((realised - expected) / se) < Z_MAX, (
+            f"{state}: lineages split at {realised:.4f} per unit time, but the trait was told to "
+            f"make them split at λ × {factor} = {expected:.4f}")
