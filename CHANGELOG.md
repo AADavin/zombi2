@@ -39,6 +39,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   would be the surprise.
 
 ### Changed
+- **`max_family_size` is written with a scope**: `PerLineage(10)` (the new default, ten copies for
+  every lineage in the complete tree) or `Global(50)` (fifty copies whatever the tree looks like);
+  `None` still removes the cap. It used to be the `int`/`float` distinction alone — `10` absolute
+  against `10.0` relative — which put a factor of the tree's size between two values Python calls
+  equal, in a spelling no `--params` file or reader could be expected to notice. A bare number is now
+  refused and names both forms. This is the same vocabulary rates already use for the same question,
+  so it needs no new notation: the run log records it in written form (`Global(4.0)`) and it pastes
+  straight back into the flag or a TOML. The scope wrapper also rejects a negative base at
+  construction, so a validation branch disappeared with it.
 - **A gene copy is named `n<species>_g<copy>` wherever there is no column to say which species it
   sits in** — gene-tree and phylogram Newick leaves, alignment and ancestral FASTA records, and
   homology table headers (which used `n<species>|g<copy>`; `_` replaces `|`, which aligners and tree
