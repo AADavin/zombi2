@@ -38,6 +38,19 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only on 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
 
+def _looks_like_an_eaten_path(path: str) -> bool:
+    """Whether the file holds a backslash inside an ordinary ``"…"`` TOML string.
+
+    TOML reads a backslash there as an escape, so a Windows path in a value is mangled — or, more
+    often, rejected with a message about a hex value that says nothing about paths. The fix is a TOML
+    *literal* string, and this is what lets the error say so."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return any("\\" in line.split("=", 1)[1] for line in f if '="' in line.replace(" ", ""))
+    except OSError:
+        return False
+
+
 def load_params_file(path: str, valid_dests: set[str], command: str,
                      known_commands: set[str]) -> dict:
     """Parse ``path`` into ``{dest: value}`` for ``command``, validating every key.
@@ -54,8 +67,16 @@ def load_params_file(path: str, valid_dests: set[str], command: str,
       but in a *flat* file (no tables at all) every top-level key must be this command's, so a typo
       still surfaces instead of being silently dropped.
     """
-    with open(path, "rb") as f:
-        data = tomllib.load(f)
+    try:
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"params file not found: {path}") from None
+    except tomllib.TOMLDecodeError as e:
+        hint = ("; a value containing a path needs a TOML literal string ('''...'''), because an "
+                "ordinary \"...\" string reads its backslashes as escapes"
+                if _looks_like_an_eaten_path(path) else "")
+        raise ValueError(f"{path} is not valid TOML: {e}{hint}") from None
 
     tables = {k: v for k, v in data.items() if isinstance(v, dict)}
     top_scalars = {k: v for k, v in data.items() if not isinstance(v, dict)}

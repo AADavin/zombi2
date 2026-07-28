@@ -682,3 +682,46 @@ def test_the_cap_also_holds_when_a_transfer_arrives():
     g = simulate_genomes_family(sp, duplication=0.4, transfer=0.6, loss=0.05,
                                 initial_families=8, max_family_size=Global(4), seed=1)
     assert _biggest_family(g) <= 4
+
+
+def test_the_carried_family_counts_match_a_full_scan(monkeypatch):
+    # The cap's question — does this family already fill its quota here? — is answered from a counter
+    # rather than by scanning the lineage's genome, which is what keeps the level linear in genome
+    # size. Sound only while the counter says what the scan would, so check it against the scan on
+    # every call of a real run, with every mutation in play.
+    from zombi2.genomes.family import _FamilyCounts, _at_cap
+
+    real_init, real_at_cap, checked, lent = _FamilyCounts.__init__, _FamilyCounts.at_cap, [], {}
+
+    def init(self, gen):                    # the class does not hold `gen`; lend it for the check
+        real_init(self, gen)
+        lent[id(self)] = gen                # the same list objects the engine mutates in place
+
+    def at_cap(self, k, family, cap):
+        out = real_at_cap(self, k, family, cap)
+        assert out == _at_cap(lent[id(self)][k], family, cap), (k, family, cap)
+        checked.append(k)
+        return out
+
+    monkeypatch.setattr(_FamilyCounts, "__init__", init)
+    monkeypatch.setattr(_FamilyCounts, "at_cap", at_cap)
+
+    sp = _tree(seed=4, n_extant=14, death=0.3)
+    g = simulate_genomes_family(sp, duplication=0.5, transfer=0.4, loss=0.3, origination=0.4,
+                                initial_families=25, max_family_size=Global(3), replacement=True,
+                                self_transfer=True, seed=9)
+    assert len(checked) > 200                       # the run really did exercise the cap
+    assert {e.kind for e in g.events} == {"origination", "duplication", "loss", "transfer",
+                                          "speciation"}
+
+
+def test_the_cap_binds_at_the_number_given_however_a_copy_arrives():
+    # duplication is not the only way a family grows: a transfer arrives into a genome too, and the
+    # cap has to hold for both
+    sp = _tree(seed=2, n_extant=16, death=0.2)
+    for cap in (1, 2, 5):
+        g = simulate_genomes_family(sp, duplication=0.6, transfer=0.5, loss=0.1, origination=0.3,
+                                    initial_families=20, max_family_size=Global(cap), seed=3)
+        biggest = max((max(collections.Counter(c.family for c in genome).values(), default=0)
+                       for genome in g.genomes.values()), default=0)
+        assert biggest == cap, f"cap {cap} gave a family of {biggest}"

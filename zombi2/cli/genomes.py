@@ -508,7 +508,14 @@ def run(args, parser):
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
+    # The log is this run's parameters, not the parser's: a family run has no --root-length and no
+    # --inversion, and recording them at their defaults reads as though it had them and chose those
+    # values. Each resolution's own gates already say which options belong to which.
+    other = {"family": (*_STRUCTURED_ONLY, *_NUCLEOTIDE_ONLY),
+             "ordered": _NUCLEOTIDE_ONLY,
+             "nucleotide": _NOT_IN_NUCLEOTIDE}[args.resolution]
     _write_params_log(os.path.join(out, "genomes.log"), args, summary,
+                      omit={attr for attr, _default in other},
                       effective={"write": list(wanted)},
                       inputs=input_digests(tree_path, args.tip_fates,
                                            os.path.join(os.path.dirname(tree_path),
