@@ -1442,11 +1442,11 @@ def test_sequences_log_records_effective_model_params(tmp_path):
 # ── the family-tier knobs on the command line ───────────────────────────────────────────────────
 
 def test_max_family_size_bounds_a_run(tmp_path, tree_file):
-    """The cap is reachable from the command line, and an int is an absolute copy count."""
+    """The cap is reachable from the command line, and Global(N) is an absolute copy count."""
     import collections
     out = tmp_path / "capped"
     main(["genomes", str(out), "--from", str(tree_file), "--duplication", "1.2", "--loss", "0.1",
-          "--origination", "0.3", "--initial-families", "6", "--max-family-size", "3",
+          "--origination", "0.3", "--initial-families", "6", "--max-family-size", "Global(3)",
           "--seed", "1", "--flat", "--quiet"])
     header, *rows = (out / "genomes.tsv").read_text().splitlines()
     cols = header.split("\t")

@@ -6,6 +6,8 @@ import tempfile
 
 import pytest
 
+from zombi2.rates.scope import Global, PerCopy, PerLineage
+
 from zombi2.rates import modifiers as mod
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
@@ -337,7 +339,7 @@ def _clade_pairs(events, lab):
 # copies to the cap (which would make the per-copy transfer rate — and the run — explode), while still
 # firing enough transfers for an exact who-sends-to-whom assertion.
 _CLADE_TREE = dict(seed=7, n_extant=20)
-_CLADE_KW = dict(transfer=1.0, initial_families=15, max_family_size=8, seed=11)
+_CLADE_KW = dict(transfer=1.0, initial_families=15, max_family_size=Global(8), seed=11)
 
 
 def test_clades_between_only_excludes_within_and_rest():
@@ -597,36 +599,53 @@ def test_max_family_size_binds_exactly():
     sp = _tree(seed=1, n_extant=12, death=0.0)
     for cap in (2, 5, 9):
         g = simulate_genomes_family(sp, duplication=0.9, loss=0.05, initial_families=6,
-                                    max_family_size=cap, seed=2)
+                                    max_family_size=Global(cap), seed=2)
         assert _biggest_family(g) == cap
 
 
 def test_max_family_size_none_lifts_the_ceiling():
     sp = _tree(seed=1, n_extant=12, death=0.0)
     capped = simulate_genomes_family(sp, duplication=0.9, loss=0.05, initial_families=6,
-                                     max_family_size=5, seed=2)
+                                     max_family_size=Global(5), seed=2)
     free = simulate_genomes_family(sp, duplication=0.9, loss=0.05, initial_families=6,
                                    max_family_size=None, seed=2)
     assert _biggest_family(free) > _biggest_family(capped)
 
 
-def test_a_float_cap_scales_with_the_tree():
-    # the point of the float form: the bound travels with the size of the run
+def test_a_perlineage_cap_scales_with_the_tree():
+    # the point of the PerLineage form: the bound travels with the size of the run, where Global
+    # means the same number of copies whatever the tree looks like
     from zombi2.genomes import resolve_max_family_size
     small = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1)
     big = simulate_species_tree(birth=1.0, death=0.0, n_extant=40, seed=1)
-    a = resolve_max_family_size(2.0, len(small.complete_tree.nodes))
-    b = resolve_max_family_size(2.0, len(big.complete_tree.nodes))
+    a = resolve_max_family_size(PerLineage(2), len(small.complete_tree.nodes))
+    b = resolve_max_family_size(PerLineage(2), len(big.complete_tree.nodes))
     assert b > a
-    assert resolve_max_family_size(7, 999) == 7          # an int is absolute, tree size ignored
+    assert resolve_max_family_size(Global(7), 999) == 7   # Global ignores the tree size
     assert resolve_max_family_size(None, 999) is None
+
+
+def test_a_bare_number_is_refused_because_it_cannot_say_which_it_means():
+    # this used to be the whole distinction: 10 absolute against 10.0 relative, a factor of the
+    # tree size apart, between two values Python calls equal
+    from zombi2.genomes import resolve_max_family_size
+    for bare in (10, 10.0, True, "big"):
+        with pytest.raises(ValueError, match="Global|per"):
+            resolve_max_family_size(bare, 100)
 
 
 def test_max_family_size_is_validated():
     from zombi2.genomes import resolve_max_family_size
-    for bad in (0, -1, -2.0, True, "big"):
-        with pytest.raises(ValueError):
+    # a negative base cannot even be built — the scope wrapper rejects it, so the only bad number
+    # that reaches here is zero
+    for bad in (Global(0), PerLineage(0)):
+        with pytest.raises(ValueError, match="positive"):
             resolve_max_family_size(bad, 100)
+    for negative in (-1, -2.0):
+        with pytest.raises(ValueError, match="non-negative"):
+            Global(negative)
+    with pytest.raises(ValueError, match="Global"):      # a scope, but not one a cap can use
+        resolve_max_family_size(PerCopy(5), 100)
 
 
 def test_the_cap_also_holds_when_a_transfer_arrives():
@@ -634,5 +653,5 @@ def test_the_cap_also_holds_when_a_transfer_arrives():
     # could be pushed past it sideways
     sp = _tree(seed=3, n_extant=15, death=0.0)
     g = simulate_genomes_family(sp, duplication=0.4, transfer=0.6, loss=0.05,
-                                initial_families=8, max_family_size=4, seed=1)
+                                initial_families=8, max_family_size=Global(4), seed=1)
     assert _biggest_family(g) <= 4

@@ -20,6 +20,8 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_family)
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
+from zombi2.rates.parse import parse_rate, written_form
+from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
@@ -77,7 +79,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 # mistaken for setting it.
 #: The per-genome family cap, the same default the two engines carry. Duplication compounds, so a run
 #: is bounded unless you ask otherwise; `--max-family-size none` is that ask.
-_DEFAULT_MAX_FAMILY_SIZE = 10.0
+_DEFAULT_MAX_FAMILY_SIZE = PerLineage(10)
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
@@ -129,11 +131,12 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty, so every family must then "
                         f"arrive by --origination")
     g.add_argument("--max-family-size", type=_family_cap, default=_DEFAULT_MAX_FAMILY_SIZE,
-                   metavar="N", dest="max_family_size",
-                   help=f"cap on how many copies of one family a genome may hold — an int is a copy "
-                        f"count, a float is that multiple of the tree's lineages (default "
-                        f"{_DEFAULT_MAX_FAMILY_SIZE}), 'none' removes it. Duplication compounds, so a "
-                        f"run is bounded unless you ask otherwise")
+                   metavar="CAP", dest="max_family_size",
+                   help=f"cap on how many copies of one family a genome may hold, written with a "
+                        f"scope like a rate: Global(N) is N copies outright, PerLineage(N) is N for "
+                        f"every lineage in the tree, so the bound travels with the size of the run "
+                        f"(default {written_form(_DEFAULT_MAX_FAMILY_SIZE)}). 'none' removes it. "
+                        f"Duplication compounds, so a run is bounded unless you ask otherwise")
     g.add_argument("--family-speed", type=_family_speed, default=None, metavar="DRAW",
                    dest="family_speed",
                    help="one per-family tempo scaling every rate that family has, as a ByFamily draw "
@@ -241,11 +244,15 @@ def _family_cap(text: str):
     if s.lower() in ("none", "off"):
         return None
     try:
-        return int(s) if re.fullmatch(r"[+-]?\d+", s) else float(s)
-    except ValueError:
+        cap = parse_rate(s)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"--max-family-size: {e}") from None
+    if not isinstance(cap, (Global, PerLineage)):
         raise argparse.ArgumentTypeError(
-            f"--max-family-size takes an int (a copy count), a float (a multiple of the tree's "
-            f"lineages) or 'none' (no cap); got {text!r}") from None
+            f"--max-family-size takes Global(N) for that many copies outright, PerLineage(N) for "
+            f"that many per lineage in the tree, or 'none' for no cap. A bare number cannot say "
+            f"which is meant, and the two differ by a factor of the tree's size; got {text!r}")
+    return cap
 
 
 def _family_speed(text: str):
