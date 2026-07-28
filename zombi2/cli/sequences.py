@@ -31,7 +31,7 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
                                   defaults_used, resolve_genomes, resolve_seed, warn)
@@ -137,6 +137,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     _add_flat_arg(g)
     _add_parallel_arg(g)
     _add_quiet_arg(g)
+    _add_force_arg(g)
 
 
 def _resolve_model_knobs(args) -> dict:
@@ -155,10 +156,13 @@ def _effective_substitution(args, genome_run) -> dict:
     rate that ran — and a log recording the flag rather than the resolved value would be a provenance
     record that disagrees with the run. Calls the same :func:`~zombi2.sequences._calibrate` the engine
     does, so the logged number cannot drift from the one used."""
-    if args.divergence is None:
-        return {}
-    return {"substitution": _calibrate(args.substitution, args.divergence,
-                                       genome_run.complete_tree)}
+    if args.divergence is not None:
+        return {"substitution": _calibrate(args.substitution, args.divergence,
+                                           genome_run.complete_tree)}
+    # No divergence: the flag may still have been left out, in which case the run used 1.0 and the
+    # log should say so. A field logged None because a default applied is a field that stops meaning
+    # anything the day the default changes — which is the whole reason to dump every parameter.
+    return {} if args.substitution is not None else {"substitution": 1.0}
 
 
 def _effective_model_params(args) -> dict:
@@ -348,6 +352,6 @@ def run(args, parser):
              f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
     guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
-                      args, summary, effective={**_effective_model_params(args),
+                      args, summary, effective={"write": list(wanted), **_effective_model_params(args),
                                  **_effective_substitution(args, genome_run)})
     return 0

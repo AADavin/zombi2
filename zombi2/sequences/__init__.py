@@ -48,7 +48,8 @@ from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.progress import progress_bar
 from .evolution import evolve_gene_tree
-from .substitution_models import BASES, SubstitutionModel, decode, encode, jc69
+from .substitution_models import (BASES, SubstitutionModel, dayhoff, decode, encode, gtr,
+                                  hky85, jc69, jtt, k80, lg, poisson, wag)
 
 _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram",
                   "genomes", "initial_genome")
@@ -679,4 +680,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
 # The substitution-model menu is reached through its own module — the one canonical path,
 # like `zombi2.rates.scope` / `zombi2.rates.modifiers` — never re-exported here:
 #     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
-__all__ = ["simulate_sequences", "SequencesResult"]
+__all__ = ["simulate_sequences", "SequencesResult",
+           # the substitution-model menu, re-exported: the TypeError raised for a bad
+           # `model=` names these symbols, so they must be importable from the module it names
+           "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",
+           "SubstitutionModel"]
