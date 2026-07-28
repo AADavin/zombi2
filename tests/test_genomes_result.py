@@ -75,8 +75,29 @@ def test_write_produces_events_and_profiles(tmp_path):
     assert any(n.startswith("gene_tree_fam") for n in written)
     ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
     assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
-                                 "donor"]
-    assert len(ev) - 1 == len(g.events)                 # one row per event
+                                 "donor", "event"]
+    assert len(ev) - 1 == len(g.events)                 # one row per recorded edge
+
+
+def test_the_event_column_counts_events_where_counting_rows_counts_edges(tmp_path):
+    """The column exists so `sort -u` on it answers "how many transfers", which counting rows does
+    not: a duplication, transfer or speciation writes one row per descendant."""
+    _, g = _run(seed=7)
+    g.write(tmp_path)
+    rows = [r.split("\t") for r in (tmp_path / "genome_events.tsv").read_text().splitlines()[1:]]
+    at = {c: i for i, c in enumerate(["time", "kind", "lineage", "family", "copy", "parent",
+                                      "recipient", "donor", "event"])}
+    by_kind: dict[str, list[list[str]]] = {}
+    for r in rows:
+        by_kind.setdefault(r[at["kind"]], []).append(r)
+    for kind, rs in by_kind.items():
+        events = {r[at["event"]] for r in rs}
+        # within a kind the column is exactly unique — a copy ends once, so it keys one event
+        expected = 2 if kind in ("duplication", "transfer", "speciation") else 1
+        assert len(rs) == expected * len(events), kind
+        # and it is never empty: every row belongs to some event
+        assert all(r[at["event"]] for r in rs), kind
+    assert {"duplication", "loss"} <= set(by_kind)       # the seed exercises both arities
     pr = (tmp_path / "profiles.tsv").read_text().splitlines()
     assert len(pr) - 1 == len(g.profiles.families)      # one row per family
 

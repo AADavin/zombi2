@@ -9,9 +9,12 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 
 A species-tree node is written `n<id>` everywhere it appears, and the column holding one is always
 called `lineage` (or `donor` / `recipient` where a row names two), so a node reads the same in any
-file of a run. A gene copy is written `g<id>` the same way — the same token the gene-tree Newick
-leaves and the alignment FASTA headers use, so a copy joins across files without translation — and the
-column holding one is always `copy` (or `parent`, the source copy of a duplication or transfer). In
+file of a run. A gene copy is written `g<id>` the same way, and the column holding one is always
+`copy` (or `parent`, the source copy of a duplication or transfer). Where a copy is named somewhere
+with no column to say which species it sits in — a Newick leaf, a FASTA record, a homology table
+header — it is written **`n<species>_g<copy>`**, both labels joined by a single `_`, so a tip or a
+sequence says which genome it came from without a lookup, and splitting on the `_` recovers each
+half. In
 `blocks.tsv` alone, `gene` means something else — the genic classification of a block, `0` for spacer
 or the family id for a declared gene.
 
@@ -67,7 +70,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor`. A transfer writes two rows sharing a `parent`, and **both name `donor`**, the branch the material left, so either row gives the whole edge without pairing them. On the arriving row `lineage` and `recipient` are the same branch, so `donor` is what makes a self-transfer (`donor` == `recipient`) visible at all |
+| Event log | `genome_events.tsv` | TSV | yes | the source of truth — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor` · `event`. **One row per gene-tree edge, so duplications, transfers and speciations write two rows each** — see [One row per gene-tree edge](#one-row-per-gene-tree-edge-not-per-event) below before counting anything. A transfer's two rows share a `parent`, and **both name `donor`**, the branch the material left, so either row gives the whole edge without pairing them. On the arriving row `lineage` and `recipient` are the same branch, so `donor` is what makes a self-transfer (`donor` == `recipient`) visible at all |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Genomes | `genomes.tsv` | TSV | yes | every node's gene content, **ancestors included** — `lineage` · `family` · `copy`. **One row per gene copy**, so a lineage holding six genes has six rows; two rows sharing a `family` are two copies of it. `copy` is the same identifier the event log uses, so a gene can be followed from the genome it sits in back to the event that made it. `profiles.tsv` is the same information counted, and only for the extant tips |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
@@ -75,12 +78,45 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. A family with no surviving copy writes no `_extant` file |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
+### One row per gene-tree edge, not per event
+
+`genome_events.tsv` holds **one row for every gene-tree edge that begins**, not one row per event.
+An event that leaves two descendants therefore writes two rows, and an event that leaves one writes
+one:
+
+| Kind | Rows | Why |
+|------|------|-----|
+| `duplication` | **2** | the parent copy ends; two copies begin, both on `lineage` |
+| `transfer` | **2** | the donor copy ends; the continuation begins on the donor branch, the transferred copy on `recipient` |
+| `speciation` | **2** | the parent copy ends at the split; one copy begins in each daughter species |
+| `loss` | 1 | the copy ends with no descendant |
+| `origination` | 1 | a founding copy begins with no parent |
+
+**Counting rows by kind therefore counts edges, not events, and doubles duplications, transfers and
+speciations.** The `event` column is there so you never have to: it names the gene copy whose fate
+the event is, so the rows of one event agree on it and, within a kind, it is exactly unique. Count
+distinct values of it and the answer is right for every kind:
+
+```bash
+# transfers that happened — NOT `grep -c transfer`, which returns twice this
+awk -F'\t' '$2=="transfer" {print $9}' genome_events.tsv | sort -u | wc -l
+```
+
+`event` repeats `parent` on the kinds that end a copy and `copy` on the two that do not, so one rule
+covers all five and no reader has to know which column a given kind groups on. Group on it rather
+than on `time`: times are floats, and pairing rows by float equality is both fragile and prone to
+joining two events that happened to fire at once. Compare across kinds only as `(kind, event)` — a
+copy that is originated and later lost names both of those events.
+
+The edge is the unit because the file has to reconstruct the gene tree: every branch needs its own
+row to carry the copy that starts it. Note that `chromosome_events.tsv`, in the same directory,
+records **one row per event** — its rows are rearrangements, which begin no gene-tree edge.
 
 ## Genomes, ordered — `simulate_genomes_ordered`
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | **the run's whole history, in one time-ordered table.** The gene genealogy as at the family resolution, plus **where** each event happened and the ancestry-neutral rearrangements as kinds of their own — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor` · `dest_lineage` · `chromosome` · `position` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹. `position` / `length` are coordinates in that branch's own genome just before the event, as `gene_order` numbers it, and are filled **once per event** — on its first row — because the arc belongs to the event, not to each copy it touched. Filtering on a non-empty `position` therefore gives one row per event that moved genes, which is what a replay walks. A transfer writes a row on each branch and each names the whole edge: `donor` is on both, and the departing row adds `dest_lineage` for where the material went |
+| Event log | `genome_events.tsv` | TSV | yes | **the run's whole history, in one time-ordered table.** The gene genealogy as at the family resolution, plus **where** each event happened and the ancestry-neutral rearrangements as kinds of their own — `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor` · `event` · `dest_lineage` · `chromosome` · `position` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹. `position` / `length` are coordinates in that branch's own genome just before the event, as `gene_order` numbers it, and are filled **once per event** — on its first row — because the arc belongs to the event, not to each copy it touched. Filtering on a non-empty `position` therefore gives one row per event that moved genes, which is what a replay walks. A transfer writes a row on each branch and each names the whole edge: `donor` is on both, and the departing row adds `dest_lineage` for where the material went |
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `lineage` · `chromosome` · `position` · `strand` · `family` · `copy` |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `position` · `strand` · `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
@@ -98,7 +134,8 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | **the run's whole history, in one time-ordered table**: the copy-lineage genealogy and the ancestry-neutral rearrangements — `time` · `kind` · `lineage` · `chromosome` · `copy` · `parent` · `recipient` · `source` · `start` · `end` · `position` · `length` · `dest_chromosome` · `dest_position` · `flipped`. One row per **ancestral interval** an event touched, so an event spanning several blocks writes several rows. `kind` `initial` marks the initial genome being laid down at time 0 (one per replicon) — what the run *starts* with, kept distinct from `origination`, the de-novo births the `--origination` rate makes, so counting one never counts the other. `source`/`start`/`end` are **ancestral** coordinates — which stretch of which source — while `position`/`length` are **physical** ones along the chromosome, as `blocks.tsv` numbers it: different frames, so different columns |
+| Event log | `genome_events.tsv` | TSV | yes | **the genealogy, in the format every resolution writes** — the same columns as at the family resolution, `time` · `kind` · `lineage` · `family` · `copy` · `parent` · `recipient` · `donor` · `event`, one row per gene-tree edge. So one reader serves all three resolutions and `zombi2 tools` works here unchanged. `family` is the declared gene (else the recovered root-block), and `copy` is a **gene** id — the token the gene trees, alignments and homology tables use. It is derived onto the root-block partition, where a copy either covers a block in full or does not touch it, which is what makes a duplication a bifurcation here |
+| Block events | `block_events.tsv` | TSV | yes | **this resolution's own record**, which has no counterpart elsewhere: the copy-lineage log over ancestral intervals, plus the ancestry-neutral rearrangements — `time` · `kind` · `lineage` · `chromosome` · `copy` · `parent` · `recipient` · `source` · `start` · `end` · `position` · `length` · `dest_chromosome` · `dest_position` · `flipped`. One row per **ancestral interval** an event touched, so an event spanning several blocks writes several rows — and a duplication mints a child *without* ending its parent, because a copy lineage covers an extent and the event covers a sub-extent. That is the right model for sequence and the wrong shape for a gene tree, which is why the genealogy above is a separate table rather than this one renamed. `kind` `initial` marks the initial genome being laid down at time 0 (one per replicon) — what the run *starts* with, kept distinct from `origination`, the de-novo births the `--origination` rate makes. `source`/`start`/`end` are **ancestral** coordinates while `position`/`length` are **physical** ones along the chromosome, as `blocks.tsv` numbers it: different frames, so different columns. This is what `read_nucleotide_genomes` replays |
 | Blocks | `blocks.tsv` | TSV | yes | every node's genome as its block mosaic, ancestors included — `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. The rows of one chromosome tile it end to end from 0. The largest file this level writes: blocks are not kept maximal during a run, so it grows with their number × every node |
 | Genes | `genes.tsv` | TSV | yes | the declared genes in initial coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
 | Initial sequence | `initial_sequence.fasta` | FASTA | yes¹ | the initial DNA the run was given (`--fasta`), one `>source<n>` record per replicon. Written only when a FASTA was supplied; it is what lets a separate `zombi2 sequences` run found its blocks from the real sequence |

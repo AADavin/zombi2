@@ -10,6 +10,7 @@ import pytest
 
 from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
+from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import SequencesResult, simulate_sequences
@@ -106,7 +107,7 @@ def test_zero_length_branch_copies_its_parent():
     root = GeneNode("duplication", 0, 1.0, 0)
     root.children = [GeneNode("extant", 1, 1.0, 1), GeneNode("extant", 2, 2.0, 2)]
     r = simulate_sequences(_run({0: GeneTree(0, root, 0.0)}), model=jc69(), length=120, seed=3)
-    assert r.alignments[0]["g1"] == r.ancestral[0]["g0"]
+    assert r.alignments[0]["n1_g1"] == r.ancestral[0]["n0_g0"]
 
 
 def test_every_sequence_has_the_requested_length_over_the_alphabet():
@@ -118,13 +119,13 @@ def test_every_sequence_has_the_requested_length_over_the_alphabet():
 
 def test_alignment_labels_are_exactly_the_extant_tips():
     r = simulate_sequences(_pair_run(1.0, 2.0), model=k80(2.0), length=10, seed=1)
-    assert set(r.alignments[0]) == {"g1", "g2"}             # the two extant daughter genes
+    assert set(r.alignments[0]) == {"n1_g1", "n2_g2"}  # the two extant daughter genes: species 1, 2
 
 
 def test_jc69_holds_uniform_base_composition():
     # root drawn from the uniform stationary; JC69 keeps it uniform, so tips stay ≈ 25% each
     r = simulate_sequences(_pair_run(1.0, 5.0), model=jc69(), length=20000, seed=42)
-    seq = r.alignments[0]["g1"]
+    seq = r.alignments[0]["n1_g1"]
     for base in "ACGT":
         assert abs(seq.count(base) / len(seq) - 0.25) < 0.03
 
@@ -139,7 +140,8 @@ def test_jc69_pdistance_matches_theory_and_rate_scales_it():
     def root_tip_pdistance(*, t_tip, substitution):
         r = simulate_sequences(_pair_run(0.0, t_tip), model=jc69(), length=40000,
                                substitution=substitution, seed=1)
-        return pdist(r.ancestral[0]["g0"], r.alignments[0]["g1"])   # root gene g0 → daughter tip g1
+        # root gene n0_g0 → daughter tip n1_g1
+        return pdist(r.ancestral[0]["n0_g0"], r.alignments[0]["n1_g1"])
 
     theory = lambda d: 0.75 * (1 - np.exp(-4 * d / 3))          # noqa: E731
     assert abs(root_tip_pdistance(t_tip=1.0, substitution=1.0) - theory(1.0)) < 0.01
@@ -151,7 +153,7 @@ def test_hky85_transition_bias_makes_diverged_tips_still_reflect_frequencies():
     # a strongly skewed base composition is reproduced at the tips (endpoint stays near stationary)
     freqs = (0.4, 0.1, 0.1, 0.4)
     r = simulate_sequences(_pair_run(1.0, 4.0), model=hky85(4.0, freqs), length=20000, seed=5)
-    seq = r.alignments[0]["g1"]
+    seq = r.alignments[0]["n1_g1"]
     comp = [seq.count(b) / len(seq) for b in "ACGT"]
     assert comp[0] > comp[1] and comp[3] > comp[2]   # A,T (0.4) exceed C,G (0.1)
 
@@ -165,7 +167,7 @@ def test_family_with_no_extant_copy_has_empty_alignment_but_full_ancestral():
     root.children = [GeneNode("loss", 0, 2.0, 1), GeneNode("loss", 0, 2.0, 2)]
     r = simulate_sequences(_run({0: GeneTree(0, root, 0.0)}), model=jc69(), length=10, seed=1)
     assert r.alignments[0] == {}
-    assert set(r.ancestral[0]) == {"g0", "g1", "g2"}
+    assert set(r.ancestral[0]) == {"n0_g0", "n0_g1", "n0_g2"}    # all three still on species 0
 
 
 # --- integration: species → genomes → sequences ----------------------------------------------------
@@ -236,7 +238,7 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
     run = _run({f: _one_lineage(f, lineage=0, t_tip=1.0) for f in range(20)}, t_split=0.0, t_now=1.0)
     r = simulate_sequences(run, model=jc69(), length=5000,
                            substitution=1.0 * mod.ByLineage(spread=0.8), seed=4)
-    ds = [_pdist(r.ancestral[f]["g0"], r.alignments[f]["g1"]) for f in range(20)]
+    ds = [_pdist(r.ancestral[f]["n0_g0"], r.alignments[f]["n0_g1"]) for f in range(20)]
     mean = sum(ds) / len(ds)
     std = (sum((d - mean) ** 2 for d in ds) / len(ds)) ** 0.5
     assert std < 0.02      # shared clock ⇒ ~0.006 sampling noise; a per-family clock would be far larger
@@ -278,7 +280,8 @@ def test_fromparent_is_deterministic():
 # --- phylograms: the gene / species trees in substitutions/site -------------------------------------
 
 def _leaves(nwk: str) -> set[str]:
-    return set(re.findall(r"(?<![)\w])g\d+", nwk))     # g<copy> in leaf position (not after a ')')
+    # n<species>_g<copy> in leaf position (not after a ')')
+    return set(re.findall(r"(?<![)\w])n\d+_g\d+", nwk))
 
 
 def _total_bl(nwk: str) -> float:
@@ -326,7 +329,7 @@ def test_the_founding_sequence_evolves_across_the_stem():
     for fam, gt in g.gene_trees.items():
         assert len(r.founding[fam]) == len(next(iter(r.ancestral[fam].values()), r.founding[fam]))
         stem = gt.complete.time - gt.origination
-        root_seq = r.ancestral[fam].get(f"g{gt.complete.copy}")
+        root_seq = r.ancestral[fam].get(copy_label(gt.complete.species, gt.complete.copy))
         if root_seq is not None and stem > 0:
             # not asserted equal or unequal site-by-site (a short stem may fix nothing), but the
             # branch the phylogram reports must be exactly the stem under a rate-1 strict clock
@@ -335,14 +338,14 @@ def test_the_founding_sequence_evolves_across_the_stem():
 
 
 def test_every_phylogram_node_has_a_sequence():
-    # the complete phylogram labels every node by its gene id, and every one of those names a
-    # sequence: the extant tips in the alignment, all the rest — internal nodes and dead tips
-    # alike — in the ancestral set. No label points at nothing.
+    # the complete phylogram labels every node by its copy label (n<species>_g<copy>), and every
+    # one of those names a sequence: the extant tips in the alignment, all the rest — internal
+    # nodes and dead tips alike — in the ancestral set. No label points at nothing.
     g, r = _small_run()
     for fam in g.gene_trees:
-        internal = set(re.findall(r"\)(g\d+)", r.phylograms[fam]["complete"]))
+        internal = set(re.findall(r"\)(n\d+_g\d+)", r.phylograms[fam]["complete"]))
         assert internal <= set(r.ancestral[fam])
-        labelled = set(re.findall(r"(g\d+)", r.phylograms[fam]["complete"]))
+        labelled = set(re.findall(r"(n\d+_g\d+)", r.phylograms[fam]["complete"]))
         assert labelled == set(r.ancestral[fam]) | set(r.alignments[fam])
 
 
@@ -408,7 +411,7 @@ def test_write_emits_fasta_per_family(tmp_path):
     r = simulate_sequences(_pair_run(1.0, 2.0), model=jc69(), length=20, seed=1)
     r.write(tmp_path)
     aln = tmp_path / "fam0.fasta"
-    assert aln.exists() and ">g1" in aln.read_text()
+    assert aln.exists() and ">n1_g1" in aln.read_text()
     r.write(tmp_path, outputs=("ancestral",))
     assert (tmp_path / "sequences_ancestral_fam0.fasta").exists()
     with pytest.raises(ValueError):

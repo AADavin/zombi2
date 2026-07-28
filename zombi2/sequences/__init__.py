@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..genomes import FamilyGenomesResult
-from ..genomes.events import node_label
+from ..genomes.events import copy_label, gene_label, node_label
 from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.modifiers import ByLineage, FromParent
 from ..rates.rate import as_rate
@@ -67,10 +67,10 @@ WIRED_MODIFIERS = (ByLineage, FromParent)
 class SequencesResult:
     """What :func:`simulate_sequences` returns.
 
-    - ``alignments`` — ``{family: {g<copy>: sequence}}``: the observable gene alignment, one entry per
+    - ``alignments`` — ``{family: {n<species>_g<copy>: sequence}}``: the observable gene alignment, one entry per
       **extant** gene-tree tip, keyed by its (unique, per-segment) gene id — the same labels as the
       gene tree's / phylogram's Newick leaves. Empty for a family with no surviving copy.
-    - ``ancestral`` — ``{family: {g<copy>: sequence}}``: the true sequence at every node that is **not**
+    - ``ancestral`` — ``{family: {n<species>_g<copy>: sequence}}``: the true sequence at every node that is **not**
       an extant tip — internal nodes (the family's root gene included) and the dead tips, where a copy
       was lost or its species went extinct. With ``alignments`` it accounts for every node of the tree
       exactly once, so every label in the complete phylogram names a sequence.
@@ -82,7 +82,7 @@ class SequencesResult:
       origination is a point on a branch, not a node.
     - ``phylograms`` — ``{family: {"complete": newick, "extant": newick | None}}``: each gene tree with
       branch lengths in **substitutions/site** (``base × lineage-clock × Δt``) — the ground-truth tree
-      behind each alignment. **Every** node is labelled by its gene id ``g<copy>``, so the tips match
+      behind each alignment. **Every** node is labelled ``n<species>_g<copy>``, so the tips match
       the ``alignments`` keys and the internal nodes match the ``ancestral`` keys (the phylogram pairs
       one-to-one with the sequences). ``"extant"`` is ``None`` for a family with no survivor.
     - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``: the **species tree**
@@ -219,7 +219,9 @@ class _AssembledGenomes(Mapping):
         for cid, pieces in pieces_by_cid.items():
             parts = []
             for (block, gene, strand) in pieces:
-                seq = src[block][f"g{gene}"]
+                # the copy a node carries is a copy *of that node*, so its record is named for this
+                # label — which is already `n<id>`, the first half of the record name
+                seq = src[block][f"{label}_{gene_label(gene)}"]
                 parts.append(seq if strand == 1 else seq.translate(_COMPLEMENT)[::-1])
             chroms[cid] = "".join(parts)
         return chroms
@@ -276,7 +278,7 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
     for i, node in enumerate(nodes):
         seq = flat[i * length:(i + 1) * length]
         observable = node.is_leaf and node.kind == "extant"
-        (alignment if observable else ancestral)[f"g{node.copy}"] = seq
+        (alignment if observable else ancestral)[copy_label(node.species, node.copy)] = seq
     return alignment, ancestral
 
 
@@ -359,8 +361,8 @@ def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
 
 def _gene_newick(root: GeneNode) -> str:
     """Newick of a (scaled) gene tree labelling **every** node — leaf and internal — by its gene id
-    ``g<copy>``, so the tips match the ``alignments`` keys and the internal nodes match the
-    ``ancestral`` keys (both keyed ``g<copy>``): the phylogram pairs one-to-one with the sequences.
+    ``n<species>_g<copy>``, so the tips match the ``alignments`` keys and the internal nodes match the
+    ``ancestral`` keys (both keyed ``n<species>_g<copy>``): the phylogram pairs one-to-one with the sequences.
     Branch lengths are node-``time`` differences (substitutions/site on a scaled tree). The root's
     parent measure is 0 — the family's origination — so it carries the stem like every other branch.
     Iterative — gene trees run past CPython's recursion guard, so recursion would crash on deep trees."""
@@ -373,8 +375,9 @@ def _gene_newick(root: GeneNode) -> str:
             frame[2] = ci + 1
             stack.append([node.children[ci], node.time, 0, []])
             continue
-        bl = f":{node.time - parent_time:.6g}"
-        s = f"g{node.copy}{bl}" if node.is_leaf else f"({','.join(parts)})g{node.copy}{bl}"
+        bl = f":{node.time - parent_time:.7g}"
+        s = (f"{copy_label(node.species, node.copy)}{bl}" if node.is_leaf
+             else f"({','.join(parts)}){copy_label(node.species, node.copy)}{bl}")
         stack.pop()
         if stack:
             stack[-1][3].append(s)

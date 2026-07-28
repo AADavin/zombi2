@@ -108,7 +108,8 @@ from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .._runtime.progress import progress_bar
-from .events import gene_from_label, gene_label, node_from_label, node_label
+from .events import (Event, events_tsv, gene_from_label, gene_label, node_from_label,
+                     node_label)
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff
 
@@ -890,15 +891,34 @@ class NucleotideGenomesResult:
         lost from *every* node has no root-block and no tree."""
         return self._recover()[1]
 
+    @property
+    def genealogy(self) -> list[Event]:
+        """The run's genealogy as :class:`~zombi2.genomes.events.Event` — **the same table the family
+        and ordered resolutions write**, and what lands in ``genome_events.tsv``.
+
+        A nucleotide run's own record, :attr:`events`, is interval-shaped: a copy lineage covers an
+        *extent*, an event covers a sub-extent, and a duplication there mints a child without ending
+        the parent (a split is not a birth). That is the right model for sequence, and the wrong shape
+        for a gene tree. This is the translation onto the root-block partition, where a copy either
+        covers a block in full or does not touch it — so a duplication *is* a bifurcation, writes two
+        rows sharing a ``parent``, and the ids are gene ids: the ones the gene trees, the alignments
+        and the homology tables use. It is what the recovery already builds to derive
+        :attr:`gene_trees`; writing it costs nothing extra."""
+        return self._recover()[3]
+
     def write(self, directory,
               outputs=("events", "genes", "blocks", "initial_genome", "initial_sequence",
                        "gene_trees", "chromosome_events", "gff", "bed")) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
-        - ``"events"`` → ``genome_events.tsv``, the run's whole history in one time-ordered table:
-          the copy-lineage genealogy and the ancestry-neutral rearrangements. One row per
-          **ancestral interval** an event touched, so an event that spanned several blocks writes
-          several rows sharing a ``time`` and ``kind``.
+        - ``"events"`` → **two** tables, because a nucleotide run records two different things.
+          ``genome_events.tsv`` is the genealogy (:attr:`genealogy`) in the format *every* resolution
+          writes, so one reader serves them all: one row per gene-tree edge, and a duplication,
+          transfer or speciation writes two sharing a ``parent``. ``block_events.tsv`` is this
+          resolution's own record — the copy-lineage log over **ancestral intervals** plus the
+          ancestry-neutral rearrangements, one row per interval an event touched, so an event
+          spanning several blocks writes several rows sharing a ``time`` and ``kind``. It is what
+          :func:`read_nucleotide_genomes` replays.
         - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
           included, as for the ordered resolution's ``gene_order``). The one big file here: blocks
           are not kept maximal during a run, so a rearrangement-heavy genome carries far more of
@@ -929,7 +949,13 @@ class NucleotideGenomesResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(
+            # Two tables, because they describe two things. `genome_events.tsv` is the genealogy in
+            # the one format every resolution writes, so one reader serves them all; `block_events.tsv`
+            # is this resolution's own interval record, which has no counterpart elsewhere. They used
+            # to share the first name, which made a nucleotide log look readable to the family reader
+            # while meaning something else in the same columns.
+            (d / "genome_events.tsv").write_text(events_tsv(self.genealogy))
+            (d / "block_events.tsv").write_text(
                 _nucleotide_events_tsv(self.events, self.rearrangements))
         if "blocks" in outputs:
             (d / "blocks.tsv").write_text(self._blocks_tsv())
@@ -1189,7 +1215,7 @@ def _genes_from_tsv(text: str):
 
 
 def _events_from_tsv(text: str) -> tuple[list, list]:
-    """The nucleotide ``genome_events.tsv`` → ``(genealogy, rearrangements)``, the inverse of
+    """The nucleotide ``block_events.tsv`` → ``(genealogy, rearrangements)``, the inverse of
     :func:`_nucleotide_events_tsv`.
 
     An event that spanned several ancestral intervals was written as several rows, so the rows have to
@@ -1227,11 +1253,11 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
             events.append(Speciation(time, lineage, pending[0][6],
                                      tuple(row[5] for row in pending)))
         else:
-            raise ValueError(f"genome_events.tsv: unknown event kind {kind!r}")
+            raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         pending.clear()
         key = None
 
-    for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "genome_events.tsv"):
+    for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "block_events.tsv"):
         (time, kind, lineage, chrom, copy, parent, recipient, source, start, end,
          *_physical) = cells
         if kind not in ("origination", "initial", "loss", "duplication", "transfer", "speciation"):
@@ -1245,7 +1271,7 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
             elif kind == "translocation":
                 rearrangements.append(Translocation(t, ln, num(chrom), dc, at, ell, bool(fl)))
             else:
-                raise ValueError(f"genome_events.tsv: unknown event kind {kind!r}")
+                raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
             continue
         row = (kind, float(time), node_from_label(lineage), num(chrom),
                node_from_label(recipient) if recipient else None,
@@ -1269,7 +1295,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
     """Rebuild a :class:`NucleotideGenomesResult` from the files a run wrote, so a later level can
     replay it from disk. ``tree`` is the species tree it ran on.
 
-    Reads ``blocks.tsv``, ``initial_genome.tsv``, ``genome_events.tsv`` and ``genes.tsv`` — the four
+    Reads ``blocks.tsv``, ``initial_genome.tsv``, ``block_events.tsv`` and ``genes.tsv`` — the four
     the recovery needs — and ``initial_sequence.fasta`` if present, so a run given real DNA still
     founds its blocks from it. The rearrangements come back too, since they share the event table now.
     ``chromosome_events.tsv`` is not read: it records how the karyotype got its shape, and the shape
@@ -1287,7 +1313,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
             ) from None
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
-    events, rearrangements = _events_from_tsv(read("genome_events.tsv"))
+    events, rearrangements = _events_from_tsv(read("block_events.tsv"))
     initial_sequence: dict[int, str] = {}
     fpath = d / "initial_sequence.fasta"
     if fpath.exists():                               # a run given real DNA; keyed by source id
@@ -2151,21 +2177,6 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
 # breakpoint that did not survive, so its child is dead and irrelevant to the extant tree.
 
 
-@dataclass(frozen=True, slots=True)
-class _SegEvent:
-    """One per-segment event in the model :func:`gene_trees_from_events` reads: ``kind`` is
-    ``origination`` (a root) / ``duplication`` / ``transfer`` / ``speciation`` (a parent segment ends →
-    a child begins on species branch ``lineage``) / ``loss`` (a dead leaf). ``copy`` is the fresh
-    segment id, ``parent`` the segment it descends from (``None`` for a root or a loss)."""
-
-    kind: str
-    family: int
-    lineage: int
-    time: float
-    copy: int
-    parent: int | None
-
-
 def _root_block_partition(result) -> list[tuple[int, int, int]]:
     """The root partition: per source, the maximal intervals bounded by the breakpoints of **every**
     node's genome, that some node still carries. Returns a sorted ``(source, start, end)`` list.
@@ -2257,13 +2268,20 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
     seg_in = {c: new_seg() for c in order}
     for e in root_origs:
-        out.append(_SegEvent("origination", fam, e.lineage, e.time, seg_in[e.copy], None))
+        out.append(Event(e.time, "origination", e.lineage, fam, seg_in[e.copy]))
     for c in order:
         prev = seg_in[c]
         for (t, cc, kind) in sorted(spawns.get(c, ())):    # ladder: each rung a bifurcation (dup or transfer)
             nxt = new_seg()
-            out.append(_SegEvent(kind, fam, species[c], t, nxt, prev))       # continuation, on c's branch
-            out.append(_SegEvent(kind, fam, species[cc], t, seg_in[cc], prev))  # the new copy
+            # A transfer is a horizontal edge, so both its rows name the branch the material left, and
+            # the arriving row alone names where the new copy is born — the same contract the family
+            # resolution writes, because this is the same table.
+            donor = species[c] if kind == "transfer" else None
+            recipient = species[cc] if kind == "transfer" else None
+            out.append(Event(t, kind, species[c], fam, nxt, prev,        # continuation, on c's branch
+                             donor=donor))
+            out.append(Event(t, kind, species[cc], fam, seg_in[cc], prev,   # the new copy
+                             recipient=recipient, donor=donor))
             prev = nxt
         # The gene a genome still carrying c holds. ``None`` when a loss ended c over this block —
         # and then no node carries that block under c at all, since a copy's blocks are disjoint in
@@ -2271,13 +2289,13 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         # dropped so the assembly's guard can tell "died here" from "never existed".
         tip_of[(fam, c)] = None if c in loss_of else prev
         if c in loss_of:                                   # a death (dead leaf)
-            out.append(_SegEvent("loss", fam, species[c], loss_of[c], prev, None))
+            out.append(Event(loss_of[c], "loss", species[c], fam, prev))
         elif c in specs:                                   # a bifurcation into the daughter species
             pnode = tree.nodes[specs[c].lineage]
             for i, d in enumerate(specs[c].children):
                 if d in block_copies:
-                    out.append(_SegEvent("speciation", fam, pnode.children[i], specs[c].time,
-                                         seg_in[d], prev))
+                    out.append(Event(specs[c].time, "speciation", pnode.children[i], fam,
+                                     seg_in[d], prev))
         # else: prev survives to an extant/extinct leaf — gene_trees_from_events tags it by species fate
 
 
@@ -2317,12 +2335,13 @@ def _recover_gene_trees(result, *, every_block: bool = False
     else:                                                # uniform: every root-block is its own family
         targets = list(enumerate(blocks))
 
-    seg_events: list[_SegEvent] = []
+    seg_events: list[Event] = []
     tip_of: dict[tuple[int, int], int] = {}
     for fam, (s, a, b) in targets:
         _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg,
                            seg_events, tip_of)
-    return blocks, gene_trees_from_events(seg_events, tree), tip_of
+    seg_events.sort(key=lambda e: e.time)                # one stream, in the order it happened
+    return blocks, gene_trees_from_events(seg_events, tree), tip_of, seg_events
 
 
 __all__ = ["Block", "Chromosome", "NucleotideGenome", "NucleotideGenomesResult",
