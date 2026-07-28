@@ -33,7 +33,7 @@ import numpy as np
 from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
-from ..rates.scope import PerCopy, PerLineage
+from ..rates.scope import Global, PerCopy, PerLineage, Scope
 from ..species import SpeciesResult
 from ..tree import Tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
@@ -226,17 +226,35 @@ def _lose_at(genome, j, node, t, events) -> None:
 
 
 def resolve_max_family_size(max_family_size, n_lineages: int) -> int | None:
-    """Resolve the per-genome family cap: ``int`` is absolute, ``float`` is a multiple of the
-    lineages in the complete tree, ``None`` is no cap. Kept from ZOMBI1's ``max_family_size``."""
+    """Resolve the per-genome family cap to a copy count.
+
+    The cap is written with a **scope**, the same word a rate uses for the same question: is this
+    number absolute, or does it scale? ``Global(n)`` caps a family at ``n`` copies whatever the tree
+    looks like; ``PerLineage(n)`` allows ``n`` for every lineage in the complete tree, so the bound
+    travels with the size of the run and one setting means the same thing on ten species and on a
+    thousand. ``None`` removes the cap.
+
+    A bare number is refused. This used to be the whole distinction — ``10`` absolute against
+    ``10.0`` relative — which put a factor of ``n_lineages`` between two values Python considers
+    equal, in a spelling no ``--params`` file or reader could be expected to notice.
+    """
     if max_family_size is None:
         return None
-    if isinstance(max_family_size, bool) or not isinstance(max_family_size, (int, float)):
-        raise ValueError(f"max_family_size must be an int, a float or None, got {max_family_size!r}")
-    if max_family_size <= 0:
+    if not isinstance(max_family_size, Scope):
+        raise ValueError(
+            f"max_family_size must say what its number is per: Global({max_family_size!r}) for that "
+            f"many copies outright, or PerLineage({max_family_size!r}) for that many per lineage in "
+            f"the tree (they differ by a factor of the tree size). None removes the cap. "
+            f"Got {max_family_size!r}")
+    if not isinstance(max_family_size, (Global, PerLineage)):
+        raise ValueError(f"max_family_size takes Global(n) or PerLineage(n), not "
+                         f"{type(max_family_size).__name__}(n): a family cap counts copies in one "
+                         f"genome, so it is either an outright number or one per lineage")
+    if max_family_size.base <= 0:
         raise ValueError(f"max_family_size must be positive, got {max_family_size!r}")
-    if isinstance(max_family_size, float):
-        return max(1, round(max_family_size * n_lineages))
-    return max(1, int(max_family_size))
+    if isinstance(max_family_size, PerLineage):
+        return max(1, round(max_family_size.base * n_lineages))
+    return max(1, round(max_family_size.base))
 
 
 def _at_cap(genome, family: int, cap: int | None) -> bool:
@@ -302,7 +320,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                             transfer_to="uniform", replacement=False, self_transfer=False,
                             initial_families=100, family_names=None, family_speed=None,
-                            max_family_size=10.0, seed=None, parallel=False, stream_to=None,
+                            max_family_size=PerLineage(10), seed=None, parallel=False, stream_to=None,
                             outputs=None, progress=False) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.

@@ -25,22 +25,22 @@ def _internal(kind: str, species: int, children: list[GeneNode]) -> GeneNode:
 
 def test_mrca_event_maps_to_the_relation():
     # a tree whose three internal nodes are one of each kind, so every relation appears once:
-    #   root=duplication( speciation(g10,g11) , transfer(g20,g21) )
+    #   root=duplication( speciation(n3_g10,n4_g11) , transfer(n5_g20,n6_g21) )
     left = _internal("speciation", 2, [_leaf(3, 10), _leaf(4, 11)])
     right = _internal("transfer", 5, [_leaf(5, 20), _leaf(6, 21)])
     root = _internal("duplication", 1, [left, right])
 
     labels, m = homology_table(root)
-    assert labels == ["n3|g10", "n4|g11", "n5|g20", "n6|g21"]     # left-to-right, Newick order
+    assert labels == ["n3_g10", "n4_g11", "n5_g20", "n6_g21"]     # left-to-right, Newick order
     idx = {lab: i for i, lab in enumerate(labels)}
 
     def rel(a, b):
         return m[idx[a]][idx[b]]
 
-    assert rel("n3|g10", "n4|g11") == "O"                         # MRCA is the speciation
-    assert rel("n5|g20", "n6|g21") == "X"                         # MRCA is the transfer
-    for a in ("n3|g10", "n4|g11"):                                # MRCA of any cross pair is the root
-        for b in ("n5|g20", "n6|g21"):
+    assert rel("n3_g10", "n4_g11") == "O"                         # MRCA is the speciation
+    assert rel("n5_g20", "n6_g21") == "X"                         # MRCA is the transfer
+    for a in ("n3_g10", "n4_g11"):                                # MRCA of any cross pair is the root
+        for b in ("n5_g20", "n6_g21"):
             assert rel(a, b) == "P"                               # ...a duplication
 
 
@@ -55,7 +55,7 @@ def test_matrix_is_symmetric_with_a_dashed_diagonal():
 
 def test_a_single_leaf_is_a_one_by_one_table():
     labels, m = homology_table(_leaf(7, 99))
-    assert labels == ["n7|g99"]
+    assert labels == ["n7_g99"]
     assert m == [["-"]]
 
 
@@ -63,9 +63,9 @@ def test_tsv_is_a_square_grid_with_a_blank_corner():
     root = _internal("speciation", 1, [_leaf(2, 10), _leaf(3, 11)])
     text = homology_tsv(root)
     lines = text.rstrip("\n").split("\n")
-    assert lines[0] == "\tn2|g10\tn3|g11"                         # blank corner, then the headers
-    assert lines[1] == "n2|g10\t-\tO"
-    assert lines[2] == "n3|g11\tO\t-"
+    assert lines[0] == "\tn2_g10\tn3_g11"                         # blank corner, then the headers
+    assert lines[1] == "n2_g10\t-\tO"
+    assert lines[2] == "n3_g11\tO\t-"
 
 
 def _naive_matrix(root: GeneNode):

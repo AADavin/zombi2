@@ -14,19 +14,20 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_family)
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
+from zombi2.rates.parse import parse_rate, written_form
+from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
-                                  guidance, level_dir, parallel_from_args,
-                                  record_conditioning, resolve_tree, sibling_fates)
+                                  defaults_used, guidance, level_dir, parallel_from_args,
+                                  record_conditioning, resolve_tree, sibling_fates, warn)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -77,7 +78,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 # mistaken for setting it.
 #: The per-genome family cap, the same default the two engines carry. Duplication compounds, so a run
 #: is bounded unless you ask otherwise; `--max-family-size none` is that ask.
-_DEFAULT_MAX_FAMILY_SIZE = 10.0
+_DEFAULT_MAX_FAMILY_SIZE = PerLineage(10)
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
@@ -102,13 +103,13 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "own species_fates.tsv is in this format and can be passed directly.")
 
     g = p.add_argument_group("gene-family events (D/T/L/O)", "rates on their natural scope — see RATES below")
-    g.add_argument("--duplication", type=_rate, default=0.0, metavar="RATE",
+    g.add_argument("--duplication", type=_rate, default=None, metavar="RATE",
                    help="gene duplication rate (per copy)")
-    g.add_argument("--transfer", type=_rate, default=0.0, metavar="RATE",
+    g.add_argument("--transfer", type=_rate, default=None, metavar="RATE",
                    help="horizontal transfer rate (per copy)")
-    g.add_argument("--loss", type=_rate, default=0.0, metavar="RATE",
+    g.add_argument("--loss", type=_rate, default=None, metavar="RATE",
                    help="gene loss rate (per copy)")
-    g.add_argument("--origination", type=_rate, default=0.0, metavar="RATE",
+    g.add_argument("--origination", type=_rate, default=None, metavar="RATE",
                    help="new-family origination rate (per lineage)")
 
     g = p.add_argument_group("transfer & content")
@@ -129,11 +130,12 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty, so every family must then "
                         f"arrive by --origination")
     g.add_argument("--max-family-size", type=_family_cap, default=_DEFAULT_MAX_FAMILY_SIZE,
-                   metavar="N", dest="max_family_size",
-                   help=f"cap on how many copies of one family a genome may hold — an int is a copy "
-                        f"count, a float is that multiple of the tree's lineages (default "
-                        f"{_DEFAULT_MAX_FAMILY_SIZE}), 'none' removes it. Duplication compounds, so a "
-                        f"run is bounded unless you ask otherwise")
+                   metavar="CAP", dest="max_family_size",
+                   help=f"cap on how many copies of one family a genome may hold, written with a "
+                        f"scope like a rate: Global(N) is N copies outright, PerLineage(N) is N for "
+                        f"every lineage in the tree, so the bound travels with the size of the run "
+                        f"(default {written_form(_DEFAULT_MAX_FAMILY_SIZE)}). 'none' removes it. "
+                        f"Duplication compounds, so a run is bounded unless you ask otherwise")
     g.add_argument("--family-speed", type=_family_speed, default=None, metavar="DRAW",
                    dest="family_speed",
                    help="one per-family tempo scaling every rate that family has, as a ByFamily draw "
@@ -217,8 +219,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="[family] write each gene family straight to disk instead of building the "
                         "whole run in memory — for a very large number of families, where the "
                         "in-memory result would not fit. Composes with --parallel and --write; the "
-                        "files are the same and the disk is the handoff to the sequence level (gene "
-                        "trees are grouped under gene_trees/ regardless of --flat)")
+                        "same files are written and the disk is the handoff to the sequence level "
+                        "(gene trees are grouped under gene_trees/ regardless of --flat). Like "
+                        "--parallel it is a separate engine: it draws families in a different order, "
+                        "so for the same seed the run it produces DIFFERS from a serial one (both "
+                        "valid samples). Fix the mode alongside the seed to reproduce a run")
     _add_quiet_arg(g)
     _add_force_arg(g)
 
@@ -238,11 +243,15 @@ def _family_cap(text: str):
     if s.lower() in ("none", "off"):
         return None
     try:
-        return int(s) if re.fullmatch(r"[+-]?\d+", s) else float(s)
-    except ValueError:
+        cap = parse_rate(s)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"--max-family-size: {e}") from None
+    if not isinstance(cap, (Global, PerLineage)):
         raise argparse.ArgumentTypeError(
-            f"--max-family-size takes an int (a copy count), a float (a multiple of the tree's "
-            f"lineages) or 'none' (no cap); got {text!r}") from None
+            f"--max-family-size takes Global(N) for that many copies outright, PerLineage(N) for "
+            f"that many per lineage in the tree, or 'none' for no cap. A bare number cannot say "
+            f"which is meant, and the two differ by a factor of the tree's size; got {text!r}")
+    return cap
 
 
 def _family_speed(text: str):
@@ -296,6 +305,16 @@ def _transfer_to(text: str):
     return value
 
 
+#: Every rate flag with the value it holds when unset — what "the caller described no model at all"
+#: means, and so when a bare run may fill in demonstration rates. The structural rates sit at 0.0
+#: rather than None because absent genuinely means off for them: a genome with no inversion rate is
+#: a genome that does not invert, whereas an unset D/T/L is a question this level has to answer.
+_RATE_FLAGS = (("duplication", None), ("transfer", None), ("loss", None), ("origination", None),
+               ("inversion", 0.0), ("transposition", 0.0), ("translocation", 0.0),
+               ("fission", 0.0), ("fusion", 0.0),
+               ("chromosome_origination", 0.0), ("chromosome_loss", 0.0))
+
+
 def _stray(args, knobs) -> list[str]:
     """The flags in ``knobs`` the user actually set (their value differs from the default)."""
     return [f"--{attr.replace('_', '-')}" for attr, default in knobs
@@ -303,6 +322,21 @@ def _stray(args, knobs) -> list[str]:
 
 
 def run(args, parser):
+    # Fill the rate defaults first, so everything below validates the run that will actually happen
+    # rather than a half-specified one. A bare `zombi2 genomes out/` runs, and shows what this level
+    # is for: with every rate left at zero it would only inherit, which demonstrates nothing. But
+    # defaulting a rate the caller left out *beside* ones they set would be a surprise —
+    # `--duplication 0.3` alone plainly means no transfer — so this applies only when none was given.
+    _CORE = ("duplication", "transfer", "loss", "origination")
+    # "gave no rate" means no rate of *any* kind, structural ones included: a run given --inversion
+    # has had its model described, and silently adding gene turnover to it would be the surprise.
+    if not _stray(args, _RATE_FLAGS):
+        warn(defaults_used(args, duplication=0.2, transfer=0.1, loss=0.25, origination=0.5))
+    else:
+        for r in _CORE:                        # unset beside a set one means off, not defaulted
+            if getattr(args, r) is None:
+                setattr(args, r, 0.0)
+
     # a flag a resolution does not have is an error, never silently ignored — otherwise
     # `--inversion` under the family resolution, or `--initial-families` under nucleotide, would quietly
     # produce a run that is not the one asked for

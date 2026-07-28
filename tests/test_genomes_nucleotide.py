@@ -1671,7 +1671,51 @@ def _written(tmp_path, **kw):
 def test_write_emits_the_selected_outputs(tmp_path):
     _written(tmp_path)
     assert {p.name for p in tmp_path.iterdir()} == {
-        "genome_events.tsv", "blocks.tsv", "genes.tsv", "chromosome_events.tsv"}
+        "genome_events.tsv", "block_events.tsv", "blocks.tsv", "genes.tsv",
+        "chromosome_events.tsv"}
+
+
+def test_every_resolution_writes_the_same_genome_events_table(tmp_path):
+    """One filename, one format, one reader. `genome_events.tsv` used to mean two different things:
+    at the nucleotide resolution its rows were ancestral intervals, and `lineage` on a transfer named
+    the *donor* rather than the branch the copy is born on. The columns looked close enough that the
+    family reader would have accepted one and built silently wrong gene trees."""
+    from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
+    from zombi2.genomes.events import _COLS, events_from_tsv
+
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
+    runs = {
+        "family": simulate_genomes_family(sp, initial_families=30, duplication=0.3, loss=0.2,
+                                          transfer=0.2, seed=4),
+        "ordered": simulate_genomes_ordered(sp, initial_families=30, duplication=0.3, loss=0.2,
+                                            transfer=0.2, seed=4),
+        "nucleotide": simulate_genomes_nucleotide(sp, root_length=7000, genes=60, duplication=1.5,
+                                                  loss=0.8, transfer=1.0, duplication_extent=300,
+                                                  transfer_extent=300, seed=11),
+    }
+    for name, r in runs.items():
+        d = tmp_path / name
+        r.write(d, outputs=("events",))
+        text = (d / "genome_events.tsv").read_text()
+        # the genealogy columns are a prefix of every resolution's header — that is the contract
+        # `events_from_tsv` relies on, and what lets one reader serve all three
+        assert tuple(text.splitlines()[0].split("\t"))[:len(_COLS)] == _COLS, name
+
+        events = events_from_tsv(text)                   # the family reader, on all three
+        assert events, name
+        by_kind: dict[str, list] = {}
+        for e in events:
+            by_kind.setdefault(e.kind, []).append(e)
+        for kind, es in by_kind.items():
+            rows_per_event = 2 if kind in ("duplication", "transfer", "speciation") else 1
+            assert len(es) == rows_per_event * len({e.event for e in es}), (name, kind)
+        # a transfer is a horizontal edge everywhere: both rows name the donor, and the arriving row
+        # alone names the recipient — the branch the new copy is born on, which is its own `lineage`
+        for e in by_kind.get("transfer", ()):
+            assert e.donor is not None, name
+            assert e.recipient is None or e.recipient == e.lineage, name
+        assert sum(1 for e in by_kind.get("transfer", ()) if e.recipient is not None) \
+            == len(by_kind.get("transfer", ())) // 2, name
 
 
 def test_write_defaults_to_every_table(tmp_path):
@@ -1680,8 +1724,8 @@ def test_write_defaults_to_every_table(tmp_path):
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     simulate_genomes_nucleotide(sp, root_length=200, inversion=1.0, seed=1).write(tmp_path)
     written = {p.name for p in tmp_path.iterdir()}
-    assert {"genome_events.tsv", "genes.tsv", "blocks.tsv", "initial_genome.tsv",
-            "chromosome_events.tsv"} <= written
+    assert {"genome_events.tsv", "block_events.tsv", "genes.tsv", "blocks.tsv",
+            "initial_genome.tsv", "chromosome_events.tsv"} <= written
     assert any(p.name.startswith("gene_tree_fam") for p in tmp_path.iterdir())
 
 
@@ -1714,7 +1758,7 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     # an event can touch several blocks at once, so it writes several rows — but no event may go
     # unwritten, and no row may be invented
     r = _written(tmp_path)
-    _, rows = _read(tmp_path / "genome_events.tsv")
+    _, rows = _read(tmp_path / "block_events.tsv")
 
     expected = collections.Counter()
     for e in r.events:
@@ -1757,7 +1801,7 @@ def test_written_rearrangements_share_the_event_table(tmp_path):
     interleave them anyway. So: same table, their own kinds, and no ancestral columns."""
     r = _written(tmp_path, chromosomes=3, translocation=1.5, transposition=3.0)
     assert not (tmp_path / "rearrangements.tsv").exists()
-    _, rows = _read(tmp_path / "genome_events.tsv")
+    _, rows = _read(tmp_path / "block_events.tsv")
     kinds = {"inversion", "transposition", "translocation"}
     rear = [row for row in rows if row["kind"] in kinds]
     assert len(rear) == len(r.rearrangements) and {row["kind"] for row in rear} == kinds

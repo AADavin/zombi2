@@ -52,7 +52,7 @@ from .family import resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .._runtime.progress import progress_bar
-from .events import Event, gene_label, node_label
+from .events import _COLS, Event, gene_label, node_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -324,9 +324,13 @@ class OrderedGenomesResult:
 #: ``lineage`` (where it came from) and gains ``dest_lineage`` (where it went). ``recipient`` keeps
 #: the genealogy's meaning — the branch the *new* copy is born on — and so is set on the arriving row
 #: only; it is what tells the two sides apart.
-_EVENT_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor",
-               "dest_lineage",
-               "chromosome", "position", "length", "dest_chromosome", "dest_position", "flipped")
+#: The genealogy columns come from :data:`~zombi2.genomes.events._COLS` rather than being repeated,
+#: because :func:`~zombi2.genomes.events.events_from_tsv` reads this table by requiring those columns
+#: as a literal **prefix** of the header. Spelling them out twice let the two drift, which broke that
+#: reader silently; deriving them cannot.
+_EVENT_COLS = _COLS + ("dest_lineage",
+                       "chromosome", "position", "length", "dest_chromosome", "dest_position",
+                       "flipped")
 
 
 def _position_key(kind, lineage, family, recipient):
@@ -354,7 +358,8 @@ def _events_tsv(events, event_positions, rearrangements) -> str:
         cells = [e.time, e.kind, node_label(e.lineage), e.family, gene_label(e.copy),
                  "" if e.parent is None else gene_label(e.parent),
                  "" if e.recipient is None else node_label(e.recipient),
-                 "" if e.donor is None else node_label(e.donor)]
+                 "" if e.donor is None else node_label(e.donor),
+                 gene_label(e.event)]
         # `donor` is on both of a transfer's rows (it comes from the event itself); the row that
         # *left* additionally needs to say where the material went, which its own `recipient` cannot
         # — that field names the branch the new copy is born on, so it is the arriving row's.
@@ -372,8 +377,8 @@ def _events_tsv(events, event_positions, rearrangements) -> str:
             cells += ["", "", "", "", "", ""]
         rows.append((e.time, "\t".join(str(c) for c in cells)))
 
-    for r in rearrangements:                            # ancestry-neutral: no family, copy or parent
-        head = [r.time, "", node_label(r.lineage), "", "", "", "", "", ""]
+    for r in rearrangements:            # ancestry-neutral: no family, copy, parent or event either
+        head = [r.time, "", node_label(r.lineage), *[""] * (len(_COLS) - 3), ""]
         if isinstance(r, Inversion):
             tail = ["inversion", r.chromosome, r.start, r.length, "", "", ""]
         elif isinstance(r, Transposition):
@@ -794,7 +799,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, family_names=None, family_speed=None,
-                             max_family_size=10.0, seed=None,
+                             max_family_size=PerLineage(10), seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.

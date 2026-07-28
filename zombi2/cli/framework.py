@@ -244,6 +244,36 @@ def guidance(args, *looks: str) -> None:
         print(f"  → {look}")
 
 
+def defaults_used(args, **fallbacks) -> str:
+    """Fill any of ``fallbacks`` the caller left unset on ``args``, and return a message naming what
+    was filled (empty when the caller set everything).
+
+    Every level runs bare, so that ``zombi2 species out/`` shows a newcomer the shape of a command
+    instead of a list of what they failed to supply — the rates are precisely the part nobody can
+    guess on a first run. What a bare run must never do is imply the numbers were chosen: they are
+    round, illustrative, and calibrated to nothing. Hence the message, which the ``.log`` then
+    records alongside every other resolved parameter."""
+    filled = {name: value for name, value in fallbacks.items() if getattr(args, name, None) is None}
+    for name, value in filled.items():
+        setattr(args, name, value)
+    if not filled:
+        return ""
+    shown = " ".join(f"--{name.replace('_', '-')} {value}" for name, value in filled.items())
+    return (f"no value given for {', '.join('--' + n.replace('_', '-') for n in filled)}, so this "
+            f"run used {shown}. Those are illustrative defaults, picked to make a first run work "
+            f"rather than to describe any real group — choose them yourself for a run you intend "
+            f"to keep")
+
+
+def warn(message: str) -> None:
+    """A diagnostic about the *result* — the run succeeded, but something about what came out is
+    likely not what was wanted. Unlike :func:`guidance` it goes to **stderr** and survives
+    ``--quiet``: a scripted batch is precisely the caller who needs to hear that its data is
+    degenerate, and stdout stays clean for the ``wrote …`` line. A healthy run prints nothing here,
+    so an empty stderr still means "nothing to report"."""
+    print(f"zombi2: warning: {message}", file=sys.stderr)
+
+
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
 #: ``genomes`` and ``traits`` (both read the species tree); ``genomes`` feeds ``sequences`` (the gene
 #: trees). Re-running a level orphans everything reachable from it here, plus any level that recorded a

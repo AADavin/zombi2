@@ -47,17 +47,32 @@ class Event:
     #: the whole edge; on the donor's own row it repeats ``lineage``, which is the price of that.
     donor: int | None = None
 
+    @property
+    def event(self) -> int:
+        """Which event this row belongs to: **the gene copy whose fate the event is**.
 
-_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor")
+        A row is a gene-tree *edge*, so an event that leaves two descendants writes two rows. Those
+        rows agree here and nowhere else that is safe to group on — ``time`` is a float, and pairing
+        on it invites both false joins and float-equality bugs. A copy ends exactly once, so within a
+        kind this is unique: ``sort -u`` on it counts events rather than edges, which counting rows
+        does not. For the kinds that end a copy (duplication, transfer, speciation) that copy is
+        ``parent``; a loss ends ``copy`` itself, and an origination begins one with no parent, so
+        those name ``copy``. Both are already one row per event — the column exists so a single rule
+        works for every kind and no reader has to know which of the two to group on."""
+        return self.copy if self.parent is None else self.parent
+
+
+_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor", "event")
 
 #: Columns holding a species-tree node, written as ``n<id>``.
 _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
 
-#: Columns holding a gene copy, written as ``g<id>`` — the same token the gene-tree Newick leaves,
-#: the alignment FASTA headers and the homology tables use, so a copy joins across every file without
-#: translation. ``parent`` is a gene copy too (the source copy a duplication/transfer descends from),
-#: so it is g-labelled; the species columns above are not.
-_GENE_COLS = frozenset({"copy", "parent"})
+#: Columns holding a gene copy, written as ``g<id>``. This table names the species in its own column,
+#: so the copy cell carries the copy alone; a file with no such column names it
+#: ``n<species>_g<copy>`` instead (:func:`copy_label`). Either way the ``g<id>`` half is the same
+#: token, so a copy joins across every file without translation. ``parent`` is a gene copy too (the
+#: source copy a duplication/transfer descends from), so it is g-labelled; the species columns are not.
+_GENE_COLS = frozenset({"copy", "parent", "event"})
 
 
 def node_label(node_id: int | None) -> str:
@@ -73,12 +88,28 @@ def node_from_label(cell: str) -> int:
 
 
 def gene_label(copy_id: int | None) -> str:
-    """A gene copy as every ZOMBI2 table writes it: ``g<id>``, the same token the gene-tree Newick
-    leaves, the alignment FASTA headers and the homology tables use — so a copy in ``genomes.tsv`` or
-    the event log joins to a tree leaf or a sequence with no translation. Empty for ``None``. The
-    ``g`` also keeps a copy id from being read as a bare number in a Newick leaf, where that is
-    ambiguous with a support value or a branch length."""
+    """A gene copy as every ZOMBI2 **table** writes it: ``g<id>``. Empty for ``None``.
+
+    A table names the copy's species in a column of its own, so this is the whole cell. Where there is
+    no such column — a Newick leaf, a FASTA record — the copy is written ``n<species>_g<copy>``
+    (:func:`copy_label`), which embeds this unchanged, so a copy still joins across files without
+    translation. The ``g`` also keeps a copy id from being read as a bare number in a Newick leaf,
+    where that is ambiguous with a support value or a branch length."""
     return "" if copy_id is None else f"g{copy_id}"
+
+
+def copy_label(species: int | None, copy_id: int | None) -> str:
+    """A gene copy **where it sits**: ``n<species>_g<copy>``, the token every file naming a copy of a
+    known species uses — the gene-tree and phylogram leaves, the alignment FASTA records and the
+    homology tables.
+
+    The copy id alone is unique, so the species is redundant for joining; it is here because a
+    sequence or a tip is read by people and by tools that never see the rest of the run, and ``g2179``
+    alone cannot say which genome it came from. That forced everyone benchmarking orthology to join
+    the alignments back to ``genomes.tsv`` themselves. The two halves are each still their own label,
+    so splitting on the single ``_`` recovers them; ``_`` rather than ``|`` because a FASTA record
+    name goes on to be parsed by aligners and tree builders that treat ``|`` as a field separator."""
+    return f"{node_label(species)}_{gene_label(copy_id)}"
 
 
 def gene_from_label(cell: str) -> int:
@@ -131,13 +162,19 @@ def events_from_tsv(text: str) -> list[Event]:
         # touch. (A genome level that needs the positions reads them itself.)
         return _parse(lines, header)
     if tuple(header) != _COLS:
-        # the nucleotide resolution writes its own, wider log to the same filename — a likely
-        # mistake worth naming, since the two look alike until you read the columns
-        hint = ("; this looks like a --resolution nucleotide log, whose events are keyed by "
-                "ancestral interval rather than gene family. Read one with "
-                "zombi2.genomes.nucleotide.read_nucleotide_genomes, which the sequence level uses "
-                "when its handoff is a nucleotide run"
+        # `block_events.tsv` — a nucleotide run's own record, keyed by ancestral interval. Every
+        # resolution writes its genealogy here in one format, so that file is the only table left
+        # that looks like this one and is not; naming it saves reading the columns to find out.
+        hint = ("; this looks like a nucleotide run's block_events.tsv, whose rows are ancestral "
+                "intervals rather than gene-tree edges. Read one with "
+                "zombi2.genomes.nucleotide.read_nucleotide_genomes. That run's genome_events.tsv is "
+                "the genealogy, in this format, and is what this reader wants"
                 if "source" in header and "family" not in header else "")
+        if not hint and set(header) < set(_COLS):
+            # a genuinely short header: every column it has is one of ours, so it is a log this
+            # version no longer reads rather than a different table
+            hint = (f"; it is missing {', '.join(c for c in _COLS if c not in header)}. Re-run "
+                    f"'zombi2 genomes' to write a log this version reads")
         raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}{hint}")
     return _parse(lines, header)
 
@@ -148,8 +185,9 @@ _GENEALOGY = frozenset({"origination", "duplication", "loss", "transfer", "speci
 
 
 def _parse(lines: list[str], header: list[str]) -> list[Event]:
-    """Read the rows by column **name**, so a table carrying more than the seven canonical columns
-    parses unchanged and only the genealogy rows come back."""
+    """Read the rows by column **name**, so a table carrying more than the canonical columns parses
+    unchanged and only the genealogy rows come back. ``event`` is derived from ``parent``/``copy``,
+    so it is written but never read back: there is one definition of it, on :class:`Event`."""
     at = {c: i for i, c in enumerate(header)}
     events: list[Event] = []
     for lineno, raw in enumerate(lines[1:], 2):

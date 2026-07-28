@@ -10,11 +10,92 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`zombi2 sequences` reports the alignment divergence it actually produced, and warns when the
+  sequences are saturated.** The summary line gains `mean identity NN%`, measured over a bounded
+  random sample of within-family pairs. When that identity sits within 15% of the model's own random
+  floor (`Σπ²` — 25% for equal-frequency DNA, ~6% for a protein model) the run also prints a warning
+  naming the realised identity, the floor, and `--substitution`. The rate is per unit *time*, so
+  whether it yields a usable alignment depends on the height of the tree it runs down — which no flag
+  reveals. Five independent first-time users were given the default rate on the documented quickstart
+  tree and two of them nearly abandoned the tool believing the sequence level was broken. The warning
+  goes to stderr and survives `--quiet`, so a scripted batch hears it; a healthy run prints nothing.
 - **A "Genome reduction" gallery example — a trait *conditions* the genome.** In the renamed
   *Joining and conditioning* level: an irreversible endosymbiont lifestyle drives fast gene loss and
   near-zero gene gain through the same `DrivenBy` mechanism that couples a trait to speciation, so
   those lineages' genomes collapse — shown as per-tip genome-size bars beside a tree coloured by
   lifestyle. Uses Phylustrator 0.1.2's new `bars` panel (pinned via `zombi2[gallery]`). (#260)
+
+### Added
+- **`zombi2 species out/`, `zombi2 genomes out/` and `zombi2 sequences out/` now run with no other
+  arguments.** Each fills what it was not given (`--birth 1.0 --n-extant 20`; `--duplication 0.2
+  --transfer 0.1 --loss 0.25 --origination 0.5`; `--model jc69`) and says on stderr exactly which
+  values it chose and that they are illustrative rather than estimates. Refusing to run taught a
+  newcomer nothing about the shape of a command, and the rates are precisely the part nobody can
+  guess on a first run — "every number was a guess" was among the loudest first-time complaints. A
+  default is announced rather than silent for the same reason a saturated alignment now is: the run
+  should never imply a number was chosen when it was not, and the `.log` records it either way.
+  `genomes` fills in only when **no** rate of any kind was given: a run that names `--duplication
+  0.3` or `--inversion 1.0` has had its model described, and quietly adding gene turnover to it
+  would be the surprise.
+
+### Changed
+- **`max_family_size` is written with a scope**: `PerLineage(10)` (the new default, ten copies for
+  every lineage in the complete tree) or `Global(50)` (fifty copies whatever the tree looks like);
+  `None` still removes the cap. It used to be the `int`/`float` distinction alone — `10` absolute
+  against `10.0` relative — which put a factor of the tree's size between two values Python calls
+  equal, in a spelling no `--params` file or reader could be expected to notice. A bare number is now
+  refused and names both forms. This is the same vocabulary rates already use for the same question,
+  so it needs no new notation: the run log records it in written form (`Global(4.0)`) and it pastes
+  straight back into the flag or a TOML. The scope wrapper also rejects a negative base at
+  construction, so a validation branch disappeared with it.
+- **A gene copy is named `n<species>_g<copy>` wherever there is no column to say which species it
+  sits in** — gene-tree and phylogram Newick leaves, alignment and ancestral FASTA records, and
+  homology table headers (which used `n<species>|g<copy>`; `_` replaces `|`, which aligners and tree
+  builders treat as a field separator). Previously a FASTA record was `>g2179` and could not say
+  which genome it came from, so anyone benchmarking orthology had to join the alignments back to
+  `genomes.tsv` themselves — the first thing two independent first-time users each wrote by hand.
+  The `g<copy>` half is unchanged and the tables still carry their own `lineage` column, so every
+  file still joins on the same token: verified as 1254 FASTA records matching their gene-tree tips
+  exactly, none mismatched.
+- **Every resolution now writes the same `genome_events.tsv`.** One filename meant two different
+  tables: at the nucleotide resolution the rows were ancestral intervals, a duplication wrote one row
+  instead of two, `initial` replaced `origination`, and `lineage` on a transfer named the *donor*
+  rather than the branch the copy is born on. The columns were close enough that making them match
+  would have let the family reader accept one and build silently wrong gene trees. So the genealogy
+  is now written in the shared format — derived onto the root-block partition, where a copy either
+  covers a block in full or does not touch it, which is what makes a duplication a bifurcation — and
+  the interval record keeps its own name, **`block_events.tsv`**. `zombi2 tools` and the sequence
+  level now work identically across all three resolutions, and a new test asserts the header,
+  per-kind row arity and transfer contract agree between them. The engine, the copy ids and the
+  simulation output are unchanged: the genealogy is what the recovery already built to derive the
+  gene trees, and was being discarded. `read_nucleotide_genomes` reads `block_events.tsv`.
+- **Trees are written with 7 significant figures instead of 6.** Rounding accumulated along a
+  root-to-tip path put the extant species tree outside the `1e-6 × height` ultrametricity that
+  `read_newick` documents — measured at 19 of 20 seeds, so third-party dating and strict-clock tools
+  could reject ZOMBI2's own output. At 7 figures the drift is ~2–3e-7 and 0 of 20 seeds exceed the
+  criterion, verified up to 5000 tips. Applies to the species tree, gene trees, phylograms and trait
+  trees; event logs were already full precision.
+- **The quickstart is now one command sequence, identical in the README, on the landing page and in
+  `zombi2 --help`.** The three had drifted apart — different `--n-extant`, missing rates, and no
+  sequence step on the landing page. It now also passes `--substitution 0.05`, so the documented
+  first run produces a usable alignment (83% mean identity) rather than a saturated one.
+- **The landing page's version badge is stamped from `zombi2.__version__` at deploy time.** It read
+  `v0.2.0` while PyPI served 0.11.0. The Pages workflow now rewrites it on every deploy and fails
+  loudly if the badge is missing, so it cannot drift behind a release again.
+
+### Fixed
+- **Documented that `genome_events.tsv` holds one row per gene-tree *edge*, not per event.**
+  Duplications, transfers and speciations each write two rows; losses and originations write one.
+  Appendix B (which the output-files reference includes verbatim) previously stated this for
+  transfers only, so counting rows by kind silently doubled the other two. Three of five first-time
+  users hit this and two of them diagnosed it as a factor-of-two rate bug before finding the cause.
+  The appendix now gives the per-kind row counts and a verified counting recipe — including why that
+  recipe must *not* be applied to originations, which share `time` 0 and carry no `parent`.
+- **`--stream` no longer implies it reproduces a serial run.** Its help said "the files are the
+  same", meaning the same file *layout*; it reads as "the same content". It is a separate engine like
+  `--parallel` and draws families in a different order, so the same seed gives a different (equally
+  valid) run — verified as 173 families/3684 rows serial against 191/3996 streamed. The help now says
+  so, in the wording `--parallel` already used.
 
 ### Changed
 - **`zombi2[gallery]` now installs Phylustrator from PyPI.** The plotting library is published, so the
