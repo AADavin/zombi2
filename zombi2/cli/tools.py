@@ -16,6 +16,7 @@ from collections import Counter
 
 import argparse
 import os
+import re
 import sys
 
 from zombi2 import tree as _tree
@@ -27,7 +28,7 @@ from zombi2.tools.homology import write_homology
 from zombi2.tools.recphylo import write_recphylo
 from zombi2.cli.framework import (
     ZombiHelpFormatter, _add_flat_arg, _add_from_arg, _add_quiet_arg, _add_run_arg, _examples,
-    level_dir, resolve_genomes,
+    level_dir, resolve_genomes, warn,
 )
 
 #: what ``format`` can emit — ``name -> (subdirectory, writer, one-line gloss)``. The menu is
@@ -172,7 +173,7 @@ def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
 def _emit(text: str, path: str | None) -> None:
     """stdout by default; a file with -o."""
     if path:
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(text.rstrip("\n") + "\n")
     else:
         print(text)
@@ -212,7 +213,7 @@ def _load_gene_trees(handoff, tree):
         return genome_run.gene_trees                            # declared genes only; spacer excluded
     events_path = os.path.join(handoff, "genome_events.tsv")
     try:
-        with open(events_path) as f:
+        with open(events_path, encoding="utf-8") as f:
             events = events_from_tsv(f.read())
     except FileNotFoundError:
         raise FileNotFoundError(
@@ -224,7 +225,7 @@ def _load_gene_trees(handoff, tree):
 def _run_format(args, parser) -> int:
     """``zombi2 tools format`` — rebuild the run's gene trees and write the requested tables."""
     handoff, tree_path = resolve_genomes(args.source or args.run)
-    with open(tree_path) as f:
+    with open(tree_path, encoding="utf-8") as f:
         tree, _ = read_newick(f.read())
     gene_trees = _load_gene_trees(handoff, tree)
 
@@ -245,7 +246,7 @@ def _run_tree(args, parser) -> int:
     """``zombi2 tools tree`` — one transform, Newick in, Newick (or a RED table) out."""
     if args.values and not args.red:
         parser.error("--values only applies with --red")
-    text = sys.stdin.read() if args.input == "-" else open(args.input).read()
+    text = sys.stdin.read() if args.input == "-" else open(args.input, encoding="utf-8").read()
     try:
         if args.prune:
             t, _ = _tree.read_newick(text)                      # prune needs real fates
@@ -281,6 +282,28 @@ def _leaf_labels(tree, namemap: dict) -> dict:
     return {i: (namemap.get(i) or f"n{i}") for i, n in tree.nodes.items() if n.children is None}
 
 
+#: a ZOMBI gene-copy leaf, ``n<species>_g<copy>`` — the label every gene tree, alignment record and
+#: homology header uses. What makes it safe to detect is that both halves are ``n``/``g`` + digits,
+#: which a species label never is and a real taxon name (``E_coli``, ``Nostoc_sp_PCC7120``) never is.
+_GENE_LEAF = re.compile(r"^(n\d+)_g\d+$")
+
+
+def _species_behind(labels: dict) -> dict | None:
+    """``{leaf id: its species label}`` when *every* leaf is a gene copy, else ``None``.
+
+    A gene tree's tips are genes and a species tree's are species, so the two are not the same kind
+    of thing and comparing them by label gives an empty intersection. They can still be compared —
+    on the species each gene sits in — but only when the reader knows that is what happened, which is
+    what this detection is for."""
+    out = {}
+    for leaf, label in labels.items():
+        m = _GENE_LEAF.match(label)
+        if m is None:
+            return None
+        out[leaf] = m.group(1)
+    return out
+
+
 def _relabel_leaves(tree, leaf_labels: dict, label_id: dict):
     """A copy whose LEAF ids are ``label_id[label]`` (so two trees share leaf ids **by label**);
     internal ids are shifted clear of the leaf range. Distance compares clades of leaf ids, so this
@@ -295,13 +318,43 @@ def _relabel_leaves(tree, leaf_labels: dict, label_id: dict):
     return _tree.Tree(nodes, new[tree.root])
 
 
+def _match_gene_tree_to_species_tree(la: dict, lb: dict, parser) -> tuple[dict, dict]:
+    """When exactly one of the two trees has gene-copy tips, relabel it by the species each gene sits
+    in — and say so. Both trees the same kind ⇒ nothing to do.
+
+    A gene tree and a species tree are not the same kind of object, and left alone they share no
+    labels at all, so the comparison would fail as "different leaf sets" without saying why. They are
+    comparable on the species, and often that is exactly the question (does this family's tree recover
+    the species tree?) — but only when the mapping is one gene per species. A family with two copies
+    somewhere has no well-defined answer, and a plausible number would be worse than a refusal."""
+    ga, gb = _species_behind(la), _species_behind(lb)
+    if (ga is None) == (gb is None):            # both gene trees, or both species trees
+        return la, lb
+    which, other = ("first", "second") if ga is not None else ("second", "first")
+    species = ga if ga is not None else gb
+    repeated = sorted({s for s, n in Counter(species.values()).items() if n > 1})
+    if repeated:
+        parser.error(
+            f"the {which} tree's tips are gene copies (n<species>_g<copy>) and the {other} tree's are "
+            f"species, so the two can only be compared on the species each gene sits in — but "
+            f"{', '.join(repeated)} carry several copies each, so that is not one gene per species "
+            f"and the distance is not defined. Compare two gene trees instead, or reduce the family "
+            f"to one copy per species first.")
+    warn(f"the {which} tree's tips are gene copies and the {other} tree's are species; comparing "
+         f"them on the species each gene sits in. This family is single-copy, so that is one gene "
+         f"per species — the distance is a gene tree scored against a species tree, not two trees "
+         f"of the same kind.")
+    return (species, lb) if ga is not None else (la, species)
+
+
 def _run_treedist(args, parser) -> int:
     """``zombi2 tools treedist`` — a distance (or all) between two trees, to stdout. Tips are matched
     by **label** (the external name, or ``n<id>`` for a ZOMBI tree), not by parse order."""
     try:
-        a, na = _tree.read_newick(open(args.a).read(), assume_extant=True)
-        b, nb = _tree.read_newick(open(args.b).read(), assume_extant=True)
+        a, na = _tree.read_newick(open(args.a, encoding="utf-8").read(), assume_extant=True)
+        b, nb = _tree.read_newick(open(args.b, encoding="utf-8").read(), assume_extant=True)
         la, lb = _leaf_labels(a, na), _leaf_labels(b, nb)
+        la, lb = _match_gene_tree_to_species_tree(la, lb, parser)
         # Uniqueness first, and separately from the leaf-set check below — that one compares *sets*,
         # so a repeated label collapses into it and passes. The relabelling then maps both copies to
         # one id, and the distance comes back as a plausible number computed on a tree that is not a
