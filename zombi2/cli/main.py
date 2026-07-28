@@ -168,13 +168,21 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
-    args = parser.parse_args(argv)              # the banner shows on --help only, not on every run
+    # Parse leniently so a stray flag is reported against the COMMAND, not the top level. Argparse
+    # hands leftovers back to the parent, whose usage line lists the six commands rather than the
+    # flags — so a mistyped --transfers showed a reader a list that could not contain what they
+    # wanted. Same reason the command's own parser is handed to run() below: every parser.error()
+    # inside a level should print that level's usage.
+    args, extra = parser.parse_known_args(argv)   # the banner shows on --help only, not on every run
+    command = sub.choices[args.command]
+    if extra:
+        command.error(f"unrecognized arguments: {' '.join(extra)}")
     try:
-        return _RUN[args.command](args, parser)
+        return _RUN[args.command](args, command)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
         # Report expected failures as a clean one-line error, never a traceback — in the words of
         # the surface the user is standing on, not the one underneath it.
-        print(f"zombi2: error: {_in_flags(str(e), sub.choices[args.command])}", file=sys.stderr)
+        print(f"zombi2: error: {_in_flags(str(e), command)}", file=sys.stderr)
         return 1
 
 

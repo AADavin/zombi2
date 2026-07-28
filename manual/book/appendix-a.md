@@ -80,9 +80,13 @@ wire rather than silently ignoring it. This is what each accepts today:
 | Level | The modifiers it accepts |
 |---|---|
 | Species | `OnTime` · `OnTotalDiversity` · `FromParent` |
-| Genomes | `OnTime` · `DrivenBy` |
-| Sequences | `ByLineage` |
-| Traits | `OnTime` · `OnTotalDiversity` · `FromParent` |
+| Genomes — family, ordered | `OnTime` · `DrivenBy` · `ByFamily` |
+| Genomes — nucleotide | `OnTime` · `DrivenBy` |
+| Sequences | `ByLineage` · `FromParent` |
+| Traits | `OnTime` · `FromParent` · `OnTotalDiversity` |
+
+`zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two
+cannot disagree — and a test asserts this table against them.
 
 An empty cell means that level does not read that modifier **yet**. It is not a claim that the combination
 would be meaningless; each engine gains a modifier when its own code learns to read it, and some have not

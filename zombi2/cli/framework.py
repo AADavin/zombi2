@@ -482,12 +482,22 @@ _TREE_IN_RUN = (os.path.join("species", "species_complete.nwk"), "species_comple
 _GENOMES_IN_RUN = ("genomes", "")
 
 
-def resolve_tree(path: str) -> str:
+def resolve_tree(path: str, *, is_run_dir: bool = False) -> str:
     """Give back the species-tree file to open, from either a Newick file or a **run directory**.
 
     Spelling out ``out/species/species_complete.nwk`` is a detour through a layout the command
     already knows; the run directory says the same thing. A path that is not a directory is returned
-    untouched, so any tree from anywhere still works."""
+    untouched, so any tree from anywhere still works.
+
+    ``is_run_dir`` says the path came from the run argument rather than ``--from``, which changes
+    what a missing path means: not "your tree file is not there" but "this run has no species tree
+    yet". That is the first mistake anyone makes — typing the genomes command before the species
+    one — and it used to fall through to a bare ``tree file not found``."""
+    if is_run_dir and not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} does not exist yet, so it holds no species tree to evolve along. Run "
+            f"'zombi2 species {path} ...' first to grow one, or point --from at a Newick file or "
+            f"another run.")
     if not os.path.isdir(path):
         return path
     for candidate in _TREE_IN_RUN:

@@ -435,3 +435,40 @@ def test_a_joint_rate_realises_the_multiplier_it_was_given():
         assert abs((realised - expected) / se) < Z_MAX, (
             f"{state}: lineages split at {realised:.4f} per unit time, but the trait was told to "
             f"make them split at λ × {factor} = {expected:.4f}")
+
+
+def test_the_manual_modifier_table_matches_what_the_engines_wire():
+    """Appendix A's "which level accepts which" table, checked against the engines it describes.
+
+    It had drifted: `ByFamily` was missing from the genome row and `FromParent` from the sequence
+    row, so a reader who trusted the appendix would think two working things were unsupported. A
+    tester found the contradiction against `--help`, trusted the CLI, and was right — but said the
+    appendix had lost her confidence, which is the real cost of a doc that disagrees with the code."""
+    import pathlib
+    import re
+
+    from zombi2.genomes import WIRED_MODIFIERS as GENOMES
+    from zombi2.genomes.nucleotide import WIRED_MODIFIERS as NUCLEOTIDE
+    from zombi2.sequences import WIRED_MODIFIERS as SEQUENCES
+    from zombi2.species import WIRED_MODIFIERS as SPECIES
+    from zombi2.traits import WIRED_MODIFIERS as TRAITS
+
+    appendix = pathlib.Path(__file__).resolve().parent.parent / "manual" / "book" / "appendix-a.md"
+    if not appendix.exists():                       # the manual is not shipped in every checkout
+        import pytest
+        pytest.skip("manual/book/appendix-a.md not present")
+    # scope the search to the modifier table — an earlier table in the same appendix lists scopes
+    # and also has a "| Species |" row
+    text = appendix.read_text().split("### Which level accepts which", 1)[-1]
+
+    for row, wired in (("Species", SPECIES),
+                       ("Genomes — family, ordered", GENOMES),
+                       ("Genomes — nucleotide", NUCLEOTIDE),
+                       ("Sequences", SEQUENCES),
+                       ("Traits", TRAITS)):
+        line = next((ln for ln in text.splitlines() if ln.startswith(f"| {row} |")), None)
+        assert line, f"appendix A has no row for {row!r}"
+        listed = set(re.findall(r"`(\w+)`", line))
+        assert listed == {m.__name__ for m in wired}, (
+            f"appendix A's {row!r} row lists {sorted(listed)}, but the engine wires "
+            f"{sorted(m.__name__ for m in wired)}")
