@@ -145,6 +145,25 @@ The tips are matched by **label** — the tip name for an external tree, or `n<i
 so a true tree and an inferred tree line up by taxon, whatever order their files list the tips in. The
 two trees must carry the same tip set: a differing leaf set is an error, not a partial score.
 
+### Comparing a gene tree to a species tree
+
+A gene tree's tips are genes (`n<species>_g<copy>`) and a species tree's are species (`n<species>`),
+so the two are not the same kind of object and share no labels at all. `treedist` notices, and
+compares them on **the species each gene sits in** — the question "does this family's tree recover the
+species tree?" — saying on stderr that it has done so, because a distance between two different kinds
+of tree should never appear without a word:
+
+```bash
+zombi2 tools treedist out/genomes/gene_trees/gene_tree_fam3_extant.nwk \
+                      out/species/species_extant.nwk --metric all
+```
+
+This only works when the family is **single-copy**: one gene per species, so the mapping is
+one-to-one. A family with two copies in some genome has no well-defined distance to a species tree,
+and that is refused, naming the genomes at fault, rather than answered with a plausible number.
+Two trees of the same kind — two gene trees, or two species trees — are left alone and nothing is
+printed.
+
 ```bash
 # Robinson–Foulds between a true tree and an inferred one over the same tips
 zombi2 tools treedist true.nwk inferred.nwk --metric rf
